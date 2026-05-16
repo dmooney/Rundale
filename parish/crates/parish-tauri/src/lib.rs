@@ -959,8 +959,14 @@ pub fn run() {
 
     // engine_config already loaded above (before provider bootstrap) and
     // includes both map tile-source registry and inference timeouts. (#417)
+    //
+    // Tauri has no `/tiles/` proxy route (that lives in parish-server only),
+    // so pass `has_tile_proxy = false`: the snapshot builder substitutes
+    // `upstream_url` for sources that would otherwise advertise a dead
+    // same-origin proxy path. Without this, MapLibre fetches
+    // `/tiles/historic/{z}/{x}/{y}.png` and 404s (post-#955 regression).
     let tile_sources_snapshot =
-        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
+        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map, false);
     let active_tile_source = engine_config.map.default_tile_source.clone();
 
     // Build UI config from mod or defaults

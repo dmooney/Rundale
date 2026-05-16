@@ -307,20 +307,37 @@ impl TileSourceSnapshot {
     /// Builds the frontend-facing list from a `MapConfig`, alphabetical by id.
     ///
     /// Call this at backend boot to populate `UiConfigSnapshot::tile_sources`.
-    pub fn list_from_map_config(cfg: &parish_config::MapConfig) -> Vec<Self> {
+    ///
+    /// `has_tile_proxy` selects which URL the frontend will fetch:
+    /// - `true`  (parish-server): use `TileSourceConfig::url` — the same-origin
+    ///   `/tiles/{id}/...` proxy path served by `tile_routes::get_tile`.
+    /// - `false` (parish-tauri / any runtime without a proxy): substitute
+    ///   `upstream_url` when set, since the webview has no `/tiles/` handler
+    ///   and a proxy path would 404 (regression after PR #955).
+    pub fn list_from_map_config(
+        cfg: &parish_config::MapConfig,
+        has_tile_proxy: bool,
+    ) -> Vec<Self> {
         cfg.tile_sources
             .iter()
-            .map(|(id, src)| Self {
-                id: id.clone(),
-                label: src.label.clone(),
-                url: src.url.clone(),
-                tile_size: src.tile_size,
-                minzoom: src.minzoom,
-                maxzoom: src.maxzoom,
-                attribution: src.attribution.clone(),
-                raster_saturation: src.raster_saturation,
-                raster_opacity: src.raster_opacity,
-                tms: src.tms,
+            .map(|(id, src)| {
+                let url = if has_tile_proxy || src.upstream_url.is_empty() {
+                    src.url.clone()
+                } else {
+                    src.upstream_url.clone()
+                };
+                Self {
+                    id: id.clone(),
+                    label: src.label.clone(),
+                    url,
+                    tile_size: src.tile_size,
+                    minzoom: src.minzoom,
+                    maxzoom: src.maxzoom,
+                    attribution: src.attribution.clone(),
+                    raster_saturation: src.raster_saturation,
+                    raster_opacity: src.raster_opacity,
+                    tms: src.tms,
+                }
             })
             .collect()
     }
@@ -331,6 +348,44 @@ impl TileSourceSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tile_snapshot_proxy_mode_uses_url() {
+        let cfg = parish_config::MapConfig::default();
+        let list = TileSourceSnapshot::list_from_map_config(&cfg, true);
+        let historic = list.iter().find(|s| s.id == "historic").expect("historic");
+        assert!(
+            historic.url.starts_with("/tiles/historic/"),
+            "proxy mode must keep the same-origin /tiles/ path, got {:?}",
+            historic.url
+        );
+    }
+
+    #[test]
+    fn tile_snapshot_no_proxy_substitutes_upstream() {
+        // Regression for Tauri runtime (no /tiles/ route): the snapshot must
+        // hand MapLibre an absolute upstream URL, not a dead proxy path.
+        let cfg = parish_config::MapConfig::default();
+        let list = TileSourceSnapshot::list_from_map_config(&cfg, false);
+        let historic = list.iter().find(|s| s.id == "historic").expect("historic");
+        assert!(
+            historic.url.starts_with("https://"),
+            "no-proxy mode must substitute upstream_url, got {:?}",
+            historic.url
+        );
+        assert!(
+            historic.url.contains("mapseries-tilesets.s3.amazonaws.com"),
+            "expected NLS S3 upstream, got {:?}",
+            historic.url
+        );
+        // OSM has no upstream_url (browser fetches directly) — url must be kept.
+        let osm = list.iter().find(|s| s.id == "osm").expect("osm");
+        assert!(
+            osm.url.starts_with("https://tile.openstreetmap.org/"),
+            "OSM url should be passed through unchanged, got {:?}",
+            osm.url
+        );
+    }
 
     #[test]
     fn theme_palette_from_raw_palette() {
