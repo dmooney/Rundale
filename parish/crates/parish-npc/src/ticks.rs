@@ -717,7 +717,13 @@ pub async fn run_tier2_for_group(
             relationship_changes: resp.relationship_changes,
         }),
         Err(e) => {
-            tracing::error!("Tier 2 inference failed at {}: {}", group.location_name, e);
+            let msg = e.to_string();
+            if msg.contains("cancelled mid-stream") {
+                // Graceful cancellation (shutdown, demo turn cap). Not a failure.
+                tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
+            } else {
+                tracing::error!("Tier 2 inference failed at {}: {}", group.location_name, msg);
+            }
             None
         }
     }
