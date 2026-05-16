@@ -380,7 +380,7 @@ mod tests {
             .await;
 
         let outcome =
-            validate(&Provider::GitHubModels, &server.uri(), Some("ghp_token")).await;
+            validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -400,7 +400,7 @@ mod tests {
             .await;
 
         let outcome =
-            validate(&Provider::GitHubModels, &server.uri(), Some("ghp_token")).await;
+            validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -413,7 +413,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::GitHubModels, &server.uri(), Some("ghp_bad")).await;
+        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_bad")).await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
