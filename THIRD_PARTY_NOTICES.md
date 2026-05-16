@@ -36,8 +36,14 @@ for the frontend. The generated output is written alongside this file as
   `mapseries-tilesets.s3.amazonaws.com/os/roscommon1/…`)
 - Content: Ordnance Survey of Ireland First Edition 6-inch maps, surveyed
   1829–1842, scanned and hosted by the National Library of Scotland
-- Licence: **Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA 3.0)**
-- Attribution: "Historic 6″ OS Ireland (1829–1842) — National Library of Scotland"
+- Licence: **Creative Commons Attribution (CC-BY)** — no version specified by
+  NLS on https://maps.nls.uk/copyright.html (CC-BY ≥ 3.0 implied); per-sheet
+  viewers link the licence at the `#noncommercial` anchor on that page.
+- Required attribution: "Reproduced with the permission of the National
+  Library of Scotland"
+- Display attribution used in-game: "Historic 6″ OS Ireland (1829–1842) —
+  Reproduced with the permission of the National Library of Scotland (CC-BY)"
+- Downstream may be relicensed under CC-BY-SA (one-way CC compatibility).
 - Terms: <https://maps.nls.uk/copyright.html>
 
 ## Fonts

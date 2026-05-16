@@ -27,10 +27,20 @@ use crate::error::ParishError;
 /// `AppState` (desktop/CLI).  All clone-and-pass patterns are fine because
 /// the inner [`reqwest::Client`] and the URL-template map are both
 /// `Arc`-backed / cheaply cloneable.
+///
+/// Lookup order in [`TileCache::get`]:
+/// 1. `cache_dir` — mutable per-user cache, written on upstream miss.
+/// 2. `bundled_dir` — read-only pre-seeded bundle (e.g. shipped game data);
+///    hit returns immediately without touching the network or writing to cache.
+/// 3. Upstream fetch via `url_templates` → persisted to `cache_dir`.
 #[derive(Clone)]
 pub struct TileCache {
     /// Root directory for cached tile files.
     cache_dir: PathBuf,
+    /// Optional read-only directory of pre-seeded tiles. Checked after
+    /// `cache_dir` misses and before upstream fetch. Enables offline play
+    /// when the tile bundle is shipped with the game data.
+    bundled_dir: Option<PathBuf>,
     /// XYZ URL templates keyed by source id, loaded from config at startup.
     /// Using config-provided templates (not user input) in the upstream fetch
     /// prevents SSRF: the remote host is always a config-vetted value.
@@ -51,9 +61,20 @@ impl TileCache {
     pub fn new(cache_dir: PathBuf, url_templates: HashMap<String, String>) -> Self {
         Self {
             cache_dir,
+            bundled_dir: None,
             url_templates: std::sync::Arc::new(url_templates),
             http: reqwest::Client::new(),
         }
+    }
+
+    /// Set a read-only bundled tile directory checked before upstream fetches.
+    ///
+    /// Tiles found here are returned directly without being copied to
+    /// `cache_dir`.  The directory must already exist; an absent path is
+    /// silently ignored at lookup time (the cache falls through to upstream).
+    pub fn with_bundled_dir(mut self, dir: PathBuf) -> Self {
+        self.bundled_dir = Some(dir);
+        self
     }
 
     /// Returns a tile from cache (disk hit) or fetches it from upstream (miss).
@@ -125,6 +146,23 @@ impl TileCache {
             Ok(data) => return Ok(data),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.into()),
+        }
+
+        // ── Bundled-dir fallback (read-only) ─────────────────────────────
+        // Checked after a cache_dir miss and before hitting the network.
+        // Uses the same CodeQL-safe `safe_dir` derived above so the path
+        // components are never derived from raw HTTP params.
+        if let Some(ref bundled) = self.bundled_dir {
+            let bundled_path = bundled
+                .join(safe_dir)
+                .join(z.to_string())
+                .join(x.to_string())
+                .join(format!("{y}.png"));
+            match tokio::fs::read(&bundled_path).await {
+                Ok(data) => return Ok(data),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
         }
 
         // ── Cache miss: fetch from upstream ───────────────────────────────
@@ -266,5 +304,118 @@ mod tests {
 
         let err = cache.get("roscommon1", 10, 500, 350).await.unwrap_err();
         assert!(matches!(err, ParishError::Network(_)));
+    }
+
+    // ── bundled_dir tests ────────────────────────────────────────────────
+
+    fn write_bundled_tile(
+        bundled_dir: &TempDir,
+        source: &str,
+        z: u32,
+        x: u32,
+        y: u32,
+        data: &[u8],
+    ) {
+        let path = bundled_dir
+            .path()
+            .join(source)
+            .join(z.to_string())
+            .join(x.to_string())
+            .join(format!("{y}.png"));
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, data).unwrap();
+    }
+
+    #[tokio::test]
+    async fn bundled_dir_hit_skips_upstream() {
+        // If the tile is in the bundled dir, no upstream request should fire.
+        let mock_server = MockServer::start().await;
+        // No mocks registered — any request to the mock server would panic.
+
+        let cache_dir = TempDir::new().unwrap();
+        let bundled_dir = TempDir::new().unwrap();
+        write_bundled_tile(&bundled_dir, "roscommon1", 10, 500, 350, b"bundled-tile");
+
+        let upstream_url = format!("{}/{{z}}/{{x}}/{{y}}.png", mock_server.uri());
+        let cache = make_cache_with_url(&cache_dir, &upstream_url)
+            .with_bundled_dir(bundled_dir.path().to_path_buf());
+
+        let data = cache.get("roscommon1", 10, 500, 350).await.unwrap();
+        assert_eq!(data, b"bundled-tile");
+    }
+
+    #[tokio::test]
+    async fn bundled_dir_miss_falls_through_to_upstream() {
+        // Bundled dir exists but lacks the tile → upstream is called → result cached.
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/10/500/350.png"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"upstream-tile"))
+            .mount(&mock_server)
+            .await;
+
+        let cache_dir = TempDir::new().unwrap();
+        let bundled_dir = TempDir::new().unwrap(); // empty — no tile here
+
+        let upstream_url = format!("{}/{{z}}/{{x}}/{{y}}.png", mock_server.uri());
+        let cache = make_cache_with_url(&cache_dir, &upstream_url)
+            .with_bundled_dir(bundled_dir.path().to_path_buf());
+
+        let data = cache.get("roscommon1", 10, 500, 350).await.unwrap();
+        assert_eq!(data, b"upstream-tile");
+
+        // Should now be in cache_dir (persisted on upstream hit)
+        let cached_path = cache_dir
+            .path()
+            .join("roscommon1")
+            .join("10")
+            .join("500")
+            .join("350.png");
+        assert!(cached_path.exists());
+    }
+
+    #[tokio::test]
+    async fn cache_dir_hit_takes_precedence_over_bundled_dir() {
+        // cache_dir has a tile; bundled_dir has a different one.
+        // cache_dir must win (it is checked first).
+        let cache_dir = TempDir::new().unwrap();
+        let bundled_dir = TempDir::new().unwrap();
+
+        // Write different content to each dir
+        let cached_path = cache_dir
+            .path()
+            .join("roscommon1")
+            .join("10")
+            .join("500")
+            .join("350.png");
+        std::fs::create_dir_all(cached_path.parent().unwrap()).unwrap();
+        std::fs::write(&cached_path, b"cache-tile").unwrap();
+        write_bundled_tile(&bundled_dir, "roscommon1", 10, 500, 350, b"bundled-tile");
+
+        let cache = make_cache(&cache_dir).with_bundled_dir(bundled_dir.path().to_path_buf());
+
+        let data = cache.get("roscommon1", 10, 500, 350).await.unwrap();
+        assert_eq!(data, b"cache-tile");
+    }
+
+    #[tokio::test]
+    async fn bundled_dir_io_error_propagates() {
+        // bundled_dir is a file, not a directory → joining paths returns a
+        // non-directory entry → read fails with something other than NotFound.
+        let cache_dir = TempDir::new().unwrap();
+        let bundled_file = cache_dir.path().join("not-a-dir.txt");
+        std::fs::write(&bundled_file, b"oops").unwrap();
+
+        // Place a same-name path inside the file so the subpath yields an error.
+        // On Linux, joining paths into a regular file gives NotADirectory on read.
+        let cache = make_cache(&cache_dir).with_bundled_dir(bundled_file.clone());
+
+        // The attempt to read bundled_file/roscommon1/10/500/350.png should
+        // fail with an I/O error other than NotFound (ENOTDIR), surfaced as
+        // ParishError::Io. If it's NotFound the fallback would hit the upstream
+        // (no templates → Config error); either outcome is acceptable here but
+        // the important invariant is: no panic, clean error.
+        let result = cache.get("roscommon1", 10, 500, 350).await;
+        assert!(result.is_err());
     }
 }

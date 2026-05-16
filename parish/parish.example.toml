@@ -139,6 +139,7 @@ fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location mat
 #
 # [engine.map]
 # default_tile_source = "historic"
+# bundled_tiles_dir = "mods/rundale/tiles"   # pre-seeded offline tile bundle (optional)
 #
 # [engine.map.tile_sources.osm]
 # label = "OpenStreetMap"
@@ -153,7 +154,7 @@ fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location mat
 #
 # [engine.map.tile_sources.historic]
 # # Ordnance Survey of Ireland First Edition 6-inch (surveyed 1829–1842),
-# # scanned and hosted by the National Library of Scotland under CC-BY-SA 3.0.
+# # scanned and hosted by the National Library of Scotland under CC-BY.
 # # NLS serves Ireland as 32 per-county tilesets under `os/<county>1/` — there
 # # is no seamless all-Ireland layer. The baked-in default is Roscommon (where
 # # Rundale is set); expanding to whole-island coverage is tracked in #360.

@@ -48,3 +48,7 @@ parish/dist/vllm-mlx-bundle.tar.zst.sha256
 # MCP backend runtime files (created by parish-mcp-backend.sh)
 parish/.parish-mcp-backend.log
 parish/.parish-mcp-backend.pid
+
+# Optional bundled tile directory consumed by TileCache.bundled_dir fallback.
+# Empty in tree — populate locally if/when a tile bundle becomes available.
+mods/rundale/tiles/
