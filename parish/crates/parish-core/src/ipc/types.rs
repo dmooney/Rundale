@@ -314,10 +314,7 @@ impl TileSourceSnapshot {
     /// - `false` (parish-tauri / any runtime without a proxy): substitute
     ///   `upstream_url` when set, since the webview has no `/tiles/` handler
     ///   and a proxy path would 404 (regression after PR #955).
-    pub fn list_from_map_config(
-        cfg: &parish_config::MapConfig,
-        has_tile_proxy: bool,
-    ) -> Vec<Self> {
+    pub fn list_from_map_config(cfg: &parish_config::MapConfig, has_tile_proxy: bool) -> Vec<Self> {
         cfg.tile_sources
             .iter()
             .map(|(id, src)| {
