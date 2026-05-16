@@ -717,7 +717,7 @@ pub async fn run_tier2_for_group(
             relationship_changes: resp.relationship_changes,
         }),
         Err(e) => {
-            tracing::warn!("Tier 2 inference failed at {}: {}", group.location_name, e);
+            tracing::error!("Tier 2 inference failed at {}: {}", group.location_name, e);
             None
         }
     }
