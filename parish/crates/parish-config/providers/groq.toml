@@ -12,7 +12,7 @@ featured = true
 [[presets]]
 key = "recommended"
 label = "Recommended"
-dialogue = "openai/gpt-oss-120b"
+dialogue = "llama-3.3-70b-versatile"
 simulation = "llama-3.3-70b-versatile"
 intent = "llama-3.1-8b-instant"
 reaction = "llama-3.3-70b-versatile"
