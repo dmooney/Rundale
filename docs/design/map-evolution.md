@@ -124,13 +124,14 @@ The map could be more than navigation:
 | ~~**Phase C**~~ | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~ | **Done** |
 | ~~**Phase D (map)**~~ | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~ | **Done** |
 | ~~**Phase D.1 (tiles)**~~ | ~~`/tiles` slash command + configurable tile-source registry (OSM + Ireland Historic 6" 1829–1842 via NLS), gated behind `period-map-tiles` feature flag~~ | **Done** |
+| **Phase D.2 (offline) — partial** | `TileCache` bundled-dir fallback wired (3-tier lookup: user cache → bundled dir → upstream) + `bundled_tiles_dir` config field. Tile-population path **deferred** — see "Offline tile bundling" below. | Small (infra), Large (data pipeline) |
 | **Phase D (TUI)** | TUI ASCII map (#8) | Medium |
 | **Phase E** | Narrative annotations (#10) + NPC trails | Large |
 
 ## Open Questions
 
 - Should the minimap be circular (GTA style) or rectangular (matching the panel shape)?
-- For OSM tiles: bundle offline or fetch on demand? Offline avoids network dependency but adds to binary/data size.
+- For OSM tiles: bundle offline or fetch on demand? **Status:** current shipping behaviour is on-demand fetch with server-side disk cache (one upstream hit per unique tile, cached forever). `TileCache.bundled_dir` is wired and ready, but no tile-pre-seed path lives in the repo — see "Offline tile bundling" below.
 - Should fog of war persist across save/load? (Probably yes — it's part of game state.)
 - How does the `/map` overlay interact with the input field? Does it capture keyboard focus?
 - Do we want the minimap in the TUI as well, or only GUI mode?
@@ -172,8 +173,76 @@ The feature is gated behind the **`period-map-tiles`** flag
 - Only XYZ raster URL templates (`{z}/{x}/{y}.png`, optional TMS y-flip)
   — no WMS/WMTS adapters yet.
 - No custom MapLibre style (still the Phase D sepia-via-desaturation look).
-- No offline tile bundling — still on-demand fetch.
+- No offline tile bundling at this phase — `TileCache.bundled_dir` infra
+  exists (Phase D.2 partial) but the population pipeline is deferred.
 - Minimap stays flat-bg only.
+
+## Phase D.2 — Offline tile bundling (partial: infra wired, data pipeline deferred)
+
+`TileCache` (in `parish-core`) now does a three-tier lookup on each request:
+
+1. `cache_dir` — mutable per-user cache, written on upstream hit (Phase D.1).
+2. `bundled_dir` — read-only pre-seeded bundle; hit returns immediately
+   without writing to cache or hitting the network.
+3. Upstream fetch → persisted to `cache_dir` (Phase D.1).
+
+`MapConfig` exposes `bundled_tiles_dir: Option<PathBuf>`. At server startup
+`init_tile_cache` resolves it in this order:
+
+- `PARISH_BUNDLED_TILES_DIR` env var
+- `[engine.map] bundled_tiles_dir` in `parish.toml`
+- Conventional default `{data_dir}/tiles` (used only if the directory exists)
+
+When set, the cache uses it as the read-only second tier. When unset, the
+fallback is a no-op and the lookup degrades to the Phase D.1 behaviour.
+
+### Why no tile-population script lives in the repo
+
+We considered two paths and shelved both for now:
+
+1. **Tile-scrape against NLS S3** (`mapseries-tilesets.s3.amazonaws.com/os/<county>1/`).
+   The bucket is publicly served and has no robots.txt, but NLS migrated their
+   *official* tile service to MapTiler Cloud (April 2022, metered: 100k/mo
+   free, $0.10/1k overage). Scraping the legacy S3 endpoint at island scale
+   (~6.3M tiles for z=12–17, ~30–60 GB) would be high-traffic against
+   infrastructure NLS no longer markets, and conflicts with NLS guidance that
+   "use of online service or tiles in commercial websites or applications
+   must be confirmed from NLS's side" (`geo@nls.uk`).
+
+2. **GeoTIFF-scrape via `maps.nls.uk`** for the 1,940 first-edition sheets,
+   then locally tile via `gdalbuildvrt` + `gdal2tiles`. `maps.nls.uk` is
+   behind AWS WAF — scripted fetches get JS-challenge pages, so the natural
+   path is a headed/headless browser or the documented email request flow
+   (`maps@nls.uk`). The sheets carry CC-BY (verified directly against the
+   NLS copyright page on 2026-05-16), which permits redistribution as a
+   game asset; we just don't want to shape the scrape ourselves until we've
+   coordinated with NLS.
+
+Current shipping behaviour is therefore: server fetches tiles from the NLS
+S3 bucket on demand, caches each tile to disk after the first request, and
+serves the cached copy thereafter. Per-tile load against NLS is bounded at
+once-per-server-instance-ever. For dev / small-audience use this is fine.
+
+### What to do before a public launch
+
+1. Email `geo@nls.uk` describing the use case (Rundale, redistributable
+   game asset, CC-BY attribution preserved). Ask whether they prefer:
+   (a) continued on-demand fetch with server-side caching,
+   (b) bulk GeoTIFF delivery for local tiling, or
+   (c) signing up for MapTiler Cloud against the NLS layers.
+2. Whichever path lands, populate `bundled_dir` once and ship `mods/rundale/tiles/`
+   (or another resolved path) as a game asset. No code changes needed —
+   `TileCache` will pick it up via the existing config.
+
+### Licence
+
+Historic 6" OS Ireland sheets: **CC-BY** (no version specified by NLS;
+≥ 3.0 implied). Verified against the live NLS copyright page and the
+per-sheet viewer's licence link (`#noncommercial` anchor). Required
+attribution: *"Reproduced with the permission of the National Library of
+Scotland"*. Downstream may be relicensed under CC-BY-SA via the standard
+one-way CC compatibility direction. The repo previously claimed CC-BY-SA 3.0
+at multiple sites — those have been corrected.
 
 ## Related
 

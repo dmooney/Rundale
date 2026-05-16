@@ -729,6 +729,14 @@ pub struct MapConfig {
     /// Registry of available raster tile sources, keyed by id.
     #[serde(default = "default_tile_sources")]
     pub tile_sources: BTreeMap<String, TileSourceConfig>,
+    /// Optional path to a pre-seeded tile directory. When set, `TileCache`
+    /// checks this directory before hitting the upstream network, enabling
+    /// offline play. Path is resolved at startup; relative paths are resolved
+    /// against the mod/data directory (see CLAUDE.md rule #9). `None` means
+    /// no bundled tiles — the cache falls through to the upstream fetch as
+    /// normal. Can also be overridden at startup via `PARISH_BUNDLED_TILES_DIR`.
+    #[serde(default)]
+    pub bundled_tiles_dir: Option<std::path::PathBuf>,
 }
 
 impl Default for MapConfig {
@@ -736,6 +744,7 @@ impl Default for MapConfig {
         Self {
             default_tile_source: default_tile_source_id(),
             tile_sources: default_tile_sources(),
+            bundled_tiles_dir: None,
         }
     }
 }
@@ -785,7 +794,12 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             // expanding to whole-island coverage will require a multi-source
             // style (see issue #360).
             //
-            // Terms: CC-BY-SA 3.0 per https://maps.nls.uk/copyright.html.
+            // Terms: CC-BY per https://maps.nls.uk/copyright.html
+            // (no version specified by NLS; CC-BY ≥ 3.0 implied). Per-sheet
+            // viewers link the licence at the #noncommercial anchor.
+            // Required attribution: "Reproduced with the permission of the
+            // National Library of Scotland". Downstream may be relicensed
+            // under CC-BY-SA per Creative Commons one-way compatibility.
             //
             // `url` is the same-origin proxy path the browser hits (issue #360);
             // `upstream_url` is the absolute NLS S3 URL the server-side
@@ -800,7 +814,7 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             minzoom: 1,
             maxzoom: 17,
             attribution:
-                "Historic 6\" OS Ireland (1829–1842) — National Library of Scotland (CC-BY-SA 3.0)"
+                "Historic 6\" OS Ireland (1829–1842) — Reproduced with the permission of the National Library of Scotland (CC-BY)"
                     .to_string(),
             raster_saturation: 0.0,
             raster_opacity: 1.0,
@@ -1118,6 +1132,7 @@ memory_capacity = 30
         let mut cfg = MapConfig {
             default_tile_source: "osm".to_string(),
             tile_sources: BTreeMap::new(),
+            bundled_tiles_dir: None,
         };
         cfg.tile_sources.insert(
             "custom".to_string(),
@@ -1149,6 +1164,34 @@ memory_capacity = 30
         assert_eq!(
             cfg.tile_sources["osm"].url,
             "https://example.com/custom-osm/{z}/{x}/{y}.png"
+        );
+    }
+
+    #[test]
+    fn map_config_bundled_tiles_dir_defaults_to_none() {
+        assert!(MapConfig::default().bundled_tiles_dir.is_none());
+    }
+
+    #[test]
+    fn map_config_bundled_tiles_dir_deserializes_from_toml() {
+        let toml = r#"bundled_tiles_dir = "/opt/parish/tiles""#;
+        let cfg: MapConfig = toml::from_str(toml).unwrap();
+        assert_eq!(
+            cfg.bundled_tiles_dir,
+            Some(std::path::PathBuf::from("/opt/parish/tiles"))
+        );
+    }
+
+    #[test]
+    fn map_config_apply_defaults_preserves_bundled_tiles_dir() {
+        let mut cfg = MapConfig {
+            bundled_tiles_dir: Some(std::path::PathBuf::from("/opt/tiles")),
+            ..MapConfig::default()
+        };
+        cfg.apply_defaults();
+        assert_eq!(
+            cfg.bundled_tiles_dir,
+            Some(std::path::PathBuf::from("/opt/tiles"))
         );
     }
 
