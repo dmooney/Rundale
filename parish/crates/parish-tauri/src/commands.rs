@@ -1781,16 +1781,32 @@ pub async fn get_latest_screenshot(
 }
 
 /// Agent-triggered screenshot capture. Registered as a Tauri command for
-/// wiring-parity with the `/api/take-screenshot` bridge route; the actual
-/// MCP round-trip is driven by the bridge handler in `mcp_bridge.rs` which
-/// emits `request-screenshot` and awaits `notify_screenshot_captured`.
+/// wiring-parity with the `/api/take-screenshot` bridge route.
 ///
 /// In Tauri mode this is not invoked directly by the frontend — use the MCP
-/// tool `parish_take_screenshot` instead.
+/// tool `parish_take_screenshot` instead. The bridge handler also calls
+/// `do_take_screenshot` directly for a shared implementation.
 #[tauri::command]
 pub async fn take_screenshot(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
+) -> Result<ScreenshotInfo, String> {
+    do_take_screenshot(&state, &app).await
+}
+
+/// Shared implementation for agent-triggered screenshot capture.
+///
+/// Generates a UUID request ID, stashes a `oneshot::Sender` in
+/// `AppState::pending_screenshots`, emits `request-screenshot` to the live
+/// frontend window, and awaits the result for up to 15 seconds.
+///
+/// On emit failure the pending entry is cleaned up immediately so the map
+/// does not grow unbounded. On timeout the entry is also removed.
+/// The frontend delivers the result via `notify_screenshot_captured` (success)
+/// or `notify_screenshot_error` (failure).
+pub(crate) async fn do_take_screenshot(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
     use tokio::sync::oneshot;
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -1799,13 +1815,16 @@ pub async fn take_screenshot(
         let mut pending = state.pending_screenshots.lock().await;
         pending.insert(request_id.clone(), tx);
     }
-    app.emit(
+    if let Err(e) = app.emit(
         crate::events::EVENT_REQUEST_SCREENSHOT,
         serde_json::json!({"request_id": request_id}),
-    )
-    .map_err(|e| e.to_string())?;
+    ) {
+        let mut pending = state.pending_screenshots.lock().await;
+        pending.remove(&request_id);
+        return Err(e.to_string());
+    }
     match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
-        Ok(Ok(info)) => Ok(info),
+        Ok(Ok(result)) => result,
         Ok(Err(_)) => Err("screenshot request cancelled".into()),
         Err(_) => {
             let mut pending = state.pending_screenshots.lock().await;
@@ -1815,14 +1834,12 @@ pub async fn take_screenshot(
     }
 }
 
-/// Called by the frontend after it captures a screenshot in response to the
-/// `request-screenshot` Tauri event emitted by the MCP bridge. Looks up the
-/// pending oneshot sender by `request_id` and delivers the `ScreenshotInfo`
-/// through it so the waiting `/api/take-screenshot` bridge handler can return
-/// the result to the MCP client.
+/// Called by the frontend after successfully capturing a screenshot in
+/// response to a `request-screenshot` Tauri event. Delivers the
+/// `ScreenshotInfo` through the pending oneshot channel so the waiting
+/// bridge handler can return it to the MCP client.
 ///
-/// This is an internal round-trip callback — it is not a user-facing IPC
-/// command and has no HTTP equivalent on `parish-server`.
+/// Internal round-trip callback — no HTTP equivalent on `parish-server`.
 #[tauri::command]
 pub async fn notify_screenshot_captured(
     request_id: String,
@@ -1831,7 +1848,25 @@ pub async fn notify_screenshot_captured(
 ) -> Result<(), String> {
     let mut pending = state.pending_screenshots.lock().await;
     if let Some(tx) = pending.remove(&request_id) {
-        let _ = tx.send(info);
+        let _ = tx.send(Ok(info));
+    }
+    Ok(())
+}
+
+/// Called by the frontend when screenshot capture fails (e.g. `html-to-image`
+/// error or `save_screenshot` IPC error). Immediately unblocks the waiting
+/// bridge handler with the error message instead of letting it time out.
+///
+/// Internal round-trip callback — no HTTP equivalent on `parish-server`.
+#[tauri::command]
+pub async fn notify_screenshot_error(
+    request_id: String,
+    error: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    let mut pending = state.pending_screenshots.lock().await;
+    if let Some(tx) = pending.remove(&request_id) {
+        let _ = tx.send(Err(error));
     }
     Ok(())
 }

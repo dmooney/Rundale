@@ -31,7 +31,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::ScreenshotInfo;
-use crate::events::{EVENT_REQUEST_SCREENSHOT, EVENT_TEXT_LOG, TextLogPayload};
+use crate::events::{EVENT_TEXT_LOG, TextLogPayload};
 use crate::{
     AppState, MapData, MapLocation, NpcInfo, SaveState, SetupStatusSnapshot, WorldSnapshot,
 };
@@ -293,26 +293,13 @@ async fn latest_screenshot(
     Ok(Json(info))
 }
 
-async fn take_screenshot_mcp(State(b): State<BridgeState>) -> Result<Json<ScreenshotInfo>, AppError> {
-    use tokio::sync::oneshot;
-    let request_id = uuid::Uuid::new_v4().to_string();
-    let (tx, rx) = oneshot::channel();
-    {
-        let mut pending = b.state.pending_screenshots.lock().await;
-        pending.insert(request_id.clone(), tx);
-    }
-    b.app
-        .emit(EVENT_REQUEST_SCREENSHOT, serde_json::json!({"request_id": request_id}))
-        .map_err(|e| AppError(e.to_string()))?;
-    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
-        Ok(Ok(info)) => Ok(Json(info)),
-        Ok(Err(_)) => Err(AppError("screenshot request cancelled".into())),
-        Err(_) => {
-            let mut pending = b.state.pending_screenshots.lock().await;
-            pending.remove(&request_id);
-            Err(AppError("screenshot capture timed out after 15 s".into()))
-        }
-    }
+async fn take_screenshot_mcp(
+    State(b): State<BridgeState>,
+) -> Result<Json<ScreenshotInfo>, AppError> {
+    let info = crate::commands::do_take_screenshot(&b.state, &b.app)
+        .await
+        .map_err(AppError::from)?;
+    Ok(Json(info))
 }
 
 // ── BYOK setup-flow ──────────────────────────────────────────────────────────

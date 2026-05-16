@@ -57,6 +57,7 @@
 		submitInput,
 		saveScreenshot,
 		notifyScreenshotCaptured,
+		notifyScreenshotError,
 		disposeTransport
 	} from '$lib/ipc';
 	import { captureScreen } from '$lib/screenshot';
@@ -424,7 +425,9 @@
 					const info = await saveScreenshot(dataUrl);
 					await notifyScreenshotCaptured(payload.request_id, info);
 				} catch (e) {
-					console.warn('Agent screenshot capture failed:', e);
+					const msg = e instanceof Error ? e.message : String(e);
+					console.warn('Agent screenshot capture failed:', msg);
+					await notifyScreenshotError(payload.request_id, msg).catch(() => {});
 				}
 			}));
 		} catch (e) {

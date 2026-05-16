@@ -144,6 +144,17 @@ export const getLatestScreenshot = () =>
 export const notifyScreenshotCaptured = (requestId: string, info: ScreenshotInfo) =>
 	command<void>('notify_screenshot_captured', { requestId, info });
 
+/**
+ * Reports a screenshot capture failure back to the MCP bridge so it can
+ * return an error to the MCP client immediately rather than waiting for the
+ * 15-second timeout.
+ *
+ * Call this whenever `captureScreen()` or `saveScreenshot()` throws inside
+ * the `onRequestScreenshot` handler.
+ */
+export const notifyScreenshotError = (requestId: string, error: string) =>
+	command<void>('notify_screenshot_error', { requestId, error });
+
 export interface RequestScreenshotPayload {
 	request_id: string;
 }

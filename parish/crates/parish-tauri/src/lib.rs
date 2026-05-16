@@ -381,7 +381,10 @@ pub struct AppState {
     /// `ScreenshotInfo` through it, and removes the entry. Entries are also
     /// removed on timeout inside the bridge handler.
     pub pending_screenshots: Mutex<
-        std::collections::HashMap<String, tokio::sync::oneshot::Sender<crate::commands::ScreenshotInfo>>,
+        std::collections::HashMap<
+            String,
+            tokio::sync::oneshot::Sender<Result<crate::commands::ScreenshotInfo, String>>,
+        >,
     >,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
@@ -1169,6 +1172,7 @@ pub fn run() {
             commands::get_latest_screenshot,
             commands::take_screenshot,
             commands::notify_screenshot_captured,
+            commands::notify_screenshot_error,
             editor_commands::editor_list_mods,
             editor_commands::editor_open_mod,
             editor_commands::editor_get_snapshot,
