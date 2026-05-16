@@ -63,7 +63,7 @@ def github_models_complete(system: str, prompt: str) -> str:
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"].strip()
+            return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         print(f"ERROR: GitHub Models API returned {e.code}: {body}", file=sys.stderr)

@@ -87,7 +87,7 @@ def github_models_complete(messages: list[dict]) -> str:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"].strip()
+            return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         sys.exit(f"ERROR: GitHub Models API returned {e.code}: {body}")
@@ -121,7 +121,8 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
     except Exception as e:
         print(f"Warning: could not start new game: {e}", file=sys.stderr)
 
-    scripted = [l for l in scenario_lines if l and not l.startswith("#")]
+    scripted = [l.strip() for l in scenario_lines
+                if l.strip() and (not l.strip().startswith("#") or l.strip() == "# llm")]
     scripted_idx = 0
 
     for turn in range(turns):
