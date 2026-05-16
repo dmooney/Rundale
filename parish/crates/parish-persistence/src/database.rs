@@ -168,9 +168,10 @@ impl Database {
             return Ok(());
         }
 
-        self.conn
-            .execute_batch(
-                "PRAGMA foreign_keys=OFF;
+        let migration = self.conn.execute_batch(
+            "PRAGMA foreign_keys=OFF;
+                 BEGIN IMMEDIATE;
+                 DROP TABLE IF EXISTS branches_new;
                  CREATE TABLE branches_new (
                     id INTEGER PRIMARY KEY,
                     name TEXT UNIQUE NOT NULL,
@@ -192,8 +193,17 @@ impl Database {
                  FROM branches AS child;
                  DROP TABLE branches;
                  ALTER TABLE branches_new RENAME TO branches;
-                 PRAGMA foreign_keys=ON;",
-            )
+                 COMMIT;",
+        );
+
+        if let Err(err) = migration {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+            let _ = self.conn.execute_batch("PRAGMA foreign_keys=ON;");
+            return Err(err).db_err();
+        }
+
+        self.conn
+            .execute_batch("PRAGMA foreign_keys=ON;")
             .db_err()?;
 
         Ok(())

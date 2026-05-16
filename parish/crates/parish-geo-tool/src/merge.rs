@@ -99,13 +99,18 @@ pub fn merge_locations(
         })
         .collect();
 
+    let curated_ids: std::collections::HashSet<LocationId> =
+        curated.iter().map(|loc| loc.data.id).collect();
+
     // Reassign IDs for generated locations
     let mut id_remap: HashMap<u32, u32> = HashMap::new();
     let mut result = curated;
 
     for (next_id, mut generated_loc) in (max_curated_id + 1..).zip(filtered_generated) {
         let old_id = generated_loc.data.id.0;
-        id_remap.insert(old_id, next_id);
+        if !curated_ids.contains(&LocationId(old_id)) {
+            id_remap.insert(old_id, next_id);
+        }
         generated_loc.data.id = LocationId(next_id);
         result.push(generated_loc);
     }
@@ -401,6 +406,70 @@ mod tests {
             .unwrap();
         assert_eq!(curated.data.connections.len(), 1);
         assert_eq!(curated.data.connections[0].target, LocationId(2));
+    }
+
+    #[test]
+    fn test_merge_does_not_remap_curated_connection_on_generated_id_collision() {
+        let mut curated_origin =
+            make_tracked(1, "Curated Church", DescriptionSource::Curated, 53.5, -8.0);
+        curated_origin
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: LocationId(100),
+                path_description: "to curated market".to_string(),
+                hazard: Default::default(),
+            });
+        curated_origin
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: LocationId(200),
+                path_description: "to generated quay".to_string(),
+                hazard: Default::default(),
+            });
+
+        let curated_target = make_tracked(
+            100,
+            "Curated Market",
+            DescriptionSource::Curated,
+            53.51,
+            -8.0,
+        );
+        let colliding_generated = make_tracked(
+            100,
+            "Generated Market",
+            DescriptionSource::Template,
+            53.7,
+            -8.0,
+        );
+        let generated_quay = make_tracked(
+            200,
+            "Generated Quay",
+            DescriptionSource::Template,
+            53.8,
+            -8.0,
+        );
+
+        let result = merge_locations(
+            vec![curated_origin, curated_target],
+            vec![colliding_generated, generated_quay],
+            50.0,
+        );
+
+        let curated = result
+            .iter()
+            .find(|loc| loc.data.name == "Curated Church")
+            .unwrap();
+        assert_eq!(
+            curated
+                .data
+                .connections
+                .iter()
+                .map(|conn| conn.target)
+                .collect::<Vec<_>>(),
+            vec![LocationId(100), LocationId(102)]
+        );
     }
 
     #[test]
