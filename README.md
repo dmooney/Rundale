@@ -254,6 +254,7 @@ licence texts is in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); run
 Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright)
 contributors, licensed under the
 [Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
-Historic 6″ Ordnance Survey Ireland tiles (1829–1842) courtesy of the
-[National Library of Scotland](https://maps.nls.uk/), licensed under
-[CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). UI icons use [Phosphor Icons](https://phosphoricons.com/) under MIT.
+Historic 6″ Ordnance Survey Ireland tiles (1829–1842) reproduced with the
+permission of the [National Library of Scotland](https://maps.nls.uk/),
+licensed under [CC-BY](https://maps.nls.uk/copyright.html). UI icons use
+[Phosphor Icons](https://phosphoricons.com/) under MIT.

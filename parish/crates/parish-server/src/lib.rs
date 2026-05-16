@@ -401,7 +401,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     check_ws_signing_key_warning();
 
     // ── Tile cache / admission control / GlobalState ────────────────────────
-    let tile_cache = init_tile_cache(&saves_dir, &engine_config).await;
+    let tile_cache = init_tile_cache(&saves_dir, &data_dir, &engine_config).await;
     let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
         sessions,
@@ -842,8 +842,14 @@ fn check_ws_signing_key_warning() {
 
 /// Creates the tile cache directory (env var or `<saves_dir>/tile-cache/`) and
 /// returns an initialised [`TileCache`].
+///
+/// Bundled-dir resolution order (Rule #9 — paths from config, not cwd):
+/// 1. `PARISH_BUNDLED_TILES_DIR` env var
+/// 2. `engine_config.map.bundled_tiles_dir` from `parish.toml`
+/// 3. `{data_dir}/tiles` if that directory exists on disk (conventional default)
 async fn init_tile_cache(
     saves_dir: &Path,
+    data_dir: &Path,
     engine_config: &parish_core::config::EngineConfig,
 ) -> parish_core::tile_cache::TileCache {
     let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
@@ -872,7 +878,37 @@ async fn init_tile_cache(
         .filter(|(_, cfg)| !cfg.upstream_url.is_empty())
         .map(|(id, cfg)| (id.clone(), cfg.upstream_url.clone()))
         .collect();
-    let cache = parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
+    let mut cache =
+        parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
+
+    // Resolve bundled tile directory: env var → TOML config → conventional default.
+    //
+    // Relative paths from env or TOML are resolved against `data_dir` (rule #9 —
+    // packaged/daemon runs cannot rely on CWD matching the project root). The
+    // conventional default `{data_dir}/tiles` is probed with async I/O so we
+    // never block the Tokio executor during startup.
+    let configured: Option<PathBuf> = std::env::var("PARISH_BUNDLED_TILES_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| engine_config.map.bundled_tiles_dir.clone());
+
+    let bundled_dir: Option<PathBuf> = match configured {
+        Some(p) if p.is_relative() => Some(data_dir.join(p)),
+        Some(p) => Some(p),
+        None => {
+            let default = data_dir.join("tiles");
+            match tokio::fs::metadata(&default).await {
+                Ok(m) if m.is_dir() => Some(default),
+                _ => None,
+            }
+        }
+    };
+    if let Some(ref bd) = bundled_dir {
+        tracing::info!(dir = %bd.display(), "Bundled tile directory configured");
+        cache = cache.with_bundled_dir(bd.clone());
+    }
+
     tracing::info!(dir = %tile_cache_dir.display(), "Tile cache initialised");
     cache
 }
