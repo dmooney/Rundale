@@ -1,0 +1,35 @@
+# Intent scenario — 25 turns stress-testing the intent parser.
+# Sends 20+ varied phrasings of movement, look, and greeting commands
+# to verify intent is correctly classified across rephrasings.
+# No LLM player needed for intent coverage — scripted commands are enough.
+
+# Movement phrasings
+go to the crossroads
+walk to the church
+head towards the mill
+make my way to the forge
+stroll over to the market
+take the path to the well
+wander down to the bridge
+
+# Look phrasings
+look around
+have a look
+take a look at my surroundings
+what do I see?
+look carefully at the area
+survey the scene
+
+# Greeting / interaction phrasings
+greet the nearest person
+say hello to whoever is here
+talk to someone nearby
+introduce myself
+strike up a conversation
+ask if anyone is about
+
+# Free-play turns let the model exercise novel phrasings
+# llm
+# llm
+# llm
+# llm

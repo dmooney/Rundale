@@ -1,0 +1,23 @@
+# Dialogue scenario — 20 turns of extended NPC conversation to evaluate
+# Tier 1 dialogue inference quality: character voice, period authenticity,
+# language, responsiveness, and craft.
+look
+go to the village
+look
+/npcs
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+go to the church
+look
+/npcs
+# llm
+# llm
+# llm
+# llm
+# llm

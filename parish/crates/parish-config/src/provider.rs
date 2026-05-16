@@ -261,6 +261,11 @@ impl Provider {
             .get("lmstudio")
             .expect("lmstudio must be registered")
     }
+    pub fn github_models() -> Self {
+        registry()
+            .get("github_models")
+            .expect("github_models must be registered")
+    }
 }
 
 impl PartialEq for Provider {
