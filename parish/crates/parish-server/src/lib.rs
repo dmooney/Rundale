@@ -767,8 +767,10 @@ fn resolve_engine_and_ui_config(
     String,
     UiConfigSnapshot,
 ) {
+    // parish-server registers the `/tiles/{*path}` proxy route, so the
+    // frontend uses `TileSourceConfig::url` (the same-origin proxy path).
     let tile_sources_snapshot =
-        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
+        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map, true);
     let active_tile_source = engine_config.map.default_tile_source.clone();
     config.active_tile_source = active_tile_source.clone();
     config.tile_sources = engine_config.map.id_label_pairs();
