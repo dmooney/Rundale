@@ -1058,6 +1058,15 @@ pub fn run() {
     if demo_config.auto_start {
         game_config.flags.enable("demo-mode");
     }
+    // Hydrate per-category routing from the wizard-persisted
+    // `parish.toml` BEFORE preset fill, so the wizard's intent→:8001,
+    // reaction→simulator etc. overrides win over the generic presets.
+    // (Without this, vllm-mlx two-slot setups end up routing every
+    // category to the dialogue port and the small-slot inference 404s.)
+    if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
+        game_config.apply_user_category_overrides(&user_cfg.category_overrides);
+    }
+
     // Fill any unset model fields from the chosen provider's presets so a
     // user who set only `PARISH_PROVIDER=anthropic` (or `--provider`) gets
     // sensible Dialogue/Simulation/Intent/Reaction defaults.

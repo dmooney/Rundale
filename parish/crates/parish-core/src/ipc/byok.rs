@@ -314,20 +314,7 @@ pub async fn handle_set_provider_config(
         cfg.category_model.clear();
         cfg.category_base_url.clear();
         cfg.category_api_key.clear();
-        for (cat_name, ov) in &args.category_overrides {
-            let Ok(cat) = parse_category(cat_name) else {
-                continue;
-            };
-            if let Some(p) = ov.provider.clone() {
-                cfg.category_provider.insert(cat, p);
-            }
-            if let Some(m) = ov.model.clone() {
-                cfg.category_model.insert(cat, m);
-            }
-            if let Some(u) = ov.base_url.clone() {
-                cfg.category_base_url.insert(cat, u);
-            }
-        }
+        cfg.apply_user_category_overrides(&args.category_overrides);
         cfg.fill_missing_models_from_presets();
     }
 
@@ -374,17 +361,6 @@ pub async fn handle_clear_provider_config(ctx: ByokContext<'_>) -> Result<(), By
         cfg.category_api_key.clear();
     }
     Ok(())
-}
-
-fn parse_category(name: &str) -> Result<crate::config::InferenceCategory, ()> {
-    use crate::config::InferenceCategory;
-    match name.to_lowercase().as_str() {
-        "dialogue" => Ok(InferenceCategory::Dialogue),
-        "simulation" => Ok(InferenceCategory::Simulation),
-        "intent" => Ok(InferenceCategory::Intent),
-        "reaction" => Ok(InferenceCategory::Reaction),
-        _ => Err(()),
-    }
 }
 
 #[cfg(test)]

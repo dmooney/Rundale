@@ -298,6 +298,7 @@ pub(crate) async fn bootstrap_inference_provider(
                 // for cloud providers fills per-role tier mapping
                 // (Opus/Sonnet/Haiku).
                 config.fill_missing_models_from_presets();
+                log_resolved_inference_config(&config);
             }
             record_setup_done(state, true, String::new());
             let _ = handle.emit(
@@ -324,6 +325,48 @@ pub(crate) async fn bootstrap_inference_provider(
             // the user can read the error in the setup overlay.
             false
         }
+    }
+}
+
+/// Logs the resolved per-category inference routing at INFO level.
+///
+/// Demos and bug reports often start with "is it really configured the way I
+/// think?" — the "vllm-mlx already running" line alone doesn't say what model
+/// is loaded on that port or which categories share a slot. This dump answers
+/// that in one place so a misrouted slot is obvious in the console.
+fn log_resolved_inference_config(config: &parish_core::ipc::config::GameConfig) {
+    let base_provider = &config.provider_name;
+    let base_url = &config.base_url;
+    let base_model = &config.model_name;
+    tracing::info!(
+        provider = %base_provider,
+        base_url = %base_url,
+        model = %base_model,
+        "Inference ready (base)",
+    );
+    for cat in InferenceCategory::ALL {
+        let provider = config
+            .category_provider
+            .get(&cat)
+            .cloned()
+            .unwrap_or_else(|| base_provider.clone());
+        let url = config
+            .category_base_url
+            .get(&cat)
+            .cloned()
+            .unwrap_or_else(|| base_url.clone());
+        let model = config
+            .category_model
+            .get(&cat)
+            .cloned()
+            .unwrap_or_else(|| base_model.clone());
+        tracing::info!(
+            category = cat.name(),
+            provider = %provider,
+            base_url = %url,
+            model = %model,
+            "Inference ready (category)",
+        );
     }
 }
 
