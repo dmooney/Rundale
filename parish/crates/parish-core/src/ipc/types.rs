@@ -318,10 +318,13 @@ impl TileSourceSnapshot {
         cfg.tile_sources
             .iter()
             .map(|(id, src)| {
-                let url = if has_tile_proxy || src.upstream_url.is_empty() {
-                    src.url.clone()
-                } else {
-                    src.upstream_url.clone()
+                let url = match (has_tile_proxy, src.upstream_url.as_str()) {
+                    // Server hosts the /tiles/ proxy: keep same-origin url.
+                    (true, _) => src.url.clone(),
+                    // No proxy + no upstream_url (e.g. OSM): keep direct url.
+                    (false, "") => src.url.clone(),
+                    // No proxy + upstream_url set (e.g. historic S3): substitute.
+                    (false, _) => src.upstream_url.clone(),
                 };
                 Self {
                     id: id.clone(),
