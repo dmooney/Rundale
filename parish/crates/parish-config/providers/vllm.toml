@@ -1,0 +1,18 @@
+id = "vllm"
+display_name = "vLLM (CUDA/ROCm)"
+aliases = []
+kind = "local"
+default_base_url = "http://localhost:8000"
+requires_api_key = false
+requires_model = true
+blurb = "Self-hosted OpenAI-compatible server for Linux/Windows (CUDA/ROCm)."
+signup_url = "https://docs.vllm.ai"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "Qwen/Qwen2.5-14B-Instruct"
+simulation = "Qwen/Qwen2.5-1.5B-Instruct"
+intent = "Qwen/Qwen2.5-1.5B-Instruct"
+reaction = "Qwen/Qwen2.5-1.5B-Instruct"

@@ -14,7 +14,7 @@
 		listPresetModels,
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
-		type ProviderPresetModels
+		type ProviderPresetOption
 	} from '$lib/ipc';
 	import {
 		FEATURED_PROVIDERS,
@@ -54,7 +54,7 @@
 	// by the *picked* provider id (not the current GameConfig provider) so
 	// the hint shows during first-run too.
 	let envKeys = $state<Record<string, boolean>>({});
-	let presetModels = $state<Record<string, ProviderPresetModels>>({});
+	let presetModels = $state<Record<string, ProviderPresetOption[]>>({});
 	onMount(() => {
 		listByokEnvKeys()
 			.then((m) => (envKeys = m))
@@ -66,17 +66,16 @@
 	let hasEnvKey = $derived(chosenId ? !!envKeys[chosenId] : false);
 
 	function defaultModelFor(id: string): string {
-		// Backend's presets.rs is the single source of truth. The dialogue
-		// tier is what `model_name` (used for player-facing NPC dialogue) is
-		// prefilled with; other tiers fall back to their own presets via
+		// First preset option's dialogue model is used to pre-fill the model name
+		// field; other tiers fall back to their own presets via
 		// fill_missing_models_from_presets after save.
-		return presetModels[id]?.dialogue ?? '';
+		return presetModels[id]?.[0]?.dialogue ?? '';
 	}
 
 	function pick(p: ByokProviderMeta) {
 		chosenId = p.id;
 		apiKey = '';
-		baseUrl = p.presetBaseUrl ?? '';
+		baseUrl = '';
 		modelName = defaultModelFor(p.id);
 		revealKey = false;
 		validationError = null;
@@ -92,6 +91,10 @@
 		}
 		if (chosen.needsBaseUrl && baseUrl.trim().length === 0) {
 			saveError = 'Base URL is required.';
+			return;
+		}
+		if (!chosen.keyless && modelName.trim().length === 0 && defaultModelFor(chosen.id) === '') {
+			saveError = 'A model name is required for this provider.';
 			return;
 		}
 

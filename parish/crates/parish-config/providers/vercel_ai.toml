@@ -1,0 +1,11 @@
+id = "vercel-ai"
+display_name = "Vercel AI Gateway"
+kind = "openai-compat"
+default_base_url = ""
+requires_api_key = true
+needs_base_url_from_user = true
+requires_model = true
+api_key_env_var = "VERCEL_API_KEY"
+blurb = "Vercel AI Gateway — OpenAI-compatible endpoint."
+signup_url = "https://vercel.com/docs/ai/ai-gateway"
+featured = false

@@ -433,7 +433,7 @@ fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResu
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 config.base_url = provider.default_base_url().to_string();
-                config.provider_name = format!("{:?}", provider).to_lowercase();
+                config.provider_name = provider.id().to_string();
                 config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("Provider changed to {}.", config.provider_name),
@@ -479,7 +479,7 @@ fn handle_cloud_provider_command(cmd: Command, config: &mut GameConfig) -> Comma
         Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 let base_url = provider.default_base_url().to_string();
-                let provider_name = format!("{:?}", provider).to_lowercase();
+                let provider_name = provider.id().to_string();
                 config.cloud_provider_name = Some(provider_name.clone());
                 config.cloud_base_url = Some(base_url);
                 CommandResult::with_effect(
@@ -522,7 +522,7 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
         },
         Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
-                let provider_name = format!("{:?}", provider).to_lowercase();
+                let provider_name = provider.id().to_string();
                 config.category_provider.insert(cat, provider_name.clone());
                 config
                     .category_base_url
@@ -578,7 +578,7 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
                         name
                     ))
                 } else {
-                    let provider_name = format!("{:?}", provider).to_lowercase();
+                    let provider_name = provider.id().to_string();
                     let default_url = provider.default_base_url().to_string();
 
                     // Provider/url writes are identical for both branches.
@@ -595,17 +595,15 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
                     // one model matched to the user's hardware; the static
                     // preset would route every category to qwen3 tags the
                     // user has not downloaded.
-                    if provider == Provider::Ollama
+                    if provider.id() == "ollama"
                         && let Some(auto) = config.auto_setup_model.clone()
                     {
                         config.pin_setup_model(auto);
                     } else {
-                        let presets = provider.preset_models();
-
                         // Base model: use Dialogue's pick so any code path
                         // that still falls through to `model_name` gets a
                         // sensible value.
-                        if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
+                        if let Some(m) = provider.preset_model(InferenceCategory::Dialogue) {
                             config.model_name = m.to_string();
                         }
 
@@ -613,7 +611,7 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
                         // a preset is an explicit user action). API keys
                         // are intentionally left alone — see hint below.
                         for cat in InferenceCategory::ALL {
-                            if let Some(m) = presets[cat.idx()].map(str::to_string) {
+                            if let Some(m) = provider.preset_model(cat).map(str::to_string) {
                                 config.category_model.insert(cat, m);
                             } else {
                                 config.category_model.remove(&cat);

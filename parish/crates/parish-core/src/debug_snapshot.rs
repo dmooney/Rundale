@@ -541,18 +541,12 @@ pub use crate::inference::InferenceLogEntry;
 /// Returns a list of provider display names that are ready to use
 /// (either local providers, or cloud providers with an API key set).
 pub fn build_configured_providers() -> Vec<String> {
-    crate::config::Provider::ALL
+    use parish_config::registry;
+    registry()
+        .all()
         .iter()
         .filter(|p| p.is_configured_in_env())
-        .map(|p| {
-            crate::config::ProviderConfig {
-                provider: p.clone(),
-                base_url: String::new(),
-                api_key: None,
-                model: None,
-            }
-            .provider_display()
-        })
+        .map(|p| p.id().to_string())
         .collect()
 }
 

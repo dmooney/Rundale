@@ -1,0 +1,27 @@
+id = "anthropic"
+display_name = "Anthropic"
+aliases = ["claude"]
+kind = "anthropic"
+default_base_url = "https://api.anthropic.com"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "ANTHROPIC_API_KEY"
+blurb = "Claude — the engine's native dialogue partner."
+signup_url = "https://console.anthropic.com/settings/keys"
+featured = true
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "claude-opus-4-7"
+simulation = "claude-sonnet-4-6"
+intent = "claude-haiku-4-5"
+reaction = "claude-sonnet-4-6"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "claude-sonnet-4-6"
+simulation = "claude-haiku-4-5"
+intent = "claude-haiku-4-5"
+reaction = "claude-haiku-4-5"

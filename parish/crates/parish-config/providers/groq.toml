@@ -1,0 +1,26 @@
+id = "groq"
+display_name = "Groq"
+kind = "openai-compat"
+default_base_url = "https://api.groq.com/openai"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "GROQ_API_KEY"
+blurb = "Fast tokens, generous free tier."
+signup_url = "https://console.groq.com/keys"
+featured = true
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "openai/gpt-oss-120b"
+simulation = "llama-3.3-70b-versatile"
+intent = "llama-3.1-8b-instant"
+reaction = "llama-3.3-70b-versatile"
+
+[[presets]]
+key = "fast"
+label = "Fast"
+dialogue = "llama-3.1-8b-instant"
+simulation = "llama-3.1-8b-instant"
+intent = "llama-3.1-8b-instant"
+reaction = "llama-3.1-8b-instant"

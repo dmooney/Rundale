@@ -291,6 +291,60 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
         }
 
 
+def grade_pairwise(
+    reply_a: str,
+    reply_b: str,
+    prompt: str,
+    judge: dict,
+    invoke: Callable[..., dict],
+) -> dict:
+    """Pairwise judge between two candidate replies. Returns {winner, reason}.
+
+    `winner` is `"A"`, `"B"`, or `"tie"`. Caller is responsible for position
+    randomization — swap A and B labels at random and back out the swap when
+    tallying wins, so the judge's first-position bias doesn't accumulate.
+
+    Non-Latin script in either reply auto-flags it as a loss against any
+    Latin-only reply (judge can't be trusted to enforce this consistently).
+    """
+    verify_judge_rubric(judge)
+    nl_a = _non_latin(reply_a)
+    nl_b = _non_latin(reply_b)
+    if nl_a and not nl_b:
+        return {"winner": "B", "reason": f"reply A contains non-Latin: {list(nl_a)}", "auto_disqualified": "A"}
+    if nl_b and not nl_a:
+        return {"winner": "A", "reason": f"reply B contains non-Latin: {list(nl_b)}", "auto_disqualified": "B"}
+
+    schema = {
+        "name": "pairwise_judgment",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "winner": {"type": "string", "enum": ["A", "B", "tie"]},
+                "reason": {"type": "string"},
+            },
+            "required": ["winner", "reason"],
+        },
+    }
+    user = (
+        f"Player prompt: {prompt}\n\n"
+        f"=== Reply A ===\n{reply_a}\n\n"
+        f"=== Reply B ===\n{reply_b}\n"
+    )
+    try:
+        out = invoke(judge["rubric"], user, schema)
+        if not isinstance(out, dict):
+            raise ValueError(f"judge returned non-dict: {type(out).__name__}")
+        winner = out.get("winner")
+        if winner not in ("A", "B", "tie"):
+            raise ValueError(f"judge returned invalid winner: {winner!r}")
+        return {"winner": winner, "reason": str(out.get("reason") or "")[:200]}
+    except Exception as e:
+        return {"winner": "tie", "reason": "", "error": str(e)}
+
+
 def grade_simulation(reply: Any, schema: dict, judge: dict, invoke: Callable[..., dict]) -> dict:
     """Schema-valid + LLM plausibility for tier2-sim / tier3-sim slices."""
     verify_judge_rubric(judge)

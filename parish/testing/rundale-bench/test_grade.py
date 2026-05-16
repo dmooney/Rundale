@@ -12,6 +12,7 @@ from grade import (  # noqa: E402
     _jaccard,
     grade_dialogue,
     grade_intent,
+    grade_pairwise,
     grade_reaction,
     grade_schema,
     grade_simulation,
@@ -234,6 +235,49 @@ def test_reaction_non_latin_zeros():
     r = grade_reaction("Aye, привет.", "publican", j, _stub_invoke({"in_character": 5}))
     assert r["score"] == 0.0
     assert "Cyrillic" in r["non_latin_chars"]
+
+
+# ---------------------------------------------------------------------------
+# grade_pairwise
+# ---------------------------------------------------------------------------
+
+def test_pairwise_judge_picks_winner():
+    j = _judge_fixture()
+    r = grade_pairwise("Reply A", "Reply B", "prompt", j, _stub_invoke({"winner": "A", "reason": "cleaner voice"}))
+    assert r["winner"] == "A"
+    assert "cleaner" in r["reason"]
+
+
+def test_pairwise_tie():
+    j = _judge_fixture()
+    r = grade_pairwise("a", "b", "p", j, _stub_invoke({"winner": "tie", "reason": "equivalent"}))
+    assert r["winner"] == "tie"
+
+
+def test_pairwise_invalid_winner_falls_back_to_tie():
+    j = _judge_fixture()
+    r = grade_pairwise("a", "b", "p", j, _stub_invoke({"winner": "X", "reason": "?"}))
+    assert r["winner"] == "tie"
+    assert "error" in r
+
+
+def test_pairwise_non_latin_auto_disqualifies():
+    j = _judge_fixture()
+    # A has Cyrillic, B is clean → B wins automatically
+    r = grade_pairwise("Привет lass", "Aye lass", "p", j, _stub_invoke({"winner": "A", "reason": "ignored"}))
+    assert r["winner"] == "B"
+    assert r["auto_disqualified"] == "A"
+
+
+def test_pairwise_rubric_tamper_blocks():
+    j = _judge_fixture("orig")
+    j["rubric"] = "tampered"
+    raised = False
+    try:
+        grade_pairwise("a", "b", "p", j, _stub_invoke({}))
+    except RuntimeError as e:
+        raised = "sha256" in str(e)
+    assert raised
 
 
 # ---------------------------------------------------------------------------

@@ -302,9 +302,10 @@ pub async fn list_byok_env_keys() -> Result<std::collections::BTreeMap<String, b
 /// wizard uses this so its prefill matches what fill_missing_models_from_presets
 /// will actually install for the other tiers.
 #[tauri::command]
-pub async fn list_preset_models()
--> Result<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>, String>
-{
+pub async fn list_preset_models() -> Result<
+    std::collections::BTreeMap<String, Vec<parish_core::ipc::byok::ProviderPresetOption>>,
+    String,
+> {
     Ok(parish_core::ipc::byok::handle_list_preset_models())
 }
 

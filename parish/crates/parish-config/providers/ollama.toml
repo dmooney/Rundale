@@ -1,0 +1,16 @@
+id = "ollama"
+display_name = "Ollama"
+kind = "local"
+default_base_url = "http://localhost:11434"
+requires_api_key = false
+requires_model = false
+blurb = "Local Ollama server with auto-management."
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "qwen3:32b"
+simulation = "qwen3:14b"
+intent = "qwen3:4b"
+reaction = "qwen3:14b"

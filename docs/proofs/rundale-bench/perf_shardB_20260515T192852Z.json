@@ -1,0 +1,969 @@
+{
+  "ran_at_utc": "2026-05-15T19:33:29.004240+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "google/gemini-2.5-flash": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 595,
+      "ttft_ms_p90": 790,
+      "total_ms_median": 1032,
+      "tokens_per_second_median": 99.5,
+      "tokens_per_second_p90": 197.1,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 567,
+          "total_ms": 990,
+          "completion_tokens": 46,
+          "prompt_tokens": 58,
+          "tokens_per_second": 108.74704491725768,
+          "reply_len": 184,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 659,
+          "total_ms": 1686,
+          "completion_tokens": 74,
+          "prompt_tokens": 62,
+          "tokens_per_second": 72.05452775073029,
+          "reply_len": 297,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 760,
+          "total_ms": 1171,
+          "completion_tokens": 39,
+          "prompt_tokens": 62,
+          "tokens_per_second": 94.89051094890512,
+          "reply_len": 159,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 449,
+          "total_ms": 943,
+          "completion_tokens": 49,
+          "prompt_tokens": 58,
+          "tokens_per_second": 99.19028340080972,
+          "reply_len": 205,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 454,
+          "total_ms": 995,
+          "completion_tokens": 58,
+          "prompt_tokens": 60,
+          "tokens_per_second": 107.20887245841034,
+          "reply_len": 253,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 607,
+          "total_ms": 969,
+          "completion_tokens": 34,
+          "prompt_tokens": 59,
+          "tokens_per_second": 93.92265193370166,
+          "reply_len": 125,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 631,
+          "total_ms": 862,
+          "completion_tokens": 36,
+          "prompt_tokens": 59,
+          "tokens_per_second": 155.84415584415584,
+          "reply_len": 139,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 529,
+          "total_ms": 1069,
+          "completion_tokens": 53,
+          "prompt_tokens": 58,
+          "tokens_per_second": 98.14814814814814,
+          "reply_len": 212,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1069,
+          "total_ms": 1120,
+          "completion_tokens": 29,
+          "prompt_tokens": 58,
+          "tokens_per_second": 568.6274509803922,
+          "reply_len": 114,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-flash",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 584,
+          "total_ms": 1376,
+          "completion_tokens": 79,
+          "prompt_tokens": 61,
+          "tokens_per_second": 99.74747474747474,
+          "reply_len": 328,
+          "error": null
+        }
+      ]
+    },
+    "google/gemini-2.5-pro": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1925,
+      "ttft_ms_p90": 2073,
+      "total_ms_median": 3331,
+      "tokens_per_second_median": 143.3,
+      "tokens_per_second_p90": 165.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"The boiling point of water at standard atmospheric pressu",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"January\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"56\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"William Shakespeare\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"Au\",\n  \"confidence\": 1.0\n}\n```"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1824,
+          "total_ms": 3458,
+          "completion_tokens": 196,
+          "prompt_tokens": 58,
+          "tokens_per_second": 119.95104039167687,
+          "reply_len": 534,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 2100,
+          "total_ms": 3292,
+          "completion_tokens": 196,
+          "prompt_tokens": 62,
+          "tokens_per_second": 164.4295302013423,
+          "reply_len": 581,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1882,
+          "total_ms": 3317,
+          "completion_tokens": 196,
+          "prompt_tokens": 62,
+          "tokens_per_second": 136.58536585365854,
+          "reply_len": 605,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1894,
+          "total_ms": 3541,
+          "completion_tokens": 196,
+          "prompt_tokens": 58,
+          "tokens_per_second": 119.00425015179114,
+          "reply_len": 561,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1956,
+          "total_ms": 3266,
+          "completion_tokens": 196,
+          "prompt_tokens": 60,
+          "tokens_per_second": 149.61832061068702,
+          "reply_len": 510,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 2070,
+          "total_ms": 3202,
+          "completion_tokens": 196,
+          "prompt_tokens": 59,
+          "tokens_per_second": 173.14487632508835,
+          "reply_len": 496,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1781,
+          "total_ms": 3166,
+          "completion_tokens": 196,
+          "prompt_tokens": 59,
+          "tokens_per_second": 141.5162454873646,
+          "reply_len": 674,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1994,
+          "total_ms": 3345,
+          "completion_tokens": 196,
+          "prompt_tokens": 58,
+          "tokens_per_second": 145.0777202072539,
+          "reply_len": 578,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 2045,
+          "total_ms": 3360,
+          "completion_tokens": 196,
+          "prompt_tokens": 58,
+          "tokens_per_second": 149.0494296577947,
+          "reply_len": 468,
+          "error": null
+        },
+        {
+          "candidate": "google/gemini-2.5-pro",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1654,
+          "total_ms": 3737,
+          "completion_tokens": 196,
+          "prompt_tokens": 61,
+          "tokens_per_second": 94.0950552088334,
+          "reply_len": 525,
+          "error": null
+        }
+      ]
+    },
+    "x-ai/grok-3-mini": {
+      "n_streamed": 10,
+      "n_ok": 0,
+      "ttft_ms_median": null,
+      "ttft_ms_p90": null,
+      "total_ms_median": null,
+      "tokens_per_second_median": null,
+      "tokens_per_second_p90": null,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found",
+          "HTTPError: HTTP Error 404: Not Found"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 64,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 120,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 257,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": null,
+          "total_ms": 180,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 74,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 81,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 74,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": null,
+          "total_ms": 78,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 70,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "candidate": "x-ai/grok-3-mini",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 70,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 404: Not Found"
+        }
+      ]
+    },
+    "x-ai/grok-4.3": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 704,
+      "ttft_ms_p90": 1561,
+      "total_ms_median": 3183,
+      "tokens_per_second_median": 207.5,
+      "tokens_per_second_p90": 245.7,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 656,
+          "total_ms": 3253,
+          "completion_tokens": 484,
+          "prompt_tokens": 185,
+          "tokens_per_second": 186.3688871775125,
+          "reply_len": 296,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 979,
+          "total_ms": 3318,
+          "completion_tokens": 496,
+          "prompt_tokens": 189,
+          "tokens_per_second": 212.05643437366396,
+          "reply_len": 422,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 682,
+          "total_ms": 4076,
+          "completion_tokens": 426,
+          "prompt_tokens": 189,
+          "tokens_per_second": 125.51561579257513,
+          "reply_len": 332,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 685,
+          "total_ms": 2858,
+          "completion_tokens": 373,
+          "prompt_tokens": 185,
+          "tokens_per_second": 171.65209387942934,
+          "reply_len": 260,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1280,
+          "total_ms": 8141,
+          "completion_tokens": 477,
+          "prompt_tokens": 187,
+          "tokens_per_second": 69.5233930913861,
+          "reply_len": 555,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 616,
+          "total_ms": 2527,
+          "completion_tokens": 492,
+          "prompt_tokens": 186,
+          "tokens_per_second": 257.4568288854003,
+          "reply_len": 322,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 674,
+          "total_ms": 2274,
+          "completion_tokens": 391,
+          "prompt_tokens": 186,
+          "tokens_per_second": 244.375,
+          "reply_len": 349,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 723,
+          "total_ms": 3113,
+          "completion_tokens": 485,
+          "prompt_tokens": 185,
+          "tokens_per_second": 202.928870292887,
+          "reply_len": 640,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 751,
+          "total_ms": 2440,
+          "completion_tokens": 387,
+          "prompt_tokens": 185,
+          "tokens_per_second": 229.12966252220247,
+          "reply_len": 351,
+          "error": null
+        },
+        {
+          "candidate": "x-ai/grok-4.3",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 4094,
+          "total_ms": 5889,
+          "completion_tokens": 388,
+          "prompt_tokens": 188,
+          "tokens_per_second": 216.15598885793872,
+          "reply_len": 330,
+          "error": null
+        }
+      ]
+    },
+    "mistralai/mistral-large-2512": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 482,
+      "ttft_ms_p90": 667,
+      "total_ms_median": 1714,
+      "tokens_per_second_median": 44.1,
+      "tokens_per_second_p90": 51.7,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 517,
+          "total_ms": 1800,
+          "completion_tokens": 51,
+          "prompt_tokens": 62,
+          "tokens_per_second": 39.75058456742011,
+          "reply_len": 209,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 484,
+          "total_ms": 1991,
+          "completion_tokens": 66,
+          "prompt_tokens": 67,
+          "tokens_per_second": 43.79562043795621,
+          "reply_len": 238,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 411,
+          "total_ms": 1652,
+          "completion_tokens": 66,
+          "prompt_tokens": 66,
+          "tokens_per_second": 53.1829170024174,
+          "reply_len": 237,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 480,
+          "total_ms": 1492,
+          "completion_tokens": 45,
+          "prompt_tokens": 62,
+          "tokens_per_second": 44.466403162055336,
+          "reply_len": 168,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 440,
+          "total_ms": 1559,
+          "completion_tokens": 42,
+          "prompt_tokens": 64,
+          "tokens_per_second": 37.533512064343164,
+          "reply_len": 140,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 431,
+          "total_ms": 2088,
+          "completion_tokens": 69,
+          "prompt_tokens": 63,
+          "tokens_per_second": 41.64152082076041,
+          "reply_len": 249,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 664,
+          "total_ms": 1550,
+          "completion_tokens": 41,
+          "prompt_tokens": 63,
+          "tokens_per_second": 46.27539503386004,
+          "reply_len": 150,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 477,
+          "total_ms": 1777,
+          "completion_tokens": 62,
+          "prompt_tokens": 62,
+          "tokens_per_second": 47.69230769230769,
+          "reply_len": 215,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 493,
+          "total_ms": 1598,
+          "completion_tokens": 48,
+          "prompt_tokens": 62,
+          "tokens_per_second": 43.43891402714932,
+          "reply_len": 186,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-large-2512",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 697,
+          "total_ms": 1784,
+          "completion_tokens": 56,
+          "prompt_tokens": 66,
+          "tokens_per_second": 51.517939282428706,
+          "reply_len": 227,
+          "error": null
+        }
+      ]
+    },
+    "mistralai/mistral-medium-3.1": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 390,
+      "ttft_ms_p90": 521,
+      "total_ms_median": 2089,
+      "tokens_per_second_median": 50.4,
+      "tokens_per_second_p90": 62.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"100°C (at standard atmospheric pressure)\",\n  \"confidence\"",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"January\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"56\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"William Shakespeare\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"Au\",\n  \"confidence\": 1.0\n}\n```"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 331,
+          "total_ms": 1647,
+          "completion_tokens": 78,
+          "prompt_tokens": 62,
+          "tokens_per_second": 59.27051671732522,
+          "reply_len": 268,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 394,
+          "total_ms": 2423,
+          "completion_tokens": 111,
+          "prompt_tokens": 67,
+          "tokens_per_second": 54.706752094627895,
+          "reply_len": 387,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 372,
+          "total_ms": 2109,
+          "completion_tokens": 83,
+          "prompt_tokens": 66,
+          "tokens_per_second": 47.78353483016695,
+          "reply_len": 300,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 323,
+          "total_ms": 978,
+          "completion_tokens": 59,
+          "prompt_tokens": 62,
+          "tokens_per_second": 90.07633587786259,
+          "reply_len": 208,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 691,
+          "total_ms": 2607,
+          "completion_tokens": 90,
+          "prompt_tokens": 64,
+          "tokens_per_second": 46.972860125260965,
+          "reply_len": 332,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 408,
+          "total_ms": 2070,
+          "completion_tokens": 88,
+          "prompt_tokens": 63,
+          "tokens_per_second": 52.9482551143201,
+          "reply_len": 298,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 339,
+          "total_ms": 1519,
+          "completion_tokens": 66,
+          "prompt_tokens": 63,
+          "tokens_per_second": 55.93220338983051,
+          "reply_len": 223,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 486,
+          "total_ms": 3592,
+          "completion_tokens": 89,
+          "prompt_tokens": 62,
+          "tokens_per_second": 28.65421764327109,
+          "reply_len": 307,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 503,
+          "total_ms": 1748,
+          "completion_tokens": 55,
+          "prompt_tokens": 62,
+          "tokens_per_second": 44.17670682730923,
+          "reply_len": 219,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-medium-3.1",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 387,
+          "total_ms": 2793,
+          "completion_tokens": 67,
+          "prompt_tokens": 66,
+          "tokens_per_second": 27.847049044056522,
+          "reply_len": 271,
+          "error": null
+        }
+      ]
+    },
+    "mistralai/mistral-small-24b-instruct-2501": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 250,
+      "ttft_ms_p90": 290,
+      "total_ms_median": 838,
+      "tokens_per_second_median": 77.4,
+      "tokens_per_second_p90": 93.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 254,
+          "total_ms": 1179,
+          "completion_tokens": 50,
+          "prompt_tokens": 62,
+          "tokens_per_second": 54.05405405405405,
+          "reply_len": 204,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 242,
+          "total_ms": 762,
+          "completion_tokens": 48,
+          "prompt_tokens": 67,
+          "tokens_per_second": 92.3076923076923,
+          "reply_len": 181,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 258,
+          "total_ms": 696,
+          "completion_tokens": 45,
+          "prompt_tokens": 66,
+          "tokens_per_second": 102.73972602739725,
+          "reply_len": 182,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 259,
+          "total_ms": 648,
+          "completion_tokens": 35,
+          "prompt_tokens": 62,
+          "tokens_per_second": 89.97429305912596,
+          "reply_len": 147,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 204,
+          "total_ms": 915,
+          "completion_tokens": 57,
+          "prompt_tokens": 64,
+          "tokens_per_second": 80.16877637130803,
+          "reply_len": 245,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 285,
+          "total_ms": 1666,
+          "completion_tokens": 66,
+          "prompt_tokens": 63,
+          "tokens_per_second": 47.79145546705286,
+          "reply_len": 240,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 227,
+          "total_ms": 1190,
+          "completion_tokens": 37,
+          "prompt_tokens": 63,
+          "tokens_per_second": 38.42159916926272,
+          "reply_len": 153,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 205,
+          "total_ms": 553,
+          "completion_tokens": 26,
+          "prompt_tokens": 62,
+          "tokens_per_second": 74.71264367816093,
+          "reply_len": 108,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 247,
+          "total_ms": 617,
+          "completion_tokens": 30,
+          "prompt_tokens": 62,
+          "tokens_per_second": 81.08108108108108,
+          "reply_len": 118,
+          "error": null
+        },
+        {
+          "candidate": "mistralai/mistral-small-24b-instruct-2501",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 337,
+          "total_ms": 950,
+          "completion_tokens": 42,
+          "prompt_tokens": 66,
+          "tokens_per_second": 68.51549755301795,
+          "reply_len": 171,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 276.02670979499817,
+  "cost": {
+    "usd": 0.00014588999999999997,
+    "calls": 190
+  }
+}

@@ -1,0 +1,34 @@
+id = "qwen"
+display_name = "Qwen (Alibaba)"
+kind = "openai-compat"
+default_base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "QWEN_API_KEY"
+blurb = "Qwen models via Alibaba Cloud."
+signup_url = "https://dashscope-intl.aliyuncs.com"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "qwen-plus"
+simulation = "qwen-turbo"
+intent = "qwen-turbo"
+reaction = "qwen-turbo"
+
+[[presets]]
+key = "max"
+label = "Max"
+dialogue = "qwen-max"
+simulation = "qwen-max"
+intent = "qwen-max"
+reaction = "qwen-max"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "qwen-turbo"
+simulation = "qwen-turbo"
+intent = "qwen-turbo"
+reaction = "qwen-turbo"

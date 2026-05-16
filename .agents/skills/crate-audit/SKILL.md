@@ -1,6 +1,9 @@
 ---
 name: crate-audit
 description: Audit the Rust workspace's crate layout for naming hygiene, manifest consistency, oversized files, extraction candidates, and README freshness. Produces a phased refactor PR (renames → manifests → splits → extractions) that is pure relocation — no behaviour changes. Use when the workspace has accumulated cruft, a new contributor is reading the crate map, or the user asks to "audit the crate structure".
+paths:
+  - parish/crates/**
+  - parish/Cargo.toml
 ---
 
 The goal is a **shippable, behaviour-preserving refactor PR** that leaves the workspace easier to navigate. Mechanics matter: the most common failure mode is mixing a real bug fix into a refactor commit and burning the trust that lets reviewers fast-track these PRs.

@@ -53,6 +53,14 @@
           {
             "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--design-doc-reminder.sh'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--claude-md-cadence.sh'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--proof-required.sh'"
           }
         ]
       }
@@ -77,6 +85,10 @@
           {
             "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--build-mcp.sh'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--lsp-binary-check.sh'"
           }
         ]
       }
@@ -117,5 +129,25 @@
   },
   "enabledPlugins": {
     "commit-commands@claude-plugins-official": true
+  },
+  "permissions": {
+    "deny": [
+      "Read(parish/target/**)",
+      "Read(target/**)",
+      "Read(parish/apps/ui/node_modules/**)",
+      "Read(parish/apps/ui/.svelte-kit/**)",
+      "Read(parish/apps/ui/build/**)",
+      "Read(parish/apps/ui/dist/**)",
+      "Read(parish/dist/vllm-mlx/**)",
+      "Read(parish/dist/cpython-*)",
+      "Read(parish/dist/vllm-mlx-bundle.tar.zst*)",
+      "Read(.claude/worktrees/**)",
+      "Read(saves/**)",
+      "Read(parish/saves/**)",
+      "Read(**/*.db)",
+      "Read(**/*.db-journal)",
+      "Read(**/*.db-wal)",
+      "Read(logs/**)"
+    ]
   }
 }

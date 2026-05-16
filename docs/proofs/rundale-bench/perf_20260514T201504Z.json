@@ -1,0 +1,70 @@
+{
+  "ran_at_utc": "2026-05-14T20:15:04.873881+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 3,
+  "json_trials": 3,
+  "per_target": {
+    "google/gemma-4-31b-it": {
+      "n_streamed": 3,
+      "n_ok": 3,
+      "ttft_ms_median": 541,
+      "ttft_ms_p90": 5366,
+      "total_ms_median": 3620,
+      "tokens_per_second_median": 12.3,
+      "tokens_per_second_p90": 13.7,
+      "json_freeform": {
+        "n": 3,
+        "valid": 3,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 3,
+        "valid": 3,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 541,
+          "total_ms": 3620,
+          "completion_tokens": 35,
+          "prompt_tokens": 77,
+          "tokens_per_second": 11.36732705423839,
+          "reply_len": 151,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 6573,
+          "total_ms": 10473,
+          "completion_tokens": 48,
+          "prompt_tokens": 92,
+          "tokens_per_second": 12.307692307692308,
+          "reply_len": 195,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 362,
+          "total_ms": 3217,
+          "completion_tokens": 40,
+          "prompt_tokens": 92,
+          "tokens_per_second": 14.010507880910684,
+          "reply_len": 145,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 26.46510624885559,
+  "cost": {
+    "usd": 0.0,
+    "calls": 9
+  }
+}

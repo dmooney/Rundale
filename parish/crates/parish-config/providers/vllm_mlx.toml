@@ -1,0 +1,18 @@
+id = "vllmmlx"
+display_name = "vLLM (MLX)"
+aliases = ["vllm-mlx", "vllm_mlx"]
+kind = "local"
+default_base_url = "http://localhost:8000"
+requires_api_key = false
+requires_model = true
+blurb = "Self-hosted OpenAI-compatible server."
+signup_url = "https://docs.vllm.ai"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "mlx-community/Qwen2.5-14B-Instruct-4bit"
+simulation = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+intent = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+reaction = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"

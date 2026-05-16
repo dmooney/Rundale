@@ -168,10 +168,9 @@ impl GameConfig {
     /// [`crate::inference::client::VllmMlxProcess::ensure_slots`].
     pub fn vllm_mlx_extra_slots(&self) -> Vec<crate::inference::client::VllmMlxSlot> {
         use crate::config::Provider;
-        let base_provider_is_vllm_mlx = matches!(
-            Provider::from_str_loose(&self.provider_name),
-            Ok(Provider::VllmMlx)
-        );
+        let base_provider_is_vllm_mlx = Provider::from_str_loose(&self.provider_name)
+            .map(|p| p.id() == "vllmmlx")
+            .unwrap_or(false);
         let base_slot = (self.base_url.clone(), self.model_name.clone());
 
         let mut out = Vec::new();
@@ -183,7 +182,7 @@ impl GameConfig {
                 .unwrap_or(&self.provider_name);
             let effective_provider =
                 Provider::from_str_loose(effective_provider_str).unwrap_or_default();
-            if !matches!(effective_provider, Provider::VllmMlx) {
+            if effective_provider.id() != "vllmmlx" {
                 continue;
             }
             let url = self
@@ -205,6 +204,52 @@ impl GameConfig {
                 continue;
             }
             out.push(crate::inference::client::VllmMlxSlot {
+                base_url: url,
+                model,
+            });
+        }
+        out
+    }
+
+    /// Collects extra vllm slots beyond the base provider's slot.
+    ///
+    /// Parallel to [`Self::vllm_mlx_extra_slots`] for the Linux/Windows
+    /// CUDA/ROCm vllm runtime. Used by `setup_provider_client` to auto-spawn
+    /// one vllm process per unique slot for the two-slot Linux/Windows loadout.
+    pub fn vllm_extra_slots(&self) -> Vec<crate::inference::client::VllmSlot> {
+        use crate::config::Provider;
+        let base_provider_is_vllm = Provider::from_str_loose(&self.provider_name)
+            .map(|p| p.id() == "vllm")
+            .unwrap_or(false);
+        let base_slot = (self.base_url.clone(), self.model_name.clone());
+
+        let mut out = Vec::new();
+        for cat in InferenceCategory::ALL {
+            let effective_provider_str = self
+                .category_provider
+                .get(&cat)
+                .map(String::as_str)
+                .unwrap_or(&self.provider_name);
+            let effective_provider =
+                Provider::from_str_loose(effective_provider_str).unwrap_or_default();
+            if effective_provider.id() != "vllm" {
+                continue;
+            }
+            let url = self
+                .category_base_url
+                .get(&cat)
+                .cloned()
+                .unwrap_or_else(|| self.base_url.clone());
+            let model = self
+                .category_model
+                .get(&cat)
+                .cloned()
+                .unwrap_or_else(|| self.model_name.clone());
+
+            if base_provider_is_vllm && (url.clone(), model.clone()) == base_slot {
+                continue;
+            }
+            out.push(crate::inference::client::VllmSlot {
                 base_url: url,
                 model,
             });
@@ -826,5 +871,87 @@ mod tests {
         );
         let slots = cfg.vllm_mlx_extra_slots();
         assert!(slots.is_empty(), "base-equal slots must be skipped");
+    }
+
+    #[test]
+    fn vllm_extra_slots_empty_when_no_overrides() {
+        let cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        let slots = cfg.vllm_extra_slots();
+        assert!(slots.is_empty(), "no overrides → no extra slots");
+    }
+
+    #[test]
+    fn vllm_extra_slots_emits_distinct_per_category_slot() {
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        for cat in [
+            InferenceCategory::Intent,
+            InferenceCategory::Reaction,
+            InferenceCategory::Simulation,
+        ] {
+            cfg.category_base_url
+                .insert(cat, "http://localhost:8001".to_string());
+            cfg.category_model
+                .insert(cat, "Qwen/Qwen2.5-1.5B-Instruct".to_string());
+        }
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 3);
+        for slot in &slots {
+            assert_eq!(slot.base_url, "http://localhost:8001");
+            assert_eq!(slot.model, "Qwen/Qwen2.5-1.5B-Instruct");
+        }
+    }
+
+    #[test]
+    fn vllm_extra_slots_skips_base_slot_when_base_is_vllm() {
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.category_base_url.insert(
+            InferenceCategory::Intent,
+            "http://localhost:8000".to_string(),
+        );
+        cfg.category_model.insert(
+            InferenceCategory::Intent,
+            "Qwen/Qwen2.5-14B-Instruct".to_string(),
+        );
+        let slots = cfg.vllm_extra_slots();
+        assert!(slots.is_empty(), "base-equal slots must be skipped");
+    }
+
+    #[test]
+    fn vllm_extra_slots_ignores_non_vllm_categories() {
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            model_name: "gemma3:4b".to_string(),
+            ..GameConfig::default()
+        };
+        // Intent → vllm, but Reaction stays ollama. Only the vllm one emits.
+        cfg.category_provider
+            .insert(InferenceCategory::Intent, "vllm".to_string());
+        cfg.category_base_url.insert(
+            InferenceCategory::Intent,
+            "http://localhost:8001".to_string(),
+        );
+        cfg.category_model.insert(
+            InferenceCategory::Intent,
+            "Qwen/Qwen2.5-1.5B-Instruct".to_string(),
+        );
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].base_url, "http://localhost:8001");
     }
 }

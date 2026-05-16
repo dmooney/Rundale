@@ -1,0 +1,27 @@
+id = "xai"
+display_name = "xAI (Grok)"
+aliases = ["x-ai", "grok"]
+kind = "openai-compat"
+default_base_url = "https://api.x.ai"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "XAI_API_KEY"
+blurb = "OpenAI-compatible Grok API."
+signup_url = "https://console.x.ai"
+featured = true
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "grok-4.20-reasoning"
+simulation = "grok-4.20-non-reasoning"
+intent = "grok-4.1-fast-non-reasoning"
+reaction = "grok-4.20-non-reasoning"
+
+[[presets]]
+key = "balanced"
+label = "Balanced"
+dialogue = "grok-4.20-non-reasoning"
+simulation = "grok-4.20-non-reasoning"
+intent = "grok-4.20-non-reasoning"
+reaction = "grok-4.20-non-reasoning"

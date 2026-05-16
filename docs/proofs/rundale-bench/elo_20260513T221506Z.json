@@ -1,0 +1,344 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "mode": "elo",
+  "run_started_utc": "2026-05-13T22:09:20.236203+00:00",
+  "elo": {
+    "mode": "elo",
+    "judge": "judge_pairwise_v1",
+    "rubric_sha256": "b5664f960f7128c0a2c8a000f56c1eab7b4f43d6ad67dfd19f41f28f5f6dc7c0",
+    "targets": [
+      "openai/gpt-oss-120b:free",
+      "qwen/qwen3-235b-a22b-2507",
+      "mistralai/mistral-small-24b-instruct-2501"
+    ],
+    "prompts": 10,
+    "matches": 30,
+    "ratings": {
+      "openai/gpt-oss-120b:free": 1497.1487016257684,
+      "qwen/qwen3-235b-a22b-2507": 1646.2196169804474,
+      "mistralai/mistral-small-24b-instruct-2501": 1356.6316813937842
+    },
+    "match_counts": {
+      "openai/gpt-oss-120b:free": 20,
+      "qwen/qwen3-235b-a22b-2507": 20,
+      "mistralai/mistral-small-24b-instruct-2501": 20
+    },
+    "ci": {
+      "openai/gpt-oss-120b:free": [
+        1436.9515945733767,
+        1561.1533708673232
+      ],
+      "qwen/qwen3-235b-a22b-2507": [
+        1598.607206912264,
+        1694.0375901699376
+      ],
+      "mistralai/mistral-small-24b-instruct-2501": [
+        1306.2807878510218,
+        1399.8178301821404
+      ]
+    },
+    "standings": [
+      {
+        "target": "qwen/qwen3-235b-a22b-2507",
+        "rating": 1646.2196169804474,
+        "matches": 20,
+        "ci_lo": 1598.607206912264,
+        "ci_hi": 1694.0375901699376
+      },
+      {
+        "target": "openai/gpt-oss-120b:free",
+        "rating": 1497.1487016257684,
+        "matches": 20,
+        "ci_lo": 1436.9515945733767,
+        "ci_hi": 1561.1533708673232
+      },
+      {
+        "target": "mistralai/mistral-small-24b-instruct-2501",
+        "rating": 1356.6316813937842,
+        "matches": 20,
+        "ci_lo": 1306.2807878510218,
+        "ci_hi": 1399.8178301821404
+      }
+    ],
+    "match_log": [
+      {
+        "prompt": "dialogue-0001",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "A",
+        "score_a": 0.0,
+        "reason": "A uses more authentic 1820s Irish diction, folk-religious phrasing, and avoids anachronistic terms like 'chamomile' and "
+      },
+      {
+        "prompt": "dialogue-0001",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "A uses more period-authentic herbal remedies and idiomatic Hiberno-English, with richer, more evocative folk wisdom."
+      },
+      {
+        "prompt": "dialogue-0001",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "More authentic period diction, evocative folk remedies, and idiomatic Hiberno-English with prayer and charm; B's 'tinctu"
+      },
+      {
+        "prompt": "dialogue-0002",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": false,
+        "winner": "B",
+        "score_a": 0.0,
+        "reason": "B uses more authentic, idiomatic Hiberno-English with period-appropriate diction and avoids mythological exposition, fee"
+      },
+      {
+        "prompt": "dialogue-0002",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses mythic tone and period-appropriate folklore with idiomatic Hiberno-English, while A is modern and generic."
+      },
+      {
+        "prompt": "dialogue-0002",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "Reply A better captures the mystical tone, period-appropriate diction, and idiomatic Hiberno-English, with vivid, concis"
+      },
+      {
+        "prompt": "dialogue-0003",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": false,
+        "winner": "B",
+        "score_a": 0.0,
+        "reason": "B is more characterful and responsive, with urgent, personal care; A, while accurate, is more instructional than interpe"
+      },
+      {
+        "prompt": "dialogue-0003",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "A offers more period-appropriate detail, idiomatic Hiberno-English, and specific folk remedies with authentic phrasing; "
+      },
+      {
+        "prompt": "dialogue-0003",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "A is more vivid, period-authentic, and idiomatic with stronger Hiberno-English rhythm and urgency."
+      },
+      {
+        "prompt": "dialogue-0004",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "A",
+        "score_a": 0.0,
+        "reason": "A more vividly characterful and period-authentic response with sharper detail, folk suspicion, and narrative urgency fit"
+      },
+      {
+        "prompt": "dialogue-0004",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses period-appropriate diction, specific detail, and authentic Hiberno-English while directly addressing the prompt."
+      },
+      {
+        "prompt": "dialogue-0004",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses period-appropriate, idiomatic Hiberno-English with vivid detail, local color, and direct responsiveness, while A "
+      },
+      {
+        "prompt": "dialogue-0005",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "A",
+        "score_a": 0.0,
+        "reason": "A uses more authentic, evocative Hiberno-English with folk belief; B is accurate but reads like a modern field guide."
+      },
+      {
+        "prompt": "dialogue-0005",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "B",
+        "score_a": 0.0,
+        "reason": "B uses more authentic 1820s rural Irish diction and context, including suspicion of neighbours and scarcity of wolves, w"
+      },
+      {
+        "prompt": "dialogue-0005",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "A uses more period-authentic diction, local lore, and Hiberno-English cadence; B is plausible but flatter and slightly a"
+      },
+      {
+        "prompt": "dialogue-0006",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses more period-appropriate detail and idiomatic Hiberno-English while directly addressing the memory with authentic "
+      },
+      {
+        "prompt": "dialogue-0006",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses more period-appropriate, specific details and idiomatic Hiberno-English, sounding like a rural midwife recalling "
+      },
+      {
+        "prompt": "dialogue-0006",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "More authentic dialect, period-appropriate detail, and responsive with character-specific memory and offer of aid."
+      },
+      {
+        "prompt": "dialogue-0007",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses more period-authentic folklore terminology and idiomatic Hiberno-English while directly addressing the phenomenon"
+      },
+      {
+        "prompt": "dialogue-0007",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "More period-appropriate diction and atmospheric detail while maintaining authenticity, responsiveness, and idiomatic Hib"
+      },
+      {
+        "prompt": "dialogue-0007",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "More authentic Hiberno-English with period-appropriate folklore references; responsive, crafted, and idiomatic without a"
+      },
+      {
+        "prompt": "dialogue-0008",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "A",
+        "score_a": 0.0,
+        "reason": "More natural Hiberno-English with period-appropriate diction; B's 'test it with iron filings' feels anachronistically sc"
+      },
+      {
+        "prompt": "dialogue-0008",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": true,
+        "winner": "B",
+        "score_a": 1.0,
+        "reason": "B uses more period-appropriate diction and folk practice, with idiomatic Hiberno-English and a concrete, actionable resp"
+      },
+      {
+        "prompt": "dialogue-0008",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "More vivid, period-appropriate diction and stronger character voice with concrete folk wisdom; B is plausible but less e"
+      },
+      {
+        "prompt": "dialogue-0009",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": false,
+        "winner": "B",
+        "score_a": 0.0,
+        "reason": "B uses more period-appropriate, idiomatic Hiberno-English with vivid rural imagery and directly addresses the prompt wit"
+      },
+      {
+        "prompt": "dialogue-0009",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "B",
+        "score_a": 0.0,
+        "reason": "B uses more authentic period diction and responsive practical advice; A's 'ninth moon' is poetic but less idiomatic for "
+      },
+      {
+        "prompt": "dialogue-0009",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "Both are authentic and responsive, but A adds evocative detail ('bag of herbs', 'Lord\u2019s good grace') enhancing character"
+      },
+      {
+        "prompt": "dialogue-0010",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "qwen/qwen3-235b-a22b-2507",
+        "swap": true,
+        "winner": "A",
+        "score_a": 0.0,
+        "reason": "A is richer in character voice, period detail, and vivid, authentic resistance to clerical overreach without anachronism"
+      },
+      {
+        "prompt": "dialogue-0010",
+        "a": "openai/gpt-oss-120b:free",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "More concise and idiomatic Hiberno-English with authentic period voice; 'bairns' and 'thyme and yarrow' evoke place and "
+      },
+      {
+        "prompt": "dialogue-0010",
+        "a": "qwen/qwen3-235b-a22b-2507",
+        "b": "mistralai/mistral-small-24b-instruct-2501",
+        "swap": false,
+        "winner": "A",
+        "score_a": 1.0,
+        "reason": "A uses more idiomatic Hiberno-English, vivid period-appropriate imagery, and directly ties practice to survival, surpass"
+      }
+    ]
+  },
+  "elapsed_seconds": 346.6214509010315,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 16255,
+    "completion_tokens": 3534,
+    "usd": 0.0012586000000000001
+  }
+}

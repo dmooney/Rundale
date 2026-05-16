@@ -45,13 +45,13 @@ fn validate_npcs_against_world(npcs: &[Npc], world: &WorldGraph) -> Vec<String> 
             _ => {}
         }
 
-        if let Some(workplace) = npc.workplace {
-            if !world_has_location(world, workplace) {
-                errors.push(format!(
-                    "{} has missing workplace location {}",
-                    npc.name, workplace.0
-                ));
-            }
+        if let Some(workplace) = npc.workplace
+            && !world_has_location(world, workplace)
+        {
+            errors.push(format!(
+                "{} has missing workplace location {}",
+                npc.name, workplace.0
+            ));
         }
 
         let Some(schedule) = &npc.schedule else {
