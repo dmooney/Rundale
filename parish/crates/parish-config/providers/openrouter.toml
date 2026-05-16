@@ -13,7 +13,15 @@ featured = true
 [[presets]]
 key = "recommended"
 label = "Recommended"
-dialogue = "openai/gpt-oss-120b"
-simulation = "openai/gpt-oss-120b"
-intent = "openai/gpt-oss-120b"
-reaction = "openai/gpt-oss-120b"
+dialogue = "anthropic/claude-opus-4-7"
+simulation = "anthropic/claude-sonnet-4-6"
+intent = "anthropic/claude-haiku-4-5"
+reaction = "anthropic/claude-sonnet-4-6"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "qwen/qwen3-235b-a22b-2507"
+simulation = "google/gemma-3-27b-it"
+intent = "meta-llama/llama-3.3-70b-instruct"
+reaction = "google/gemma-3-27b-it"
