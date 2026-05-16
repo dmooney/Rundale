@@ -12,7 +12,7 @@ featured = false
 [[presets]]
 key = "recommended"
 label = "Recommended"
-dialogue = "Qwen/Qwen2.5-14B-Instruct"
-simulation = "Qwen/Qwen2.5-1.5B-Instruct"
-intent = "Qwen/Qwen2.5-1.5B-Instruct"
-reaction = "Qwen/Qwen2.5-1.5B-Instruct"
+dialogue = "Qwen/Qwen3-14B"
+simulation = "Qwen/Qwen3-8B"
+intent = "Qwen/Qwen3-4B"
+reaction = "Qwen/Qwen3-8B"

@@ -22,6 +22,7 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 
 	// OpenAI
 	{ name: 'gpt-5.5', provider: 'OpenAI' },
+	{ name: 'gpt-5.4', provider: 'OpenAI' },
 	{ name: 'gpt-5.4-mini', provider: 'OpenAI' },
 	{ name: 'gpt-5.4-nano', provider: 'OpenAI' },
 	{ name: 'gpt-4o', provider: 'OpenAI' },
@@ -43,6 +44,7 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 	{ name: 'grok-4.1-fast-non-reasoning', provider: 'xAI' },
 
 	// Mistral — dated IDs; the -latest aliases still resolve to older builds
+	{ name: 'mistral-medium-3.1', provider: 'Mistral' },
 	{ name: 'mistral-large-2512', provider: 'Mistral' },
 	{ name: 'mistral-medium-2508', provider: 'Mistral' },
 	{ name: 'ministral-3-3b-2512', provider: 'Mistral' },
@@ -61,9 +63,16 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 	{ name: 'anthropic/claude-opus-4-7', provider: 'OpenRouter' },
 	{ name: 'anthropic/claude-sonnet-4-6', provider: 'OpenRouter' },
 	{ name: 'anthropic/claude-haiku-4-5', provider: 'OpenRouter' },
+	{ name: 'openai/gpt-5.5', provider: 'OpenRouter' },
+	{ name: 'openai/gpt-5.4', provider: 'OpenRouter' },
 	{ name: 'openai/gpt-4o', provider: 'OpenRouter' },
 	{ name: 'google/gemini-2.5-flash', provider: 'OpenRouter' },
+	{ name: 'qwen/qwen3-235b-a22b-2507', provider: 'OpenRouter' },
+	{ name: 'google/gemma-3-27b-it', provider: 'OpenRouter' },
+	{ name: 'meta-llama/llama-4-scout', provider: 'OpenRouter' },
+	{ name: 'meta-llama/llama-4-maverick', provider: 'OpenRouter' },
 	{ name: 'meta-llama/llama-3.3-70b-instruct', provider: 'OpenRouter' },
+	{ name: 'moonshotai/kimi-k2.5', provider: 'OpenRouter' },
 
 	// Ollama (local tags) — Rundale's recommended tiers
 	{ name: 'qwen3:32b', provider: 'Ollama' },
