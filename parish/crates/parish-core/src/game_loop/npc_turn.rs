@@ -47,6 +47,15 @@ use crate::npc::autonomous;
 use crate::npc::parse_npc_stream_response;
 use crate::npc::ticks::apply_tier1_response_with_config;
 
+/// Token cap for Tier 1 dialogue generation.
+///
+/// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
+/// `mood`, `internal_thought`, `language_hints`) fits without hitting the
+/// provider default and truncating mid-sentence (#982). vllm-mlx and most
+/// OpenAI-compat servers default to a value too low for the structured-output
+/// schema once the dialogue runs more than a sentence or two.
+pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 512;
+
 /// Output of a single NPC turn.
 #[derive(Debug)]
 pub struct TurnOutcome {
@@ -130,7 +139,7 @@ pub async fn run_npc_turn(
             setup.context,
             Some(setup.system_prompt),
             Some(token_tx),
-            None,
+            Some(TIER1_DIALOGUE_MAX_TOKENS),
             Some(0.7),
             crate::inference::InferencePriority::Interactive,
             true,

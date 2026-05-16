@@ -1109,7 +1109,7 @@ default_accent = "#112233"
                 "names": [
                     {"word": "Niamh", "pronunciation": "NEEV", "meaning": "brightness", "matches": ["Niamh"]},
                     {"word": "Siobhán", "pronunciation": "shiv-AWN", "meaning": "Irish form of Joan", "matches": ["Siobhan"]},
-                    {"word": "Kilteevan", "pronunciation": "kill-TEE-van", "meaning": "church of St. Tíobán", "matches": ["Kilteevan"]}
+                    {"word": "Kilteevan", "pronunciation": "kill-TEE-van", "meaning": "Cill Taobháin — Teevan's Church", "matches": ["Kilteevan"]}
                 ]
             }"#,
         )
