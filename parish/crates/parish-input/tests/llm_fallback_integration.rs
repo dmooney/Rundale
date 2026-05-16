@@ -9,7 +9,7 @@
 use parish_inference::AnyClient;
 use parish_inference::openai_client::OpenAiClient;
 use parish_input::{IntentKind, parse_intent};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{body_partial_json, body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Mount a `/v1/chat/completions` response with the given JSON content string.
@@ -54,6 +54,36 @@ async fn llm_fallback_success_returns_parsed_intent() {
     assert_eq!(intent.intent, IntentKind::Talk);
     assert_eq!(intent.target.as_deref(), Some("Mary"));
     assert_eq!(intent.dialogue.as_deref(), Some("hello there"));
+}
+
+#[tokio::test]
+async fn llm_fallback_posts_intent_request_contract() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .and(body_partial_json(serde_json::json!({
+            "model": "intent-model",
+            "stream": false
+        })))
+        .and(body_string_contains(r#""role":"system""#))
+        .and(body_string_contains(r#""role":"user""#))
+        .and(body_string_contains("ponder the old mill"))
+        .and(body_string_contains("text adventure input parser"))
+        .and(body_string_contains("Respond ONLY with valid JSON"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"role": "assistant", "content": r#"{"intent":"look","target":"the old mill","dialogue":null}"#}}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+    let intent = parse_intent(&client, "ponder the old mill", "intent-model")
+        .await
+        .unwrap();
+
+    assert_eq!(intent.intent, IntentKind::Look);
+    assert_eq!(intent.target.as_deref(), Some("the old mill"));
+    assert!(intent.dialogue.is_none());
 }
 
 #[tokio::test]

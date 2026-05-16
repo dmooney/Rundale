@@ -9,7 +9,7 @@ use std::path::Path;
 use parish::world::LocationId;
 use parish::world::description::render_description;
 use parish::world::encounter::check_encounter;
-use parish::world::graph::WorldGraph;
+use parish::world::graph::{Hazard, WorldGraph};
 use parish::world::movement::{MovementResult, resolve_movement};
 use parish::world::time::TimeOfDay;
 use parish::world::transport::TransportMode;
@@ -302,6 +302,30 @@ fn test_parish_computed_travel_times_reasonable() {
                 target_id
             );
         }
+    }
+}
+
+#[test]
+fn test_rundale_weather_hazards_are_authored_on_risky_edges() {
+    let graph = load_parish_graph();
+    let expected = [
+        (LocationId(15), LocationId(17), Hazard::Flood),
+        (LocationId(15), LocationId(18), Hazard::Flood),
+        (LocationId(8), LocationId(20), Hazard::Lakeshore),
+        (LocationId(11), LocationId(12), Hazard::Exposed),
+    ];
+
+    for (from, to, hazard) in expected {
+        assert_eq!(
+            graph.connection_between(from, to).map(|conn| conn.hazard),
+            Some(hazard),
+            "expected {from:?} -> {to:?} to carry {hazard:?}"
+        );
+        assert_eq!(
+            graph.connection_between(to, from).map(|conn| conn.hazard),
+            Some(hazard),
+            "expected {to:?} -> {from:?} to carry {hazard:?}"
+        );
     }
 }
 

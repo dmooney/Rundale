@@ -155,6 +155,7 @@ pub fn clear_user_config(dir: &Path) -> Result<(), ParishError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     #[test]
@@ -162,6 +163,16 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let cfg = load_user_config(dir.path()).unwrap();
         assert_eq!(cfg, UserConfig::default());
+    }
+
+    #[test]
+    fn load_malformed_user_config_returns_config_error() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join(USER_CONFIG_FILENAME), "provider = {{{{").unwrap();
+
+        let err = load_user_config(dir.path()).unwrap_err().to_string();
+        assert!(err.contains("parse"), "got: {err}");
+        assert!(err.contains(USER_CONFIG_FILENAME), "got: {err}");
     }
 
     #[test]
@@ -236,15 +247,11 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn resolve_user_config_dir_respects_env_var() {
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("custom-dir");
-        // Use a unique env-var value via std::env (process-wide; serial_test isn't
-        // wired here, but the env var write+read is local to this test thread).
-        // SAFETY: writing to the env in tests is allowed; this lockfree pattern is
-        // fine because resolve_user_config_dir reads it synchronously.
-        // Use unsafe set_var since stable Rust 1.74+.
-        // SAFETY: tests run single-threaded by default for env var manipulation.
+        // SAFETY: serialised by #[serial(parish_env)]
         unsafe { std::env::set_var(USER_CONFIG_DIR_ENV, &target) };
         let resolved = resolve_user_config_dir();
         unsafe { std::env::remove_var(USER_CONFIG_DIR_ENV) };

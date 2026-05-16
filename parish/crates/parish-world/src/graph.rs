@@ -757,6 +757,88 @@ mod tests {
     }
 
     #[test]
+    fn test_geo_metadata_defaults_to_fictional_without_source_or_relative_anchor() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let crossroads = graph.get(LocationId(1)).unwrap();
+
+        assert_eq!(crossroads.geo_kind, GeoKind::Fictional);
+        assert!(crossroads.relative_to.is_none());
+        assert!(crossroads.geo_source.is_none());
+
+        let conn = graph
+            .connection_between(LocationId(1), LocationId(2))
+            .unwrap();
+        assert_eq!(conn.hazard, Hazard::None);
+    }
+
+    #[test]
+    fn test_geo_metadata_round_trips_explicit_fields() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "Anchor",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.6,
+                    "lon": -8.1,
+                    "geo_kind": "manual",
+                    "geo_source": "OS 6-inch First Edition",
+                    "connections": [
+                        {"target": 2, "path_description": "path", "hazard": "flood"}
+                    ]
+                },
+                {
+                    "id": 2,
+                    "name": "Relative",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.6009,
+                    "lon": -8.1003,
+                    "geo_kind": "fictional",
+                    "relative_to": {
+                        "anchor": 1,
+                        "dnorth_m": 100.0,
+                        "deast_m": -20.0
+                    },
+                    "connections": [
+                        {"target": 1, "path_description": "path", "hazard": "flood"}
+                    ]
+                }
+            ]
+        }"#;
+
+        let graph = WorldGraph::load_from_str(json).unwrap();
+        let anchor = graph.get(LocationId(1)).unwrap();
+        assert_eq!(anchor.geo_kind, GeoKind::Manual);
+        assert_eq!(
+            anchor.geo_source.as_deref(),
+            Some("OS 6-inch First Edition")
+        );
+
+        let relative = graph.get(LocationId(2)).unwrap();
+        assert_eq!(relative.geo_kind, GeoKind::Fictional);
+        assert_eq!(
+            relative.relative_to,
+            Some(RelativeRef {
+                anchor: LocationId(1),
+                dnorth_m: 100.0,
+                deast_m: -20.0,
+            })
+        );
+
+        assert_eq!(
+            graph
+                .connection_between(LocationId(1), LocationId(2))
+                .unwrap()
+                .hazard,
+            Hazard::Flood
+        );
+    }
+
+    #[test]
     fn test_find_by_name_fuzzy_typo() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         // "churh" is a typo for "church" — Jaro-Winkler should catch it
@@ -849,6 +931,92 @@ mod tests {
             .shortest_path_filtered(LocationId(2), LocationId(4), |_, _, _| true)
             .unwrap();
         assert_eq!(unfiltered, filtered);
+    }
+
+    #[test]
+    fn test_shortest_path_uses_bfs_hops_not_fastest_travel_time() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "Start",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.0,
+                    "lon": 0.0,
+                    "connections": [
+                        {"target": 2, "path_description": "short-hop detour"},
+                        {"target": 3, "path_description": "longer-hop direct road"}
+                    ]
+                },
+                {
+                    "id": 2,
+                    "name": "Far Detour",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 10.0,
+                    "lon": 0.0,
+                    "connections": [
+                        {"target": 1, "path_description": "short-hop detour"},
+                        {"target": 5, "path_description": "short-hop detour"}
+                    ]
+                },
+                {
+                    "id": 3,
+                    "name": "Near Middle One",
+                    "description_template": "C",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.0,
+                    "lon": 0.001,
+                    "connections": [
+                        {"target": 1, "path_description": "longer-hop direct road"},
+                        {"target": 4, "path_description": "longer-hop direct road"}
+                    ]
+                },
+                {
+                    "id": 4,
+                    "name": "Near Middle Two",
+                    "description_template": "D",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.0,
+                    "lon": 0.002,
+                    "connections": [
+                        {"target": 3, "path_description": "longer-hop direct road"},
+                        {"target": 5, "path_description": "longer-hop direct road"}
+                    ]
+                },
+                {
+                    "id": 5,
+                    "name": "Finish",
+                    "description_template": "E",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.0,
+                    "lon": 0.003,
+                    "connections": [
+                        {"target": 2, "path_description": "short-hop detour"},
+                        {"target": 4, "path_description": "longer-hop direct road"}
+                    ]
+                }
+            ]
+        }"#;
+        let graph = WorldGraph::load_from_str(json).unwrap();
+        let shorter_by_hops = vec![LocationId(1), LocationId(2), LocationId(5)];
+        let longer_by_hops = vec![LocationId(1), LocationId(3), LocationId(4), LocationId(5)];
+
+        assert_eq!(
+            graph.shortest_path(LocationId(1), LocationId(5)).unwrap(),
+            shorter_by_hops
+        );
+        assert!(
+            graph.path_travel_time(&shorter_by_hops, 1.25)
+                > graph.path_travel_time(&longer_by_hops, 1.25),
+            "this contract is hop count, not a weighted route search"
+        );
     }
 
     #[test]
@@ -1026,6 +1194,70 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("duplicate"));
+    }
+
+    #[test]
+    fn test_validation_rejects_invalid_latitude() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 90.1,
+                    "lon": -8.1,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.6,
+                    "lon": -8.1,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+
+        let err = WorldGraph::load_from_str(json).unwrap_err().to_string();
+        assert!(err.contains("invalid latitude"), "{err}");
+        assert!(err.contains("90.1"), "{err}");
+    }
+
+    #[test]
+    fn test_validation_rejects_invalid_longitude() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.6,
+                    "lon": -180.1,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.7,
+                    "lon": -8.1,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+
+        let err = WorldGraph::load_from_str(json).unwrap_err().to_string();
+        assert!(err.contains("invalid longitude"), "{err}");
+        assert!(err.contains("-180.1"), "{err}");
     }
 
     #[test]

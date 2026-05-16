@@ -428,6 +428,50 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_documented_osm_branches() {
+        let cases = [
+            (vec![("amenity", "bar")], Some(LocationType::Pub)),
+            (vec![("amenity", "restaurant")], Some(LocationType::Pub)),
+            (
+                vec![("amenity", "grave_yard")],
+                Some(LocationType::Graveyard),
+            ),
+            (vec![("building", "chapel")], Some(LocationType::Church)),
+            (vec![("building", "cathedral")], Some(LocationType::Church)),
+            (vec![("building", "barn")], Some(LocationType::Farm)),
+            (
+                vec![("building", "yes"), ("name", "Named Building")],
+                Some(LocationType::Other),
+            ),
+            (vec![("historic", "cashel")], Some(LocationType::RingFort)),
+            (
+                vec![("historic", "ogham_stone")],
+                Some(LocationType::StandingStone),
+            ),
+            (vec![("historic", "monument")], Some(LocationType::Ruin)),
+            (vec![("natural", "wood")], Some(LocationType::Woodland)),
+            (vec![("natural", "hill")], Some(LocationType::Hill)),
+            (vec![("natural", "spring")], Some(LocationType::Well)),
+            (vec![("waterway", "stream")], Some(LocationType::Waterside)),
+            (vec![("waterway", "canal")], Some(LocationType::Waterside)),
+            (vec![("landuse", "farmyard")], Some(LocationType::Farm)),
+            (vec![("landuse", "cemetery")], Some(LocationType::Graveyard)),
+            (vec![("man_made", "watermill")], Some(LocationType::Mill)),
+            (vec![("man_made", "windmill")], Some(LocationType::Mill)),
+            (vec![("man_made", "quay")], Some(LocationType::Harbour)),
+            (vec![("craft", "blacksmith")], Some(LocationType::Forge)),
+            (vec![("ford", "yes")], Some(LocationType::Bridge)),
+            (vec![("leisure", "marina")], Some(LocationType::Harbour)),
+            (vec![("tourism", "hotel")], Some(LocationType::Pub)),
+        ];
+
+        for (tags, expected) in cases {
+            let elem = make_element(tags.clone());
+            assert_eq!(classify_element(&elem), expected, "tags: {tags:?}");
+        }
+    }
+
+    #[test]
     fn test_generate_name_explicit() {
         let elem = make_element(vec![("name", "St. Brigid's Church")]);
         assert_eq!(

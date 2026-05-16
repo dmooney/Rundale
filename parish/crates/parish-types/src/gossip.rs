@@ -350,6 +350,59 @@ mod tests {
     }
 
     #[test]
+    fn gossip_capacity_eviction_drops_oldest_and_keeps_next_id_monotonic() {
+        let mut network = GossipNetwork::new();
+
+        for i in 0..GOSSIP_CAPACITY + 3 {
+            let id = network.create(format!("Gossip {i}"), NpcId(1), test_time(10));
+            assert_eq!(id, i as u32);
+        }
+
+        let items = network.all_items();
+        assert_eq!(items.len(), GOSSIP_CAPACITY);
+        assert_eq!(items.first().unwrap().id, 3);
+        assert_eq!(items.first().unwrap().content, "Gossip 3");
+        assert_eq!(items.last().unwrap().id, (GOSSIP_CAPACITY + 2) as u32);
+        assert_eq!(network.next_id, (GOSSIP_CAPACITY + 3) as u32);
+    }
+
+    #[test]
+    fn recent_known_by_orders_newest_first_and_applies_limit() {
+        let mut network = GossipNetwork::new();
+        network.create("Old".to_string(), NpcId(1), test_time(8));
+        network.create("Newest".to_string(), NpcId(1), test_time(12));
+        network.create("Middle".to_string(), NpcId(1), test_time(10));
+        network.create("Unknown to npc 1".to_string(), NpcId(2), test_time(13));
+
+        let contents: Vec<&str> = network
+            .recent_known_by(NpcId(1), 2)
+            .iter()
+            .map(|item| item.content.as_str())
+            .collect();
+
+        assert_eq!(contents, vec!["Newest", "Middle"]);
+    }
+
+    #[test]
+    fn gossip_network_serde_round_trip_preserves_storage_order_and_next_id() {
+        let mut network = GossipNetwork::new();
+        network.create("First".to_string(), NpcId(1), test_time(8));
+        network.create("Second".to_string(), NpcId(2), test_time(9));
+
+        let json = serde_json::to_string(&network).unwrap();
+        let restored: GossipNetwork = serde_json::from_str(&json).unwrap();
+        let contents: Vec<&str> = restored
+            .all_items()
+            .iter()
+            .map(|item| item.content.as_str())
+            .collect();
+
+        assert_eq!(contents, vec!["First", "Second"]);
+        assert_eq!(restored.next_id, 2);
+        assert_eq!(restored, network);
+    }
+
+    #[test]
     fn test_distortion_rules_adjective_drop() {
         let mut rng = StdRng::seed_from_u64(0);
         // Force adjective-drop path by testing directly

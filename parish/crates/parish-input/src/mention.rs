@@ -205,6 +205,20 @@ mod tests {
         assert_eq!(result.remaining, "hello");
     }
     #[test]
+    fn test_extract_mention_after_ascii_whitespace() {
+        let result = extract_mention("hello\t@Padraig how are you").unwrap();
+        assert_eq!(result.name, "Padraig");
+        assert_eq!(result.remaining, "hello how are you");
+    }
+    #[test]
+    fn test_extract_mention_accepts_unicode_uppercase_name() {
+        let result = extract_mention("@Áine hello").unwrap();
+        assert_eq!(result.name, "Áine");
+        assert_eq!(result.remaining, "hello");
+
+        assert!(extract_mention("@áine hello").is_none());
+    }
+    #[test]
     fn test_extract_mention_mid_with_rest() {
         let result = extract_mention("hello @Padraig how are you").unwrap();
         assert_eq!(result.name, "Padraig");

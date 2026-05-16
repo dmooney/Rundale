@@ -215,6 +215,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tool_translation_error_does_not_invoke_backend() {
+        let (server, backend) = make_server(Value::Null);
+        let err = server
+            .handle(
+                "tools/call",
+                json!({"name": "parish_submit_input", "arguments": {"addressed_to": ["Mary"]}}),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.code, -32602);
+        assert!(err.message.contains("text"));
+        assert!(backend.calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
     async fn unknown_tool_is_invalid_params() {
         let (server, _) = make_server(Value::Null);
         let err = server
@@ -258,5 +274,33 @@ mod tests {
                 .unwrap()
                 .contains("nope")
         );
+    }
+
+    #[tokio::test]
+    async fn backend_transport_error_is_successful_tool_error() {
+        struct TransportFail;
+        #[async_trait]
+        impl TauriBackend for TransportFail {
+            fn name(&self) -> &'static str {
+                "transport-fail"
+            }
+            async fn invoke(&self, _: &str, _: Value) -> Result<Value, BackendError> {
+                Err(BackendError::Transport("connection refused".into()))
+            }
+        }
+
+        let server = McpServer::new(Arc::new(TransportFail));
+        let result = server
+            .handle(
+                "tools/call",
+                json!({"name": "parish_world_snapshot", "arguments": {}}),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("transport error"));
+        assert!(text.contains("connection refused"));
     }
 }

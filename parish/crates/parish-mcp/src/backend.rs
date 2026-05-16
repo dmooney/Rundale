@@ -343,6 +343,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn http_success_with_invalid_json_is_transport_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/world-snapshot"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{not json}"))
+            .mount(&server)
+            .await;
+
+        let backend = ParishHttpBackend::new(server.uri());
+        let err = backend
+            .invoke("get_world_snapshot", Value::Null)
+            .await
+            .unwrap_err();
+        let BackendError::Transport(msg) = err else {
+            panic!("expected Transport error, got {err:?}");
+        };
+        assert!(msg.contains("invalid JSON"), "got: {msg}");
+        assert!(msg.contains("/api/world-snapshot"), "got: {msg}");
+    }
+
+    #[tokio::test]
     async fn http_post_forwards_body_and_auth_header() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))

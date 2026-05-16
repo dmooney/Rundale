@@ -536,6 +536,41 @@ mod tests {
         assert!((locations[1].lon - (-8.13)).abs() < 1e-9);
     }
 
+    #[test]
+    fn realign_leaves_relative_locations_at_resolved_anchor_offset() {
+        let mut locations = vec![
+            mk_loc(1, "Anchor", 53.0, -8.0, GeoKind::Manual, None),
+            mk_loc(
+                2,
+                "Relative Fiction",
+                0.0,
+                0.0,
+                GeoKind::Fictional,
+                Some(RelativeRef {
+                    anchor: LocationId(1),
+                    dnorth_m: 1000.0,
+                    deast_m: 0.0,
+                }),
+            ),
+        ];
+        locations[1].connections.push(Connection {
+            target: LocationId(1),
+            path_description: "to anchor".to_string(),
+            hazard: Default::default(),
+        });
+
+        resolve_relative_positions(&mut locations).unwrap();
+        let resolved_lat = locations[1].lat;
+        let resolved_lon = locations[1].lon;
+        let deltas = HashMap::from([(LocationId(1), (0.02, -0.03))]);
+
+        let updated = realign_fictional_locations(&mut locations, &deltas);
+
+        assert_eq!(updated, 0);
+        assert!((locations[1].lat - resolved_lat).abs() < 1e-9);
+        assert!((locations[1].lon - resolved_lon).abs() < 1e-9);
+    }
+
     fn mk_loc(
         id: u32,
         name: &str,

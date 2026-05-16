@@ -18,7 +18,7 @@
 //! semantics predictable and avoids losing responses when stdin closes
 //! while handlers are still in flight.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -35,7 +35,7 @@ pub struct Request {
     pub method: String,
     #[serde(default)]
     pub params: Value,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_id")]
     pub id: Option<Value>,
 }
 
@@ -56,6 +56,13 @@ pub struct RpcError {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
+}
+
+fn deserialize_optional_id<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Value::deserialize(deserializer).map(Some)
 }
 
 impl RpcError {
@@ -269,6 +276,45 @@ mod tests {
         assert_eq!(parsed["result"]["params"]["a"], 1);
 
         // Drain the loop.
+        let _ = serve_task.await;
+    }
+
+    #[tokio::test]
+    async fn serve_echoes_string_and_explicit_null_ids() {
+        struct OkHandler;
+        #[async_trait::async_trait]
+        impl MethodHandler for OkHandler {
+            async fn handle(&self, _: &str, _: Value) -> HandlerResult {
+                Ok(serde_json::json!({"ok": true}))
+            }
+        }
+
+        let (mut client_in, server_in) = tokio::io::duplex(4096);
+        let (server_out, mut client_out) = tokio::io::duplex(4096);
+
+        let writer = ResponseWriter::new(server_out);
+        let serve_task = tokio::spawn(super::serve(server_in, writer, Arc::new(OkHandler)));
+
+        client_in
+            .write_all(
+                b"{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":\"abc\"}\n\
+                  {\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":null}\n",
+            )
+            .await
+            .unwrap();
+        client_in.shutdown().await.unwrap();
+
+        let mut lines = BufReader::new(&mut client_out).lines();
+        let string_id_line = lines.next_line().await.unwrap().unwrap();
+        let null_id_line = lines.next_line().await.unwrap().unwrap();
+
+        let string_id_response: Value = serde_json::from_str(&string_id_line).unwrap();
+        let null_id_response: Value = serde_json::from_str(&null_id_line).unwrap();
+        assert_eq!(string_id_response["id"], "abc");
+        assert_eq!(string_id_response["result"]["ok"], true);
+        assert_eq!(null_id_response["id"], Value::Null);
+        assert_eq!(null_id_response["result"]["ok"], true);
+
         let _ = serve_task.await;
     }
 

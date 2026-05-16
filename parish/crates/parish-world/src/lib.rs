@@ -309,6 +309,19 @@ mod tests {
     }
 
     #[test]
+    fn log_caps_text_log_and_evicts_oldest_entries() {
+        let mut world = WorldState::new();
+
+        for i in 0..(MAX_TEXT_LOG + 3) {
+            world.log(format!("entry {i}"));
+        }
+
+        assert_eq!(world.text_log.len(), MAX_TEXT_LOG);
+        assert_eq!(world.text_log.first().map(String::as_str), Some("entry 3"));
+        assert_eq!(world.text_log.last().map(String::as_str), Some("entry 502"));
+    }
+
+    #[test]
     fn mark_visited_adds_location() {
         let mut world = WorldState::new();
         world.mark_visited(LocationId(42));

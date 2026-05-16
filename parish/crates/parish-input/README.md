@@ -14,6 +14,12 @@ intent-resolution prompts for downstream game systems.
 - Extract `@mention` targets (e.g. `@Padraig Darcy`) from player input for addressed dialogue.
 - Return typed command/intent values for orchestration layers.
 
+## Slash command policy
+
+- `/new` is the canonical player command for starting a fresh game. Do not add
+  `/new-game` as a slash-command alias; that spelling is reserved for HTTP API
+  route names.
+
 ## Notes
 
 This crate should stay focused on parsing and normalization, not world mutation

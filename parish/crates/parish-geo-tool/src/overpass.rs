@@ -315,26 +315,40 @@ fn build_poi_query_by_bbox(bbox: BoundingBox) -> String {
 (
   nwr["amenity"="place_of_worship"]({bb});
   nwr["building"="church"]({bb});
+  nwr["building"="chapel"]({bb});
   nwr["amenity"="pub"]({bb});
+  nwr["tourism"="hotel"]({bb});
   nwr["shop"]({bb});
   nwr["amenity"="post_office"]({bb});
   nwr["amenity"="school"]({bb});
   nwr["building"="farm"]({bb});
   nwr["building"="farmhouse"]({bb});
+  nwr["landuse"="farmyard"]({bb});
   nwr["historic"="archaeological_site"]({bb});
   nwr["historic"="ring_fort"]({bb});
   nwr["historic"="castle"]({bb});
   nwr["historic"="ruins"]({bb});
+  nwr["historic"="monument"]({bb});
   nwr["historic"="standing_stone"]({bb});
   nwr["historic"="holy_well"]({bb});
+  nwr["historic"="ogham_stone"]({bb});
   nwr["natural"="water"]["name"]({bb});
   nwr["natural"="wetland"]({bb});
+  nwr["natural"="wood"]["name"]({bb});
   nwr["natural"="peak"]({bb});
+  nwr["natural"="spring"]({bb});
   nwr["waterway"="river"]["name"]({bb});
+  nwr["waterway"="stream"]["name"]({bb});
   nwr["landuse"="cemetery"]({bb});
+  nwr["amenity"="grave_yard"]({bb});
   nwr["man_made"="bridge"]["name"]({bb});
+  nwr["ford"="yes"]({bb});
   nwr["man_made"="kiln"]({bb});
+  nwr["man_made"="watermill"]({bb});
+  nwr["craft"="blacksmith"]({bb});
   node["place"~"hamlet|village|isolated_dwelling|locality|townland|town"]({bb});
+  nwr["leisure"="harbour"]({bb});
+  nwr["man_made"="pier"]({bb});
 );
 out center;"#
     )
@@ -414,6 +428,23 @@ mod tests {
         let query = build_poi_query_by_bbox(bbox);
         assert!(query.contains("53.45"));
         assert!(query.contains("-8.05"));
+    }
+
+    #[test]
+    fn test_bbox_poi_query_matches_area_query_tag_selectors() {
+        let area_query = build_poi_query_by_area("Kiltoom", AdminLevel::Parish);
+        let bbox_query = build_poi_query_by_bbox(BoundingBox {
+            south: 53.45,
+            west: -8.05,
+            north: 53.55,
+            east: -7.95,
+        });
+
+        assert_eq!(
+            poi_tag_selectors(&area_query),
+            poi_tag_selectors(&bbox_query),
+            "bbox POI coverage should stay in parity with named-area POI coverage"
+        );
     }
 
     #[test]
@@ -546,5 +577,19 @@ mod tests {
         assert!(!query.contains(r#""Killeen (East)""#));
         // The escaped form should contain QL-doubled backslash-paren.
         assert!(query.contains(r"\\("));
+    }
+
+    fn poi_tag_selectors(query: &str) -> Vec<String> {
+        query
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if !(line.starts_with("nwr[") || line.starts_with("node[")) {
+                    return None;
+                }
+                let target_start = line.find('(')?;
+                Some(line[..target_start].to_string())
+            })
+            .collect()
     }
 }

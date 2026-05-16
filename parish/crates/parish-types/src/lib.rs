@@ -39,3 +39,49 @@ pub struct AnachronismEntry {
     #[serde(default, alias = "reason")]
     pub note: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anachronism_entry_deserializes_full_contract() {
+        let json = r#"{
+            "term": "telegram",
+            "category": "technology",
+            "origin_year": 1837,
+            "note": "Commercial telegraph service was not yet available."
+        }"#;
+
+        let entry: AnachronismEntry = serde_json::from_str(json).unwrap();
+
+        assert_eq!(entry.term, "telegram");
+        assert_eq!(entry.category.as_deref(), Some("technology"));
+        assert_eq!(entry.origin_year, Some(1837));
+        assert_eq!(
+            entry.note,
+            "Commercial telegraph service was not yet available."
+        );
+    }
+
+    #[test]
+    fn anachronism_entry_defaults_optional_contract_fields() {
+        let entry: AnachronismEntry = serde_json::from_str(r#"{"term":"motorcar"}"#).unwrap();
+
+        assert_eq!(entry.term, "motorcar");
+        assert_eq!(entry.category, None);
+        assert_eq!(entry.origin_year, None);
+        assert_eq!(entry.note, "");
+    }
+
+    #[test]
+    fn anachronism_entry_accepts_legacy_reason_alias_for_note() {
+        let entry: AnachronismEntry =
+            serde_json::from_str(r#"{"term":"okay","reason":"not idiomatic in 1820"}"#).unwrap();
+
+        assert_eq!(entry.note, "not idiomatic in 1820");
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains(r#""note":"not idiomatic in 1820""#));
+        assert!(!json.contains("reason"));
+    }
+}

@@ -112,3 +112,55 @@ pub struct UiConfigSnapshot {
     /// How many seconds of inactivity before the game auto-pauses.
     pub auto_pause_timeout_seconds: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ipc::ConversationLine;
+
+    fn line(text: impl Into<String>) -> ConversationLine {
+        ConversationLine {
+            speaker: "speaker".to_string(),
+            text: text.into(),
+        }
+    }
+
+    #[test]
+    fn sync_location_clears_transcript_only_when_location_changes() {
+        let mut state = ConversationRuntimeState::new();
+        let crossroads = LocationId(1);
+        let chapel = LocationId(2);
+
+        state.sync_location(crossroads);
+        state.push_line(line("hello at the crossroads"));
+        state.sync_location(crossroads);
+        assert_eq!(
+            state.transcript.len(),
+            1,
+            "same-location sync should preserve local conversation context"
+        );
+
+        state.sync_location(chapel);
+        assert_eq!(state.location, Some(chapel));
+        assert!(
+            state.transcript.is_empty(),
+            "moving to a new location should clear stale local transcript"
+        );
+    }
+
+    #[test]
+    fn push_line_ignores_blank_text_and_caps_transcript() {
+        let mut state = ConversationRuntimeState::new();
+
+        state.push_line(line("   \n\t  "));
+        assert!(state.transcript.is_empty());
+
+        for idx in 0..14 {
+            state.push_line(line(format!("line {idx}")));
+        }
+
+        assert_eq!(state.transcript.len(), 12);
+        assert_eq!(state.transcript.front().unwrap().text, "line 2");
+        assert_eq!(state.transcript.back().unwrap().text, "line 13");
+    }
+}

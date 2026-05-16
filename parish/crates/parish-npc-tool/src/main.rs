@@ -902,6 +902,25 @@ fn relationships(conn: &Connection, npc_id: i64) -> Result<()> {
 mod tests {
     use super::*;
 
+    fn generated_conn(parish: &str, pop: u32, seed: u64) -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
+        generate_parish(&conn, parish, pop, Some(seed)).expect("parish generation should work");
+        conn
+    }
+
+    fn assert_validation_failed(result: Result<()>) {
+        assert!(result.is_err(), "validation should fail");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("validation failed"),
+            "validation error should use the aggregate failure message"
+        );
+    }
+
     #[test]
     fn test_generate_world_rejects_empty_counties() {
         let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
@@ -922,10 +941,7 @@ mod tests {
 
     #[test]
     fn test_schema_bootstrap_and_generation() {
-        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
-        ensure_schema(&conn).expect("schema should initialize");
-        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
-        generate_parish(&conn, "Kiltoom", 30, Some(1)).expect("parish generation should work");
+        let conn = generated_conn("Kiltoom", 30, 1);
 
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM npcs", [], |r| r.get(0))
@@ -935,10 +951,7 @@ mod tests {
 
     #[test]
     fn test_promote_sets_personality() {
-        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
-        ensure_schema(&conn).expect("schema should initialize");
-        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
-        generate_parish(&conn, "Kiltoom", 20, Some(2)).expect("parish generation should work");
+        let conn = generated_conn("Kiltoom", 20, 2);
 
         let npc_id: i64 = conn
             .query_row("SELECT id FROM npcs ORDER BY id LIMIT 1", [], |r| r.get(0))
@@ -957,11 +970,23 @@ mod tests {
     }
 
     #[test]
+    fn test_promote_rejects_missing_target() {
+        let conn = generated_conn("Kiltoom", 20, 2);
+
+        let result = promote_npc(&conn, 9_999_999);
+        assert!(result.is_err(), "promoting a missing NPC should fail");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("NPC 9999999 not found"),
+            "error should name the missing NPC"
+        );
+    }
+
+    #[test]
     fn test_validate_detects_missing_personality() {
-        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
-        ensure_schema(&conn).expect("schema should initialize");
-        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
-        generate_parish(&conn, "Kiltoom", 20, Some(3)).expect("parish generation should work");
+        let conn = generated_conn("Kiltoom", 20, 3);
 
         conn.execute(
             "UPDATE npcs SET data_tier = 1, personality = '' WHERE id = (SELECT id FROM npcs LIMIT 1)",
@@ -969,8 +994,129 @@ mod tests {
         )
         .expect("update should succeed");
 
-        let result = validate_db(&conn, None, true);
-        assert!(result.is_err());
+        assert_validation_failed(validate_db(&conn, None, true));
+    }
+
+    #[test]
+    fn test_validate_detects_missing_household() {
+        let conn = generated_conn("Kiltoom", 20, 4);
+
+        conn.execute(
+            "UPDATE npcs SET household_id = NULL WHERE id = (SELECT id FROM npcs LIMIT 1)",
+            [],
+        )
+        .expect("update should succeed");
+
+        assert_validation_failed(validate_db(&conn, None, true));
+    }
+
+    #[test]
+    fn test_validate_detects_invalid_age() {
+        let conn = generated_conn("Kiltoom", 20, 5);
+
+        conn.execute(
+            "UPDATE npcs SET age = 111 WHERE id = (SELECT id FROM npcs LIMIT 1)",
+            [],
+        )
+        .expect("update should succeed");
+
+        assert_validation_failed(validate_db(&conn, None, true));
+    }
+
+    #[test]
+    fn test_validate_detects_broken_relationship() {
+        let conn = generated_conn("Kiltoom", 20, 6);
+        let npc_id: i64 = conn
+            .query_row("SELECT id FROM npcs ORDER BY id LIMIT 1", [], |r| r.get(0))
+            .expect("must have an NPC");
+
+        conn.execute_batch("PRAGMA foreign_keys = OFF")
+            .expect("foreign keys should be configurable");
+        conn.execute(
+            "INSERT INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, 9999999, 'Acquaintance', 0.5)",
+            params![npc_id],
+        )
+        .expect("insert broken relationship");
+        conn.execute_batch("PRAGMA foreign_keys = ON")
+            .expect("foreign keys should be configurable");
+
+        assert_validation_failed(validate_db(&conn, None, true));
+    }
+
+    #[test]
+    fn test_validate_rejects_parish_and_all_together() {
+        let conn = generated_conn("Kiltoom", 20, 7);
+
+        let result = validate_db(&conn, Some("Kiltoom".to_string()), true);
+        assert!(result.is_err(), "validate should reject ambiguous scope");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("choose either --parish or --all"),
+            "error should explain the mutually exclusive scope flags"
+        );
+    }
+
+    #[test]
+    fn test_generate_parish_same_seed_is_deterministic() {
+        fn npc_signature(conn: &Connection) -> Vec<(String, String, i64, i64, String, String)> {
+            let mut stmt = conn
+                .prepare(
+                    "
+                    SELECT n.name, n.sex, n.birth_year, n.age, h.name, n.occupation
+                    FROM npcs n
+                    JOIN households h ON h.id = n.household_id
+                    ORDER BY n.id
+                    ",
+                )
+                .expect("prepare NPC signature query");
+            stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            })
+            .expect("query NPC signature")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect NPC signature")
+        }
+
+        fn relationship_signature(conn: &Connection) -> Vec<(i64, i64, String, String)> {
+            let mut stmt = conn
+                .prepare(
+                    "
+                    SELECT from_npc_id, to_npc_id, kind, printf('%.6f', strength)
+                    FROM npc_relationships
+                    ORDER BY from_npc_id, to_npc_id, kind
+                    ",
+                )
+                .expect("prepare relationship signature query");
+            stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            })
+            .expect("query relationship signature")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect relationship signature")
+        }
+
+        let left = generated_conn("Kiltoom", 30, 8);
+        let right = generated_conn("Kiltoom", 30, 8);
+
+        assert_eq!(npc_signature(&left), npc_signature(&right));
+        assert_eq!(
+            relationship_signature(&left),
+            relationship_signature(&right)
+        );
     }
 
     // ── #436 import preserves non-export columns + sex round-trips ──────────
