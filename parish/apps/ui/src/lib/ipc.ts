@@ -135,14 +135,14 @@ export const getLatestScreenshot = () =>
  * Called by the frontend after it receives a `request-screenshot` event
  * (via `onRequestScreenshot`) and completes the capture. The bridge handler
  * that emitted the event is waiting on a oneshot channel keyed by
- * `requestId`; this call unblocks it so it can return `ScreenshotInfo` to
+ * `request_id`; this call unblocks it so it can return `ScreenshotInfo` to
  * the MCP client.
  *
  * Only meaningful in Tauri mode — the server returns 501 for take-screenshot
  * and never emits the event, so this is never called in web mode.
  */
-export const notifyScreenshotCaptured = (requestId: string, info: ScreenshotInfo) =>
-	command<void>('notify_screenshot_captured', { requestId, info });
+export const notifyScreenshotCaptured = (request_id: string, info: ScreenshotInfo) =>
+	command<void>('notify_screenshot_captured', { request_id, info });
 
 /**
  * Reports a screenshot capture failure back to the MCP bridge so it can
@@ -152,8 +152,8 @@ export const notifyScreenshotCaptured = (requestId: string, info: ScreenshotInfo
  * Call this whenever `captureScreen()` or `saveScreenshot()` throws inside
  * the `onRequestScreenshot` handler.
  */
-export const notifyScreenshotError = (requestId: string, error: string) =>
-	command<void>('notify_screenshot_error', { requestId, error });
+export const notifyScreenshotError = (request_id: string, error: string) =>
+	command<void>('notify_screenshot_error', { request_id, error });
 
 export interface RequestScreenshotPayload {
 	request_id: string;
