@@ -12,7 +12,19 @@ use crate::{LanguageSettings, Npc};
 use parish_inference::AnyClient;
 
 /// Keyword groups that trigger NPC reactions, with the corresponding emoji.
+///
+/// Coverage was widened in #982 after a five-turn demo run produced zero
+/// reactions: the demo prompt steers the player into chitchat ("greet
+/// people", "ask about lives, land, events") which never tripped the old
+/// charged-topic set. The additions are everyday parish-life cues —
+/// greetings, weather, work, family, news, prayer, music — mapped to
+/// emoji that are already members of [`crate::reactions::REACTION_PALETTE`]
+/// so the palette stays the canonical 12-entry set used by the UI, the LLM
+/// validator, and the reaction-log context renderer.
+/// The 60% probabilistic gate is intentionally preserved so reactions
+/// remain a sparing accent.
 const KEYWORD_REACTIONS: &[(&[&str], &str)] = &[
+    // Charged topics — original set.
     (&["death", "died", "killed", "murder"], "😢"),
     (&["fairy", "fairies", "púca", "banshee", "sidhe"], "✝️"),
     (&["drink", "whiskey", "poitín", "ale", "stout"], "🍺"),
@@ -21,17 +33,102 @@ const KEYWORD_REACTIONS: &[(&[&str], &str)] = &[
     (&["rent", "evict", "landlord", "agent", "tithe"], "😠"),
     (&["gold", "treasure", "fortune", "money", "reward"], "👀"),
     (&["strange", "ghost", "haunted", "spirit"], "😳"),
+    // Everyday chitchat — added in #982. All emoji are palette-resident.
+    (
+        &[
+            "hello",
+            "hallo",
+            "good morning",
+            "good day",
+            "good evening",
+            "dia duit",
+            "fáilte",
+        ],
+        "😊",
+    ),
+    (
+        &[
+            "weather", "rain", "raining", "sunny", "storm", "cold", "frost", "wind", "harvest",
+            "crop", "potato", "praties", "field", "plough", "turf", "bog",
+        ],
+        "🤔",
+    ),
+    (
+        &[
+            "parish",
+            "village",
+            "townland",
+            "neighbour",
+            "neighbor",
+            "kilteevan",
+            "family",
+            "mother",
+            "father",
+            "child",
+            "son",
+            "daughter",
+            "music",
+            "song",
+            "fiddle",
+            "tune",
+            "dance",
+        ],
+        "😊",
+    ),
+    (&["news", "story", "tell me", "heard", "rumour"], "👀"),
+    (
+        &["pray", "prayer", "priest", "mass", "blessing", "holy well"],
+        "✝️",
+    ),
 ];
+
+/// Normalises an input line for whole-word keyword matching.
+///
+/// Lowercases, replaces every non-alphanumeric character (apart from `'`,
+/// which carries meaning in cues like `don't tell`) with a space, then
+/// surrounds the result with sentinel spaces so a caller can check
+/// `normalised.contains(&format!(" {kw} "))` to get word-boundary semantics
+/// without pulling in `regex` for the hot path. Multi-word cues like
+/// `"good morning"` or `"holy well"` still match — the helper preserves
+/// internal spaces in keywords.
+fn normalise_for_keyword_match(input: &str) -> String {
+    let mut out = String::with_capacity(input.len() + 2);
+    out.push(' ');
+    for c in input.chars() {
+        if c.is_alphanumeric() || c == '\'' {
+            for lc in c.to_lowercase() {
+                out.push(lc);
+            }
+        } else {
+            out.push(' ');
+        }
+    }
+    out.push(' ');
+    out
+}
+
+/// Whole-word keyword match.
+///
+/// Avoids the substring false positives that the original
+/// `input_lower.contains(kw)` produced — e.g. `son` matching `person`,
+/// `pray` matching `spray`, `mass` matching `massage` (#982 review).
+fn input_contains_keyword(normalised: &str, kw: &str) -> bool {
+    let needle = format!(" {kw} ");
+    normalised.contains(&needle)
+}
 
 /// Generates a rule-based NPC reaction to player input.
 ///
 /// Returns `Some(emoji)` if a keyword match triggers a reaction (60% chance),
 /// or `None` if no reaction is generated.
 pub fn generate_rule_reaction(player_input: &str) -> Option<String> {
-    let input_lower = player_input.to_lowercase();
+    let normalised = normalise_for_keyword_match(player_input);
 
     for (keywords, emoji) in KEYWORD_REACTIONS {
-        if keywords.iter().any(|kw| input_lower.contains(kw)) {
+        if keywords
+            .iter()
+            .any(|kw| input_contains_keyword(&normalised, kw))
+        {
             // 60% chance to react — not every NPC reacts every time
             if rand::random::<f64>() < 0.6 {
                 return Some((*emoji).to_string());
@@ -45,10 +142,13 @@ pub fn generate_rule_reaction(player_input: &str) -> Option<String> {
 /// Deterministic variant for testing — always returns a reaction if keywords match.
 #[cfg(test)]
 fn generate_rule_reaction_deterministic(player_input: &str) -> Option<String> {
-    let input_lower = player_input.to_lowercase();
+    let normalised = normalise_for_keyword_match(player_input);
 
     for (keywords, emoji) in KEYWORD_REACTIONS {
-        if keywords.iter().any(|kw| input_lower.contains(kw)) {
+        if keywords
+            .iter()
+            .any(|kw| input_contains_keyword(&normalised, kw))
+        {
             return Some((*emoji).to_string());
         }
     }
@@ -206,9 +306,60 @@ mod tests {
     #[test]
     fn generate_rule_reaction_no_match() {
         assert_eq!(
-            generate_rule_reaction_deterministic("Good morning to you"),
+            generate_rule_reaction_deterministic("Just walking by here"),
             None
         );
+    }
+
+    /// Regression test for the substring false positive that
+    /// `input.contains(kw)` produced before #982 added whole-word matching.
+    /// Words that *contain* a keyword as a fragment must not trigger a
+    /// reaction — only standalone occurrences should.
+    #[test]
+    fn generate_rule_reaction_rejects_substring_false_positives() {
+        // `son` is a keyword, but "person", "lesson", "comparison" are not.
+        assert_eq!(
+            generate_rule_reaction_deterministic("A person walked past"),
+            None
+        );
+        assert_eq!(
+            generate_rule_reaction_deterministic("That was a lesson learned"),
+            None
+        );
+        // `pray` is a keyword, but "spray" is not.
+        assert_eq!(
+            generate_rule_reaction_deterministic("There was sea spray on the air"),
+            None
+        );
+        // `mass` is a keyword, but "massage" is not.
+        assert_eq!(
+            generate_rule_reaction_deterministic("She wanted a massage"),
+            None
+        );
+        // `rain` is a keyword, but "train" / "brain" are not.
+        assert_eq!(
+            generate_rule_reaction_deterministic("He took the train"),
+            None
+        );
+        // `tune` is a keyword, but "tuning" / "tuned" are not.
+        assert_eq!(
+            generate_rule_reaction_deterministic("He was tuning the cart wheel"),
+            None
+        );
+    }
+
+    /// Whole-word matching must still strike on real keywords surrounded by
+    /// punctuation or appearing in multi-word cues.
+    #[test]
+    fn generate_rule_reaction_handles_punctuation_and_multiword_keywords() {
+        // Trailing question mark / comma — non-alphanumeric chars are
+        // normalised to spaces.
+        assert!(generate_rule_reaction_deterministic("What news from the market?").is_some());
+        assert!(generate_rule_reaction_deterministic("Hello, friend!").is_some());
+        // Multi-word keyword "good morning".
+        assert!(generate_rule_reaction_deterministic("A good morning to ye").is_some());
+        // Multi-word keyword "tell me" with an apostrophe nearby.
+        assert!(generate_rule_reaction_deterministic("Tell me, what's news?").is_some());
     }
 
     #[test]
@@ -334,6 +485,6 @@ mod tests {
     fn generate_rule_reaction_deterministic_matches_known_keywords() {
         assert!(generate_rule_reaction_deterministic("rent and landlord").is_some());
         assert!(generate_rule_reaction_deterministic("strange ghost").is_some());
-        assert!(generate_rule_reaction_deterministic("perfectly normal day").is_none());
+        assert!(generate_rule_reaction_deterministic("Just walking by here").is_none());
     }
 }

@@ -485,7 +485,14 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         Never portray Irish characters as excessively drunk, violent as a cultural trait, \
         foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
         Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
-        Show the wit, intelligence, resilience, and warmth of rural Irish people.\
+        Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
+        \n\
+        FRESH PHRASING: Do not close with stock politeness templates such as \
+        \"if I might ask it so bold,\" \"if ye don't mind my asking,\" or similar \
+        repeated softeners. Every reply must use distinct wording — never recycle \
+        the closer of any earlier turn in the conversation, and never echo another \
+        NPC's phrasing. End on a concrete observation, question, or action rooted \
+        in your character, not a formula.\
         {improv_section}\n\
         \n\
         Personality: {personality}\n\
