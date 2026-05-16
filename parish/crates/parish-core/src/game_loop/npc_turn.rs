@@ -270,6 +270,14 @@ pub async fn run_npc_turn(
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
 
+    if !parsed.dialogue.trim().is_empty() {
+        tracing::info!(
+            npc = %display_label,
+            reply = %parsed.dialogue,
+            "chat [npc]"
+        );
+    }
+
     {
         let world = ctx.world.lock().await;
         let game_time = world.clock.now();

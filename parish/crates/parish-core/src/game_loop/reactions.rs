@@ -162,6 +162,8 @@ pub fn emit_npc_reactions(
             // Delegate persistence to the runtime-supplied callback (#403).
             persist(npc_name.clone(), emoji.clone(), player_input.clone());
 
+            tracing::info!(npc = %npc_name, emoji = %emoji, "npc-reaction");
+
             let payload = NpcReactionPayload {
                 message_id: player_msg_id.clone(),
                 emoji,
