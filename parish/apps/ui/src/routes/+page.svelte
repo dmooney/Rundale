@@ -53,11 +53,8 @@
 		onOpenDesigner,
 		onNpcReaction,
 		onTravelStart,
-		onRequestScreenshot,
 		submitInput,
 		saveScreenshot,
-		notifyScreenshotCaptured,
-		notifyScreenshotError,
 		disposeTransport
 	} from '$lib/ipc';
 	import { captureScreen } from '$lib/screenshot';
@@ -419,17 +416,6 @@
 				savePickerVisible.set(true);
 			}));
 
-			listeners.push(await onRequestScreenshot(async (payload) => {
-				try {
-					const dataUrl = await captureScreen();
-					const info = await saveScreenshot(dataUrl);
-					await notifyScreenshotCaptured(payload.request_id, info);
-				} catch (e) {
-					const msg = e instanceof Error ? e.message : String(e);
-					console.warn('Agent screenshot capture failed:', msg);
-					await notifyScreenshotError(payload.request_id, msg).catch(() => {});
-				}
-			}));
 		} catch (e) {
 			console.warn('Failed to set up some event listeners:', e);
 		}

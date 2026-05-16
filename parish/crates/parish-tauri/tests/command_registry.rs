@@ -31,6 +31,12 @@ use parish_tauri_lib::commands::{
     get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot, load_branch, new_game,
     new_save_file, react_to_message, save_game, save_screenshot, submit_input, take_screenshot,
 };
+// Internal screenshot callback commands. Not in EXPECTED_COMMANDS (they are
+// round-trip callbacks with no wiring-parity HTTP equivalent), but imported
+// here so a rename or deletion fails the build rather than silently breaking
+// the MCP screenshot round-trip at runtime.
+#[allow(unused_imports)]
+use parish_tauri_lib::commands::{notify_screenshot_captured, notify_screenshot_error};
 #[allow(unused_imports)]
 use parish_tauri_lib::editor_commands::{
     editor_close, editor_get_snapshot, editor_list_branches, editor_list_mods, editor_list_saves,
