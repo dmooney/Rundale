@@ -102,6 +102,12 @@ fn translate_latest_screenshot(_args: &Value) -> Result<(String, Value), String>
     Ok(("get_latest_screenshot".into(), Value::Null))
 }
 
+fn translate_take_screenshot(_args: &Value) -> Result<(String, Value), String> {
+    // `json!({})` (not Null) so the HTTP backend dispatches as POST to
+    // `/api/take-screenshot`, which triggers the bridge's round-trip capture.
+    Ok(("take_screenshot".into(), json!({})))
+}
+
 // ── BYOK setup-flow (#933) ───────────────────────────────────────────────────
 //
 // Real handlers in `parish-tauri/src/mcp_bridge.rs` back these tools — they
@@ -226,21 +232,33 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             translate: translate_load_branch,
         },
-        // ── Screenshot reader (player-triggered, MCP-readable) ──────────────
-        // The capture itself is initiated from the live UI by pressing F2
-        // (frontend uses `html-to-image`, then posts the data URL through the
-        // Tauri `save_screenshot` IPC). This tool only reads back the path,
-        // taken-at timestamp, and PNG size — the model can then load the file
-        // via a separate Read tool, or, in a future revision, the response
-        // can carry the image inline (see the README's open design questions).
+        // ── Screenshot tools ─────────────────────────────────────────────────
+        // `parish_take_screenshot` triggers a fresh capture; the bridge emits
+        // a `request-screenshot` event to the live desktop window, waits for
+        // the frontend to call back with the PNG metadata (up to 15 s), and
+        // returns the result. Only works when a Tauri desktop window is open.
+        //
+        // `parish_latest_screenshot` is the read-only companion: it returns
+        // the most recently captured screenshot without triggering a new one.
+        ToolDef {
+            name: "parish_take_screenshot",
+            description: "Captures the current game view as a PNG screenshot and returns \
+                          its path, ISO-8601 taken_at timestamp, and size in bytes. \
+                          Requires the live desktop window — returns an error when running \
+                          in headless / web-server mode or when the desktop window does not \
+                          respond within 15 seconds. Use `parish_latest_screenshot` if you \
+                          only need to read a previously captured image.",
+            input_schema: empty_object_schema(),
+            translate: translate_take_screenshot,
+        },
         ToolDef {
             name: "parish_latest_screenshot",
             description: "Reads metadata for the most recently captured screenshot \
                           (path, ISO-8601 taken_at, size_bytes). Returns null when no \
                           screenshot exists yet — capture is player-initiated by pressing \
-                          F2 in the live desktop window. The path is relative to the \
-                          host filesystem; pair this tool with a separate Read to view \
-                          the PNG.",
+                          F2 in the live desktop window or via `parish_take_screenshot`. \
+                          The path is on the host filesystem; pair this tool with a \
+                          separate Read to view the PNG.",
             input_schema: empty_object_schema(),
             translate: translate_latest_screenshot,
         },
@@ -367,6 +385,7 @@ mod tests {
                 "parish_new_game",
                 "parish_save_game",
                 "parish_load_branch",
+                "parish_take_screenshot",
                 "parish_latest_screenshot",
                 "parish_byok_env_keys",
                 "parish_setup_status",
@@ -453,5 +472,20 @@ mod tests {
     fn registry_includes_latest_screenshot_tool() {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_latest_screenshot"));
+    }
+
+    #[test]
+    fn take_screenshot_routes_to_post() {
+        let (cmd, args) = translate_take_screenshot(&json!({})).unwrap();
+        assert_eq!(cmd, "take_screenshot");
+        // Non-null args mean the HTTP backend dispatches as POST to
+        // `/api/take-screenshot`, triggering the bridge's round-trip.
+        assert!(!args.is_null());
+    }
+
+    #[test]
+    fn registry_includes_take_screenshot_tool() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert!(names.contains(&"parish_take_screenshot"));
     }
 }

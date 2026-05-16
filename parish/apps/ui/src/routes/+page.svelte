@@ -415,6 +415,7 @@
 			listeners.push(await onSavePicker(() => {
 				savePickerVisible.set(true);
 			}));
+
 		} catch (e) {
 			console.warn('Failed to set up some event listeners:', e);
 		}

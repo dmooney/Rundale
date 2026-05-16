@@ -37,6 +37,7 @@ pub const EXPECTED_HTTP_ROUTES: &[&str] = &[
     // ── screenshot routes (Tauri-only desktop feature, server returns 501) ─
     "/api/save-screenshot",
     "/api/latest-screenshot",
+    "/api/take-screenshot",
     // ── editor routes ─────────────────────────────────────────────────────
     "/api/editor-list-mods",
     "/api/editor-open-mod",

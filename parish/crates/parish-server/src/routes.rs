@@ -1276,6 +1276,18 @@ pub async fn get_latest_screenshot() -> (StatusCode, Json<serde_json::Value>) {
     )
 }
 
+/// `POST /api/take-screenshot` — agent-triggered screenshot capture. Only
+/// works in the Tauri desktop mode where a live browser window is available
+/// for `html-to-image` to render; the headless server has no DOM to capture.
+pub async fn take_screenshot() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Agent-triggered screenshot capture is only available in the desktop app."
+        })),
+    )
+}
+
 // ── #335 — Branch name validation ───────────────────────────────────────────
 
 /// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.

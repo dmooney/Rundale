@@ -33,6 +33,7 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     // ── screenshot commands (player-triggered, MCP-readable) ──────────────
     "save_screenshot",
     "get_latest_screenshot",
+    "take_screenshot",
     // ── editor commands ───────────────────────────────────────────────────
     "editor_list_mods",
     "editor_open_mod",
