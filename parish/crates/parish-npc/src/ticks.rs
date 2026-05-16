@@ -722,7 +722,11 @@ pub async fn run_tier2_for_group(
                 // Graceful cancellation (shutdown, demo turn cap). Not a failure.
                 tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
             } else {
-                tracing::error!("Tier 2 inference failed at {}: {}", group.location_name, msg);
+                tracing::error!(
+                    "Tier 2 inference failed at {}: {}",
+                    group.location_name,
+                    msg
+                );
             }
             None
         }
