@@ -88,6 +88,7 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 	// vLLM (local inference server)
 	{ name: 'Qwen/Qwen3-32B', provider: 'vLLM' },
 	{ name: 'Qwen/Qwen3-14B', provider: 'vLLM' },
+	{ name: 'Qwen/Qwen3-8B', provider: 'vLLM' },
 	{ name: 'Qwen/Qwen3-4B', provider: 'vLLM' }
 ];
 

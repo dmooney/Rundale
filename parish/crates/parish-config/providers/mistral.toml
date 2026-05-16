@@ -18,6 +18,14 @@ intent = "ministral-3-3b-2512"
 reaction = "mistral-medium-3.1"
 
 [[presets]]
+key = "medium"
+label = "Medium"
+dialogue = "mistral-medium-3.1"
+simulation = "mistral-medium-3.1"
+intent = "mistral-medium-3.1"
+reaction = "mistral-medium-3.1"
+
+[[presets]]
 key = "large"
 label = "Large"
 dialogue = "mistral-large-2512"
