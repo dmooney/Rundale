@@ -29,8 +29,14 @@ use parish_tauri_lib::commands::{
     create_branch, discover_save_files, get_debug_snapshot, get_demo_config, get_demo_context,
     get_latest_screenshot, get_llm_player_action, get_map, get_npcs_here, get_save_state,
     get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot, load_branch, new_game,
-    new_save_file, react_to_message, save_game, save_screenshot, submit_input,
+    new_save_file, react_to_message, save_game, save_screenshot, submit_input, take_screenshot,
 };
+// Internal screenshot callback commands. Not in EXPECTED_COMMANDS (they are
+// round-trip callbacks with no wiring-parity HTTP equivalent), but imported
+// here so a rename or deletion fails the build rather than silently breaking
+// the MCP screenshot round-trip at runtime.
+#[allow(unused_imports)]
+use parish_tauri_lib::commands::{notify_screenshot_captured, notify_screenshot_error};
 #[allow(unused_imports)]
 use parish_tauri_lib::editor_commands::{
     editor_close, editor_get_snapshot, editor_list_branches, editor_list_mods, editor_list_saves,
@@ -38,10 +44,10 @@ use parish_tauri_lib::editor_commands::{
     editor_update_locations, editor_update_npcs, editor_validate,
 };
 
-/// All 34 expected commands are listed in EXPECTED_COMMANDS.
+/// All 35 expected commands are listed in EXPECTED_COMMANDS.
 #[test]
 fn command_count_matches_registry() {
-    const EXPECTED_COUNT: usize = 34;
+    const EXPECTED_COUNT: usize = 35;
     assert_eq!(
         EXPECTED_COMMANDS.len(),
         EXPECTED_COUNT,

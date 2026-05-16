@@ -129,6 +129,40 @@ export const saveScreenshot = (dataUrl: string) =>
 export const getLatestScreenshot = () =>
 	command<ScreenshotInfo | null>('get_latest_screenshot');
 
+/**
+ * Sends the result of an agent-triggered screenshot back to the MCP bridge.
+ *
+ * Called by the frontend after it receives a `request-screenshot` event
+ * (via `onRequestScreenshot`) and completes the capture. The bridge handler
+ * that emitted the event is waiting on a oneshot channel keyed by
+ * `request_id`; this call unblocks it so it can return `ScreenshotInfo` to
+ * the MCP client.
+ *
+ * Only meaningful in Tauri mode — the server returns 501 for take-screenshot
+ * and never emits the event, so this is never called in web mode.
+ */
+export const notifyScreenshotCaptured = (request_id: string, info: ScreenshotInfo) =>
+	command<void>('notify_screenshot_captured', { request_id, info });
+
+/**
+ * Reports a screenshot capture failure back to the MCP bridge so it can
+ * return an error to the MCP client immediately rather than waiting for the
+ * 15-second timeout.
+ *
+ * Call this whenever `captureScreen()` or `saveScreenshot()` throws inside
+ * the `onRequestScreenshot` handler.
+ */
+export const notifyScreenshotError = (request_id: string, error: string) =>
+	command<void>('notify_screenshot_error', { request_id, error });
+
+export interface RequestScreenshotPayload {
+	request_id: string;
+}
+
+/** Registers a handler for agent-triggered screenshot requests. */
+export const onRequestScreenshot = (cb: (payload: RequestScreenshotPayload) => void) =>
+	onEvent<RequestScreenshotPayload>('request-screenshot', cb);
+
 // ── Events ──────────────────────────────────────────────────────────────────
 
 type UnlistenFn = () => void;

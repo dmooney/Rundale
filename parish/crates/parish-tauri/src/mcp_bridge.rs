@@ -87,12 +87,14 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/new-game", post(new_game))
         .route("/api/save-game", post(save_game))
         .route("/api/load-branch", post(load_branch))
-        // ── Screenshot reader (player-triggered, MCP-readable) ───────────────
-        // GET-only: capture is initiated from the live UI by pressing F2; the
-        // bridge surfaces the most recent path so an MCP client can read the
-        // file out of band. Posting a `data_url` from MCP is intentionally
-        // out of scope until the future-work design questions are resolved.
+        // ── Screenshot routes ────────────────────────────────────────────────
+        // GET: read the most recently captured screenshot path.
+        // POST /api/take-screenshot: agent-triggered capture — emits
+        //   `request-screenshot` to the frontend, awaits the
+        //   `notify_screenshot_captured` Tauri callback (up to 15 s), and
+        //   returns the resulting ScreenshotInfo.
         .route("/api/latest-screenshot", get(latest_screenshot))
+        .route("/api/take-screenshot", post(take_screenshot_mcp))
         // ── BYOK setup-flow (#933) ────────────────────────────────────────
         // Real handlers backed by `parish_core::ipc::byok` — the Svelte
         // wizard and the MCP client share these. Routes match the schema
@@ -286,6 +288,15 @@ async fn latest_screenshot(
     State(b): State<BridgeState>,
 ) -> Result<Json<Option<ScreenshotInfo>>, AppError> {
     let info = crate::commands::do_get_latest_screenshot(&b.state)
+        .await
+        .map_err(AppError::from)?;
+    Ok(Json(info))
+}
+
+async fn take_screenshot_mcp(
+    State(b): State<BridgeState>,
+) -> Result<Json<ScreenshotInfo>, AppError> {
+    let info = crate::commands::do_take_screenshot(&b.state, &b.app)
         .await
         .map_err(AppError::from)?;
     Ok(Json(info))
@@ -564,6 +575,7 @@ mod tests {
             user_config_dir: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),
             latest_screenshot_path: Mutex::new(None),
+            pending_screenshots: Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -704,8 +716,9 @@ mod tests {
             "/api/new-game",
             "/api/save-game",
             "/api/load-branch",
-            // Screenshot reader (player-triggered, MCP-readable).
+            // Screenshot routes.
             "/api/latest-screenshot",
+            "/api/take-screenshot",
             // BYOK setup-flow stubs (#933).
             "/api/setup-status",
             "/api/submit-byok",
@@ -736,6 +749,7 @@ mod tests {
             "save_game",
             "load_branch",
             "get_latest_screenshot",
+            "take_screenshot",
             "get_setup_status",
             "submit_byok",
         ] {
