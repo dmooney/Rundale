@@ -25,7 +25,7 @@ Canonical label set for open-issue triage. The machine-readable list lives in [`
 | `mode-parity` | Tauri / web server / headless CLI behavioral divergence (project rule #2). |
 | `npc-reactions` | The LLM-driven NPC-reaction subsystem. |
 | `witness-scan` | The `/witness` verification workflow tooling. |
-| `infra` | CI, deploy, Docker, Cloudflare, Railway, GitHub Actions, runners. |
+| `infra` | CI, deploy, Docker, Cloudflare, GitHub Actions, runners. |
 
 ## Process labels (independent of theme/priority)
 
