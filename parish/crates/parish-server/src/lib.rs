@@ -391,7 +391,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
     // ── Saves directory ───────────────────────────────────────────────────────
-    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&data_dir);
+    // App-name drives the per-user data folder (saves + tile cache). It comes
+    // from the active mod (Rundale → `Rundale`); engine fallback is `Parish`.
+    let app_name: String = game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.app_name().to_string())
+        .unwrap_or_else(|| parish_core::persistence::paths::DEFAULT_APP_NAME.to_string());
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&app_name);
     let (sessions, identity_store, pronunciations) =
         open_session_components(&saves_dir, &game_mod)?;
     let oauth_config = build_oauth_config();
@@ -401,7 +407,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     check_ws_signing_key_warning();
 
     // ── Tile cache / admission control / GlobalState ────────────────────────
-    let tile_cache = init_tile_cache(&saves_dir, &data_dir, &engine_config).await;
+    let tile_cache = init_tile_cache(&app_name, &data_dir, &engine_config).await;
     let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
         sessions,
@@ -842,15 +848,20 @@ fn check_ws_signing_key_warning() {
     }
 }
 
-/// Creates the tile cache directory (env var or `<saves_dir>/tile-cache/`) and
+/// Creates the tile cache directory (env var or `<user_data>/tile-cache/`) and
 /// returns an initialised [`TileCache`].
 ///
-/// Bundled-dir resolution order (Rule #9 — paths from config, not cwd):
+/// Cache-dir resolution (Rule #9 — paths from config, not cwd):
+/// 1. `PARISH_TILE_CACHE_DIR` env var — explicit operator/dev override.
+/// 2. `<user_data_dir>/tile-cache` where `user_data_dir` is the platform-native
+///    per-user data folder for `app_name` (sibling of the saves dir).
+///
+/// Bundled-dir resolution order:
 /// 1. `PARISH_BUNDLED_TILES_DIR` env var
 /// 2. `engine_config.map.bundled_tiles_dir` from `parish.toml`
 /// 3. `{data_dir}/tiles` if that directory exists on disk (conventional default)
 async fn init_tile_cache(
-    saves_dir: &Path,
+    app_name: &str,
     data_dir: &Path,
     engine_config: &parish_core::config::EngineConfig,
 ) -> parish_core::tile_cache::TileCache {
@@ -858,7 +869,9 @@ async fn init_tile_cache(
         .ok()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| saves_dir.join("tile-cache"));
+        .unwrap_or_else(|| {
+            parish_core::persistence::paths::resolve_user_data_dir(app_name).join("tile-cache")
+        });
     if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
         tracing::warn!(
             dir = %tile_cache_dir.display(),

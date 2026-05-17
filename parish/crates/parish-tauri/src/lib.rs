@@ -1073,8 +1073,14 @@ pub fn run() {
     game_config.fill_missing_models_from_presets();
 
     // Resolve the saves directory once at startup (#771). Subsequent save/load
-    // commands read `state.saves_dir` instead of re-probing the cwd.
-    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir_from_cwd();
+    // commands read `state.saves_dir` instead of re-probing the cwd. App-name
+    // drives the per-user data folder (Rundale → `Rundale`); engine fallback
+    // when no mod is loaded is `Parish`.
+    let app_name: String = game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.app_name().to_string())
+        .unwrap_or_else(|| parish_core::persistence::paths::DEFAULT_APP_NAME.to_string());
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&app_name);
 
     // Construct the shared SessionStore using the saves directory (#696 slice 8).
     // Tauri is single-user; handlers pass session_id = "" so the store resolves

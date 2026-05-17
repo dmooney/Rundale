@@ -286,8 +286,16 @@ pub async fn run_headless(
     // Initial tier assignment
     app.npc_manager.assign_tiers(&app.world, &[]);
 
-    // Initialize persistence — Papers Please-style save picker
-    let saves_dir = crate::persistence::picker::resolve_project_saves_dir_from_cwd();
+    // Initialize persistence — Papers Please-style save picker.
+    // App-name drives the per-user data folder (Rundale → `Rundale`); engine
+    // fallback when no mod is loaded is `Parish`.
+    let app_name: String = app
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.app_name().to_string())
+        .unwrap_or_else(|| parish_core::persistence::paths::DEFAULT_APP_NAME.to_string());
+    let saves_dir = crate::persistence::picker::resolve_project_saves_dir(&app_name);
+    app.saves_dir = Some(saves_dir.clone());
     // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).
     app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
         saves_dir.clone(),
@@ -436,8 +444,16 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
 /// in script mode — the same fail-closed policy applied at startup (#608).
 pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
-        // Bare /load — show save picker for switching save files
-        let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
+        // Bare /load — show save picker for switching save files.
+        // Read the saves dir resolved once at startup (#771); never re-probe
+        // the cwd here — packaged/daemon runs may have moved cwd since boot.
+        let saves_dir = match app.saves_dir.as_ref() {
+            Some(p) => p.clone(),
+            None => {
+                println!("Save picker unavailable: saves directory not initialised.");
+                return Ok(());
+            }
+        };
         if let Some(new_path) =
             crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
         {

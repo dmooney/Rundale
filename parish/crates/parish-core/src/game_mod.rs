@@ -43,6 +43,12 @@ pub struct ModMeta {
     pub title: Option<String>,
     /// Machine-friendly mod identifier (e.g. `rundale`).
     pub id: String,
+    /// Optional override for the per-user data-directory name (saves +
+    /// tile cache). When set, takes precedence over `name`; engine fallback
+    /// when neither is meaningful is `"Parish"`. Set explicitly so a future
+    /// rename of `name` doesn't silently relocate everyone's saves.
+    #[serde(default)]
+    pub save_root: Option<String>,
     /// Semantic version string.
     pub version: String,
     /// Short description of the mod.
@@ -442,6 +448,17 @@ pub struct GameMod {
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
     pub reactions: crate::npc::reactions::ReactionTemplates,
+}
+
+impl ModMeta {
+    /// Name used for the per-user data folder (saves + tile cache).
+    ///
+    /// Resolution: explicit `save_root` field on `mod.toml` first, then `name`.
+    /// Engine-only runs with no mod loaded should use
+    /// [`parish_persistence::paths::DEFAULT_APP_NAME`] instead of calling this.
+    pub fn app_name(&self) -> &str {
+        self.save_root.as_deref().unwrap_or(&self.name)
+    }
 }
 
 impl GameMod {
@@ -908,11 +925,49 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
+    fn test_mod_meta_app_name_falls_back_to_name() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: None,
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        assert_eq!(meta.app_name(), "Rundale");
+    }
+
+    #[test]
+    fn test_mod_meta_app_name_uses_save_root_when_set() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: Some("Rundale-Beta".to_string()),
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        assert_eq!(meta.app_name(), "Rundale-Beta");
+    }
+
+    #[test]
     fn test_load_mod_from_directory() {
         let tmp = create_test_mod();
         let gm = GameMod::load(tmp.path()).expect("should load test mod");
         assert_eq!(gm.manifest.meta.id, "test-mod");
         assert_eq!(gm.manifest.meta.name, "Test Mod");
+        // Schema-additive: test fixture omits `save_root`, so it must
+        // round-trip as None and `app_name()` falls back to `name`.
+        assert!(gm.manifest.meta.save_root.is_none());
+        assert_eq!(gm.manifest.meta.app_name(), "Test Mod");
         assert_eq!(gm.prompts.tier1_system, "You are tier1.");
         assert_eq!(gm.anachronisms.terms.len(), 1);
         assert_eq!(gm.festivals.len(), 2);
