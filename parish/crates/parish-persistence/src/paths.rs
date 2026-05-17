@@ -50,7 +50,7 @@ pub fn resolve_user_data_dir(app_name: &str) -> PathBuf {
 
 /// Anchors a relative path to the process's startup-time cwd, so a later
 /// `set_current_dir` cannot redirect file I/O. Absolute paths pass through.
-pub(crate) fn absolutise(p: PathBuf) -> PathBuf {
+pub fn absolutise(p: PathBuf) -> PathBuf {
     if p.is_absolute() {
         p
     } else {
@@ -83,8 +83,17 @@ fn platform_data_dir(app_name: &str) -> Option<PathBuf> {
 #[cfg(target_os = "linux")]
 fn platform_data_dir(app_name: &str) -> Option<PathBuf> {
     let leaf = app_name.to_lowercase();
+    // XDG basedir spec requires absolute paths in XDG_DATA_HOME; reject
+    // relative values rather than letting cwd-drift back in (rule #9).
     if let Some(xdg) = std::env::var_os("XDG_DATA_HOME").filter(|s| !s.is_empty()) {
-        return Some(PathBuf::from(xdg).join(&leaf));
+        let p = PathBuf::from(xdg);
+        if p.is_absolute() {
+            return Some(p.join(&leaf));
+        }
+        tracing::warn!(
+            xdg = %p.display(),
+            "ignoring relative XDG_DATA_HOME — falling back to $HOME/.local/share"
+        );
     }
     let home = std::env::var_os("HOME")?;
     Some(PathBuf::from(home).join(".local/share").join(&leaf))
@@ -211,6 +220,29 @@ mod tests {
 
         let resolved = resolve_user_data_dir("Rundale");
         assert_eq!(resolved, tmp.path().join("rundale"));
+        assert!(resolved.is_dir());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_relative_xdg_data_home_falls_back_to_dot_local_share() {
+        let _gate = env_test_lock();
+        let _restore_root = EnvGuard::capture(USER_DATA_DIR_ENV);
+        let _restore_xdg = EnvGuard::capture("XDG_DATA_HOME");
+        let _restore_home = EnvGuard::capture("HOME");
+
+        let tmp = TempDir::new().unwrap();
+        // SAFETY: gated.
+        unsafe {
+            std::env::remove_var(USER_DATA_DIR_ENV);
+            // Relative XDG_DATA_HOME violates the basedir spec — must be
+            // ignored so saves don't end up cwd-relative.
+            std::env::set_var("XDG_DATA_HOME", "relative/path");
+            std::env::set_var("HOME", tmp.path());
+        }
+
+        let resolved = resolve_user_data_dir("Rundale");
+        assert_eq!(resolved, tmp.path().join(".local/share/rundale"));
         assert!(resolved.is_dir());
     }
 

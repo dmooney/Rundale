@@ -474,19 +474,30 @@ impl ModMeta {
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
 ///
 /// Centralises the `Option<GameMod>` → `app_name` mapping so the server,
-/// Tauri, and CLI entry points never drift (rule #12). Returns the active
-/// mod's sanitised [`ModMeta::app_name`] when present, otherwise the engine
-/// fallback [`parish_persistence::paths::DEFAULT_APP_NAME`].
+/// Tauri, and CLI entry points never drift (rule #12). Returns the first of:
+///
+/// 1. Sanitised `save_root` from the active mod's `mod.toml` (when set and
+///    valid after sanitisation).
+/// 2. Sanitised `name` from the active mod's `mod.toml`.
+/// 3. The engine fallback [`parish_persistence::paths::DEFAULT_APP_NAME`]
+///    — used only when no mod is loaded or every candidate sanitises away.
 ///
 /// Sanitisation: trims whitespace, strips any path separators by taking the
 /// basename only, and rejects `.` / `..` / empty. A mod that sets
 /// `save_root = "../../etc"` therefore can't redirect save I/O outside the
-/// per-user root — it falls back to `DEFAULT_APP_NAME` instead.
+/// per-user root — and an invalid `save_root` falls through to the mod's
+/// `name` rather than collapsing unrelated mods into a shared `Parish` dir.
 pub fn app_name_from_mod(game_mod: &Option<GameMod>) -> String {
-    game_mod
-        .as_ref()
-        .and_then(|gm| sanitize_app_name(gm.manifest.meta.app_name()))
-        .unwrap_or_else(|| parish_persistence::paths::DEFAULT_APP_NAME.to_string())
+    if let Some(gm) = game_mod.as_ref() {
+        let meta = &gm.manifest.meta;
+        if let Some(s) = meta.save_root.as_deref().and_then(sanitize_app_name) {
+            return s;
+        }
+        if let Some(s) = sanitize_app_name(&meta.name) {
+            return s;
+        }
+    }
+    parish_persistence::paths::DEFAULT_APP_NAME.to_string()
 }
 
 /// Returns a safe folder-name form of `raw`, or `None` if `raw` cannot be
@@ -1028,6 +1039,20 @@ tier2_system = "prompts/tier2_system.txt"
     fn test_app_name_from_mod_engine_fallback_when_none() {
         let resolved = app_name_from_mod(&None);
         assert_eq!(resolved, parish_persistence::paths::DEFAULT_APP_NAME);
+    }
+
+    #[test]
+    fn test_app_name_from_mod_falls_through_to_name_when_save_root_invalid() {
+        // Build a real GameMod via the test fixture, then mutate save_root
+        // to an invalid value to verify the resolver falls back to `name`
+        // rather than to the engine default.
+        let tmp = create_test_mod();
+        let mut gm = GameMod::load(tmp.path()).unwrap();
+        gm.manifest.meta.save_root = Some("..".to_string());
+        let resolved = app_name_from_mod(&Some(gm));
+        // Invalid save_root rejected, falls back to sanitised `name`
+        // (the fixture's `name = "Test Mod"` → basename "Test Mod").
+        assert_eq!(resolved, "Test Mod");
     }
 
     #[test]
