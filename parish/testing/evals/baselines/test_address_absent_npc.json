@@ -1,0 +1,52 @@
+[
+  {
+    "command": "/wait 30",
+    "result": {
+      "result": "system_command",
+      "response": "Waited 30 minutes. Now 08:30 Morning."
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "/stub Peig Hannigan: I do indeed, and a fine morning to ye.",
+    "result": {
+      "result": "system_command",
+      "response": "Stubbed response for Peig Hannigan: \"I do indeed, and a fine morning to ye.\""
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "talk to Aoife Brennan about the school and the children",
+    "result": {
+      "result": "system_command",
+      "response": "Aoife Brennan is not here."
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "talk to Peig Hannigan about the weather",
+    "result": {
+      "result": "npc_response",
+      "npc": "Peig Hannigan",
+      "dialogue": "I do indeed, and a fine morning to ye."
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "/quit",
+    "result": {
+      "result": "quit"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  }
+]

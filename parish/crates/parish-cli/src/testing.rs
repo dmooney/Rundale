@@ -1062,6 +1062,52 @@ impl GameTestHarness {
         // Try local intent parsing (no LLM needed)
         let intent = input::parse_intent_local(text);
 
+        // Lightweight "talk to <name>" / "speak to <name>" recognition so
+        // fixtures can exercise the addressed-target dispatch path even
+        // without an LLM. This mirrors the production Talk intent and
+        // matches the absent-NPC system message emitted by
+        // `parish_core::game_loop::handle_npc_conversation` (#985).
+        let lower = text.trim().to_lowercase();
+        let addressed: Option<String> = ["talk to ", "speak to "]
+            .iter()
+            .find_map(|prefix| lower.strip_prefix(prefix))
+            .and_then(|rest| {
+                // Stop at " about ", " regarding ", or end-of-input so
+                // "talk to Aoife Brennan about the school" yields just the
+                // name.
+                let stops = [" about ", " regarding "];
+                let mut name_end = rest.len();
+                for stop in &stops {
+                    if let Some(idx) = rest.find(stop) {
+                        name_end = name_end.min(idx);
+                    }
+                }
+                let raw_trim = text.trim();
+                // Re-slice from the *original* (case-preserved) input so the
+                // emitted target keeps its capitalisation ("Aoife Brennan").
+                let prefix_chars = if lower.starts_with("talk to ") { 8 } else { 9 };
+                let original_rest = raw_trim
+                    .char_indices()
+                    .nth(prefix_chars)
+                    .map(|(i, _)| &raw_trim[i..]);
+                let original_rest = original_rest?;
+                let name = original_rest
+                    .get(..name_end)
+                    .unwrap_or(original_rest)
+                    .trim();
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.to_string())
+                }
+            });
+
+        if let Some(target) = addressed {
+            let r = self.handle_addressed_npc(text, &target);
+            self.apply_rule_reactions(text);
+            return r;
+        }
+
         match intent {
             Some(pi) => match pi.intent {
                 IntentKind::Move => {
@@ -1217,6 +1263,11 @@ impl GameTestHarness {
     /// untargeted dialogue keeps the historical first-canned-response fallback.
     /// Also runs anachronism detection on the player's input and includes any
     /// detected terms in the result.
+    ///
+    /// When a canned response is consumed, the interaction is processed
+    /// through the same memory pipeline as a real LLM response: the NPC's
+    /// mood is updated, a memory entry is recorded, and evicted memories
+    /// may be promoted to long-term storage.
     ///
     /// When a canned response is consumed, the interaction is processed
     /// through the same memory pipeline as a real LLM response: the NPC's

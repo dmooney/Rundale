@@ -591,6 +591,12 @@ pub fn extract_npc_mentions(
 /// were supplied at all. If names were given but none match a co-located
 /// NPC, returns empty so callers can surface "no one here by that name"
 /// rather than silently routing to whoever happens to be present.
+///
+/// Note: this convenience wrapper preserves the fallback even when the caller
+/// supplied names but none matched a co-located NPC. New call sites that need
+/// to distinguish "no names" from "named but absent" — so they can emit a
+/// "{name} is not here." system message instead of letting the wrong NPC speak
+/// (#985) — should use [`resolve_addressed_targets`] instead.
 pub fn resolve_npc_targets(
     world: &WorldState,
     npc_manager: &NpcManager,
@@ -623,6 +629,52 @@ pub fn resolve_npc_targets(
     }
 
     targets
+}
+
+/// Result of resolving an explicitly-addressed set of conversation targets.
+///
+/// Unlike [`resolve_npc_targets`], this does **not** silently fall back to the
+/// first co-located NPC when every named target is absent. Instead, callers
+/// can inspect [`AddressedTargets::absent`] and inform the player which named
+/// NPC was not at the current location (#985).
+#[derive(Debug, Default, Clone)]
+pub struct AddressedTargets {
+    /// NPC ids that matched a co-located NPC, in the order names were supplied
+    /// (deduplicated).
+    pub resolved: Vec<NpcId>,
+    /// Display names that did not match any co-located NPC, in order of first
+    /// occurrence (deduplicated by case-insensitive comparison).
+    pub absent: Vec<String>,
+}
+
+/// Resolves explicitly-addressed conversation targets without a fallback.
+///
+/// For every name in `target_names`:
+/// - If it matches a co-located NPC, its id is appended to `resolved`.
+/// - Otherwise the name is appended to `absent` so the caller can surface
+///   "{name} is not here." rather than let a different co-located NPC reply.
+///
+/// Both lists preserve the caller's name order and deduplicate
+/// (case-insensitively for `absent`).
+pub fn resolve_addressed_targets(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    target_names: &[String],
+) -> AddressedTargets {
+    let mut resolved = Vec::new();
+    let mut seen_ids = HashSet::new();
+    let mut absent = Vec::new();
+    let mut seen_absent = HashSet::new();
+    for name in target_names {
+        if let Some(npc) = npc_manager.find_by_name(name, world.player_location) {
+            if seen_ids.insert(npc.id) {
+                resolved.push(npc.id);
+            }
+        } else if seen_absent.insert(name.to_lowercase()) {
+            absent.push(name.clone());
+        }
+    }
+    AddressedTargets { resolved, absent }
 }
 
 fn append_transcript_context(
@@ -1327,6 +1379,78 @@ mod tests {
         );
 
         assert_eq!(targets, vec![NpcId(2), NpcId(1)]);
+    }
+
+    /// `resolve_addressed_targets` must classify present vs absent names
+    /// without ever silently substituting a different co-located NPC for an
+    /// absent target (#985).
+    #[test]
+    fn resolve_addressed_targets_separates_present_and_absent() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        // Peig is co-located, Aoife is elsewhere.
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.location = world.player_location;
+
+        let mut aoife = Npc::new_test_npc();
+        aoife.id = NpcId(2);
+        aoife.name = "Aoife Brennan".to_string();
+        aoife.location = LocationId(world.player_location.0 + 99);
+
+        npc_mgr.add_npc(peig);
+        npc_mgr.add_npc(aoife);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let result = resolve_addressed_targets(
+            &world,
+            &npc_mgr,
+            &["Aoife Brennan".to_string(), "Peig Hannigan".to_string()],
+        );
+
+        assert_eq!(result.resolved, vec![NpcId(1)]);
+        assert_eq!(result.absent, vec!["Aoife Brennan".to_string()]);
+    }
+
+    /// All addressed names are absent — neither falls back to a co-located
+    /// NPC (the regression behaviour from #985 that lets the wrong NPC speak).
+    #[test]
+    fn resolve_addressed_targets_no_fallback_when_all_absent() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        // Peig is co-located but the player addressed only the absent Aoife.
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.location = world.player_location;
+        npc_mgr.add_npc(peig);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let result = resolve_addressed_targets(&world, &npc_mgr, &["Aoife Brennan".to_string()]);
+
+        assert!(
+            result.resolved.is_empty(),
+            "resolved must be empty so the caller can emit `Aoife Brennan is not here.`; \
+             got {:?}",
+            result.resolved,
+        );
+        assert_eq!(result.absent, vec!["Aoife Brennan".to_string()]);
+    }
+
+    /// Empty input → empty result. The caller is responsible for any ambient
+    /// fallback (e.g. first co-located NPC), which it can do via
+    /// `resolve_npc_targets`.
+    #[test]
+    fn resolve_addressed_targets_empty_input_returns_empty() {
+        let world = WorldState::new();
+        let npc_mgr = NpcManager::new();
+        let result = resolve_addressed_targets(&world, &npc_mgr, &[]);
+        assert!(result.resolved.is_empty());
+        assert!(result.absent.is_empty());
     }
 
     #[test]

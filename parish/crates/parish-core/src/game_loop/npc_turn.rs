@@ -437,13 +437,27 @@ pub async fn handle_npc_conversation(
 ) {
     let trimmed = raw.trim().to_string();
 
-    let (npc_present, player_location, queue, model, max_follow_up_turns, targets) = {
+    let (npc_present, player_location, queue, model, max_follow_up_turns, targets, absent) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
         let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
-        let targets = crate::ipc::resolve_npc_targets(&world, &npc_manager, &target_names);
+        // When the player explicitly addresses someone (chip selection, @mention,
+        // or "talk to X"), use the absent-aware resolver so we can tell the
+        // player "{name} is not here." instead of letting a different
+        // co-located NPC speak for them (#985). For ambient input with no
+        // named target, fall back to the first co-located NPC as before.
+        let (targets, absent) = if target_names.is_empty() {
+            (
+                crate::ipc::resolve_npc_targets(&world, &npc_manager, &target_names),
+                Vec::new(),
+            )
+        } else {
+            let resolved =
+                crate::ipc::resolve_addressed_targets(&world, &npc_manager, &target_names);
+            (resolved.resolved, resolved.absent)
+        };
         (
             npc_present,
             world.player_location,
@@ -451,6 +465,7 @@ pub async fn handle_npc_conversation(
             config.model_name.clone(),
             config.max_follow_up_turns,
             targets,
+            absent,
         )
     };
 
@@ -481,6 +496,36 @@ pub async fn handle_npc_conversation(
         return;
     }
 
+    // If the player named one or more absent NPCs, tell them so by name —
+    // never let an unrelated co-located NPC speak in the absent NPC's place
+    // (#985). Emit one "{name} is not here." line per absent target. This
+    // must fire before the LLM-not-configured short-circuit so the player
+    // gets useful feedback even when no inference provider is set.
+    for name in &absent {
+        ctx.emitter.emit_event(
+            "text-log",
+            serde_json::to_value(text_log("system", format!("{name} is not here.")))
+                .unwrap_or(serde_json::Value::Null),
+        );
+    }
+
+    if targets.is_empty() {
+        // Either the input had no named targets and the location is empty
+        // (handled above by `npc_present`), or every named target was absent
+        // (already reported via the loop above). Nothing more to say.
+        if absent.is_empty() {
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log(
+                    "system",
+                    "No one here answers to that name just now.",
+                ))
+                .unwrap_or(serde_json::Value::Null),
+            );
+        }
+        return;
+    }
+
     let Some(queue) = queue else {
         ctx.emitter.emit_event(
             "text-log",
@@ -492,18 +537,6 @@ pub async fn handle_npc_conversation(
         );
         return;
     };
-
-    if targets.is_empty() {
-        ctx.emitter.emit_event(
-            "text-log",
-            serde_json::to_value(text_log(
-                "system",
-                "No one here answers to that name just now.",
-            ))
-            .unwrap_or(serde_json::Value::Null),
-        );
-        return;
-    }
 
     let mut transcript = {
         let mut conversation = ctx.conversation.lock().await;
@@ -908,6 +941,168 @@ pub mod tests {
                         .is_some_and(|s| s.contains("LLM is not configured"))
             }),
             "expected LLM-not-configured message when no queue"
+        );
+    }
+
+    /// Regression test for #985: when the player explicitly addresses an NPC
+    /// who is not at the player's location, a system "{name} is not here."
+    /// message must be emitted and no NPC inference may be triggered —
+    /// crucially, the shared dispatcher must NOT fall back to letting a
+    /// different co-located NPC speak as if they were the addressee.
+    #[tokio::test]
+    async fn addressed_absent_npc_emits_system_message_and_no_npc_reply() {
+        use crate::npc::Npc;
+        let emitter = Arc::new(CapturingEmitter::new());
+
+        // Construct a world with one NPC (Peig) at the player's location.
+        // The player will address "Aoife Brennan" who is not present.
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut peig = Npc::new_test_npc();
+        peig.id = crate::npc::NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.location = player_loc;
+        npc_mgr.add_npc(peig);
+        npc_mgr.mark_introduced(crate::npc::NpcId(1));
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = crate::game_loop::GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+        };
+
+        super::handle_npc_conversation(
+            &ctx,
+            "talk to Aoife Brennan about the school".to_string(),
+            vec!["Aoife Brennan".to_string()],
+            || None,
+        )
+        .await;
+
+        let events = emitter.events.lock().unwrap();
+
+        // The "Aoife Brennan is not here." system message must be emitted.
+        assert!(
+            events.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.contains("Aoife Brennan is not here."))
+                    && payload
+                        .get("source")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s == "system")
+            }),
+            "expected `Aoife Brennan is not here.` system message; got events: {:#?}",
+            events.iter().collect::<Vec<_>>(),
+        );
+
+        // No NPC turn was started: the shared dispatcher must NOT emit a
+        // `stream-token` or open a `stream-turn-end` for a co-located NPC.
+        assert!(
+            !events.iter().any(|(name, _)| name == "stream-token"),
+            "expected no stream-token events when addressed NPC is absent"
+        );
+        assert!(
+            !events.iter().any(|(name, _)| name == "stream-turn-end"),
+            "expected no stream-turn-end events when addressed NPC is absent"
+        );
+
+        // The generic "No one here answers to that name just now." message
+        // must NOT be used here — we want the more specific "{name} is not
+        // here." form whenever the player named a target.
+        assert!(
+            !events.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.contains("No one here answers to that name"))
+            }),
+            "should emit the targeted absence message, not the generic fallback"
+        );
+    }
+
+    /// Companion test for #985: when the player explicitly addresses a
+    /// co-located NPC, the dispatcher proceeds normally toward that NPC's
+    /// turn. We can't run real inference here (no queue configured), so the
+    /// assertion is structural: the absent-NPC system message must NOT fire
+    /// when the target is present.
+    #[tokio::test]
+    async fn addressed_present_npc_does_not_emit_absent_message() {
+        use crate::npc::Npc;
+        let emitter = Arc::new(CapturingEmitter::new());
+
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut peig = Npc::new_test_npc();
+        peig.id = crate::npc::NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.location = player_loc;
+        npc_mgr.add_npc(peig);
+        npc_mgr.mark_introduced(crate::npc::NpcId(1));
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = crate::game_loop::GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+        };
+
+        super::handle_npc_conversation(
+            &ctx,
+            "talk to Peig Hannigan about the road".to_string(),
+            vec!["Peig Hannigan".to_string()],
+            || None,
+        )
+        .await;
+
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            !events.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.contains("is not here."))
+            }),
+            "should NOT emit absent-NPC message when the target IS co-located"
         );
     }
 

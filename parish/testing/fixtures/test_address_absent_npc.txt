@@ -1,0 +1,26 @@
+# Regression coverage for #985.
+#
+# Player begins at Kilteevan Village. Aoife Brennan (the hedge schoolteacher)
+# is at the Hedge School during the day. Peig Hannigan, the village widow, is
+# co-located with the player. Before this fix, addressing "talk to Aoife
+# Brennan ..." while Peig was present caused the dispatcher to fall back to
+# Peig as the speaker — silently substituting an unintended NPC for the named
+# target. The expected behaviour is a system message naming the absent NPC.
+
+# Wait a moment so schedules tick (Aoife departs for the Hedge School at 08:00,
+# so this also ensures she is no longer co-located with the player here).
+/wait 30
+
+# Anchor: pre-stage a canned reply for Peig so the harness can dispatch a real
+# NpcResponse when she is correctly addressed.
+/stub Peig Hannigan: I do indeed, and a fine morning to ye.
+
+# Case 1: address an absent NPC. Expect SystemCommand("Aoife Brennan is not here.")
+# and NO NpcResponse for any other NPC. This is the bug under repair.
+talk to Aoife Brennan about the school and the children
+
+# Case 2: address a co-located NPC. Expect an NpcResponse from Peig Hannigan
+# (using the canned line above), proving the addressed-target path still works.
+talk to Peig Hannigan about the weather
+
+/quit
