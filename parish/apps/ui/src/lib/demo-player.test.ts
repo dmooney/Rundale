@@ -4,9 +4,11 @@ import {
 	demoEnabled,
 	demoPaused,
 	demoStatus,
+	demoTurnCount,
 	demoConfig,
 } from '../stores/demo';
 import { runDemoTurn, stopDemo } from './demo-player';
+import { submitInput } from './ipc';
 
 const testConfig = {
 	auto_start: false,
@@ -31,7 +33,9 @@ beforeEach(() => {
 	demoEnabled.set(false);
 	demoPaused.set(false);
 	demoStatus.set('idle');
+	demoTurnCount.set(0);
 	demoConfig.set(testConfig);
+	vi.mocked(submitInput).mockClear();
 });
 
 describe('stopDemo', () => {
@@ -62,5 +66,28 @@ describe('runDemoTurn', () => {
 		expect(get(demoStatus)).toBe('waiting');
 		// Let the turn complete (sleep timeout)
 		await promise;
+	});
+
+	it('dispatches /quit when CLI demo reaches max_turns', async () => {
+		demoEnabled.set(true);
+		demoTurnCount.set(2);
+		demoConfig.set({ ...testConfig, auto_start: true, max_turns: 3 });
+
+		await runDemoTurn();
+
+		expect(get(demoEnabled)).toBe(false);
+		expect(get(demoStatus)).toBe('idle');
+		expect(submitInput).toHaveBeenCalledWith('/quit', []);
+	});
+
+	it('does not dispatch /quit for UI-launched demos at max_turns', async () => {
+		demoEnabled.set(true);
+		demoTurnCount.set(2);
+		demoConfig.set({ ...testConfig, auto_start: false, max_turns: 3 });
+
+		await runDemoTurn();
+
+		expect(get(demoEnabled)).toBe(false);
+		expect(submitInput).not.toHaveBeenCalledWith('/quit', []);
 	});
 });
