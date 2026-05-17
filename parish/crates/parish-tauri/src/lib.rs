@@ -50,10 +50,15 @@ fn mod_asset_data_url(path: Option<PathBuf>) -> Option<String> {
     ))
 }
 
-fn apply_mod_window_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: Option<&Path>) {
+fn apply_mod_desktop_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: Option<&Path>) {
     let Some(icon_path) = icon_path else {
         return;
     };
+    apply_mod_application_icon(icon_path);
+    apply_mod_window_icon(app, icon_path);
+}
+
+fn apply_mod_window_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: &Path) {
     let icon = match load_png_icon(icon_path) {
         Ok(icon) => icon,
         Err(e) => {
@@ -67,6 +72,41 @@ fn apply_mod_window_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: Opti
         }
     }
 }
+
+#[cfg(target_os = "macos")]
+fn apply_mod_application_icon(icon_path: &Path) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+    use std::ffi::c_void;
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        tracing::warn!(path = %icon_path.display(), "failed to apply mod Dock icon off the macOS main thread");
+        return;
+    };
+    let bytes = match std::fs::read(icon_path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::warn!(path = %icon_path.display(), error = %e, "failed to read mod Dock icon");
+            return;
+        }
+    };
+
+    let data =
+        unsafe { NSData::dataWithBytes_length(bytes.as_ptr().cast::<c_void>(), bytes.len()) };
+    let Some(image) = NSImage::initWithData(mtm.alloc(), &data) else {
+        tracing::warn!(path = %icon_path.display(), "failed to decode mod Dock icon as NSImage");
+        return;
+    };
+
+    let app = NSApplication::sharedApplication(mtm);
+    unsafe {
+        app.setApplicationIconImage(Some(&image));
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_mod_application_icon(_icon_path: &Path) {}
 
 fn load_png_icon(path: &Path) -> Result<tauri::image::Image<'static>, String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
@@ -1280,7 +1320,7 @@ pub fn run() {
             editor_commands::editor_read_snapshot,
         ])
         .setup(move |app| {
-            apply_mod_window_icon(app, mod_window_icon_path.as_deref());
+            apply_mod_desktop_icon(app, mod_window_icon_path.as_deref());
             let handle = app.handle().clone();
 
             // Screenshot mode: --screenshot <dir> captures the UI at four
