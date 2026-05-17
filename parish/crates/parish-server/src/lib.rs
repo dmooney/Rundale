@@ -449,6 +449,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/npcs-here", get(routes::get_npcs_here))
         .route("/api/theme", get(routes::get_theme))
         .route("/api/ui-config", get(routes::get_ui_config))
+        .route("/api/app-icon.png", get(routes::get_app_icon))
+        .route("/api/favicon.png", get(routes::get_favicon))
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/react-to-message", post(routes::react_to_message))
@@ -785,6 +787,8 @@ fn resolve_engine_and_ui_config(
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+            app_icon_url: gm.app_icon_path().map(|_| "/api/app-icon.png".to_string()),
+            favicon_url: gm.favicon_path().map(|_| "/api/favicon.png".to_string()),
         }
     } else {
         UiConfigSnapshot {
@@ -794,6 +798,8 @@ fn resolve_engine_and_ui_config(
             active_tile_source,
             tile_sources: tile_sources_snapshot.clone(),
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+            app_icon_url: None,
+            favicon_url: None,
         }
     };
 

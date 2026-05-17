@@ -4,7 +4,7 @@
 //! (world graph, NPCs, encounters, etc.). The engine loads a [`GameMod`] at
 //! startup and uses it to access all game-specific content at runtime.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -285,12 +285,26 @@ pub struct ThemeConfig {
 /// UI configuration loaded from `ui.toml`.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct UiConfig {
+    /// Mod branding assets, such as the app/window icon.
+    #[serde(default)]
+    pub branding: BrandingConfig,
     /// Sidebar panel settings.
     #[serde(default)]
     pub sidebar: SidebarConfig,
     /// Theme settings.
     #[serde(default)]
     pub theme: ThemeConfig,
+}
+
+/// Branding assets loaded from `ui.toml`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BrandingConfig {
+    /// Primary app/window icon relative to the mod directory.
+    #[serde(default)]
+    pub app_icon: Option<String>,
+    /// Small browser favicon relative to the mod directory.
+    #[serde(default)]
+    pub favicon: Option<String>,
 }
 
 fn default_hints_label() -> String {
@@ -530,6 +544,16 @@ impl GameMod {
         let ui: UiConfig = toml::from_str(&ui_text).map_err(|e| {
             ParishError::Config(format!("failed to parse {}: {e}", manifest.files.ui))
         })?;
+        validate_optional_asset_ref(
+            &mod_dir,
+            "ui.branding.app_icon",
+            ui.branding.app_icon.as_deref(),
+        )?;
+        validate_optional_asset_ref(
+            &mod_dir,
+            "ui.branding.favicon",
+            ui.branding.favicon.as_deref(),
+        )?;
 
         // -- optional pronunciation data ------------------------------------
         let pronunciations = if let Some(ref pron_path) = manifest.files.pronunciations {
@@ -584,6 +608,26 @@ impl GameMod {
     /// Absolute path to the NPC definitions JSON file.
     pub fn npcs_path(&self) -> PathBuf {
         self.mod_dir.join(&self.manifest.files.npcs)
+    }
+
+    /// Absolute path to the mod's app/window icon, if one is configured.
+    pub fn app_icon_path(&self) -> Option<PathBuf> {
+        self.resolve_asset_path(self.ui.branding.app_icon.as_deref())
+    }
+
+    /// Absolute path to the browser favicon, falling back to the app icon.
+    pub fn favicon_path(&self) -> Option<PathBuf> {
+        self.resolve_asset_path(
+            self.ui
+                .branding
+                .favicon
+                .as_deref()
+                .or(self.ui.branding.app_icon.as_deref()),
+        )
+    }
+
+    fn resolve_asset_path(&self, rel: Option<&str>) -> Option<PathBuf> {
+        rel.and_then(|path| canonical_mod_asset_path(&self.mod_dir, path).ok())
     }
 
     /// ISO 8601 start date string from the manifest.
@@ -655,6 +699,44 @@ pub fn world_state_from_mod(
         parish_types::LocationId(game_mod.start_location()),
         game_mod.start_date(),
     )
+}
+
+fn validate_optional_asset_ref(
+    mod_dir: &Path,
+    field: &str,
+    rel: Option<&str>,
+) -> Result<(), ParishError> {
+    match rel {
+        Some(path) => canonical_mod_asset_path(mod_dir, path)
+            .map(|_| ())
+            .map_err(|e| ParishError::Config(format!("{field}: {e}"))),
+        None => Ok(()),
+    }
+}
+
+fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
+    let rel_path = Path::new(rel);
+    if rel_path.is_absolute() {
+        return Err(format!("asset path {rel} must be relative"));
+    }
+    if !rel_path.starts_with("assets") {
+        return Err(format!("asset path {rel} must live under assets/"));
+    }
+    if rel_path
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(format!("asset path {rel} contains invalid path components"));
+    }
+
+    let candidate = mod_dir.join(rel_path);
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|e| format!("failed to resolve {}: {e}", candidate.display()))?;
+    if !canonical.starts_with(mod_dir) {
+        return Err(format!("asset path {rel} escapes mod directory"));
+    }
+    Ok(canonical)
 }
 
 /// All mods discovered under a `mods/` root.
@@ -939,6 +1021,51 @@ tier2_system = "prompts/tier2_system.txt"
         let gm = GameMod::load(tmp.path()).unwrap();
         assert!(gm.npcs_path().ends_with("npcs.json"));
         assert!(gm.npcs_path().is_absolute());
+    }
+
+    #[test]
+    fn test_mod_icon_paths_resolve_under_assets() {
+        let tmp = create_test_mod();
+        let icons = tmp.path().join("assets/icons/app");
+        fs::create_dir_all(&icons).unwrap();
+        fs::write(icons.join("icon-512.png"), b"icon").unwrap();
+        fs::write(icons.join("favicon-32.png"), b"favicon").unwrap();
+        fs::write(
+            tmp.path().join("ui.toml"),
+            r##"
+[branding]
+app_icon = "assets/icons/app/icon-512.png"
+favicon = "assets/icons/app/favicon-32.png"
+
+[sidebar]
+hints_label = "Focail"
+
+[theme.palette]
+accent = "#aabbcc"
+"##,
+        )
+        .unwrap();
+
+        let gm = GameMod::load(tmp.path()).unwrap();
+        assert!(gm.app_icon_path().unwrap().ends_with("icon-512.png"));
+        assert!(gm.favicon_path().unwrap().ends_with("favicon-32.png"));
+    }
+
+    #[test]
+    fn test_mod_icon_paths_must_stay_under_assets() {
+        let tmp = create_test_mod();
+        fs::write(
+            tmp.path().join("ui.toml"),
+            r##"
+[branding]
+app_icon = "../icon.png"
+"##,
+        )
+        .unwrap();
+
+        let err = GameMod::load(tmp.path()).expect_err("escaping icon path should fail");
+        let msg = format!("{err:?}");
+        assert!(msg.contains("ui.branding.app_icon"));
     }
 
     #[test]
