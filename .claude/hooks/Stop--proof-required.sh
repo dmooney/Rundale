@@ -61,7 +61,11 @@ CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb
 # / cargo tauri dev / cargo run -p parish-*). This closes the gap where
 # unit tests are green but the runtime-only seam is never touched
 # (e.g. Tauri startup paths that only fire in `just demo`).
-RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri|server|cli|core/src/(game_loop|game_session|ipc)|inference/src/setup|npc/src/(ticks|reactions|manager|autonomous)|world|input)/|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
+# Per-branch trailing tokens (each branch carries its own `/` or `.rs`
+# suffix). A single trailing `/` outside the group would force every
+# alternative to be a directory, mis-matching the `.rs` file leaves
+# (`setup.rs`, `client.rs`, `ticks.rs`, `manager.rs`).
+RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|cli/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
 
 # ── Code-change detection ──────────────────────────────────────────────
 # Source 1: tracked diff vs HEAD + untracked code files.

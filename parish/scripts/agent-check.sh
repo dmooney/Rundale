@@ -103,7 +103,9 @@ is_runtime_path() {
         parish/crates/parish-world/*|\
         parish/crates/parish-input/*|\
         parish/apps/ui/src/*|\
-        mods/*)
+        mods/*|\
+        .claude/hooks/*|\
+        .claude/skills/*)
             return 0
             ;;
         *)
@@ -253,12 +255,19 @@ if [[ "$relevant_count" -gt 0 ]]; then
     # show the change was actually run live. Accepted live signals:
     #   - any binary artifact (screenshot .png/.jpg/.jpeg, gif .gif) —
     #     these can't be produced without running the app, and
-    #   - a transcript file (.md / .txt) that declares
+    #   - an `.md` summary file that declares
     #     'Evidence type: live gameplay transcript'.
     # A plain 'Evidence type: gameplay transcript' is not enough — that
     # phrasing is used today for analysis-only writeups that never
     # touch a live process. The added word "live" is the explicit
     # author affirmation that the run happened (#NNN).
+    #
+    # `.txt` transcripts carry raw program output and are exempt from
+    # the header requirement under `validate_evidence_file` — grepping
+    # them here would risk a false-positive live signal from literal
+    # output containing the regex pattern. The `.md` is where the
+    # author makes the live claim; the `.txt` is the corroborating
+    # evidence body.
     if [[ "$runtime_count" -gt 0 ]]; then
         echo "agent-check: $runtime_count runtime-shipping file(s) changed; live proof required."
         live_found=0
@@ -268,7 +277,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
                     *.png|*.jpg|*.jpeg|*.gif)
                         live_found=1
                         ;;
-                    *.md|*.txt)
+                    *.md)
                         if grep -Eiq '^Evidence type:[[:space:]]*live[[:space:]]+(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
                             live_found=1
                         fi
