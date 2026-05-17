@@ -19,13 +19,34 @@ The same proof bundle must also include `judge.md` with these lines:
 ```text
 Verdict: sufficient
 Technical debt: clear
+Acceptance criteria: met
 ```
 
-That judge file is where the independent reviewer records whether the evidence actually proves the stated requirements and whether the change leaves obvious debt behind. CI cannot know whether the reviewer was wise, but it can refuse PRs that omit the evidence or the recorded verdict.
+`Acceptance criteria: met` is required when the same bundle contains `acceptance-criteria.md` (see rule 13 in AGENTS.md). That judge file is where the independent reviewer records whether the evidence actually proves the stated requirements, whether the change leaves obvious debt behind, and whether every acceptance criterion from `acceptance-criteria.md` is satisfied by the game log. CI cannot know whether the reviewer was wise, but it can refuse PRs that omit the evidence or the recorded verdict.
 
 ## What Counts As Proof-Relevant
 
 The gate requires proof for engine, UI, gameplay content, runtime scripts, CI, agent instructions, and harness changes. Pure docs outside the agent harness do not require proof.
+
+## Acceptance Criteria Requirement
+
+Every new proof bundle must include `docs/proofs/<task-id>/acceptance-criteria.md`. This file is written **before any code**, using `/task-start <task-id>`, and lists observable criteria with the game commands that prove each one.
+
+When a proof bundle has an `acceptance-criteria.md`, `agent-check` additionally requires that `judge.md` contains `Acceptance criteria: met`. The judge must verify each criterion individually against the game log captured in `transcript.txt`.
+
+The sequential workflow that produces a valid bundle:
+
+```
+/task-start <id>          → write acceptance-criteria.md + play fixture
+                          → stop, get human approval
+implement
+run game                  → capture transcript.txt
+write evidence.md         → map each criterion to transcript lines
+write judge.md            → Verdict: sufficient
+                            Technical debt: clear
+                            Acceptance criteria: met
+just agent-check          → validates all three lines + AC file presence
+```
 
 ## What It Scans For
 

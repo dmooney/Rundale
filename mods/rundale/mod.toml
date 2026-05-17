@@ -3,6 +3,9 @@
 name = "Rundale"
 title = "Rundale"
 id = "rundale"
+# Per-user data folder name (saves + tile cache). Explicit so a future
+# rename of `name` doesn't silently relocate everyone's saves.
+save_root = "Rundale"
 version = "1.0.0"
 description = "Rural Ireland, 1820 — a living world of land, labour, and community"
 kind = "setting"

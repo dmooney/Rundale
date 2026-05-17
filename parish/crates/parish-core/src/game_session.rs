@@ -822,6 +822,56 @@ mod tests {
         );
     }
 
+    /// Regression: when the reaction client is the offline Markov simulator,
+    /// the LLM path must be skipped so the chat stream never shows Markov
+    /// gibberish ("bridget from the new collection... God help us").
+    #[tokio::test]
+    async fn stream_reaction_texts_skips_llm_when_client_is_simulator() {
+        use crate::npc::Npc;
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+        use parish_inference::{AnyClient, simulator::SimulatorClient};
+        use std::sync::Arc;
+
+        let reaction = NpcReaction {
+            npc_id: NpcId(42),
+            npc_display_name: "Bridie".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Welcome, stranger.".to_string(),
+            introduces: false,
+            use_llm: true,
+        };
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(42);
+        npc.name = "Bridie".to_string();
+
+        let client = AnyClient::Simulator(Arc::new(SimulatorClient::new()));
+        let mut token_chunks: Vec<String> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &[reaction],
+            &[npc],
+            LocationId(0),
+            "Kilteevan",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            Some(&client),
+            "sim",
+            None,
+            &lang,
+            |_, _| {},
+            |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+        )
+        .await;
+
+        let combined = token_chunks.join("");
+        assert_eq!(
+            combined, "Welcome, stranger.",
+            "simulator client must yield canned text, not Markov nonsense"
+        );
+    }
+
     /// Helper: find a location in the default mod that has at least one NPC
     /// whose `Present` state puts them there right now.
     fn find_location_with_present_npc(world: &WorldState, mgr: &NpcManager) -> Option<LocationId> {
