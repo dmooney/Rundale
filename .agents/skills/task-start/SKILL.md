@@ -30,7 +30,7 @@ Use the kebab-case argument as `$TASK_ID` (e.g. `fix-npc-schedule`, `market-day`
 
    ## Verification script
 
-   Run: `cargo run -- --script parish/testing/fixtures/play_$TASK_ID.txt`
+   Run: `cargo run -p parish-cli -- --script parish/testing/fixtures/play_$TASK_ID.txt`
 
    Expected signals in output:
    - <JSON field or text pattern that confirms criterion 1>
@@ -48,7 +48,7 @@ Use the kebab-case argument as `$TASK_ID` (e.g. `fix-npc-schedule`, `market-day`
 Once the user signs off on the acceptance criteria:
 
 1. Implement the change one commit at a time.
-2. Run the verification script: `cargo run -- --script parish/testing/fixtures/play_$TASK_ID.txt`
+2. Run the verification script: `cargo run -p parish-cli -- --script parish/testing/fixtures/play_$TASK_ID.txt`
 3. Capture the output to `docs/proofs/$TASK_ID/transcript.txt`.
 4. Write `docs/proofs/$TASK_ID/evidence.md` with header `Evidence type: live gameplay transcript` and a section mapping each criterion to the specific line(s) in the transcript that prove it.
 5. Write `docs/proofs/$TASK_ID/judge.md` verifying each criterion:

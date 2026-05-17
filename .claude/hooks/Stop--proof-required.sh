@@ -135,7 +135,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
     jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
-      | select(.name == "Write" or .name == "Edit")
+      | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
       | .input.file_path // empty
     ' "$TRANSCRIPT" 2>/dev/null \
       | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true
@@ -144,15 +144,26 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
     jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
-      | select(.name == "Write" or .name == "Edit")
+      | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
       | .input.file_path // empty
     ' "$TRANSCRIPT" 2>/dev/null \
       | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | head -1 || true
   )"
 fi
-# Also check git diff in case AC was committed mid-session.
+# Also check git diff + untracked files for proof artifacts written via Bash
+# (heredoc/redirect workflows) or committed mid-session. These searches are
+# unfiltered (no CODE_REGEX) so markdown paths are included.
+ALL_CHANGED="$(
+  {
+    git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
+    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+  } || true
+)"
 if [ -z "$AC_WRITTEN" ]; then
-  AC_WRITTEN="$(printf '%s\n' "$CHANGED" | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true)"
+  AC_WRITTEN="$(printf '%s\n' "$ALL_CHANGED" | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true)"
+fi
+if [ -z "$PROOF_BUNDLE_WRITTEN" ]; then
+  PROOF_BUNDLE_WRITTEN="$(printf '%s\n' "$ALL_CHANGED" | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | head -1 || true)"
 fi
 
 # ── Proof detection (tool_use entries only) ───────────────────────────

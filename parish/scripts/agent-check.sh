@@ -287,7 +287,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
             bundle_dir="$(dirname "$file")"
             ac_path="$bundle_dir/acceptance-criteria.md"
             # Check if the bundle directory is new (didn't exist in base).
-            if ! git show "$base:$ac_path" >/dev/null 2>&1; then
+            if ! git rev-parse --verify "$base:$bundle_dir" >/dev/null 2>&1; then
                 # New bundle: acceptance-criteria.md must be present.
                 if [[ ! -f "$ac_path" ]]; then
                     echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2

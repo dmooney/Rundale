@@ -2,10 +2,9 @@
 # UserPromptSubmit hook: remind Claude to write acceptance criteria before coding.
 #
 # Fires on every prompt that looks like an implementation task (contains an
-# action verb aimed at a code artifact). Non-blocking — outputs to stderr so
-# Claude sees it as pre-context before generating a response.
+# action verb aimed at a code artifact). Non-blocking — outputs to stdout so
+# Claude Code injects it as pre-context before generating a response.
 set -euo pipefail
-exec >&2
 
 INPUT=$(cat)
 PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // ""')
