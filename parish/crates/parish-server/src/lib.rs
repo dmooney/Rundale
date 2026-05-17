@@ -393,10 +393,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     // ── Saves directory ───────────────────────────────────────────────────────
     // App-name drives the per-user data folder (saves + tile cache). It comes
     // from the active mod (Rundale → `Rundale`); engine fallback is `Parish`.
-    let app_name: String = game_mod
-        .as_ref()
-        .map(|gm| gm.manifest.meta.app_name().to_string())
-        .unwrap_or_else(|| parish_core::persistence::paths::DEFAULT_APP_NAME.to_string());
+    // Shared helper in parish-core keeps the three entry points in lockstep
+    // (rule #12 — no copy-paste of cross-runtime orchestration).
+    let app_name = parish_core::game_mod::app_name_from_mod(&game_mod);
     let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&app_name);
     let (sessions, identity_store, pronunciations) =
         open_session_components(&saves_dir, &game_mod)?;

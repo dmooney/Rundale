@@ -288,12 +288,9 @@ pub async fn run_headless(
 
     // Initialize persistence — Papers Please-style save picker.
     // App-name drives the per-user data folder (Rundale → `Rundale`); engine
-    // fallback when no mod is loaded is `Parish`.
-    let app_name: String = app
-        .game_mod
-        .as_ref()
-        .map(|gm| gm.manifest.meta.app_name().to_string())
-        .unwrap_or_else(|| parish_core::persistence::paths::DEFAULT_APP_NAME.to_string());
+    // fallback when no mod is loaded is `Parish`. Shared helper in parish-core
+    // keeps the three entry points in lockstep (rule #12).
+    let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
     let saves_dir = crate::persistence::picker::resolve_project_saves_dir(&app_name);
     app.saves_dir = Some(saves_dir.clone());
     // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).

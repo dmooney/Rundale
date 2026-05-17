@@ -27,16 +27,29 @@ pub const DEFAULT_APP_NAME: &str = "Parish";
 /// explicit `save_root` field on `mod.toml`, falling back to `name`). For
 /// engine-only runs with no mod loaded, pass [`DEFAULT_APP_NAME`].
 pub fn resolve_user_data_dir(app_name: &str) -> PathBuf {
-    if let Ok(s) = std::env::var(USER_DATA_DIR_ENV)
-        && !s.trim().is_empty()
-    {
-        let p = PathBuf::from(s);
-        let _ = std::fs::create_dir_all(&p);
-        return p;
+    if let Ok(s) = std::env::var(USER_DATA_DIR_ENV) {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            let p = PathBuf::from(trimmed);
+            ensure_dir(&p);
+            return p;
+        }
     }
     let p = platform_data_dir(app_name).unwrap_or_else(|| PathBuf::from("."));
-    let _ = std::fs::create_dir_all(&p);
+    ensure_dir(&p);
     p
+}
+
+/// Best-effort directory creation with a warning log on failure.
+///
+/// Called once at startup from sync init paths — matches the convention
+/// used by `parish_config::user_config::resolve_user_config_dir`. Resolution
+/// runs before any Tokio executor is serving requests, so synchronous
+/// `std::fs` here does not block a runtime worker.
+fn ensure_dir(p: &std::path::Path) {
+    if let Err(e) = std::fs::create_dir_all(p) {
+        tracing::warn!(path = %p.display(), error = %e, "failed to create user data directory");
+    }
 }
 
 #[cfg(target_os = "macos")]

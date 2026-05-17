@@ -461,6 +461,19 @@ impl ModMeta {
     }
 }
 
+/// Shared resolver for the per-user data folder name used by saves + tile cache.
+///
+/// Centralises the `Option<GameMod>` → `app_name` mapping so the server,
+/// Tauri, and CLI entry points never drift (rule #12). Returns the active
+/// mod's [`ModMeta::app_name`] when present, otherwise the engine fallback
+/// [`parish_persistence::paths::DEFAULT_APP_NAME`].
+pub fn app_name_from_mod(game_mod: &Option<GameMod>) -> String {
+    game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.app_name().to_string())
+        .unwrap_or_else(|| parish_persistence::paths::DEFAULT_APP_NAME.to_string())
+}
+
 impl GameMod {
     /// Load a game mod from the given directory.
     ///
