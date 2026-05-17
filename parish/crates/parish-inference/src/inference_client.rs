@@ -744,56 +744,64 @@ mod tests {
 
     // ── Metrics emission test ────────────────────────────────────────────────
 
-    #[tokio::test]
+    // current_thread prevents the future from being polled by a different OS
+    // thread after an await, which would lose the thread-local subscriber set
+    // by set_default and cause this test to flake under tarpaulin (#981).
+    #[tokio::test(flavor = "current_thread")]
     async fn metered_client_emits_tracing_event_on_success() {
         use std::sync::{Arc as StdArc, Mutex as StdMutex};
-        use tracing_subscriber::fmt::MakeWriter;
+        use tracing::{Event, Subscriber};
+        use tracing_subscriber::{Layer, layer::Context, prelude::*};
 
-        // Capture tracing output to a thread-safe string buffer.
-        #[derive(Clone)]
-        struct BufWriter(StdArc<StdMutex<Vec<u8>>>);
-        impl<'a> MakeWriter<'a> for BufWriter {
-            type Writer = BufWriterInner;
-            fn make_writer(&'a self) -> Self::Writer {
-                BufWriterInner(StdArc::clone(&self.0))
+        // Capture events directly via a Layer instead of the fmt writer pipeline.
+        // on_event fires synchronously at dispatch time, avoiding write-timing
+        // sensitivity that causes flakes under tarpaulin's MIR instrumentation.
+        let captured: StdArc<StdMutex<Vec<String>>> = StdArc::new(StdMutex::new(Vec::new()));
+
+        struct EventCollector(StdArc<StdMutex<Vec<String>>>);
+        impl<S: Subscriber> Layer<S> for EventCollector {
+            fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+                struct Visitor(String);
+                impl tracing::field::Visit for Visitor {
+                    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+                        if field.name() == "message" {
+                            self.0 = value.to_string();
+                        }
+                    }
+                    fn record_debug(
+                        &mut self,
+                        field: &tracing::field::Field,
+                        value: &dyn std::fmt::Debug,
+                    ) {
+                        if field.name() == "message" {
+                            self.0 = format!("{value:?}");
+                        }
+                    }
+                }
+                let mut v = Visitor(String::new());
+                event.record(&mut v);
+                if !v.0.is_empty() {
+                    self.0.lock().unwrap().push(v.0);
+                }
             }
         }
-        struct BufWriterInner(StdArc<StdMutex<Vec<u8>>>);
-        impl std::io::Write for BufWriterInner {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(buf);
-                Ok(buf.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
 
-        let buf: StdArc<StdMutex<Vec<u8>>> = StdArc::new(StdMutex::new(Vec::new()));
-        let writer = BufWriter(StdArc::clone(&buf));
-
-        let subscriber = tracing_subscriber::fmt()
-            .with_writer(writer)
-            .with_max_level(tracing::Level::INFO)
-            .finish();
+        let subscriber =
+            tracing_subscriber::registry().with(EventCollector(StdArc::clone(&captured)));
 
         let (mock, _counter) = MockClient::new("metered response");
         let inner: Arc<dyn InferenceClient> = Arc::new(mock);
         let metered = Arc::new(MeteredInferenceClient::new(inner));
 
-        // Install the subscriber for the scope of the async call.
-        // `with_default` returns the closure's return value; we need a Future.
-        // Because `with_default` takes a sync closure, we split: capture the
-        // guard, do the async work, then drop the guard.
         let _guard = tracing::subscriber::set_default(subscriber);
         let req = make_request(42, "test-model");
         metered.complete(req).await.unwrap();
         drop(_guard);
 
-        let output = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        let events = captured.lock().unwrap();
         assert!(
-            output.contains("inference.call.complete"),
-            "expected 'inference.call.complete' in tracing output; got:\n{output}"
+            events.iter().any(|m| m.contains("inference.call.complete")),
+            "expected 'inference.call.complete' in captured events; got: {events:?}"
         );
     }
 
