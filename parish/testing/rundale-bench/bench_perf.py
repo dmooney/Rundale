@@ -34,14 +34,20 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
 
-from eval_lib import CostTracker, call_chat, call_chat_streaming, load_slice, parse_target  # noqa: E402
+from eval_lib import (  # noqa: E402
+    CostTracker,
+    build_dialogue_system_prompt,
+    call_chat,
+    call_chat_streaming,
+    load_slice,
+    parse_target,
+)
 
 _PROOFS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 
-DIALOGUE_SYS = (
-    "You are Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. "
-    "Stay in character. Speak in 1-3 sentences. Do not use modern language."
-)
+# Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
+# perf measurements use realistic runtime prompt lengths (issue #994).
+DIALOGUE_SYS = build_dialogue_system_prompt()
 
 JSON_FREEFORM_SYS = (
     "You respond only with a JSON object: {\"answer\": <string>, \"confidence\": <0.0-1.0>}. "
