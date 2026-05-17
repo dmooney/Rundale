@@ -50,6 +50,28 @@ if ! ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)"; then
   exit 0
 fi
 
+# ── Sentinel bypass — most-recent assistant message only ──────────────
+# Checked first so [skip-proof-hook] bypasses both the proof gate and
+# the acceptance-criteria check below.
+# `jq -s` slurps the whole JSONL into an array so we can pick the very
+# last assistant entry and grep only its text blocks. A sentinel left in
+# an earlier assistant message no longer leaks bypass authority forward
+# to later stops.
+if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+  LAST_ASSISTANT_TEXT="$(
+    jq -srj '
+      [.[] | select(.type == "assistant")] | last // {} |
+      (.message.content // [])
+      | map(select(.type == "text") | .text)
+      | join("\n")
+    ' "$TRANSCRIPT" 2>/dev/null || true
+  )"
+  if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
+    log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
+    exit 0
+  fi
+fi
+
 CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb)$'
 
 # Subset of CODE_REGEX paths that ship runtime behavior. When any changed
@@ -93,37 +115,10 @@ fi
 
 CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$' | sort -u || true)"
 
-if [ -z "$CHANGED" ]; then
-  exit 0
-fi
-
-# Did any runtime-shipping path change? Drives the proof-tier decision
-# below: a "yes" upgrades the requirement from "any test signal" to
-# "live runtime signal".
-RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || true)"
-
-# ── Sentinel bypass — most-recent assistant message only ──────────────
-# `jq -s` slurps the whole JSONL into an array so we can pick the very
-# last assistant entry and grep only its text blocks. A sentinel left in
-# an earlier assistant message no longer leaks bypass authority forward
-# to later stops.
-if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  LAST_ASSISTANT_TEXT="$(
-    jq -srj '
-      [.[] | select(.type == "assistant")] | last // {} |
-      (.message.content // [])
-      | map(select(.type == "text") | .text)
-      | join("\n")
-    ' "$TRANSCRIPT" 2>/dev/null || true
-  )"
-  if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
-    log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
-    exit 0
-  fi
-fi
-
 # ── Acceptance-criteria detection ─────────────────────────────────────
-# Every proof bundle must include acceptance-criteria.md.
+# Computed here (before the early no-code-change exit) so proof-only
+# sessions (proof files written without any code edits) also get the
+# AC gate.
 #
 # Detection strategy: collect all bundle dirs that had an evidence.md or
 # judge.md written this session via any method:
@@ -150,13 +145,15 @@ _proof_bundle_dirs() {
         | sed 's|/[^/]*$||' || true
       # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
       # false positives from read-only commands like cat/grep/sed.
+      # The tee alternative allows optional flags (e.g. tee -a) between the
+      # command name and the target path.
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E '(>>?|tee)[[:space:]]*docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -E '(>>?[[:space:]]*|tee([[:space:]]+-[[:alnum:]]+)*[[:space:]]+)docs/proofs/[^/]+/(evidence|judge)\.md' \
         | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
     fi
@@ -164,7 +161,7 @@ _proof_bundle_dirs() {
       git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
       git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
     } | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | sed 's|/[^/]*$||' || true
-  } | grep -v '^$' | sort -u
+  } | grep -v '^$' | sort -u || true
 }
 
 PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
@@ -181,6 +178,33 @@ if [ -n "$PROOF_BUNDLE_DIRS" ]; then
     fi
   done <<< "$PROOF_BUNDLE_DIRS"
 fi
+
+if [ -z "$CHANGED" ]; then
+  # No code changes — still block if a proof bundle written this session
+  # is missing its acceptance-criteria.md.
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
+  exit 0
+fi
+
+# Did any runtime-shipping path change? Drives the proof-tier decision
+# below: a "yes" upgrades the requirement from "any test signal" to
+# "live runtime signal".
+RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || true)"
 
 # ── Proof detection (tool_use entries only) ───────────────────────────
 #

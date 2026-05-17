@@ -263,18 +263,6 @@ if [[ "$relevant_count" -gt 0 ]]; then
                 echo "agent-check FAILED: $file must include 'Technical debt: clear'." >&2
                 failed=1
             fi
-            # When the same proof bundle has an acceptance-criteria.md, the
-            # judge must also confirm every criterion was verified against the
-            # game log. Only enforced for bundles that opted into the
-            # AC workflow (i.e. have the sibling file).
-            bundle_dir="$(dirname "$file")"
-            if [[ -f "$bundle_dir/acceptance-criteria.md" ]]; then
-                if ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$file"; then
-                    echo "agent-check FAILED: $file must include 'Acceptance criteria: met' (bundle has acceptance-criteria.md)." >&2
-                    echo "The judge must verify every criterion from acceptance-criteria.md against the game log." >&2
-                    failed=1
-                fi
-            fi
         done < "$judges"
     fi
 
@@ -348,6 +336,22 @@ if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
             fi
         fi
     done < <(cat "$evidence" "$judges" 2>/dev/null | sed 's|/[^/]*$||' | sort -u)
+fi
+
+# Confirm 'Acceptance criteria: met' in every judge file whose bundle has an
+# acceptance-criteria.md — enforced unconditionally so proof-only PRs (where
+# relevant_count is 0) cannot bypass the gate.
+if [[ "$judge_count" -gt 0 ]]; then
+    while IFS= read -r file; do
+        bundle_dir="$(dirname "$file")"
+        if [[ -f "$bundle_dir/acceptance-criteria.md" ]]; then
+            if ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$file"; then
+                echo "agent-check FAILED: $file must include 'Acceptance criteria: met' (bundle has acceptance-criteria.md)." >&2
+                echo "The judge must verify every criterion from acceptance-criteria.md against the game log." >&2
+                failed=1
+            fi
+        fi
+    done < "$judges"
 fi
 
 debt_found=0
