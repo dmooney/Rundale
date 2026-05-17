@@ -285,6 +285,15 @@ pub async fn run_npc_turn(
             reply = %parsed.dialogue,
             "chat [npc]"
         );
+        for issue in crate::npc::quality::detect_all_text_issues(&parsed.dialogue) {
+            tracing::warn!(
+                site = "npc-reply",
+                npc = %display_label,
+                kind = issue.kind.as_str(),
+                detail = %issue.detail,
+                "quality issue in NPC reply"
+            );
+        }
     }
 
     {

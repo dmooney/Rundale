@@ -360,21 +360,62 @@ impl GameConfig {
             changed = true;
         }
 
-        // Per-category models: fall back to each effective provider's
-        // preset for that specific role.
+        // Per-category models + base URLs: fall back to each effective
+        // provider's preset for that specific role.
+        //
+        // Two correctness rules learned from bot review on PR #990:
+        //
+        // 1. Pair the URL with the model. Filling `category_base_url`
+        //    independently of `category_model` can silently reroute a
+        //    user-chosen model to the preset's slot URL (e.g. force :8001)
+        //    and produce 404s. Only fill URL on the same pass we fill model.
+        //
+        // 2. Don't override a user-set base URL. If the user has set their
+        //    own `base_url` (e.g. `http://remote-gpu:8000` for a colocated
+        //    GPU box), the preset's hardcoded `http://localhost:PORT` would
+        //    silently route all traffic to the wrong host. Skip auto-fill
+        //    of `category_base_url` when the user's base URL diverges from
+        //    the provider's default — the user has stepped off the canonical
+        //    path and is responsible for category routing.
+        //
+        // base_url is still critical for multi-slot loadouts (e.g. vllm-mlx
+        // 14B on :8000 + 1.5B on :8001) — without it, the auto-filled model
+        // lands on the wrong slot and every request 404s. We just constrain
+        // *when* we apply it.
         for cat in InferenceCategory::ALL {
-            if self.category_model.contains_key(&cat) {
-                continue;
-            }
             let provider_str = self
                 .category_provider
                 .get(&cat)
                 .map(String::as_str)
                 .unwrap_or(&self.provider_name);
-            if let Ok(p) = Provider::from_str_loose(provider_str)
-                && let Some(m) = p.preset_model(cat)
+            let Ok(p) = Provider::from_str_loose(provider_str) else {
+                continue;
+            };
+            // Only auto-fill model from preset if the user hasn't set one.
+            // entry().or_insert_with-style flow keeps clippy's map_entry
+            // lint happy.
+            use std::collections::hash_map::Entry;
+            let filled_model = match self.category_model.entry(cat) {
+                Entry::Occupied(_) => false,
+                Entry::Vacant(slot) => match p.preset_model(cat) {
+                    Some(m) => {
+                        slot.insert(m.to_string());
+                        changed = true;
+                        true
+                    }
+                    None => false,
+                },
+            };
+            // Pair the URL fill with the model fill. Two extra guards:
+            // - user must not have set `category_base_url` already
+            // - user must be on the canonical base URL for this provider
+            //   (no auto-fill if they've pointed to a remote host)
+            if filled_model
+                && self.base_url == p.default_base_url()
+                && let Entry::Vacant(slot) = self.category_base_url.entry(cat)
+                && let Some(u) = p.preset_base_url(cat)
             {
-                self.category_model.insert(cat, m.to_string());
+                slot.insert(u.to_string());
                 changed = true;
             }
         }

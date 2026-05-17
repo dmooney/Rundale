@@ -228,6 +228,106 @@ fn rubric_look_descriptions_are_non_empty() {
 }
 
 // ============================================================
+// Text-quality rubrics — apply parish_npc::quality detectors to every
+// baselined fixture. Three detectors are safe to assert against fixture
+// output (player commands are scripted, NPC dialogue comes from the
+// simulator Markov backend in fixtures):
+//
+// - `detect_json_envelope_leak`: fixtures never feed JSON-wrapped text;
+//   firing means a regression in `extract_action_from_response`.
+// - `detect_template_tokens`: simulator output has no template variables;
+//   firing means a prompt template leaked into rendered text.
+// - `detect_hallucinated_gaelic`: simulator English corpus has no fada
+//   chars; firing means hallucinated Gaelic reached user-visible output.
+//
+// Skipped: simulator-corpus-overlap (would always fire on simulator
+// output) and modern-register (soft signal, runtime WARN only).
+// ============================================================
+
+#[test]
+fn rubric_no_json_envelope_leak_in_fixtures() {
+    use parish::npc::quality::detect_json_envelope_leak;
+    for name in BASELINED_FIXTURES {
+        let results = capture(name);
+        for (i, r) in results.iter().enumerate() {
+            let cmd_issues = detect_json_envelope_leak(&r.command);
+            assert!(
+                cmd_issues.is_empty(),
+                "{name}.txt step {i}: player command leaks JSON envelope.\n\
+                 Command: `{}`\n\
+                 Issues: {:?}\n\
+                 FIX: see parish_tauri::commands::extract_action_from_response.",
+                r.command,
+                cmd_issues,
+            );
+            if let ActionResult::NpcResponse { dialogue, npc, .. } = &r.result {
+                let dlg_issues = detect_json_envelope_leak(dialogue);
+                assert!(
+                    dlg_issues.is_empty(),
+                    "{name}.txt step {i}: NPC `{npc}` dialogue leaks JSON envelope.\n\
+                     Dialogue: `{dialogue}`\n\
+                     Issues: {:?}\n\
+                     FIX: see parish_core::npc::parse_npc_stream_response.",
+                    dlg_issues,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn rubric_no_template_tokens_in_fixtures() {
+    use parish::npc::quality::detect_template_tokens;
+    for name in BASELINED_FIXTURES {
+        let results = capture(name);
+        for (i, r) in results.iter().enumerate() {
+            let cmd_issues = detect_template_tokens(&r.command);
+            assert!(
+                cmd_issues.is_empty(),
+                "{name}.txt step {i}: player command contains unfilled template tokens.\n\
+                 Command: `{}`\n\
+                 Issues: {:?}",
+                r.command,
+                cmd_issues,
+            );
+            if let ActionResult::NpcResponse { dialogue, npc, .. } = &r.result {
+                let dlg_issues = detect_template_tokens(dialogue);
+                assert!(
+                    dlg_issues.is_empty(),
+                    "{name}.txt step {i}: NPC `{npc}` dialogue contains unfilled template tokens.\n\
+                     Dialogue: `{dialogue}`\n\
+                     Issues: {:?}\n\
+                     FIX: see mods/rundale/prompts/ for the template source.",
+                    dlg_issues,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn rubric_no_hallucinated_gaelic_in_fixtures() {
+    use parish::npc::quality::detect_hallucinated_gaelic;
+    for name in BASELINED_FIXTURES {
+        let results = capture(name);
+        for (i, r) in results.iter().enumerate() {
+            if let ActionResult::NpcResponse { dialogue, npc, .. } = &r.result {
+                let issues = detect_hallucinated_gaelic(dialogue);
+                assert!(
+                    issues.is_empty(),
+                    "{name}.txt step {i}: NPC `{npc}` dialogue contains fada-bearing \
+                     words not on the vetted Gaelic vocab list.\n\
+                     Dialogue: `{dialogue}`\n\
+                     Issues: {:?}\n\
+                     FIX: add to parish_npc::quality::GAELIC_VOCAB if legitimate.",
+                    issues,
+                );
+            }
+        }
+    }
+}
+
+// ============================================================
 // Gameplay rubrics — Tier 4 CPU rules engine (#722)
 // ============================================================
 
