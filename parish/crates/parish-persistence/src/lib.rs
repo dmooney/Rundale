@@ -8,6 +8,7 @@ pub mod database;
 pub mod journal;
 pub mod journal_bridge;
 pub mod lock;
+pub mod paths;
 pub mod picker;
 pub mod snapshot;
 
