@@ -30,6 +30,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 changed="$tmpdir/changed"
 relevant="$tmpdir/relevant"
+runtime="$tmpdir/runtime"
 evidence="$tmpdir/evidence"
 judges="$tmpdir/judges"
 
@@ -41,6 +42,7 @@ judges="$tmpdir/judges"
 } | sed '/^[[:space:]]*$/d' | sort -u > "$changed"
 
 : > "$relevant"
+: > "$runtime"
 : > "$evidence"
 : > "$judges"
 
@@ -67,6 +69,41 @@ is_proof_relevant() {
         parish/Cargo.toml|parish/Cargo.lock|\
         parish/crates/*|parish/apps/*|parish/testing/*|\
         mods/*|deploy/*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# A subset of proof-relevant paths that ship runtime behavior into a real
+# process (Tauri desktop, axum web server, headless CLI, UI). Changes
+# under these prefixes can only be proven by exercising the code in a
+# live process — unit tests alone don't fire startup wiring, IPC
+# handlers, or browser-mounted Svelte components. Pure logic crates
+# (parish-config, parish-types, parish-palette, parish-persistence) are
+# excluded — their behaviour is fully covered by `cargo test`. Per rule
+# #10 in AGENTS.md.
+is_runtime_path() {
+    local file="$1"
+    case "$file" in
+        parish/crates/parish-tauri/*|\
+        parish/crates/parish-server/*|\
+        parish/crates/parish-cli/*|\
+        parish/crates/parish-core/src/game_loop/*|\
+        parish/crates/parish-core/src/game_session/*|\
+        parish/crates/parish-core/src/ipc/*|\
+        parish/crates/parish-inference/src/setup.rs|\
+        parish/crates/parish-inference/src/client.rs|\
+        parish/crates/parish-npc/src/ticks.rs|\
+        parish/crates/parish-npc/src/manager.rs|\
+        parish/crates/parish-npc/src/reactions/*|\
+        parish/crates/parish-npc/src/autonomous/*|\
+        parish/crates/parish-world/*|\
+        parish/crates/parish-input/*|\
+        parish/apps/ui/src/*|\
+        mods/*)
             return 0
             ;;
         *)
@@ -108,11 +145,24 @@ validate_evidence_file() {
         *.png|*.jpg|*.jpeg|*.gif)
             return 0
             ;;
-        *.md|*.txt)
-            if grep -Eiq '^Evidence type:[[:space:]]*(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
+        # Raw transcripts (.txt) carry literal program output — they
+        # don't need a typed header, only the markdown summary file
+        # alongside them does. Pairing pattern: write a transcript
+        # `*.txt` capturing real output, and a sibling `evidence.md`
+        # whose `Evidence type:` header declares the run kind.
+        *.txt)
+            return 0
+            ;;
+        *.md)
+            # Accept the optional `live ` prefix that the runtime-path
+            # tier (rule #10) requires for proofs of changes touching
+            # the Tauri/server/CLI/UI/mod seams. Plain
+            # `Evidence type: gameplay transcript` remains valid for
+            # non-runtime proof-relevant changes.
+            if grep -Eiq '^Evidence type:[[:space:]]*(live[[:space:]]+)?(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
                 return 0
             fi
-            echo "agent-check FAILED: $file must declare 'Evidence type: gameplay transcript', 'screenshot', or 'gif'." >&2
+            echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)'." >&2
             return 1
             ;;
         *)
@@ -146,6 +196,9 @@ while IFS= read -r file; do
     if is_proof_relevant "$file"; then
         echo "$file" >> "$relevant"
     fi
+    if is_runtime_path "$file"; then
+        echo "$file" >> "$runtime"
+    fi
     if [[ -f "$file" ]] && is_evidence_file "$file"; then
         echo "$file" >> "$evidence"
     fi
@@ -156,6 +209,7 @@ done < "$changed"
 
 changed_count="$(wc -l < "$changed" | tr -d ' ')"
 relevant_count="$(wc -l < "$relevant" | tr -d ' ')"
+runtime_count="$(wc -l < "$runtime" | tr -d ' ')"
 evidence_count="$(wc -l < "$evidence" | tr -d ' ')"
 judge_count="$(wc -l < "$judges" | tr -d ' ')"
 
@@ -191,6 +245,45 @@ if [[ "$relevant_count" -gt 0 ]]; then
                 failed=1
             fi
         done < "$judges"
+    fi
+
+    # Runtime-path tier: when the diff touches a path that only fires in
+    # a real process (Tauri startup, server routes, CLI bootstrap,
+    # NPC tick loop, mod content, UI components), the evidence must
+    # show the change was actually run live. Accepted live signals:
+    #   - any binary artifact (screenshot .png/.jpg/.jpeg, gif .gif) —
+    #     these can't be produced without running the app, and
+    #   - a transcript file (.md / .txt) that declares
+    #     'Evidence type: live gameplay transcript'.
+    # A plain 'Evidence type: gameplay transcript' is not enough — that
+    # phrasing is used today for analysis-only writeups that never
+    # touch a live process. The added word "live" is the explicit
+    # author affirmation that the run happened (#NNN).
+    if [[ "$runtime_count" -gt 0 ]]; then
+        echo "agent-check: $runtime_count runtime-shipping file(s) changed; live proof required."
+        live_found=0
+        if [[ "$evidence_count" -gt 0 ]]; then
+            while IFS= read -r file; do
+                case "$file" in
+                    *.png|*.jpg|*.jpeg|*.gif)
+                        live_found=1
+                        ;;
+                    *.md|*.txt)
+                        if grep -Eiq '^Evidence type:[[:space:]]*live[[:space:]]+(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
+                            live_found=1
+                        fi
+                        ;;
+                esac
+            done < "$evidence"
+        fi
+        if [[ "$live_found" -eq 0 ]]; then
+            echo "agent-check FAILED: runtime-shipping changes require evidence from a live process." >&2
+            echo "Provide a screenshot/gif under docs/proofs/<proof-id>/, or a transcript whose" >&2
+            echo "header declares 'Evidence type: live gameplay transcript' (the literal word 'live'" >&2
+            echo "asserts the change was exercised in a real Tauri / server / CLI / browser, not just" >&2
+            echo "in unit tests)." >&2
+            failed=1
+        fi
     fi
 else
     echo "agent-check: no proof-relevant changes; proof bundle not required."
