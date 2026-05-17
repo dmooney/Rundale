@@ -314,13 +314,19 @@ fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
     })?;
     let after_colon = after_key.trim_start();
     let after_colon = after_colon.strip_prefix(':')?.trim_start();
-    let inner = after_colon
-        .strip_prefix('"')
-        .or_else(|| after_colon.strip_prefix('\''))?;
+    let (inner, opener) = if let Some(rest) = after_colon.strip_prefix('"') {
+        (rest, '"')
+    } else if let Some(rest) = after_colon.strip_prefix('\'') {
+        (rest, '\'')
+    } else {
+        return None;
+    };
 
     // Walk the string body, honoring JSON-style backslash escapes. Stop
-    // at the first unescaped closing quote; if the stream ran out
-    // (truncated), take everything we have.
+    // at the first unescaped quote that MATCHES the opener; if the stream
+    // ran out (truncated), take everything we have. Tracking the matching
+    // closer is important — a single-quoted body containing `"` should
+    // not terminate early, and vice versa.
     let mut out = String::with_capacity(inner.len());
     let mut chars = inner.chars().peekable();
     while let Some(c) = chars.next() {
@@ -338,7 +344,7 @@ fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
                 }
                 None => break,
             },
-            '"' => break,
+            c if c == opener => break,
             other => out.push(other),
         }
     }
@@ -1054,6 +1060,28 @@ mod tests {
         let text = r#"{"dialogue": ""#;
         let parsed = parse_npc_stream_response(text);
         assert_eq!(parsed.dialogue, text);
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_single_quoted_with_inner_double_quote() {
+        // Bot review (PR #990, codex P2): the heuristic accepted `'` as
+        // an opening quote but only stopped at `"`. For pseudo-JSON like
+        // `{'dialogue':'Aye, "good", said he'}` the inner double quote
+        // must NOT terminate the body; we should keep going until the
+        // matching single-quote closer.
+        let text = r#"{'dialogue':'Aye, "good", said he'}"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, r#"Aye, "good", said he"#);
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_double_quoted_with_inner_single_quote() {
+        // Mirror case: standard `"dialogue": "ye'll see"` body contains
+        // an inner apostrophe; the opener `"` must drive the terminator
+        // so we don't break early on the apostrophe.
+        let text = r#"{"dialogue": "ye'll see, lad"}"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "ye'll see, lad");
     }
 
     #[test]

@@ -387,38 +387,46 @@ pub fn detect_modern_register(text: &str) -> Vec<QualityIssue> {
     let mut out = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
 
+    // Both branches use the same word-boundary scan — phrases just include
+    // internal spaces. Single-word and multi-word terms are checked
+    // uniformly so `decided to visit` cannot match inside `undecided to
+    // visit`. Boundary uses Rust char semantics, not raw bytes, so non-
+    // ASCII letters on either side of a term also count as word chars.
     for &term in MODERN_REGISTER_TERMS {
-        if term.contains(' ') {
-            if lower.contains(term) && seen.insert(term) {
+        let label = if term.contains(' ') {
+            "modern-register phrase"
+        } else {
+            "modern-register word"
+        };
+        let mut idx = 0;
+        while let Some(found) = lower[idx..].find(term) {
+            let abs = idx + found;
+            let before_ok = abs == 0 || !is_word_char_at(&lower, abs - 1);
+            let after = abs + term.len();
+            let after_ok = after == lower.len() || !is_word_char_at(&lower, after);
+            if before_ok && after_ok && seen.insert(term) {
                 out.push(QualityIssue::new(
                     QualityIssueKind::ModernRegister,
-                    format!("modern-register phrase: `{}`", term),
+                    format!("{}: `{}`", label, term),
                 ));
+                break;
             }
-        } else {
-            let bytes = lower.as_bytes();
-            let mut idx = 0;
-            while let Some(found) = lower[idx..].find(term) {
-                let abs = idx + found;
-                let before_ok = abs == 0 || !is_word_byte(bytes[abs - 1]);
-                let after = abs + term.len();
-                let after_ok = after == bytes.len() || !is_word_byte(bytes[after]);
-                if before_ok && after_ok && seen.insert(term) {
-                    out.push(QualityIssue::new(
-                        QualityIssueKind::ModernRegister,
-                        format!("modern-register word: `{}`", term),
-                    ));
-                    break;
-                }
-                idx = abs + term.len();
-            }
+            idx = abs + term.len();
         }
     }
     out
 }
 
-fn is_word_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'\''
+/// True iff the char at `byte_offset` is a "word" char: any Unicode letter,
+/// digit, underscore, or apostrophe. Used as the boundary predicate for
+/// modern-register matching so that phrases bordering on `úna` / `n'éirí` /
+/// 's are treated correctly across the Hiberno-English / Irish split.
+fn is_word_char_at(s: &str, byte_offset: usize) -> bool {
+    s[byte_offset..]
+        .chars()
+        .next()
+        .map(|c| c.is_alphanumeric() || c == '_' || c == '\'')
+        .unwrap_or(false)
 }
 
 // ---------------------------------------------------------------------------
@@ -614,6 +622,37 @@ mod tests {
         let s = "Good mornin' to ye. 'Tis a pleasure to greet ye.";
         let issues = detect_modern_register(s);
         assert!(issues.is_empty(), "got {:?}", issues);
+    }
+
+    #[test]
+    fn modern_register_phrase_respects_word_boundary() {
+        // Bot review (PR #990, gemini medium): the multi-word phrase
+        // branch previously used `lower.contains(term)` with no boundary
+        // check, so "undecided to visit" would match "decided to visit".
+        // After the fix, only true standalone occurrences trip.
+        let s = "She was undecided to visit Aoife.";
+        assert!(
+            detect_modern_register(s).is_empty(),
+            "phrase as substring of another word must not match; got {:?}",
+            detect_modern_register(s)
+        );
+        let s2 = "I decided to visit Aoife.";
+        assert!(
+            !detect_modern_register(s2).is_empty(),
+            "standalone phrase must still match"
+        );
+    }
+
+    #[test]
+    fn modern_register_word_boundary_unicode() {
+        // Boundary check must use Char semantics, not raw bytes. A non-
+        // ASCII alphanumeric on either side of a term still counts as a
+        // word char and must block a false match.
+        let s = "fascinatingñ"; // trailing non-ASCII letter
+        assert!(
+            detect_modern_register(s).is_empty(),
+            "non-ASCII letter abutting term must not be treated as boundary"
+        );
     }
 
     #[test]
