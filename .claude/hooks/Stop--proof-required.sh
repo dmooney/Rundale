@@ -145,14 +145,18 @@ _proof_bundle_dirs() {
         | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
         | .input.file_path // empty
       ' "$TRANSCRIPT" 2>/dev/null \
+        | sed "s|^$ROOT/||" \
         | grep -E 'docs/proofs/.*/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
+      # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
+      # false positives from read-only commands like cat/grep/sed.
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
+        | grep -E '(>>?|tee)[[:space:]]*docs/proofs/[^/]+/(evidence|judge)\.md' \
         | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
     fi

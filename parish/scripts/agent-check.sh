@@ -278,30 +278,8 @@ if [[ "$relevant_count" -gt 0 ]]; then
         done < "$judges"
     fi
 
-    # Proof bundles added in this diff must include acceptance-criteria.md.
-    # We detect new bundles by finding evidence/judge files that are new
-    # (present in working tree but not in base). Only new bundles are
-    # checked — existing proofs on main are not retroactively broken.
-    if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
-        while IFS= read -r file; do
-            bundle_dir="$(dirname "$file")"
-            ac_path="$bundle_dir/acceptance-criteria.md"
-            # Check if this specific artifact (evidence/judge) is new in base.
-            # Using the file path directly avoids the false-negative where a bundle
-            # dir pre-existed (e.g. with notes) but evidence/judge are new.
-            if ! git show "$base:$file" >/dev/null 2>&1; then
-                # New bundle: acceptance-criteria.md must be present.
-                if [[ ! -f "$ac_path" ]]; then
-                    echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
-                    echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
-                    echo "See rule 13 in AGENTS.md." >&2
-                    failed=1
-                fi
-            fi
-        done < <(cat "$evidence" "$judges" 2>/dev/null | sort -u)
-        if [[ "$ac_count" -gt 0 ]]; then
-            echo "agent-check: $ac_count acceptance-criteria file(s) present."
-        fi
+    if [[ "$ac_count" -gt 0 ]]; then
+        echo "agent-check: $ac_count acceptance-criteria file(s) present."
     fi
 
     # Runtime-path tier: when the diff touches a path that only fires in
@@ -351,6 +329,25 @@ if [[ "$relevant_count" -gt 0 ]]; then
     fi
 else
     echo "agent-check: no proof-relevant changes; proof bundle not required."
+fi
+
+# New proof bundles must include acceptance-criteria.md — enforced regardless
+# of whether proof-relevant code changed (catches proof-only PRs too).
+# Novelty is per bundle dir: "new" means neither evidence.md nor judge.md
+# existed in base. Adding extra artifacts to an existing bundle is not new.
+if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
+    while IFS= read -r bundle_dir; do
+        ac_path="$bundle_dir/acceptance-criteria.md"
+        if ! git show "$base:$bundle_dir/evidence.md" >/dev/null 2>&1 && \
+           ! git show "$base:$bundle_dir/judge.md" >/dev/null 2>&1; then
+            if [[ ! -f "$ac_path" ]]; then
+                echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
+                echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
+                echo "See rule 13 in AGENTS.md." >&2
+                failed=1
+            fi
+        fi
+    done < <(cat "$evidence" "$judges" 2>/dev/null | sed 's|/[^/]*$||' | sort -u)
 fi
 
 debt_found=0
