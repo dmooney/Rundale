@@ -751,7 +751,7 @@ mod tests {
     async fn metered_client_emits_tracing_event_on_success() {
         use std::sync::{Arc as StdArc, Mutex as StdMutex};
         use tracing::{Event, Subscriber};
-        use tracing_subscriber::{layer::Context, prelude::*, Layer};
+        use tracing_subscriber::{Layer, layer::Context, prelude::*};
 
         // Capture events directly via a Layer instead of the fmt writer pipeline.
         // on_event fires synchronously at dispatch time, avoiding write-timing
