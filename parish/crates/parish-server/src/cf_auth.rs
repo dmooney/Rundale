@@ -768,8 +768,9 @@ mod tests {
     // jsonwebtoken 10+ requires an explicit crypto backend feature (rust_crypto
     // or aws_lc_rs).  Without one, decode() panics at request time with:
     //   "Could not automatically determine the process-level CryptoProvider"
-    // The server stays alive (Railway shows Online) but every CF-proxied request
-    // 502s.  This test exercises the full verify path so the missing feature is
+    // The server stays alive (the host's health check still passes) but every
+    // CF-proxied request 502s.  This test exercises the full verify path so the
+    // missing feature is
     // caught in CI, not in production (cf. Cloudflare Ray 9f391ab7df46c64a,
     // 2026-04-28T21:19:18Z, and PR #803).
 
