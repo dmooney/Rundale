@@ -164,21 +164,32 @@ pub fn detect_template_tokens(text: &str) -> Vec<QualityIssue> {
 // ---------------------------------------------------------------------------
 // (3) Simulator corpus overlap
 // ---------------------------------------------------------------------------
+//
+// Threshold note (2026-05-17 retune): originally 4-gram. False positives
+// observed on period dialogue that happened to share a common English
+// idiom with the corpus — e.g. NPC reply `Me da'll be the one to tell ye`
+// tripped on "be the one to" which appears verbatim in the Markov source.
+// Bumped to **5-gram** — true simulator leakage chains many consecutive
+// corpus words, while organic English rarely matches 5 in a row. Lifts
+// false-positive rate to ~0 on live demo output without losing the gibberish
+// signal (corpus phrasing like "nobody can quite explain Bridget from
+// beyond" still trips on its 5-gram prefix).
 
-static CORPUS_4GRAMS: LazyLock<HashSet<[String; 4]>> = LazyLock::new(|| {
+static CORPUS_5GRAMS: LazyLock<HashSet<[String; 5]>> = LazyLock::new(|| {
     let words: Vec<String> = parish_inference::simulator::CORPUS
         .split_whitespace()
         .map(normalize_word)
         .filter(|w| !w.is_empty())
         .collect();
 
-    let mut set: HashSet<[String; 4]> = HashSet::with_capacity(words.len());
-    for window in words.windows(4) {
+    let mut set: HashSet<[String; 5]> = HashSet::with_capacity(words.len());
+    for window in words.windows(5) {
         set.insert([
             window[0].clone(),
             window[1].clone(),
             window[2].clone(),
             window[3].clone(),
+            window[4].clone(),
         ]);
     }
     set
@@ -196,19 +207,20 @@ pub fn detect_simulator_corpus_overlap(text: &str) -> Option<QualityIssue> {
         .filter(|w| !w.is_empty())
         .collect();
 
-    for win in words.windows(4) {
+    for win in words.windows(5) {
         let key = [
             win[0].clone(),
             win[1].clone(),
             win[2].clone(),
             win[3].clone(),
+            win[4].clone(),
         ];
-        if CORPUS_4GRAMS.contains(&key) {
+        if CORPUS_5GRAMS.contains(&key) {
             return Some(QualityIssue::new(
                 QualityIssueKind::SimulatorCorpusOverlap,
                 format!(
-                    "4-gram match with simulator corpus: `{} {} {} {}`",
-                    win[0], win[1], win[2], win[3]
+                    "5-gram match with simulator corpus: `{} {} {} {} {}`",
+                    win[0], win[1], win[2], win[3], win[4]
                 ),
             ));
         }
@@ -517,7 +529,7 @@ mod tests {
         let issue = detect_simulator_corpus_overlap(s);
         assert!(
             issue.is_some(),
-            "should flag known simulator-corpus 4-grams"
+            "should flag known simulator-corpus 5-grams"
         );
     }
 
@@ -526,6 +538,22 @@ mod tests {
         let s = "Good mornin' to ye. Ye seem like a stranger 'round these parts. \
                  Name's Peig Hannigan. And ye be...?";
         assert!(detect_simulator_corpus_overlap(s).is_none());
+    }
+
+    #[test]
+    fn corpus_overlap_no_false_positive_on_common_idiom() {
+        // Live demo (2026-05-17): Brendan Duffy at The Mill said
+        // "Me da'll be the one to tell ye how it's done around here."
+        // The 4-gram "be the one to" appears in the simulator corpus AND
+        // in normal English. Threshold must be high enough to skip this
+        // organic match.
+        let s = "Me da'll be the one to tell ye how it's done around here. 'Tis a fair price, so it is.";
+        assert!(
+            detect_simulator_corpus_overlap(s).is_none(),
+            "5-gram threshold must not trip on common-English idiom; \
+             saw: {:?}",
+            detect_simulator_corpus_overlap(s)
+        );
     }
 
     #[test]
