@@ -153,7 +153,7 @@ _proof_bundle_dirs() {
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-[[:alnum:]]+)*[[:space:]]+"?\.?/?)docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-{1,2}[[:alnum:]-]+)*[[:space:]]+"?\.?/?)docs/proofs/[^/]+/(evidence|judge)\.md' \
         | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
     fi
@@ -259,7 +259,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 
   # LIVE-3: Bash calls that boot a real process against the workspace.
   if [ -z "$LIVE_PROOF" ]; then
-    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
+    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
     LIVE_PROOF="$(
       jq -rc '
         (.message.content // [])[]?
