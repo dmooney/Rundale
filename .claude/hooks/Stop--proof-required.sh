@@ -52,6 +52,21 @@ fi
 
 CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb)$'
 
+# Subset of CODE_REGEX paths that ship runtime behavior. When any changed
+# file is under one of these prefixes, unit-test signals (cargo test /
+# just check / npm run check) are no longer sufficient on their own —
+# the agent must additionally exercise the change at runtime
+# (mcp__parish__*, mcp__claude-in-chrome__*, Skill prove/play/demo/
+# chrome-test, or a Bash invocation of just demo / just play / just run
+# / cargo tauri dev / cargo run -p parish-*). This closes the gap where
+# unit tests are green but the runtime-only seam is never touched
+# (e.g. Tauri startup paths that only fire in `just demo`).
+# Per-branch trailing tokens (each branch carries its own `/` or `.rs`
+# suffix). A single trailing `/` outside the group would force every
+# alternative to be a directory, mis-matching the `.rs` file leaves
+# (`setup.rs`, `client.rs`, `ticks.rs`, `manager.rs`).
+RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|cli/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
+
 # ── Code-change detection ──────────────────────────────────────────────
 # Source 1: tracked diff vs HEAD + untracked code files.
 DIFF_CHANGED="$(
@@ -82,6 +97,11 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
+# Did any runtime-shipping path change? Drives the proof-tier decision
+# below: a "yes" upgrades the requirement from "any test signal" to
+# "live runtime signal".
+RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || true)"
+
 # ── Sentinel bypass — most-recent assistant message only ──────────────
 # `jq -s` slurps the whole JSONL into an array so we can pick the very
 # last assistant entry and grep only its text blocks. A sentinel left in
@@ -103,10 +123,35 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 fi
 
 # ── Proof detection (tool_use entries only) ───────────────────────────
-PROOF=""
+#
+# Two tiers:
+#
+#   LIVE proof  = the change actually ran in a real process.
+#     - mcp__parish__* (drives a live backend)
+#     - mcp__claude-in-chrome__* (drives a live browser)
+#     - Skill prove / play / demo / rubric / chrome-test (live harness)
+#     - Bash matching LIVE_BASH_PATTERN (just demo|play|run|run-headless
+#       |web; cargo tauri dev; cargo run -p parish-cli|parish-tauri
+#       |parish-server)
+#
+#   TEST proof  = static / unit / integration tests passed.
+#     - Skill check / verify
+#     - Bash matching TEST_BASH_PATTERN (cargo test|nextest; npm test|
+#       run check|run e2e; npx playwright; just check|verify|
+#       agent-check|ui-test|ui-e2e)
+#
+# When RUNTIME_CHANGED is non-empty, only LIVE proof clears the gate
+# (TEST proof on its own is rejected — unit tests don't exercise the
+# Tauri/server/CLI seam and won't catch startup-only regressions like
+# the parish.toml category_overrides drop). When RUNTIME_CHANGED is
+# empty (e.g. only parish-config / parish-types touched), either tier
+# is accepted.
+LIVE_PROOF=""
+TEST_PROOF=""
+
 if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  # 1. Direct MCP tool invocations.
-  PROOF="$(
+  # LIVE-1: direct MCP tool invocations.
+  LIVE_PROOF="$(
     jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
@@ -115,37 +160,69 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
     ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
   )"
 
-  # 2. Skill invocations.
-  if [ -z "$PROOF" ]; then
-    PROOF="$(
+  # LIVE-2: live-harness skill invocations.
+  if [ -z "$LIVE_PROOF" ]; then
+    LIVE_PROOF="$(
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Skill")
-        | select(.input.skill | IN("prove","check","verify","play","rubric","chrome-test","demo"))
+        | select(.input.skill | IN("prove","play","demo","rubric","chrome-test"))
         | "skill: \(.input.skill)"
       ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
     )"
   fi
 
-  # 3. Bash tool calls that ran a real test / check command.
-  if [ -z "$PROOF" ]; then
-    BASH_PATTERN='cargo[[:space:]]+(test|nextest)|npm[[:space:]]+(test|run[[:space:]]+(test|check|e2e))|npx[[:space:]]+playwright|just[[:space:]]+(check|verify|agent-check|ui-test|ui-e2e)'
-    PROOF="$(
+  # LIVE-3: Bash calls that boot a real process against the workspace.
+  if [ -z "$LIVE_PROOF" ]; then
+    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
+    LIVE_PROOF="$(
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E -m1 "$BASH_PATTERN" \
+        | grep -E -m1 "$LIVE_BASH_PATTERN" \
+        | head -c 160 || true
+    )"
+  fi
+
+  # TEST-1: static/unit-test skills.
+  TEST_PROOF="$(
+    jq -rc '
+      (.message.content // [])[]?
+      | select(.type == "tool_use")
+      | select(.name == "Skill")
+      | select(.input.skill | IN("check","verify"))
+      | "skill: \(.input.skill)"
+    ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
+  )"
+
+  # TEST-2: Bash test/check commands.
+  if [ -z "$TEST_PROOF" ]; then
+    TEST_BASH_PATTERN='cargo[[:space:]]+(test|nextest)|npm[[:space:]]+(test|run[[:space:]]+(test|check|e2e))|npx[[:space:]]+playwright|just[[:space:]]+(check|verify|agent-check|ui-test|ui-e2e)'
+    TEST_PROOF="$(
+      jq -rc '
+        (.message.content // [])[]?
+        | select(.type == "tool_use")
+        | select(.name == "Bash")
+        | .input.command // empty
+      ' "$TRANSCRIPT" 2>/dev/null \
+        | grep -E -m1 "$TEST_BASH_PATTERN" \
         | head -c 160 || true
     )"
   fi
 fi
 
-if [ -n "$PROOF" ]; then
-  log "proof found: $PROOF"
+# Decision matrix.
+if [ -n "$LIVE_PROOF" ]; then
+  log "live proof found: $LIVE_PROOF"
+  exit 0
+fi
+
+if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
+  log "test proof accepted (no runtime paths touched): $TEST_PROOF"
   exit 0
 fi
 
@@ -155,25 +232,48 @@ EXTRA="$(printf '%s\n' "$CHANGED" | wc -l | tr -d ' ')"
 TRAIL=""
 [ "$EXTRA" -gt 8 ] && TRAIL=$'\n  - ...'
 
+if [ -n "$RUNTIME_CHANGED" ]; then
+  RUNTIME_PREVIEW="$(printf '%s\n' "$RUNTIME_CHANGED" | head -6 | sed 's/^/  - /')"
+  TIER_BANNER="LIVE proof required: a runtime-shipping path changed this session."
+  TIER_NOTE="Runtime-shipping files touched:
+${RUNTIME_PREVIEW}
+
+Unit tests (cargo test, just check) are NOT sufficient on their own —
+they don't exercise the Tauri / server / CLI startup seams. You must
+additionally drive the change through a real process before claiming
+done."
+  EXAMPLES="  Backend (Rust, gameplay, Tauri)
+    - bash parish/scripts/parish-mcp-backend.sh start  (then mcp__parish__*)
+    - cargo run -p parish-tauri  (live desktop window)
+    - cargo run -p parish-cli -- --headless  (REPL)
+    - just demo  /  just play  /  just run
+    - /prove <feature>  /  /play
+
+  Frontend (parish/apps/ui)
+    - mcp__claude-in-chrome__* against vite dev server
+    - /chrome-test
+    - npx playwright e2e/<spec>.spec.ts  (real browser, not just type-check)"
+else
+  TIER_BANNER="TEST proof required: code changed this session."
+  TIER_NOTE=""
+  EXAMPLES="  - cargo test / cargo nextest
+  - npm run check / npm run e2e / npx playwright
+  - just check / just verify / just agent-check
+  - /check or /verify
+  - mcp__parish__* or mcp__claude-in-chrome__* (these also satisfy)"
+fi
+
 REASON="Stop blocked by .claude/hooks/Stop--proof-required.sh:
-code changed but no proof captured this session.
+${TIER_BANNER}
 
 Changed files:
 ${FILES_PREVIEW}${TRAIL}
+${TIER_NOTE:+
+$TIER_NOTE}
 
-Before claiming done, exercise the change. Pick the right tool for the
-layer you touched:
+Before claiming done, exercise the change:
 
-  Tauri / backend / gameplay
-    - mcp__parish__* (start backend first: bash parish/scripts/parish-mcp-backend.sh start)
-    - cargo test / cargo nextest
-    - /prove <feature> for gameplay features
-    - /check or /verify
-
-  Frontend (parish/apps/ui)
-    - mcp__claude-in-chrome__* against the live dev server
-    - npm run check / npm run e2e / npx playwright e2e/...
-    - /chrome-test for browser walkthroughs
+${EXAMPLES}
 
 Then restate in your message what you exercised and what the result was.
 Type-checking and svelte-check are not proof of behavior — they catch
