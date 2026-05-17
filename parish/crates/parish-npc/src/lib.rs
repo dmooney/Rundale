@@ -474,6 +474,22 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
         Ireland, in the year 1820.\n\
         \n\
+        STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters — \
+        she does NOT track livestock predators, hunt, or speak as a farmer would. \
+        A farmer talks of land, beasts, and weather — not deliveries. \
+        A priest speaks of souls and gossip, not arithmetic. \
+        A teacher speaks of pupils and books, not midwifery. \
+        If asked about something outside your knowledge, redirect — \
+        \"Ye'd best ask the right person hereabouts\" — or admit ye don't know.\n\
+        \n\
+        WORLD FACTS — 1820 rural Roscommon:\n\
+        - Penal Laws against Catholic and Irish-language education were repealed in 1782. \
+        Hedge schools operate openly; teaching in Irish is tolerated. \
+        Do NOT claim it is illegal or in secret.\n\
+        - Catholic Emancipation: pending in 1829. Has NOT happened yet.\n\
+        - Great Famine: 1845. Has NOT happened yet. The potato is a staple but the blight has not struck.\n\
+        - The British Crown rules Ireland. Daniel O'Connell is active but not yet famous.\n\
+        \n\
         HISTORICAL CONTEXT: Ireland is under British rule following the Acts of Union of 1800. \
         Catholic Emancipation has not yet been achieved. The landlord class is predominantly \
         Protestant and English-speaking, while ordinary people speak both Irish and English. \
@@ -486,6 +502,25 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
         Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
         Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
+        \n\
+        ALLOWED IRISH PHRASES — you MAY use these verbatim, and ONLY these:\n\
+        - \"Slán abhaile\" (safe home)\n\
+        - \"Slán leat\" (goodbye)\n\
+        - \"Dia dhuit\" (hello, lit. God to you)\n\
+        - \"Go raibh maith agat\" (thank you)\n\
+        - \"Céad míle fáilte\" (hundred thousand welcomes)\n\
+        - \"Sláinte\" (cheers / health)\n\
+        - \"mo chara\" (my friend)\n\
+        - \"sídhe\" (the fairies)\n\
+        Do NOT invent or extend Irish phrases. Do NOT improvise Irish grammar. \
+        If unsure, stay in Hiberno-English. Sprinkle dialect markers \
+        (\"ye\", \"yer\", \"'tis\", \"mornin'\", \"Mayhap\", \"Aye\", \"sure\") \
+        instead of confabulating Irish.\n\
+        \n\
+        REGISTER: avoid 21st-century words. Do NOT use: fascinating, amazing, definitely, \
+        totally, decided to visit, healing properties, taking in the sights. \
+        Use period equivalents: a thing of interest, a fine sight, surely, mayhap, \
+        a tea of thyme will ease her chest.\n\
         \n\
         FRESH PHRASING: Do not close with stock politeness templates such as \
         \"if I might ask it so bold,\" \"if ye don't mind my asking,\" or similar \
@@ -1009,6 +1044,49 @@ mod tests {
         assert!(
             prompt.contains("CULTURAL GUIDELINES"),
             "cultural guidelines missing"
+        );
+
+        // Lane-keeping clause (issue: midwife-replied-as-tracker, grok 2/5).
+        assert!(
+            prompt.contains("STAY IN YOUR LANE"),
+            "lane-keeping clause missing"
+        );
+
+        // 1820 fact preamble (issue: Aoife claimed Irish-language teaching
+        // was outlawed in 1820, but the Penal Laws were repealed in 1782).
+        assert!(
+            prompt.contains("Penal Laws"),
+            "1820 fact preamble missing — Penal Laws clause"
+        );
+        assert!(
+            prompt.contains("1782"),
+            "1820 fact preamble missing — repeal date"
+        );
+
+        // Allowed-Irish-phrases whitelist (issue: "go connachtú"
+        // hallucinated past the known "Slán abhaile").
+        assert!(
+            prompt.contains("ALLOWED IRISH PHRASES"),
+            "Irish-phrase whitelist clause missing"
+        );
+        assert!(
+            prompt.contains("Slán abhaile"),
+            "anchor phrase missing from whitelist"
+        );
+        assert!(
+            prompt.contains("Do NOT invent or extend Irish phrases"),
+            "Irish-grammar improvisation guard missing"
+        );
+
+        // Modern-register blacklist (issue: "healing properties" in midwife
+        // reply scored 2/5).
+        assert!(
+            prompt.contains("REGISTER:"),
+            "modern-register guard missing"
+        );
+        assert!(
+            prompt.contains("healing properties"),
+            "modern-register negative example missing"
         );
     }
 
