@@ -1,5 +1,6 @@
 Verdict: sufficient
 Technical debt: clear
+Acceptance criteria: met
 
 The PR is a five-commit bundle landing six non-inference fixes from a 10-turn
 `just demo` audit. Each fix is the smallest defensible change to the

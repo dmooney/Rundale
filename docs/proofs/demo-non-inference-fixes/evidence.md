@@ -1,6 +1,6 @@
 # Demo non-inference fixes — proof evidence
 
-Evidence type: gameplay transcript
+Evidence type: live gameplay transcript
 Date: 2026-05-17
 Branch: claude/confident-allen-93f272
 PR: #986
