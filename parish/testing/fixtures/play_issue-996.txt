@@ -1,0 +1,11 @@
+# issue-996 — parse-error guard for vllm.toml schema change
+#
+# The actual schema round-trip is verified by a parish-core unit test
+# (see docs/proofs/issue-996/acceptance-criteria.md). This fixture just
+# confirms the modified TOML still loads cleanly and the engine boots.
+
+/status
+look
+/time
+/npcs
+/quit
