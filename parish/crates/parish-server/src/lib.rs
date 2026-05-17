@@ -1246,8 +1246,8 @@ struct IpRateLimiterState {
 /// the real client IP is read from `Cf-Connecting-Ip` (Cloudflare) or the
 /// leftmost entry in `X-Forwarded-For` (generic reverse proxies).  Without
 /// proxy trust the socket address is used, which is safe but buckets all
-/// traffic from the proxy under one IP when deployed behind Cloudflare /
-/// Railway.
+/// traffic from the proxy under one IP when deployed behind Cloudflare or
+/// another reverse proxy.
 async fn ip_rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     axum::extract::State(state): axum::extract::State<Arc<IpRateLimiterState>>,

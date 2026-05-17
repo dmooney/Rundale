@@ -79,7 +79,7 @@ pub type IdempotencyCache = TokioMutex<LruCache<IdempotencyKey, CachedResponse>>
 pub struct OAuthConfig {
     pub client_id: String,
     pub client_secret: String,
-    /// Public base URL of the server, e.g. `https://yourapp.railway.app`.
+    /// Public base URL of the server, e.g. `https://parish.example.com`.
     /// Used to construct the OAuth redirect URI.
     pub base_url: String,
 }
