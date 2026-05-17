@@ -1,0 +1,22 @@
+=== Verification 1: parish-core unit test ===
+Command: cargo test --manifest-path parish/Cargo.toml -p parish-core --lib ipc::config::tests::vllm_preset_supplies_per_category_base_url -- --nocapture
+
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src/lib.rs (parish/target/debug/deps/parish_core-70e21ba2972904ad)
+
+running 1 test
+test ipc::config::tests::vllm_preset_supplies_per_category_base_url ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 366 filtered out; finished in 0.03s
+
+
+=== Verification 2: harness smoke fixture (engine boots with modified TOML) ===
+Command: cargo run -p parish -- --script parish/testing/fixtures/play_issue-996.txt
+
+{"command":"/status","result":"system_command","response":"Location: Kilteevan Village | Morning | Spring","location":"Kilteevan Village","time":"Morning","season":"Spring","new_log_lines":["Location: Kilteevan Village | Morning | Spring","An older woman with sharp eyes and herb-stained fingers heads off down the road.","An older man heads off down the road.","A lean, red-haired young man with hard eyes heads off down the road.","A young woman heads off down the road."]}
+{"command":"look","result":"looked","description":"The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is morning.","location":"Kilteevan Village","time":"Morning","season":"Spring","new_log_lines":["The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is morning.","You can go to: The Crossroads (13 min on foot), The Forge (1 min on foot), The Holy Well (1 min on foot), The Mill (1 min on foot), The Weaver's Cottage (2 min on foot), Knockcroghery Village (85 min on foot), St. Brigid's Church (9 min on foot), Murphy's Farm (21 min on foot), The Lime Kiln (1 min on foot), The Letter Office (11 min on foot)"]}
+{"command":"/time","result":"system_command","response":"08:00 Morning — Spring\nWeather: Clear\nSpeed: 36x\nFestival: none","location":"Kilteevan Village","time":"Morning","season":"Spring","new_log_lines":["08:00 Morning — Spring\nWeather: Clear\nSpeed: 36x\nFestival: none"]}
+{"command":"/npcs","result":"system_command","response":"NPCs here:\n  a small, sharp-eyed old woman wrapped in a shawl — Widow (sharp)","location":"Kilteevan Village","time":"Morning","season":"Spring","new_log_lines":["NPCs here:\n  a small, sharp-eyed old woman wrapped in a shawl — Widow (sharp)"]}
+{"command":"/quit","result":"quit","location":"Kilteevan Village","time":"Morning","season":"Spring"}

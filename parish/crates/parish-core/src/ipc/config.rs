@@ -1025,4 +1025,105 @@ mod tests {
         assert_eq!(slots.len(), 1);
         assert_eq!(slots[0].base_url, "http://localhost:8001");
     }
+
+    // Regression guard for #996. The Linux/Windows `vllm` provider preset
+    // must declare a `[presets.base_urls]` block so the multi-slot loadout
+    // round-trips through `fill_missing_models_from_presets` →
+    // `vllm_extra_slots` → `VllmProcess::ensure_slots`. Without this, the
+    // category model is auto-picked from the preset (e.g. Qwen3-8B) but the
+    // category base URL inherits the user-level base (:8000, where only the
+    // 14B is loaded) → 404 storm.
+    #[test]
+    fn vllm_preset_supplies_per_category_base_url() {
+        use parish_config::Provider;
+
+        // 1. Schema-level: the loaded provider exposes a base URL per category.
+        let vllm = Provider::from_str_loose("vllm").expect("vllm provider loaded");
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Dialogue),
+            Some("http://localhost:8000"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Simulation),
+            Some("http://localhost:8001"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Intent),
+            Some("http://localhost:8002"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Reaction),
+            Some("http://localhost:8001"),
+        );
+
+        // 2. Config-level: fill_missing_models_from_presets populates
+        //    category_base_url alongside category_model for all four roles.
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            ..GameConfig::default()
+        };
+        let changed = cfg.fill_missing_models_from_presets();
+        assert!(changed, "preset should fill all four categories");
+
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Dialogue),
+            Some(&"http://localhost:8000".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Simulation),
+            Some(&"http://localhost:8001".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Intent),
+            Some(&"http://localhost:8002".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Reaction),
+            Some(&"http://localhost:8001".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Dialogue),
+            Some(&"Qwen/Qwen3-14B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Simulation),
+            Some(&"Qwen/Qwen3-8B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Intent),
+            Some(&"Qwen/Qwen3-4B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Reaction),
+            Some(&"Qwen/Qwen3-8B".to_string()),
+        );
+
+        // 3. Spawn-list level: dialogue (= base 14B@:8000) is elided as the
+        //    base slot; the remaining three categories emit one slot each.
+        //    Downstream VllmProcess::ensure_slots dedups the duplicate 8B
+        //    slot, but vllm_extra_slots itself does not.
+        // Set base model to the dialogue preset so the base slot matches.
+        cfg.model_name = "Qwen/Qwen3-14B".to_string();
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 3, "sim + intent + reaction, dialogue elided");
+        let urls_models: Vec<(String, String)> = slots
+            .iter()
+            .map(|s| (s.base_url.clone(), s.model.clone()))
+            .collect();
+        assert!(urls_models.contains(&(
+            "http://localhost:8001".to_string(),
+            "Qwen/Qwen3-8B".to_string(),
+        )));
+        assert!(urls_models.contains(&(
+            "http://localhost:8002".to_string(),
+            "Qwen/Qwen3-4B".to_string(),
+        )));
+        // Two of the three should be the shared 8B@:8001 slot (sim + reaction).
+        let eight_b_count = urls_models
+            .iter()
+            .filter(|(u, m)| u == "http://localhost:8001" && m == "Qwen/Qwen3-8B")
+            .count();
+        assert_eq!(eight_b_count, 2, "sim + reaction share the 8B slot");
+    }
 }
