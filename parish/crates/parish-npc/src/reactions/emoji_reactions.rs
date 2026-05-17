@@ -236,8 +236,16 @@ pub async fn infer_player_message_reaction(
 ) -> Option<String> {
     let lang = LanguageSettings::english_only();
     let (system, prompt) = build_player_message_reaction_prompt(npc, player_input, &lang);
+    // 80-token floor (#984 follow-up): the JSON envelope `{"emoji": "<glyph>"}`
+    // fits in ~15 tokens for ASCII palette entries, but multi-codepoint glyphs
+    // (e.g. ✝️ as `U+271D U+FE0F`, country-flag pairs, ZWJ family clusters)
+    // tokenise to 3-6 BPE tokens each. Combined with optional reasoning prefix
+    // tokens emitted by some local models, the previous 40-token cap could
+    // truncate the JSON before the closing brace, producing an empty parse and
+    // an invisible reaction. 80 keeps the same upper bound on cost while
+    // removing the truncation risk for every palette entry.
     let call =
-        client.generate_json::<LlmReactionDecision>(model, &prompt, Some(&system), Some(40), None);
+        client.generate_json::<LlmReactionDecision>(model, &prompt, Some(&system), Some(80), None);
 
     let response = match tokio::time::timeout(timeout, call).await {
         Ok(Ok(r)) => r,

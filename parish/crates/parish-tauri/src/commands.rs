@@ -10,15 +10,16 @@ use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, In
 // AnyClient, InferenceQueue, spawn_inference_worker formerly imported here —
 // now handled by parish_core::game_loop::rebuild_inference_worker (#696).
 use parish_core::input::{InputResult, classify_input, parse_intent};
-use parish_core::ipc::{compute_name_hints, text_log, text_log_typed};
+use parish_core::ipc::{compute_name_hints, text_log, text_log_for_stream_turn, text_log_typed};
 use parish_core::npc::reactions;
 use parish_core::world::LocationId;
 // DEFAULT_START_LOCATION — no longer used directly; handled by load_fresh_world_and_npcs (#696).
 use tauri::Emitter;
 
 use crate::events::{
-    EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
-    StreamEndPayload, StreamTokenPayload, TextLogPayload,
+    EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
+    EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, TextLogPayload,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -1105,10 +1106,16 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             &reaction_model,
             Some(&state.inference_log),
             &state.language_settings,
-            |_turn_id, npc_name| {
+            |turn_id, npc_name| {
+                // Use `text_log_for_stream_turn` so the UI's streaming-
+                // placeholder guard recognises this entry and can finalise
+                // (remove) it when the per-turn `stream-turn-end` fires with
+                // no tokens — otherwise an empty bubble lingers in the chat
+                // (#984 follow-up: "blank NPC reply" reported on the
+                // `just demo 2 10` run).
                 let _ = app.emit(
                     EVENT_TEXT_LOG,
-                    text_log(npc_name.to_string(), String::new()),
+                    text_log_for_stream_turn(npc_name.to_string(), String::new(), turn_id),
                 );
             },
             |turn_id, source, batch| {
@@ -1120,6 +1127,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                         source: source.to_string(),
                     },
                 );
+            },
+            |turn_id| {
+                let _ = app.emit(EVENT_STREAM_TURN_END, StreamTurnEndPayload { turn_id });
             },
         )
         .await;
@@ -2208,12 +2218,14 @@ pub async fn get_demo_context(
 
 /// Extracts the player action from an LLM response.
 ///
-/// Handles three patterns:
+/// Handles four patterns:
 /// 1. Completion: model received `{"action": "` and completed it — response is
 ///    something like `go to the mill"}`. Extract up to the closing quote.
 /// 2. Full JSON: model output `{"action": "go to the mill"}` — scan for `{`
 ///    and JSON-parse from there.
-/// 3. Fallback: no JSON at all — strip thinking preamble, take last line.
+/// 3. Envelope-leak: model emitted only the JSON suffix — e.g.
+///    `action": "hello"}` or `hello"}` — strip the wrapper bits.
+/// 4. Fallback: no JSON at all — strip thinking preamble, take last line.
 fn extract_action_from_response(text: &str) -> String {
     // Strip thinking blocks first so all patterns operate on clean text.
     let stripped = strip_thinking_block(text);
@@ -2251,8 +2263,82 @@ fn extract_action_from_response(text: &str) -> String {
         search = &search[start + 1..];
     }
 
-    // Pattern 3: fallback — take last meaningful line from already-stripped text.
+    // Pattern 3: envelope-leak — model emitted only the JSON suffix (no
+    // matching `{...}` object) such as:
+    //   action": "Good morning..."}
+    //   "action": "Good morning..."}
+    //   Good morning..."}
+    // Strip a leading `[{][\s]*["]?action["]\s*:\s*"` prefix and a trailing
+    // `"\s*}` (or bare `"}`) suffix, then return the inner text.
+    if let Some(cleaned) = strip_envelope_leak(trimmed)
+        && !cleaned.is_empty()
+    {
+        return cleaned;
+    }
+
+    // Pattern 4: fallback — take last meaningful line from already-stripped text.
     trimmed.trim_matches('"').trim_matches('\'').to_string()
+}
+
+/// Strips a leaked JSON envelope from `text`. Returns `Some(inner)` when at
+/// least one envelope marker (a leading `action":` prefix or a trailing `"}`
+/// suffix) was found and removed. Returns `None` if neither side looks like
+/// a leak, so the caller can apply its own fallback.
+fn strip_envelope_leak(text: &str) -> Option<String> {
+    let mut s = text.trim();
+    let mut changed = false;
+
+    // Leading wrapper: optional `{`, optional whitespace, optional `"`,
+    // literal `action`, optional `"`, whitespace, `:`, whitespace, `"`.
+    // We hand-roll this instead of pulling a regex dep.
+    let original = s;
+    let mut rest = s;
+    rest = rest.trim_start();
+    if let Some(stripped) = rest.strip_prefix('{') {
+        rest = stripped.trim_start();
+    }
+    if let Some(stripped) = rest.strip_prefix('"') {
+        rest = stripped;
+    }
+    if let Some(stripped) = rest.strip_prefix("action") {
+        let mut after = stripped;
+        if let Some(stripped) = after.strip_prefix('"') {
+            after = stripped;
+        }
+        after = after.trim_start();
+        if let Some(stripped) = after.strip_prefix(':') {
+            let mut after = stripped.trim_start();
+            if let Some(stripped) = after.strip_prefix('"') {
+                after = stripped;
+                s = after;
+                changed = true;
+            }
+        }
+    }
+    if !changed {
+        s = original;
+    }
+
+    // Trailing wrapper: optional `}`, whitespace, `"` (in reverse order
+    // since we work from the end).
+    let original_tail = s;
+    let mut tail = s.trim_end();
+    if let Some(stripped) = tail.strip_suffix('}') {
+        tail = stripped.trim_end();
+    }
+    if let Some(stripped) = tail.strip_suffix('"') {
+        tail = stripped;
+        s = tail;
+        changed = true;
+    } else {
+        s = original_tail;
+    }
+
+    if changed {
+        Some(s.trim().to_string())
+    } else {
+        None
+    }
 }
 
 /// Strips reasoning preamble from LLM responses so only the action remains.
@@ -2348,6 +2434,12 @@ wandering stranger exploring the townlands of east Roscommon. The world is popul
 historical Irish villagers — farmers, priests, weavers, matchmakers — each living their \
 own life.\n\
 \n\
+Date: 1820. Catholic Emancipation: 1829 (not yet). Famine: 1845 (not yet).\n\
+\n\
+Speak as a 1820 traveller would: plain, short, period-appropriate. Avoid modern words \
+like: fascinating, amazing, definitely, totally, decided to visit, taking in the sights, \
+healing properties.\n\
+\n\
 Explore naturally: talk to people, learn their stories, travel between locations, and \
 respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
 \n\
@@ -2356,7 +2448,8 @@ would type into the game. Do NOT use meta-commands like \"talk to X\"; write the
 words or command directly.\n\
 \n\
 Examples:\n\
-  {{\"action\": \"Good morning! What brings you out at this hour?\"}}\n\
+  {{\"action\": \"Good mornin'. Might I look about the village a while?\"}}\n\
+  {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
   {{\"action\": \"go to the mill\"}}\n\
   {{\"action\": \"look\"}}\n\
   {{\"action\": \"ask about the harvest\"}}\n\
@@ -2432,6 +2525,19 @@ Your entire response must be a single JSON object — nothing before or after it
         action = %action_text,
         "demo turn: LLM chose action"
     );
+
+    // Quality sensors — emit WARN on any structural issue in the parsed
+    // player action. These don't gate execution; they surface bugs in the
+    // demo log so the judging pass can pick them up.
+    for issue in parish_core::npc::quality::detect_all_text_issues(&action_text) {
+        tracing::warn!(
+            site = "demo-player-action",
+            kind = issue.kind.as_str(),
+            detail = %issue.detail,
+            "quality issue in LLM player action"
+        );
+    }
+
     Ok(action_text)
 }
 
@@ -2464,6 +2570,26 @@ mod demo_tests {
     fn falls_back_to_stripping_when_no_json() {
         let input = "Some reasoning.\nask about the harvest";
         assert_eq!(extract_action_from_response(input), "ask about the harvest");
+    }
+
+    #[test]
+    fn strips_envelope_leak_with_action_prefix() {
+        // Live demo bug: model emits only the JSON suffix, no opening `{`.
+        let input = r#"action": "Good morning, Peig Hannigan. My name is [Your Name]. I'm just wandering."}"#;
+        assert_eq!(
+            extract_action_from_response(input),
+            "Good morning, Peig Hannigan. My name is [Your Name]. I'm just wandering."
+        );
+    }
+
+    #[test]
+    fn strips_trailing_envelope_suffix() {
+        // Live demo bug: model leaves only the trailing `"}` after a clean reply.
+        let input = r#"I'm just curious about the community."}"#;
+        assert_eq!(
+            extract_action_from_response(input),
+            "I'm just curious about the community."
+        );
     }
 
     #[test]
