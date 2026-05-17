@@ -28,6 +28,32 @@ pub enum ProviderKind {
 
 // ── ProviderPreset ────────────────────────────────────────────────────────────
 
+/// Per-category base-URL overrides shipped with a provider preset.
+///
+/// Two-slot loadouts (e.g. vllm-mlx on Apple Silicon: 14B on :8000 + 1.5B
+/// on :8001) need each category routed to the slot where its preset model
+/// is actually loaded. Without this, `fill_missing_models_from_presets`
+/// picks the preset model but inherits the base URL — guaranteeing a
+/// model/URL mismatch and a 404 on every reaction/simulation call.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct PresetBaseUrls {
+    pub dialogue: Option<String>,
+    pub simulation: Option<String>,
+    pub intent: Option<String>,
+    pub reaction: Option<String>,
+}
+
+impl PresetBaseUrls {
+    pub fn url(&self, cat: InferenceCategory) -> Option<&str> {
+        match cat {
+            InferenceCategory::Dialogue => self.dialogue.as_deref(),
+            InferenceCategory::Simulation => self.simulation.as_deref(),
+            InferenceCategory::Intent => self.intent.as_deref(),
+            InferenceCategory::Reaction => self.reaction.as_deref(),
+        }
+    }
+}
+
 /// One named model configuration shipped with a provider.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ProviderPreset {
@@ -37,6 +63,10 @@ pub struct ProviderPreset {
     pub simulation: Option<String>,
     pub intent: Option<String>,
     pub reaction: Option<String>,
+    /// Per-category base URL hints. When unset for a category the user's
+    /// base URL is inherited (single-slot providers). See [`PresetBaseUrls`].
+    #[serde(default)]
+    pub base_urls: PresetBaseUrls,
 }
 
 impl ProviderPreset {
@@ -47,6 +77,10 @@ impl ProviderPreset {
             InferenceCategory::Intent => self.intent.as_deref(),
             InferenceCategory::Reaction => self.reaction.as_deref(),
         }
+    }
+
+    pub fn base_url(&self, cat: InferenceCategory) -> Option<&str> {
+        self.base_urls.url(cat)
     }
 }
 
@@ -87,6 +121,12 @@ impl ProviderMod {
 
     pub fn preset_model(&self, cat: InferenceCategory) -> Option<&str> {
         self.presets.first()?.model(cat)
+    }
+
+    /// Per-category base URL from the recommended preset, when supplied.
+    /// Returns `None` if the preset omits the field (single-slot providers).
+    pub fn preset_base_url(&self, cat: InferenceCategory) -> Option<&str> {
+        self.presets.first()?.base_url(cat)
     }
 
     pub fn preset_models_array(&self) -> [Option<&str>; 4] {
@@ -159,6 +199,9 @@ impl Provider {
     }
     pub fn preset_model(&self, cat: InferenceCategory) -> Option<&str> {
         self.0.preset_model(cat)
+    }
+    pub fn preset_base_url(&self, cat: InferenceCategory) -> Option<&str> {
+        self.0.preset_base_url(cat)
     }
     /// Returns `[dialogue, simulation, intent, reaction]` from the first preset.
     pub fn preset_models(&self) -> [Option<&str>; 4] {

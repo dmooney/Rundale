@@ -12,7 +12,16 @@ featured = false
 [[presets]]
 key = "recommended"
 label = "Recommended"
+# Two-slot Apple Silicon loadout:
+#   Slot 1 (:8000) — 14B model for dialogue + simulation (narrative weight)
+#   Slot 2 (:8001) — 1.5B model for intent + reaction (low-latency)
 dialogue = "mlx-community/Qwen2.5-14B-Instruct-4bit"
-simulation = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+simulation = "mlx-community/Qwen2.5-14B-Instruct-4bit"
 intent = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 reaction = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[presets.base_urls]
+dialogue = "http://localhost:8000"
+simulation = "http://localhost:8000"
+intent = "http://localhost:8001"
+reaction = "http://localhost:8001"

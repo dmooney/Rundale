@@ -360,21 +360,30 @@ impl GameConfig {
             changed = true;
         }
 
-        // Per-category models: fall back to each effective provider's
-        // preset for that specific role.
+        // Per-category models + base URLs: fall back to each effective
+        // provider's preset for that specific role. base_url is critical
+        // for multi-slot loadouts (e.g. vllm-mlx 14B on :8000 + 1.5B on
+        // :8001) — without it, the auto-filled model lands on the wrong
+        // slot and every request 404s.
         for cat in InferenceCategory::ALL {
-            if self.category_model.contains_key(&cat) {
-                continue;
-            }
             let provider_str = self
                 .category_provider
                 .get(&cat)
                 .map(String::as_str)
                 .unwrap_or(&self.provider_name);
-            if let Ok(p) = Provider::from_str_loose(provider_str)
+            let Ok(p) = Provider::from_str_loose(provider_str) else {
+                continue;
+            };
+            if !self.category_model.contains_key(&cat)
                 && let Some(m) = p.preset_model(cat)
             {
                 self.category_model.insert(cat, m.to_string());
+                changed = true;
+            }
+            if !self.category_base_url.contains_key(&cat)
+                && let Some(u) = p.preset_base_url(cat)
+            {
+                self.category_base_url.insert(cat, u.to_string());
                 changed = true;
             }
         }
