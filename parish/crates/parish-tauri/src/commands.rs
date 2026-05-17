@@ -10,15 +10,16 @@ use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, In
 // AnyClient, InferenceQueue, spawn_inference_worker formerly imported here —
 // now handled by parish_core::game_loop::rebuild_inference_worker (#696).
 use parish_core::input::{InputResult, classify_input, parse_intent};
-use parish_core::ipc::{compute_name_hints, text_log, text_log_typed};
+use parish_core::ipc::{compute_name_hints, text_log, text_log_for_stream_turn, text_log_typed};
 use parish_core::npc::reactions;
 use parish_core::world::LocationId;
 // DEFAULT_START_LOCATION — no longer used directly; handled by load_fresh_world_and_npcs (#696).
 use tauri::Emitter;
 
 use crate::events::{
-    EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
-    StreamEndPayload, StreamTokenPayload, TextLogPayload,
+    EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
+    EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, TextLogPayload,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -1105,10 +1106,16 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             &reaction_model,
             Some(&state.inference_log),
             &state.language_settings,
-            |_turn_id, npc_name| {
+            |turn_id, npc_name| {
+                // Use `text_log_for_stream_turn` so the UI's streaming-
+                // placeholder guard recognises this entry and can finalise
+                // (remove) it when the per-turn `stream-turn-end` fires with
+                // no tokens — otherwise an empty bubble lingers in the chat
+                // (#984 follow-up: "blank NPC reply" reported on the
+                // `just demo 2 10` run).
                 let _ = app.emit(
                     EVENT_TEXT_LOG,
-                    text_log(npc_name.to_string(), String::new()),
+                    text_log_for_stream_turn(npc_name.to_string(), String::new(), turn_id),
                 );
             },
             |turn_id, source, batch| {
@@ -1120,6 +1127,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                         source: source.to_string(),
                     },
                 );
+            },
+            |turn_id| {
+                let _ = app.emit(EVENT_STREAM_TURN_END, StreamTurnEndPayload { turn_id });
             },
         )
         .await;

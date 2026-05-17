@@ -488,9 +488,17 @@ fn build_look_text(
 /// - `model` — model name passed to the LLM
 /// - `inference_log` — optional log to record each call for the debug panel
 /// - `emit_text_log(turn_id, npc_name)` — called once per reaction to create
-///   an empty placeholder in the frontend chat log before streaming begins
+///   an empty placeholder in the frontend chat log before streaming begins.
+///   The implementation MUST tie the placeholder to `turn_id` via
+///   `text_log_for_stream_turn` so the UI's streaming-placeholder guard
+///   recognises it and `finalizeStreamingEntry` can remove it when the turn
+///   ends with no tokens (otherwise an empty bubble lingers in the chat).
 /// - `emit_stream_token(turn_id, source, batch)` — called with each batched
 ///   token chunk to be appended to the current streaming entry
+/// - `emit_stream_turn_end(turn_id)` — called exactly once after the per-NPC
+///   token stream finishes (success, timeout, or empty). The UI uses this to
+///   finalise the streaming entry; without it an empty-output reaction leaves
+///   a blank placeholder bubble forever (#984 follow-up).
 #[allow(clippy::too_many_arguments)]
 // Justification: mirrors the previous resolve_reaction_texts signature; all
 // arguments are necessary to build the per-NPC prompt and wire the callbacks.
@@ -508,6 +516,7 @@ pub async fn stream_reaction_texts(
     language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
+    mut emit_stream_turn_end: impl FnMut(u64),
 ) {
     use crate::ipc::stream_npc_tokens;
     use crate::npc::reactions::build_reaction_prompt;
@@ -592,6 +601,11 @@ pub async fn stream_reaction_texts(
         })
         .await;
         let elapsed_ms = started.elapsed().as_millis() as u64;
+
+        // Finalise this NPC's streaming entry so the UI removes the empty
+        // placeholder if no tokens arrived (LLM timeout / empty output) or
+        // marks the populated entry as no-longer-streaming otherwise.
+        emit_stream_turn_end(turn_id);
 
         if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
             (llm_log_info, inference_log)
@@ -715,6 +729,7 @@ mod tests {
 
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
+        let mut turn_ends: Vec<u64> = Vec::new();
 
         let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
@@ -731,6 +746,7 @@ mod tests {
             &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |turn_id| turn_ends.push(turn_id),
         )
         .await;
 
@@ -747,6 +763,11 @@ mod tests {
             token_chunks.join(""),
             "Hello there!",
             "concatenated chunks equal the canned text"
+        );
+        assert_eq!(
+            turn_ends.len(),
+            1,
+            "exactly one stream-turn-end per reaction"
         );
     }
 
@@ -1086,6 +1107,7 @@ mod tests {
     async fn stream_reaction_texts_empty_list_emits_nothing() {
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
+        let mut turn_ends: Vec<u64> = Vec::new();
 
         let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
@@ -1102,10 +1124,83 @@ mod tests {
             &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |turn_id| turn_ends.push(turn_id),
         )
         .await;
 
         assert!(log_sources.is_empty());
         assert!(token_chunks.is_empty());
+        assert!(turn_ends.is_empty());
+    }
+
+    /// Regression for the "blank NPC reply" bug: every per-NPC reaction MUST
+    /// emit a `stream-turn-end` (callback `emit_stream_turn_end`) after its
+    /// token stream finishes — including when the LLM produces zero tokens.
+    /// Without this, the frontend's stream-manager never finalises the empty
+    /// placeholder bubble and the chat shows a permanent blank entry.
+    #[tokio::test]
+    async fn stream_reaction_texts_emits_stream_turn_end_for_each_reaction() {
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+
+        // Two reactions with empty canned text — simulates the LLM-disabled
+        // path producing nothing visible (worst case for the UI cleanup hook).
+        let reactions = vec![
+            NpcReaction {
+                npc_id: NpcId(1),
+                npc_display_name: "Aoife".to_string(),
+                kind: ReactionKind::Greeting,
+                canned_text: String::new(),
+                introduces: false,
+                use_llm: false,
+            },
+            NpcReaction {
+                npc_id: NpcId(2),
+                npc_display_name: "Brian".to_string(),
+                kind: ReactionKind::Greeting,
+                canned_text: String::new(),
+                introduces: false,
+                use_llm: false,
+            },
+        ];
+
+        let mut placeholder_turn_ids: Vec<u64> = Vec::new();
+        let mut turn_end_ids: Vec<u64> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &reactions,
+            &[],
+            LocationId(0),
+            "Galway",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            &lang,
+            |turn_id, _name| placeholder_turn_ids.push(turn_id),
+            |_turn_id, _source, _tok| { /* no tokens emitted for empty canned */ },
+            |turn_id| turn_end_ids.push(turn_id),
+        )
+        .await;
+
+        // Each reaction must produce exactly one placeholder AND one turn-end,
+        // with matching turn_ids in the same order. The UI relies on this 1:1
+        // pairing to clean up empty bubbles.
+        assert_eq!(
+            placeholder_turn_ids.len(),
+            2,
+            "expected one text-log placeholder per reaction"
+        );
+        assert_eq!(
+            turn_end_ids.len(),
+            2,
+            "expected one stream-turn-end per reaction (blank-reply regression)"
+        );
+        assert_eq!(
+            placeholder_turn_ids, turn_end_ids,
+            "placeholder turn_ids must match stream-turn-end turn_ids 1:1"
+        );
     }
 }
