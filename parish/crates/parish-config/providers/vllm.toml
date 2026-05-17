@@ -12,7 +12,21 @@ featured = false
 [[presets]]
 key = "recommended"
 label = "Recommended"
+# Three-slot Linux/Windows CUDA/ROCm loadout:
+#   Slot 1 (:8000) — 14B for dialogue (narrative weight)
+#   Slot 2 (:8001) — 8B for simulation + reaction (mid-tier shared)
+#   Slot 3 (:8002) — 4B for intent (low-latency)
+# Each unique model size pinned to its own port. Downstream
+# VllmProcess::ensure_slots dedups duplicate (url, model) pairs so the
+# shared 8B slot only spawns one process. Mirrors vllm_mlx.toml's
+# two-slot Apple Silicon pattern (#990, #996).
 dialogue = "Qwen/Qwen3-14B"
 simulation = "Qwen/Qwen3-8B"
 intent = "Qwen/Qwen3-4B"
 reaction = "Qwen/Qwen3-8B"
+
+[presets.base_urls]
+dialogue = "http://localhost:8000"
+simulation = "http://localhost:8001"
+intent = "http://localhost:8002"
+reaction = "http://localhost:8001"
