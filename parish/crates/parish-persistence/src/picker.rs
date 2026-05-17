@@ -124,10 +124,14 @@ pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
 /// `current_dir()` may differ at handler invocation time (packaged builds,
 /// daemonised servers, working-directory changes), which is the bug behind #771.
 pub fn resolve_project_saves_dir(app_name: &str) -> PathBuf {
-    if let Ok(s) = std::env::var(SAVES_DIR_ENV)
-        && !s.is_empty()
-    {
-        return ensure_saves_dir_at(PathBuf::from(s));
+    if let Ok(s) = std::env::var(SAVES_DIR_ENV) {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            // Anchor relative overrides to the cwd at startup so a later
+            // cwd change can't redirect save I/O (rule #9).
+            let p = crate::paths::absolutise(PathBuf::from(trimmed));
+            return ensure_saves_dir_at(p);
+        }
     }
     ensure_saves_dir_at(crate::paths::resolve_user_data_dir(app_name).join(SAVES_DIR))
 }
@@ -544,15 +548,12 @@ mod tests {
         assert!(path2.to_string_lossy().contains("parish_002.db"));
     }
 
-    /// Process-wide gate that serialises tests which mutate path-resolution
-    /// env vars (`PARISH_SAVES_DIR`, `PARISH_USER_DATA_DIR`). Cargo runs unit
-    /// tests within one binary in parallel threads by default; without this,
-    /// two tests touching the env vars race with each other (and with
-    /// anything else that reads them).
-    fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        LOCK.lock().unwrap_or_else(|e| e.into_inner())
-    }
+    /// Re-export of the shared crate-wide env mutex from `paths`. All
+    /// path-resolution env vars (`PARISH_SAVES_DIR`, `PARISH_USER_DATA_DIR`,
+    /// `PARISH_TILE_CACHE_DIR`, `HOME`, `XDG_DATA_HOME`, `APPDATA`) must use
+    /// the same lock so picker tests and paths tests can't interleave each
+    /// other's env mutations.
+    use crate::paths::env_test_lock;
 
     /// RAII helper that restores a captured env var to its previous value
     /// when dropped, even if the test panics.

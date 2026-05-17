@@ -30,14 +30,32 @@ pub fn resolve_user_data_dir(app_name: &str) -> PathBuf {
     if let Ok(s) = std::env::var(USER_DATA_DIR_ENV) {
         let trimmed = s.trim();
         if !trimmed.is_empty() {
-            let p = PathBuf::from(trimmed);
+            // Anchor relative overrides to the cwd at startup so a later
+            // cwd change can't redirect save I/O (rule #9).
+            let p = absolutise(PathBuf::from(trimmed));
             ensure_dir(&p);
             return p;
         }
     }
-    let p = platform_data_dir(app_name).unwrap_or_else(|| PathBuf::from("."));
+    let p = platform_data_dir(app_name).unwrap_or_else(|| {
+        tracing::warn!(
+            "neither PARISH_USER_DATA_DIR nor HOME/APPDATA are set — \
+             anchoring user-data dir at the startup cwd as a last resort"
+        );
+        absolutise(PathBuf::from("."))
+    });
     ensure_dir(&p);
     p
+}
+
+/// Anchors a relative path to the process's startup-time cwd, so a later
+/// `set_current_dir` cannot redirect file I/O. Absolute paths pass through.
+pub(crate) fn absolutise(p: PathBuf) -> PathBuf {
+    if p.is_absolute() {
+        p
+    } else {
+        std::env::current_dir().map(|cwd| cwd.join(&p)).unwrap_or(p)
+    }
 }
 
 /// Best-effort directory creation with a warning log on failure.
@@ -85,17 +103,24 @@ fn platform_data_dir(app_name: &str) -> Option<PathBuf> {
     Some(PathBuf::from(home).join(".local/share").join(&leaf))
 }
 
+/// Process-wide test-only lock for serialising tests that mutate any of the
+/// path-resolution env vars (`PARISH_USER_DATA_DIR`, `PARISH_SAVES_DIR`,
+/// `PARISH_TILE_CACHE_DIR`, `HOME`, `XDG_DATA_HOME`, `APPDATA`).
+///
+/// Cargo runs unit tests within one binary in parallel threads by default;
+/// without a single shared lock, picker tests and paths tests race on the
+/// same process env. Exposed via `pub(crate)` so the picker test module can
+/// share the exact same mutex.
+#[cfg(test)]
+pub(crate) fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
-
-    /// Process-wide gate that serialises tests which mutate
-    /// [`USER_DATA_DIR_ENV`] (and platform-specific HOME-like vars).
-    fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        LOCK.lock().unwrap_or_else(|e| e.into_inner())
-    }
 
     struct EnvGuard {
         key: &'static str,

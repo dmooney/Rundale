@@ -453,11 +453,21 @@ pub struct GameMod {
 impl ModMeta {
     /// Name used for the per-user data folder (saves + tile cache).
     ///
-    /// Resolution: explicit `save_root` field on `mod.toml` first, then `name`.
-    /// Engine-only runs with no mod loaded should use
-    /// [`parish_persistence::paths::DEFAULT_APP_NAME`] instead of calling this.
+    /// Resolution: explicit `save_root` field on `mod.toml` first (when it
+    /// has non-whitespace content), then `name`. Engine-only runs with no
+    /// mod loaded should use [`parish_persistence::paths::DEFAULT_APP_NAME`]
+    /// instead of calling this.
+    ///
+    /// This does **not** sanitise path separators; callers that turn the
+    /// result into a directory name must use [`app_name_from_mod`] (or apply
+    /// equivalent basename + traversal guarding) so a malicious `save_root`
+    /// can't write outside the user-data root.
     pub fn app_name(&self) -> &str {
-        self.save_root.as_deref().unwrap_or(&self.name)
+        self.save_root
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&self.name)
     }
 }
 
@@ -465,13 +475,32 @@ impl ModMeta {
 ///
 /// Centralises the `Option<GameMod>` → `app_name` mapping so the server,
 /// Tauri, and CLI entry points never drift (rule #12). Returns the active
-/// mod's [`ModMeta::app_name`] when present, otherwise the engine fallback
-/// [`parish_persistence::paths::DEFAULT_APP_NAME`].
+/// mod's sanitised [`ModMeta::app_name`] when present, otherwise the engine
+/// fallback [`parish_persistence::paths::DEFAULT_APP_NAME`].
+///
+/// Sanitisation: trims whitespace, strips any path separators by taking the
+/// basename only, and rejects `.` / `..` / empty. A mod that sets
+/// `save_root = "../../etc"` therefore can't redirect save I/O outside the
+/// per-user root — it falls back to `DEFAULT_APP_NAME` instead.
 pub fn app_name_from_mod(game_mod: &Option<GameMod>) -> String {
     game_mod
         .as_ref()
-        .map(|gm| gm.manifest.meta.app_name().to_string())
+        .and_then(|gm| sanitize_app_name(gm.manifest.meta.app_name()))
         .unwrap_or_else(|| parish_persistence::paths::DEFAULT_APP_NAME.to_string())
+}
+
+/// Returns a safe folder-name form of `raw`, or `None` if `raw` cannot be
+/// used as a directory name without breaking per-user isolation.
+fn sanitize_app_name(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let basename = std::path::Path::new(trimmed).file_name()?.to_str()?;
+    if basename.is_empty() || basename == "." || basename == ".." {
+        return None;
+    }
+    Some(basename.to_string())
 }
 
 impl GameMod {
@@ -952,6 +981,53 @@ tier2_system = "prompts/tier2_system.txt"
             conflicts: vec![],
         };
         assert_eq!(meta.app_name(), "Rundale");
+    }
+
+    #[test]
+    fn test_mod_meta_app_name_treats_blank_save_root_as_unset() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: Some("   ".to_string()),
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        // Whitespace-only save_root must fall back to `name`, not collapse
+        // saves into the bare user-data root.
+        assert_eq!(meta.app_name(), "Rundale");
+    }
+
+    #[test]
+    fn test_sanitize_app_name_strips_traversal_and_separators() {
+        // Basename extraction handles "../etc" and absolute paths.
+        assert_eq!(sanitize_app_name("Rundale"), Some("Rundale".to_string()));
+        assert_eq!(
+            sanitize_app_name("  Rundale  "),
+            Some("Rundale".to_string())
+        );
+        assert_eq!(sanitize_app_name("../etc"), Some("etc".to_string()));
+        assert_eq!(
+            sanitize_app_name("/abs/Rundale"),
+            Some("Rundale".to_string())
+        );
+        // Pure traversal / dot / empty all reject.
+        assert_eq!(sanitize_app_name(".."), None);
+        assert_eq!(sanitize_app_name("."), None);
+        assert_eq!(sanitize_app_name(""), None);
+        assert_eq!(sanitize_app_name("   "), None);
+        // Trailing separator: file_name on "foo/" returns Some("foo").
+        assert_eq!(sanitize_app_name("Rundale/"), Some("Rundale".to_string()));
+    }
+
+    #[test]
+    fn test_app_name_from_mod_engine_fallback_when_none() {
+        let resolved = app_name_from_mod(&None);
+        assert_eq!(resolved, parish_persistence::paths::DEFAULT_APP_NAME);
     }
 
     #[test]

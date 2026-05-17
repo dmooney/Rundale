@@ -406,7 +406,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     check_ws_signing_key_warning();
 
     // ── Tile cache / admission control / GlobalState ────────────────────────
-    let tile_cache = init_tile_cache(&app_name, &data_dir, &engine_config).await;
+    let tile_cache = init_tile_cache(&saves_dir, &data_dir, &engine_config).await;
     let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
         sessions,
@@ -847,29 +847,38 @@ fn check_ws_signing_key_warning() {
     }
 }
 
-/// Creates the tile cache directory (env var or `<user_data>/tile-cache/`) and
-/// returns an initialised [`TileCache`].
+/// Creates the tile cache directory (env var or sibling of the saves dir)
+/// and returns an initialised [`TileCache`].
 ///
 /// Cache-dir resolution (Rule #9 — paths from config, not cwd):
 /// 1. `PARISH_TILE_CACHE_DIR` env var — explicit operator/dev override.
-/// 2. `<user_data_dir>/tile-cache` where `user_data_dir` is the platform-native
-///    per-user data folder for `app_name` (sibling of the saves dir).
+/// 2. `<saves_dir>/../tile-cache` so single-variable overrides
+///    (`PARISH_SAVES_DIR` alone) keep saves and tile-cache co-located on the
+///    same root. With the default platform layout this resolves to
+///    `<user_data_dir>/tile-cache`, a sibling of `<user_data_dir>/saves`.
 ///
 /// Bundled-dir resolution order:
 /// 1. `PARISH_BUNDLED_TILES_DIR` env var
 /// 2. `engine_config.map.bundled_tiles_dir` from `parish.toml`
 /// 3. `{data_dir}/tiles` if that directory exists on disk (conventional default)
 async fn init_tile_cache(
-    app_name: &str,
+    saves_dir: &Path,
     data_dir: &Path,
     engine_config: &parish_core::config::EngineConfig,
 ) -> parish_core::tile_cache::TileCache {
     let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
         .ok()
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| PathBuf::from(s.trim()))
         .unwrap_or_else(|| {
-            parish_core::persistence::paths::resolve_user_data_dir(app_name).join("tile-cache")
+            // Derive from the resolved saves dir so a single
+            // PARISH_SAVES_DIR override moves both saves and tile-cache to
+            // the same root (#985 review). If saves_dir has no parent
+            // (e.g. root path), fall back to a "tile-cache" subdir of saves_dir.
+            saves_dir
+                .parent()
+                .map(|p| p.join("tile-cache"))
+                .unwrap_or_else(|| saves_dir.join("tile-cache"))
         });
     if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
         tracing::warn!(
