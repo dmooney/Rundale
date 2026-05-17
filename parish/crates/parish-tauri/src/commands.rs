@@ -2525,6 +2525,19 @@ Your entire response must be a single JSON object — nothing before or after it
         action = %action_text,
         "demo turn: LLM chose action"
     );
+
+    // Quality sensors — emit WARN on any structural issue in the parsed
+    // player action. These don't gate execution; they surface bugs in the
+    // demo log so the judging pass can pick them up.
+    for issue in parish_core::npc::quality::detect_all_text_issues(&action_text) {
+        tracing::warn!(
+            site = "demo-player-action",
+            kind = issue.kind.as_str(),
+            detail = %issue.detail,
+            "quality issue in LLM player action"
+        );
+    }
+
     Ok(action_text)
 }
 

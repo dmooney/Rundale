@@ -1,0 +1,620 @@
+//! Text-quality detectors for LLM output.
+//!
+//! Sibling to [`crate::anachronism`]. Where `anachronism` flags
+//! out-of-period concepts in *player* input (and feeds an alert into the
+//! NPC prompt), `quality` scans LLM-emitted text (player auto-actions and
+//! NPC replies) for structural pathologies that no judge slice currently
+//! covers:
+//!
+//! 1. **JSON envelope leak** — raw `action": "..."}` literal from the
+//!    auto-player completion bleeding past `extract_action_from_response`.
+//! 2. **Template token leak** — unfilled placeholders like `[Your Name]`,
+//!    `{npc_name}`, `{{location}}`.
+//! 3. **Simulator corpus overlap** — n-gram match against the static
+//!    [`parish_inference::simulator::CORPUS`]. The simulator is configured
+//!    for `reaction` / `simulation` categories; its Markov gibberish must
+//!    never render as user-visible dialogue.
+//! 4. **Hallucinated Gaelic** — fada-bearing words that aren't in a small
+//!    vetted vocabulary of period-appropriate Irish (e.g. `Slán`, `abhaile`).
+//! 5. **Modern register** — diction words that existed in 1820 but read as
+//!    21st-century traveller speech (`fascinating`, `decided to visit`).
+//!    Soft signal, not an anachronism.
+//! 6. **Reaction emoji monoculture** — Shannon-style diversity check on a
+//!    rolling window of NPC reaction emoji.
+//!
+//! All detectors are pure functions returning [`QualityIssue`]s. Wire them
+//! into runtime sites (the demo turn, the NPC reply path) to emit `WARN`
+//! diagnostics that show up in `/tmp/demo-*.log`, and into fixture tests to
+//! catch regressions on hand-picked positive/negative samples.
+
+use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
+
+use regex::Regex;
+
+// ---------------------------------------------------------------------------
+// Issue kinds
+// ---------------------------------------------------------------------------
+
+/// Categorical kind for a [`QualityIssue`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum QualityIssueKind {
+    /// Raw JSON syntax (`action": "..."}`) bleeding into chat text.
+    JsonEnvelopeLeak,
+    /// Unfilled placeholder like `[Your Name]` or `{npc_name}`.
+    TemplateTokenLeak,
+    /// N-gram overlap with the simulator Markov corpus.
+    SimulatorCorpusOverlap,
+    /// Word with Irish fada chars not on the period-vetted vocab list.
+    HallucinatedGaelic,
+    /// Diction that reads as modern English in 1820 rural Ireland.
+    ModernRegister,
+    /// Low diversity in a rolling window of NPC reaction emoji.
+    ReactionEmojiMonoculture,
+}
+
+impl QualityIssueKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            QualityIssueKind::JsonEnvelopeLeak => "json-envelope-leak",
+            QualityIssueKind::TemplateTokenLeak => "template-token-leak",
+            QualityIssueKind::SimulatorCorpusOverlap => "simulator-corpus-overlap",
+            QualityIssueKind::HallucinatedGaelic => "hallucinated-gaelic",
+            QualityIssueKind::ModernRegister => "modern-register",
+            QualityIssueKind::ReactionEmojiMonoculture => "reaction-emoji-monoculture",
+        }
+    }
+}
+
+/// One detected text-quality issue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualityIssue {
+    pub kind: QualityIssueKind,
+    /// Human-readable description, including the offending fragment.
+    pub detail: String,
+    /// Optional byte-offset span into the source text.
+    pub span: Option<(usize, usize)>,
+}
+
+impl QualityIssue {
+    fn new(kind: QualityIssueKind, detail: impl Into<String>) -> Self {
+        Self {
+            kind,
+            detail: detail.into(),
+            span: None,
+        }
+    }
+
+    fn with_span(mut self, start: usize, end: usize) -> Self {
+        self.span = Some((start, end));
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// (1) JSON envelope leak
+// ---------------------------------------------------------------------------
+
+pub fn detect_json_envelope_leak(text: &str) -> Vec<QualityIssue> {
+    let mut out = Vec::new();
+    let t = text.trim();
+
+    if t.starts_with("action\":")
+        || t.starts_with("\"action\":")
+        || t.starts_with("{\"action\"")
+        || t.starts_with("{ \"action\"")
+    {
+        let preview_end = 40.min(t.len());
+        out.push(
+            QualityIssue::new(
+                QualityIssueKind::JsonEnvelopeLeak,
+                format!(
+                    "text starts with JSON action field: `{}`",
+                    &t[..preview_end]
+                ),
+            )
+            .with_span(0, preview_end),
+        );
+    }
+
+    if t.ends_with("\"}") && !t.starts_with('{') {
+        let tail_start = t.len().saturating_sub(20);
+        out.push(
+            QualityIssue::new(
+                QualityIssueKind::JsonEnvelopeLeak,
+                format!(
+                    "text ends with unmatched JSON close: `...{}`",
+                    &t[tail_start..]
+                ),
+            )
+            .with_span(t.len().saturating_sub(2), t.len()),
+        );
+    }
+
+    out
+}
+
+// ---------------------------------------------------------------------------
+// (2) Template token leak
+// ---------------------------------------------------------------------------
+
+static TEMPLATE_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
+          \[ [A-Z][a-zA-Z]+ (?:\s+[A-Z][a-zA-Z]+)* \]      # [Your Name]
+        | \{\{? [a-zA-Z_][a-zA-Z0-9_]* \}?\}              # {npc_name} or {{location}}
+        ",
+    )
+    .expect("template-token regex compiles")
+});
+
+pub fn detect_template_tokens(text: &str) -> Vec<QualityIssue> {
+    TEMPLATE_TOKEN_RE
+        .find_iter(text)
+        .map(|m| {
+            QualityIssue::new(
+                QualityIssueKind::TemplateTokenLeak,
+                format!("unfilled template token: `{}`", m.as_str()),
+            )
+            .with_span(m.start(), m.end())
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// (3) Simulator corpus overlap
+// ---------------------------------------------------------------------------
+
+static CORPUS_4GRAMS: LazyLock<HashSet<[String; 4]>> = LazyLock::new(|| {
+    let words: Vec<String> = parish_inference::simulator::CORPUS
+        .split_whitespace()
+        .map(normalize_word)
+        .filter(|w| !w.is_empty())
+        .collect();
+
+    let mut set: HashSet<[String; 4]> = HashSet::with_capacity(words.len());
+    for window in words.windows(4) {
+        set.insert([
+            window[0].clone(),
+            window[1].clone(),
+            window[2].clone(),
+            window[3].clone(),
+        ]);
+    }
+    set
+});
+
+fn normalize_word(w: &str) -> String {
+    w.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
+        .to_lowercase()
+}
+
+pub fn detect_simulator_corpus_overlap(text: &str) -> Option<QualityIssue> {
+    let words: Vec<String> = text
+        .split_whitespace()
+        .map(normalize_word)
+        .filter(|w| !w.is_empty())
+        .collect();
+
+    for win in words.windows(4) {
+        let key = [
+            win[0].clone(),
+            win[1].clone(),
+            win[2].clone(),
+            win[3].clone(),
+        ];
+        if CORPUS_4GRAMS.contains(&key) {
+            return Some(QualityIssue::new(
+                QualityIssueKind::SimulatorCorpusOverlap,
+                format!(
+                    "4-gram match with simulator corpus: `{} {} {} {}`",
+                    win[0], win[1], win[2], win[3]
+                ),
+            ));
+        }
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// (4) Hallucinated Gaelic
+// ---------------------------------------------------------------------------
+
+const GAELIC_VOCAB: &[&str] = &[
+    "slán",
+    "abhaile",
+    "dia",
+    "dhuit",
+    "duit",
+    "fáilte",
+    "céad",
+    "míle",
+    "sláinte",
+    "go",
+    "raibh",
+    "maith",
+    "agat",
+    "leat",
+    "agaibh",
+    "n-éirí",
+    "éirí",
+    "bóthar",
+    "agus",
+    "ní",
+    "tá",
+    "is",
+    "an",
+    "na",
+    "sé",
+    "sí",
+    "ag",
+    "le",
+    "do",
+    "mo",
+    "ar",
+    "i",
+    "in",
+    "tír",
+    "éire",
+    "oíche",
+    "lá",
+    "tine",
+    "uisce",
+    "arán",
+    "bia",
+    "tae",
+    "máthair",
+    "athair",
+    "deartháir",
+    "deirfiúr",
+    "fear",
+    "bean",
+    "leanbh",
+    "cailín",
+    "buachaill",
+    "céilí",
+    "seisiún",
+    "amhrán",
+    "rince",
+    "sídhe",
+    "sídh",
+    "síthe",
+    "mór",
+    "beag",
+    "fada",
+    "gairid",
+    "óg",
+    "sean",
+    "deas",
+    "olc",
+    "saor",
+    "daor",
+    "óstán",
+];
+
+fn has_fada(s: &str) -> bool {
+    s.chars()
+        .any(|c| matches!(c, 'á' | 'é' | 'í' | 'ó' | 'ú' | 'Á' | 'É' | 'Í' | 'Ó' | 'Ú'))
+}
+
+pub fn detect_hallucinated_gaelic(text: &str) -> Vec<QualityIssue> {
+    let mut out = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    for word in text.split(|c: char| {
+        !c.is_alphabetic()
+            && c != '\''
+            && c != '-'
+            && c != 'á'
+            && c != 'é'
+            && c != 'í'
+            && c != 'ó'
+            && c != 'ú'
+            && c != 'Á'
+            && c != 'É'
+            && c != 'Í'
+            && c != 'Ó'
+            && c != 'Ú'
+    }) {
+        if word.is_empty() {
+            continue;
+        }
+        if !has_fada(word) {
+            continue;
+        }
+        let lc = word.to_lowercase();
+        if GAELIC_VOCAB.iter().any(|v| *v == lc) {
+            continue;
+        }
+        if word
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
+        {
+            const FADA_NAMES: &[&str] = &[
+                "séamus", "tomás", "máire", "róisín", "siobhán", "pádraig", "tadhg",
+            ];
+            if FADA_NAMES.iter().any(|n| *n == lc) {
+                continue;
+            }
+        }
+        if seen.insert(lc.clone()) {
+            out.push(QualityIssue::new(
+                QualityIssueKind::HallucinatedGaelic,
+                format!("unrecognized Gaelic word: `{}`", word),
+            ));
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// (5) Modern register
+// ---------------------------------------------------------------------------
+
+const MODERN_REGISTER_TERMS: &[&str] = &[
+    "fascinating",
+    "incredible",
+    "amazing",
+    "awesome",
+    "definitely",
+    "totally",
+    "absolutely",
+    "guys",
+    "stuff",
+    "decided to visit",
+    "taking in the sights",
+    "i find it",
+    "it's been a pleasure",
+    "healing properties",
+];
+
+pub fn detect_modern_register(text: &str) -> Vec<QualityIssue> {
+    let lower = text.to_lowercase();
+    let mut out = Vec::new();
+    let mut seen: HashSet<&str> = HashSet::new();
+
+    for &term in MODERN_REGISTER_TERMS {
+        if term.contains(' ') {
+            if lower.contains(term) && seen.insert(term) {
+                out.push(QualityIssue::new(
+                    QualityIssueKind::ModernRegister,
+                    format!("modern-register phrase: `{}`", term),
+                ));
+            }
+        } else {
+            let bytes = lower.as_bytes();
+            let mut idx = 0;
+            while let Some(found) = lower[idx..].find(term) {
+                let abs = idx + found;
+                let before_ok = abs == 0 || !is_word_byte(bytes[abs - 1]);
+                let after = abs + term.len();
+                let after_ok = after == bytes.len() || !is_word_byte(bytes[after]);
+                if before_ok && after_ok && seen.insert(term) {
+                    out.push(QualityIssue::new(
+                        QualityIssueKind::ModernRegister,
+                        format!("modern-register word: `{}`", term),
+                    ));
+                    break;
+                }
+                idx = abs + term.len();
+            }
+        }
+    }
+    out
+}
+
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'\''
+}
+
+// ---------------------------------------------------------------------------
+// (6) Reaction emoji monoculture
+// ---------------------------------------------------------------------------
+
+pub fn detect_emoji_monoculture(emojis: &[&str]) -> Option<QualityIssue> {
+    detect_emoji_monoculture_with_thresholds(emojis, 4, 0.30)
+}
+
+pub fn detect_emoji_monoculture_with_thresholds(
+    emojis: &[&str],
+    min_samples: usize,
+    min_distinct_ratio: f64,
+) -> Option<QualityIssue> {
+    if emojis.len() < min_samples {
+        return None;
+    }
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for e in emojis {
+        *counts.entry(e).or_insert(0) += 1;
+    }
+    let distinct = counts.len();
+    let total = emojis.len();
+    let ratio = distinct as f64 / total as f64;
+    if ratio < min_distinct_ratio {
+        return Some(QualityIssue::new(
+            QualityIssueKind::ReactionEmojiMonoculture,
+            format!(
+                "emoji diversity {}/{} = {:.0}% (threshold {:.0}%)",
+                distinct,
+                total,
+                ratio * 100.0,
+                min_distinct_ratio * 100.0
+            ),
+        ));
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate
+// ---------------------------------------------------------------------------
+
+pub fn detect_all_text_issues(text: &str) -> Vec<QualityIssue> {
+    let mut out = Vec::new();
+    out.extend(detect_json_envelope_leak(text));
+    out.extend(detect_template_tokens(text));
+    if let Some(issue) = detect_simulator_corpus_overlap(text) {
+        out.push(issue);
+    }
+    out.extend(detect_hallucinated_gaelic(text));
+    out.extend(detect_modern_register(text));
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_leak_leading_action_field() {
+        let s = r#"action": "Good morning, Peig Hannigan. My name is [Your Name]. I'm just wandering."}"#;
+        let issues = detect_json_envelope_leak(s);
+        assert!(!issues.is_empty(), "expected leading JSON leak");
+        assert_eq!(issues[0].kind, QualityIssueKind::JsonEnvelopeLeak);
+    }
+
+    #[test]
+    fn json_leak_trailing_close_brace() {
+        let s = r#"I'm just curious about the community."}"#;
+        let issues = detect_json_envelope_leak(s);
+        assert!(!issues.is_empty(), "expected trailing JSON leak");
+    }
+
+    #[test]
+    fn json_leak_clean_text_passes() {
+        let s = "Good morning to you, Peig. I'm just wandering through.";
+        assert!(detect_json_envelope_leak(s).is_empty());
+    }
+
+    #[test]
+    fn template_token_bracket_form() {
+        let s = "Ah, [Your Name], it's a pleasure to make yer acquaintance.";
+        let issues = detect_template_tokens(s);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].detail.contains("[Your Name]"));
+    }
+
+    #[test]
+    fn template_token_snake_form() {
+        let s = "Hello there, {player_name}, welcome to {{location}}.";
+        let issues = detect_template_tokens(s);
+        assert_eq!(issues.len(), 2);
+    }
+
+    #[test]
+    fn template_token_stage_direction_passes() {
+        let s = "She paused. [laughs] Then continued.";
+        assert!(detect_template_tokens(s).is_empty());
+    }
+
+    #[test]
+    fn corpus_overlap_actual_demo_gibberish() {
+        let s = "Can quite explain bridget from the new collection for them \
+                 but so says herself says the pub saying things that we do. \
+                 God help us.";
+        let issue = detect_simulator_corpus_overlap(s);
+        assert!(
+            issue.is_some(),
+            "should flag known simulator-corpus 4-grams"
+        );
+    }
+
+    #[test]
+    fn corpus_overlap_clean_npc_reply_passes() {
+        let s = "Good mornin' to ye. Ye seem like a stranger 'round these parts. \
+                 Name's Peig Hannigan. And ye be...?";
+        assert!(detect_simulator_corpus_overlap(s).is_none());
+    }
+
+    #[test]
+    fn gaelic_hallucinated_connachtu() {
+        let s = "Slán abhaile go connachtú (Safe home and good journey).";
+        let issues = detect_hallucinated_gaelic(s);
+        assert!(
+            issues.iter().any(|i| i.detail.contains("connachtú")),
+            "expected `connachtú` flagged; got {:?}",
+            issues
+        );
+    }
+
+    #[test]
+    fn gaelic_valid_phrase_passes() {
+        let s = "Slán abhaile, mo chara.";
+        let issues = detect_hallucinated_gaelic(s);
+        assert!(
+            issues.is_empty(),
+            "valid Irish should pass; got {:?}",
+            issues
+        );
+    }
+
+    #[test]
+    fn gaelic_fada_name_passes() {
+        let s = "Séamus is after telling me.";
+        assert!(detect_hallucinated_gaelic(s).is_empty());
+    }
+
+    #[test]
+    fn modern_register_fascinating() {
+        let s = "I find it fascinating to learn about different places.";
+        let issues = detect_modern_register(s);
+        assert!(issues.iter().any(|i| i.detail.contains("fascinating")));
+    }
+
+    #[test]
+    fn modern_register_phrase() {
+        let s = "I'm just traveling and decided to visit Kilteevan.";
+        let issues = detect_modern_register(s);
+        assert!(issues.iter().any(|i| i.detail.contains("decided to visit")));
+    }
+
+    #[test]
+    fn modern_register_healing_properties() {
+        let s = "ginger for its healing properties";
+        let issues = detect_modern_register(s);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.detail.contains("healing properties"))
+        );
+    }
+
+    #[test]
+    fn modern_register_period_speech_passes() {
+        let s = "Good mornin' to ye. 'Tis a pleasure to greet ye.";
+        let issues = detect_modern_register(s);
+        assert!(issues.is_empty(), "got {:?}", issues);
+    }
+
+    #[test]
+    fn emoji_monoculture_all_same() {
+        let r = ["😊", "😊", "😊", "😊", "😊"];
+        let issue = detect_emoji_monoculture(&r);
+        assert!(issue.is_some(), "5×😊 should flag");
+    }
+
+    #[test]
+    fn emoji_monoculture_diverse_passes() {
+        let r = ["😊", "🤔", "😢", "😄", "😡"];
+        assert!(detect_emoji_monoculture(&r).is_none());
+    }
+
+    #[test]
+    fn emoji_monoculture_too_few_samples_passes() {
+        let r = ["😊", "😊"];
+        assert!(detect_emoji_monoculture(&r).is_none());
+    }
+
+    #[test]
+    fn aggregate_catches_multiple_issues() {
+        let s = r#"action": "Ah, [Your Name], decided to visit ye. Slán go connachtú."}"#;
+        let issues = detect_all_text_issues(s);
+        let kinds: HashSet<QualityIssueKind> = issues.iter().map(|i| i.kind).collect();
+        assert!(kinds.contains(&QualityIssueKind::JsonEnvelopeLeak));
+        assert!(kinds.contains(&QualityIssueKind::TemplateTokenLeak));
+        assert!(kinds.contains(&QualityIssueKind::ModernRegister));
+        assert!(kinds.contains(&QualityIssueKind::HallucinatedGaelic));
+    }
+}
