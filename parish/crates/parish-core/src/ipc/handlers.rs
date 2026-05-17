@@ -431,8 +431,10 @@ pub fn extract_npc_mentions(
 
 /// Resolves ordered conversation targets from extracted display names.
 ///
-/// Falls back to the first NPC at the current location when no names are
-/// supplied. Unknown names are ignored.
+/// Falls back to the first NPC at the current location only when no names
+/// were supplied at all. If names were given but none match a co-located
+/// NPC, returns empty so callers can surface "no one here by that name"
+/// rather than silently routing to whoever happens to be present.
 pub fn resolve_npc_targets(
     world: &WorldState,
     npc_manager: &NpcManager,
@@ -449,6 +451,7 @@ pub fn resolve_npc_targets(
     }
 
     if targets.is_empty()
+        && target_names.is_empty()
         && let Some(npc) = npc_manager
             .npcs_at(world.player_location)
             .into_iter()
@@ -1017,6 +1020,41 @@ mod tests {
         );
 
         assert_eq!(targets, vec![NpcId(2), NpcId(1)]);
+    }
+
+    #[test]
+    fn resolve_npc_targets_no_names_falls_back_to_first_present() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Peig Hannigan".to_string();
+        npc.location = world.player_location;
+        npc_mgr.add_npc(npc);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let targets = resolve_npc_targets(&world, &npc_mgr, &[]);
+        assert_eq!(targets, vec![NpcId(1)]);
+    }
+
+    #[test]
+    fn resolve_npc_targets_named_but_absent_returns_empty() {
+        // Regression: player says "talk to Aoife" while only Peig is here.
+        // Previously the fallback would route to Peig; now we return empty so
+        // the caller can emit "no one here by that name".
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.location = world.player_location;
+        npc_mgr.add_npc(peig);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let targets = resolve_npc_targets(&world, &npc_mgr, &["Aoife Brennan".to_string()]);
+        assert!(targets.is_empty());
     }
 
     #[test]

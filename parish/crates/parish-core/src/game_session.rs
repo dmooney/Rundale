@@ -530,38 +530,48 @@ pub async fn stream_reaction_texts(
 
         if reaction.use_llm {
             if let (Some(c), Some(npc)) = (client, npc) {
-                let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
-                let is_introduced = introduced.contains(&reaction.npc_id);
-                let (system, context) = build_reaction_prompt(
-                    npc,
-                    loc_name,
-                    tod,
-                    weather,
-                    is_introduced,
-                    at_workplace,
-                    language,
-                );
-                llm_log_info = Some((context.len(), system.clone(), context.clone()));
+                if c.is_simulator() {
+                    // The simulator generates Markov nonsense for free-text
+                    // prompts, which surfaces in the chat bubble as gibberish
+                    // ("bridget from the new collection ... God help us").
+                    // Use the deterministic canned line instead so reactions
+                    // remain readable when offline / in headless test runs.
+                    let _ = tx.try_send(reaction.canned_text.clone());
+                    drop(tx);
+                } else {
+                    let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
+                    let is_introduced = introduced.contains(&reaction.npc_id);
+                    let (system, context) = build_reaction_prompt(
+                        npc,
+                        loc_name,
+                        tod,
+                        weather,
+                        is_introduced,
+                        at_workplace,
+                        language,
+                    );
+                    llm_log_info = Some((context.len(), system.clone(), context.clone()));
 
-                let c_clone = c.clone();
-                let model_str = model.to_string();
-                tokio::spawn(async move {
-                    let _ = tokio::time::timeout(
-                        Duration::from_secs(timeout_secs),
-                        c_clone.generate_stream(
-                            &model_str,
-                            &context,
-                            Some(&system),
-                            tx,
-                            Some(100),
-                            None,
-                        ),
-                    )
-                    .await;
-                    // tx is consumed by generate_stream; when it returns (success or
-                    // timeout) tx is dropped, closing the channel and allowing
-                    // stream_npc_tokens to finish.
-                });
+                    let c_clone = c.clone();
+                    let model_str = model.to_string();
+                    tokio::spawn(async move {
+                        let _ = tokio::time::timeout(
+                            Duration::from_secs(timeout_secs),
+                            c_clone.generate_stream(
+                                &model_str,
+                                &context,
+                                Some(&system),
+                                tx,
+                                Some(100),
+                                None,
+                            ),
+                        )
+                        .await;
+                        // tx is consumed by generate_stream; when it returns (success or
+                        // timeout) tx is dropped, closing the channel and allowing
+                        // stream_npc_tokens to finish.
+                    });
+                }
             } else {
                 // No client or NPC not found — fall back to canned text.
                 // Single send on a fresh channel; try_send will not fail.
@@ -740,6 +750,56 @@ mod tests {
         );
     }
 
+    /// Regression: when the reaction client is the offline Markov simulator,
+    /// the LLM path must be skipped so the chat stream never shows Markov
+    /// gibberish ("bridget from the new collection... God help us").
+    #[tokio::test]
+    async fn stream_reaction_texts_skips_llm_when_client_is_simulator() {
+        use crate::npc::Npc;
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+        use parish_inference::{AnyClient, simulator::SimulatorClient};
+        use std::sync::Arc;
+
+        let reaction = NpcReaction {
+            npc_id: NpcId(42),
+            npc_display_name: "Bridie".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Welcome, stranger.".to_string(),
+            introduces: false,
+            use_llm: true,
+        };
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(42);
+        npc.name = "Bridie".to_string();
+
+        let client = AnyClient::Simulator(Arc::new(SimulatorClient::new()));
+        let mut token_chunks: Vec<String> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &[reaction],
+            &[npc],
+            LocationId(0),
+            "Kilteevan",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            Some(&client),
+            "sim",
+            None,
+            &lang,
+            |_, _| {},
+            |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+        )
+        .await;
+
+        let combined = token_chunks.join("");
+        assert_eq!(
+            combined, "Welcome, stranger.",
+            "simulator client must yield canned text, not Markov nonsense"
+        );
+    }
+
     /// Helper: find a location in the default mod that has at least one NPC
     /// whose `Present` state puts them there right now.
     fn find_location_with_present_npc(world: &WorldState, mgr: &NpcManager) -> Option<LocationId> {
@@ -913,6 +973,45 @@ mod tests {
         // Effects carry the same message.
         assert_eq!(effects.messages.len(), 1);
         assert!(!effects.world_changed);
+    }
+
+    /// Regression: location descriptions and travel narration emitted after a
+    /// successful move must carry `source: "system"`, never an NPC name. If
+    /// the source ever drifts to an NPC name, the frontend renders the line
+    /// as a dialogue bubble (#chat-mistagging report from 10-turn demo).
+    #[test]
+    fn apply_movement_arrival_messages_are_system_sourced() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let neighbor = world
+            .graph
+            .neighbors(world.player_location)
+            .into_iter()
+            .next();
+        let Some((neighbor_id, _)) = neighbor else {
+            return;
+        };
+        let neighbor_name = world
+            .graph
+            .get(neighbor_id)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+
+        assert!(effects.world_changed);
+        assert!(
+            !effects.messages.is_empty(),
+            "arrival should produce at least one player-visible message"
+        );
+        for msg in &effects.messages {
+            assert_eq!(
+                msg.source, "system",
+                "post-move message had non-system source {:?}: {}",
+                msg.source, msg.text
+            );
+        }
     }
 
     #[test]
