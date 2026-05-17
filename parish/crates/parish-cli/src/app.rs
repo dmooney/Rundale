@@ -99,6 +99,9 @@ pub struct App {
     pub loading_animation: Option<LoadingAnimation>,
     /// Async database handle for persistence (None if persistence is disabled).
     pub db: Option<Arc<AsyncDatabase>>,
+    /// Saves directory resolved once at startup (#771). Mid-game `/load`
+    /// reads this instead of re-probing the cwd.
+    pub saves_dir: Option<PathBuf>,
     /// Path to the active save database file.
     pub save_file_path: Option<PathBuf>,
     /// Active save branch id.
@@ -166,6 +169,7 @@ impl App {
             dialogue_model: String::new(),
             loading_animation: None,
             db: None,
+            saves_dir: None,
             save_file_path: None,
             active_branch_id: 1,
             latest_snapshot_id: 0,
@@ -179,8 +183,9 @@ impl App {
             save_lock: None,
             inference_config: InferenceConfig::default(),
             script_mode: false,
-            // Placeholder — overwritten by run_headless after ensure_saves_dir() resolves
-            // the real saves directory (#696 slice 8).
+            // Placeholder — overwritten by run_headless after
+            // resolve_project_saves_dir() resolves the real saves directory
+            // under the platform user-data root (#696 slice 8, #771).
             session_store: Arc::new(DbSessionStore::new(PathBuf::from("saves"))),
         }
     }
