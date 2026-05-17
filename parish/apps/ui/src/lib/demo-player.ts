@@ -113,6 +113,12 @@ export async function runDemoTurn(): Promise<void> {
 	if (maxTurns != null && get(demoTurnCount) >= maxTurns) {
 		demoEnabled.set(false);
 		demoStatus.set('idle');
+		// When the demo was launched from the CLI (`--demo-max-turns`),
+		// exit the whole process so headless / scripted runs terminate.
+		// UI-initiated demos just stop the loop and leave the window open.
+		if (config.auto_start) {
+			await submitInput('/quit', []);
+		}
 	}
 }
 

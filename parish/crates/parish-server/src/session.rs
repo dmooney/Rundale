@@ -1027,7 +1027,14 @@ fn spawn_session_ticks(
 
                     // Advance the generation counter so handle_game_input can
                     // detect TOCTOU races (see issue #283).
-                    world.increment_tick_generation();
+                    //
+                    // Skip while inference-paused: the player input is
+                    // mid-flight and the clock is frozen, so this tick is a
+                    // no-op from the player's perspective. Bumping the
+                    // counter anyway falsely tripped the TOCTOU guard.
+                    if !world.clock.is_inference_paused() {
+                        world.increment_tick_generation();
+                    }
 
                     // #621 — Per-session tick metric. Emitted as a structured
                     // tracing event so log-based metric tools can aggregate

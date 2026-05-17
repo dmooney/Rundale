@@ -1042,7 +1042,17 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
             // Advance the generation counter so handle_game_input can
             // detect TOCTOU races (see issue #283).
-            world.increment_tick_generation();
+            //
+            // Skip while the clock is inference-paused: the player's input
+            // is mid-flight and the game clock is frozen by construction,
+            // so this tick's work (weather, tiers — all keyed on the
+            // frozen clock) is a no-op from the player's perspective.
+            // Bumping the counter anyway falsely tripped the TOCTOU guard
+            // and surfaced "The world shifted while your words were in
+            // the air." on every multi-second LLM call.
+            if !world.clock.is_inference_paused() {
+                world.increment_tick_generation();
+            }
         }
     });
 }
