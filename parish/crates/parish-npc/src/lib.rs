@@ -260,7 +260,16 @@ pub struct NpcMetadata {
 /// Expects a JSON object with a `dialogue` field and metadata fields.
 /// Strips Markdown code fences (`` ```json ... ``` ``) that some providers
 /// (notably Anthropic) occasionally wrap around JSON output.
-/// Falls back to treating the entire text as plain dialogue if JSON parsing fails.
+///
+/// Three-tier fallback when full JSON parse fails:
+///
+/// 1. **Full JSON parse** — preferred path, captures dialogue + metadata.
+/// 2. **Heuristic `dialogue` extraction** — when the stream is truncated
+///    mid-emit (max_tokens cutoff, network blip), the JSON won't close
+///    but the `"dialogue": "..."` prefix is intact. Regex-extract the
+///    inner string instead of letting the raw `{"dialogue": "..."}`
+///    wrapper render as user-visible text.
+/// 3. **Raw text** — for non-JSON providers or empty responses.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     let trimmed = full_text.trim();
     let stripped = strip_json_fence(trimmed);
@@ -277,9 +286,68 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
         return NpcStreamResponse { dialogue, metadata };
     }
 
+    // Heuristic recovery for truncated / malformed JSON: extract the
+    // inner string from a `"dialogue": "..."` pair. Tolerates an
+    // unclosed JSON object (Brendan + Cormac at The Mill, 2026-05-17
+    // demo).
+    if let Some(dlg) = extract_dialogue_field_heuristic(stripped) {
+        return NpcStreamResponse {
+            dialogue: dlg,
+            metadata: None,
+        };
+    }
+
     NpcStreamResponse {
         dialogue: trimmed.to_string(),
         metadata: None,
+    }
+}
+
+/// Extracts the value of a `"dialogue": "..."` JSON field from a possibly
+/// truncated / malformed object. Returns `None` if the field is not present
+/// or the value is empty after JSON-escape decoding.
+fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
+    let t = text.trim_start_matches(|c: char| c.is_whitespace() || c == '{');
+    let after_key = t.strip_prefix("\"dialogue\"").or_else(|| {
+        t.strip_prefix("'dialogue'")
+            .or_else(|| t.strip_prefix("dialogue"))
+    })?;
+    let after_colon = after_key.trim_start();
+    let after_colon = after_colon.strip_prefix(':')?.trim_start();
+    let inner = after_colon
+        .strip_prefix('"')
+        .or_else(|| after_colon.strip_prefix('\''))?;
+
+    // Walk the string body, honoring JSON-style backslash escapes. Stop
+    // at the first unescaped closing quote; if the stream ran out
+    // (truncated), take everything we have.
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some('r') => out.push('\r'),
+                Some('"') => out.push('"'),
+                Some('\\') => out.push('\\'),
+                Some('\'') => out.push('\''),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => break,
+            },
+            '"' => break,
+            other => out.push(other),
+        }
+    }
+
+    let trimmed = out.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 
@@ -954,6 +1022,38 @@ mod tests {
         let parsed = parse_npc_stream_response("");
         assert_eq!(parsed.dialogue, "");
         assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_truncated_json() {
+        // Live demo (2026-05-17) — Brendan Duffy at The Mill. JSON stream
+        // ran out of tokens before the closing brace; previous behaviour
+        // surfaced the raw `{"dialogue": "..."}` wrapper as user-visible
+        // dialogue text.
+        let text = r#"{"dialogue": "Aye, the process of milling, is it? 'Tis a simple enough thing, so it is. Ye bring yer grain, we grind it"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(
+            parsed.dialogue,
+            "Aye, the process of milling, is it? 'Tis a simple enough thing, so it is. Ye bring yer grain, we grind it"
+        );
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_truncated_at_escape() {
+        // Defensive: stream ends mid backslash-escape.
+        let text = r#"{"dialogue": "Aye \"good"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Aye \"good");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_truncated_empty_dialogue() {
+        // `dialogue: ""` should fall through to raw text instead of
+        // surfacing an empty bubble.
+        let text = r#"{"dialogue": ""#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, text);
     }
 
     #[test]
