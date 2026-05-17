@@ -811,6 +811,7 @@ mod tests {
             &lang,
             |_, _| {},
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |_turn_id| {},
         )
         .await;
 
