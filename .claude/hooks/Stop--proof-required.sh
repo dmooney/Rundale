@@ -122,6 +122,39 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
   fi
 fi
 
+# ── Acceptance-criteria detection ─────────────────────────────────────
+# Every proof bundle must include acceptance-criteria.md. Check both git
+# diff (if already committed) and transcript Write/Edit tool_use entries
+# (if not yet committed). Only enforced when a proof bundle artifact
+# (evidence.md or judge.md) was also written this session — we don't
+# want to fire for sessions that only ran tests and produced no bundle.
+AC_WRITTEN=""
+PROOF_BUNDLE_WRITTEN=""
+if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+  AC_WRITTEN="$(
+    jq -rc '
+      (.message.content // [])[]?
+      | select(.type == "tool_use")
+      | select(.name == "Write" or .name == "Edit")
+      | .input.file_path // empty
+    ' "$TRANSCRIPT" 2>/dev/null \
+      | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true
+  )"
+  PROOF_BUNDLE_WRITTEN="$(
+    jq -rc '
+      (.message.content // [])[]?
+      | select(.type == "tool_use")
+      | select(.name == "Write" or .name == "Edit")
+      | .input.file_path // empty
+    ' "$TRANSCRIPT" 2>/dev/null \
+      | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | head -1 || true
+  )"
+fi
+# Also check git diff in case AC was committed mid-session.
+if [ -z "$AC_WRITTEN" ]; then
+  AC_WRITTEN="$(printf '%s\n' "$CHANGED" | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true)"
+fi
+
 # ── Proof detection (tool_use entries only) ───────────────────────────
 #
 # Two tiers:
@@ -218,11 +251,44 @@ fi
 # Decision matrix.
 if [ -n "$LIVE_PROOF" ]; then
   log "live proof found: $LIVE_PROOF"
+  # Even with live proof, block if a proof bundle was written but no AC file.
+  if [ -n "$PROOF_BUNDLE_WRITTEN" ] && [ -z "$AC_WRITTEN" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: a proof bundle was written this session but no
+docs/proofs/<id>/acceptance-criteria.md was created.
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
   exit 0
 fi
 
 if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
   log "test proof accepted (no runtime paths touched): $TEST_PROOF"
+  if [ -n "$PROOF_BUNDLE_WRITTEN" ] && [ -z "$AC_WRITTEN" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: a proof bundle was written this session but no
+docs/proofs/<id>/acceptance-criteria.md was created.
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
   exit 0
 fi
 
@@ -274,6 +340,10 @@ $TIER_NOTE}
 Before claiming done, exercise the change:
 
 ${EXAMPLES}
+
+Also required (rule 13): write docs/proofs/<task-id>/acceptance-criteria.md
+BEFORE coding, run the game, capture the transcript, and include
+'Acceptance criteria: met' in judge.md. Use /task-start <task-id>.
 
 Then restate in your message what you exercised and what the result was.
 Type-checking and svelte-check are not proof of behavior — they catch
