@@ -141,26 +141,26 @@ _proof_bundle_dirs() {
         | .input.file_path // empty
       ' "$TRANSCRIPT" 2>/dev/null \
         | sed "s|^$ROOT/||" \
-        | grep -E 'docs/proofs/.*/(evidence|judge)\.md' \
+        | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' \
         | sed 's|/[^/]*$||' || true
       # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
       # false positives from read-only commands like cat/grep/sed.
-      # The tee alternative allows optional flags (e.g. tee -a) between the
-      # command name and the target path.
+      # Handles optional quotes and ./ prefix (e.g. > "docs/...", > ./docs/...,
+      # tee -a "docs/..."). The tee alternative allows optional flags first.
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E '(>>?[[:space:]]*|tee([[:space:]]+-[[:alnum:]]+)*[[:space:]]+)docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-[[:alnum:]]+)*[[:space:]]+"?\.?/?)docs/proofs/[^/]+/(evidence|judge)\.md' \
         | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
     fi
     {
       git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
       git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-    } | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | sed 's|/[^/]*$||' || true
+    } | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' | sed 's|/[^/]*$||' || true
   } | grep -v '^$' | sort -u || true
 }
 

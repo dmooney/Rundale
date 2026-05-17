@@ -335,7 +335,7 @@ if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
                 failed=1
             fi
         fi
-    done < <(cat "$evidence" "$judges" 2>/dev/null | sed 's|/[^/]*$||' | sort -u)
+    done < <(cat "$evidence" "$judges" 2>/dev/null | grep -E '/(evidence|judge)\.md$' | sed 's|/[^/]*$||' | sort -u)
 fi
 
 # Confirm 'Acceptance criteria: met' in every judge file whose bundle has an
