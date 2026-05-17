@@ -50,6 +50,28 @@ if ! ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)"; then
   exit 0
 fi
 
+# ── Sentinel bypass — most-recent assistant message only ──────────────
+# Checked first so [skip-proof-hook] bypasses both the proof gate and
+# the acceptance-criteria check below.
+# `jq -s` slurps the whole JSONL into an array so we can pick the very
+# last assistant entry and grep only its text blocks. A sentinel left in
+# an earlier assistant message no longer leaks bypass authority forward
+# to later stops.
+if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+  LAST_ASSISTANT_TEXT="$(
+    jq -srj '
+      [.[] | select(.type == "assistant")] | last // {} |
+      (.message.content // [])
+      | map(select(.type == "text") | .text)
+      | join("\n")
+    ' "$TRANSCRIPT" 2>/dev/null || true
+  )"
+  if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
+    log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
+    exit 0
+  fi
+fi
+
 CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb)$'
 
 # Subset of CODE_REGEX paths that ship runtime behavior. When any changed
@@ -93,7 +115,89 @@ fi
 
 CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$' | sort -u || true)"
 
+# ── Acceptance-criteria detection ─────────────────────────────────────
+# Computed here (before the early no-code-change exit) so proof-only
+# sessions (proof files written without any code edits) also get the
+# AC gate.
+#
+# Detection strategy: collect all bundle dirs that had an evidence.md or
+# judge.md written this session via any method:
+#   a) transcript Write/Edit/MultiEdit tool_use entries
+#   b) transcript Bash commands — catches heredoc/redirect workflows and
+#      proof artifacts committed mid-session (git diff/untracked misses these)
+#   c) git diff HEAD + untracked files — catches remaining gaps
+# Then check on disk whether each bundle has an acceptance-criteria.md,
+# which may have been written in a prior session or commit. Scoped
+# per-bundle: docs/proofs/A/judge.md + docs/proofs/B/ac.md does NOT
+# satisfy the gate for bundle A.
+
+_proof_bundle_dirs() {
+  {
+    if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+      jq -rc '
+        (.message.content // [])[]?
+        | select(.type == "tool_use")
+        | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
+        | .input.file_path // empty
+      ' "$TRANSCRIPT" 2>/dev/null \
+        | sed "s|^$ROOT/||" \
+        | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' \
+        | sed 's|/[^/]*$||' || true
+      # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
+      # false positives from read-only commands like cat/grep/sed.
+      # Handles optional quotes and ./ prefix (e.g. > "docs/...", > ./docs/...,
+      # tee -a "docs/..."). The tee alternative allows optional flags first.
+      jq -rc '
+        (.message.content // [])[]?
+        | select(.type == "tool_use")
+        | select(.name == "Bash")
+        | .input.command // empty
+      ' "$TRANSCRIPT" 2>/dev/null \
+        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-{1,2}[[:alnum:]-]+)*[[:space:]]+"?\.?/?)docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | sed 's|/[^/]*$||' || true
+    fi
+    {
+      git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
+      git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+    } | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' | sed 's|/[^/]*$||' || true
+  } | grep -v '^$' | sort -u || true
+}
+
+PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
+
+# For each bundle written this session, verify acceptance-criteria.md exists
+# on disk (current session or pre-existing from a prior commit).
+BUNDLE_MISSING_AC=""
+if [ -n "$PROOF_BUNDLE_DIRS" ]; then
+  while IFS= read -r bundle_dir; do
+    [ -z "$bundle_dir" ] && continue
+    if [ ! -f "$ROOT/$bundle_dir/acceptance-criteria.md" ]; then
+      BUNDLE_MISSING_AC="$bundle_dir"
+      break
+    fi
+  done <<< "$PROOF_BUNDLE_DIRS"
+fi
+
 if [ -z "$CHANGED" ]; then
+  # No code changes — still block if a proof bundle written this session
+  # is missing its acceptance-criteria.md.
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
   exit 0
 fi
 
@@ -101,26 +205,6 @@ fi
 # below: a "yes" upgrades the requirement from "any test signal" to
 # "live runtime signal".
 RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || true)"
-
-# ── Sentinel bypass — most-recent assistant message only ──────────────
-# `jq -s` slurps the whole JSONL into an array so we can pick the very
-# last assistant entry and grep only its text blocks. A sentinel left in
-# an earlier assistant message no longer leaks bypass authority forward
-# to later stops.
-if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  LAST_ASSISTANT_TEXT="$(
-    jq -srj '
-      [.[] | select(.type == "assistant")] | last // {} |
-      (.message.content // [])
-      | map(select(.type == "text") | .text)
-      | join("\n")
-    ' "$TRANSCRIPT" 2>/dev/null || true
-  )"
-  if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
-    log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
-    exit 0
-  fi
-fi
 
 # ── Proof detection (tool_use entries only) ───────────────────────────
 #
@@ -175,7 +259,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 
   # LIVE-3: Bash calls that boot a real process against the workspace.
   if [ -z "$LIVE_PROOF" ]; then
-    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
+    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
     LIVE_PROOF="$(
       jq -rc '
         (.message.content // [])[]?
@@ -218,11 +302,44 @@ fi
 # Decision matrix.
 if [ -n "$LIVE_PROOF" ]; then
   log "live proof found: $LIVE_PROOF"
+  # Even with live proof, block if any proof bundle is missing its AC file.
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
   exit 0
 fi
 
 if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
   log "test proof accepted (no runtime paths touched): $TEST_PROOF"
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
+    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
+
+Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
+Run /task-start <task-id> to create the file, then add it to your proof bundle.
+
+The judge.md must also include:
+  Acceptance criteria: met
+with each criterion verified against the game log.
+
+Intentional bypass: include '[skip-proof-hook]' in your message or set
+CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+    exit 0
+  fi
   exit 0
 fi
 
@@ -274,6 +391,10 @@ $TIER_NOTE}
 Before claiming done, exercise the change:
 
 ${EXAMPLES}
+
+Also required (rule 13): write docs/proofs/<task-id>/acceptance-criteria.md
+BEFORE coding, run the game, capture the transcript, and include
+'Acceptance criteria: met' in judge.md. Use /task-start <task-id>.
 
 Then restate in your message what you exercised and what the result was.
 Type-checking and svelte-check are not proof of behavior — they catch
