@@ -33,6 +33,7 @@ relevant="$tmpdir/relevant"
 runtime="$tmpdir/runtime"
 evidence="$tmpdir/evidence"
 judges="$tmpdir/judges"
+ac_files="$tmpdir/ac_files"
 
 {
     git diff --name-only "$base"...HEAD
@@ -45,6 +46,7 @@ judges="$tmpdir/judges"
 : > "$runtime"
 : > "$evidence"
 : > "$judges"
+: > "$ac_files"
 
 is_proof_relevant() {
     local file="$1"
@@ -117,7 +119,7 @@ is_runtime_path() {
 is_evidence_file() {
     local file="$1"
     case "$file" in
-        docs/proofs/*/judge.md|docs/proofs/README.md)
+        docs/proofs/*/judge.md|docs/proofs/README.md|docs/proofs/*/acceptance-criteria.md)
             return 1
             ;;
         docs/proofs/*/*.md|docs/proofs/*/*.txt|docs/proofs/*/*.png|\
@@ -133,6 +135,17 @@ is_evidence_file() {
 is_judge_file() {
     case "$1" in
         docs/proofs/*/judge.md)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+is_acceptance_criteria_file() {
+    case "$1" in
+        docs/proofs/*/acceptance-criteria.md)
             return 0
             ;;
         *)
@@ -207,6 +220,9 @@ while IFS= read -r file; do
     if [[ -f "$file" ]] && is_judge_file "$file"; then
         echo "$file" >> "$judges"
     fi
+    if [[ -f "$file" ]] && is_acceptance_criteria_file "$file"; then
+        echo "$file" >> "$ac_files"
+    fi
 done < "$changed"
 
 changed_count="$(wc -l < "$changed" | tr -d ' ')"
@@ -214,6 +230,7 @@ relevant_count="$(wc -l < "$relevant" | tr -d ' ')"
 runtime_count="$(wc -l < "$runtime" | tr -d ' ')"
 evidence_count="$(wc -l < "$evidence" | tr -d ' ')"
 judge_count="$(wc -l < "$judges" | tr -d ' ')"
+ac_count="$(wc -l < "$ac_files" | tr -d ' ')"
 
 echo "agent-check: comparing $changed_count changed file(s) against $base_ref."
 
@@ -247,6 +264,10 @@ if [[ "$relevant_count" -gt 0 ]]; then
                 failed=1
             fi
         done < "$judges"
+    fi
+
+    if [[ "$ac_count" -gt 0 ]]; then
+        echo "agent-check: $ac_count acceptance-criteria file(s) present."
     fi
 
     # Runtime-path tier: when the diff touches a path that only fires in
@@ -298,6 +319,41 @@ else
     echo "agent-check: no proof-relevant changes; proof bundle not required."
 fi
 
+# New proof bundles must include acceptance-criteria.md — enforced regardless
+# of whether proof-relevant code changed (catches proof-only PRs too).
+# Novelty is per bundle dir: "new" means neither evidence.md nor judge.md
+# existed in base. Adding extra artifacts to an existing bundle is not new.
+if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
+    while IFS= read -r bundle_dir; do
+        ac_path="$bundle_dir/acceptance-criteria.md"
+        if ! git show "$base:$bundle_dir/evidence.md" >/dev/null 2>&1 && \
+           ! git show "$base:$bundle_dir/judge.md" >/dev/null 2>&1; then
+            if [[ ! -f "$ac_path" ]]; then
+                echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
+                echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
+                echo "See rule 13 in AGENTS.md." >&2
+                failed=1
+            fi
+        fi
+    done < <(cat "$evidence" "$judges" 2>/dev/null | grep -E '/(evidence|judge)\.md$' | sed 's|/[^/]*$||' | sort -u)
+fi
+
+# Confirm 'Acceptance criteria: met' in every judge file whose bundle has an
+# acceptance-criteria.md — enforced unconditionally so proof-only PRs (where
+# relevant_count is 0) cannot bypass the gate.
+if [[ "$judge_count" -gt 0 ]]; then
+    while IFS= read -r file; do
+        bundle_dir="$(dirname "$file")"
+        if [[ -f "$bundle_dir/acceptance-criteria.md" ]]; then
+            if ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$file"; then
+                echo "agent-check FAILED: $file must include 'Acceptance criteria: met' (bundle has acceptance-criteria.md)." >&2
+                echo "The judge must verify every criterion from acceptance-criteria.md against the game log." >&2
+                failed=1
+            fi
+        fi
+    done < "$judges"
+fi
+
 debt_found=0
 while IFS= read -r file; do
     # Skip scanning the check tools and docs themselves to avoid matching the regex patterns they contain
@@ -305,6 +361,7 @@ while IFS= read -r file; do
     [[ "$file" == "parish/justfile" ]] && continue
     [[ "$file" == "docs/agent/witness.md" ]] && continue
     [[ "$file" == ".agents/skills/rundale-ci-pitfalls/SKILL.md" ]] && continue
+    [[ "$file" == ".agents/skills/task-start/SKILL.md" ]] && continue
     if scan_for_debt_markers "$file"; then
         debt_found=1
     fi
