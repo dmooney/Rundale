@@ -119,7 +119,7 @@ is_runtime_path() {
 is_evidence_file() {
     local file="$1"
     case "$file" in
-        docs/proofs/*/judge.md|docs/proofs/README.md)
+        docs/proofs/*/judge.md|docs/proofs/README.md|docs/proofs/*/acceptance-criteria.md)
             return 1
             ;;
         docs/proofs/*/*.md|docs/proofs/*/*.txt|docs/proofs/*/*.png|\
@@ -286,8 +286,10 @@ if [[ "$relevant_count" -gt 0 ]]; then
         while IFS= read -r file; do
             bundle_dir="$(dirname "$file")"
             ac_path="$bundle_dir/acceptance-criteria.md"
-            # Check if the bundle directory is new (didn't exist in base).
-            if ! git rev-parse --verify "$base:$bundle_dir" >/dev/null 2>&1; then
+            # Check if this specific artifact (evidence/judge) is new in base.
+            # Using the file path directly avoids the false-negative where a bundle
+            # dir pre-existed (e.g. with notes) but evidence/judge are new.
+            if ! git show "$base:$file" >/dev/null 2>&1; then
                 # New bundle: acceptance-criteria.md must be present.
                 if [[ ! -f "$ac_path" ]]; then
                     echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2

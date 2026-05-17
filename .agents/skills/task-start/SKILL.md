@@ -30,7 +30,7 @@ Use the kebab-case argument as `$TASK_ID` (e.g. `fix-npc-schedule`, `market-day`
 
    ## Verification script
 
-   Run: `cargo run -p parish-cli -- --script parish/testing/fixtures/play_$TASK_ID.txt`
+   Run: `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script parish/testing/fixtures/play_$TASK_ID.txt`
 
    Expected signals in output:
    - <JSON field or text pattern that confirms criterion 1>

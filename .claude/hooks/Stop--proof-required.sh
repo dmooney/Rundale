@@ -123,47 +123,59 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 fi
 
 # ── Acceptance-criteria detection ─────────────────────────────────────
-# Every proof bundle must include acceptance-criteria.md. Check both git
-# diff (if already committed) and transcript Write/Edit tool_use entries
-# (if not yet committed). Only enforced when a proof bundle artifact
-# (evidence.md or judge.md) was also written this session — we don't
-# want to fire for sessions that only ran tests and produced no bundle.
-AC_WRITTEN=""
-PROOF_BUNDLE_WRITTEN=""
-if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  AC_WRITTEN="$(
-    jq -rc '
-      (.message.content // [])[]?
-      | select(.type == "tool_use")
-      | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
-      | .input.file_path // empty
-    ' "$TRANSCRIPT" 2>/dev/null \
-      | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true
-  )"
-  PROOF_BUNDLE_WRITTEN="$(
-    jq -rc '
-      (.message.content // [])[]?
-      | select(.type == "tool_use")
-      | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
-      | .input.file_path // empty
-    ' "$TRANSCRIPT" 2>/dev/null \
-      | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | head -1 || true
-  )"
-fi
-# Also check git diff + untracked files for proof artifacts written via Bash
-# (heredoc/redirect workflows) or committed mid-session. These searches are
-# unfiltered (no CODE_REGEX) so markdown paths are included.
-ALL_CHANGED="$(
+# Every proof bundle must include acceptance-criteria.md.
+#
+# Detection strategy: collect all bundle dirs that had an evidence.md or
+# judge.md written this session via any method:
+#   a) transcript Write/Edit/MultiEdit tool_use entries
+#   b) transcript Bash commands — catches heredoc/redirect workflows and
+#      proof artifacts committed mid-session (git diff/untracked misses these)
+#   c) git diff HEAD + untracked files — catches remaining gaps
+# Then check on disk whether each bundle has an acceptance-criteria.md,
+# which may have been written in a prior session or commit. Scoped
+# per-bundle: docs/proofs/A/judge.md + docs/proofs/B/ac.md does NOT
+# satisfy the gate for bundle A.
+
+_proof_bundle_dirs() {
   {
-    git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
-    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-  } || true
-)"
-if [ -z "$AC_WRITTEN" ]; then
-  AC_WRITTEN="$(printf '%s\n' "$ALL_CHANGED" | grep -E 'docs/proofs/.*/acceptance-criteria\.md' | head -1 || true)"
-fi
-if [ -z "$PROOF_BUNDLE_WRITTEN" ]; then
-  PROOF_BUNDLE_WRITTEN="$(printf '%s\n' "$ALL_CHANGED" | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | head -1 || true)"
+    if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+      jq -rc '
+        (.message.content // [])[]?
+        | select(.type == "tool_use")
+        | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
+        | .input.file_path // empty
+      ' "$TRANSCRIPT" 2>/dev/null \
+        | grep -E 'docs/proofs/.*/(evidence|judge)\.md' \
+        | sed 's|/[^/]*$||' || true
+      jq -rc '
+        (.message.content // [])[]?
+        | select(.type == "tool_use")
+        | select(.name == "Bash")
+        | .input.command // empty
+      ' "$TRANSCRIPT" 2>/dev/null \
+        | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | sed 's|/[^/]*$||' || true
+    fi
+    {
+      git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
+      git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+    } | grep -E 'docs/proofs/.*/(evidence|judge)\.md' | sed 's|/[^/]*$||' || true
+  } | grep -v '^$' | sort -u
+}
+
+PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
+
+# For each bundle written this session, verify acceptance-criteria.md exists
+# on disk (current session or pre-existing from a prior commit).
+BUNDLE_MISSING_AC=""
+if [ -n "$PROOF_BUNDLE_DIRS" ]; then
+  while IFS= read -r bundle_dir; do
+    [ -z "$bundle_dir" ] && continue
+    if [ ! -f "$ROOT/$bundle_dir/acceptance-criteria.md" ]; then
+      BUNDLE_MISSING_AC="$bundle_dir"
+      break
+    fi
+  done <<< "$PROOF_BUNDLE_DIRS"
 fi
 
 # ── Proof detection (tool_use entries only) ───────────────────────────
@@ -262,11 +274,11 @@ fi
 # Decision matrix.
 if [ -n "$LIVE_PROOF" ]; then
   log "live proof found: $LIVE_PROOF"
-  # Even with live proof, block if a proof bundle was written but no AC file.
-  if [ -n "$PROOF_BUNDLE_WRITTEN" ] && [ -z "$AC_WRITTEN" ]; then
+  # Even with live proof, block if any proof bundle is missing its AC file.
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
     jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
-ACCEPTANCE CRITERIA MISSING: a proof bundle was written this session but no
-docs/proofs/<id>/acceptance-criteria.md was created.
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
 
 Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
 Run /task-start <task-id> to create the file, then add it to your proof bundle.
@@ -284,10 +296,10 @@ fi
 
 if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
   log "test proof accepted (no runtime paths touched): $TEST_PROOF"
-  if [ -n "$PROOF_BUNDLE_WRITTEN" ] && [ -z "$AC_WRITTEN" ]; then
+  if [ -n "$BUNDLE_MISSING_AC" ]; then
     jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
-ACCEPTANCE CRITERIA MISSING: a proof bundle was written this session but no
-docs/proofs/<id>/acceptance-criteria.md was created.
+ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
+acceptance-criteria.md (checked on disk — prior-session files count too).
 
 Acceptance criteria must be written BEFORE coding (rule 13 in AGENTS.md).
 Run /task-start <task-id> to create the file, then add it to your proof bundle.
