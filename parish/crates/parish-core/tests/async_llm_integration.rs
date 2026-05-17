@@ -66,22 +66,43 @@ async fn mount_sse_response(server: &MockServer, content: &str) {
 }
 
 type SharedLog = Arc<Mutex<Vec<String>>>;
+type SharedTurnIds = Arc<Mutex<Vec<u64>>>;
 type EmitLogFn = Box<dyn FnMut(u64, &str)>;
 type EmitTokenFn = Box<dyn FnMut(u64, &str, &str)>;
+type EmitTurnEndFn = Box<dyn FnMut(u64)>;
 
 /// Collects streamed tokens using shared mutable state.
-fn make_collectors() -> (SharedLog, SharedLog, EmitLogFn, EmitTokenFn) {
+fn make_collectors() -> (
+    SharedLog,
+    SharedLog,
+    SharedTurnIds,
+    EmitLogFn,
+    EmitTokenFn,
+    EmitTurnEndFn,
+) {
     let log_names = Arc::new(Mutex::new(Vec::new()));
     let tokens = Arc::new(Mutex::new(Vec::new()));
+    let turn_ends = Arc::new(Mutex::new(Vec::new()));
     let ln = log_names.clone();
     let tk = tokens.clone();
+    let te = turn_ends.clone();
     let emit_log: EmitLogFn = Box::new(move |_turn_id: u64, name: &str| {
         ln.lock().unwrap().push(name.to_string());
     });
     let emit_token: EmitTokenFn = Box::new(move |_turn_id: u64, _source: &str, batch: &str| {
         tk.lock().unwrap().push(batch.to_string());
     });
-    (log_names, tokens, emit_log, emit_token)
+    let emit_turn_end: EmitTurnEndFn = Box::new(move |turn_id: u64| {
+        te.lock().unwrap().push(turn_id);
+    });
+    (
+        log_names,
+        tokens,
+        turn_ends,
+        emit_log,
+        emit_token,
+        emit_turn_end,
+    )
 }
 
 #[tokio::test]
@@ -92,7 +113,7 @@ async fn stream_reaction_texts_streams_llm_response_on_success() {
     let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("(canned greeting)")];
-    let (log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &reactions,
@@ -108,10 +129,16 @@ async fn stream_reaction_texts_streams_llm_response_on_success() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
     assert_eq!(log_names.lock().unwrap().len(), 1);
+    assert_eq!(
+        turn_ends.lock().unwrap().len(),
+        1,
+        "exactly one stream-turn-end per reaction (success path)"
+    );
     let streamed = tokens.lock().unwrap().join("");
     // stream_reaction_texts awaits stream_npc_tokens, which drains the
     // receiver channel before returning. All tokens are captured by the
@@ -134,7 +161,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_http_error() {
     let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("canned fallback")];
-    let (_log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (_log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &reactions,
@@ -150,6 +177,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_http_error() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
@@ -161,6 +189,14 @@ async fn stream_reaction_texts_falls_back_to_canned_on_http_error() {
     assert!(
         streamed.is_empty(),
         "HTTP error path must emit no tokens (got '{streamed}')"
+    );
+    // Regression for the blank-bubble bug: even when the LLM emits zero
+    // tokens, stream-turn-end MUST still fire so the UI cleans up the
+    // empty placeholder.
+    assert_eq!(
+        turn_ends.lock().unwrap().len(),
+        1,
+        "stream-turn-end must fire on HTTP error (blank-reply regression)"
     );
 }
 
@@ -182,7 +218,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_timeout() {
     let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("timed-out canned")];
-    let (_log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (_log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &reactions,
@@ -198,6 +234,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_timeout() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
@@ -209,6 +246,13 @@ async fn stream_reaction_texts_falls_back_to_canned_on_timeout() {
     assert!(
         streamed.is_empty(),
         "Timeout path must emit no tokens (got '{streamed}')"
+    );
+    // Regression: stream-turn-end MUST still fire on timeout so the empty
+    // placeholder is cleaned up in the UI.
+    assert_eq!(
+        turn_ends.lock().unwrap().len(),
+        1,
+        "stream-turn-end must fire on timeout (blank-reply regression)"
     );
 }
 
@@ -224,7 +268,7 @@ async fn stream_reaction_texts_honors_use_llm_false() {
         use_llm: false,
     }];
     let bogus_client = AnyClient::open_ai(OpenAiClient::new("http://127.0.0.1:1", None));
-    let (log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &reactions,
@@ -240,19 +284,21 @@ async fn stream_reaction_texts_honors_use_llm_false() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
     assert_eq!(log_names.lock().unwrap().as_slice(), &["Padraig"]);
     let streamed = tokens.lock().unwrap().join("");
     assert_eq!(streamed, "nods silently");
+    assert_eq!(turn_ends.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]
 async fn stream_reaction_texts_handles_none_client() {
     let npc = test_npc();
     let reactions = [llm_reaction("canned when no client")];
-    let (_log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (_log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &reactions,
@@ -268,16 +314,18 @@ async fn stream_reaction_texts_handles_none_client() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
     let streamed = tokens.lock().unwrap().join("");
     assert_eq!(streamed, "canned when no client");
+    assert_eq!(turn_ends.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]
 async fn stream_reaction_texts_handles_empty_reaction_list() {
-    let (log_names, tokens, emit_log, emit_token) = make_collectors();
+    let (log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
 
     stream_reaction_texts(
         &[],
@@ -293,9 +341,11 @@ async fn stream_reaction_texts_handles_empty_reaction_list() {
         &LanguageSettings::english_only(),
         emit_log,
         emit_token,
+        emit_turn_end,
     )
     .await;
 
     assert!(log_names.lock().unwrap().is_empty());
     assert!(tokens.lock().unwrap().is_empty());
+    assert!(turn_ends.lock().unwrap().is_empty());
 }
