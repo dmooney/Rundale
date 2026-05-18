@@ -1245,6 +1245,7 @@ pub fn run() {
 
                 setup::init_inference_queue(&state_setup).await;
                 setup::init_persistence(&handle, &state_setup).await;
+                setup::spawn_character_log_subscriber(&state_setup, app_name.clone()).await;
                 setup::spawn_event_bus_fanin(&state_setup).await;
                 setup::spawn_world_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_inactivity_tick(handle.clone(), Arc::clone(&state_setup));

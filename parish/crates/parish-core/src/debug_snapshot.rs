@@ -719,6 +719,9 @@ fn build_event_bus_debug(
                     description,
                     ..
                 } => format!("{}: {}", name_of(*npc_id), description),
+                GameEvent::PlayerMoved { from, to, .. } => {
+                    format!("Player: {} → {}", loc_of(*from), loc_of(*to))
+                }
             };
             GameEventDebug {
                 timestamp,
