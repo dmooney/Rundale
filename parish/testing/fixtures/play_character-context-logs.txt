@@ -1,0 +1,74 @@
+# character-context-logs play-test
+# =================================
+# Exercises: profile rewrite, dialogue full-text capture,
+# PlayerMoved event, journal append, branch-scoped log dir.
+#
+# Profile section is rewritten on session start (driven by
+# CharacterLogManager::write_all_profiles in entry-point setup);
+# journal entries are appended via the event-bus subscriber as
+# the commands below run.
+
+# 1. Baseline — confirm world is up, capture starting location.
+/status
+/time
+/debug here
+/npcs
+
+# 2. Speak to the publican at the starting location so a
+#    DialogueOccurred event fires with full player_said / npc_said
+#    text. This populates the journal of npc-001-padraig-darcy.md
+#    (or whichever NPC is co-located at game start) with a
+#    **You:** / **NPC:** block.
+say Good morning, Padraig.
+/wait 1
+say How is business today?
+/wait 1
+
+# 3. Speak again after a short wait so we get more than one
+#    dialogue heading in the same NPC's journal.
+/wait 5
+say Tell me about the village.
+
+# 4. Move to a neighbouring location to fire a PlayerMoved event.
+#    The resulting "Arrived at ..." journal line lands in
+#    player.md and timestamps from the in-fiction clock.
+go to The Crossroads
+look
+/status
+
+# 5. Wait long enough that the clock advances visibly, then
+#    move again so we have at least two PlayerMoved entries
+#    with distinct HH:MM timestamps in player.md.
+/wait 30
+go to Darcy's Pub
+look
+/status
+
+# 6. Stub canned dialogue for both NPCs here (no LLM running
+#    under the script harness), then talk to each. The /stub
+#    primer fires a real DialogueOccurred event with full text
+#    when the next matching `say` is processed.
+/npcs
+/stub Padraig Darcy: Ah, God bless ye, come in out of the morning.
+/stub Niamh Darcy: Good day to ye, traveller.
+say Good day, Padraig.
+say Niamh, how is the day with you?
+
+# 7. Advance time enough that mood-tick / schedule transitions
+#    can fire (MoodChanged / NpcArrived / NpcDeparted), which
+#    should produce non-dialogue journal entries in NPC logs.
+/speed fast
+/wait 120
+/status
+/npcs
+/wait 120
+/status
+/npcs
+
+# 8. Final state — used as the "session 1" baseline for the
+#    profile-preservation criterion (C3). The post-run file
+#    inspection in transcript.txt diffs this run against a
+#    second run of the same script.
+/debug clock
+/debug npcs
+/map

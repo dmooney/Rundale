@@ -139,7 +139,9 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::NpcDeparted { npc_id: id, .. }
         | GameEvent::LifeEvent { npc_id: id, .. } => *id == npc_id,
         GameEvent::RelationshipChanged { npc_a, npc_b, .. } => *npc_a == npc_id || *npc_b == npc_id,
-        GameEvent::WeatherChanged { .. } | GameEvent::FestivalStarted { .. } => false,
+        GameEvent::WeatherChanged { .. }
+        | GameEvent::FestivalStarted { .. }
+        | GameEvent::PlayerMoved { .. } => false,
     }
 }
 
@@ -175,7 +177,9 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
         }
-        GameEvent::WeatherChanged { .. } | GameEvent::FestivalStarted { .. } => String::new(),
+        GameEvent::WeatherChanged { .. }
+        | GameEvent::FestivalStarted { .. }
+        | GameEvent::PlayerMoved { .. } => String::new(),
     }
 }
 
@@ -201,6 +205,8 @@ mod tests {
             GameEvent::DialogueOccurred {
                 npc_id: NpcId(1),
                 summary: "discussed the weather".to_string(),
+                player_said: None,
+                npc_said: None,
                 timestamp: test_time(),
             },
         ];
@@ -295,6 +301,8 @@ mod tests {
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(3),
             summary: "test".to_string(),
+            player_said: None,
+            npc_said: None,
             timestamp: test_time(),
         };
         assert!(event_involves_npc(NpcId(3), &event));

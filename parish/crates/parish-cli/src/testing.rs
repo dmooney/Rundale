@@ -116,8 +116,25 @@ pub struct GameTestHarness {
 }
 
 impl GameTestHarness {
-    /// Creates a new harness with the full parish world loaded from the active mod.
+    /// Creates a new harness with the full parish world loaded from the
+    /// active mod. Character-log writers are **disabled** in this default
+    /// constructor so the hundreds of cargo-test instances that
+    /// instantiate a harness don't pollute the shared user-data dir
+    /// (`~/Library/Application Support/<app>/logs/branch-1/`). Use
+    /// [`Self::new_with_character_logs`] when you actually want logs on
+    /// disk — `run_script_mode` does that for `parish --script` runs.
     pub fn new() -> Self {
+        Self::build(false)
+    }
+
+    /// Same as [`Self::new`] but with the per-character markdown writer
+    /// turned on. Only `run_script_mode` (the live-proof path) calls
+    /// this; tests stay on the default.
+    pub fn new_with_character_logs() -> Self {
+        Self::build(true)
+    }
+
+    fn build(enable_character_logs: bool) -> Self {
         let mut app = App::new();
 
         let game_mod = parish_core::game_mod::find_default_mod()
@@ -161,6 +178,31 @@ impl GameTestHarness {
         }
         app.active_branch_id = active_branch_id;
         app.latest_snapshot_id = latest_snapshot_id;
+
+        // Character logs — opt-in. Plain `new()` keeps writers disabled
+        // so the hundreds of cargo-test harness instances don't all
+        // dump to the shared user-data dir. `new_with_character_logs`
+        // (used by `run_script_mode`) sets `enable_character_logs=true`
+        // so `parish --script ...` still produces log files.
+        {
+            let flag_on = !app
+                .flags
+                .is_disabled(parish_core::character_log::FEATURE_FLAG);
+            let enabled = enable_character_logs && flag_on;
+            let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
+            let manager = parish_core::character_log::CharacterLogManager::new(
+                &app_name,
+                app.active_branch_id,
+                enabled,
+            );
+            if manager.enabled() {
+                app.character_log_rx = Some(app.world.event_bus.subscribe());
+                if let Err(e) = manager.write_all_profiles(&app.world, &app.npc_manager) {
+                    tracing::warn!(error = %e, "character-log profile write failed");
+                }
+            }
+            app.character_log = Some(Arc::new(manager));
+        }
 
         Self {
             app,
@@ -298,6 +340,29 @@ impl GameTestHarness {
                     report.wails.len(),
                     report.deaths.len()
                 ));
+            }
+        }
+
+        // Drain any GameEvents queued on the character-log receiver since
+        // the previous execute() and append them to the right log files.
+        // Mirrors the synchronous drain pattern in the REPL loop.
+        if let (Some(manager), Some(rx)) = (
+            self.app.character_log.clone(),
+            self.app.character_log_rx.as_mut(),
+        ) {
+            loop {
+                match rx.try_recv() {
+                    Ok(event) => {
+                        if let Err(e) =
+                            manager.process_event(&event, &self.app.world, &self.app.npc_manager)
+                        {
+                            tracing::warn!(error = %e, "character-log write failed");
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+                }
             }
         }
 
@@ -1166,6 +1231,25 @@ impl GameTestHarness {
                     self.app.debug_event(event);
                 }
 
+                // Mirror the live game-loop behaviour: publish a full-text
+                // DialogueOccurred so the character-log subscriber records
+                // both **You:** and **NPC:** lines for canned-response runs.
+                //
+                // Strip the leading verb (`say `, `tell <name>`, etc.) so
+                // the player line in the journal reads as natural speech.
+                // The live LLM path passes a clean `prompt_input`; only the
+                // harness gets the raw command text.
+                let player_line = strip_dialogue_verb(text);
+                self.app.world.event_bus.publish(
+                    parish_core::world::events::GameEvent::DialogueOccurred {
+                        npc_id,
+                        summary: dialogue.clone(),
+                        player_said: Some(player_line),
+                        npc_said: Some(dialogue.clone()),
+                        timestamp: game_time,
+                    },
+                );
+
                 return ActionResult::NpcResponse {
                     npc: name,
                     dialogue,
@@ -1256,14 +1340,59 @@ pub struct ScriptResult {
     pub season: String,
 }
 
+/// Strips a leading dialogue verb (`say`, `tell <name>`, `ask <name>`,
+/// `whisper to <name>`) from a raw command string so the player line in
+/// the character-log journal reads as natural speech instead of as a
+/// command. Returns the original input trimmed when no verb is present.
+fn strip_dialogue_verb(raw: &str) -> String {
+    let trimmed = raw.trim();
+    // Prefer the simplest match first: `say <body>`.
+    if let Some(rest) = trimmed
+        .strip_prefix("say ")
+        .or_else(|| trimmed.strip_prefix("Say "))
+    {
+        return rest.trim().to_string();
+    }
+    // `tell <name>` / `ask <name>` / `whisper to <name>` — drop the
+    // verb and the addressed name, keep the body.
+    for verb in [
+        "tell ",
+        "Tell ",
+        "ask ",
+        "Ask ",
+        "whisper to ",
+        "Whisper to ",
+    ] {
+        if let Some(rest) = trimmed.strip_prefix(verb) {
+            // Drop the addressee — first whitespace-separated token.
+            let body = rest
+                .split_once(char::is_whitespace)
+                .map(|(_, b)| b.trim())
+                .unwrap_or("");
+            return body.to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
 /// Runs the game in script mode, reading commands from a file.
 ///
 /// Each command is executed through [`GameTestHarness`] and produces
 /// one JSON line of output. This allows Claude Code (or any script)
 /// to verify game behavior without a terminal or Ollama.
 pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
+    run_script_mode_with(script_path, GameTestHarness::new_with_character_logs())
+}
+
+/// Same as [`run_script_mode`] but takes a pre-built harness so
+/// callers (and integration tests) can inject a vanilla
+/// `GameTestHarness::new()` (character logs off) and avoid writing to
+/// the shared user-data directory.
+pub fn run_script_mode_with(
+    script_path: &Path,
+    mut harness: GameTestHarness,
+) -> anyhow::Result<()> {
     let contents = std::fs::read_to_string(script_path)?;
-    let mut harness = GameTestHarness::new();
     let mut last_log_len = harness.text_log().len();
 
     for line in contents.lines() {
@@ -1646,8 +1775,10 @@ mod tests {
         )
         .unwrap();
 
-        // run_script_mode writes to stdout, just verify no panic
-        run_script_mode(&script).unwrap();
+        // Use the no-character-logs harness so this test doesn't write
+        // into the shared `~/Library/Application Support/<app>/logs/`
+        // dir that the live `parish --script` invocation owns.
+        run_script_mode_with(&script, GameTestHarness::new()).unwrap();
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -34,6 +34,15 @@ pub enum GameEvent {
         npc_id: NpcId,
         /// Summary of what was said.
         summary: String,
+        /// The player's full utterance, if available. Populated by the
+        /// player→NPC turn handler; left `None` for synthetic / replay
+        /// events that don't have the original text.
+        #[serde(default)]
+        player_said: Option<String>,
+        /// The NPC's full reply, if available. Same caveats as
+        /// `player_said` — `None` for non-live event sources.
+        #[serde(default)]
+        npc_said: Option<String>,
         /// When the dialogue happened.
         timestamp: DateTime<Utc>,
     },
@@ -89,6 +98,19 @@ pub enum GameEvent {
         /// When the festival started.
         timestamp: DateTime<Utc>,
     },
+    /// The player successfully moved between two locations.
+    ///
+    /// Published once per `MovementResult::Arrived` from the
+    /// shared movement handler. Used by the character-log writer
+    /// to record the journey in `player.md`.
+    PlayerMoved {
+        /// The location the player departed from.
+        from: LocationId,
+        /// The location the player arrived at.
+        to: LocationId,
+        /// When the arrival happened (game-time).
+        timestamp: DateTime<Utc>,
+    },
     /// A significant life event occurred for an NPC.
     LifeEvent {
         /// Which NPC experienced the event.
@@ -111,6 +133,7 @@ impl GameEvent {
             | GameEvent::NpcDeparted { timestamp, .. }
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
+            | GameEvent::PlayerMoved { timestamp, .. }
             | GameEvent::LifeEvent { timestamp, .. } => *timestamp,
         }
     }
@@ -125,6 +148,7 @@ impl GameEvent {
             GameEvent::NpcDeparted { .. } => "NpcDeparted",
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
+            GameEvent::PlayerMoved { .. } => "PlayerMoved",
             GameEvent::LifeEvent { .. } => "LifeEvent",
         }
     }
@@ -275,6 +299,8 @@ mod tests {
             GameEvent::DialogueOccurred {
                 npc_id: NpcId(1),
                 summary: "hi".into(),
+                player_said: None,
+                npc_said: None,
                 timestamp: ts,
             }
             .event_type(),
