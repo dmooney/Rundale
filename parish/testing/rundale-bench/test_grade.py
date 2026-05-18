@@ -452,6 +452,31 @@ def test_extract_dialogue_fenced_truncated_json():
     assert extract_dialogue_for_judging(reply) == "fenced and cut"
 
 
+def test_extract_dialogue_dash_inline_metadata():
+    # Codex review #PRRT_kwDORqdnvs6C0CIf: runtime splits on bare `---`,
+    # so `dialogue---{json}` (no newline before delimiter) should still
+    # strip the metadata.
+    reply = 'spoken text---{"action": "x"}'
+    assert extract_dialogue_for_judging(reply) == "spoken text"
+
+
+def test_extract_dialogue_uppercase_fence_falls_through():
+    # Codex review #PRRT_kwDORqdnvs6C0CIe: runtime fence stripper is
+    # case-sensitive lowercase. Uppercase ```JSON should NOT be
+    # treated as a fence; bench must mirror that.
+    reply = '```JSON\n{"dialogue": "x"}\n```'
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_dialogue_key_not_leading_falls_through():
+    # Codex review #PRRT_kwDORqdnvs6C0CIZ: runtime only recovers when
+    # `dialogue` is the leading key. If the recovery regex were
+    # `.search`-based, this malformed payload would extract "leaked"
+    # even though runtime would discard it.
+    reply = '{"action": "x", "dialogue": "leaked"'
+    assert extract_dialogue_for_judging(reply) == reply
+
+
 # ---------------------------------------------------------------------------
 # runner
 # ---------------------------------------------------------------------------

@@ -25,8 +25,10 @@ _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
 # Mirrors `parish_npc::strip_json_fence`. Some providers (notably
 # Anthropic) wrap JSON in a Markdown code fence; strip it before
-# envelope detection.
-_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?", flags=re.IGNORECASE)
+# envelope detection. Case-sensitive lowercase ```json (matching the
+# runtime parser): uppercase variants fall through as legacy text so
+# bench/runtime treat them identically.
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?")
 
 
 def _strip_json_fence(text: str) -> str:
@@ -42,16 +44,18 @@ def _strip_json_fence(text: str) -> str:
 
 # Mirrors `parish_npc::extract_dialogue_field_heuristic`. Recovers
 # the `"dialogue"` field from a truncated / malformed JSON envelope
-# (max_tokens cutoff, network blip). Returns None if no extractable
-# dialogue string is present.
+# (max_tokens cutoff, network blip). Anchored to the start of input
+# after optional `{` + whitespace so we only recover when `dialogue`
+# is the leading key — same constraint as the runtime helper, so the
+# bench doesn't extract dialogue strings that runtime would discard.
 _DIALOGUE_KEY_RE = re.compile(
-    r"""(?P<lead>\{?\s*)(?P<key>"dialogue"|'dialogue'|dialogue)\s*:\s*(?P<q>["'])""",
+    r"""^\s*\{?\s*(?P<key>"dialogue"|'dialogue'|dialogue)\s*:\s*(?P<q>["'])""",
     flags=re.DOTALL,
 )
 
 
 def _extract_dialogue_field_heuristic(text: str) -> Optional[str]:
-    m = _DIALOGUE_KEY_RE.search(text)
+    m = _DIALOGUE_KEY_RE.match(text)
     if m is None:
         return None
     opener = m.group("q")
@@ -123,12 +127,15 @@ def extract_dialogue_for_judging(reply: str) -> str:
 
     stripped = _strip_json_fence(reply)
 
-    # Envelope 1: ``---`` delimiter — accept the marker anywhere, with
-    # optional leading whitespace or start-of-string. Some models open
-    # with ``---`` directly when they skip the dialogue line.
-    marker = re.search(r"(?:\n|^)[ \t]*---[ \t]*(?:\n|$)", stripped)
-    if marker is not None:
-        return stripped[: marker.start()].rstrip()
+    # Envelope 1: ``---`` delimiter. Runtime splits on bare ``---``
+    # anywhere in the reply (`parish-core::game_session` and
+    # `parish-npc::reactions::arrival_reactions`), so we match the same
+    # — no newline required before/after. Handles `---{json}` inline,
+    # `---\n{json}` block form, and `---` at start of reply (metadata
+    # only, no dialogue line).
+    delim_idx = stripped.find("---")
+    if delim_idx != -1:
+        return stripped[:delim_idx].rstrip()
 
     # Envelope 2: JSON-first. Use raw_decode so we tolerate trailing
     # whitespace / junk after the closing brace and don't have to

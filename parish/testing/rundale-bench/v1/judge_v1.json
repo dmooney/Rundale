@@ -5,8 +5,8 @@
   "api_key_env": "OPENROUTER_API_KEY",
   "temperature": 0,
   "seed": null,
-  "rubric": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 1-3 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown.",
-  "rubric_sha256": "1dcb5da5e0a6c1c322812b231e318604ff41a46f0a2eb71761c187071e0709e6",
+  "rubric": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER — does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY — period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE — only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS — does it actually address the prompt?\n  5. CRAFT — concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown.",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
   "axes": [
     "character",
     "authenticity",

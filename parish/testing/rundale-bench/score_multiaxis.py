@@ -56,7 +56,7 @@ Axes:
   - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms ("hi", "okay", "guys")
   - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0
   - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding
-  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing
+  - CRAFT             — concise, evocative, 2-4 sentences as instructed; no monologuing
 
 After the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.
 
