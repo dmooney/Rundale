@@ -468,6 +468,15 @@ def test_extract_dialogue_uppercase_fence_falls_through():
     assert extract_dialogue_for_judging(reply) == reply
 
 
+def test_extract_dialogue_json_dialogue_contains_em_dash():
+    # Codex review #PRRT_kwDORqdnvs6C0Je2: a valid JSON reply whose
+    # dialogue text contains `---` (spelled-out em-dash) must NOT be
+    # mangled by the delimiter split. Runtime parses JSON first; bench
+    # mirrors that order.
+    reply = '{"dialogue": "Well---maybe so", "action": "shrugs"}'
+    assert extract_dialogue_for_judging(reply) == "Well---maybe so"
+
+
 def test_extract_dialogue_dialogue_key_not_leading_falls_through():
     # Codex review #PRRT_kwDORqdnvs6C0CIZ: runtime only recovers when
     # `dialogue` is the leading key. If the recovery regex were

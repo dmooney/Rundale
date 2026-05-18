@@ -127,19 +127,13 @@ def extract_dialogue_for_judging(reply: str) -> str:
 
     stripped = _strip_json_fence(reply)
 
-    # Envelope 1: ``---`` delimiter. Runtime splits on bare ``---``
-    # anywhere in the reply (`parish-core::game_session` and
-    # `parish-npc::reactions::arrival_reactions`), so we match the same
-    # — no newline required before/after. Handles `---{json}` inline,
-    # `---\n{json}` block form, and `---` at start of reply (metadata
-    # only, no dialogue line).
-    delim_idx = stripped.find("---")
-    if delim_idx != -1:
-        return stripped[:delim_idx].rstrip()
-
-    # Envelope 2: JSON-first. Use raw_decode so we tolerate trailing
-    # whitespace / junk after the closing brace and don't have to
-    # hand-roll brace/string tracking.
+    # Envelope 1 (tried first, mirrors runtime order in
+    # `parish_npc::parse_npc_stream_response`): JSON-first. Try the
+    # full parse before the ``---`` split — otherwise a JSON dialogue
+    # string containing the literal text ``---`` (e.g. an em-dash
+    # spelled out by the model) is mangled into a partial envelope.
+    # Use raw_decode to tolerate trailing whitespace/junk after the
+    # closing brace.
     if stripped.startswith("{"):
         try:
             obj, _end = json.JSONDecoder().raw_decode(stripped)
@@ -147,12 +141,23 @@ def extract_dialogue_for_judging(reply: str) -> str:
                 return obj["dialogue"]
         except (ValueError, json.JSONDecodeError):
             # Full parse failed — fall through to truncated-JSON
-            # heuristic before giving up.
+            # heuristic before falling back to the ``---`` split.
             pass
 
         recovered = _extract_dialogue_field_heuristic(stripped)
         if recovered is not None:
             return recovered
+
+    # Envelope 2: ``---`` delimiter for the mod-template format
+    # (``<dialogue>\n---\n{...}``). Runtime splits on bare ``---``
+    # anywhere in the reply (`parish-core::game_session` and
+    # `parish-npc::reactions::arrival_reactions`), so we match the same
+    # — no newline required before/after. Only reached when the reply
+    # isn't a JSON envelope, so we won't mangle JSON dialogue strings
+    # that happen to contain ``---``.
+    delim_idx = stripped.find("---")
+    if delim_idx != -1:
+        return stripped[:delim_idx].rstrip()
 
     return reply
 
