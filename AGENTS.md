@@ -2,6 +2,13 @@
 
 `AGENTS.md` is the source of truth for repo guidelines. `CLAUDE.md` is a symlink to it, so any edit here is automatically visible to Claude Code as well.
 
+**Before anything else, skim [LEARNINGS.md](LEARNINGS.md)** — brief
+bullet list of gotchas and surprising defaults that aren't obvious from
+reading code or git history. Append a bullet whenever you discover
+something a future agent would benefit from knowing. The
+`Stop--learnings-reminder` hook nudges you to revisit it on non-trivial
+sessions.
+
 Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.md):
 
 - [build-test.md](docs/agent/build-test.md) — cargo, harness, frontend, web, and Tauri commands
