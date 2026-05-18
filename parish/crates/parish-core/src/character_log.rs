@@ -103,6 +103,25 @@ impl CharacterLogManager {
         let log_dir = resolve_user_data_dir(app_name)
             .join("logs")
             .join(format!("branch-{}", branch_id));
+        Self::new_at_dir(log_dir, true)
+    }
+
+    /// Constructs a manager rooted at an explicit directory, bypassing
+    /// the user-data-dir resolution that [`Self::new`] performs.
+    ///
+    /// Exposed for unit tests so they can point at a `tempfile::tempdir`
+    /// without setting the `PARISH_USER_DATA_DIR` env var (which races
+    /// in parallel test runs — discovered when tarpaulin's parallel
+    /// runner failed `dialogue_event_writes_player_and_npc_lines`).
+    pub fn new_at_dir(log_dir: PathBuf, enabled: bool) -> Self {
+        if !enabled {
+            return Self {
+                log_dir: PathBuf::new(),
+                enabled: false,
+                last_arrival: Mutex::new(HashMap::new()),
+                last_player_arrival: Mutex::new(None),
+            };
+        }
         if let Err(e) = std::fs::create_dir_all(&log_dir) {
             tracing::warn!(
                 path = %log_dir.display(),
@@ -935,10 +954,7 @@ mod tests {
     #[test]
     fn player_moved_event_appends_to_player_log() {
         let tmp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var(parish_persistence::paths::USER_DATA_DIR_ENV, tmp.path());
-        }
-        let mgr = CharacterLogManager::new("TestApp", 42, true);
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
         let world = WorldState::new();
         let npcs = NpcManager::new();
         mgr.write_all_profiles(&world, &npcs).unwrap();
@@ -960,23 +976,17 @@ mod tests {
             "player log missing game-time year: {}",
             player,
         );
-        unsafe {
-            std::env::remove_var(parish_persistence::paths::USER_DATA_DIR_ENV);
-        }
     }
 
     #[test]
     fn dialogue_event_writes_player_and_npc_lines() {
         let tmp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var(parish_persistence::paths::USER_DATA_DIR_ENV, tmp.path());
-        }
         let mut npcs = NpcManager::new();
         let npc = make_npc(7, "Padraig Darcy");
         let npc_path_marker = npc.id;
         npcs.add_npc(npc);
         let world = WorldState::new();
-        let mgr = CharacterLogManager::new("TestApp", 7, true);
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
         mgr.write_all_profiles(&world, &npcs).unwrap();
 
         let event = GameEvent::DialogueOccurred {
@@ -1001,18 +1011,12 @@ mod tests {
             "npc line missing or wrong POV: {}",
             npc_log,
         );
-        unsafe {
-            std::env::remove_var(parish_persistence::paths::USER_DATA_DIR_ENV);
-        }
     }
 
     #[test]
     fn disabled_manager_is_noop() {
         let tmp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var(parish_persistence::paths::USER_DATA_DIR_ENV, tmp.path());
-        }
-        let mgr = CharacterLogManager::new("TestApp", 1, false);
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), false);
         let world = WorldState::new();
         let npcs = NpcManager::new();
         mgr.write_all_profiles(&world, &npcs).unwrap();
@@ -1024,8 +1028,5 @@ mod tests {
         };
         mgr.process_event(&event, &world, &npcs).unwrap();
         assert!(!mgr.player_log_path().exists() || mgr.log_dir().as_os_str().is_empty());
-        unsafe {
-            std::env::remove_var(parish_persistence::paths::USER_DATA_DIR_ENV);
-        }
     }
 }
