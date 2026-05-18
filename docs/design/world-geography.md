@@ -58,7 +58,7 @@ Used for period accuracy, atmosphere, and verifying that generated location data
 - OSM-format vector data with date-tagged historical features; daily planet dump on Amazon S3
 - Overpass API available for spatial queries by bounding box + date range
 - Ireland 1800s coverage is sparse (volunteer-traced); worth querying before investing
-- https://wiki.openstreetmap.org/wiki/OpenHistoricalMap
+- https://www.openhistoricalmap.org
 
 **British Library Mechanical Curator → Wikimedia Commons**
 - The BL digitized ~1 million images from 19th-century books; a georeferencing project has worked through the Ireland-relevant subset
@@ -70,7 +70,7 @@ Used for period accuracy, atmosphere, and verifying that generated location data
 
 - GeoHive historical OS maps (6-inch and 25-inch series, viewer): https://webapps.geohive.ie/mapviewer/index.html
 - Irish Townland and Historical Map Viewer (OSi ArcGIS): https://osi.maps.arcgis.com/apps/webappviewer/index.html?id=bc56a1cf08844a2aa2609aa92e89497e
-- Down Survey maps (17th-century, TCD GIS project): http://downsurvey.tcd.ie/down-survey-maps.php
+- Down Survey maps (17th-century, TCD GIS project): https://downsurvey.tcd.ie/down-survey-maps.php
 - NLS 6-inch Ireland 1829–1969 (viewable free, JPEG purchase): https://maps.nls.uk/os/6inch-ireland/
 - UCD Digital Collections — ~1,370 OS town plans 1847–1896: https://digital.ucd.ie/view/ucdlib:40377
 
