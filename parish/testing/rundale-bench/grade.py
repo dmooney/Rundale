@@ -132,17 +132,26 @@ def extract_dialogue_for_judging(reply: str) -> str:
     # full parse before the ``---`` split — otherwise a JSON dialogue
     # string containing the literal text ``---`` (e.g. an em-dash
     # spelled out by the model) is mangled into a partial envelope.
-    # Use raw_decode to tolerate trailing whitespace/junk after the
-    # closing brace.
+    #
+    # ``json.loads`` is the Python equivalent of runtime
+    # ``serde_json::from_str``: it requires the entire input to be
+    # consumed (modulo surrounding whitespace) and rejects trailing
+    # junk. ``raw_decode`` would accept trailing junk, drifting from
+    # runtime semantics. When the JSON parses but the ``dialogue``
+    # field is absent or non-string, return ``""`` — runtime's
+    # ``NpcJsonResponse`` uses ``#[serde(default)]``, so the player
+    # sees an empty dialogue rather than the raw envelope.
     if stripped.startswith("{"):
         try:
-            obj, _end = json.JSONDecoder().raw_decode(stripped)
-            if isinstance(obj, dict) and isinstance(obj.get("dialogue"), str):
-                return obj["dialogue"]
+            obj = json.loads(stripped)
         except (ValueError, json.JSONDecodeError):
-            # Full parse failed — fall through to truncated-JSON
-            # heuristic before falling back to the ``---`` split.
-            pass
+            # Full parse failed — fall through to the truncated-JSON
+            # heuristic, then to the ``---`` split.
+            obj = None
+
+        if isinstance(obj, dict):
+            dialogue = obj.get("dialogue", "")
+            return dialogue if isinstance(dialogue, str) else ""
 
         recovered = _extract_dialogue_field_heuristic(stripped)
         if recovered is not None:

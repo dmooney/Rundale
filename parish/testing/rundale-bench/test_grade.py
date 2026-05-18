@@ -369,10 +369,24 @@ def test_extract_dialogue_json_first_with_escaped_quotes():
 
 
 def test_extract_dialogue_json_first_missing_dialogue_field():
-    # JSON-first envelope but no `dialogue` key → fall through to verbatim
-    # return so the judge can score whatever the model actually emitted.
+    # Codex review #PRRT_kwDORqdnvs6C0Zc8: runtime's `NpcJsonResponse`
+    # uses `#[serde(default)]`, so a parseable JSON envelope without
+    # a `dialogue` field surfaces as `""` to the player. Bench must
+    # mirror that — return empty string, not the raw envelope.
     reply = "{\"action\": \"x\", \"mood\": \"y\"}"
-    assert extract_dialogue_for_judging(reply) == reply
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_json_dialogue_field_non_string():
+    # JSON parses but `dialogue` is non-string (None, number). Treat
+    # the same as missing — runtime serde default → empty string.
+    assert extract_dialogue_for_judging('{"dialogue": null}') == ""
+    assert extract_dialogue_for_judging('{"dialogue": 42}') == ""
+
+
+def test_extract_dialogue_empty_json_object():
+    # `{}` is the degenerate envelope — player sees empty dialogue.
+    assert extract_dialogue_for_judging("{}") == ""
 
 
 def test_extract_dialogue_legacy_plain_text():
@@ -440,8 +454,12 @@ def test_extract_dialogue_truncated_json_with_escaped_quotes():
 
 
 def test_extract_dialogue_json_with_trailing_junk():
-    # raw_decode tolerates trailing junk after the closing brace; the
-    # old hand-rolled parser only worked if the reply ended at `}`.
+    # Codex review #PRRT_kwDORqdnvs6C0ZdL: runtime
+    # `parse_npc_stream_response` uses `serde_json::from_str` and
+    # rejects trailing junk after the closing brace. The full parse
+    # fails, then the truncated-JSON heuristic recovers the
+    # `"dialogue"` field — same chain runtime follows. Result: clean
+    # dialogue without the trailing scaffolding.
     reply = '{"dialogue": "Hello", "action": "wave"}\n\nextra prose'
     assert extract_dialogue_for_judging(reply) == "Hello"
 
