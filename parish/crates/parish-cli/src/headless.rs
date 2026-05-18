@@ -938,6 +938,8 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
                 chrono::Utc::now(),
             );
         }
+        // Feed the per-session diversity sensor (#995).
+        app.npc_manager.record_reaction_emoji(&emoji);
         println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }
