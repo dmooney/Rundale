@@ -126,8 +126,16 @@ impl NpcManager {
     /// server, Tauri).
     pub fn record_reaction_emoji(&mut self, emoji: &str) {
         self.reaction_emoji_buffer.push_back(emoji.to_string());
-        while self.reaction_emoji_buffer.len() > REACTION_EMOJI_BUFFER_CAPACITY {
+        if self.reaction_emoji_buffer.len() > REACTION_EMOJI_BUFFER_CAPACITY {
             self.reaction_emoji_buffer.pop_front();
+        }
+
+        // Skip the snapshot allocation while the buffer is too small for
+        // the detector to draw a conclusion — this function runs once per
+        // reacting NPC per player turn, so the early-out matters on busy
+        // locations.
+        if self.reaction_emoji_buffer.len() < crate::quality::DEFAULT_EMOJI_MIN_SAMPLES {
+            return;
         }
 
         let snapshot: Vec<&str> = self

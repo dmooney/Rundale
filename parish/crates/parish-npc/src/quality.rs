@@ -433,8 +433,14 @@ fn is_word_char_at(s: &str, byte_offset: usize) -> bool {
 // (6) Reaction emoji monoculture
 // ---------------------------------------------------------------------------
 
+/// Minimum samples before [`detect_emoji_monoculture`] reports a verdict.
+///
+/// Exposed so callers (e.g. `NpcManager::record_reaction_emoji`) can
+/// short-circuit before allocating a snapshot slice for the detector.
+pub const DEFAULT_EMOJI_MIN_SAMPLES: usize = 4;
+
 pub fn detect_emoji_monoculture(emojis: &[&str]) -> Option<QualityIssue> {
-    detect_emoji_monoculture_with_thresholds(emojis, 4, 0.30)
+    detect_emoji_monoculture_with_thresholds(emojis, DEFAULT_EMOJI_MIN_SAMPLES, 0.30)
 }
 
 pub fn detect_emoji_monoculture_with_thresholds(
