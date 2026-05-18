@@ -47,8 +47,10 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_lib import CostTracker, Target, call_chat  # noqa: E402
+from grade import extract_dialogue_for_judging  # noqa: E402
 
 
 def load_samples(path: Path) -> dict:
@@ -72,7 +74,7 @@ def absolute_judge(rubric: str, reply: str, judge_target: Target, tracker: CostT
             "required": ["score", "reason"],
         },
     }
-    user = f"Reply to score: {reply}"
+    user = f"Reply to score: {extract_dialogue_for_judging(reply)}"
     try:
         text, usage = call_chat(judge_target, rubric, user, schema=schema,
                                 temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
@@ -99,7 +101,11 @@ def pairwise_judge(rubric: str, a: str, b: str, prompt: str, judge_target: Targe
             "required": ["winner", "reason"],
         },
     }
-    user = f"Player prompt: {prompt}\n\n=== Reply A ===\n{a}\n\n=== Reply B ===\n{b}\n"
+    user = (
+        f"Player prompt: {prompt}\n\n"
+        f"=== Reply A ===\n{extract_dialogue_for_judging(a)}\n\n"
+        f"=== Reply B ===\n{extract_dialogue_for_judging(b)}\n"
+    )
     try:
         text, usage = call_chat(judge_target, rubric, user, schema=schema,
                                 temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
