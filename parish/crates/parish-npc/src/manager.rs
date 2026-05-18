@@ -487,6 +487,20 @@ impl NpcManager {
         )
     }
 
+    /// Silently populates `tier_assignments` from the current world +
+    /// NPC state without publishing any `GameEvent` or running
+    /// inflation/deflation. Call this once after rebuilding the
+    /// manager from a snapshot — see
+    /// [`crate::tier_assign::seed_tier_state`] for the rationale.
+    pub fn seed_tier_state(&mut self, world: &WorldState) {
+        crate::tier_assign::seed_tier_state(
+            &self.npcs,
+            &mut self.tier_assignments,
+            &mut self.bfs_distances_cache,
+            world,
+        );
+    }
+
     /// Applies the results of a Tier 4 tick to NPC state.
     ///
     /// See [`crate::tier4::apply_events`] for full documentation.
