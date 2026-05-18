@@ -23,6 +23,84 @@ from typing import Any, Callable, Optional
 _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
 
+def extract_dialogue_for_judging(reply: str) -> str:
+    """Strip the runtime metadata envelope so the judge scores what the
+    player sees.
+
+    Runtime tier-1 prompts ask the model to emit one of two envelope
+    formats around the dialogue line:
+
+    1. **Mod-template format** (`mods/rundale/prompts/tier1_system.txt`):
+       ``<dialogue>\\n---\\n{"action": ..., "mood": ..., ...}``.
+       The runtime splits on ``\\n---`` and shows the player only the
+       prefix.
+
+    2. **Rust-builder format** (``parish_npc::build_tier1_system_prompt``):
+       a single JSON object ``{"dialogue": "...", "action": "...", ...}``
+       with the dialogue field first. The runtime parses the JSON and
+       shows the player only ``.dialogue``.
+
+    The bench previously sent the raw reply to the judge, which made
+    grok-4.3 penalise the JSON scaffolding as anachronistic — a +5-point
+    swing on identical advice (see issue #994 rebench bundle). This
+    helper extracts the player-visible dialogue so the bench scores
+    quality, not envelope choice.
+
+    Falls through to verbatim return when no envelope is detected
+    (legacy plain-text replies from the pre-#994 bench prompt era, or
+    a malformed envelope the runtime parser would also reject — judging
+    the broken output mirrors what the player would see if the parser
+    failed). Never raises.
+    """
+    if not reply:
+        return reply
+
+    # Envelope 1: ``---`` delimiter — first ``\n---`` ends the dialogue.
+    # Accept optional trailing whitespace on the marker line.
+    marker = re.search(r"\n[ \t]*---[ \t]*(?:\n|$)", reply)
+    if marker is not None:
+        return reply[: marker.start()].rstrip()
+
+    # Envelope 2: JSON-first. The reply is a single JSON object whose
+    # first key is "dialogue". Only attempt parse when the stripped
+    # reply starts with ``{`` and contains ``"dialogue"``.
+    stripped = reply.lstrip()
+    if stripped.startswith("{") and '"dialogue"' in stripped:
+        # Find the matching closing brace, ignoring braces inside strings.
+        in_str = False
+        esc = False
+        depth = 0
+        end_idx: Optional[int] = None
+        for i, c in enumerate(stripped):
+            if esc:
+                esc = False
+                continue
+            if c == "\\":
+                esc = True
+                continue
+            if c == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i + 1
+                    break
+        if end_idx is not None:
+            try:
+                obj = json.loads(stripped[:end_idx])
+            except (ValueError, json.JSONDecodeError):
+                return reply
+            if isinstance(obj, dict) and isinstance(obj.get("dialogue"), str):
+                return obj["dialogue"]
+
+    return reply
+
+
 def _tokens(s: Optional[str]) -> set[str]:
     if not s:
         return set()
@@ -225,9 +303,13 @@ def grade_dialogue(reply: str, judge: dict, invoke: Callable[..., dict]) -> dict
             "required": ["character", "authenticity", "language", "responsiveness", "craft", "overall"],
         },
     }
+    # Judge scores the dialogue the player sees, not the raw envelope.
+    # `_non_latin` still scans the full reply so script leaks anywhere
+    # in the model's output are still flagged.
+    dialogue = extract_dialogue_for_judging(reply)
     user = (
         "Reply to judge — score the candidate label `Model X` only:\n\n"
-        f"Model X: {reply}\n"
+        f"Model X: {dialogue}\n"
     )
     nl = _non_latin(reply)
     try:
@@ -272,7 +354,7 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
             "required": ["in_character"],
         },
     }
-    user = f"Persona: {persona}\n\nReply: {reply}\n"
+    user = f"Persona: {persona}\n\nReply: {extract_dialogue_for_judging(reply)}\n"
     try:
         scores = invoke(judge["rubric"], user, schema)
         if not isinstance(scores, dict):
@@ -330,8 +412,8 @@ def grade_pairwise(
     }
     user = (
         f"Player prompt: {prompt}\n\n"
-        f"=== Reply A ===\n{reply_a}\n\n"
-        f"=== Reply B ===\n{reply_b}\n"
+        f"=== Reply A ===\n{extract_dialogue_for_judging(reply_a)}\n\n"
+        f"=== Reply B ===\n{extract_dialogue_for_judging(reply_b)}\n"
     )
     try:
         out = invoke(judge["rubric"], user, schema)

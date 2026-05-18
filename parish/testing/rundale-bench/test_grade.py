@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grade import (  # noqa: E402
     _jaccard,
+    extract_dialogue_for_judging,
     grade_dialogue,
     grade_intent,
     grade_pairwise,
@@ -310,6 +311,92 @@ def test_simulation_valid_then_judge():
     assert r["schema_valid"]
     assert r["plausibility"] == 4
     assert r["score"] == 0.8
+
+
+# ---------------------------------------------------------------------------
+# extract_dialogue_for_judging — strip runtime metadata envelope
+# ---------------------------------------------------------------------------
+
+def test_extract_dialogue_dash_marker():
+    reply = (
+        "Chew on a few cloves if you can get them, or make a warm poultice from "
+        "willow bark to draw out the ache.\n"
+        "---\n"
+        "{\"action\": \"reaches into her basket\", \"mood\": \"content\", \"language_hints\": []}"
+    )
+    out = extract_dialogue_for_judging(reply)
+    assert "---" not in out
+    assert "action" not in out
+    assert out.startswith("Chew on a few cloves")
+    assert out.endswith("draw out the ache.")
+
+
+def test_extract_dialogue_dash_marker_trailing_whitespace():
+    reply = "dialogue line\n--- \n{\"action\": \"x\"}"
+    assert extract_dialogue_for_judging(reply) == "dialogue line"
+
+
+def test_extract_dialogue_dash_marker_no_trailing_block():
+    # Some replies emit the `---` then truncate — still strip everything
+    # from the marker onward.
+    reply = "spoken text\n---"
+    assert extract_dialogue_for_judging(reply) == "spoken text"
+
+
+def test_extract_dialogue_dash_at_start_returns_empty():
+    # Reply that opens with `---` has no preamble. Helper returns the
+    # empty-string prefix (rstripped) so the judge sees the model emitted
+    # nothing the player would have heard.
+    reply = "\n---\n{\"action\": \"x\"}"
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_json_first():
+    reply = (
+        "{\"dialogue\": \"Ah, good morning to ye!\", "
+        "\"action\": \"looks up\", \"mood\": \"friendly\", "
+        "\"language_hints\": []}"
+    )
+    assert extract_dialogue_for_judging(reply) == "Ah, good morning to ye!"
+
+
+def test_extract_dialogue_json_first_with_escaped_quotes():
+    reply = (
+        "{\"dialogue\": \"She said \\\"hello\\\" to me.\", "
+        "\"action\": \"shrugs\"}"
+    )
+    assert extract_dialogue_for_judging(reply) == "She said \"hello\" to me."
+
+
+def test_extract_dialogue_json_first_missing_dialogue_field():
+    # JSON-first envelope but no `dialogue` key → fall through to verbatim
+    # return so the judge can score whatever the model actually emitted.
+    reply = "{\"action\": \"x\", \"mood\": \"y\"}"
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_legacy_plain_text():
+    # Pre-#994 bench prompt era — no envelope. Return as-is.
+    reply = "Aye, the toothache's a cruel thing, especially when it robs your rest."
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_malformed_json_falls_through():
+    # Looks JSON-first but is truncated. Don't raise; return verbatim so
+    # the broken output is judged as the model emitted it.
+    reply = "{\"dialogue\": \"unterminated"
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_empty_input():
+    assert extract_dialogue_for_judging("") == ""
+
+
+def test_extract_dialogue_multiple_dash_lines():
+    # Only the FIRST `\n---` ends the dialogue; later occurrences are
+    # part of the metadata block.
+    reply = "first line\n---\n{\"action\": \"---\"}"
+    assert extract_dialogue_for_judging(reply) == "first line"
 
 
 # ---------------------------------------------------------------------------
