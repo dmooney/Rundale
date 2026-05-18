@@ -623,6 +623,10 @@ fn scan_existing_player_arrival(log_dir: &Path) -> Option<String> {
 /// Parses the final `### … — Arrived at <name>` or `… — Departed from
 /// <name>` heading in `contents` and returns the trailing location
 /// name. Returns `None` when no such heading exists.
+///
+/// Other suffixes (`Mood`, `Relationship`, `Festival: …`, `Life event`)
+/// are skipped — they're valid journal headings but don't carry a
+/// location and must not abort the scan.
 fn parse_last_arrival_location(contents: &str) -> Option<String> {
     let mut last: Option<String> = None;
     for line in contents.lines() {
@@ -633,9 +637,14 @@ fn parse_last_arrival_location(contents: &str) -> Option<String> {
             Some((_, tail)) => tail,
             None => continue,
         };
-        let loc = after_em_dash
+        let Some(loc) = after_em_dash
             .strip_prefix("Arrived at ")
-            .or_else(|| after_em_dash.strip_prefix("Departed from "))?;
+            .or_else(|| after_em_dash.strip_prefix("Departed from "))
+        else {
+            // Non-arrival heading (Mood / Relationship / Festival / …);
+            // keep scanning rather than aborting the whole file.
+            continue;
+        };
         last = Some(loc.trim().to_string());
     }
     last
@@ -685,8 +694,10 @@ fn slugify(s: &str) -> String {
 ///
 /// If `path` does not exist, creates a fresh file with the profile section
 /// followed by an empty Journal stub. If the existing file has no
-/// `PROFILE_END` marker (corruption / hand-edit), the entire file is
-/// rebuilt — old contents are preserved at the bottom in a recovery block.
+/// `PROFILE_END` marker (corruption / hand-edit), the journal contents
+/// after the last seen `## Journal` heading are preserved verbatim; if
+/// no journal heading is present either, the existing file is appended
+/// as a recovery block instead of being discarded.
 pub fn rewrite_profile_section(path: &Path, profile_md: &str) -> Result<()> {
     let existing = match std::fs::read_to_string(path) {
         Ok(s) => Some(s),
@@ -696,10 +707,32 @@ pub fn rewrite_profile_section(path: &Path, profile_md: &str) -> Result<()> {
         }
     };
 
-    let journal_section = existing
-        .as_deref()
-        .and_then(extract_after_profile_end)
-        .unwrap_or("\n## Journal\n\n");
+    // Try, in order of preservation strength:
+    //   1. `<!-- PROFILE_END -->` marker — normal path.
+    //   2. `## Journal` heading — covers hand-edited files where the
+    //      profile markers were stripped but the journal heading
+    //      survives.
+    //   3. Entire existing contents under a recovery block — last
+    //      resort so we never silently drop user-visible history.
+    let journal_owned: Option<String> = existing.as_deref().and_then(|content| {
+        if extract_after_profile_end(content).is_some() {
+            None
+        } else if let Some(idx) = content.find("\n## Journal") {
+            Some(content[idx..].to_string())
+        } else {
+            Some(format!(
+                "\n## Journal\n\n<!-- Recovered from a file with no PROFILE_END marker -->\n\n{}\n",
+                content.trim_end(),
+            ))
+        }
+    });
+    let journal_section: &str = if let Some(s) = journal_owned.as_deref() {
+        s
+    } else if let Some(content) = existing.as_deref() {
+        extract_after_profile_end(content).unwrap_or("\n## Journal\n\n")
+    } else {
+        "\n## Journal\n\n"
+    };
 
     let mut out = String::with_capacity(profile_md.len() + journal_section.len() + 64);
     out.push_str(PROFILE_START);

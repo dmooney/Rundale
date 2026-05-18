@@ -1342,37 +1342,23 @@ pub struct ScriptResult {
     pub season: String,
 }
 
-/// Strips a leading dialogue verb (`say`, `tell <name>`, `ask <name>`,
-/// `whisper to <name>`) from a raw command string so the player line in
-/// the character-log journal reads as natural speech instead of as a
-/// command. Returns the original input trimmed when no verb is present.
+/// Strips a leading `say` verb from a raw command string so the player
+/// line in the character-log journal reads as natural speech instead
+/// of as a command. Returns the input trimmed when no verb is present.
+///
+/// Only `say <body>` is stripped — `tell <name> <body>` and similar
+/// vocatives are left intact, because the second token is genuinely
+/// part of the player's utterance (`Tell me about the weather`,
+/// `Ask why he left`). The harness's NPC-routing layer separately
+/// strips the addressee where it matters; the journal records what
+/// the player actually said.
 fn strip_dialogue_verb(raw: &str) -> String {
     let trimmed = raw.trim();
-    // Prefer the simplest match first: `say <body>`.
     if let Some(rest) = trimmed
         .strip_prefix("say ")
         .or_else(|| trimmed.strip_prefix("Say "))
     {
         return rest.trim().to_string();
-    }
-    // `tell <name>` / `ask <name>` / `whisper to <name>` — drop the
-    // verb and the addressed name, keep the body.
-    for verb in [
-        "tell ",
-        "Tell ",
-        "ask ",
-        "Ask ",
-        "whisper to ",
-        "Whisper to ",
-    ] {
-        if let Some(rest) = trimmed.strip_prefix(verb) {
-            // Drop the addressee — first whitespace-separated token.
-            let body = rest
-                .split_once(char::is_whitespace)
-                .map(|(_, b)| b.trim())
-                .unwrap_or("");
-            return body.to_string();
-        }
     }
     trimmed.to_string()
 }
