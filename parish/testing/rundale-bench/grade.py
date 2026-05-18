@@ -23,80 +23,129 @@ from typing import Any, Callable, Optional
 _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
 
+# Mirrors `parish_npc::strip_json_fence`. Some providers (notably
+# Anthropic) wrap JSON in a Markdown code fence; strip it before
+# envelope detection.
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?", flags=re.IGNORECASE)
+
+
+def _strip_json_fence(text: str) -> str:
+    t = text.strip()
+    m = _JSON_FENCE_RE.match(t)
+    if m is None:
+        return t
+    inner = t[m.end():]
+    if inner.endswith("```"):
+        inner = inner[: -len("```")]
+    return inner.strip()
+
+
+# Mirrors `parish_npc::extract_dialogue_field_heuristic`. Recovers
+# the `"dialogue"` field from a truncated / malformed JSON envelope
+# (max_tokens cutoff, network blip). Returns None if no extractable
+# dialogue string is present.
+_DIALOGUE_KEY_RE = re.compile(
+    r"""(?P<lead>\{?\s*)(?P<key>"dialogue"|'dialogue'|dialogue)\s*:\s*(?P<q>["'])""",
+    flags=re.DOTALL,
+)
+
+
+def _extract_dialogue_field_heuristic(text: str) -> Optional[str]:
+    m = _DIALOGUE_KEY_RE.search(text)
+    if m is None:
+        return None
+    opener = m.group("q")
+    i = m.end()
+    out: list[str] = []
+    while i < len(text):
+        c = text[i]
+        if c == "\\" and i + 1 < len(text):
+            nxt = text[i + 1]
+            mapped = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "'": "'", "\\": "\\"}
+            if nxt in mapped:
+                out.append(mapped[nxt])
+            else:
+                out.append("\\")
+                out.append(nxt)
+            i += 2
+            continue
+        if c == opener:
+            break
+        out.append(c)
+        i += 1
+    trimmed = "".join(out).strip()
+    return trimmed or None
+
+
 def extract_dialogue_for_judging(reply: str) -> str:
     """Strip the runtime metadata envelope so the judge scores what the
     player sees.
 
-    Runtime tier-1 prompts ask the model to emit one of two envelope
-    formats around the dialogue line:
+    Mirrors `parish_npc::parse_npc_stream_response` — the runtime path
+    that decides what reaches the player UI. The bench must apply the
+    same transformations to its judge input, otherwise the judge scores
+    scaffolding the player never sees and bench/runtime drift.
 
-    1. **Mod-template format** (`mods/rundale/prompts/tier1_system.txt`):
-       ``<dialogue>\\n---\\n{"action": ..., "mood": ..., ...}``.
-       The runtime splits on ``\\n---`` and shows the player only the
-       prefix.
+    Pipeline:
 
-    2. **Rust-builder format** (``parish_npc::build_tier1_system_prompt``):
-       a single JSON object ``{"dialogue": "...", "action": "...", ...}``
-       with the dialogue field first. The runtime parses the JSON and
-       shows the player only ``.dialogue``.
+    1. **Markdown code-fence strip** — providers like Anthropic wrap
+       JSON in ```` ```json … ``` ````. Stripped before envelope
+       detection so fenced outputs aren't treated as legacy plain text.
 
-    The bench previously sent the raw reply to the judge, which made
-    grok-4.3 penalise the JSON scaffolding as anachronistic — a +5-point
-    swing on identical advice (see issue #994 rebench bundle). This
-    helper extracts the player-visible dialogue so the bench scores
-    quality, not envelope choice.
+    2. **`---` delimiter** — mod-template format:
+       ``<dialogue>\\n---\\n{...metadata...}``. Anywhere the marker
+       appears (including as the first line of the reply, when the
+       model omits dialogue) ends the dialogue and starts the metadata
+       block. Everything from the marker onward is stripped.
 
-    Falls through to verbatim return when no envelope is detected
-    (legacy plain-text replies from the pre-#994 bench prompt era, or
-    a malformed envelope the runtime parser would also reject — judging
-    the broken output mirrors what the player would see if the parser
-    failed). Never raises.
+    3. **JSON-first object** — Rust-builder format:
+       ``{"dialogue": "...", "action": "...", ...}``. Parsed via
+       ``json.JSONDecoder().raw_decode`` so trailing junk after the
+       closing brace is tolerated.
+
+    4. **Truncated-JSON heuristic** — when the JSON is cut off
+       mid-string (max_tokens hit, network blip), the
+       ``"dialogue": "..."`` prefix is usually intact. Same recovery
+       the runtime uses (`extract_dialogue_field_heuristic`). Without
+       it, bench would penalise truncated outputs as raw scaffolding
+       even though the runtime would still show the player a usable
+       dialogue line.
+
+    5. **Verbatim fallback** — no envelope detected (legacy plain-text
+       replies from the pre-#994 bench prompt era). Reply returned
+       unchanged.
+
+    Never raises; malformed inputs fall through to verbatim return so
+    the judge scores what the model emitted.
     """
     if not reply:
         return reply
 
-    # Envelope 1: ``---`` delimiter — first ``\n---`` ends the dialogue.
-    # Accept optional trailing whitespace on the marker line.
-    marker = re.search(r"\n[ \t]*---[ \t]*(?:\n|$)", reply)
-    if marker is not None:
-        return reply[: marker.start()].rstrip()
+    stripped = _strip_json_fence(reply)
 
-    # Envelope 2: JSON-first. The reply is a single JSON object whose
-    # first key is "dialogue". Only attempt parse when the stripped
-    # reply starts with ``{`` and contains ``"dialogue"``.
-    stripped = reply.lstrip()
-    if stripped.startswith("{") and '"dialogue"' in stripped:
-        # Find the matching closing brace, ignoring braces inside strings.
-        in_str = False
-        esc = False
-        depth = 0
-        end_idx: Optional[int] = None
-        for i, c in enumerate(stripped):
-            if esc:
-                esc = False
-                continue
-            if c == "\\":
-                esc = True
-                continue
-            if c == '"':
-                in_str = not in_str
-                continue
-            if in_str:
-                continue
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth == 0:
-                    end_idx = i + 1
-                    break
-        if end_idx is not None:
-            try:
-                obj = json.loads(stripped[:end_idx])
-            except (ValueError, json.JSONDecodeError):
-                return reply
+    # Envelope 1: ``---`` delimiter — accept the marker anywhere, with
+    # optional leading whitespace or start-of-string. Some models open
+    # with ``---`` directly when they skip the dialogue line.
+    marker = re.search(r"(?:\n|^)[ \t]*---[ \t]*(?:\n|$)", stripped)
+    if marker is not None:
+        return stripped[: marker.start()].rstrip()
+
+    # Envelope 2: JSON-first. Use raw_decode so we tolerate trailing
+    # whitespace / junk after the closing brace and don't have to
+    # hand-roll brace/string tracking.
+    if stripped.startswith("{"):
+        try:
+            obj, _end = json.JSONDecoder().raw_decode(stripped)
             if isinstance(obj, dict) and isinstance(obj.get("dialogue"), str):
                 return obj["dialogue"]
+        except (ValueError, json.JSONDecodeError):
+            # Full parse failed — fall through to truncated-JSON
+            # heuristic before giving up.
+            pass
+
+        recovered = _extract_dialogue_field_heuristic(stripped)
+        if recovered is not None:
+            return recovered
 
     return reply
 

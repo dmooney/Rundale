@@ -381,10 +381,17 @@ def test_extract_dialogue_legacy_plain_text():
     assert extract_dialogue_for_judging(reply) == reply
 
 
-def test_extract_dialogue_malformed_json_falls_through():
-    # Looks JSON-first but is truncated. Don't raise; return verbatim so
-    # the broken output is judged as the model emitted it.
+def test_extract_dialogue_malformed_json_recovers():
+    # Truncated mid-string: runtime's heuristic recovers the dialogue
+    # prefix; bench mirrors that. Without recovery the judge would see
+    # the raw JSON envelope.
     reply = "{\"dialogue\": \"unterminated"
+    assert extract_dialogue_for_judging(reply) == "unterminated"
+
+
+def test_extract_dialogue_completely_malformed_falls_through():
+    # No envelope, no dialogue key — return verbatim.
+    reply = "{not json at all"
     assert extract_dialogue_for_judging(reply) == reply
 
 
@@ -397,6 +404,52 @@ def test_extract_dialogue_multiple_dash_lines():
     # part of the metadata block.
     reply = "first line\n---\n{\"action\": \"---\"}"
     assert extract_dialogue_for_judging(reply) == "first line"
+
+
+def test_extract_dialogue_dash_at_very_start_no_newline():
+    # Codex review #PRRT_kwDORqdnvs6CzukN: model emits metadata-only
+    # output with no leading newline before `---`. Runtime splits on
+    # `---` itself; bench must match.
+    reply = "--- \n{\"action\": \"shrugs\"}"
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_markdown_json_fence():
+    # Codex review #PRRT_kwDORqdnvs6CzukS: Anthropic-style fence wrap.
+    # Runtime strips fences in `parish_npc::strip_json_fence`; bench
+    # must match.
+    reply = '```json\n{"dialogue": "Aye, fine day.", "action": "nods"}\n```'
+    assert extract_dialogue_for_judging(reply) == "Aye, fine day."
+
+
+def test_extract_dialogue_bare_markdown_fence():
+    reply = '```\n{"dialogue": "Plain fence", "action": "nods"}\n```'
+    assert extract_dialogue_for_judging(reply) == "Plain fence"
+
+
+def test_extract_dialogue_truncated_json_recovery():
+    # Codex review #PRRT_kwDORqdnvs6CzukL: max_tokens hit mid-stream.
+    # Runtime's heuristic recovers the dialogue prefix; bench must match.
+    reply = '{"dialogue": "Ah, the toothache is a cruel thing", "actio'
+    assert extract_dialogue_for_judging(reply) == "Ah, the toothache is a cruel thing"
+
+
+def test_extract_dialogue_truncated_json_with_escaped_quotes():
+    reply = '{"dialogue": "She said \\"hi\\" to me", "act'
+    assert extract_dialogue_for_judging(reply) == 'She said "hi" to me'
+
+
+def test_extract_dialogue_json_with_trailing_junk():
+    # raw_decode tolerates trailing junk after the closing brace; the
+    # old hand-rolled parser only worked if the reply ended at `}`.
+    reply = '{"dialogue": "Hello", "action": "wave"}\n\nextra prose'
+    assert extract_dialogue_for_judging(reply) == "Hello"
+
+
+def test_extract_dialogue_fenced_truncated_json():
+    # Belt-and-braces: fence + truncation both present.
+    reply = '```json\n{"dialogue": "fenced and cut"'
+    assert extract_dialogue_for_judging(reply) == "fenced and cut"
 
 
 # ---------------------------------------------------------------------------
