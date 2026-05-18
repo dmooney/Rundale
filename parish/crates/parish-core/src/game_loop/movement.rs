@@ -54,6 +54,8 @@ pub async fn handle_movement(
     reaction_templates: &ReactionTemplates,
 ) -> GameEffects {
     // Apply movement within a single lock scope to prevent TOCTOU races.
+    // `apply_movement` itself publishes `PlayerMoved` on successful arrival
+    // so this handler doesn't need to — see `game_session::apply_movement`.
     let (effects, rolled_encounter) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;

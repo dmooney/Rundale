@@ -163,6 +163,66 @@ pub fn assign_tiers(
     transitions
 }
 
+/// Computes tier assignments for every NPC in `npcs` and writes them
+/// into `tier_assignments`, **without publishing any `GameEvent` or
+/// running inflation/deflation side effects**.
+///
+/// Use this to pre-seed `tier_assignments` after restoring a snapshot
+/// so the subsequent `assign_tiers` call doesn't see every NPC as
+/// "newly promoted from `Tier4` default" and re-broadcast bogus
+/// `NpcArrived` events. Tier is derivable from
+/// `(world.player_location, npc.location, npc.state)`, so persisting
+/// it in the snapshot file is unnecessary — recomputing here gives
+/// the same result and avoids a schema migration.
+///
+/// The `bfs_cache` parameter is reused (and populated if empty) the
+/// same way `assign_tiers` uses it, so a follow-up live
+/// `assign_tiers` call hits the cache.
+pub fn seed_tier_state(
+    npcs: &HashMap<NpcId, Npc>,
+    tier_assignments: &mut HashMap<NpcId, CogTier>,
+    bfs_cache: &mut Option<(LocationId, HashMap<LocationId, u32>)>,
+    world: &WorldState,
+) {
+    let player_location = world.player_location;
+    let graph = &world.graph;
+    let config = CognitiveTierConfig::default();
+
+    let cache_hit = bfs_cache
+        .as_ref()
+        .is_some_and(|(loc, _)| *loc == player_location);
+    if !cache_hit {
+        let distances = bfs_distances(player_location, graph);
+        *bfs_cache = Some((player_location, distances));
+    }
+    let distances = &bfs_cache.as_ref().expect("cache populated above").1;
+
+    for npc in npcs.values() {
+        use crate::types::NpcState;
+        let distance = match npc.state {
+            NpcState::Present => distances.get(&npc.location).copied(),
+            NpcState::InTransit { from, to, .. } => {
+                let d_from = distances.get(&from).copied();
+                let d_to = distances.get(&to).copied();
+                match (d_from, d_to) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                }
+            }
+        };
+
+        let new_tier = match distance {
+            Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
+            Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
+            Some(d) if d <= config.tier3_max_distance => CogTier::Tier3,
+            _ => CogTier::Tier4,
+        };
+        tier_assignments.insert(npc.id, new_tier);
+    }
+}
+
 /// BFS distances from `source` to all reachable locations.
 fn bfs_distances(source: LocationId, graph: &WorldGraph) -> HashMap<LocationId, u32> {
     let mut distances: HashMap<LocationId, u32> = HashMap::new();

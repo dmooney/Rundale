@@ -8,7 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use parish_core::character_log::CharacterLogManager;
 use parish_core::session_store::DbSessionStore;
+use parish_core::world::events::GameEvent;
+use tokio::sync::broadcast;
 
 use crate::config::{InferenceCategory, InferenceConfig};
 use crate::inference::AnyClient;
@@ -135,6 +138,13 @@ pub struct App {
     /// CLI is single-user; handlers pass session_id = "" so the store
     /// resolves to the flat `saves/parish_NNN.db` layout.
     pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
+    /// Per-character markdown log writer (gated by `character-logs` flag).
+    pub character_log: Option<Arc<CharacterLogManager>>,
+    /// Drains [`GameEvent`]s in the REPL loop into `character_log`. Owned
+    /// here rather than spawned on a task because `App` fields aren't
+    /// shareable across threads — see `character_log::process_event` in
+    /// the REPL loop for the pump.
+    pub character_log_rx: Option<broadcast::Receiver<GameEvent>>,
 }
 
 impl App {
@@ -187,6 +197,8 @@ impl App {
             // resolve_project_saves_dir() resolves the real saves directory
             // under the platform user-data root (#696 slice 8, #771).
             session_store: Arc::new(DbSessionStore::new(PathBuf::from("saves"))),
+            character_log: None,
+            character_log_rx: None,
         }
     }
 
