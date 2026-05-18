@@ -324,6 +324,59 @@ impl NpcManager {
         prefix_match
     }
 
+    /// Finds an NPC at a location by occupation/role (case-insensitive).
+    ///
+    /// Returns `Some` only if exactly one co-located NPC matches — protects
+    /// against silently routing to the wrong person when a role is shared
+    /// (e.g. two farmers at the same farm). Used as a fallback by
+    /// `resolve_npc_targets` so human players can address NPCs by
+    /// role-vocative ("Father", "Priest", "Widow", "Constable") when the
+    /// reference is unambiguous (issue #998).
+    ///
+    /// Matching tiers, tried in order until one returns a unique hit:
+    /// 1. Exact case-insensitive equality (`"Widow" == "Widow"`).
+    /// 2. Whole-word token overlap (`"Priest"` matches `"Parish Priest"`,
+    ///    `"Constable"` matches `"Retired Constable"`).
+    /// 3. Built-in vocative aliases (`"Father" → priest occupations`).
+    ///
+    /// Ambiguous at any tier returns `None` so the caller's "no one here by
+    /// that name" path fires instead of guessing.
+    pub fn find_by_role_at(&self, role: &str, location: LocationId) -> Option<&Npc> {
+        let needle = role.trim();
+        if needle.is_empty() {
+            return None;
+        }
+        let npcs = self.npcs_at(location);
+
+        // Tier 1: exact case-insensitive equality.
+        if let Some(hit) = unique_match(&npcs, |npc| npc.occupation.eq_ignore_ascii_case(needle)) {
+            return Some(hit);
+        }
+
+        // Tier 2: needle matches any whole word in the occupation.
+        let needle_lower = needle.to_ascii_lowercase();
+        if let Some(hit) = unique_match(&npcs, |npc| {
+            npc.occupation
+                .split_whitespace()
+                .any(|tok| tok.eq_ignore_ascii_case(&needle_lower))
+        }) {
+            return Some(hit);
+        }
+
+        // Tier 3: built-in vocative aliases (Irish 1820 Catholic context).
+        if let Some(canonical) = role_alias(&needle_lower)
+            && let Some(hit) = unique_match(&npcs, |npc| {
+                npc.occupation
+                    .split_whitespace()
+                    .any(|tok| tok.eq_ignore_ascii_case(canonical))
+            })
+        {
+            return Some(hit);
+        }
+
+        None
+    }
+
     /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
     pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut Npc> {
         let lower = name.to_lowercase();
@@ -618,6 +671,42 @@ impl Default for NpcManager {
     }
 }
 
+/// Returns the unique NPC matching `predicate`, or `None` if zero or
+/// multiple match. Helper for `find_by_role_at` — refusing on ambiguity
+/// keeps the resolver from silently picking the wrong person.
+fn unique_match<'a, F>(npcs: &[&'a Npc], predicate: F) -> Option<&'a Npc>
+where
+    F: Fn(&Npc) -> bool,
+{
+    let mut hit: Option<&Npc> = None;
+    for &npc in npcs {
+        if predicate(npc) {
+            if hit.is_some() {
+                return None;
+            }
+            hit = Some(npc);
+        }
+    }
+    hit
+}
+
+/// Maps common Irish 1820 role-vocatives to a canonical occupation token.
+///
+/// Returns the token to look for inside the NPC's `occupation` field. The
+/// caller already case-folded the input.
+fn role_alias(needle_lower: &str) -> Option<&'static str> {
+    match needle_lower {
+        // Catholic clergy — "Father", "Fr", "Fr.", "Parson", "Reverend" all
+        // address a priest in period dialogue. Rundale's data uses
+        // occupation labels like "Parish Priest" / "Curate".
+        "father" | "fr" | "fr." | "parson" | "reverend" => Some("priest"),
+        // Constabulary — historical Irish parish addressed peace officers
+        // as "Constable" or "Officer".
+        "officer" => Some("constable"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -753,6 +842,133 @@ mod tests {
         mgr.mark_introduced(NpcId(1));
 
         assert!(mgr.find_by_name("Nobody", LocationId(2)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_unique_match_resolves() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        let found = mgr.find_by_role_at("Widow", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_role_at_case_insensitive() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Father".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("father", LocationId(2)).is_some());
+        assert!(mgr.find_by_role_at("FATHER", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_ambiguous_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut a = make_test_npc(1, 2);
+        a.occupation = "Farmer".to_string();
+        let mut b = make_test_npc(2, 2);
+        b.occupation = "Farmer".to_string();
+        mgr.add_npc(a);
+        mgr.add_npc(b);
+
+        assert!(
+            mgr.find_by_role_at("Farmer", LocationId(2)).is_none(),
+            "two NPCs share the role — resolver must refuse to guess"
+        );
+    }
+
+    #[test]
+    fn test_find_by_role_at_wrong_location_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("Widow", LocationId(99)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_token_overlap_priest_matches_parish_priest() {
+        // Player addresses "Priest" — Rundale data uses "Parish Priest".
+        let mut mgr = NpcManager::new();
+        let mut tierney = make_test_npc(1, 2);
+        tierney.occupation = "Parish Priest".to_string();
+        mgr.add_npc(tierney);
+
+        let found = mgr.find_by_role_at("Priest", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_role_at_token_overlap_constable_matches_retired_constable() {
+        let mut mgr = NpcManager::new();
+        let mut flanagan = make_test_npc(1, 2);
+        flanagan.occupation = "Retired Constable".to_string();
+        mgr.add_npc(flanagan);
+
+        assert!(mgr.find_by_role_at("Constable", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_alias_father_routes_to_priest() {
+        // "Father, a word" — period-correct vocative for a Catholic priest.
+        let mut mgr = NpcManager::new();
+        let mut tierney = make_test_npc(1, 2);
+        tierney.occupation = "Parish Priest".to_string();
+        mgr.add_npc(tierney);
+
+        let found = mgr.find_by_role_at("Father", LocationId(2));
+        assert!(found.is_some(), "Father vocative should resolve to priest");
+        assert_eq!(found.unwrap().id, NpcId(1));
+
+        // "Fr." / "Fr" abbreviations.
+        assert!(mgr.find_by_role_at("Fr.", LocationId(2)).is_some());
+        assert!(mgr.find_by_role_at("fr", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_alias_refuses_when_ambiguous_across_priests() {
+        let mut mgr = NpcManager::new();
+        let mut priest = make_test_npc(1, 2);
+        priest.occupation = "Parish Priest".to_string();
+        let mut curate = make_test_npc(2, 2);
+        curate.occupation = "Curate Priest".to_string();
+        mgr.add_npc(priest);
+        mgr.add_npc(curate);
+
+        assert!(
+            mgr.find_by_role_at("Father", LocationId(2)).is_none(),
+            "two priests share the vocative — must refuse"
+        );
+    }
+
+    #[test]
+    fn test_find_by_role_at_unknown_alias_does_not_match() {
+        let mut mgr = NpcManager::new();
+        let mut publican = make_test_npc(1, 2);
+        publican.occupation = "Publican".to_string();
+        mgr.add_npc(publican);
+
+        // "Sir" is not a registered alias and isn't a token of "Publican".
+        assert!(mgr.find_by_role_at("Sir", LocationId(2)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_empty_input_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("", LocationId(2)).is_none());
+        assert!(mgr.find_by_role_at("   ", LocationId(2)).is_none());
     }
 
     #[test]
