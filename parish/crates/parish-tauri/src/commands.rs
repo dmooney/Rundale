@@ -2056,37 +2056,11 @@ fn emit_npc_reactions(
 
 // ── Demo / auto-player commands ──────────────────────────────────────────────
 
-/// A single NPC visible to the demo player at the current location.
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct DemoNpcInfo {
-    pub name: String,
-    pub description: String,
-}
-
-/// An adjacent location visible to the demo player.
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct DemoAdjacentLocation {
-    pub name: String,
-    pub travel_minutes: Option<u16>,
-    pub visited: bool,
-}
-
-/// A snapshot of the game context passed to the LLM player each turn.
-///
-/// Backend fills all fields except `recent_log`; the frontend appends the
-/// last 40 entries from the `textLog` store before calling `get_llm_player_action`.
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct DemoContextSnapshot {
-    pub location_name: String,
-    pub location_description: String,
-    pub game_time: String,
-    pub season: String,
-    pub weather: String,
-    pub npcs_here: Vec<DemoNpcInfo>,
-    pub adjacent: Vec<DemoAdjacentLocation>,
-    pub recent_log: Vec<String>,
-    pub extra_prompt: Option<String>,
-}
+// Demo payload types and the prompt-builder live in `parish-core::ipc::demo`
+// so the builder can be constrained to GUI-facing inputs only (issue #998).
+pub use parish_core::ipc::demo::{
+    DemoAdjacentLocation, DemoContextSnapshot, DemoNpcInfo, build_demo_context,
+};
 
 /// Demo configuration returned by `get_demo_config`.
 #[derive(serde::Serialize, Clone)]
@@ -2131,89 +2105,36 @@ pub async fn get_demo_context(
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
 
-    let player_loc = world.player_location;
-
-    let location_name = world
-        .graph
-        .get(player_loc)
-        .map(|d| d.name.clone())
-        .unwrap_or_default();
-
-    let location_description = if let Some(loc_data) = world.current_location_data() {
-        parish_core::world::description::render_description(
-            loc_data,
-            world.clock.time_of_day(),
-            &world.weather.to_string(),
-            &[],
-        )
-    } else {
-        String::new()
-    };
+    // Issue #998: build the demo snapshot from the same GUI-facing IPC
+    // payloads the frontend already consumes. Anything the GUI hides
+    // (occupation pre-intro, fog-of-war neighbours) is automatically
+    // hidden from the LLM prompt.
+    let world_snapshot = parish_core::ipc::handlers::snapshot_from_world(&world);
+    let npcs = parish_core::ipc::handlers::build_npcs_here(&world, &npc_manager);
+    let map =
+        parish_core::ipc::handlers::build_map_data(&world, state.transport.default_mode(), false);
 
     use chrono::Datelike;
     let now = world.clock.now();
-    let time_of_day = world.clock.time_of_day();
     let game_time = format!(
         "{}, {} {} {}, {}",
         now.format("%A"),
         now.day(),
         now.format("%B"),
         now.year(),
-        time_of_day,
+        world.clock.time_of_day(),
     );
     let season = format!("{}", world.clock.season());
-    let weather = world.weather.to_string();
-
-    let npcs_here = npc_manager
-        .npcs_at(player_loc)
-        .iter()
-        .map(|npc| {
-            let introduced = npc_manager.is_introduced(npc.id);
-            DemoNpcInfo {
-                name: npc.display_name(introduced).to_string(),
-                description: npc.occupation.clone(),
-            }
-        })
-        .collect();
-
-    let speed = state.transport.default_mode().speed_m_per_s;
-    let adjacent = world
-        .graph
-        .neighbors(player_loc)
-        .into_iter()
-        .map(|(neighbor_id, _conn)| {
-            let name = world
-                .graph
-                .get(neighbor_id)
-                .map(|d| d.name.clone())
-                .unwrap_or_else(|| format!("Location {}", neighbor_id.0));
-            let travel_minutes = Some(world.graph.edge_travel_minutes(
-                player_loc,
-                neighbor_id,
-                speed,
-            ));
-            let visited = world.visited_locations.contains(&neighbor_id);
-            DemoAdjacentLocation {
-                name,
-                travel_minutes,
-                visited,
-            }
-        })
-        .collect();
-
     let extra_prompt = state.demo_config.extra_prompt.clone();
 
-    Ok(DemoContextSnapshot {
-        location_name,
-        location_description,
+    Ok(build_demo_context(
+        &world_snapshot,
+        &npcs,
+        &map,
         game_time,
         season,
-        weather,
-        npcs_here,
-        adjacent,
-        recent_log: Vec::new(),
         extra_prompt,
-    })
+    ))
 }
 
 /// Extracts the player action from an LLM response.
@@ -2458,51 +2379,18 @@ Your entire response must be a single JSON object — nothing before or after it
         extra = extra_section,
     );
 
-    let mut user_parts: Vec<String> = Vec::new();
-    user_parts.push(format!("Location: {}", ctx.location_name));
-    if !ctx.location_description.is_empty() {
-        user_parts.push(ctx.location_description.clone());
-    }
-    user_parts.push(format!("Date and time: {} | {}", ctx.game_time, ctx.season));
-    user_parts.push(format!("Weather: {}", ctx.weather));
+    // Issue #998: render via the shared `parish_core::ipc::demo` helper so the
+    // prompt format stays in lockstep with the typed snapshot (no
+    // `Name (Title)` parens that the LLM can misread as a vocative).
+    let user_prompt = parish_core::ipc::demo::render_user_prompt(&ctx);
 
-    if ctx.npcs_here.is_empty() {
-        user_parts.push("NPCs here: none".to_string());
-    } else {
-        let npc_lines: Vec<String> = ctx
-            .npcs_here
-            .iter()
-            .map(|n| format!("  - {} ({})", n.name, n.description))
-            .collect();
-        user_parts.push(format!("NPCs here:\n{}", npc_lines.join("\n")));
-    }
-
-    if !ctx.adjacent.is_empty() {
-        let adj_lines: Vec<String> = ctx
-            .adjacent
-            .iter()
-            .map(|a| {
-                let mins = a
-                    .travel_minutes
-                    .map(|m| format!("{} min", m))
-                    .unwrap_or_else(|| "? min".to_string());
-                let vis = if a.visited { "visited" } else { "unvisited" };
-                format!("  - {} ({}, {})", a.name, mins, vis)
-            })
-            .collect();
-        user_parts.push(format!("Adjacent locations:\n{}", adj_lines.join("\n")));
-    }
-
-    if !ctx.recent_log.is_empty() {
-        let log_lines: Vec<String> = ctx.recent_log.iter().map(|l| format!("> {}", l)).collect();
-        user_parts.push(format!("Recent events:\n{}", log_lines.join("\n")));
-    }
-
-    // Fill-in-the-blank technique: end the prompt with an incomplete JSON
-    // object so the model completes the string rather than reasoning about it.
-    user_parts.push("Action (complete the JSON):\n{\"action\": \"".to_string());
-
-    let user_prompt = user_parts.join("\n\n");
+    // Surface the constructed prompt so demo-mode logs prove what the LLM
+    // actually saw — required by the issue-998 verification flow.
+    tracing::info!(
+        location = %ctx.location_name,
+        user_prompt = %user_prompt,
+        "demo turn: prompt built"
+    );
 
     let raw = client
         .generate(

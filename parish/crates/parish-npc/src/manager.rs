@@ -240,6 +240,33 @@ impl NpcManager {
         prefix_match
     }
 
+    /// Finds an NPC at a location by occupation/role (case-insensitive).
+    ///
+    /// Returns `Some` only if exactly one co-located NPC has the matching
+    /// occupation — this protects against silently routing to the wrong
+    /// person when the role is shared (e.g. two farmers at the same farm).
+    /// Used as a fallback by `resolve_npc_targets` so human players can
+    /// address NPCs by role-vocative ("Father", "Widow", "Miss") when the
+    /// reference is unambiguous (issue #998).
+    pub fn find_by_role_at(&self, role: &str, location: LocationId) -> Option<&Npc> {
+        let needle = role.trim().to_lowercase();
+        if needle.is_empty() {
+            return None;
+        }
+        let npcs = self.npcs_at(location);
+        let mut hit: Option<&Npc> = None;
+        for &npc in &npcs {
+            if npc.occupation.to_lowercase() == needle {
+                if hit.is_some() {
+                    // Ambiguous — two NPCs share the role; refuse to guess.
+                    return None;
+                }
+                hit = Some(npc);
+            }
+        }
+        hit
+    }
+
     /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
     pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut Npc> {
         let lower = name.to_lowercase();
@@ -669,6 +696,66 @@ mod tests {
         mgr.mark_introduced(NpcId(1));
 
         assert!(mgr.find_by_name("Nobody", LocationId(2)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_unique_match_resolves() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        let found = mgr.find_by_role_at("Widow", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_role_at_case_insensitive() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Father".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("father", LocationId(2)).is_some());
+        assert!(mgr.find_by_role_at("FATHER", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_ambiguous_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut a = make_test_npc(1, 2);
+        a.occupation = "Farmer".to_string();
+        let mut b = make_test_npc(2, 2);
+        b.occupation = "Farmer".to_string();
+        mgr.add_npc(a);
+        mgr.add_npc(b);
+
+        assert!(
+            mgr.find_by_role_at("Farmer", LocationId(2)).is_none(),
+            "two NPCs share the role — resolver must refuse to guess"
+        );
+    }
+
+    #[test]
+    fn test_find_by_role_at_wrong_location_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("Widow", LocationId(99)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_empty_input_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("", LocationId(2)).is_none());
+        assert!(mgr.find_by_role_at("   ", LocationId(2)).is_none());
     }
 
     #[test]
