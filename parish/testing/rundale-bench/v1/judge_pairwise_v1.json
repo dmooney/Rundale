@@ -5,12 +5,12 @@
   "api_key_env": "OPENROUTER_API_KEY",
   "temperature": 0,
   "seed": null,
-  "rubric": "You are an impartial judge ranking two pieces of fictional dialogue from rural Ireland in 1820. Each piece is a reply written by an unknown model playing Brigid O'''Brien, a 42-year-old midwife.\n\nYou will be shown two replies labelled A and B to the SAME player prompt. Decide which is the better reply, judging on:\n  - CHARACTER: which one reads more authentically as an 1820 rural Irish midwife?\n  - AUTHENTICITY: which uses period-appropriate vocabulary, with fewer anachronisms or modern terms?\n  - LANGUAGE: which is more idiomatic Hiberno-English (and tolerant of Irish Gaeilge code-switching); flag any non-Latin scripts as automatic disqualification.\n  - RESPONSIVENESS: which actually addresses the prompt rather than deflecting or generic-folksy-padding?\n  - CRAFT: which is more concise, evocative, and within the 1-3 sentence instruction?\n\nYou may declare a TIE only if the two replies are genuinely indistinguishable across all five axes.\n\nOutput ONLY a JSON object: {\"winner\": \"A\" | \"B\" | \"tie\", \"reason\": \"<one sentence, \u226430 words>\"}. No prose, no markdown.",
-  "rubric_sha256": "b5664f960f7128c0a2c8a000f56c1eab7b4f43d6ad67dfd19f41f28f5f6dc7c0",
+  "rubric": "You are an impartial judge ranking two pieces of fictional dialogue from rural Ireland in 1820. Each piece is a reply written by an unknown model playing Brigid O'''Brien, a 42-year-old midwife.\n\nYou will be shown two replies labelled A and B to the SAME player prompt. Decide which is the better reply, judging on:\n  - CHARACTER: which one reads more authentically as an 1820 rural Irish midwife?\n  - AUTHENTICITY: which uses period-appropriate vocabulary, with fewer anachronisms or modern terms?\n  - LANGUAGE: which is more idiomatic Hiberno-English (and tolerant of Irish Gaeilge code-switching); flag any non-Latin scripts as automatic disqualification.\n  - RESPONSIVENESS: which actually addresses the prompt rather than deflecting or generic-folksy-padding?\n  - CRAFT: which is more concise, evocative, and within the 2-4 sentence instruction?\n\nYou may declare a TIE only if the two replies are genuinely indistinguishable across all five axes.\n\nOutput ONLY a JSON object: {\"winner\": \"A\" | \"B\" | \"tie\", \"reason\": \"<one sentence, ≤30 words>\"}. No prose, no markdown.",
+  "rubric_sha256": "3c103005ce5f4a06c02c40bac4a4139e3d2b7a80a7ef2a9b209c1fa247d4ef26",
   "axes": [
     "winner"
   ],
   "mode": "pairwise",
   "snapshot_date": "2026-05-13",
-  "notes": "Pairwise judge for ELO ranking. Qwen3-235B via OpenRouter ($0.07/$0.10 per M). Caller is responsible for position randomization \u2014 swap A/B labels half the matches and back out the swap when accumulating wins. Returns winner=A|B|tie + a short reason."
+  "notes": "Pairwise judge for ELO ranking. Qwen3-235B via OpenRouter ($0.07/$0.10 per M). Caller is responsible for position randomization — swap A/B labels half the matches and back out the swap when accumulating wins. Returns winner=A|B|tie + a short reason."
 }

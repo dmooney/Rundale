@@ -34,8 +34,10 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_lib import CostTracker, Target, call_chat  # noqa: E402
+from grade import extract_dialogue_for_judging  # noqa: E402
 
 DEFAULT_AXES = ["character", "authenticity", "language", "responsiveness", "craft"]
 
@@ -54,7 +56,7 @@ Axes:
   - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms ("hi", "okay", "guys")
   - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0
   - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding
-  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing
+  - CRAFT             — concise, evocative, 2-4 sentences as instructed; no monologuing
 
 After the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.
 
@@ -81,7 +83,10 @@ def build_schema(axes: list[str]) -> dict:
 
 def score_one(rubric: str, reply: str, judge_target: Target, tracker: CostTracker, axes: list[str]) -> dict:
     schema = build_schema(axes)
-    user = f"Reply to score:\n\n{reply}\n"
+    # Strip the runtime metadata envelope so the judge scores the
+    # player-visible dialogue, not raw scaffolding (see #994).
+    dialogue = extract_dialogue_for_judging(reply)
+    user = f"Reply to score:\n\n{dialogue}\n"
     try:
         text, usage = call_chat(judge_target, rubric, user, schema=schema,
                                 temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
