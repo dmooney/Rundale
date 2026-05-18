@@ -1069,6 +1069,8 @@ impl GameTestHarness {
                 if let Some(npc) = self.app.npc_manager.get_mut(id) {
                     npc.reaction_log.add(&emoji, text, chrono::Utc::now());
                 }
+                // Feed the per-session diversity sensor (#995).
+                self.app.npc_manager.record_reaction_emoji(&emoji);
                 self.app
                     .world
                     .log(format!("{} {}", capitalize_first(&name), emoji));

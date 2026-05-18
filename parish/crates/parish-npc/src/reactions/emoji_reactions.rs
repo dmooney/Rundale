@@ -11,6 +11,15 @@ use crate::reactions::reaction_description;
 use crate::{LanguageSettings, Npc};
 use parish_inference::AnyClient;
 
+/// Sampling temperature for the player-message reaction inference call.
+///
+/// Bumped from `None` (provider default, effectively 0 on most backends)
+/// to 1.0 in issue #995 so small-model reaction sampling explores beyond
+/// the most-likely-safe choice (`🤔` for questions, `😊` for friendly).
+/// The output schema is locked to a single palette emoji so widening the
+/// distribution cannot break correctness — only diversify it.
+pub const REACTION_INFERENCE_TEMPERATURE: f32 = 1.0;
+
 /// Keyword groups that trigger NPC reactions, with the corresponding emoji.
 ///
 /// Coverage was widened in #982 after a five-turn demo run produced zero
@@ -244,8 +253,19 @@ pub async fn infer_player_message_reaction(
     // truncate the JSON before the closing brace, producing an empty parse and
     // an invisible reaction. 80 keeps the same upper bound on cost while
     // removing the truncation risk for every palette entry.
-    let call =
-        client.generate_json::<LlmReactionDecision>(model, &prompt, Some(&system), Some(80), None);
+    //
+    // Issue #995: small-model reaction inference collapses onto one or two
+    // safe emoji at temp=0. An explicit 1.0 widens the sampling distribution
+    // so a 1.5B-class model picks across the full palette rather than always
+    // returning 🤔 / 😊. The output schema is constrained to one of the
+    // palette entries, so the higher temperature does not break correctness.
+    let call = client.generate_json::<LlmReactionDecision>(
+        model,
+        &prompt,
+        Some(&system),
+        Some(80),
+        Some(REACTION_INFERENCE_TEMPERATURE),
+    );
 
     let response = match tokio::time::timeout(timeout, call).await {
         Ok(Ok(r)) => r,
