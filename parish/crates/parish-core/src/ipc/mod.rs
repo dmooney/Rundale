@@ -7,6 +7,7 @@
 pub mod byok;
 pub mod commands;
 pub mod config;
+pub mod demo;
 pub mod editor;
 pub mod event_emitter;
 pub mod handlers;

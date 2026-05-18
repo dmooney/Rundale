@@ -69,8 +69,7 @@ Rundale (on Parish engine)/
 │       └── pronunciations.json     # Irish name phonetic guides
 │
 ├── deploy/
-│   ├── Dockerfile          # Web-server build (build context: repo root)
-│   └── railway.toml        # Railway deployment config
+│   └── Dockerfile          # Web-server build (build context: repo root)
 │
 └── docs/                   # See docs/index.md
     ├── agent/              # Agent docs (this directory)

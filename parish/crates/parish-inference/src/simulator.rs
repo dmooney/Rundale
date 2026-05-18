@@ -15,8 +15,12 @@ use parish_types::ParishError;
 // ---------------------------------------------------------------------------
 // Embedded corpus — the training data for our "GPT-0" model
 // ---------------------------------------------------------------------------
+//
+// `pub` so quality detectors (parish-npc::quality::detect_simulator_corpus_overlap)
+// can build a 4-gram set from it and flag when this gibberish leaks into the
+// UI text stream. Do not consume this corpus for any other purpose.
 
-const CORPUS: &str = "\
+pub const CORPUS: &str = "\
 Ah sure what harm would that do ya now the planning application was rejected again \
 himself from the council says the drainage situation is fierce altogether Father Clancy \
 was spotted beyond at the crossroads arguing with the postman about the hedge which is \

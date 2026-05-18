@@ -443,7 +443,13 @@ pub fn resolve_npc_targets(
     let mut targets = Vec::new();
     let mut seen = HashSet::new();
     for name in target_names {
-        if let Some(npc) = npc_manager.find_by_name(name, world.player_location)
+        // Primary: literal name (exact or first-name prefix).
+        // Fallback: occupation/role vocative ("Father", "Widow") when
+        // exactly one co-located NPC matches that role — issue #998.
+        let resolved = npc_manager
+            .find_by_name(name, world.player_location)
+            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
+        if let Some(npc) = resolved
             && seen.insert(npc.id)
         {
             targets.push(npc.id);
@@ -1055,6 +1061,68 @@ mod tests {
 
         let targets = resolve_npc_targets(&world, &npc_mgr, &["Aoife Brennan".to_string()]);
         assert!(targets.is_empty());
+    }
+
+    #[test]
+    fn resolve_npc_targets_role_vocative_resolves_when_unambiguous() {
+        // Issue #998: "Good mornin', Widow." with only Peig (occupation = Widow)
+        // co-located. Should resolve to Peig, not return empty.
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.occupation = "Widow".to_string();
+        peig.location = world.player_location;
+        npc_mgr.add_npc(peig);
+
+        let targets = resolve_npc_targets(&world, &npc_mgr, &["Widow".to_string()]);
+        assert_eq!(targets, vec![NpcId(1)]);
+    }
+
+    #[test]
+    fn resolve_npc_targets_role_vocative_refuses_when_ambiguous() {
+        // Two co-located NPCs share a role — resolver must NOT silently pick.
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut a = Npc::new_test_npc();
+        a.id = NpcId(1);
+        a.name = "Siobhan Murphy".to_string();
+        a.occupation = "Farmer".to_string();
+        a.location = world.player_location;
+
+        let mut b = Npc::new_test_npc();
+        b.id = NpcId(2);
+        b.name = "Liam Murphy".to_string();
+        b.occupation = "Farmer".to_string();
+        b.location = world.player_location;
+
+        npc_mgr.add_npc(a);
+        npc_mgr.add_npc(b);
+
+        let targets = resolve_npc_targets(&world, &npc_mgr, &["Farmer".to_string()]);
+        assert!(
+            targets.is_empty(),
+            "ambiguous role-vocative must not resolve silently"
+        );
+    }
+
+    #[test]
+    fn resolve_npc_targets_role_vocative_case_insensitive() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut tierney = Npc::new_test_npc();
+        tierney.id = NpcId(1);
+        tierney.name = "Fr. Declan Tierney".to_string();
+        tierney.occupation = "Parish Priest".to_string();
+        tierney.location = world.player_location;
+        npc_mgr.add_npc(tierney);
+
+        let targets = resolve_npc_targets(&world, &npc_mgr, &["parish priest".to_string()]);
+        assert_eq!(targets, vec![NpcId(1)]);
     }
 
     #[test]

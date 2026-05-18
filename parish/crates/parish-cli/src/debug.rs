@@ -33,6 +33,7 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "relationships" | "rels" => debug_relationships(app, arg),
                 "gossip" => debug_gossip(app, arg),
                 "language" | "lang" => debug_language(app),
+                "reactions" => debug_reactions(app),
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -389,7 +390,36 @@ fn debug_help() -> Vec<String> {
         "  /debug rels <name>      — NPC's relationships".to_string(),
         "  /debug gossip [name]    — Gossip network (or NPC's known gossip)".to_string(),
         "  /debug language         — Active language settings from the loaded mod".to_string(),
+        "  /debug reactions        — Per-session NPC reaction emoji buffer + monoculture sensor"
+            .to_string(),
     ]
+}
+
+/// Per-session NPC reaction emoji ring buffer + monoculture sensor state.
+///
+/// Surfaces the buffer that feeds [`parish_npc::quality::detect_emoji_monoculture`]
+/// so a play-test can observe the sensor without reading log files (issue #995).
+fn debug_reactions(app: &App) -> Vec<String> {
+    let buffer = app.npc_manager.reaction_emoji_buffer();
+    let refs: Vec<&str> = buffer.iter().map(String::as_str).collect();
+    let detection = parish_core::npc::quality::detect_emoji_monoculture(&refs);
+
+    let mut lines = vec!["[DEBUG REACTIONS]".to_string()];
+    lines.push(format!(
+        "  Buffer ({} / {}): {}",
+        buffer.len(),
+        parish_core::npc::manager::REACTION_EMOJI_BUFFER_CAPACITY,
+        if buffer.is_empty() {
+            "(empty)".to_string()
+        } else {
+            buffer.join(" ")
+        }
+    ));
+    match detection {
+        Some(issue) => lines.push(format!("  Monoculture: ACTIVE — {}", issue.detail)),
+        None => lines.push("  Monoculture: clear".to_string()),
+    }
+    lines
 }
 
 /// Active language settings derived from the loaded mod's `[setting]` block.

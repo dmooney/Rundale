@@ -1,9 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "deploy/Dockerfile"
-
-[deploy]
-# /api/health is the public liveness probe; /api/ui-config is auth-gated (#373).
-healthcheckPath = "/api/health"
-healthcheckTimeout = 300
-restartPolicyType = "on_failure"

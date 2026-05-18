@@ -1,0 +1,46 @@
+old prompt len: 269 chars
+new prompt len: 3894 chars
+
+=== OLD prompt (pre-#994) (15 samples) ===
+  dialogue-0001  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0002  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0003  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0004  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0005  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0006  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0007  C4 A5 L5 R5 K4 -> overall 4.40
+  dialogue-0008  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0009  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0010  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0011  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0012  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0013  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0014  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0015  C5 A5 L5 R5 K5 -> overall 5.00
+  MEAN: character=4.93 authenticity=5.00 language=5.00 responsiveness=5.00 craft=4.93 overall=4.96
+
+=== NEW prompt (post-#994) (15 samples) ===
+  dialogue-0001  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0002  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0003  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0004  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0005  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0006  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0007  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0008  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0009  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0010  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0011  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0012  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0013  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0014  C5 A5 L5 R5 K5 -> overall 5.00
+  dialogue-0015  C5 A5 L5 R5 K5 -> overall 5.00
+  MEAN: character=5.00 authenticity=5.00 language=5.00 responsiveness=5.00 craft=5.00 overall=5.00
+
+=== DELTA (new - old) ===
+  character        old=4.93  new=5.00  delta=+0.07
+  authenticity     old=5.00  new=5.00  delta=+0.00
+  language         old=5.00  new=5.00  delta=+0.00
+  responsiveness   old=5.00  new=5.00  delta=+0.00
+  craft            old=4.93  new=5.00  delta=+0.07
+  overall          old=4.96  new=5.00  delta=+0.04

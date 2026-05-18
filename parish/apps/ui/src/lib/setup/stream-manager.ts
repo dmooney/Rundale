@@ -66,18 +66,26 @@ export interface StreamManager {
 	setPendingEndHints: (hints: LanguageHint[] | null) => void;
 	pendingTurnCount: () => number;
 	hasPendingEndHints: () => boolean;
+	isChainInProgress: () => boolean;
 	dispose: () => void;
 }
 
 export function createStreamManager(): StreamManager {
 	let pendingNpcTurns = new Map<number, PendingNpcTurn>();
 	let pendingStreamEndHints: LanguageHint[] | null = null;
+	// True from the first stream-token of a conversation chain until
+	// `finishNpcStream` runs. The +page.svelte `onLoading` handler reads
+	// this to suppress mid-chain `loading {active:false}` events from
+	// clearing `streamingActive` — handle_npc_conversation cancels and
+	// re-spawns the loading animation per addressed NPC turn (#991).
+	let chainInProgress = false;
 
 	function findPendingTurn(turnId: number) {
 		return pendingNpcTurns.get(turnId);
 	}
 
 	function queuePendingTurn(turnId: number, source: string, messageId?: string) {
+		chainInProgress = true;
 		const existing = findPendingTurn(turnId);
 		if (existing) {
 			existing.source = source;
@@ -163,6 +171,7 @@ export function createStreamManager(): StreamManager {
 		}
 		languageHints.set(hints);
 		streamingActive.set(false);
+		chainInProgress = false;
 	}
 
 	function maybeFinishNpcStream() {
@@ -242,10 +251,15 @@ export function createStreamManager(): StreamManager {
 		return pendingStreamEndHints !== null;
 	}
 
+	function isChainInProgress() {
+		return chainInProgress;
+	}
+
 	function dispose() {
 		pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 		pendingNpcTurns.clear();
 		pendingStreamEndHints = null;
+		chainInProgress = false;
 	}
 
 	return {
@@ -263,6 +277,7 @@ export function createStreamManager(): StreamManager {
 		setPendingEndHints,
 		pendingTurnCount,
 		hasPendingEndHints,
+		isChainInProgress,
 		dispose
 	};
 }

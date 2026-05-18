@@ -24,8 +24,8 @@ use crate::game_session::{
     stream_reaction_texts,
 };
 use crate::ipc::{
-    StreamEndPayload, StreamTokenPayload, compute_name_hints, snapshot_from_world, text_log,
-    text_log_typed,
+    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, compute_name_hints,
+    snapshot_from_world, text_log, text_log_for_stream_turn, text_log_typed,
 };
 use crate::npc::reactions::ReactionTemplates;
 use crate::world::transport::TransportMode;
@@ -175,6 +175,7 @@ pub async fn handle_movement(
 
         let emitter_clone = Arc::clone(&ctx.emitter);
         let emitter_for_token = Arc::clone(&ctx.emitter);
+        let emitter_for_turn_end = Arc::clone(&ctx.emitter);
         stream_reaction_texts(
             &effects.arrival_reactions,
             &all_npcs,
@@ -187,11 +188,22 @@ pub async fn handle_movement(
             &reaction_model,
             None, // inference_log: None — shared code doesn't hold runtime-specific logs
             &ctx.language,
-            move |_turn_id, npc_name| {
+            move |turn_id, npc_name| {
+                // Tie the placeholder to `turn_id` via `text_log_for_stream_turn`
+                // so the UI recognises it as a streaming bubble (see
+                // +page.svelte `onTextLog` guard requiring `stream_turn_id != null`)
+                // and `finalizeStreamingEntry` can remove the empty placeholder
+                // when the per-turn `stream-turn-end` fires with no tokens
+                // accumulated. Using bare `text_log` here previously produced a
+                // permanent blank chat bubble on empty LLM reaction output.
                 emitter_clone.emit_event(
                     "text-log",
-                    serde_json::to_value(text_log(npc_name, String::new()))
-                        .unwrap_or(serde_json::Value::Null),
+                    serde_json::to_value(text_log_for_stream_turn(
+                        npc_name,
+                        String::new(),
+                        turn_id,
+                    ))
+                    .unwrap_or(serde_json::Value::Null),
                 );
             },
             move |turn_id, source, batch| {
@@ -203,6 +215,17 @@ pub async fn handle_movement(
                         source: source.to_string(),
                     })
                     .unwrap_or(serde_json::Value::Null),
+                );
+            },
+            move |turn_id| {
+                // Per-turn finalisation: the UI's stream-manager only removes
+                // empty placeholders when a turn is marked complete, so emit
+                // one `stream-turn-end` per arrival reaction (not just one
+                // `stream-end` for the whole batch).
+                emitter_for_turn_end.emit_event(
+                    "stream-turn-end",
+                    serde_json::to_value(StreamTurnEndPayload { turn_id })
+                        .unwrap_or(serde_json::Value::Null),
                 );
             },
         )
