@@ -516,3 +516,90 @@ Action (complete the JSON):
 2026-05-19T14:04:37.701594Z  INFO parish_tauri_lib::commands: demo turn: LLM chose action location=Kilteevan Village raw_len=108 action=and souls as devout as any. I've seen much of this parish and its people. So, ask away, Aiden.
 2026-05-19T14:04:37.704195Z  INFO parish_tauri_lib::commands: chat [player] input=and souls as devout as any. I've seen much of this parish and its people. So, ask away, Aiden.
 2026-05-19T14:04:38.690007Z  INFO parish_core::game_loop::reactions: npc-reaction npc=Fr. Declan Tierney emoji=😊
+2026-05-19T14:05:10.943606Z  INFO parish_tauri_lib::commands: demo turn: prompt built location=Kilteevan Village user_prompt=Location: Kilteevan Village
+
+The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is midday.
+
+Date and time: Monday, 20 March 1820, Midday | Spring
+
+Weather: Clear
+
+NPCs here:
+  - Fr. Declan Tierney, Parish Priest, feeling friendly
+
+Adjacent locations:
+  - The Crossroads — unvisited
+  - St. Brigid's Church — unvisited
+  - The Holy Well — unvisited
+  - Knockcroghery Village — unvisited
+  - Murphy's Farm — unvisited
+  - The Letter Office — unvisited
+  - The Lime Kiln — unvisited
+  - The Weaver's Cottage — unvisited
+  - The Mill — unvisited
+  - The Forge — unvisited
+
+Recent events:
+> [system] Rundale
+Copyright © 2026 David Mooney. Licensed under GPL-3.0 — see LICENSE.
+fix/issue-1009 - 2026-05-19 10:02
+> [system] The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is midday.
+> [system] Time stirs again in the parish.
+> [player] Good mornin' to all. Might I speak with the parish priest, Fr. Declan Tierney?
+> [Fr. Declan Tierney] Good mornin' to ye. Ye've caught me here at the church. Father Declan is indeed within, just as ready to speak with ye as he is with any who seek his counsel. What brings ye to his door this fine day, stranger?
+> [player] Good mornin', Father. I'm Aiden Carney, come from over by the Shannon. Might I ask ye some questions about the parish and the folk hereabouts?
+> [Fr. Declan Tierney] Good mornin', Aiden. 'Tis a pleasure to make yer acquaintance. Ye're welcome to ask yer questions, and I'll do me best to answer. What would ye like to know about the parish and its people, then, stranger? Ye'll find us a hearty bunch, hereabouts, with hearts as warm as our hearths, though sometimes as stubborn as the sturdiest of oxen in their ways. Mayhap I can offer ye a bit of insight, if ye seek it. So, what be yer query, Aiden?
+> [player] and souls as devout as any. I've seen much of this parish and its people. So, ask away, Aiden.
+> [system] No one here answers to that name just now.
+
+Action (complete the JSON):
+{"action": "
+2026-05-19T14:05:12.914802Z  INFO parish_tauri_lib::commands: demo turn: LLM chose action location=Kilteevan Village raw_len=91 action=And what of the harvest this year, Father? It seems a fair enough day for it.
+2026-05-19T14:05:12.917331Z  INFO parish_tauri_lib::commands: chat [player] input=And what of the harvest this year, Father? It seems a fair enough day for it.
+2026-05-19T14:05:22.270418Z  INFO parish_core::game_loop::npc_turn: chat [npc] npc=Fr. Declan Tierney reply=Ah, the harvest indeed! Aye, it be a fine year for it, though the Lord's blessings are never to be taken for granted. The weather has been kind, and our prayers have been answered well. What be yer thoughts on the matter, Aiden?
+2026-05-19T14:05:22.448376Z  INFO parish_core::game_loop::reactions: npc-reaction npc=Fr. Declan Tierney emoji=😊
+2026-05-19T14:05:22.448679Z  WARN parish_npc::manager: NPC reaction emoji diversity below threshold site="reactions" kind="reaction-emoji-monoculture" detail=emoji diversity 1/4 = 25% (threshold 30%) sample_count=4
+2026-05-19T14:05:54.280691Z  INFO parish_tauri_lib::commands: demo turn: prompt built location=Kilteevan Village user_prompt=Location: Kilteevan Village
+
+The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is midday.
+
+Date and time: Monday, 20 March 1820, Midday | Spring
+
+Weather: Clear
+
+NPCs here:
+  - Fr. Declan Tierney, Parish Priest, feeling friendly
+
+Adjacent locations:
+  - The Crossroads — unvisited
+  - The Letter Office — unvisited
+  - St. Brigid's Church — unvisited
+  - The Forge — unvisited
+  - The Holy Well — unvisited
+  - Murphy's Farm — unvisited
+  - The Weaver's Cottage — unvisited
+  - The Lime Kiln — unvisited
+  - The Mill — unvisited
+  - Knockcroghery Village — unvisited
+
+Recent events:
+> [system] Rundale
+Copyright © 2026 David Mooney. Licensed under GPL-3.0 — see LICENSE.
+fix/issue-1009 - 2026-05-19 10:02
+> [system] The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is midday.
+> [system] Time stirs again in the parish.
+> [player] Good mornin' to all. Might I speak with the parish priest, Fr. Declan Tierney?
+> [Fr. Declan Tierney] Good mornin' to ye. Ye've caught me here at the church. Father Declan is indeed within, just as ready to speak with ye as he is with any who seek his counsel. What brings ye to his door this fine day, stranger?
+> [player] Good mornin', Father. I'm Aiden Carney, come from over by the Shannon. Might I ask ye some questions about the parish and the folk hereabouts?
+> [Fr. Declan Tierney] Good mornin', Aiden. 'Tis a pleasure to make yer acquaintance. Ye're welcome to ask yer questions, and I'll do me best to answer. What would ye like to know about the parish and its people, then, stranger? Ye'll find us a hearty bunch, hereabouts, with hearts as warm as our hearths, though sometimes as stubborn as the sturdiest of oxen in their ways. Mayhap I can offer ye a bit of insight, if ye seek it. So, what be yer query, Aiden?
+> [player] and souls as devout as any. I've seen much of this parish and its people. So, ask away, Aiden.
+> [system] No one here answers to that name just now.
+> [player] And what of the harvest this year, Father? It seems a fair enough day for it.
+> [Fr. Declan Tierney] Ah, the harvest indeed! Aye, it be a fine year for it, though the Lord's blessings are never to be taken for granted. The weather has been kind, and our prayers have been answered well. What be yer thoughts on the matter, Aiden?
+
+Action (complete the JSON):
+{"action": "
+2026-05-19T14:05:56.881861Z  INFO parish_tauri_lib::commands: demo turn: LLM chose action location=Kilteevan Village raw_len=148 action=The Lord's blessings indeed, Father. I've seen many a fair harvest, but it seems this year could be quite bountiful. Praise be to Him.
+2026-05-19T14:05:56.884394Z  INFO parish_tauri_lib::commands: chat [player] input=The Lord's blessings indeed, Father. I've seen many a fair harvest, but it seems this year could be quite bountiful. Praise be to Him.
+2026-05-19T14:06:05.812392Z  INFO parish_core::game_loop::npc_turn: chat [npc] npc=Fr. Declan Tierney reply=Aye, praise be indeed. The Lord's hand is surely in it. It's a good sign for the parish, aye? What else might ye be curious about, Aiden?
+2026-05-19T14:06:06.055678Z  INFO parish_core::game_loop::reactions: npc-reaction npc=Fr. Declan Tierney emoji=🤔

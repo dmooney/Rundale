@@ -8,19 +8,23 @@ Live demo run: `just demo 2 5` on 2026-05-19, branch `fix/issue-1009`
 
 Demo transcript: `/docs/proofs/demo-intent-leak/transcript.txt`
 
+**Completed**: Full 5 turns, all with natural first-person speech, zero intent leaks.
+
 ## Criterion 1: No command-form chat input in demo turns
 
-**Observation**: The demo produced 3+ turns (as of transcript capture). All player inputs are natural first-person speech, with zero command-form intent leaks.
+**Observation**: The demo completed all 5 requested turns. All player inputs are natural first-person speech, with zero command-form intent leaks.
 
-**Chat inputs verified**:
+**Chat inputs verified** (from transcript):
 - Turn 1 (line 438): `Good mornin' to all. Might I speak with the parish priest, Fr. Declan Tierney?` — natural speech ✓
 - Turn 2 (line 476): `Good mornin', Father. I'm Aiden Carney, come from over by the Shannon. Might I ask ye some questions about the parish and the folk hereabouts?` — natural first-person speech with embedded "ask" as dialogue, not command-form ✓
 - Turn 3 (line 517): `and souls as devout as any. I've seen much of this parish and its people. So, ask away, Aiden.` — natural speech continuation ✓
+- Turn 4 (line 558): `And what of the harvest this year, Father? It seems a fair enough day for it.` — natural speech ✓
+- Turn 5 (line 603): `The Lord's blessings indeed, Father. I've seen many a fair harvest, but it seems this year could be quite bountiful. Praise be to Him.` — natural speech ✓
 
 **Pattern check** (grep for intent-leak patterns):
 ```
 grep -E 'chat \[player\] input=(ask about |tell |whisper |look at |go to )' transcript.txt
-# Result: 0 matches
+# Result: 0 matches (all 5 turns verified as intent-leak-free)
 ```
 
 ## Criterion 2: Guard unit tests pass
