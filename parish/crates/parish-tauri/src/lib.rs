@@ -50,7 +50,11 @@ fn mod_asset_data_url(path: Option<PathBuf>) -> Option<String> {
     ))
 }
 
-fn apply_mod_desktop_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: Option<&Path>) {
+fn apply_mod_desktop_icon<R, M>(app: &M, icon_path: Option<&Path>)
+where
+    R: tauri::Runtime,
+    M: Manager<R>,
+{
     let Some(icon_path) = icon_path else {
         return;
     };
@@ -58,7 +62,11 @@ fn apply_mod_desktop_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: Opt
     apply_mod_window_icon(app, icon_path);
 }
 
-fn apply_mod_window_icon<R: tauri::Runtime>(app: &tauri::App<R>, icon_path: &Path) {
+fn apply_mod_window_icon<R, M>(app: &M, icon_path: &Path)
+where
+    R: tauri::Runtime,
+    M: Manager<R>,
+{
     let icon = match load_png_icon(icon_path) {
         Ok(icon) => icon,
         Err(e) => {
@@ -103,6 +111,7 @@ fn apply_mod_application_icon(icon_path: &Path) {
     unsafe {
         app.setApplicationIconImage(Some(&image));
     }
+    tracing::info!(path = %icon_path.display(), "applied mod Dock icon");
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1083,6 +1092,8 @@ pub fn run() {
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
     let mod_window_icon_path = game_mod.as_ref().and_then(|gm| gm.app_icon_path());
+    let mod_window_icon_path_for_setup = mod_window_icon_path.clone();
+    let mod_window_icon_path_for_run = mod_window_icon_path.clone();
 
     // engine_config already loaded above (before provider bootstrap) and
     // includes both map tile-source registry and inference timeouts. (#417)
@@ -1320,7 +1331,7 @@ pub fn run() {
             editor_commands::editor_read_snapshot,
         ])
         .setup(move |app| {
-            apply_mod_desktop_icon(app, mod_window_icon_path.as_deref());
+            apply_mod_desktop_icon(app, mod_window_icon_path_for_setup.as_deref());
             let handle = app.handle().clone();
 
             // Screenshot mode: --screenshot <dir> captures the UI at four
@@ -1379,6 +1390,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running Parish application")
         .run(move |app, event| {
+            if matches!(&event, tauri::RunEvent::Ready) {
+                // Tauri dev mode reapplies the configured bundle icon during
+                // Ready on macOS. Reapply the active mod icon afterward so
+                // `just run` shows the same Dock icon as bundled launches.
+                apply_mod_desktop_icon(app, mod_window_icon_path_for_run.as_deref());
+            }
+
             // Graceful shutdown of bundled vllm-mlx children. Drop already
             // calls stop() when AppState finally drops, but on Cmd+Q the
             // tokio runtime can be torn down before that fires, leaving
