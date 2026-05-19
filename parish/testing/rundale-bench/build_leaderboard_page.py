@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Regenerate the static leaderboard HTML page.
+"""Regenerate the static leaderboard pages.
 
 Walks every `multiaxis_*.json`, `perf_*.json`, `run_*_gaeilge_*.json`, and
 `dialogue_samples_*.json` under `docs/proofs/rundale-bench/`, aggregates
-them into a single payload, and inlines the result into `leaderboard.html`
-(replacing the
-`__DATA_PLACEHOLDER__` marker that the template ships with).
-
-The same generated HTML is mirrored into `leaderboard.md`, so the Markdown
-artifact does not become a separate hand-maintained leaderboard.
+them into a single payload, inlines the result into `leaderboard.html`
+(replacing the `__DATA_PLACEHOLDER__` marker that the template ships with),
+and writes a GitHub-renderable `leaderboard.md` snapshot from the same data.
 
 Run after any new judging / perf / cache run::
 
     python3 parish/testing/rundale-bench/build_leaderboard_page.py
 
-The page is fully static — no server required. Open it with::
+The HTML page is fully static — no server required. Open it with::
 
     open docs/proofs/rundale-bench/leaderboard.html
 """
@@ -27,12 +24,36 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _BENCH = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 _TEMPLATE = _BENCH / "leaderboard.html"
-_MARKDOWN_MIRROR = _BENCH / "leaderboard.md"
+_MARKDOWN_PAGE = _BENCH / "leaderboard.md"
 _MARKER = "__DATA_PLACEHOLDER__"
 
 
 def _round(v: float | None, n: int = 2) -> float | None:
     return None if v is None else round(v, n)
+
+
+def _fmt(v, digits: int = 2) -> str:
+    if v is None:
+        return "-"
+    if isinstance(v, float):
+        return f"{v:.{digits}f}"
+    return str(v)
+
+
+def _md_escape(v) -> str:
+    return _fmt(v).replace("|", "\\|").replace("\n", " ")
+
+
+def _markdown_table(headers: list[str], rows: list[list]) -> str:
+    if not rows:
+        return "_No rows yet._\n"
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(_md_escape(cell) for cell in row) + " |")
+    return "\n".join(lines) + "\n"
 
 
 def build_data() -> dict:
@@ -157,6 +178,109 @@ def build_data() -> dict:
     return out
 
 
+def build_markdown(data: dict) -> str:
+    judges = sorted({q["judge"] for q in data["quality"]})
+    cached_count = len(data["coverage"])
+    judged_count = sum(1 for c in data["coverage"].values() if c)
+    summary_rows = [
+        ["Cached candidates", cached_count],
+        ["Judged candidates", judged_count],
+        ["Unjudged backlog", len(data["unjudged"])],
+        ["Distinct judges", len(judges)],
+        ["Quality rows", len(data["quality"])],
+        ["Perf rows", len(data["perf"])],
+        ["Gaeilge rows", len(data["gaeilge"])],
+    ]
+
+    gaeilge_rows = [
+        [
+            r["candidate"], r["split"], r["n"], r["errors"],
+            _fmt(r["overall"]), _fmt(r["fluency"]), _fmt(r["grammar"]),
+            _fmt(r["idiom"]), _fmt(r["task_fulfillment"]),
+            _fmt(r["english_leakage"]), f"${_fmt(r['usd'], 4)}", r["file"],
+        ]
+        for r in sorted(data["gaeilge"], key=lambda r: (r["overall"] is not None, r["overall"]), reverse=True)
+    ]
+
+    averaged_rows = [
+        [
+            r["candidate"], r["n"], _fmt(r["total"]), _fmt(r["character"]),
+            _fmt(r["authenticity"]), _fmt(r["language"]),
+            _fmt(r["responsiveness"]), _fmt(r["craft"]),
+            r["judge_count"],
+        ]
+        for r in data.get("averaged", [])
+    ]
+
+    quality_rows = [
+        [
+            r["candidate"], r["judge"], r["n"], _fmt(r["total"]),
+            _fmt(r["character"]), _fmt(r["authenticity"]),
+            _fmt(r["language"]), _fmt(r["responsiveness"]), _fmt(r["craft"]),
+            r["file"],
+        ]
+        for r in sorted(data["quality"], key=lambda r: (r["total"] is not None, r["total"]), reverse=True)
+    ]
+
+    perf_rows = [
+        [
+            r["candidate"], r["n_ok"], _fmt(r["ttft_p50"], 0),
+            _fmt(r["ttft_p90"], 0), _fmt(r["total_p50"], 0),
+            _fmt(r["tps_p50"]), _fmt(r["tps_p90"]),
+            f"{_fmt(r['json_freeform'], 1)}%", f"{_fmt(r['json_schema'], 1)}%",
+            r["file"],
+        ]
+        for r in sorted(data["perf"], key=lambda r: (r["tps_p50"] is not None, r["tps_p50"]), reverse=True)
+    ]
+
+    unjudged = ", ".join(f"`{c}`" for c in data["unjudged"]) if data["unjudged"] else "_None._"
+
+    return "\n".join([
+        "Evidence type: gameplay transcript",
+        "",
+        "# rundale-bench v1 leaderboard",
+        "",
+        "Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html). "
+        "GitHub Markdown strips the dashboard JavaScript/CSS, so this file is a static "
+        "Markdown snapshot and the HTML file is the interactive view.",
+        "",
+        "## Summary",
+        "",
+        _markdown_table(["Metric", "Count"], summary_rows),
+        "## Gaeilge fluency (1-5 rubric)",
+        "",
+        "Latest `--slice gaeilge` run per candidate/base/split. Higher is better; "
+        "English leakage is 5 when no English leaks.",
+        "",
+        _markdown_table(
+            ["Candidate", "Split", "n", "Err", "Overall", "Fluency", "Grammar", "Idiom", "Task", "No Eng", "Cost", "File"],
+            gaeilge_rows,
+        ),
+        "## Quality scores: cross-judge average",
+        "",
+        _markdown_table(
+            ["Candidate", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "Judges"],
+            averaged_rows,
+        ),
+        "## Quality scores: by judge",
+        "",
+        _markdown_table(
+            ["Candidate", "Judge", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "File"],
+            quality_rows,
+        ),
+        "## Perf probe",
+        "",
+        _markdown_table(
+            ["Candidate", "n_ok", "TTFT p50 ms", "TTFT p90 ms", "Total p50 ms", "Tok/s p50", "Tok/s p90", "JSON free", "JSON schema", "File"],
+            perf_rows,
+        ),
+        "## Unjudged backlog",
+        "",
+        unjudged,
+        "",
+    ])
+
+
 def main() -> None:
     data = build_data()
     if not _TEMPLATE.exists():
@@ -176,9 +300,9 @@ def main() -> None:
             count=1,
         )
     _TEMPLATE.write_text(html, encoding="utf-8")
-    _MARKDOWN_MIRROR.write_text(html, encoding="utf-8")
+    _MARKDOWN_PAGE.write_text(build_markdown(data), encoding="utf-8")
     print(f"wrote {_TEMPLATE.relative_to(_REPO_ROOT)} "
-          f"+ {_MARKDOWN_MIRROR.relative_to(_REPO_ROOT)} "
+          f"+ {_MARKDOWN_PAGE.relative_to(_REPO_ROOT)} "
           f"(quality={len(data['quality'])} perf={len(data['perf'])} "
           f"gaeilge={len(data['gaeilge'])} "
           f"cached={len(data['coverage'])} unjudged={len(data['unjudged'])})")

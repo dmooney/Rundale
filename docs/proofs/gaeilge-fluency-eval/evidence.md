@@ -21,7 +21,7 @@ just eval-gaeilge "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000
 just eval-gaeilge "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1"
 python3 parish/testing/rundale-bench/build_leaderboard_page.py
 python3 -c 'import json,re; from pathlib import Path; h=Path("docs/proofs/rundale-bench/leaderboard.html").read_text(); d=json.loads(re.search(r"<script type=\"application/json\" id=\"bench-data\">\s*(.*?)\s*</script>", h, re.S).group(1)); print(len(d.get("gaeilge", []))); print(d["gaeilge"][0]["candidate"]); print(d["gaeilge"][0]["overall"])'
-cmp -s docs/proofs/rundale-bench/leaderboard.html docs/proofs/rundale-bench/leaderboard.md
+python3 -c 'from pathlib import Path; text = Path("docs/proofs/rundale-bench/leaderboard.md").read_text(); print("# rundale-bench v1 leaderboard" in text); print("mlx-community/Qwen2.5-14B-Instruct-4bit" in text); print(any(s in text for s in ["<script", "<style", "<!DOCTYPE"]))'
 git diff --check
 ```
 
@@ -38,9 +38,9 @@ git diff --check
 - The one-record smoke run completed with `records=1 errors=0`.
 - The full dev run completed with `records=11 errors=0 english_leakage_flag_rate=0.091 fluency_mean=2.091 grammar_mean=2.273 idiom_mean=2.091 task_fulfillment_mean=1.909 english_leakage_mean=4.818 overall_mean=2.109`.
 - The full dev run wrote `docs/proofs/rundale-bench/run_mlx_community_Qwen2_5_14B_Instruct_4bit_gaeilge_20260518T174855Z.json`.
-- `build_leaderboard_page.py` reported `gaeilge=1` and regenerated both `docs/proofs/rundale-bench/leaderboard.html` and `docs/proofs/rundale-bench/leaderboard.md`.
+- `build_leaderboard_page.py` reported `gaeilge=1` and regenerated the interactive `docs/proofs/rundale-bench/leaderboard.html` plus the GitHub-renderable `docs/proofs/rundale-bench/leaderboard.md` snapshot.
 - The embedded dashboard data smoke printed `1`, `mlx-community/Qwen2.5-14B-Instruct-4bit`, and `2.11`.
-- `cmp` exited successfully, confirming `leaderboard.md` is a byte-identical embedded copy of the generated HTML dashboard.
+- The Markdown renderability smoke printed `True`, `True`, `False`: the generated Markdown has the expected heading and Gaeilge row, without raw dashboard HTML tags that GitHub strips.
 - `git diff --check` reported no whitespace errors.
 
 ## Criteria mapping
@@ -51,5 +51,5 @@ git diff --check
 - Pinned judge rubric: `judge_gaeilge_v1.json` hash validation passes; the tamper test fails as expected.
 - JSON artifact path: the runner uses the existing `docs/proofs/rundale-bench/run_<target>_<slice>_<UTC>.json` artifact path for all absolute slices, including `gaeilge`.
 - Local MLX model run: `just eval-gaeilge` successfully drove the dialogue MLX model through the Gaeilge slice and produced a benchmark JSON artifact with zero candidate or judge errors.
-- Dashboard integration: `build_leaderboard_page.py` ingests `run_*_gaeilge_*.json`, stores a `gaeilge` payload row, renders the 1-5 Gaeilge axes, and mirrors the generated HTML into `leaderboard.md`.
+- Dashboard integration: `build_leaderboard_page.py` ingests `run_*_gaeilge_*.json`, stores a `gaeilge` payload row, renders the 1-5 Gaeilge axes in HTML, and writes a GitHub-renderable Markdown snapshot from the same data.
 - Local tests: `30/30 passed`.
