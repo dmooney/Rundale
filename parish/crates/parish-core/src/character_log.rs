@@ -61,12 +61,12 @@ pub const FEATURE_FLAG: &str = "character-logs";
 /// One instance per session — the log directory is fixed at construction
 /// time so a later cwd change cannot redirect file I/O (rule #9).
 ///
-/// Holds a small mutex-protected map of "last journal arrival per NPC" so
-/// the writer can drop spurious `NpcArrived` / `NpcDeparted` events fired
-/// by every tier-recompute (the bus republishes a Tier1 promotion every
-/// time an NPC briefly leaves and returns to the player's vicinity — left
-/// unfiltered, a few hours of game time produces hundreds of identical
-/// "Arrived at X" lines).
+/// Holds a small mutex-protected map of "last journal arrival per NPC" and
+/// "last journal departure per NPC" so the writer can drop spurious
+/// `NpcArrived` / `NpcDeparted` events fired by every tier-recompute (the
+/// bus republishes a Tier1 promotion every time an NPC briefly leaves and
+/// returns to the player's vicinity — left unfiltered, a few hours of game
+/// time produces hundreds of identical "Arrived at X" lines).
 #[derive(Debug)]
 pub struct CharacterLogManager {
     log_dir: PathBuf,
@@ -80,6 +80,11 @@ pub struct CharacterLogManager {
     /// string the heading renders — so cross-session comparison doesn't
     /// require a world-graph handle.
     last_arrival: Mutex<HashMap<NpcId, String>>,
+    /// Last location *name* written to each NPC's journal for a departure
+    /// event. Used to suppress repeat departure lines. Separate from
+    /// `last_arrival` so an NPC can both arrive at and depart from the
+    /// same location and produce two separate journal entries.
+    last_departure: Mutex<HashMap<NpcId, String>>,
     /// Last location name recorded for the player. Defensive twin of
     /// [`Self::last_arrival`].
     last_player_arrival: Mutex<Option<String>>,
@@ -97,6 +102,7 @@ impl CharacterLogManager {
                 log_dir: PathBuf::new(),
                 enabled: false,
                 last_arrival: Mutex::new(HashMap::new()),
+                last_departure: Mutex::new(HashMap::new()),
                 last_player_arrival: Mutex::new(None),
             };
         }
@@ -119,6 +125,7 @@ impl CharacterLogManager {
                 log_dir: PathBuf::new(),
                 enabled: false,
                 last_arrival: Mutex::new(HashMap::new()),
+                last_departure: Mutex::new(HashMap::new()),
                 last_player_arrival: Mutex::new(None),
             };
         }
@@ -131,13 +138,15 @@ impl CharacterLogManager {
         }
         // Seed dedup state from existing on-disk journals so a fresh
         // `CharacterLogManager` resuming the same branch doesn't
-        // re-emit the previous session's final arrivals as duplicates.
+        // re-emit the previous session's final arrivals/departures as duplicates.
         let last_arrival = scan_existing_npc_arrivals(&log_dir);
+        let last_departure = scan_existing_npc_departures(&log_dir);
         let last_player_arrival = scan_existing_player_arrival(&log_dir);
         Self {
             log_dir,
             enabled,
             last_arrival: Mutex::new(last_arrival),
+            last_departure: Mutex::new(last_departure),
             last_player_arrival: Mutex::new(last_player_arrival),
         }
     }
@@ -173,6 +182,30 @@ impl CharacterLogManager {
     /// timestamps collapse to one entry.
     fn bump_last_arrival(&self, npc_id: NpcId, location_name: &str) -> bool {
         let mut guard = match self.last_arrival.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        match guard.get(&npc_id) {
+            Some(prev) if prev == location_name => false,
+            _ => {
+                guard.insert(npc_id, location_name.to_string());
+                true
+            }
+        }
+    }
+
+    /// Records that NPC `npc_id` just departed from `location` and returns
+    /// `true` iff the journal should be appended — i.e. the location
+    /// differs from the previously recorded departure for this NPC. The
+    /// timestamp is captured for future enrichment; the dedup itself is
+    /// location-only so identical "departure" pings at increasing
+    /// timestamps collapse to one entry.
+    ///
+    /// Separate from [`Self::bump_last_arrival`] so an NPC arriving at
+    /// and then departing from the same location produces two separate
+    /// journal entries.
+    fn bump_last_departure(&self, npc_id: NpcId, location_name: &str) -> bool {
+        let mut guard = match self.last_departure.lock() {
             Ok(g) => g,
             Err(poisoned) => poisoned.into_inner(),
         };
@@ -343,7 +376,7 @@ impl CharacterLogManager {
                 npc_id, location, ..
             } => {
                 let loc = loc_of(*location);
-                if !self.bump_last_arrival(*npc_id, &loc) {
+                if !self.bump_last_departure(*npc_id, &loc) {
                     return Ok(());
                 }
                 if let Some(npc) = npc_manager.get(*npc_id) {
@@ -580,9 +613,10 @@ fn strength_bar(s: f64) -> String {
 // ── File I/O ────────────────────────────────────────────────────────────────
 
 /// Reads each `npc-NNN-*.md` file in `log_dir`, parses the final
-/// `### … — Arrived at <name>` / `… — Departed from <name>` heading
-/// in the journal section, and returns a map from NpcId to that
-/// location name. Missing or unparseable files contribute nothing.
+/// `### … — Arrived at <name>` heading in the journal section,
+/// and returns a map from NpcId to that location name. Missing or
+/// unparseable files contribute nothing. Only matches arrival headings
+/// (not departures) so arrivals and departures maintain separate dedup state.
 fn scan_existing_npc_arrivals(log_dir: &Path) -> HashMap<NpcId, String> {
     let mut out = HashMap::new();
     let read_dir = match std::fs::read_dir(log_dir) {
@@ -613,6 +647,41 @@ fn scan_existing_npc_arrivals(log_dir: &Path) -> HashMap<NpcId, String> {
     out
 }
 
+/// Reads each `npc-NNN-*.md` file in `log_dir`, parses the final
+/// `### … — Departed from <name>` heading in the journal section,
+/// and returns a map from NpcId to that location name. Missing or
+/// unparseable files contribute nothing. Only matches departure headings
+/// (not arrivals) so arrivals and departures maintain separate dedup state.
+fn scan_existing_npc_departures(log_dir: &Path) -> HashMap<NpcId, String> {
+    let mut out = HashMap::new();
+    let read_dir = match std::fs::read_dir(log_dir) {
+        Ok(r) => r,
+        Err(_) => return out,
+    };
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        let Some(filename) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Some(rest) = filename.strip_prefix("npc-") else {
+            continue;
+        };
+        let Some((id_str, _)) = rest.split_once('-') else {
+            continue;
+        };
+        let Ok(id_u32) = id_str.parse::<u32>() else {
+            continue;
+        };
+        let Ok(contents) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        if let Some(loc) = parse_last_departure_location(&contents) {
+            out.insert(NpcId(id_u32), loc);
+        }
+    }
+    out
+}
+
 /// Same as [`scan_existing_npc_arrivals`] but for `player.md`.
 fn scan_existing_player_arrival(log_dir: &Path) -> Option<String> {
     let path = log_dir.join("player.md");
@@ -620,13 +689,13 @@ fn scan_existing_player_arrival(log_dir: &Path) -> Option<String> {
     parse_last_arrival_location(&contents)
 }
 
-/// Parses the final `### … — Arrived at <name>` or `… — Departed from
-/// <name>` heading in `contents` and returns the trailing location
-/// name. Returns `None` when no such heading exists.
+/// Parses the final `### … — Arrived at <name>` heading in `contents`
+/// and returns the trailing location name. Returns `None` when no such
+/// heading exists.
 ///
-/// Other suffixes (`Mood`, `Relationship`, `Festival: …`, `Life event`)
-/// are skipped — they're valid journal headings but don't carry a
-/// location and must not abort the scan.
+/// Only matches arrival headings (not departures). Other suffixes
+/// (`Mood`, `Relationship`, `Festival: …`, `Life event`, `Departed from`)
+/// are skipped.
 fn parse_last_arrival_location(contents: &str) -> Option<String> {
     let mut last: Option<String> = None;
     for line in contents.lines() {
@@ -637,11 +706,35 @@ fn parse_last_arrival_location(contents: &str) -> Option<String> {
             Some((_, tail)) => tail,
             None => continue,
         };
-        let Some(loc) = after_em_dash
-            .strip_prefix("Arrived at ")
-            .or_else(|| after_em_dash.strip_prefix("Departed from "))
-        else {
-            // Non-arrival heading (Mood / Relationship / Festival / …);
+        let Some(loc) = after_em_dash.strip_prefix("Arrived at ") else {
+            // Non-arrival heading (Mood / Relationship / Festival / Departure / …);
+            // keep scanning rather than aborting the whole file.
+            continue;
+        };
+        last = Some(loc.trim().to_string());
+    }
+    last
+}
+
+/// Parses the final `### … — Departed from <name>` heading in `contents`
+/// and returns the trailing location name. Returns `None` when no such
+/// heading exists.
+///
+/// Only matches departure headings (not arrivals). Other suffixes
+/// (`Mood`, `Relationship`, `Festival: …`, `Life event`, `Arrived at`)
+/// are skipped.
+fn parse_last_departure_location(contents: &str) -> Option<String> {
+    let mut last: Option<String> = None;
+    for line in contents.lines() {
+        if !line.starts_with("### ") {
+            continue;
+        }
+        let after_em_dash = match line.split_once(" — ") {
+            Some((_, tail)) => tail,
+            None => continue,
+        };
+        let Some(loc) = after_em_dash.strip_prefix("Departed from ") else {
+            // Non-departure heading (Mood / Relationship / Festival / Arrival / …);
             // keep scanning rather than aborting the whole file.
             continue;
         };
@@ -1061,5 +1154,110 @@ mod tests {
         };
         mgr.process_event(&event, &world, &npcs).unwrap();
         assert!(!mgr.player_log_path().exists() || mgr.log_dir().as_os_str().is_empty());
+    }
+
+    #[test]
+    fn arrived_then_departed_produces_two_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(42, "Siobhan McDermott");
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let npc_id = NpcId(42);
+        let location = LocationId(5);
+        let arrival = GameEvent::NpcArrived {
+            npc_id,
+            location,
+            timestamp: test_time(),
+        };
+        let departure = GameEvent::NpcDeparted {
+            npc_id,
+            location,
+            timestamp: test_time(),
+        };
+
+        // Process arrival
+        mgr.process_event(&arrival, &world, &npcs).unwrap();
+        let log_after_arrival =
+            std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        assert!(
+            log_after_arrival.contains("Arrived at location 5"),
+            "arrival entry missing: {}",
+            log_after_arrival,
+        );
+
+        // Process departure
+        mgr.process_event(&departure, &world, &npcs).unwrap();
+        let log_after_departure =
+            std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        assert!(
+            log_after_departure.contains("Arrived at location 5"),
+            "arrival entry lost after departure: {}",
+            log_after_departure,
+        );
+        assert!(
+            log_after_departure.contains("Departed from location 5"),
+            "departure entry missing: {}",
+            log_after_departure,
+        );
+    }
+
+    #[test]
+    fn duplicate_arrivals_deduped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(43, "Brigid Flannery");
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let npc_id = NpcId(43);
+        let location = LocationId(7);
+        let arrival = GameEvent::NpcArrived {
+            npc_id,
+            location,
+            timestamp: test_time(),
+        };
+
+        // Process same arrival twice
+        mgr.process_event(&arrival, &world, &npcs).unwrap();
+        mgr.process_event(&arrival, &world, &npcs).unwrap();
+
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        // Count occurrences of the heading
+        let count = log.matches("Arrived at location 7").count();
+        assert_eq!(count, 1, "duplicate arrival not deduped: {}", log);
+    }
+
+    #[test]
+    fn duplicate_departures_deduped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(44, "Rory O'Shaughnessy");
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let npc_id = NpcId(44);
+        let location = LocationId(9);
+        let departure = GameEvent::NpcDeparted {
+            npc_id,
+            location,
+            timestamp: test_time(),
+        };
+
+        // Process same departure twice
+        mgr.process_event(&departure, &world, &npcs).unwrap();
+        mgr.process_event(&departure, &world, &npcs).unwrap();
+
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        // Count occurrences of the heading
+        let count = log.matches("Departed from location 9").count();
+        assert_eq!(count, 1, "duplicate departure not deduped: {}", log);
     }
 }

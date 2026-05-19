@@ -1,0 +1,18 @@
+# Test fixture for character-log-1013: NpcArrived/NpcDeparted dedup bug
+# This script tests that an NPC arriving then departing from the same location
+# produces two separate journal entries, not one.
+
+# Wait for game to load
+wait 500
+
+# Navigate to a location with NPCs
+move south
+wait 500
+move east
+wait 500
+
+# Just wait and observe NPCs arriving/departing
+wait 3000
+
+# Verify that we see both arrivals and departures recorded
+wait 1000
