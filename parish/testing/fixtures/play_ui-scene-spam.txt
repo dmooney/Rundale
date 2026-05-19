@@ -1,0 +1,47 @@
+# Proof script for issue #999: Kilteevan scene description re-emits on every player turn
+#
+# This fixture exercises the deduplication logic in the text-log subscriber.
+# Expected: scene description appears once on session start, once on movement,
+# not on every dialogue turn.
+#
+# Criteria covered:
+#   1. Criterion 1 (no re-emit on idle): Multiple dialogue turns without movement
+#   2. Criterion 2 (emit on movement): Moving to a new location adds new scene
+#   3. Criterion 4 (fixture present): This file itself
+
+# ── Step 1: Fresh session at Kilteevan ─────────────────────────────────────────
+# Expect: one scene-description entry in the log (session start displays location)
+/status
+look
+
+# ── Step 2: Multiple dialogue turns without movement ───────────────────────────
+# Expect: no new scene-description entries added to the log
+# (The subscriber deduplicates based on location_name; location unchanged)
+Good mornin'!
+How are ye this fine day?
+The weather seems pleasant.
+
+# ── Step 3: Check location and NPC state before moving ───────────────────────
+/npcs
+/map
+
+# ── Step 4: Move to adjacent location (The Crossroads) ───────────────────────────
+# Expect: exactly one new scene-description entry in the log (movement arrival)
+go to The Crossroads
+
+# ── Step 5: More dialogue at the new location without further movement ─────────
+# Expect: no new scene-description entries (location unchanged from Crossroads)
+Hello again!
+Interesting place this is.
+
+# ── Step 6: Return to Kilteevan ────────────────────────────────────────────────
+# Expect: exactly one new scene-description entry (movement to Kilteevan again)
+go to Kilteevan
+
+# ── Step 7: Final dialogue without movement ─────────────────────────────────────
+# Expect: no new scene-description entries
+Nice to be back.
+
+# ── Step 8: Final state ─────────────────────────────────────────────────────────
+/status
+/time
