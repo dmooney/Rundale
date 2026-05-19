@@ -2173,7 +2173,7 @@ fn is_command_form_intent_leak(text: &str) -> bool {
         "ask the ",
         "ask a ",
         "ask if ",
-        "ask ",  // bare "ask" followed by something (but not bare "ask" alone)
+        "ask ", // bare "ask" followed by something (but not bare "ask" alone)
         "tell ",
         "whisper ",
         "whisper to ",
@@ -2629,7 +2629,9 @@ mod demo_tests {
     #[test]
     fn is_command_form_intent_leak_rejects_tell_patterns() {
         assert!(super::is_command_form_intent_leak("tell Brigid my name"));
-        assert!(super::is_command_form_intent_leak("tell the stranger something"));
+        assert!(super::is_command_form_intent_leak(
+            "tell the stranger something"
+        ));
     }
 
     #[test]
@@ -2651,7 +2653,9 @@ mod demo_tests {
         assert!(!super::is_command_form_intent_leak("go to the mill"));
         assert!(!super::is_command_form_intent_leak("go back home"));
         assert!(!super::is_command_form_intent_leak("go into the house"));
-        assert!(!super::is_command_form_intent_leak("go towards the village"));
+        assert!(!super::is_command_form_intent_leak(
+            "go towards the village"
+        ));
         assert!(!super::is_command_form_intent_leak("walk to the mill"));
         assert!(!super::is_command_form_intent_leak("travel to Dublin"));
         assert!(!super::is_command_form_intent_leak("move to the window"));
@@ -2680,7 +2684,9 @@ mod demo_tests {
         assert!(!super::is_command_form_intent_leak(
             "Might I ask about the harvest, then?"
         ));
-        assert!(!super::is_command_form_intent_leak("Hello there, good morning!"));
+        assert!(!super::is_command_form_intent_leak(
+            "Hello there, good morning!"
+        ));
     }
 
     #[test]
