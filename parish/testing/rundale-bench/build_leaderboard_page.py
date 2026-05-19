@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Regenerate the static leaderboard HTML page.
 
-Walks every `multiaxis_*.json`, `perf_*.json`, and `dialogue_samples_*.json`
-under `docs/proofs/rundale-bench/`, aggregates them into a single payload,
-and inlines the result into `leaderboard.html` (replacing the
+Walks every `multiaxis_*.json`, `perf_*.json`, `run_*_gaeilge_*.json`, and
+`dialogue_samples_*.json` under `docs/proofs/rundale-bench/`, aggregates
+them into a single payload, and inlines the result into `leaderboard.html`
+(replacing the
 `__DATA_PLACEHOLDER__` marker that the template ships with).
+
+The same generated HTML is mirrored into `leaderboard.md`, so the Markdown
+artifact does not become a separate hand-maintained leaderboard.
 
 Run after any new judging / perf / cache run::
 
@@ -23,6 +27,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _BENCH = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 _TEMPLATE = _BENCH / "leaderboard.html"
+_MARKDOWN_MIRROR = _BENCH / "leaderboard.md"
 _MARKER = "__DATA_PLACEHOLDER__"
 
 
@@ -31,7 +36,7 @@ def _round(v: float | None, n: int = 2) -> float | None:
 
 
 def build_data() -> dict:
-    out: dict = {"quality": [], "perf": [], "coverage": {}, "unjudged": []}
+    out: dict = {"quality": [], "perf": [], "gaeilge": [], "coverage": {}, "unjudged": []}
 
     for f in sorted(glob.glob(str(_BENCH / "multiaxis_*.json"))):
         d = json.loads(Path(f).read_text(encoding="utf-8"))
@@ -73,6 +78,37 @@ def build_data() -> dict:
                 "json_schema": round((s["json_schema"]["rate"] or 0) * 100, 1),
             }
     out["perf"] = list(latest_perf.values())
+
+    # Keep only the latest Gaeilge measurement per candidate/base/split. Bench
+    # run files are timestamped; sorted iteration means later runs supersede
+    # earlier smoke probes for the same target.
+    latest_gaeilge: dict[tuple[str, str, str], dict] = {}
+    for f in sorted(glob.glob(str(_BENCH / "run_*_gaeilge_*.json"))):
+        d = json.loads(Path(f).read_text(encoding="utf-8"))
+        target = d.get("target") or {}
+        summary = ((d.get("slices") or {}).get("gaeilge") or {}).get("summary") or {}
+        if not target or not summary:
+            continue
+        candidate = target.get("model", "?")
+        base_url = target.get("base_url", "?")
+        split = d.get("split", "?")
+        latest_gaeilge[(candidate, base_url, split)] = {
+            "candidate": candidate,
+            "base_url": base_url,
+            "split": split,
+            "file": Path(f).name,
+            "n": summary.get("records", 0),
+            "errors": summary.get("errors", 0),
+            "overall": _round(summary.get("overall_mean")),
+            "fluency": _round(summary.get("fluency_mean")),
+            "grammar": _round(summary.get("grammar_mean")),
+            "idiom": _round(summary.get("idiom_mean")),
+            "task_fulfillment": _round(summary.get("task_fulfillment_mean")),
+            "english_leakage": _round(summary.get("english_leakage_mean")),
+            "english_leakage_flag_rate": _round(summary.get("english_leakage_flag_rate"), 3),
+            "usd": _round((d.get("cost") or {}).get("usd"), 4),
+        }
+    out["gaeilge"] = list(latest_gaeilge.values())
 
     judged: dict[str, set[str]] = {}
     for q in out["quality"]:
@@ -140,8 +176,11 @@ def main() -> None:
             count=1,
         )
     _TEMPLATE.write_text(html, encoding="utf-8")
+    _MARKDOWN_MIRROR.write_text(html, encoding="utf-8")
     print(f"wrote {_TEMPLATE.relative_to(_REPO_ROOT)} "
+          f"+ {_MARKDOWN_MIRROR.relative_to(_REPO_ROOT)} "
           f"(quality={len(data['quality'])} perf={len(data['perf'])} "
+          f"gaeilge={len(data['gaeilge'])} "
           f"cached={len(data['coverage'])} unjudged={len(data['unjudged'])})")
 
 

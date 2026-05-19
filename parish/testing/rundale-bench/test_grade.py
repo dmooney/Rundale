@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grade import (  # noqa: E402
     _jaccard,
     grade_dialogue,
+    grade_gaeilge,
     grade_intent,
     grade_pairwise,
     grade_reaction,
@@ -206,6 +207,76 @@ def test_dialogue_rubric_tamper_blocks_call():
     raised = False
     try:
         grade_dialogue("hi", j, _stub_invoke({}))
+    except RuntimeError as e:
+        raised = "sha256" in str(e)
+    assert raised
+
+
+# ---------------------------------------------------------------------------
+# grade_gaeilge
+# ---------------------------------------------------------------------------
+
+def _gaeilge_record() -> dict:
+    return {
+        "id": "gaeilge-test",
+        "task_type": "translation",
+        "prompt": "Translate into natural Irish: I am going to the fair.",
+        "constraints": ["Answer in Irish only."],
+        "expected_features": ["future movement", "fair retained"],
+    }
+
+
+def test_gaeilge_happy_path():
+    j = _judge_fixture()
+    r = grade_gaeilge(
+        "Rachaidh mé go dtí an t-aonach.",
+        _gaeilge_record(),
+        j,
+        _stub_invoke({
+            "fluency": 5,
+            "grammar": 5,
+            "idiom": 4,
+            "task_fulfillment": 5,
+            "english_leakage": 5,
+            "overall": 4.8,
+            "reason": "Natural Irish with the requested meaning.",
+            "english_leakage_examples": [],
+        }),
+    )
+    assert r["overall"] == 4.8
+    assert r["fluency"] == 5
+    assert r["english_leakage_examples"] == []
+
+
+def test_gaeilge_score_normalization():
+    j = _judge_fixture()
+    r = grade_gaeilge(
+        "bad",
+        _gaeilge_record(),
+        j,
+        _stub_invoke({
+            "fluency": 9,
+            "grammar": -1,
+            "idiom": "4",
+            "task_fulfillment": 5,
+            "english_leakage": 2,
+            "overall": 12.0,
+            "reason": "x",
+            "english_leakage_examples": ["hello"],
+        }),
+    )
+    assert r["fluency"] == 5
+    assert r["grammar"] == 0
+    assert r["idiom"] == 4
+    assert r["overall"] == 5.0
+
+
+def test_gaeilge_rubric_tamper_blocks_call():
+    j = _judge_fixture("orig")
+    j["rubric"] = "tampered"
+    raised = False
+    try:
+        grade_gaeilge("Dia duit.", _gaeilge_record(), j, _stub_invoke({}))
     except RuntimeError as e:
         raised = "sha256" in str(e)
     assert raised

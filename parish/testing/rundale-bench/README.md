@@ -17,6 +17,7 @@ Spec + roadmap: [`docs/plans/rundale-bench.md`](../../../docs/plans/rundale-benc
 | 5 — Holdout split | landed | deterministic id-hash split; `core` tier preserved in dev; encryption deferred to v1.0 freeze |
 | 6 — Leaderboard | landed (seed row only) | append-only table; one seed row pre-split; needs broader sweep |
 | 7 — v1.0 freeze | deferred | requires corpus growth + 3+ leaderboard rows before tag |
+| Gaeilge fluency slice | landed (starter corpus) | 12 source-backed records from Tatoeba and UD Irish-IDT for translation, idiom variants, grammar, comprehension, and English-leakage resistance; `judge_gaeilge_v1` pinned |
 
 ## Layout
 
@@ -40,9 +41,13 @@ parish/testing/rundale-bench/
     ├── tier2-sim.holdout.jsonl
     ├── tier3-sim.jsonl         — 15 records, 6+ hour NPC batch JSON (Phase 4)
     ├── tier3-sim.holdout.jsonl
+    ├── gaeilge.jsonl           — Gaeilge fluency tasks
+    ├── gaeilge.holdout.jsonl
+    ├── GAEILGE_SOURCES.md      — Gaeilge source provenance + licences
     ├── judge_v1.json           — pinned LLM judge for dialogue (rubric_sha256-verified)
     ├── judge_reaction_v1.json  — pinned judge for reaction in-character score
-    └── judge_sim_v1.json       — pinned judge for sim plausibility
+    ├── judge_sim_v1.json       — pinned judge for sim plausibility
+    └── judge_gaeilge_v1.json   — pinned judge for Gaeilge fluency
 ```
 
 ## Running the bench
@@ -56,6 +61,10 @@ python3 parish/testing/rundale-bench/rundale_bench.py \
 # Full sweep — every slice, dev split:
 python3 parish/testing/rundale-bench/rundale_bench.py \
     --target '<spec>' --suite v1 --slice all --split dev
+
+# Gaeilge fluency slice only:
+python3 parish/testing/rundale-bench/rundale_bench.py \
+    --target '<spec>' --suite v1 --slice gaeilge --split dev
 
 # Holdout (gates leaderboard submission):
 python3 parish/testing/rundale-bench/rundale_bench.py \

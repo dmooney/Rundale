@@ -277,6 +277,17 @@ eval SCENARIO="smoke":
         --log testing/eval/logs/{{SCENARIO}}-latest.json \
         --rubric testing/eval/rubrics/{{SCENARIO}}.md
 
+# Run the rundale-bench Gaeilge slice for one OpenAI-compatible target.
+# TARGET format: model@base_url[#env:VAR]. Optional LIMIT does a cheap smoke run.
+eval-gaeilge TARGET LIMIT="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=(--target "{{TARGET}}" --suite v1 --slice gaeilge)
+    if [ -n "{{LIMIT}}" ]; then
+      args+=(--limit "{{LIMIT}}")
+    fi
+    python3 testing/rundale-bench/rundale_bench.py "${args[@]}"
+
 # ─── Lint, Format & Quality Gates ────────────────────────────────────────────
 
 # Check formatting (no changes)

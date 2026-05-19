@@ -78,6 +78,10 @@ witness-scan:
 baselines:
     cd parish && just baselines
 
+# Run the rundale-bench Gaeilge slice for one OpenAI-compatible target.
+eval-gaeilge TARGET LIMIT="":
+    cd parish && just eval-gaeilge "{{TARGET}}" "{{LIMIT}}"
+
 # Read-only audit of gameplay fixture coverage
 harness-audit:
     cd parish && just harness-audit

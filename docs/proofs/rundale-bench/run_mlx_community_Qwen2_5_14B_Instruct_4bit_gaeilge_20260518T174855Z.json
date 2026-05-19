@@ -1,0 +1,168 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen2.5-14B-Instruct-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-18T17:48:11.349071+00:00",
+  "slices": {
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 11,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.09090909090909091,
+        "fluency_mean": 2.090909090909091,
+        "grammar_mean": 2.272727272727273,
+        "idiom_mean": 2.090909090909091,
+        "task_fulfillment_mean": 1.9090909090909092,
+        "english_leakage_mean": 4.818181818181818,
+        "overall_mean": 2.109090909090909
+      },
+      "results": [
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.5,
+          "reason": "The candidate response uses 'se\u00f3il' (a sail/luck idiom) rather than 'f\u00f3mhar' (harvest), misses the past tense of 'b\u00ed', and the phrase 'sa bhliain seo isteach' is not standard Irish for 'this year' (i mbliana); the sentence does not convey the meaning of a good harvest this year.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0001",
+          "reply": "Ba mhaith an t-se\u00f3il sa bhliain seo isteach."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.0,
+          "reason": "The candidate response is nonsensical Irish that does not convey the meaning 'I have to go to the bank' \u2014 it appears to be a garbled string of Irish-looking words with no coherent grammar or meaning related to the source sentence.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0002",
+          "reply": "M\u00e1thair mhair dom chon banc."
+        },
+        {
+          "fluency": 1,
+          "grammar": 2,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.5,
+          "reason": "The candidate response does not translate 'I want to tell you the truth' \u2014 'tionscal' means 'industry/enterprise', not 'truth', and the construction is garbled; the meaning is entirely lost despite no English words appearing.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0003",
+          "reply": "Is \u00e9 an tionscal a mhaith liom duit a r\u00e1."
+        },
+        {
+          "fluency": 2,
+          "grammar": 2,
+          "idiom": 2,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.5,
+          "reason": "The candidate translated 'we were eating a biscuit/cookie' instead of 'I ate the bread'; wrong subject (plural), wrong tense (progressive past), and wrong noun (briosca = biscuit, not ar\u00e1n = bread), completely failing to preserve the source meaning.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0004",
+          "reply": "Bh\u00edomar ag ithe an briosca."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 3,
+          "overall": 1.0,
+          "reason": "The response is largely nonsensical and does not translate 'You will buy the book today'; it uses a past tense construction (d'\u00e9irigh leat) meaning 'you succeeded' and contains the invented/nonsense word 'cheeks\u00fa' which is not Irish.",
+          "english_leakage_examples": [
+            "cheeks\u00fa"
+          ],
+          "id": "gaeilge-0005",
+          "reply": "D'\u00e9irigh leat an leabhar a cheeks\u00fa inniu."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.0,
+          "reason": "The candidate response is largely invented pseudo-Irish gibberish ('pr\u00f3imhbhricfeasaiocht' is not a real Irish word) and fails to convey the meaning of looking forward to snow in any recognizable Irish phrasing.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0006",
+          "reply": "Is min an t-sneach at\u00e1 agam a bpr\u00f3imhbhricfeasaiocht."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' for possession.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0007",
+          "reply": "An bhfuil airgead aici?"
+        },
+        {
+          "fluency": 1,
+          "grammar": 2,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.2,
+          "reason": "The candidate uses 'muid' (first-person plural) instead of singular, 'ag imr\u00ed' (playing) instead of 'ag dul' (going), and 'teach-aitheach' is not a real Irish word for shop (siopa); the translation is semantically wrong and contains invented vocabulary.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 muid ag imr\u00ed go dt\u00ed an teach-aitheach."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly identifying the man as the walker and the woman as the companion in perfect Irish.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean."
+        },
+        {
+          "fluency": 3,
+          "grammar": 3,
+          "idiom": 3,
+          "task_fulfillment": 2,
+          "english_leakage": 5,
+          "overall": 2.5,
+          "reason": "The candidate produced a negative declarative ('N\u00edor labhair Se\u00e1n') rather than the required positive declarative ('Labhair Se\u00e1n'); the task asked for a positive statement, not just a change from interrogative to declarative negative.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0010",
+          "reply": "N\u00edor labhair Se\u00e1n."
+        },
+        {
+          "fluency": 2,
+          "grammar": 2,
+          "idiom": 2,
+          "task_fulfillment": 2,
+          "english_leakage": 5,
+          "overall": 2.0,
+          "reason": "The response is in Irish with no English leakage, but the explanation is semantically wrong \u2014 't\u00f3g go bog \u00e9' means 'take it easy/calm down', not something about being in company with others without feeling compelled; the grammar is also awkward ('\u00fasedar' is non-standard, 'aitheantas a ghabh\u00e1il ar bh",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0012",
+          "reply": "Is \u00e9 \"t\u00f3g go bog \u00e9\" abairt a \u00fasedar chun aitheantas a ghabh\u00e1il ar bheith in \u00e9ineacht le daoine eile, gan \u00e9igean a bhrath."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 44.51297307014465,
+  "cost": {
+    "calls": 22,
+    "prompt_tokens": 12775,
+    "completion_tokens": 1461,
+    "usd": 0.052910999999999986
+  }
+}

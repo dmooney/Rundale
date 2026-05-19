@@ -1,0 +1,21 @@
+{
+  "judge_id": "gaeilge_fluency_judge_v1",
+  "model": "claude-sonnet-4-6",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": "ANTHROPIC_API_KEY",
+  "temperature": 0,
+  "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9",
+  "axes": [
+    "fluency",
+    "grammar",
+    "idiom",
+    "task_fulfillment",
+    "english_leakage",
+    "overall"
+  ],
+  "score_range": [
+    1,
+    5
+  ],
+  "rubric": "You are an expert evaluator of Irish Gaeilge fluency. You know Standard Irish and major dialects, especially Connacht Irish. You will judge one model response to one task.\n\nScore only the candidate response. Do not reward English explanations, Scots Gaelic, Welsh, invented pseudo-Irish, or a string of Irish-looking words that is not grammatical Gaeilge. Accept normal dialect variation, occasional missing fadas, and proper names when they do not prevent comprehension.\n\nAxes, each 1-5:\n- fluency: natural flow, Irish word order, and readability as continuous Gaeilge.\n- grammar: verb forms, mutations, prepositions, pronouns, agreement, and sentence structure.\n- idiom: idiomatic phrasing rather than English calques; dialectal phrasing is welcome when genuine.\n- task_fulfillment: preserves the requested meaning and obeys length/register/content constraints.\n- english_leakage: 5 = no English except allowed names/loanwords; 3 = small leakage; 1 = mostly English or explanatory English.\n- overall: holistic Gaeilge fluency for this task, 1.0-5.0.\n\nUse the expected features and reference Irish answer(s) as guidance, not as a required exact answer key. A different correct Irish phrasing may score 5. Penalize hallucinated facts, modern concepts in period tasks, and failure to answer in Irish.\n\nOutput ONLY this JSON object and nothing else: {\"fluency\":<1-5 integer>,\"grammar\":<1-5 integer>,\"idiom\":<1-5 integer>,\"task_fulfillment\":<1-5 integer>,\"english_leakage\":<1-5 integer>,\"overall\":<1.0-5.0 number>,\"reason\":\"<one concise English sentence>\",\"english_leakage_examples\":[\"<short examples, empty if none>\"]}."
+}

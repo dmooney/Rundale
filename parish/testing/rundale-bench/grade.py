@@ -5,6 +5,7 @@
 - `grade_dialogue` — invokes the pinned judge_v1 model.
 - `grade_reaction` — non-Latin + length + pinned-judge in-character score.
 - `grade_simulation` — schema-valid + pinned-judge plausibility score.
+- `grade_gaeilge` — pinned-judge Irish-language fluency score.
 
 The judge graders defer their LLM call to `eval_lib.call_chat`, which makes
 `grade.py` itself purely a structuring layer over deterministic checks plus
@@ -371,3 +372,102 @@ def grade_simulation(reply: Any, schema: dict, judge: dict, invoke: Callable[...
         return {"schema_valid": True, "plausibility": pl, "score": pl / 5.0}
     except Exception as e:
         return {"schema_valid": True, "plausibility": 0, "score": 0.0, "error": str(e)}
+
+
+def _score_1_to_5(value: Any, *, integer: bool = True) -> int | float:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        score = 0.0
+    score = max(0.0, min(5.0, score))
+    return int(round(score)) if integer else round(score, 2)
+
+
+def grade_gaeilge(
+    reply: str,
+    record: dict,
+    judge: dict,
+    invoke: Callable[..., dict],
+) -> dict:
+    """Pinned-judge score for the Gaeilge fluency slice.
+
+    The corpus records carry task constraints and expected semantic features,
+    but not one canonical answer. This grader asks the pinned judge to score
+    one reply across language quality axes, then normalizes the returned values
+    so aggregate math is stable even if a provider emits a float-like string.
+    """
+    verify_judge_rubric(judge)
+    judge_schema = {
+        "name": "gaeilge_fluency_score",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "fluency": {"type": "integer"},
+                "grammar": {"type": "integer"},
+                "idiom": {"type": "integer"},
+                "task_fulfillment": {"type": "integer"},
+                "english_leakage": {"type": "integer"},
+                "overall": {"type": "number"},
+                "reason": {"type": "string"},
+                "english_leakage_examples": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+            "required": [
+                "fluency",
+                "grammar",
+                "idiom",
+                "task_fulfillment",
+                "english_leakage",
+                "overall",
+                "reason",
+                "english_leakage_examples",
+            ],
+        },
+    }
+    constraints = "\n".join(f"- {c}" for c in record.get("constraints", []))
+    expected = "\n".join(f"- {f}" for f in record.get("expected_features", []))
+    references = "\n".join(f"- {r}" for r in record.get("reference_irish", []))
+    source = json.dumps(record.get("source", {}), ensure_ascii=False)
+    user = (
+        f"Record id: {record.get('id')}\n"
+        f"Task type: {record.get('task_type')}\n\n"
+        f"Source metadata:\n{source}\n\n"
+        f"Original task:\n{record.get('prompt')}\n\n"
+        f"Constraints:\n{constraints}\n\n"
+        f"Reference Irish answer(s), if any:\n{references}\n\n"
+        f"Expected features:\n{expected}\n\n"
+        f"Candidate response:\n{reply}\n"
+    )
+    try:
+        scores = invoke(judge["rubric"], user, judge_schema)
+        if not isinstance(scores, dict):
+            raise ValueError(f"judge returned non-dict: {type(scores).__name__}")
+        leakage_examples = scores.get("english_leakage_examples", [])
+        if not isinstance(leakage_examples, list):
+            leakage_examples = []
+        return {
+            "fluency": _score_1_to_5(scores.get("fluency")),
+            "grammar": _score_1_to_5(scores.get("grammar")),
+            "idiom": _score_1_to_5(scores.get("idiom")),
+            "task_fulfillment": _score_1_to_5(scores.get("task_fulfillment")),
+            "english_leakage": _score_1_to_5(scores.get("english_leakage")),
+            "overall": _score_1_to_5(scores.get("overall"), integer=False),
+            "reason": str(scores.get("reason") or "")[:300],
+            "english_leakage_examples": [str(x)[:80] for x in leakage_examples[:5]],
+        }
+    except Exception as e:
+        return {
+            "fluency": 0,
+            "grammar": 0,
+            "idiom": 0,
+            "task_fulfillment": 0,
+            "english_leakage": 0,
+            "overall": 0.0,
+            "reason": "",
+            "english_leakage_examples": [],
+            "error": str(e),
+        }

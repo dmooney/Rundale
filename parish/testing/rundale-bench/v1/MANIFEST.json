@@ -2,7 +2,7 @@
   "suite": "rundale-bench",
   "version": "v1-dev",
   "frozen": false,
-  "merkle_root_sha256": "70337bed96d29f526f6314a08f7967ef83eacffbb881b1d598ce3c4fa97c20e3",
+  "merkle_root_sha256": "befb798be66044ef1b6fcec3706c45f982d0efee00644600d836e09facf74b33",
   "slices": {
     "dialogue.holdout.jsonl": {
       "sha256": "50beadc4af9bff9fe58005959398face04659fa158fb646817bb3ee61c4ae977",
@@ -13,6 +13,16 @@
       "sha256": "651baea9206f4d086e78d6c6a6c2419e96990cebce43562ba4073e07466bef2e",
       "records": 133,
       "bytes": 19232
+    },
+    "gaeilge.holdout.jsonl": {
+      "sha256": "f03cf5c3a33169ffe6c7a12fba32c9d66e33a318dc0285a791fcc404890567b8",
+      "records": 1,
+      "bytes": 612
+    },
+    "gaeilge.jsonl": {
+      "sha256": "a45fd4694eb8989776c284f0f4909dfccc17052fcadbbd1f7e687554595abad8",
+      "records": 11,
+      "bytes": 7075
     },
     "intent.holdout.jsonl": {
       "sha256": "6ee97295483aa3510b0a723ea23cb47c18d875d097a12632b45ad6443fa94736",

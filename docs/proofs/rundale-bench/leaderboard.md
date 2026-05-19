@@ -1,238 +1,442 @@
-# rundale-bench v1 leaderboard
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>rundale-bench v1 — leaderboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1e2330;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #6ee7b7;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --link: #7dd3fc;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --panel-2: #f1f3f7;
+      --border: #d6d9e1;
+      --text: #1c1f26;
+      --muted: #5b6373;
+      --accent: #047857;
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --link: #0369a1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem clamp(1rem, 4vw, 4rem);
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.1rem; margin: 2.5rem 0 0.75rem; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.5rem; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem; margin: 1rem 0 0;
+  }
+  .stat {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  .stat .v { font-size: 1.5rem; font-weight: 600; color: var(--accent); }
+  .stat .k { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .controls input, .controls select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.85rem;
+    font-family: inherit;
+  }
+  .controls input { min-width: 220px; }
+  table {
+    width: 100%; border-collapse: collapse; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    font-variant-numeric: tabular-nums; font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--panel-2); font-weight: 600; cursor: pointer; user-select: none;
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  th:hover { color: var(--text); }
+  th.sorted-asc::after { content: " ▲"; color: var(--accent); }
+  th.sorted-desc::after { content: " ▼"; color: var(--accent); }
+  tr:last-child td { border-bottom: 0; }
+  tr:hover td { background: var(--panel-2); }
+  td.num { text-align: right; font-family: "SF Mono", "Menlo", "Consolas", monospace; }
+  td.cand { font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 0.82rem; }
+  td.judge { color: var(--muted); font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 0.78rem; }
+  .pill {
+    display: inline-block; padding: 0.05rem 0.4rem; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .p-good { background: rgba(110,231,183,0.15); color: var(--accent); }
+  .p-warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .p-bad  { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .legend { color: var(--muted); font-size: 0.78rem; margin: 0.25rem 0 0; }
+  .coverage-grid { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .coverage-row { display: grid; grid-template-columns: 1.8fr repeat(var(--judge-cols, 3), 90px); background: var(--panel); padding: 0.45rem 0.75rem; align-items: center; }
+  .coverage-row.head { background: var(--panel-2); font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+  .coverage-row .cell { text-align: center; }
+  .check { color: var(--accent); }
+  .miss { color: var(--muted); opacity: 0.4; }
+  .unjudged-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.5rem; margin-top: 0.5rem;
+  }
+  .unjudged-item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.5rem 0.75rem; font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 0.82rem;
+  }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.78rem; }
+  a { color: var(--link); }
+</style>
+</head>
+<body>
 
+<template id="proof-evidence-type">
 Evidence type: gameplay transcript
-
-Append-only ranking of evaluated targets. One row per `(target, slice, split)` triplet. Rows added by running:
-
-```sh
-python3 parish/testing/rundale-bench/rundale_bench.py \
-    --target '<model>@<base_url>#env:<KEY_VAR>' \
-    --suite v1 --slice <name|all> --split <dev|holdout>
-```
-
-…then appending one row per slice + a `metric` cell appropriate to that slice (label-match rate for intent; mean overall for dialogue; mean score for reaction; schema-valid rate × mean plausibility for tier2/tier3).
-
-## Submission rules
-
-- **Holdout scores are the leaderboard.** Dev rows are accepted for reproducibility cross-checks but flagged as `split=dev` and ignored by ranking.
-- **Re-runs replace earlier rows for the same `(target, slice, split, suite-version)` tuple.** Keep one row per tuple; cite the latest harness SHA.
-- **Cost in USD must come from `CostTracker`** (the orchestrator emits it). No manual estimates.
-- **`harness_sha` is `git rev-parse HEAD`** at the time of the run. If the manifest or grader changed since, re-run before quoting the row in any decision.
-
-## Phase 6 seed rows
-
-| Date (UTC)         | Target                                              | Slice    | Split | Records | Metric                                            | $/run  | Judge                                | Harness SHA |
-|--------------------|-----------------------------------------------------|----------|-------|---------|----------------------------------------------------|--------|--------------------------------------|--------------|
-| 2026-05-13 18:32   | openai/gpt-oss-120b:free @ openrouter.ai           | intent   | dev   | 30 (pre-split) | label_match=0.700, mean_score=0.676           | $0.00  | n/a (deterministic)                  | 9dab39ee… |
-| 2026-05-13 20:47   | openai/gpt-oss-120b:free @ openrouter.ai           | dialogue | dev   | 5       | overall=4.28 (char 4.0 / auth 4.0 / lang 5.0 / resp 4.4 / craft 4.2) | $0.012 | claude-sonnet-4-6                    | (pre-judge-swap) |
-| 2026-05-13 21:01   | openai/gpt-oss-120b:free @ openrouter.ai           | dialogue | dev   | 5       | overall=4.82 (char 4.8 / auth 5.0 / lang 5.0 / resp 4.8 / craft 4.6) | ~$0.0003 | qwen/qwen3-235b-a22b-2507 (OpenRouter) | post-judge-swap |
-
-Pre-rundale-bench-v1.0, only dev rows exist (holdout scoring CI lands in Phase 7). The first row was produced before the holdout split was applied (`9dab39ee` ships the un-split slices); future re-runs against the same target will operate on the 25-record dev slice and the 5-record holdout slice respectively.
-
-### Judge calibration note
-
-The two dialogue rows above scored the **same five replies from the same target** but with different judges:
-
-- `claude-sonnet-4-6` → overall **4.28**
-- `qwen/qwen3-235b-a22b-2507` → overall **4.82**
-
-The 0.54 delta is well above the ±0.3 noise floor stated in the plan and demonstrates that **judge model is a benchmark dimension**, not just a configuration knob. Until reproducibility is established across at least two independently-run sweeps with the same judge pin, leaderboard rows are not directly comparable across the `Judge` column. Production rankings should fix one judge per slice-version and re-score historical targets when the judge pin rotates.
-
-The judge swap from Sonnet 4.6 → Qwen3-235B was made to keep judge cost negligible (~\$0.0003/call vs ~\$0.002/call) and to consolidate API key surface on OpenRouter. Qwen3-235B is the current pinned default in `judge_v1.json`; the Sonnet snapshot is retained in the leaderboard as a calibration row, not as a benchmark contender.
-
-## ELO standings — dialogue slice (`--mode elo`)
-
-The absolute 5-axis rubric saturates near the ceiling (gpt-oss-120b scored 4.82/5 on its own — no headroom for stronger models to differentiate). Pairwise ELO replaces it for ranking decisions. Each match: judge picks A / B / tie between two candidate replies on the same prompt, with A/B position randomized per match to absorb first-position bias. ELO starts at 1500, K=32 initially (drops to 16 after 50+ matches/candidate), bootstrapped CI via 500 resamples.
-
-| Date (UTC)       | Targets   | Prompts | Matches | Judge                          | Cost    | Run file |
-|------------------|-----------|---------|---------|--------------------------------|---------|---|
-| 2026-05-13 22:15 | 3 (smoke) | 10      | 30      | judge_pairwise_v1 (qwen3-235b) | $0.0013 | `elo_20260513T221506Z.json` |
-
-### Standings — 3-candidate smoke (qwen3-235b judge)
-
-| Rank | Target                                       | ELO    | 5/95 CI           | Matches |
-|------|----------------------------------------------|--------|-------------------|---------|
-| 1    | qwen/qwen3-235b-a22b-2507                    | 1646.2 | 1598.6 – 1694.0   | 20      |
-| 2    | openai/gpt-oss-120b:free                     | 1497.1 | 1437.0 – 1561.2   | 20      |
-| 3    | mistralai/mistral-small-24b-instruct-2501    | 1356.6 | 1306.3 – 1399.8   | 20      |
-
-~290 ELO spread across three candidates with **non-overlapping CIs between Qwen and Mistral** — discrimination the absolute rubric was crushing. GPT-oss-120b lands middle.
-
-### Standings — 12-candidate sweep, 2026-05-14 (mistral-large-2512 judge)
-
-Cached samples: `dialogue_samples_20260514T004513Z.json` (6 paid-cheap) + `dialogue_samples_20260514T005721Z.json` (6 mid-tier) → 12 candidates × 15 prompts. 816 pairwise matches over `judge_pairwise_v1` rubric judged by `mistralai/mistral-large-2512` ($0.50/$1.50 per M). ~22 minutes wall, < $0.10.
-
-| Rank | Target                                          | ELO    | Matches | Notes |
-|------|-------------------------------------------------|--------|---------|-------|
-| 1    | qwen/qwen3-235b-a22b-2507                       | 1898.9 | 149     |       |
-| 2    | anthropic/claude-haiku-4.5                      | 1768.4 | 149     | strong for cheap-tier ($1/$5) |
-| 3    | google/gemma-3-27b-it                           | 1705.0 | 149     |       |
-| 4    | mistralai/mistral-large-2512                    | 1682.6 | 149     | **same as judge — self-bias inflates this row** |
-| 5    | moonshotai/kimi-k2.5                            | 1622.8 | 11      | **only 11 matches — reasoning-model output empty for 14/15 prompts; row unreliable** |
-| 6    | x-ai/grok-3-mini                                | 1484.9 | 149     |       |
-| 7    | deepseek/deepseek-v3.2                          | 1473.3 | 149     |       |
-| 8    | openai/gpt-oss-120b                             | 1356.8 | 131     |       |
-| 9    | google/gemini-2.5-flash                         | 1340.9 | 149     |       |
-| 10   | mistralai/mistral-small-24b-instruct-2501       | 1305.2 | 149     |       |
-| 11   | openai/gpt-4o-mini                              | 1242.6 | 149     |       |
-| 12   | microsoft/phi-4                                 | 1118.6 | 149     | bottom by 124 points |
-
-780-point top-to-bottom spread. Findings:
-
-- **qwen3-235b dominant.** Top by 130 ELO over Claude Haiku 4.5 — but qwen3-235b is also the previous judge pin, so absorbed weight from the prior pairwise rubric's training of itself. Treat this row with the same suspicion as #4 (mistral-large self-bias).
-- **claude-haiku-4.5 punches above its tier.** Mid-cost ($1/$5 per M) but second-place on quality — strong candidate for the Dialogue preset.
-- **Cheap mistral-small at #10**, big mistral-large at #4. ~377-point gap within the same family — model size + capability matters, the family label doesn't.
-- **microsoft/phi-4 dead last** by 124 ELO; not a dialogue candidate worth pursuing for 1820 Irish.
-
-### Caveats
-
-- **Judge self-bias.** mistral-large at #4 against 11 cross-family competitors is suspect; comparable cross-judge runs (qwen judge / claude judge) should adjust this. Plan: re-run with a non-candidate judge (e.g. cohere/command-a) and average the two ranking tables.
-- **Reasoning-class models break the cache.** `moonshotai/kimi-k2.6` and `moonshotai/kimi-k2.5` both return `content: null` with all output in `reasoning` field — current `call_chat` only reads `content`, so their cached replies are empty. Same problem hit `z-ai/glm-4.7`. Until the cache supports `reasoning` fallback OR we exclude reasoning models, these candidates can't be ELO-ranked.
-- **Position-bias absorbed** by per-match A/B randomization (seed 0xe10 in rubric_lab.py); same approach as Chatbot Arena.
-- **N=15 prompts per candidate** is below the 25-prompt comfort floor. Larger prompt counts tighten the standings — bootstrap CI not computed in this rubric_lab run (only in the in-bench `--mode elo` path).
-
-### Caveats for ELO rows
-
-- **Judge is also a competitor.** Qwen3-235B is the judge AND the top-ranked target here. Same-family bias is plausible. Re-run with a deepseek/* or anthropic/* judge before quoting the top of the table in a preset decision.
-- **N=10 prompts is below the comfort floor.** Plan calls for 25-prompt minimum; this is a smoke. Re-run at 25-50 prompts before treating ELO numbers as authoritative.
-- **Bootstrap CI uses i.i.d. resampling of matches**, which understates uncertainty when matches are correlated by prompt. A prompt-level bootstrap would give wider, more honest bounds.
-
-## Multi-axis 0-10 standings (`score_multiaxis.py`)
-
-Per-axis grading complements ELO when you need *why* a candidate ranks where it does — character, authenticity, language, responsiveness, craft. Judge emits 5 integers + a total. Same 15 dialogue prompts, same dev split, same `mistral-large-2512` judge as the 12-candidate ELO sweep.
-
-Cached samples:
-- `dialogue_samples_20260514T004513Z.json` — 6 paid-cheap candidates → `multiaxis_20260514T172222Z.json` (88 calls, ~$0)
-- `dialogue_samples_20260514T005721Z.json` — 6 mid-tier candidates → `multiaxis_20260514T170413Z.json` (76 calls, ~$0)
-- `dialogue_samples_20260514T173823Z.json` — qwen3-max flagship → `multiaxis_20260514T174548Z.json` (15 calls, ~$0)
-
-| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
-|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
-| 1    | google/gemma-3-27b-it                        | cheap | 15 | 9.03  | 9.20 | 9.60 | 8.73 | 8.60 | 9.00  |
-| 1    | qwen/qwen3-max                               | flag  | 15 | 9.03  | 9.27 | 9.47 | 8.60 | 8.80 | 9.00  |
-| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 15 | 9.00  | 9.33 | 9.67 | 8.47 | 8.53 | 9.00  |
-| 4    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.93  | 9.13 | 9.27 | 8.33 | 9.00 | 8.93  |
-| 5    | mistralai/mistral-large-2512                 | mid   | 15 | 8.88  | 9.07 | 9.27 | 8.40 | 8.67 | 9.00  |
-| 6    | x-ai/grok-3-mini                             | mid   | 15 | 8.84  | 9.00 | 9.00 | 8.87 | 8.73 | 8.60  |
-| 7    | google/gemini-2.5-flash                      | mid   | 15 | 8.81  | 8.93 | 9.20 | 8.40 | 8.53 | 9.00  |
-| 8    | deepseek/deepseek-v3.2                       | cheap | 15 | 8.59  | 8.73 | 9.27 | 8.00 | 8.20 | 8.73  |
-| 9    | openai/gpt-oss-120b                          | cheap | 13 | 8.55  | 8.85 | 9.23 | 8.15 | 8.00 | 8.54  |
-| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 8.32  | 8.33 | 8.67 | 7.80 | 8.33 | 8.47  |
-| 11   | microsoft/phi-4                              | cheap | 15 | 8.28  | 8.20 | 8.87 | 7.53 | 8.40 | 8.40  |
-| 12   | openai/gpt-4o-mini                           | mid   | 15 | 8.27  | 8.27 | 8.93 | 7.67 | 8.00 | 8.47  |
-| -    | moonshotai/kimi-k2.5                         | mid   | 1  | 9.00  | 9.00 | 10.00| 9.00 | 8.00 | 9.00  |
-
-(kimi-k2.5 unranked — 14/15 replies empty due to reasoning-model `content: null`.)
-
-### Re-judged with grok-4.3 (2026-05-14) — adds deepseek-v4-pro
-
-Re-judged every cached sample with `x-ai/grok-4.3` ($1.25/$2.50 per M, non-reasoning) to test sensitivity to the judge pick. Also added a fresh cache for `deepseek/deepseek-v4-pro` (deepseek's current flagship). All 193 judge calls succeeded; ~$0.40 total spend, ~43 min wall.
-
-| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
-|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
-| 1    | qwen/qwen3-max                               | flag  | 15 | 8.65  | 8.80 | 9.07 | 8.67 | 8.33 | 8.40  |
-| 2    | mistralai/mistral-large-2512                 | mid   | 15 | 8.61  | 8.60 | 9.00 | 8.60 | 8.53 | 8.33  |
-| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 14 | 8.59  | -    | -    | -    | -    | -     |
-| 4    | x-ai/grok-3-mini                             | mid   | 15 | 8.43  | 8.53 | 8.93 | 8.67 | 8.33 | 7.67  |
-| 5    | google/gemma-3-27b-it                        | cheap | 11 | 8.42  | -    | -    | -    | -    | -     |
-| 6    | google/gemini-2.5-flash                      | mid   | 15 | 8.16  | 8.00 | 8.80 | 8.00 | 8.27 | 7.73  |
-| 7    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.12  | 8.07 | 8.87 | 7.80 | 8.07 | 7.80  |
-| 8    | deepseek/deepseek-v3.2                       | cheap | 13 | 7.91  | -    | -    | -    | -    | -     |
-| 9    | deepseek/deepseek-v4-pro                     | flag  | 14 | 7.77  | 7.71 | 8.21 | 7.21 | 7.93 | 7.79  |
-| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 7.49  | -    | -    | -    | -    | -     |
-| 11   | openai/gpt-oss-120b                          | cheap | 13 | 7.12  | -    | -    | -    | -    | -     |
-| 12   | openai/gpt-4o-mini                           | mid   | 15 | 6.60  | 6.07 | 7.13 | 5.73 | 7.47 | 6.60  |
-| 13   | microsoft/phi-4                              | cheap | 13 | 6.29  | -    | -    | -    | -    | -     |
-
-Sample files:
-- `multiaxis_20260514T182859Z.json` — 6 cheap candidates (79 calls)
-- `multiaxis_20260514T184629Z.json` — 6 mid candidates (76 calls)
-- `multiaxis_20260514T184902Z.json` — qwen3-max (15 calls)
-- `multiaxis_20260514T185110Z.json` — deepseek-v4-pro (14 calls)
-
-Findings vs the mistral-large judge:
-
-- **2.36-point top-to-bottom spread** vs 0.81-point spread under mistral-large. Grok discriminates harder — better signal-to-noise.
-- **Top-3 cluster is robust.** qwen3-max + mistral-large + qwen3-235b within 0.06 of each other under both judges; cross-judge agreement says this trio is the genuine ceiling for this slice.
-- **deepseek-v4-pro WORSE than v3.2** (7.77 vs 7.91). New flagship release does not strictly improve. For 1820 Irish dialogue specifically, v3.2 wins. Treat as a single data point — could reflect heavier RLHF tuning toward reasoning/structure that hurts persona fidelity.
-- **grok-3-mini at #4 = judge-family bias.** grok-4.3 judging grok-3-mini is exactly the inflation pattern called out in the ELO caveats. Discount by ~0.3 mentally.
-- **gpt-4o-mini collapses to 6.60** (vs 8.27 under mistral-large). Stricter judge exposes gpt-4o-mini's weak character voice — biggest cross-judge gap of any candidate.
-
-Caveat: kimi-k2.6 was tried as judge first but failed at ~70% of calls — its reasoning tokens crowded out content emission, and per-call wall time was 29 s. Not viable as a judge until a content-only mode lands. The reasoning-fallback that landed in `eval_lib.py` (read `message.reasoning` when `message.content` is empty) helps for short replies but doesn't fix the JSON-schema-truncation problem.
-
-### gemma-4 + qwen-2.5 quality probe (grok-4.3 judge)
-
-Added two more candidates to test whether newer / different family lineages outperform the cheap-tier leader. Both scored worse:
-
-| Target                          | n  | Total | Char | Auth | Lang | Resp | Craft | Note |
-|---------------------------------|----|-------|------|------|------|------|-------|------|
-| google/gemma-3-27b-it (control) | 11 | 8.42  | -    | -    | -    | -    | -     | grok-judged baseline |
-| google/gemma-4-31b-it           | 15 | 8.19  | 8.00 | 8.67 | 7.67 | 8.40 | 8.20  | -0.23 vs gemma-3 |
-| qwen/qwen-2.5-72b-instruct      | 1  | 8.00  | -    | -    | -    | -    | -     | 14/15 provider 400s — unscorable |
-
-Headline: **gemma-4-31b-it scores 0.23 lower than gemma-3-27b** under the same judge. Newer release is not an upgrade for this slice — confirmed when combined with the perf table below (gemma-4 also slower).
-
-`qwen-2.5-72b-instruct` is effectively dead on OpenRouter right now — only 1 of 15 cache calls returned a usable reply (the rest hit "Provider returned error" 400s) and free-form JSON compliance was 10%. Re-route via a different provider or drop from the candidate list.
-
-## Latency & throughput probe (`bench_perf.py`)
-
-Streaming probe captures TTFT (time-to-first-content-token), total wall time, and tok/s per request. JSON-compliance is measured separately by asking the model to emit a 2-key object in two modes: free-form prompt and `response_format: json_schema`. 10 dialogue prompts × 10 + 10 JSON trials per candidate.
-
-| Candidate                                | TTFT p50 | Total p50 | tok/s p50 | JSON free | JSON schema |
-|------------------------------------------|----------|-----------|-----------|-----------|-------------|
-| **qwen/qwen3-235b-a22b-2507** (cheap)    | **363 ms** | **1696 ms** | **54.2** | 100%      | 100%        |
-| google/gemma-3-27b-it (cheap)            | 380 ms   | 2328 ms   | 37.9      | 100%      | 100%        |
-| google/gemma-4-31b-it                    | 1160 ms  | 3214 ms   | 21.9      | 100%      | 100%        |
-| qwen/qwen-2.5-72b-instruct (broken)      | 0 ms     | 5242 ms   | 0.0       | 10%       | 90%         |
-
-Evidence: `perf_20260514T202405Z.json`.
-
-Findings:
-- **qwen3-235b is the perf leader** — fastest TTFT, fastest total, highest tok/s, perfect JSON in both modes. Same model already topped the cheap-tier quality table. Strong default for the dialogue preset.
-- **gemma-4 is slower than gemma-3** — TTFT 3× worse (1160 ms vs 380 ms), tok/s ~half (21.9 vs 37.9). Combined with the -0.23 quality drop above, gemma-4 is a downgrade across both axes.
-- **qwen-2.5-72b** streaming all failed via OpenRouter routing; schema-mode worked 90% but free-form 10%. Different provider routing needed before this candidate is fairly evaluated.
-- **JSON-compliance is universally 100% on schema-enforced calls** for every working candidate — the `response_format` knob works. Free-form 100% across the board too on these short Q&A prompts (would expect drops on harder rubrics).
-
-### Flagship Chinese model probe — qwen3-max
-
-Ran the most expensive non-reasoning Chinese flagship through the same pipeline as a sanity check that the cheap tier wasn't simply easy to saturate. Result: **qwen3-max ties gemma-3-27b at 9.03 total and edges qwen3-235b by 0.03** — well inside the rubric noise floor.
-
-| Model           | Cost ($/M in / out) | Total | Delta vs qwen3-235b |
-|-----------------|----------------------|-------|---------------------|
-| qwen/qwen3-max  | $1.20 / $6.00        | 9.03  | +0.03               |
-| qwen/qwen3-235b | $0.07 / $0.30        | 9.00  | baseline            |
-
-~17× cost for ~0.03 score gain. For this slice (1820 Irish dialogue, 5-axis rubric judged by mistral-large-2512), the flagship buys nothing. Caveat: a flagship advantage may appear on harder slices (sim tier-3, long-context reaction tier) not covered here.
-
-Cross-rubric agreement: the 12-candidate ELO sweep also crowns qwen3-235b + claude-haiku-4.5 + gemma-3-27b at the top — three independent axes (pairwise vs multi-axis) converge on the same top tier. ELO ranks qwen #1 / haiku #2 / gemma #3; multi-axis ranks gemma #1 / qwen #2 / haiku #3 — order swaps within the top three, but the cluster is robust.
-
-### Caveats
-
-- **Same judge as ELO sweep** (`mistral-large-2512`) — mistral-large at #4 here is the same self-bias as in the ELO table.
-- **Saturation risk.** The 5-axis 0-10 rubric still discriminates (10.65-point top-to-bottom spread across 11 candidates), but the top three are within 0.10 of each other. Add stricter calibration anchors (8 vs 10 deltas) before treating sub-0.2 multi-axis gaps as signal.
-- **N=15 prompts** is below the 25-prompt comfort floor. Same caveat as ELO.
-
-## Reading the leaderboard
-
-A row at the top of its slice means: best measured `metric` for the largest representative N. Beware:
-
-- **Intent** is the most reliable column — deterministic grading, no judge noise.
-- **Dialogue / Reaction / Sim** scores come from a pinned LLM judge (`judge_v1` / `judge_reaction_v1` / `judge_sim_v1`); interpret deltas <0.3 as noise.
-- **Cost** is *per-run*, not per-token. A cheap model with 10× the calls can show similar $.
-- **Free-tier rows** (e.g. OpenRouter `:free`) show $0 but carry hidden rate-limit cost and may degrade upstream without notice. Treat them as benchmarks of an open-weight model exposed via that pipeline, not as a production target.
-
-## Eligible targets (Phase 6 backlog)
-
-Targets to seed once API keys are available — these are the Parish `Provider::preset_models()` picks that the benchmark is meant to defend:
-
-- `claude-opus-4-7@anthropic.com#env:ANTHROPIC_API_KEY` — dialogue tier
-- `claude-sonnet-4-6@anthropic.com#env:ANTHROPIC_API_KEY` — sim tier
-- `claude-haiku-4-5@anthropic.com#env:ANTHROPIC_API_KEY` — intent tier
-- `gpt-5.5@openai.com#env:PARISH_OPENAI_API_KEY`, `gpt-5.4-mini`, `gpt-5.4-nano`
-- `gemini-2.5-pro@googleapis.com#env:PARISH_GOOGLE_API_KEY`, `gemini-2.5-flash`
-- `openai/gpt-oss-120b:free@openrouter.ai#env:OPENROUTER_API_KEY` (this row + holdout variant)
-- `llama-3.3-70b-versatile@groq.com#env:PARISH_GROQ_API_KEY`
-- `grok-4.20-non-reasoning@x.ai#env:PARISH_XAI_API_KEY`
-- `mlx-community/Qwen2.5-7B-Instruct-4bit@localhost:8000` — local baseline
-
-Each lands as one PR per `(target, full --slice all sweep)`. Holdout score from each is what changes `parish-config::presets::preset_models()`.
+</template>
+
+<h1>rundale-bench v1 — leaderboard</h1>
+<p class="sub">Cached candidates judged on Rundale's 1820 Irish dialogue slice plus Gaeilge fluency. Quality, latency, throughput, JSON compliance, and Irish-language metrics.</p>
+
+<div class="grid">
+  <div class="stat"><div class="v" id="s-cached">–</div><div class="k">cached candidates</div></div>
+  <div class="stat"><div class="v" id="s-judged">–</div><div class="k">judged candidates</div></div>
+  <div class="stat"><div class="v" id="s-unjudged">–</div><div class="k">unjudged backlog</div></div>
+  <div class="stat"><div class="v" id="s-judges">–</div><div class="k">distinct judges</div></div>
+  <div class="stat"><div class="v" id="s-q">–</div><div class="k">quality rows</div></div>
+  <div class="stat"><div class="v" id="s-p">–</div><div class="k">perf rows</div></div>
+  <div class="stat"><div class="v" id="s-g">–</div><div class="k">gaeilge rows</div></div>
+</div>
+
+<h2>Quality scores (5-axis 0-10 rubric)</h2>
+<p class="legend">Click headers to sort. Filter narrows on candidate or judge.</p>
+<div class="controls">
+  <input id="q-filter" placeholder="filter by candidate / judge…" oninput="renderQuality()">
+  <select id="q-judge" onchange="renderQuality()">
+    <option value="">all judges</option>
+  </select>
+</div>
+<table id="q-table">
+  <thead><tr>
+    <th data-k="candidate">candidate</th>
+    <th data-k="judge">judge</th>
+    <th data-k="n" class="num">n</th>
+    <th data-k="total" class="num">total</th>
+    <th data-k="character" class="num">char</th>
+    <th data-k="authenticity" class="num">auth</th>
+    <th data-k="language" class="num">lang</th>
+    <th data-k="responsiveness" class="num">resp</th>
+    <th data-k="craft" class="num">craft</th>
+  </tr></thead>
+  <tbody id="q-body"></tbody>
+</table>
+
+<h2>Gaeilge fluency (1-5 rubric)</h2>
+<p class="legend">Latest <code>--slice gaeilge</code> run per candidate/base/split. Higher is better; English leakage is 5 when no English leaks.</p>
+<table id="g-table">
+  <thead><tr>
+    <th data-k="candidate">candidate</th>
+    <th data-k="split">split</th>
+    <th data-k="n" class="num">n</th>
+    <th data-k="errors" class="num">err</th>
+    <th data-k="overall" class="num">overall</th>
+    <th data-k="fluency" class="num">fluency</th>
+    <th data-k="grammar" class="num">grammar</th>
+    <th data-k="idiom" class="num">idiom</th>
+    <th data-k="task_fulfillment" class="num">task</th>
+    <th data-k="english_leakage" class="num">no eng</th>
+    <th data-k="usd" class="num">cost</th>
+  </tr></thead>
+  <tbody id="g-body"></tbody>
+</table>
+
+<h2>Perf probe (TTFT / tok/s / JSON compliance)</h2>
+<p class="legend">10 streaming dialogue prompts + 10 JSON free-form + 10 schema-enforced trials.</p>
+<table id="p-table">
+  <thead><tr>
+    <th data-k="candidate">candidate</th>
+    <th data-k="n_ok" class="num">n_ok</th>
+    <th data-k="ttft_p50" class="num">ttft p50</th>
+    <th data-k="ttft_p90" class="num">ttft p90</th>
+    <th data-k="total_p50" class="num">total p50</th>
+    <th data-k="tps_p50" class="num">tok/s p50</th>
+    <th data-k="tps_p90" class="num">tok/s p90</th>
+    <th data-k="json_freeform" class="num">json free</th>
+    <th data-k="json_schema" class="num">json schema</th>
+  </tr></thead>
+  <tbody id="p-body"></tbody>
+</table>
+
+<h2>Judge coverage</h2>
+<p class="legend">Which judges have scored each candidate. ✓ = at least one multiaxis run.</p>
+<div class="coverage-grid" id="cov-grid"></div>
+
+<h2>Unjudged backlog</h2>
+<p class="legend" id="unjudged-note"></p>
+<div class="unjudged-list" id="unjudged"></div>
+
+<footer>
+  Rendered statically from <code>multiaxis_*.json</code>, <code>perf_*.json</code>, and <code>run_*_gaeilge_*.json</code> in <code>docs/proofs/rundale-bench/</code>.
+  Source repo: <a href="https://github.com/dmooney/Rundale">dmooney/Rundale</a>.
+</footer>
+
+<script type="application/json" id="bench-data">
+{"quality": [{"candidate": "anthropic/claude-haiku-4.5", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.93, "character": 9.13, "authenticity": 9.27, "language": 8.33, "responsiveness": 9.0, "craft": 8.93}, {"candidate": "openai/gpt-4o-mini", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.27, "character": 8.27, "authenticity": 8.93, "language": 7.67, "responsiveness": 8.0, "craft": 8.47}, {"candidate": "google/gemini-2.5-flash", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.81, "character": 8.93, "authenticity": 9.2, "language": 8.4, "responsiveness": 8.53, "craft": 9.0}, {"candidate": "mistralai/mistral-large-2512", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.88, "character": 9.07, "authenticity": 9.27, "language": 8.4, "responsiveness": 8.67, "craft": 9.0}, {"candidate": "x-ai/grok-3-mini", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.84, "character": 9.0, "authenticity": 9.0, "language": 8.87, "responsiveness": 8.73, "craft": 8.6}, {"candidate": "qwen/qwen3-235b-a22b-2507", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 9.0, "character": 9.33, "authenticity": 9.67, "language": 8.47, "responsiveness": 8.53, "craft": 9.0}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.32, "character": 8.33, "authenticity": 8.67, "language": 7.8, "responsiveness": 8.33, "craft": 8.47}, {"candidate": "google/gemma-3-27b-it", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 9.03, "character": 9.2, "authenticity": 9.6, "language": 8.73, "responsiveness": 8.6, "craft": 9.0}, {"candidate": "microsoft/phi-4", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.28, "character": 8.2, "authenticity": 8.87, "language": 7.53, "responsiveness": 8.4, "craft": 8.4}, {"candidate": "deepseek/deepseek-v3.2", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.59, "character": 8.73, "authenticity": 9.27, "language": 8.0, "responsiveness": 8.2, "craft": 8.73}, {"candidate": "openai/gpt-oss-120b", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 13, "total": 8.55, "character": 8.85, "authenticity": 9.23, "language": 8.15, "responsiveness": 8.0, "craft": 8.54}, {"candidate": "qwen/qwen3-max", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T174548Z.json", "n": 15, "total": 9.03, "character": 9.27, "authenticity": 9.47, "language": 8.6, "responsiveness": 8.8, "craft": 9.0}, {"candidate": "deepseek/deepseek-v4-pro", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T180815Z.json", "n": 14, "total": 7.79, "character": 7.79, "authenticity": 8.21, "language": 7.21, "responsiveness": 7.79, "craft": 7.93}, {"candidate": "qwen/qwen3-235b-a22b-2507", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 14, "total": 8.59, "character": 8.79, "authenticity": 9.07, "language": 8.21, "responsiveness": 8.64, "craft": 8.21}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 15, "total": 7.49, "character": 7.47, "authenticity": 7.8, "language": 7.0, "responsiveness": 8.2, "craft": 7.0}, {"candidate": "google/gemma-3-27b-it", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 11, "total": 8.42, "character": 8.27, "authenticity": 8.82, "language": 8.27, "responsiveness": 8.64, "craft": 8.09}, {"candidate": "microsoft/phi-4", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 6.29, "character": 5.69, "authenticity": 7.08, "language": 5.15, "responsiveness": 8.08, "craft": 5.46}, {"candidate": "deepseek/deepseek-v3.2", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 7.91, "character": 7.77, "authenticity": 8.69, "language": 6.92, "responsiveness": 7.92, "craft": 8.23}, {"candidate": "openai/gpt-oss-120b", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 7.12, "character": 7.31, "authenticity": 8.31, "language": 5.92, "responsiveness": 7.54, "craft": 6.54}, {"candidate": "anthropic/claude-haiku-4.5", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.12, "character": 8.07, "authenticity": 8.87, "language": 7.8, "responsiveness": 8.07, "craft": 7.8}, {"candidate": "openai/gpt-4o-mini", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 6.6, "character": 6.07, "authenticity": 7.13, "language": 5.73, "responsiveness": 7.47, "craft": 6.6}, {"candidate": "google/gemini-2.5-flash", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.16, "character": 8.0, "authenticity": 8.8, "language": 8.0, "responsiveness": 8.27, "craft": 7.73}, {"candidate": "mistralai/mistral-large-2512", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.61, "character": 8.6, "authenticity": 9.0, "language": 8.6, "responsiveness": 8.53, "craft": 8.33}, {"candidate": "x-ai/grok-3-mini", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.43, "character": 8.53, "authenticity": 8.93, "language": 8.67, "responsiveness": 8.33, "craft": 7.67}, {"candidate": "qwen/qwen3-max", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184902Z.json", "n": 15, "total": 8.65, "character": 8.8, "authenticity": 9.07, "language": 8.67, "responsiveness": 8.33, "craft": 8.4}, {"candidate": "deepseek/deepseek-v4-pro", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T185110Z.json", "n": 14, "total": 7.77, "character": 7.71, "authenticity": 8.21, "language": 7.21, "responsiveness": 7.93, "craft": 7.79}, {"candidate": "google/gemma-4-31b-it", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T204402Z.json", "n": 15, "total": 8.19, "character": 8.0, "authenticity": 8.67, "language": 7.67, "responsiveness": 8.4, "craft": 8.2}, {"candidate": "moonshotai/kimi-k2.5", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T184523Z.json", "n": 15, "total": 8.56, "character": 8.87, "authenticity": 9.13, "language": 8.4, "responsiveness": 8.47, "craft": 7.93}, {"candidate": "moonshotai/kimi-k2.5", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T184612Z.json", "n": 15, "total": 8.96, "character": 9.2, "authenticity": 9.33, "language": 8.4, "responsiveness": 8.73, "craft": 9.13}, {"candidate": "anthropic/claude-opus-4.7", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190357Z.json", "n": 15, "total": 8.64, "character": 8.6, "authenticity": 9.13, "language": 8.8, "responsiveness": 8.47, "craft": 8.2}, {"candidate": "anthropic/claude-sonnet-4.6", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190357Z.json", "n": 15, "total": 8.53, "character": 8.73, "authenticity": 9.0, "language": 8.2, "responsiveness": 8.73, "craft": 8.0}, {"candidate": "openai/gpt-5.5", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190357Z.json", "n": 15, "total": 8.75, "character": 8.8, "authenticity": 9.0, "language": 8.47, "responsiveness": 8.8, "craft": 8.67}, {"candidate": "openai/gpt-5.4", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190357Z.json", "n": 15, "total": 8.55, "character": 8.4, "authenticity": 9.0, "language": 8.67, "responsiveness": 8.33, "craft": 8.33}, {"candidate": "x-ai/grok-4.3", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190357Z.json", "n": 15, "total": 8.25, "character": 8.13, "authenticity": 8.87, "language": 7.73, "responsiveness": 8.2, "craft": 8.33}, {"candidate": "anthropic/claude-opus-4.7", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190416Z.json", "n": 15, "total": 9.05, "character": 9.2, "authenticity": 9.53, "language": 8.93, "responsiveness": 8.67, "craft": 8.93}, {"candidate": "anthropic/claude-sonnet-4.6", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190416Z.json", "n": 15, "total": 9.13, "character": 9.4, "authenticity": 9.53, "language": 8.53, "responsiveness": 9.13, "craft": 9.07}, {"candidate": "openai/gpt-5.5", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190416Z.json", "n": 15, "total": 9.05, "character": 9.27, "authenticity": 9.6, "language": 8.53, "responsiveness": 8.87, "craft": 9.0}, {"candidate": "openai/gpt-5.4", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190416Z.json", "n": 15, "total": 9.17, "character": 9.33, "authenticity": 9.73, "language": 8.8, "responsiveness": 9.0, "craft": 9.0}, {"candidate": "x-ai/grok-4.3", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190416Z.json", "n": 15, "total": 8.8, "character": 8.93, "authenticity": 9.33, "language": 8.33, "responsiveness": 8.47, "craft": 8.93}, {"candidate": "meta-llama/llama-3.3-70b-instruct", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 7.83, "character": 7.4, "authenticity": 8.4, "language": 8.4, "responsiveness": 7.47, "craft": 7.47}, {"candidate": "meta-llama/llama-4-maverick", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 8.03, "character": 8.0, "authenticity": 8.87, "language": 8.33, "responsiveness": 7.2, "craft": 7.73}, {"candidate": "meta-llama/llama-4-scout", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 8.32, "character": 8.33, "authenticity": 8.73, "language": 8.73, "responsiveness": 8.13, "craft": 7.67}, {"candidate": "openai/gpt-5.4-mini", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 8.63, "character": 8.53, "authenticity": 9.07, "language": 8.47, "responsiveness": 8.8, "craft": 8.27}, {"candidate": "mistralai/mistral-medium-3.1", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 8.59, "character": 8.73, "authenticity": 9.0, "language": 8.87, "responsiveness": 8.27, "craft": 8.07}, {"candidate": "nousresearch/hermes-4-405b", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 6.69, "character": 6.47, "authenticity": 7.0, "language": 6.53, "responsiveness": 6.93, "craft": 6.53}, {"candidate": "amazon/nova-pro-v1", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T190615Z.json", "n": 15, "total": 6.83, "character": 6.2, "authenticity": 7.6, "language": 6.27, "responsiveness": 6.53, "craft": 7.53}, {"candidate": "meta-llama/llama-3.3-70b-instruct", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 8.84, "character": 8.87, "authenticity": 9.2, "language": 8.87, "responsiveness": 8.6, "craft": 8.67}, {"candidate": "meta-llama/llama-4-maverick", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 8.8, "character": 8.87, "authenticity": 9.33, "language": 8.87, "responsiveness": 8.27, "craft": 8.67}, {"candidate": "meta-llama/llama-4-scout", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 8.87, "character": 9.0, "authenticity": 9.2, "language": 8.93, "responsiveness": 8.6, "craft": 8.6}, {"candidate": "openai/gpt-5.4-mini", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 9.03, "character": 9.13, "authenticity": 9.53, "language": 8.6, "responsiveness": 8.93, "craft": 8.93}, {"candidate": "mistralai/mistral-medium-3.1", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 9.09, "character": 9.33, "authenticity": 9.33, "language": 8.93, "responsiveness": 8.87, "craft": 9.0}, {"candidate": "nousresearch/hermes-4-405b", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 8.51, "character": 8.47, "authenticity": 9.07, "language": 7.87, "responsiveness": 8.53, "craft": 8.6}, {"candidate": "amazon/nova-pro-v1", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T190642Z.json", "n": 15, "total": 7.93, "character": 7.87, "authenticity": 8.87, "language": 7.8, "responsiveness": 7.13, "craft": 8.0}, {"candidate": "z-ai/glm-4.6", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T191114Z.json", "n": 15, "total": 7.89, "character": 7.73, "authenticity": 8.73, "language": 7.07, "responsiveness": 7.8, "craft": 8.13}, {"candidate": "z-ai/glm-4.6", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T191118Z.json", "n": 15, "total": 8.76, "character": 8.87, "authenticity": 9.47, "language": 8.13, "responsiveness": 8.47, "craft": 8.87}, {"candidate": "google/gemini-2.5-pro", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260515T191136Z.json", "n": 15, "total": 8.12, "character": 8.0, "authenticity": 8.67, "language": 7.33, "responsiveness": 8.53, "craft": 8.07}, {"candidate": "google/gemini-2.5-pro", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260515T191140Z.json", "n": 15, "total": 8.97, "character": 9.13, "authenticity": 9.4, "language": 8.33, "responsiveness": 8.93, "craft": 9.07}], "perf": [{"candidate": "google/gemma-4-31b-it", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 1160, "ttft_p90": 2111, "total_p50": 3214, "tps_p50": 21.9, "tps_p90": 30.1, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "qwen/qwen-2.5-72b-instruct", "file": "perf_20260514T202405Z.json", "n_ok": 1, "ttft_p50": null, "ttft_p90": null, "total_p50": 5242, "tps_p50": null, "tps_p90": null, "json_freeform": 10.0, "json_schema": 90.0}, {"candidate": "google/gemma-3-27b-it", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 380, "ttft_p90": 766, "total_p50": 2328, "tps_p50": 37.9, "tps_p90": 48.5, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "qwen/qwen3-235b-a22b-2507", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 363, "ttft_p90": 666, "total_p50": 1696, "tps_p50": 54.2, "tps_p90": 65.3, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "anthropic/claude-haiku-4.5", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 980, "ttft_p90": 1399, "total_p50": 1989, "tps_p50": 81.6, "tps_p90": 87.2, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "anthropic/claude-opus-4.7", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1421, "ttft_p90": 1557, "total_p50": 3861, "tps_p50": 39.0, "tps_p90": 41.9, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "anthropic/claude-sonnet-4.6", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1328, "ttft_p90": 5300, "total_p50": 3221, "tps_p50": 44.1, "tps_p90": 46.1, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "openai/gpt-4o-mini", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 816, "ttft_p90": 1280, "total_p50": 1243, "tps_p50": 192.7, "tps_p90": 669.0, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "openai/gpt-5.4", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 715, "ttft_p90": 843, "total_p50": 2677, "tps_p50": 34.7, "tps_p90": 38.4, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "openai/gpt-5.4-mini", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 561, "ttft_p90": 702, "total_p50": 1389, "tps_p50": 75.5, "tps_p90": 88.4, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "openai/gpt-5.5", "file": "perf_shardA_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 2242, "ttft_p90": 4549, "total_p50": 4067, "tps_p50": 60.0, "tps_p90": 82.4, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "google/gemini-2.5-flash", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 595, "ttft_p90": 790, "total_p50": 1032, "tps_p50": 99.5, "tps_p90": 197.1, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "google/gemini-2.5-pro", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1925, "ttft_p90": 2073, "total_p50": 3331, "tps_p50": 143.3, "tps_p90": 165.3, "json_freeform": 0, "json_schema": 100.0}, {"candidate": "x-ai/grok-3-mini", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 0, "ttft_p50": null, "ttft_p90": null, "total_p50": null, "tps_p50": null, "tps_p90": null, "json_freeform": 0, "json_schema": 0}, {"candidate": "x-ai/grok-4.3", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 704, "ttft_p90": 1561, "total_p50": 3183, "tps_p50": 207.5, "tps_p90": 245.7, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "mistralai/mistral-large-2512", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 482, "ttft_p90": 667, "total_p50": 1714, "tps_p50": 44.1, "tps_p90": 51.7, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "mistralai/mistral-medium-3.1", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 390, "ttft_p90": 521, "total_p50": 2089, "tps_p50": 50.4, "tps_p90": 62.4, "json_freeform": 10.0, "json_schema": 100.0}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "file": "perf_shardB_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 250, "ttft_p90": 290, "total_p50": 838, "tps_p50": 77.4, "tps_p90": 93.4, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "qwen/qwen3-max", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1173, "ttft_p90": 1410, "total_p50": 2904, "tps_p50": 32.6, "tps_p90": 37.5, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "deepseek/deepseek-v3.2", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 691, "ttft_p90": 1554, "total_p50": 2704, "tps_p50": 22.2, "tps_p90": 50.9, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "deepseek/deepseek-v4-pro", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1317, "ttft_p90": 2125, "total_p50": 6170, "tps_p50": 39.2, "tps_p90": 66.6, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "moonshotai/kimi-k2.5", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 942, "ttft_p90": 2073, "total_p50": 7220, "tps_p50": 37.6, "tps_p90": 70.7, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "z-ai/glm-4.6", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 1442, "ttft_p90": 2844, "total_p50": 16883, "tps_p50": 34.7, "tps_p90": 53.3, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "openai/gpt-oss-120b", "file": "perf_shardC_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 427, "ttft_p90": 816, "total_p50": 3072, "tps_p50": 62.7, "tps_p90": 600.6, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "meta-llama/llama-3.3-70b-instruct", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 516, "ttft_p90": 1452, "total_p50": 2339, "tps_p50": 43.2, "tps_p90": 55.8, "json_freeform": 90.0, "json_schema": 90.0}, {"candidate": "meta-llama/llama-4-maverick", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 412, "ttft_p90": 521, "total_p50": 1601, "tps_p50": 51.1, "tps_p90": 59.8, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "meta-llama/llama-4-scout", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 279, "ttft_p90": 389, "total_p50": 1419, "tps_p50": 54.2, "tps_p90": 105.8, "json_freeform": 90.0, "json_schema": 100.0}, {"candidate": "amazon/nova-pro-v1", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 478, "ttft_p90": 643, "total_p50": 855, "tps_p50": 65.9, "tps_p90": 97.6, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "nousresearch/hermes-4-405b", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 333, "ttft_p90": 641, "total_p50": 5623, "tps_p50": 39.4, "tps_p90": 41.1, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "microsoft/phi-4", "file": "perf_shardD_20260515T192852Z.json", "n_ok": 10, "ttft_p50": 364, "ttft_p90": 727, "total_p50": 1674, "tps_p50": 67.8, "tps_p90": 77.5, "json_freeform": 0, "json_schema": 100.0}], "gaeilge": [{"candidate": "mlx-community/Qwen2.5-14B-Instruct-4bit", "base_url": "http://localhost:8000/v1", "split": "dev", "file": "run_mlx_community_Qwen2_5_14B_Instruct_4bit_gaeilge_20260518T174855Z.json", "n": 11, "errors": 0, "overall": 2.11, "fluency": 2.09, "grammar": 2.27, "idiom": 2.09, "task_fulfillment": 1.91, "english_leakage": 4.82, "english_leakage_flag_rate": 0.091, "usd": 0.0529}], "coverage": {"amazon/nova-pro-v1": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "anthropic/claude-haiku-4.5": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "anthropic/claude-opus-4.7": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "anthropic/claude-sonnet-4.6": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "deepseek/deepseek-v3.2": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "deepseek/deepseek-v4-pro": ["x-ai/grok-4.3"], "google/gemini-2.5-flash": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "google/gemini-2.5-pro": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "google/gemma-3-27b-it": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "google/gemma-4-31b-it": ["x-ai/grok-4.3"], "meta-llama/llama-3.3-70b-instruct": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "meta-llama/llama-4-maverick": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "meta-llama/llama-4-scout": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "microsoft/phi-4": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "mistralai/mistral-large-2512": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "mistralai/mistral-medium-3.1": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "mistralai/mistral-small-24b-instruct-2501": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "moonshotai/kimi-k2.5": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "nousresearch/hermes-4-405b": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-4o-mini": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-5.4": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-5.4-mini": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-5.5": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-oss-120b": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "qwen/qwen-2.5-72b-instruct": [], "qwen/qwen3-235b-a22b-2507": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "qwen/qwen3-max": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "x-ai/grok-3-mini": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "x-ai/grok-4.3": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "z-ai/glm-4.6": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"]}, "unjudged": ["qwen/qwen-2.5-72b-instruct"], "averaged": [{"candidate": "openai/gpt-5.5", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.9, "character": 9.04, "authenticity": 9.3, "language": 8.5, "responsiveness": 8.84, "craft": 8.84, "judge_count": 2}, {"candidate": "openai/gpt-5.4", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.86, "character": 8.87, "authenticity": 9.37, "language": 8.73, "responsiveness": 8.66, "craft": 8.66, "judge_count": 2}, {"candidate": "anthropic/claude-opus-4.7", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.85, "character": 8.9, "authenticity": 9.33, "language": 8.87, "responsiveness": 8.57, "craft": 8.56, "judge_count": 2}, {"candidate": "qwen/qwen3-max", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.84, "character": 9.04, "authenticity": 9.27, "language": 8.63, "responsiveness": 8.57, "craft": 8.7, "judge_count": 2}, {"candidate": "mistralai/mistral-medium-3.1", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.84, "character": 9.03, "authenticity": 9.16, "language": 8.9, "responsiveness": 8.57, "craft": 8.54, "judge_count": 2}, {"candidate": "anthropic/claude-sonnet-4.6", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.83, "character": 9.07, "authenticity": 9.27, "language": 8.36, "responsiveness": 8.93, "craft": 8.54, "judge_count": 2}, {"candidate": "openai/gpt-5.4-mini", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.83, "character": 8.83, "authenticity": 9.3, "language": 8.54, "responsiveness": 8.87, "craft": 8.6, "judge_count": 2}, {"candidate": "qwen/qwen3-235b-a22b-2507", "judge": "average", "file": "(synthetic)", "n": 29, "total": 8.79, "character": 9.06, "authenticity": 9.37, "language": 8.34, "responsiveness": 8.59, "craft": 8.61, "judge_count": 2}, {"candidate": "moonshotai/kimi-k2.5", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.76, "character": 9.04, "authenticity": 9.23, "language": 8.4, "responsiveness": 8.6, "craft": 8.53, "judge_count": 2}, {"candidate": "mistralai/mistral-large-2512", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.75, "character": 8.84, "authenticity": 9.13, "language": 8.5, "responsiveness": 8.6, "craft": 8.66, "judge_count": 2}, {"candidate": "google/gemma-3-27b-it", "judge": "average", "file": "(synthetic)", "n": 26, "total": 8.72, "character": 8.73, "authenticity": 9.21, "language": 8.5, "responsiveness": 8.62, "craft": 8.54, "judge_count": 2}, {"candidate": "x-ai/grok-3-mini", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.63, "character": 8.77, "authenticity": 8.96, "language": 8.77, "responsiveness": 8.53, "craft": 8.13, "judge_count": 2}, {"candidate": "meta-llama/llama-4-scout", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.59, "character": 8.66, "authenticity": 8.96, "language": 8.83, "responsiveness": 8.37, "craft": 8.13, "judge_count": 2}, {"candidate": "google/gemini-2.5-pro", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.54, "character": 8.57, "authenticity": 9.04, "language": 7.83, "responsiveness": 8.73, "craft": 8.57, "judge_count": 2}, {"candidate": "x-ai/grok-4.3", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.53, "character": 8.53, "authenticity": 9.1, "language": 8.03, "responsiveness": 8.34, "craft": 8.63, "judge_count": 2}, {"candidate": "anthropic/claude-haiku-4.5", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.52, "character": 8.6, "authenticity": 9.07, "language": 8.06, "responsiveness": 8.54, "craft": 8.37, "judge_count": 2}, {"candidate": "google/gemini-2.5-flash", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.48, "character": 8.46, "authenticity": 9.0, "language": 8.2, "responsiveness": 8.4, "craft": 8.37, "judge_count": 2}, {"candidate": "meta-llama/llama-4-maverick", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.41, "character": 8.43, "authenticity": 9.1, "language": 8.6, "responsiveness": 7.73, "craft": 8.2, "judge_count": 2}, {"candidate": "meta-llama/llama-3.3-70b-instruct", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.34, "character": 8.13, "authenticity": 8.8, "language": 8.63, "responsiveness": 8.04, "craft": 8.07, "judge_count": 2}, {"candidate": "z-ai/glm-4.6", "judge": "average", "file": "(synthetic)", "n": 30, "total": 8.32, "character": 8.3, "authenticity": 9.1, "language": 7.6, "responsiveness": 8.13, "craft": 8.5, "judge_count": 2}, {"candidate": "deepseek/deepseek-v3.2", "judge": "average", "file": "(synthetic)", "n": 28, "total": 8.25, "character": 8.25, "authenticity": 8.98, "language": 7.46, "responsiveness": 8.06, "craft": 8.48, "judge_count": 2}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "judge": "average", "file": "(synthetic)", "n": 30, "total": 7.91, "character": 7.9, "authenticity": 8.23, "language": 7.4, "responsiveness": 8.27, "craft": 7.74, "judge_count": 2}, {"candidate": "openai/gpt-oss-120b", "judge": "average", "file": "(synthetic)", "n": 26, "total": 7.84, "character": 8.08, "authenticity": 8.77, "language": 7.04, "responsiveness": 7.77, "craft": 7.54, "judge_count": 2}, {"candidate": "nousresearch/hermes-4-405b", "judge": "average", "file": "(synthetic)", "n": 30, "total": 7.6, "character": 7.47, "authenticity": 8.04, "language": 7.2, "responsiveness": 7.73, "craft": 7.56, "judge_count": 2}, {"candidate": "openai/gpt-4o-mini", "judge": "average", "file": "(synthetic)", "n": 30, "total": 7.43, "character": 7.17, "authenticity": 8.03, "language": 6.7, "responsiveness": 7.73, "craft": 7.54, "judge_count": 2}, {"candidate": "amazon/nova-pro-v1", "judge": "average", "file": "(synthetic)", "n": 30, "total": 7.38, "character": 7.04, "authenticity": 8.23, "language": 7.04, "responsiveness": 6.83, "craft": 7.77, "judge_count": 2}, {"candidate": "microsoft/phi-4", "judge": "average", "file": "(synthetic)", "n": 28, "total": 7.29, "character": 6.95, "authenticity": 7.97, "language": 6.34, "responsiveness": 8.24, "craft": 6.93, "judge_count": 2}]}
+</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("bench-data").textContent);
+const sortState = { q: { key: "total", dir: -1 }, g: { key: "overall", dir: -1 }, p: { key: "tps_p50", dir: -1 } };
+
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function el(tag, opts) {
+  const e = document.createElement(tag);
+  if (!opts) return e;
+  if (opts.className) e.className = opts.className;
+  if (opts.text !== undefined) e.textContent = opts.text;
+  if (opts.html !== undefined) e.innerHTML = opts.html;
+  return e;
+}
+
+function setText(id, value) { document.getElementById(id).textContent = String(value); }
+
+function badge(rate) {
+  const cls = rate >= 95 ? "p-good" : rate >= 70 ? "p-warn" : "p-bad";
+  const span = el("span", { className: "pill " + cls });
+  span.textContent = rate.toFixed(0) + "%";
+  return span;
+}
+
+function fmtNum(v, suffix) {
+  if (v === null || v === undefined) {
+    const s = el("span", { className: "miss" }); s.textContent = "–"; return s;
+  }
+  const t = document.createTextNode(v.toString() + (suffix || ""));
+  return t;
+}
+
+function fmtFixed(v, digits) {
+  if (v === null || v === undefined) return "–";
+  return Number(v).toFixed(digits === undefined ? 2 : digits);
+}
+
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+function makeTd(cls) { const td = el("td"); if (cls) td.className = cls; return td; }
+
+function renderQuality() {
+  const tbody = document.getElementById("q-body");
+  const filter = document.getElementById("q-filter").value.toLowerCase();
+  const judgeSel = document.getElementById("q-judge").value;
+  let rows;
+  if (judgeSel === "__average__") {
+    rows = (DATA.averaged || []).slice();
+  } else {
+    rows = DATA.quality.slice();
+    if (judgeSel) rows = rows.filter(r => r.judge === judgeSel);
+  }
+  if (filter) rows = rows.filter(r => (r.candidate + " " + r.judge).toLowerCase().includes(filter));
+  const { key, dir } = sortState.q;
+  rows.sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+  clear(tbody);
+  for (const r of rows) {
+    const tr = el("tr");
+    const tdC = makeTd("cand"); tdC.textContent = r.candidate; tr.appendChild(tdC);
+    const tdJ = makeTd("judge"); tdJ.textContent = r.judge; tr.appendChild(tdJ);
+    const tdN = makeTd("num"); tdN.textContent = r.n; tr.appendChild(tdN);
+    const tdT = makeTd("num"); const strong = el("strong"); strong.textContent = r.total.toFixed(2); tdT.appendChild(strong); tr.appendChild(tdT);
+    for (const k of ["character","authenticity","language","responsiveness","craft"]) {
+      const td = makeTd("num"); td.textContent = r[k].toFixed(2); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll("#q-table th").forEach(th => {
+    th.classList.toggle("sorted-asc", th.dataset.k === key && dir === 1);
+    th.classList.toggle("sorted-desc", th.dataset.k === key && dir === -1);
+  });
+}
+
+function renderPerf() {
+  const tbody = document.getElementById("p-body");
+  const rows = DATA.perf.slice();
+  const { key, dir } = sortState.p;
+  rows.sort((a, b) => {
+    const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
+    if (typeof va === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+  clear(tbody);
+  for (const r of rows) {
+    const tr = el("tr");
+    const tdC = makeTd("cand"); tdC.textContent = r.candidate; tr.appendChild(tdC);
+    const tdN = makeTd("num"); tdN.textContent = r.n_ok; tr.appendChild(tdN);
+    const cols = [
+      ["ttft_p50", " ms"], ["ttft_p90", " ms"], ["total_p50", " ms"],
+      ["tps_p50", ""], ["tps_p90", ""],
+    ];
+    for (const [k, suf] of cols) {
+      const td = makeTd("num"); td.appendChild(fmtNum(r[k], suf)); tr.appendChild(td);
+    }
+    const tdJF = makeTd("num"); tdJF.appendChild(badge(r.json_freeform)); tr.appendChild(tdJF);
+    const tdJS = makeTd("num"); tdJS.appendChild(badge(r.json_schema)); tr.appendChild(tdJS);
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll("#p-table th").forEach(th => {
+    th.classList.toggle("sorted-asc", th.dataset.k === key && dir === 1);
+    th.classList.toggle("sorted-desc", th.dataset.k === key && dir === -1);
+  });
+}
+
+function renderGaeilge() {
+  const tbody = document.getElementById("g-body");
+  const rows = (DATA.gaeilge || []).slice();
+  const { key, dir } = sortState.g;
+  rows.sort((a, b) => {
+    const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
+    if (typeof va === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+  clear(tbody);
+  for (const r of rows) {
+    const tr = el("tr");
+    const tdC = makeTd("cand"); tdC.textContent = r.candidate; tr.appendChild(tdC);
+    const tdS = makeTd("judge"); tdS.textContent = r.split; tr.appendChild(tdS);
+    const tdN = makeTd("num"); tdN.textContent = r.n; tr.appendChild(tdN);
+    const tdE = makeTd("num"); tdE.textContent = r.errors; tr.appendChild(tdE);
+    const tdO = makeTd("num"); const strong = el("strong"); strong.textContent = fmtFixed(r.overall); tdO.appendChild(strong); tr.appendChild(tdO);
+    for (const k of ["fluency","grammar","idiom","task_fulfillment","english_leakage"]) {
+      const td = makeTd("num"); td.textContent = fmtFixed(r[k]); tr.appendChild(td);
+    }
+    const tdCost = makeTd("num"); tdCost.textContent = "$" + fmtFixed(r.usd, 4); tr.appendChild(tdCost);
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll("#g-table th").forEach(th => {
+    th.classList.toggle("sorted-asc", th.dataset.k === key && dir === 1);
+    th.classList.toggle("sorted-desc", th.dataset.k === key && dir === -1);
+  });
+}
+
+function renderCoverage() {
+  const grid = document.getElementById("cov-grid");
+  // Use the judges actually present in the data, sorted alphabetically.
+  const judges = [...new Set(DATA.quality.map(q => q.judge))].sort();
+  grid.style.setProperty("--judge-cols", judges.length);
+  clear(grid);
+  const head = el("div", { className: "coverage-row head" });
+  head.appendChild(el("div", { text: "candidate" }));
+  for (const j of judges) head.appendChild(el("div", { className: "cell", text: j.split("/")[1] }));
+  grid.appendChild(head);
+  const cands = Object.keys(DATA.coverage).sort();
+  for (const c of cands) {
+    const judged = DATA.coverage[c];
+    const row = el("div", { className: "coverage-row" });
+    row.appendChild(el("div", { className: "cand", text: c }));
+    for (const j of judges) {
+      const cell = el("div", { className: "cell" });
+      const mark = el("span", { className: judged.includes(j) ? "check" : "miss", text: judged.includes(j) ? "✓" : "·" });
+      cell.appendChild(mark);
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function renderUnjudged() {
+  const list = document.getElementById("unjudged");
+  clear(list);
+  for (const c of DATA.unjudged) {
+    list.appendChild(el("div", { className: "unjudged-item", text: c }));
+  }
+  setText("unjudged-note",
+    DATA.unjudged.length + " cached candidates without a multiaxis score yet. Re-judge with score_multiaxis.py.");
+}
+
+function fillStats() {
+  setText("s-cached", Object.keys(DATA.coverage).length);
+  setText("s-judged", Object.keys(DATA.coverage).filter(c => DATA.coverage[c].length > 0).length);
+  setText("s-unjudged", DATA.unjudged.length);
+  const judges = new Set(DATA.quality.map(q => q.judge));
+  setText("s-judges", judges.size);
+  setText("s-q", DATA.quality.length);
+  setText("s-p", DATA.perf.length);
+  setText("s-g", (DATA.gaeilge || []).length);
+  const sel = document.getElementById("q-judge");
+  if ((DATA.averaged || []).length > 0) {
+    const opt = el("option", { text: "average (cross-judge mean)" });
+    opt.value = "__average__";
+    sel.appendChild(opt);
+  }
+  [...judges].sort().forEach(j => {
+    const opt = el("option", { text: j });
+    opt.value = j;
+    sel.appendChild(opt);
+  });
+}
+
+document.querySelectorAll("#q-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortState.q.key === k) sortState.q.dir *= -1;
+    else { sortState.q.key = k; sortState.q.dir = (typeof DATA.quality[0]?.[k] === "number") ? -1 : 1; }
+    renderQuality();
+  });
+});
+document.querySelectorAll("#p-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortState.p.key === k) sortState.p.dir *= -1;
+    else { sortState.p.key = k; sortState.p.dir = (typeof DATA.perf[0]?.[k] === "number") ? -1 : 1; }
+    renderPerf();
+  });
+});
+document.querySelectorAll("#g-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortState.g.key === k) sortState.g.dir *= -1;
+    else { sortState.g.key = k; sortState.g.dir = (typeof (DATA.gaeilge || [])[0]?.[k] === "number") ? -1 : 1; }
+    renderGaeilge();
+  });
+});
+
+fillStats();
+renderQuality();
+renderGaeilge();
+renderPerf();
+renderCoverage();
+renderUnjudged();
+</script>
+
+</body>
+</html>
