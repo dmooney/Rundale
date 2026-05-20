@@ -34,6 +34,7 @@ base64         = "0.22"
 governor       = { workspace = true }
 lru            = { workspace = true }
 tower-sessions = "0.15"
+mime_guess     = "2"
 
 [dev-dependencies]
 tempfile          = { workspace = true }

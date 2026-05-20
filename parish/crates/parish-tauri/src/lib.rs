@@ -14,7 +14,8 @@ mod setup;
 
 use parish_core::AUTOSAVE_INTERVAL_SECS;
 
-use std::path::PathBuf;
+use base64::Engine as _;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,6 +35,126 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 const INITIAL_SETUP_MESSAGE: &str = "Preparing the storyteller...";
 const SETUP_HISTORY_LIMIT: usize = 50;
+
+fn mod_asset_data_url(path: Option<PathBuf>) -> Option<String> {
+    let path = path?;
+    let bytes = std::fs::read(&path)
+        .map_err(|e| {
+            tracing::warn!(path = %path.display(), error = %e, "failed to read mod icon asset");
+            e
+        })
+        .ok()?;
+    Some(format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+fn apply_mod_desktop_icon<R, M>(app: &M, icon_path: Option<&Path>)
+where
+    R: tauri::Runtime,
+    M: Manager<R>,
+{
+    let Some(icon_path) = icon_path else {
+        return;
+    };
+    apply_mod_application_icon(icon_path);
+    apply_mod_window_icon(app, icon_path);
+}
+
+fn apply_mod_window_icon<R, M>(app: &M, icon_path: &Path)
+where
+    R: tauri::Runtime,
+    M: Manager<R>,
+{
+    let icon = match load_png_icon(icon_path) {
+        Ok(icon) => icon,
+        Err(e) => {
+            tracing::warn!(path = %icon_path.display(), error = e.as_str(), "failed to load mod app icon");
+            return;
+        }
+    };
+    for window in app.webview_windows().values() {
+        if let Err(e) = window.set_icon(icon.clone()) {
+            tracing::warn!(path = %icon_path.display(), error = %e, "failed to apply mod app icon");
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn apply_mod_application_icon(icon_path: &Path) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+    use std::ffi::c_void;
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        tracing::warn!(path = %icon_path.display(), "failed to apply mod Dock icon off the macOS main thread");
+        return;
+    };
+    let bytes = match std::fs::read(icon_path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::warn!(path = %icon_path.display(), error = %e, "failed to read mod Dock icon");
+            return;
+        }
+    };
+
+    let data =
+        unsafe { NSData::dataWithBytes_length(bytes.as_ptr().cast::<c_void>(), bytes.len()) };
+    let Some(image) = NSImage::initWithData(mtm.alloc(), &data) else {
+        tracing::warn!(path = %icon_path.display(), "failed to decode mod Dock icon as NSImage");
+        return;
+    };
+
+    let app = NSApplication::sharedApplication(mtm);
+    unsafe {
+        app.setApplicationIconImage(Some(&image));
+    }
+    tracing::info!(path = %icon_path.display(), "applied mod Dock icon");
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_mod_application_icon(_icon_path: &Path) {}
+
+fn load_png_icon(path: &Path) -> Result<tauri::image::Image<'static>, String> {
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let decoder = png::Decoder::new(std::io::BufReader::new(file));
+    let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
+    let buffer_size = reader
+        .output_buffer_size()
+        .ok_or_else(|| "PNG output buffer is too large".to_string())?;
+    let mut buf = vec![0; buffer_size];
+    let info = reader.next_frame(&mut buf).map_err(|e| e.to_string())?;
+    if info.bit_depth != png::BitDepth::Eight {
+        return Err(format!("unsupported PNG bit depth {:?}", info.bit_depth));
+    }
+    let bytes = &buf[..info.buffer_size()];
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => bytes.to_vec(),
+        png::ColorType::Rgb => bytes
+            .chunks_exact(3)
+            .flat_map(|chunk| [chunk[0], chunk[1], chunk[2], 255])
+            .collect(),
+        png::ColorType::Grayscale => bytes
+            .iter()
+            .flat_map(|value| [*value, *value, *value, 255])
+            .collect(),
+        png::ColorType::GrayscaleAlpha => bytes
+            .chunks_exact(2)
+            .flat_map(|chunk| [chunk[0], chunk[0], chunk[0], chunk[1]])
+            .collect(),
+        png::ColorType::Indexed => {
+            return Err("indexed PNG app icons are not supported".to_string());
+        }
+    };
+
+    Ok(tauri::image::Image::new_owned(
+        rgba,
+        info.width,
+        info.height,
+    ))
+}
 
 /// Resolves the python interpreter inside the bundled vllm-mlx runtime,
 /// if Parish was shipped with the inference runtime in its app resources.
@@ -970,6 +1091,9 @@ pub fn run() {
         .as_ref()
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
+    let mod_window_icon_path = game_mod.as_ref().and_then(|gm| gm.app_icon_path());
+    let mod_window_icon_path_for_setup = mod_window_icon_path.clone();
+    let mod_window_icon_path_for_run = mod_window_icon_path.clone();
 
     // engine_config already loaded above (before provider bootstrap) and
     // includes both map tile-source registry and inference timeouts. (#417)
@@ -992,6 +1116,8 @@ pub fn run() {
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+            app_icon_url: mod_asset_data_url(gm.app_icon_path()),
+            favicon_url: mod_asset_data_url(gm.favicon_path()),
         }
     } else {
         UiConfigSnapshot {
@@ -1001,6 +1127,8 @@ pub fn run() {
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot,
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+            app_icon_url: None,
+            favicon_url: None,
         }
     };
 
@@ -1207,6 +1335,7 @@ pub fn run() {
             editor_commands::editor_read_snapshot,
         ])
         .setup(move |app| {
+            apply_mod_desktop_icon(app, mod_window_icon_path_for_setup.as_deref());
             let handle = app.handle().clone();
 
             // Screenshot mode: --screenshot <dir> captures the UI at four
@@ -1266,6 +1395,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running Parish application")
         .run(move |app, event| {
+            if matches!(&event, tauri::RunEvent::Ready) {
+                // Tauri dev mode reapplies the configured bundle icon during
+                // Ready on macOS. Reapply the active mod icon afterward so
+                // `just run` shows the same Dock icon as bundled launches.
+                apply_mod_desktop_icon(app, mod_window_icon_path_for_run.as_deref());
+            }
+
             // Graceful shutdown of bundled vllm-mlx children. Drop already
             // calls stop() when AppState finally drops, but on Cmd+Q the
             // tokio runtime can be torn down before that fires, leaving

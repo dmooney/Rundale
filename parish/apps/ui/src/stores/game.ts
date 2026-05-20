@@ -48,7 +48,9 @@ export const uiConfig = writable<UiConfig>({
 	splash_text: '',
 	active_tile_source: '',
 	tile_sources: [],
-	auto_pause_timeout_seconds: 300
+	auto_pause_timeout_seconds: 300,
+	app_icon_url: null,
+	favicon_url: null
 });
 
 export const fullMapOpen = writable<boolean>(false);

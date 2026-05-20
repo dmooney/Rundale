@@ -101,6 +101,8 @@ export interface UiConfig {
 	active_tile_source: string;
 	tile_sources: TileSource[];
 	auto_pause_timeout_seconds: number;
+	app_icon_url?: string | null;
+	favicon_url?: string | null;
 }
 
 /** A single map tile source sent from the backend. Mirrors

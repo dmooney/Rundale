@@ -64,6 +64,8 @@ fn default_ui_config() -> UiConfigSnapshot {
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
         auto_pause_timeout_seconds: 300,
+        app_icon_url: None,
+        favicon_url: None,
     }
 }
 

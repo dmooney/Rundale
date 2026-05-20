@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 536 crates
+- [MIT License](#MIT) — 545 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [Apache License 2.0](#Apache-2.0) — 17 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 8 crates
@@ -1100,7 +1100,7 @@ limitations under the License.
 **Used by:**
 
 - [dpi 0.1.2](https://github.com/rust-windowing/winit)
-- [tao 0.35.0](https://github.com/tauri-apps/tao)
+- [tao 0.35.2](https://github.com/tauri-apps/tao)
 
 ```
 Apache License
@@ -2047,20 +2047,20 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [cc 1.2.61](https://github.com/rust-lang/cc-rs)
+- [cc 1.2.62](https://github.com/rust-lang/cc-rs)
 - [cfg-if 1.0.4](https://github.com/rust-lang/cfg-if)
 - [find-msvc-tools 0.1.9](https://github.com/rust-lang/cc-rs)
 - [futures-timer 3.0.3](https://github.com/async-rs/futures-timer)
-- [js-sys 0.3.97](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys)
+- [js-sys 0.3.98](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys)
 - [pkg-config 0.3.33](https://github.com/rust-lang/pkg-config-rs)
 - [socket2 0.6.3](https://github.com/rust-lang/socket2)
 - [toml_datetime 0.6.3](https://github.com/toml-rs/toml)
-- [wasm-bindgen-futures 0.4.70](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures)
-- [wasm-bindgen-macro-support 0.2.120](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support)
-- [wasm-bindgen-macro 0.2.120](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro)
-- [wasm-bindgen-shared 0.2.120](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared)
-- [wasm-bindgen 0.2.120](https://github.com/wasm-bindgen/wasm-bindgen)
-- [web-sys 0.3.97](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys)
+- [wasm-bindgen-futures 0.4.71](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures)
+- [wasm-bindgen-macro-support 0.2.121](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support)
+- [wasm-bindgen-macro 0.2.121](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro)
+- [wasm-bindgen-shared 0.2.121](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared)
+- [wasm-bindgen 0.2.121](https://github.com/wasm-bindgen/wasm-bindgen)
+- [web-sys 0.3.98](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys)
 
 ```
 Copyright (c) 2014 Alex Crichton
@@ -2555,8 +2555,8 @@ THE SOFTWARE.
 
 - [either 1.15.0](https://github.com/rayon-rs/either)
 - [itertools 0.14.0](https://github.com/rust-itertools/itertools)
-- [serde_with 3.19.0](https://github.com/jonasbb/serde_with/)
-- [serde_with_macros 3.19.0](https://github.com/jonasbb/serde_with/)
+- [serde_with 3.20.0](https://github.com/jonasbb/serde_with/)
+- [serde_with_macros 3.20.0](https://github.com/jonasbb/serde_with/)
 
 ```
 Copyright (c) 2015
@@ -2981,7 +2981,7 @@ DEALINGS IN THE SOFTWARE.
 - [hashbrown 0.12.3](https://github.com/rust-lang/hashbrown)
 - [hashbrown 0.14.5](https://github.com/rust-lang/hashbrown)
 - [hashbrown 0.16.1](https://github.com/rust-lang/hashbrown)
-- [hashbrown 0.17.0](https://github.com/rust-lang/hashbrown)
+- [hashbrown 0.17.1](https://github.com/rust-lang/hashbrown)
 
 ```
 Copyright (c) 2016 Amanieu d&#x27;Antras
@@ -3497,6 +3497,43 @@ THE SOFTWARE.
 
 **Used by:**
 
+- [sha2 0.11.0](https://github.com/RustCrypto/hashes)
+
+```
+Copyright (c) 2016-2026 The RustCrypto Project Developers
+Copyright (c) 2016 Artyom Pavlov
+Copyright (c) 2009-2013 Mozilla Foundation
+Copyright (c) 2006-2009 Graydon Hoare
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [tungstenite 0.29.0](https://github.com/snapview/tungstenite-rs)
 
 ```
@@ -3528,6 +3565,7 @@ THE SOFTWARE.
 
 - [digest 0.10.7](https://github.com/RustCrypto/traits)
 - [hmac 0.12.1](https://github.com/RustCrypto/MACs)
+- [hmac 0.13.0](https://github.com/RustCrypto/MACs)
 
 ```
 Copyright (c) 2017 Artyom Pavlov
@@ -3871,7 +3909,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [h2 0.4.13](https://github.com/hyperium/h2)
+- [h2 0.4.14](https://github.com/hyperium/h2)
 
 ```
 Copyright (c) 2017 h2 authors
@@ -3977,6 +4015,41 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 Copyright (c) 2017 tokio-jsonrpc developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [digest 0.11.3](https://github.com/RustCrypto/traits)
+
+```
+Copyright (c) 2017-2025 RustCrypto Developers
+Copyright (c) 2017 Artyom Pavlov
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -4340,6 +4413,40 @@ THE SOFTWARE.
 ```
 Copyright (c) 2018-2024 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [block-buffer 0.12.0](https://github.com/RustCrypto/utils)
+
+```
+Copyright (c) 2018-2025 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -4743,7 +4850,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [tower-http 0.6.8](https://github.com/tower-rs/tower-http)
+- [tower-http 0.6.10](https://github.com/tower-rs/tower-http)
 
 ```
 Copyright (c) 2019-2021 Tower Contributors
@@ -5081,9 +5188,44 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [cpufeatures 0.2.17](https://github.com/RustCrypto/utils)
+- [cpufeatures 0.3.0](https://github.com/RustCrypto/utils)
 
 ```
 Copyright (c) 2020-2025 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [const-oid 0.10.2](https://github.com/RustCrypto/formats)
+
+```
+Copyright (c) 2020-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -5222,6 +5364,75 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 Copyright (c) 2021-2023 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [crypto-common 0.2.1](https://github.com/RustCrypto/traits)
+
+```
+Copyright (c) 2021-2026 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [cmov 0.5.3](https://github.com/RustCrypto/utils)
+- [hybrid-array 0.4.12](https://github.com/RustCrypto/hybrid-array)
+
+```
+Copyright (c) 2022-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -5438,6 +5649,40 @@ SOFTWARE.
 
 ```
 Copyright (c) 2024 Mullvad VPN AB
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [ctutils 0.4.2](https://github.com/RustCrypto/utils)
+
+```
+Copyright (c) 2025-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -5687,40 +5932,6 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 ```
 Copyright 2018 Developers of the Rand project
 Copyright (c) 2014 The Rust Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the &quot;Software&quot;), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-
-**Used by:**
-
-- [iri-string 0.7.12](https://github.com/lo48576/iri-string)
-
-```
-Copyright 2019-2024 YOSHIOKA Takuma
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -6477,7 +6688,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [wry 0.55.0](https://github.com/tauri-apps/wry)
+- [wry 0.55.1](https://github.com/tauri-apps/wry)
 
 ```
 MIT License
@@ -7004,7 +7215,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 - [tokio-stream 0.1.18](https://github.com/tokio-rs/tokio)
 - [tokio-util 0.7.18](https://github.com/tokio-rs/tokio)
-- [tokio 1.52.1](https://github.com/tokio-rs/tokio)
+- [tokio 1.52.3](https://github.com/tokio-rs/tokio)
 
 ```
 MIT License
@@ -7210,9 +7421,9 @@ DEALINGS IN THE SOFTWARE.
 - [num_enum 0.7.6](https://github.com/illicitonion/num_enum)
 - [num_enum_derive 0.7.6](https://github.com/illicitonion/num_enum)
 - [once_cell 1.21.4](https://github.com/matklad/once_cell)
-- [pin-project-internal 1.1.11](https://github.com/taiki-e/pin-project)
+- [pin-project-internal 1.1.13](https://github.com/taiki-e/pin-project)
 - [pin-project-lite 0.2.17](https://github.com/taiki-e/pin-project-lite)
-- [pin-project 1.1.11](https://github.com/taiki-e/pin-project)
+- [pin-project 1.1.13](https://github.com/taiki-e/pin-project)
 - [portable-atomic 1.13.1](https://github.com/taiki-e/portable-atomic)
 - [proc-macro-crate 1.3.1](https://github.com/bkchr/proc-macro-crate)
 - [proc-macro-crate 2.0.2](https://github.com/bkchr/proc-macro-crate)
@@ -7317,7 +7528,7 @@ DEALINGS IN THE SOFTWARE.
 
 - [winnow 0.5.40](https://github.com/winnow-rs/winnow)
 - [winnow 0.7.15](https://github.com/winnow-rs/winnow)
-- [winnow 1.0.2](https://github.com/winnow-rs/winnow)
+- [winnow 1.0.3](https://github.com/winnow-rs/winnow)
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining
@@ -7839,7 +8050,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [jsonwebtoken 10.3.0](https://github.com/Keats/jsonwebtoken)
+- [jsonwebtoken 10.4.0](https://github.com/Keats/jsonwebtoken)
 
 ```
 The MIT License (MIT)
@@ -8400,7 +8611,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [quick-xml 0.39.2](https://github.com/tafia/quick-xml)
+- [quick-xml 0.39.4](https://github.com/tafia/quick-xml)
 
 ```
 The MIT License (MIT)
@@ -9678,7 +9889,7 @@ authorization of the copyright holder.
 - [yoke-derive 0.8.2](https://github.com/unicode-org/icu4x)
 - [yoke 0.8.2](https://github.com/unicode-org/icu4x)
 - [zerofrom-derive 0.1.7](https://github.com/unicode-org/icu4x)
-- [zerofrom 0.1.7](https://github.com/unicode-org/icu4x)
+- [zerofrom 0.1.8](https://github.com/unicode-org/icu4x)
 - [zerotrie 0.2.4](https://github.com/unicode-org/icu4x)
 - [zerovec-derive 0.11.3](https://github.com/unicode-org/icu4x)
 - [zerovec 0.11.6](https://github.com/unicode-org/icu4x)
