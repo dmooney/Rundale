@@ -1,0 +1,38 @@
+# Issue #993 — residual reaction 404 after preset multi-slot fix
+# ================================================================
+# Verifies that after applying the vllm-mlx preset, the reaction
+# category resolves to the 1.5B model on the :8001 slot (not the
+# 14B :8000 slot). The headless CLI uses the simulator at runtime
+# so no real 404 fires; the assertions are on the routing config
+# the engine would hand to the inference layer.
+
+# 1. Apply the multi-slot preset.
+/preset vllm-mlx
+
+# 2. The base provider should land on vllm-mlx; the base model is
+#    the dialogue preset (14B).
+/provider
+/model
+
+# 3. Each per-category role should report its preset model.
+/model.dialogue
+/model.simulation
+/model.intent
+/model.reaction
+
+# 4. Each per-category provider should be vllm-mlx (the preset
+#    pins category_provider for every role).
+/provider.dialogue
+/provider.simulation
+/provider.intent
+/provider.reaction
+
+# 5. Take a turn so a reaction code path is exercised; the
+#    simulator backend short-circuits the actual HTTP call but the
+#    routing resolution still runs.
+look
+say Hello, friend.
+
+# 6. Re-confirm routing is unchanged after a turn.
+/model.reaction
+/provider.reaction

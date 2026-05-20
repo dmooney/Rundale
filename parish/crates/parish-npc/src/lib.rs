@@ -12,6 +12,7 @@ pub mod manager;
 pub mod memory;
 pub mod mood;
 pub mod overhear;
+pub mod quality;
 pub mod reactions;
 pub mod schedule;
 pub mod ticks;
@@ -259,7 +260,16 @@ pub struct NpcMetadata {
 /// Expects a JSON object with a `dialogue` field and metadata fields.
 /// Strips Markdown code fences (`` ```json ... ``` ``) that some providers
 /// (notably Anthropic) occasionally wrap around JSON output.
-/// Falls back to treating the entire text as plain dialogue if JSON parsing fails.
+///
+/// Three-tier fallback when full JSON parse fails:
+///
+/// 1. **Full JSON parse** — preferred path, captures dialogue + metadata.
+/// 2. **Heuristic `dialogue` extraction** — when the stream is truncated
+///    mid-emit (max_tokens cutoff, network blip), the JSON won't close
+///    but the `"dialogue": "..."` prefix is intact. Regex-extract the
+///    inner string instead of letting the raw `{"dialogue": "..."}`
+///    wrapper render as user-visible text.
+/// 3. **Raw text** — for non-JSON providers or empty responses.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     let trimmed = full_text.trim();
     let stripped = strip_json_fence(trimmed);
@@ -276,9 +286,74 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
         return NpcStreamResponse { dialogue, metadata };
     }
 
+    // Heuristic recovery for truncated / malformed JSON: extract the
+    // inner string from a `"dialogue": "..."` pair. Tolerates an
+    // unclosed JSON object (Brendan + Cormac at The Mill, 2026-05-17
+    // demo).
+    if let Some(dlg) = extract_dialogue_field_heuristic(stripped) {
+        return NpcStreamResponse {
+            dialogue: dlg,
+            metadata: None,
+        };
+    }
+
     NpcStreamResponse {
         dialogue: trimmed.to_string(),
         metadata: None,
+    }
+}
+
+/// Extracts the value of a `"dialogue": "..."` JSON field from a possibly
+/// truncated / malformed object. Returns `None` if the field is not present
+/// or the value is empty after JSON-escape decoding.
+fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
+    let t = text.trim_start_matches(|c: char| c.is_whitespace() || c == '{');
+    let after_key = t.strip_prefix("\"dialogue\"").or_else(|| {
+        t.strip_prefix("'dialogue'")
+            .or_else(|| t.strip_prefix("dialogue"))
+    })?;
+    let after_colon = after_key.trim_start();
+    let after_colon = after_colon.strip_prefix(':')?.trim_start();
+    let (inner, opener) = if let Some(rest) = after_colon.strip_prefix('"') {
+        (rest, '"')
+    } else if let Some(rest) = after_colon.strip_prefix('\'') {
+        (rest, '\'')
+    } else {
+        return None;
+    };
+
+    // Walk the string body, honoring JSON-style backslash escapes. Stop
+    // at the first unescaped quote that MATCHES the opener; if the stream
+    // ran out (truncated), take everything we have. Tracking the matching
+    // closer is important — a single-quoted body containing `"` should
+    // not terminate early, and vice versa.
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some('r') => out.push('\r'),
+                Some('"') => out.push('"'),
+                Some('\\') => out.push('\\'),
+                Some('\'') => out.push('\''),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => break,
+            },
+            c if c == opener => break,
+            other => out.push(other),
+        }
+    }
+
+    let trimmed = out.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 
@@ -474,6 +549,22 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
         Ireland, in the year 1820.\n\
         \n\
+        STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters — \
+        she does NOT track livestock predators, hunt, or speak as a farmer would. \
+        A farmer talks of land, beasts, and weather — not deliveries. \
+        A priest speaks of souls and gossip, not arithmetic. \
+        A teacher speaks of pupils and books, not midwifery. \
+        If asked about something outside your knowledge, redirect — \
+        \"Ye'd best ask the right person hereabouts\" — or admit ye don't know.\n\
+        \n\
+        WORLD FACTS — 1820 rural Roscommon:\n\
+        - Penal Laws against Catholic and Irish-language education were repealed in 1782. \
+        Hedge schools operate openly; teaching in Irish is tolerated. \
+        Do NOT claim it is illegal or in secret.\n\
+        - Catholic Emancipation: pending in 1829. Has NOT happened yet.\n\
+        - Great Famine: 1845. Has NOT happened yet. The potato is a staple but the blight has not struck.\n\
+        - The British Crown rules Ireland. Daniel O'Connell is active but not yet famous.\n\
+        \n\
         HISTORICAL CONTEXT: Ireland is under British rule following the Acts of Union of 1800. \
         Catholic Emancipation has not yet been achieved. The landlord class is predominantly \
         Protestant and English-speaking, while ordinary people speak both Irish and English. \
@@ -485,7 +576,33 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         Never portray Irish characters as excessively drunk, violent as a cultural trait, \
         foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
         Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
-        Show the wit, intelligence, resilience, and warmth of rural Irish people.\
+        Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
+        \n\
+        ALLOWED IRISH PHRASES — you MAY use these verbatim, and ONLY these:\n\
+        - \"Slán abhaile\" (safe home)\n\
+        - \"Slán leat\" (goodbye)\n\
+        - \"Dia dhuit\" (hello, lit. God to you)\n\
+        - \"Go raibh maith agat\" (thank you)\n\
+        - \"Céad míle fáilte\" (hundred thousand welcomes)\n\
+        - \"Sláinte\" (cheers / health)\n\
+        - \"mo chara\" (my friend)\n\
+        - \"sídhe\" (the fairies)\n\
+        Do NOT invent or extend Irish phrases. Do NOT improvise Irish grammar. \
+        If unsure, stay in Hiberno-English. Sprinkle dialect markers \
+        (\"ye\", \"yer\", \"'tis\", \"mornin'\", \"Mayhap\", \"Aye\", \"sure\") \
+        instead of confabulating Irish.\n\
+        \n\
+        REGISTER: avoid 21st-century words. Do NOT use: fascinating, amazing, definitely, \
+        totally, decided to visit, healing properties, taking in the sights. \
+        Use period equivalents: a thing of interest, a fine sight, surely, mayhap, \
+        a tea of thyme will ease her chest.\n\
+        \n\
+        FRESH PHRASING: Do not close with stock politeness templates such as \
+        \"if I might ask it so bold,\" \"if ye don't mind my asking,\" or similar \
+        repeated softeners. Every reply must use distinct wording — never recycle \
+        the closer of any earlier turn in the conversation, and never echo another \
+        NPC's phrasing. End on a concrete observation, question, or action rooted \
+        in your character, not a formula.\
         {improv_section}\n\
         \n\
         Personality: {personality}\n\
@@ -914,6 +1031,60 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_npc_stream_response_truncated_json() {
+        // Live demo (2026-05-17) — Brendan Duffy at The Mill. JSON stream
+        // ran out of tokens before the closing brace; previous behaviour
+        // surfaced the raw `{"dialogue": "..."}` wrapper as user-visible
+        // dialogue text.
+        let text = r#"{"dialogue": "Aye, the process of milling, is it? 'Tis a simple enough thing, so it is. Ye bring yer grain, we grind it"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(
+            parsed.dialogue,
+            "Aye, the process of milling, is it? 'Tis a simple enough thing, so it is. Ye bring yer grain, we grind it"
+        );
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_truncated_at_escape() {
+        // Defensive: stream ends mid backslash-escape.
+        let text = r#"{"dialogue": "Aye \"good"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Aye \"good");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_truncated_empty_dialogue() {
+        // `dialogue: ""` should fall through to raw text instead of
+        // surfacing an empty bubble.
+        let text = r#"{"dialogue": ""#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, text);
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_single_quoted_with_inner_double_quote() {
+        // Bot review (PR #990, codex P2): the heuristic accepted `'` as
+        // an opening quote but only stopped at `"`. For pseudo-JSON like
+        // `{'dialogue':'Aye, "good", said he'}` the inner double quote
+        // must NOT terminate the body; we should keep going until the
+        // matching single-quote closer.
+        let text = r#"{'dialogue':'Aye, "good", said he'}"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, r#"Aye, "good", said he"#);
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_double_quoted_with_inner_single_quote() {
+        // Mirror case: standard `"dialogue": "ye'll see"` body contains
+        // an inner apostrophe; the opener `"` must drive the terminator
+        // so we don't break early on the apostrophe.
+        let text = r#"{"dialogue": "ye'll see, lad"}"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "ye'll see, lad");
+    }
+
+    #[test]
     fn test_parse_npc_stream_response_invalid_json() {
         let text = "{not valid json at all";
         let parsed = parse_npc_stream_response(text);
@@ -1002,6 +1173,49 @@ mod tests {
         assert!(
             prompt.contains("CULTURAL GUIDELINES"),
             "cultural guidelines missing"
+        );
+
+        // Lane-keeping clause (issue: midwife-replied-as-tracker, grok 2/5).
+        assert!(
+            prompt.contains("STAY IN YOUR LANE"),
+            "lane-keeping clause missing"
+        );
+
+        // 1820 fact preamble (issue: Aoife claimed Irish-language teaching
+        // was outlawed in 1820, but the Penal Laws were repealed in 1782).
+        assert!(
+            prompt.contains("Penal Laws"),
+            "1820 fact preamble missing — Penal Laws clause"
+        );
+        assert!(
+            prompt.contains("1782"),
+            "1820 fact preamble missing — repeal date"
+        );
+
+        // Allowed-Irish-phrases whitelist (issue: "go connachtú"
+        // hallucinated past the known "Slán abhaile").
+        assert!(
+            prompt.contains("ALLOWED IRISH PHRASES"),
+            "Irish-phrase whitelist clause missing"
+        );
+        assert!(
+            prompt.contains("Slán abhaile"),
+            "anchor phrase missing from whitelist"
+        );
+        assert!(
+            prompt.contains("Do NOT invent or extend Irish phrases"),
+            "Irish-grammar improvisation guard missing"
+        );
+
+        // Modern-register blacklist (issue: "healing properties" in midwife
+        // reply scored 2/5).
+        assert!(
+            prompt.contains("REGISTER:"),
+            "modern-register guard missing"
+        );
+        assert!(
+            prompt.contains("healing properties"),
+            "modern-register negative example missing"
         );
     }
 

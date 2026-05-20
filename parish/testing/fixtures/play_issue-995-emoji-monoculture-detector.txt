@@ -1,0 +1,39 @@
+# Proof script: emoji-monoculture sensor wired through CLI reaction path.
+#
+# Drives the rule-based reaction fallback (no LLM in --script mode) with
+# repeated messages from the same keyword group so the per-session
+# emoji buffer fills with one dominant emoji (😠 from the rent/landlord
+# cluster). With the 60% probabilistic gate and 2 NPCs at the pub each
+# turn, ~12-14 reactions accumulate from a dozen lines, well past the
+# detector's min-sample threshold and its 0.7 dominant-ratio cutoff.
+#
+# Expected: stderr contains a `kind="reaction-emoji-monoculture"` WARN
+# event by the end of the script.
+
+/status
+
+# Move to the pub — two NPCs (Padraig + Niamh) so each line generates
+# up to 2 reaction attempts.
+go to the pub
+/npcs
+
+# Saturate the buffer with rent/landlord lines (→ 😠).
+The rent collectors are out again this week.
+The landlord wants tithe paid by Sunday.
+That agent of the landlord is back at the door.
+A new eviction notice was nailed up at the crossroads.
+The tithe collector knocked twice today.
+More rent talk — the landlord won't budge.
+The agent has been seen at every farm this month.
+Another eviction notice — the rent is impossible.
+The landlord came for tithe yesterday.
+The rent collectors don't sleep.
+
+# Sample reaction_log to confirm persistence path ran.
+/debug npcs
+
+# Inspect the diversity sensor — buffer should be dominated by 😠 with
+# the monoculture line reading ACTIVE.
+/debug reactions
+
+/status

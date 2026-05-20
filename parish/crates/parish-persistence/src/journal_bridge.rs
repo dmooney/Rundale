@@ -19,11 +19,15 @@ use parish_types::GameEvent;
 pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
     match event {
         GameEvent::DialogueOccurred {
-            npc_id, summary, ..
+            npc_id,
+            summary,
+            player_said,
+            npc_said,
+            ..
         } => Some(WorldEvent::DialogueOccurred {
             npc_id: *npc_id,
-            player_said: String::new(),
-            npc_said: summary.clone(),
+            player_said: player_said.clone().unwrap_or_default(),
+            npc_said: npc_said.clone().unwrap_or_else(|| summary.clone()),
         }),
         GameEvent::MoodChanged {
             npc_id, new_mood, ..
@@ -44,12 +48,16 @@ pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
         GameEvent::WeatherChanged { new_weather, .. } => Some(WorldEvent::WeatherChanged {
             new_weather: new_weather.clone(),
         }),
-        // Festival, life events, and NPC arrival/departure are informational —
-        // no state mutation that needs crash-recovery replay.
+        // Festival, life events, NPC arrival/departure, and player
+        // movement are informational on the broadcast bus — no state
+        // mutation here needs crash-recovery replay. The persistence
+        // journal already has its own `PlayerMoved` event sourced from
+        // the movement applier.
         GameEvent::FestivalStarted { .. }
         | GameEvent::LifeEvent { .. }
         | GameEvent::NpcArrived { .. }
-        | GameEvent::NpcDeparted { .. } => None,
+        | GameEvent::NpcDeparted { .. }
+        | GameEvent::PlayerMoved { .. } => None,
     }
 }
 
@@ -97,6 +105,8 @@ mod tests {
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(1),
             summary: "discussed farming".to_string(),
+            player_said: None,
+            npc_said: None,
             timestamp: test_time(),
         };
         let journal = to_journal_event(&event).unwrap();

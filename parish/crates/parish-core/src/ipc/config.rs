@@ -86,15 +86,31 @@ pub struct GameConfig {
 impl GameConfig {
     /// Resolves the client and model for a given inference category.
     ///
-    /// If the category has per-category overrides (provider/key/URL), builds a
-    /// new [`AnyClient`] from those settings and attaches the per-category
-    /// rate limiter (if configured). Otherwise falls back to the supplied
-    /// `base_client`, which already carries its own rate limiter from setup.
-    /// The model falls back to `self.model_name` if no per-category model is set.
+    /// If the category has any per-category override — provider, model, URL,
+    /// or API key — builds a fresh [`AnyClient`] from those settings and
+    /// attaches the per-category rate limiter (if configured). Otherwise
+    /// falls back to the supplied `base_client`, which already carries its
+    /// own rate limiter from setup. The model falls back to `self.model_name`
+    /// if no per-category model is set.
+    ///
+    /// `category_model` participates in the override check because a
+    /// model-only override routes a divergent model through the base URL —
+    /// e.g. on the vllm-mlx two-slot loadout, the 1.5B reaction model is not
+    /// loaded on the 14B `:8000` dialogue slot. Sending it there yields a
+    /// `404 Not Found` from vLLM (#993).
     ///
     /// The per-category provider (from `category_provider[cat]`, falling back
     /// to `provider_name`) determines which transport is built: OpenAI-compat
     /// for most providers, the native [`AnthropicClient`] for `anthropic`.
+    ///
+    /// When `category_base_url[cat]` is empty, the URL fallback chain prefers
+    /// the resolved provider's `preset_base_url(cat)` over the base URL.
+    /// This makes routing robust against a transient state where
+    /// `fill_missing_models_from_presets` has populated `category_model` but
+    /// has not yet (or has been blocked from) populating `category_base_url`.
+    /// For single-slot providers whose preset omits `[presets.base_urls]`,
+    /// `preset_base_url` returns `None` and the chain falls through to the
+    /// base-URL fallback already in place — no behaviour change.
     ///
     /// Returns `None` if no client is available (base is `None` and no
     /// category override is configured).
@@ -110,8 +126,11 @@ impl GameConfig {
             .cloned()
             .unwrap_or_else(|| self.model_name.clone());
 
-        // Build a per-category client if the provider, URL, or key is overridden.
+        // Any per-category divergence triggers a fresh client. `category_model`
+        // is part of the check because routing a category model through the
+        // base URL silently 404s on multi-slot loadouts (#993).
         let has_override = self.category_provider.contains_key(&cat)
+            || self.category_model.contains_key(&cat)
             || self.category_base_url.contains_key(&cat)
             || self.category_api_key.contains_key(&cat);
 
@@ -124,12 +143,20 @@ impl GameConfig {
                 .unwrap_or(&self.provider_name);
             let provider = Provider::from_str_loose(provider_str).unwrap_or_default();
 
-            // URL falls back to the base URL, then to the provider default
-            // (the latter matters when a category switches to Anthropic
-            // while the base stays on Ollama — the Anthropic default URL
-            // is not empty, so build_client can still reach a real host).
+            // URL fallback chain:
+            //   1. explicit per-category URL (`category_base_url[cat]`)
+            //   2. provider's preset URL for this category — multi-slot
+            //      loadouts (vllm-mlx 14B :8000 + 1.5B :8001) need this so
+            //      the reaction/intent calls land on the slot where their
+            //      model is loaded, even if `fill_missing_models_from_presets`
+            //      hasn't populated `category_base_url` yet (#993).
+            //   3. user's base URL (matches single-slot providers).
+            //   4. provider default URL (catches an Anthropic-override-on-
+            //      Ollama-base setup whose base URL is the Ollama localhost).
             let url = if let Some(u) = self.category_base_url.get(&cat) {
                 u.clone()
+            } else if let Some(u) = provider.preset_base_url(cat) {
+                u.to_string()
             } else if !self.base_url.is_empty() {
                 self.base_url.clone()
             } else {
@@ -360,21 +387,52 @@ impl GameConfig {
             changed = true;
         }
 
-        // Per-category models: fall back to each effective provider's
-        // preset for that specific role.
+        // Per-category models + base URLs: fall back to each effective
+        // provider's preset for that specific role.
+        //
+        // Correctness rules:
+        //
+        // 1. Fill model and URL independently — both are vacant-only writes.
+        //    A user who set only one of `category_model[X]` /
+        //    `category_base_url[X]` keeps that value; we only fill the
+        //    *other* unset half. Filling both together (the previous
+        //    `filled_model` gate) left a user-supplied model stranded on the
+        //    base URL with no preset URL companion, which 404s on multi-slot
+        //    loadouts (#993).
+        //
+        // 2. Don't override a user-set base URL with a preset URL. If the
+        //    user has pointed `self.base_url` at a non-canonical host
+        //    (e.g. `http://remote-gpu:8000` for a colocated box), skip the
+        //    preset's hardcoded `http://localhost:PORT` so we don't silently
+        //    reroute traffic to a host the user wasn't using. The user has
+        //    stepped off the canonical path and owns category routing.
+        //
+        // base_url is critical for multi-slot loadouts (vllm-mlx 14B on
+        // :8000 + 1.5B on :8001) — without it, the auto-filled model lands
+        // on the wrong slot and every request 404s.
         for cat in InferenceCategory::ALL {
-            if self.category_model.contains_key(&cat) {
-                continue;
-            }
             let provider_str = self
                 .category_provider
                 .get(&cat)
                 .map(String::as_str)
                 .unwrap_or(&self.provider_name);
-            if let Ok(p) = Provider::from_str_loose(provider_str)
+            let Ok(p) = Provider::from_str_loose(provider_str) else {
+                continue;
+            };
+            // entry().or_insert_with-style flow keeps clippy's map_entry
+            // lint happy.
+            use std::collections::hash_map::Entry;
+            if let Entry::Vacant(slot) = self.category_model.entry(cat)
                 && let Some(m) = p.preset_model(cat)
             {
-                self.category_model.insert(cat, m.to_string());
+                slot.insert(m.to_string());
+                changed = true;
+            }
+            if self.base_url == p.default_base_url()
+                && let Entry::Vacant(slot) = self.category_base_url.entry(cat)
+                && let Some(u) = p.preset_base_url(cat)
+            {
+                slot.insert(u.to_string());
                 changed = true;
             }
         }
@@ -585,6 +643,137 @@ mod tests {
         let cfg = GameConfig::default();
         let (client, _model) = cfg.resolve_category_client(InferenceCategory::Intent, None);
         assert!(client.is_none());
+    }
+
+    // ── #993 regression tests ────────────────────────────────────────────────
+
+    /// A model-only override (no provider/URL/key) must still trigger a
+    /// fresh per-category client, not silently reuse the base client. The
+    /// base client points at `:8000` (14B); reusing it for the 1.5B reaction
+    /// model would 404 on vllm-mlx two-slot loadouts (#993).
+    #[test]
+    fn resolve_category_client_model_only_override_triggers_per_category_client() {
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
+        let mut cfg = GameConfig {
+            provider_name: "vllmmlx".to_string(),
+            model_name: "mlx-community/Qwen2.5-14B-Instruct-4bit".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.category_model.insert(
+            InferenceCategory::Reaction,
+            "mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string(),
+        );
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:8000", None));
+        let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
+        let client = client.expect("model-only override builds a fresh client");
+        let openai = client
+            .as_open_ai()
+            .expect("vllm-mlx maps to OpenAI-compat transport");
+        // The preset URL fallback kicks in because category_base_url is
+        // empty AND the resolved provider declares a per-category URL.
+        assert_eq!(
+            openai.base_url(),
+            "http://localhost:8001",
+            "reaction model must route to its preset slot, not the base URL"
+        );
+        assert_eq!(model, "mlx-community/Qwen2.5-1.5B-Instruct-4bit");
+    }
+
+    /// When `category_base_url` is empty but the provider declares a
+    /// per-category preset URL, `resolve_category_client` must use the
+    /// preset URL. This is the safety net that closes the race window
+    /// where `fill_missing_models_from_presets` may not have populated
+    /// the URL map yet (#993).
+    #[test]
+    fn resolve_category_client_falls_back_to_preset_base_url() {
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
+        let mut cfg = GameConfig {
+            provider_name: "vllmmlx".to_string(),
+            model_name: "mlx-community/Qwen2.5-14B-Instruct-4bit".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            ..GameConfig::default()
+        };
+        // Only a category_provider entry — no category_base_url yet.
+        cfg.category_provider
+            .insert(InferenceCategory::Intent, "vllmmlx".to_string());
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:8000", None));
+        let (client, _model) = cfg.resolve_category_client(InferenceCategory::Intent, Some(&base));
+        let client = client.expect("override path builds a client");
+        let openai = client
+            .as_open_ai()
+            .expect("vllm-mlx maps to OpenAI-compat transport");
+        assert_eq!(
+            openai.base_url(),
+            "http://localhost:8001",
+            "intent should route to the preset slot when category_base_url is empty"
+        );
+    }
+
+    /// For single-slot providers whose preset omits `[presets.base_urls]`,
+    /// the preset-URL fallback is a no-op and the resolver still uses the
+    /// user's base URL. Guards against the new fallback silently rerouting
+    /// providers like Ollama / Anthropic.
+    #[test]
+    fn resolve_category_client_preset_fallback_is_inert_for_single_slot_provider() {
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            model_name: "qwen3:32b".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.category_model
+            .insert(InferenceCategory::Reaction, "qwen3:4b".to_string());
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let (client, _model) =
+            cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
+        let openai = client.unwrap();
+        let openai = openai.as_open_ai().unwrap();
+        assert_eq!(
+            openai.base_url(),
+            "http://localhost:11434",
+            "Ollama has no per-category preset URL → fall back to base URL"
+        );
+    }
+
+    /// End-to-end hydration test mirroring the user's parish.toml from #993:
+    /// vllm-mlx base + `[category_overrides.intent]` only. After
+    /// `apply_user_category_overrides` + `fill_missing_models_from_presets`,
+    /// the reaction client must build at `:8001` with the 1.5B model.
+    #[test]
+    fn issue_993_user_config_hydration_routes_reaction_to_slot_8001() {
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
+        use parish_config::user_config::CategoryOverride;
+        use std::collections::BTreeMap;
+
+        let mut cfg = GameConfig {
+            provider_name: "vllmmlx".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            ..GameConfig::default()
+        };
+
+        let mut overrides = BTreeMap::new();
+        overrides.insert(
+            "intent".to_string(),
+            CategoryOverride {
+                provider: Some("vllm-mlx".to_string()),
+                model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
+                base_url: Some("http://localhost:8001".to_string()),
+            },
+        );
+        cfg.apply_user_category_overrides(&overrides);
+        cfg.fill_missing_models_from_presets();
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:8000", None));
+        let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
+        let openai = client.unwrap();
+        let openai = openai.as_open_ai().unwrap();
+        assert_eq!(openai.base_url(), "http://localhost:8001");
+        assert_eq!(model, "mlx-community/Qwen2.5-1.5B-Instruct-4bit");
     }
 
     // ── fill_missing_models_from_presets ─────────────────────────────────────
@@ -983,5 +1172,106 @@ mod tests {
         let slots = cfg.vllm_extra_slots();
         assert_eq!(slots.len(), 1);
         assert_eq!(slots[0].base_url, "http://localhost:8001");
+    }
+
+    // Regression guard for #996. The Linux/Windows `vllm` provider preset
+    // must declare a `[presets.base_urls]` block so the multi-slot loadout
+    // round-trips through `fill_missing_models_from_presets` →
+    // `vllm_extra_slots` → `VllmProcess::ensure_slots`. Without this, the
+    // category model is auto-picked from the preset (e.g. Qwen3-8B) but the
+    // category base URL inherits the user-level base (:8000, where only the
+    // 14B is loaded) → 404 storm.
+    #[test]
+    fn vllm_preset_supplies_per_category_base_url() {
+        use parish_config::Provider;
+
+        // 1. Schema-level: the loaded provider exposes a base URL per category.
+        let vllm = Provider::from_str_loose("vllm").expect("vllm provider loaded");
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Dialogue),
+            Some("http://localhost:8000"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Simulation),
+            Some("http://localhost:8001"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Intent),
+            Some("http://localhost:8002"),
+        );
+        assert_eq!(
+            vllm.preset_base_url(InferenceCategory::Reaction),
+            Some("http://localhost:8001"),
+        );
+
+        // 2. Config-level: fill_missing_models_from_presets populates
+        //    category_base_url alongside category_model for all four roles.
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            ..GameConfig::default()
+        };
+        let changed = cfg.fill_missing_models_from_presets();
+        assert!(changed, "preset should fill all four categories");
+
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Dialogue),
+            Some(&"http://localhost:8000".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Simulation),
+            Some(&"http://localhost:8001".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Intent),
+            Some(&"http://localhost:8002".to_string()),
+        );
+        assert_eq!(
+            cfg.category_base_url.get(&InferenceCategory::Reaction),
+            Some(&"http://localhost:8001".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Dialogue),
+            Some(&"Qwen/Qwen3-14B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Simulation),
+            Some(&"Qwen/Qwen3-8B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Intent),
+            Some(&"Qwen/Qwen3-4B".to_string()),
+        );
+        assert_eq!(
+            cfg.category_model.get(&InferenceCategory::Reaction),
+            Some(&"Qwen/Qwen3-8B".to_string()),
+        );
+
+        // 3. Spawn-list level: dialogue (= base 14B@:8000) is elided as the
+        //    base slot; the remaining three categories emit one slot each.
+        //    Downstream VllmProcess::ensure_slots dedups the duplicate 8B
+        //    slot, but vllm_extra_slots itself does not.
+        // Set base model to the dialogue preset so the base slot matches.
+        cfg.model_name = "Qwen/Qwen3-14B".to_string();
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 3, "sim + intent + reaction, dialogue elided");
+        let urls_models: Vec<(String, String)> = slots
+            .iter()
+            .map(|s| (s.base_url.clone(), s.model.clone()))
+            .collect();
+        assert!(urls_models.contains(&(
+            "http://localhost:8001".to_string(),
+            "Qwen/Qwen3-8B".to_string(),
+        )));
+        assert!(urls_models.contains(&(
+            "http://localhost:8002".to_string(),
+            "Qwen/Qwen3-4B".to_string(),
+        )));
+        // Two of the three should be the shared 8B@:8001 slot (sim + reaction).
+        let eight_b_count = urls_models
+            .iter()
+            .filter(|(u, m)| u == "http://localhost:8001" && m == "Qwen/Qwen3-8B")
+            .count();
+        assert_eq!(eight_b_count, 2, "sim + reaction share the 8B slot");
     }
 }

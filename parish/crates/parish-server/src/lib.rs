@@ -391,7 +391,12 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
     // ── Saves directory ───────────────────────────────────────────────────────
-    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&data_dir);
+    // App-name drives the per-user data folder (saves + tile cache). It comes
+    // from the active mod (Rundale → `Rundale`); engine fallback is `Parish`.
+    // Shared helper in parish-core keeps the three entry points in lockstep
+    // (rule #12 — no copy-paste of cross-runtime orchestration).
+    let app_name = parish_core::game_mod::app_name_from_mod(&game_mod);
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&app_name);
     let (sessions, identity_store, pronunciations) =
         open_session_components(&saves_dir, &game_mod)?;
     let oauth_config = build_oauth_config();
@@ -401,7 +406,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     check_ws_signing_key_warning();
 
     // ── Tile cache / admission control / GlobalState ────────────────────────
-    let tile_cache = init_tile_cache(&saves_dir, &data_dir, &engine_config).await;
+    let tile_cache = init_tile_cache(&saves_dir, &app_name, &data_dir, &engine_config).await;
     let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
         sessions,
@@ -848,23 +853,49 @@ fn check_ws_signing_key_warning() {
     }
 }
 
-/// Creates the tile cache directory (env var or `<saves_dir>/tile-cache/`) and
-/// returns an initialised [`TileCache`].
+/// Creates the tile cache directory and returns an initialised [`TileCache`].
 ///
-/// Bundled-dir resolution order (Rule #9 — paths from config, not cwd):
+/// Cache-dir resolution (Rule #9 — paths from config, not cwd):
+/// 1. `PARISH_TILE_CACHE_DIR` env var — explicit operator/dev override.
+///    Relative values are anchored to the startup cwd via
+///    [`parish_persistence::paths::absolutise`] so a later `set_current_dir`
+///    can't redirect cache writes.
+/// 2. When `PARISH_SAVES_DIR` is also set (saves location is explicit),
+///    nest the cache as `<saves_dir>/tile-cache` so a single env override
+///    keeps both directories under the operator's chosen root — including
+///    container-style mounts like `/saves` where `parent()` would point
+///    at the unwritable filesystem root.
+/// 3. Otherwise, use `<user_data_dir>/tile-cache`, a sibling of the
+///    auto-resolved saves dir under the platform user-data root.
+///
+/// Bundled-dir resolution order:
 /// 1. `PARISH_BUNDLED_TILES_DIR` env var
 /// 2. `engine_config.map.bundled_tiles_dir` from `parish.toml`
 /// 3. `{data_dir}/tiles` if that directory exists on disk (conventional default)
 async fn init_tile_cache(
     saves_dir: &Path,
+    app_name: &str,
     data_dir: &Path,
     engine_config: &parish_core::config::EngineConfig,
 ) -> parish_core::tile_cache::TileCache {
     let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
         .ok()
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| saves_dir.join("tile-cache"));
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| parish_core::persistence::paths::absolutise(PathBuf::from(s.trim())))
+        .unwrap_or_else(|| {
+            let saves_overridden = std::env::var("PARISH_SAVES_DIR")
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+            if saves_overridden {
+                // Operator picked the saves location; keep tile-cache nested
+                // there so single-var overrides stay coherent and writable.
+                saves_dir.join("tile-cache")
+            } else {
+                // Default layout: tile-cache is a sibling of saves under the
+                // shared user-data root.
+                parish_core::persistence::paths::resolve_user_data_dir(app_name).join("tile-cache")
+            }
+        });
     if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
         tracing::warn!(
             dir = %tile_cache_dir.display(),
@@ -1221,8 +1252,8 @@ struct IpRateLimiterState {
 /// the real client IP is read from `Cf-Connecting-Ip` (Cloudflare) or the
 /// leftmost entry in `X-Forwarded-For` (generic reverse proxies).  Without
 /// proxy trust the socket address is used, which is safe but buckets all
-/// traffic from the proxy under one IP when deployed behind Cloudflare /
-/// Railway.
+/// traffic from the proxy under one IP when deployed behind Cloudflare or
+/// another reverse proxy.
 async fn ip_rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     axum::extract::State(state): axum::extract::State<Arc<IpRateLimiterState>>,

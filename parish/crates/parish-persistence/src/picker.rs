@@ -11,12 +11,8 @@ use crate::database::Database;
 use parish_types::ParishError;
 use parish_world::graph::WorldGraph;
 
-/// Default directory for save files.
+/// Default directory for save files (leaf folder name under the user-data root).
 pub const SAVES_DIR: &str = "saves";
-
-/// Marker file used to identify the project root when resolving paths.
-/// Present in checkouts and in packaged builds that ship the default mod.
-const PROJECT_ROOT_MARKER: &str = "mods/rundale/world.json";
 
 /// Environment variable that overrides saves-dir resolution explicitly.
 const SAVES_DIR_ENV: &str = "PARISH_SAVES_DIR";
@@ -112,66 +108,32 @@ pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
     saves_dir
 }
 
-/// Backwards-compatible wrapper that creates `./saves` (relative to cwd).
-///
-/// Prefer [`resolve_project_saves_dir`] for new callers — it returns an
-/// absolute path anchored at a deliberate startup-time location and does not
-/// depend on the cwd at the time of the call.
-#[deprecated(
-    since = "0.1.0",
-    note = "Use resolve_project_saves_dir instead — it obeys Rule 9 by resolving from an explicit startup-time path rather than the cwd."
-)]
-pub fn ensure_saves_dir() -> PathBuf {
-    ensure_saves_dir_at(PathBuf::from(SAVES_DIR))
-}
-
-/// Anchors `p` against `start` if `p` is relative; absolute paths pass through.
-fn anchor_against(start: &Path, p: PathBuf) -> PathBuf {
-    if p.is_absolute() { p } else { start.join(p) }
-}
-
 /// Resolves the project's saves directory once at startup.
 ///
 /// Resolution order:
-/// 1. `PARISH_SAVES_DIR` environment variable — explicit operator override.
-///    Relative values are anchored to `start` so the result is independent of
-///    the cwd at use time.
-/// 2. Walks up to 4 ancestors of `start` looking for [`PROJECT_ROOT_MARKER`];
-///    returns `<that>/saves`.
-/// 3. Falls back to `start.join("saves")`.
+/// 1. `PARISH_SAVES_DIR` environment variable — explicit operator/dev override.
+///    Used verbatim (no anchoring); relative paths resolve against the cwd at
+///    the time this is called, so callers must invoke at startup.
+/// 2. `<user_data_dir>/saves` where `user_data_dir` is the platform-native
+///    per-user data folder for `app_name` — typically the active mod's
+///    [`crate::game_mod::ModMeta::app_name`]. See [`crate::paths::resolve_user_data_dir`].
 ///
-/// The returned directory is always absolute when `start` is absolute, is
-/// created on disk if missing, and is stable for the lifetime of the process.
-/// Callers MUST resolve once at startup and store the result on shared state.
-/// Do not call from request handlers — `current_dir()` may differ at handler
-/// invocation time (packaged builds, daemonised servers, working-directory
-/// changes), which is the bug behind #771.
-pub fn resolve_project_saves_dir(start: &Path) -> PathBuf {
-    if let Some(explicit) = std::env::var_os(SAVES_DIR_ENV) {
-        let p = anchor_against(start, PathBuf::from(explicit));
-        return ensure_saves_dir_at(p);
-    }
-
-    let mut p = start.to_path_buf();
-    for _ in 0..4 {
-        if p.join(PROJECT_ROOT_MARKER).exists() {
-            return ensure_saves_dir_at(p.join(SAVES_DIR));
-        }
-        match p.parent() {
-            Some(parent) => p = parent.to_path_buf(),
-            None => break,
+/// The returned directory is created on disk if missing and is stable for the
+/// lifetime of the process. Callers MUST resolve once at startup and store
+/// the result on shared state. Do not call from request handlers —
+/// `current_dir()` may differ at handler invocation time (packaged builds,
+/// daemonised servers, working-directory changes), which is the bug behind #771.
+pub fn resolve_project_saves_dir(app_name: &str) -> PathBuf {
+    if let Ok(s) = std::env::var(SAVES_DIR_ENV) {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            // Anchor relative overrides to the cwd at startup so a later
+            // cwd change can't redirect save I/O (rule #9).
+            let p = crate::paths::absolutise(PathBuf::from(trimmed));
+            return ensure_saves_dir_at(p);
         }
     }
-    // No marker found anywhere up the tree: anchor the fallback at `start` so
-    // we still return a path that doesn't depend on the cwd at use time.
-    ensure_saves_dir_at(start.join(SAVES_DIR))
-}
-
-/// Convenience wrapper for [`resolve_project_saves_dir`] that anchors at the
-/// process's current working directory.
-pub fn resolve_project_saves_dir_from_cwd() -> PathBuf {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    resolve_project_saves_dir(&cwd)
+    ensure_saves_dir_at(crate::paths::resolve_user_data_dir(app_name).join(SAVES_DIR))
 }
 
 /// Discovers all save files in the given directory and reads their metadata.
@@ -586,102 +548,88 @@ mod tests {
         assert!(path2.to_string_lossy().contains("parish_002.db"));
     }
 
-    /// Process-wide gate that serialises tests which mutate
-    /// [`SAVES_DIR_ENV`]. Cargo runs unit tests within one binary in parallel
-    /// threads by default; without this, two tests touching the env var
-    /// race with each other (and with anything else that reads the env).
-    fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        LOCK.lock().unwrap_or_else(|e| e.into_inner())
-    }
+    /// Re-export of the shared crate-wide env mutex from `paths`. All
+    /// path-resolution env vars (`PARISH_SAVES_DIR`, `PARISH_USER_DATA_DIR`,
+    /// `PARISH_TILE_CACHE_DIR`, `HOME`, `XDG_DATA_HOME`, `APPDATA`) must use
+    /// the same lock so picker tests and paths tests can't interleave each
+    /// other's env mutations.
+    use crate::paths::env_test_lock;
 
-    /// RAII helper that restores [`SAVES_DIR_ENV`] to its previous value when
-    /// dropped, even if the test panics.
-    struct EnvGuard(Option<std::ffi::OsString>);
+    /// RAII helper that restores a captured env var to its previous value
+    /// when dropped, even if the test panics.
+    struct EnvGuard {
+        key: &'static str,
+        prev: Option<std::ffi::OsString>,
+    }
     impl EnvGuard {
-        fn capture() -> Self {
-            EnvGuard(std::env::var_os(SAVES_DIR_ENV))
+        fn capture(key: &'static str) -> Self {
+            EnvGuard {
+                key,
+                prev: std::env::var_os(key),
+            }
         }
     }
     impl Drop for EnvGuard {
         fn drop(&mut self) {
             // SAFETY: env mutation is gated by `env_test_lock`.
-            match self.0.take() {
-                Some(v) => unsafe { std::env::set_var(SAVES_DIR_ENV, v) },
-                None => unsafe { std::env::remove_var(SAVES_DIR_ENV) },
+            match self.prev.take() {
+                Some(v) => unsafe { std::env::set_var(self.key, v) },
+                None => unsafe { std::env::remove_var(self.key) },
             }
         }
     }
 
     #[test]
-    fn test_resolve_project_saves_dir_finds_marker() {
-        let _gate = env_test_lock();
-        let _restore = EnvGuard::capture();
-
-        let tmp = TempDir::new().unwrap();
-        let project = tmp.path().join("project");
-        let nested = project.join("a").join("b").join("c");
-        std::fs::create_dir_all(nested.join("ignore")).unwrap();
-        std::fs::create_dir_all(project.join("mods/rundale")).unwrap();
-        std::fs::write(project.join("mods/rundale/world.json"), "{}").unwrap();
-
-        // SAFETY: env mutation is gated by `env_test_lock`.
-        unsafe { std::env::remove_var(SAVES_DIR_ENV) };
-
-        let resolved = resolve_project_saves_dir(&nested);
-        assert_eq!(resolved, project.join("saves"));
-        assert!(resolved.is_absolute());
-        assert!(resolved.is_dir());
-    }
-
-    #[test]
     fn test_resolve_project_saves_dir_env_override() {
         let _gate = env_test_lock();
-        let _restore = EnvGuard::capture();
+        let _restore_saves = EnvGuard::capture(SAVES_DIR_ENV);
+        let _restore_root = EnvGuard::capture(crate::paths::USER_DATA_DIR_ENV);
 
         let tmp = TempDir::new().unwrap();
         let explicit = tmp.path().join("custom_saves");
-
         // SAFETY: env mutation is gated by `env_test_lock`.
         unsafe { std::env::set_var(SAVES_DIR_ENV, &explicit) };
 
-        // Anchor doesn't matter — env var wins.
-        let resolved = resolve_project_saves_dir(tmp.path());
+        let resolved = resolve_project_saves_dir("Rundale");
         assert_eq!(resolved, explicit);
         assert!(resolved.is_absolute());
         assert!(resolved.is_dir());
     }
 
     #[test]
-    fn test_resolve_project_saves_dir_anchors_relative_env() {
+    fn test_resolve_project_saves_dir_uses_user_data_dir() {
         let _gate = env_test_lock();
-        let _restore = EnvGuard::capture();
+        let _restore_saves = EnvGuard::capture(SAVES_DIR_ENV);
+        let _restore_root = EnvGuard::capture(crate::paths::USER_DATA_DIR_ENV);
 
         let tmp = TempDir::new().unwrap();
-        // SAFETY: env mutation is gated by `env_test_lock`.
-        unsafe { std::env::set_var(SAVES_DIR_ENV, "rel/sub") };
+        // SAFETY: gated.
+        unsafe {
+            std::env::remove_var(SAVES_DIR_ENV);
+            std::env::set_var(crate::paths::USER_DATA_DIR_ENV, tmp.path());
+        }
 
-        let resolved = resolve_project_saves_dir(tmp.path());
-        assert_eq!(resolved, tmp.path().join("rel/sub"));
-        assert!(resolved.is_absolute());
+        let resolved = resolve_project_saves_dir("Rundale");
+        assert_eq!(resolved, tmp.path().join(SAVES_DIR));
         assert!(resolved.is_dir());
     }
 
     #[test]
-    fn test_resolve_project_saves_dir_fallback_anchors_at_start() {
+    fn test_resolve_project_saves_dir_empty_env_ignored() {
         let _gate = env_test_lock();
-        let _restore = EnvGuard::capture();
+        let _restore_saves = EnvGuard::capture(SAVES_DIR_ENV);
+        let _restore_root = EnvGuard::capture(crate::paths::USER_DATA_DIR_ENV);
 
         let tmp = TempDir::new().unwrap();
-        // SAFETY: env mutation is gated by `env_test_lock`.
-        unsafe { std::env::remove_var(SAVES_DIR_ENV) };
+        // SAFETY: gated.
+        unsafe {
+            std::env::set_var(SAVES_DIR_ENV, "");
+            std::env::set_var(crate::paths::USER_DATA_DIR_ENV, tmp.path());
+        }
 
-        // No marker file anywhere → fallback path. Result must still be
-        // anchored at `start`, not the cwd.
-        let resolved = resolve_project_saves_dir(tmp.path());
-        assert_eq!(resolved, tmp.path().join("saves"));
-        assert!(resolved.is_absolute());
-        assert!(resolved.is_dir());
+        // Empty PARISH_SAVES_DIR must not be used as the path "".
+        let resolved = resolve_project_saves_dir("Rundale");
+        assert_eq!(resolved, tmp.path().join(SAVES_DIR));
     }
 
     #[test]
@@ -753,16 +701,11 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)] // Tests the deprecated shim itself.
-    fn test_ensure_saves_dir_creates_directory() {
-        let _gate = env_test_lock();
-        let original_dir = std::env::current_dir().unwrap();
+    fn test_ensure_saves_dir_at_creates_directory() {
         let tmp = TempDir::new().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
-
-        let saves_dir = ensure_saves_dir();
-        assert!(saves_dir.exists());
-
-        std::env::set_current_dir(original_dir).unwrap();
+        let target = tmp.path().join("nested/saves");
+        let returned = ensure_saves_dir_at(target.clone());
+        assert_eq!(returned, target);
+        assert!(target.is_dir());
     }
 }

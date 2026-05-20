@@ -65,6 +65,10 @@
           {
             "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--no-excuses.sh'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--learnings-reminder.sh'"
           }
         ]
       }
@@ -104,6 +108,10 @@
           {
             "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--commit-msg-check.sh'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--acceptance-criteria-reminder.sh'"
           }
         ]
       }

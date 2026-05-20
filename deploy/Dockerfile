@@ -61,5 +61,5 @@ USER app
 
 ENV RUST_LOG=info
 EXPOSE 3001
-# Railway injects $PORT; fall back to 3001 for local docker testing
+# Host platforms commonly inject $PORT; fall back to 3001 for local docker testing.
 CMD sh -c "./parish --web ${PORT:-3001}"

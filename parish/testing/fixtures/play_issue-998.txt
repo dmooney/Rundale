@@ -1,0 +1,53 @@
+# issue-998 — GUI-visible baseline for demo prompt parity
+# =========================================================
+# The fix lands in parish-tauri's DemoContextSnapshot builder.
+# Headless CLI cannot exercise the demo prompt path directly,
+# but it CAN render the GUI baseline that the prompt must match.
+# This fixture captures that baseline at a fresh save in Kilteevan.
+
+# 1. Baseline: where are we, what time, what's visible?
+/status
+/time
+/here
+
+# 2. NPCs co-located at fresh save — pre-introduction state.
+# Expectation: each NPC line shows display_name(false) = brief_description.
+# GUI hides occupation pre-intro (MentionDropdown.svelte:24).
+# (Note: today the CLI's own /npcs leaks occupation too — that's a
+# separate parity bug; this fixture captures current CLI output and
+# the test asserts on what the GUI sees, not what /npcs prints.)
+/npcs
+/debug npcs
+
+# 3. Map fog-of-war: what does the player see of geography?
+# Expectation: only visited + frontier; un-frontier locations absent.
+/map
+
+# 4. Try addressing an NPC by their occupation before introduction.
+# A real player should not be able to know any NPC is "Widow" yet.
+# Expectation today: "No one here answers to that name just now."
+# After fix to addressed_to resolver (out of scope for this issue,
+# but adjacent): occupation-vocative could resolve. Either way, the
+# auto-player should never *generate* the vocative because it never
+# saw the occupation. Captured here as a baseline.
+Good mornin', Widow.
+
+# 5. Look around — scene description should appear once on demand,
+# not as a side effect of dialogue (cross-ref issue-999).
+look
+
+# 6. Walk to an adjacent location to introduce variety in fog-of-war.
+/map
+go to The Crossroads
+look
+/npcs
+/map
+
+# 7. Return to Kilteevan and observe — frontier should have shifted.
+go to Kilteevan
+/map
+/npcs
+
+# 8. Final state dump.
+/status
+/here

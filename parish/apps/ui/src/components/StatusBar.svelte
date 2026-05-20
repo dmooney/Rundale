@@ -44,14 +44,18 @@
 	// When the clock freezes, update the display once and let the rAF loop
 	// stop naturally (tick() bails on the next frame). When it unfreezes,
 	// restart the loop.
+	//
+	// Only `snap.paused` (user-initiated) freezes the visible clock. The
+	// transient `inference_paused` flag toggles many times per turn while
+	// the LLM runs; folding it into `clockFrozen` made the digits oscillate
+	// between running and paused several times per demo turn.
 	$effect(() => {
 		const snap = $worldState;
 		if (snap) {
 			anchorRealMs = Date.now();
 			anchorGameMs = snap.game_epoch_ms;
 			speedFactor = snap.speed_factor;
-			const wasFrozen = clockFrozen;
-			clockFrozen = snap.paused || snap.inference_paused;
+			clockFrozen = snap.paused;
 
 			if (clockFrozen) {
 				// Snap display to anchored game time immediately.

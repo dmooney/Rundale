@@ -373,12 +373,24 @@
 					streamingActive.set(true);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
-				} else if (sm.pendingTurnCount() === 0 && !sm.hasPendingEndHints()) {
+				} else if (
+					!sm.isChainInProgress() &&
+					sm.pendingTurnCount() === 0 &&
+					!sm.hasPendingEndHints()
+				) {
 					// Loading ended with no NPC stream in flight — clear immediately.
 					// When a stream IS in flight, the text pump is still dripping
 					// characters; finishNpcStream() clears streamingActive after the
 					// pump drains so the input field and demo loop wait for text to
 					// finish displaying.
+					//
+					// `isChainInProgress()` suppresses the clear between addressed-NPC
+					// turns within one handle_npc_conversation chain (#991): the
+					// backend cancels and re-spawns the loading animation per turn,
+					// so `loading {active:false}` fires multiple times before the
+					// chain's terminal `stream-end`. Without this gate the demo
+					// loop's waitForFalse(streamingActive) resolves mid-chain and
+					// fires the next player turn over an unfinished reply.
 					streamingActive.set(false);
 				}
 			}));

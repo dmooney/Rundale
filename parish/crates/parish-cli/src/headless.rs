@@ -142,6 +142,8 @@ async fn run_headless_repl_loop(
         dispatch_headless_tier2_tick(app).await;
         dispatch_headless_autosave(app).await;
 
+        drain_character_log_events(app);
+
         if app.should_quit {
             break;
         }
@@ -286,8 +288,13 @@ pub async fn run_headless(
     // Initial tier assignment
     app.npc_manager.assign_tiers(&app.world, &[]);
 
-    // Initialize persistence — Papers Please-style save picker
-    let saves_dir = crate::persistence::picker::resolve_project_saves_dir_from_cwd();
+    // Initialize persistence — Papers Please-style save picker.
+    // App-name drives the per-user data folder (Rundale → `Rundale`); engine
+    // fallback when no mod is loaded is `Parish`. Shared helper in parish-core
+    // keeps the three entry points in lockstep (rule #12).
+    let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
+    let saves_dir = crate::persistence::picker::resolve_project_saves_dir(&app_name);
+    app.saves_dir = Some(saves_dir.clone());
     // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).
     app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
         saves_dir.clone(),
@@ -336,6 +343,27 @@ pub async fn run_headless(
         Err(e) => {
             eprintln!("Warning: Persistence unavailable: {}", e);
         }
+    }
+
+    // Character logs — gated by `character-logs` flag (default on).
+    // Subscribe BEFORE writing profiles so the rx doesn't miss any
+    // events that fire during/just after profile generation.
+    {
+        let enabled = !app
+            .flags
+            .is_disabled(parish_core::character_log::FEATURE_FLAG);
+        let manager = parish_core::character_log::CharacterLogManager::new(
+            &app_name,
+            app.active_branch_id,
+            enabled,
+        );
+        if manager.enabled() {
+            app.character_log_rx = Some(app.world.event_bus.subscribe());
+            if let Err(e) = manager.write_all_profiles(&app.world, &app.npc_manager) {
+                tracing::warn!(error = %e, "character-log profile write failed");
+            }
+        }
+        app.character_log = Some(std::sync::Arc::new(manager));
     }
 
     // Show initial location
@@ -400,6 +428,33 @@ async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::Async
 static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
+/// Drains every `GameEvent` queued on `app.character_log_rx` and feeds it
+/// to the character-log writer. Runs synchronously at the tail of each
+/// REPL iteration — the CLI's `App` is not `Send` enough for a tokio
+/// background task, but a synchronous drain catches everything since the
+/// REPL is the only producer between drains.
+fn drain_character_log_events(app: &mut App) {
+    let (Some(manager), Some(rx)) = (app.character_log.as_ref(), app.character_log_rx.as_mut())
+    else {
+        return;
+    };
+    loop {
+        match rx.try_recv() {
+            Ok(event) => {
+                if let Err(e) = manager.process_event(&event, &app.world, &app.npc_manager) {
+                    tracing::warn!(error = %e, "character-log write failed");
+                }
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "character-log subscriber lagged; events lost");
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+        }
+    }
+}
+
 /// Handles a system command in headless mode.
 ///
 /// Returns `(should_quit, rebuild_inference)`.
@@ -436,8 +491,16 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
 /// in script mode — the same fail-closed policy applied at startup (#608).
 pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
-        // Bare /load — show save picker for switching save files
-        let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
+        // Bare /load — show save picker for switching save files.
+        // Read the saves dir resolved once at startup (#771); never re-probe
+        // the cwd here — packaged/daemon runs may have moved cwd since boot.
+        let saves_dir = match app.saves_dir.as_ref() {
+            Some(p) => p.clone(),
+            None => {
+                println!("Save picker unavailable: saves directory not initialised.");
+                return Ok(());
+            }
+        };
         if let Some(new_path) =
             crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
         {
@@ -925,6 +988,8 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
                 chrono::Utc::now(),
             );
         }
+        // Feed the per-session diversity sensor (#995).
+        app.npc_manager.record_reaction_emoji(&emoji);
         println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }

@@ -42,6 +42,12 @@ pub struct TierTickState {
     pub in_flight: bool,
 }
 
+/// Capacity of [`NpcManager::reaction_emoji_buffer`]. Eight slots is the
+/// window the issue #995 detector samples — large enough to dilute a
+/// single stray same-emoji burst, small enough that a sustained run is
+/// caught within a handful of player turns.
+pub const REACTION_EMOJI_BUFFER_CAPACITY: usize = 8;
+
 pub struct NpcManager {
     /// All NPCs keyed by their unique id.
     npcs: HashMap<NpcId, Npc>,
@@ -59,6 +65,19 @@ pub struct NpcManager {
     npcs_who_know_player_name: HashSet<NpcId>,
     /// Ring buffer of the last 5 Tier 4 life-event descriptions (newest last).
     recent_tier4_events: VecDeque<String>,
+    /// Rolling window of the most recent NPC-reaction emoji (newest last),
+    /// capped at [`REACTION_EMOJI_BUFFER_CAPACITY`].
+    ///
+    /// Feeds [`crate::quality::detect_emoji_monoculture`] each time
+    /// [`Self::record_reaction_emoji`] is called. Issue #995 showed
+    /// small-model reaction inference collapsing onto one or two safe
+    /// emoji at temp=0; the buffer + detector are the sensor for the
+    /// regression.
+    reaction_emoji_buffer: VecDeque<String>,
+    /// Tracks whether the last detector call already fired a WARN so
+    /// the same crossing isn't re-logged on every subsequent push.
+    /// Cleared once the buffer drops back below the threshold.
+    reaction_monoculture_active: bool,
     /// Cached BFS distances from the last player location.
     ///
     /// Stored as `(player_location, distances)`. When `assign_tiers` is called
@@ -83,8 +102,73 @@ impl NpcManager {
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
             recent_tier4_events: VecDeque::with_capacity(crate::tier4::RING_BUFFER_CAPACITY),
+            reaction_emoji_buffer: VecDeque::with_capacity(REACTION_EMOJI_BUFFER_CAPACITY),
+            reaction_monoculture_active: false,
             bfs_distances_cache: None,
         }
+    }
+
+    // ── Reaction-quality sensor (issue #995) ─────────────────────────────────
+
+    /// Records an emitted NPC reaction emoji into the rolling diversity
+    /// buffer and runs [`crate::quality::detect_emoji_monoculture`].
+    ///
+    /// When the detector reports a fresh monoculture crossing, emits a
+    /// `tracing::warn!` event with `site="reactions"`,
+    /// `kind="reaction-emoji-monoculture"`, and the detector's
+    /// human-readable diversity detail. Subsequent pushes that stay in
+    /// monoculture do not re-emit (debounced); the next WARN fires only
+    /// after the buffer falls below the threshold and crosses back
+    /// above it.
+    ///
+    /// Called from every runtime's reaction-persist callback so the
+    /// sensor sees every reaction regardless of entry point (CLI,
+    /// server, Tauri).
+    pub fn record_reaction_emoji(&mut self, emoji: &str) {
+        self.reaction_emoji_buffer.push_back(emoji.to_string());
+        if self.reaction_emoji_buffer.len() > REACTION_EMOJI_BUFFER_CAPACITY {
+            self.reaction_emoji_buffer.pop_front();
+        }
+
+        // Skip the snapshot allocation while the buffer is too small for
+        // the detector to draw a conclusion — this function runs once per
+        // reacting NPC per player turn, so the early-out matters on busy
+        // locations.
+        if self.reaction_emoji_buffer.len() < crate::quality::DEFAULT_EMOJI_MIN_SAMPLES {
+            return;
+        }
+
+        let snapshot: Vec<&str> = self
+            .reaction_emoji_buffer
+            .iter()
+            .map(String::as_str)
+            .collect();
+        match crate::quality::detect_emoji_monoculture(&snapshot) {
+            Some(issue) if !self.reaction_monoculture_active => {
+                self.reaction_monoculture_active = true;
+                tracing::warn!(
+                    site = "reactions",
+                    kind = issue.kind.as_str(),
+                    detail = %issue.detail,
+                    sample_count = self.reaction_emoji_buffer.len(),
+                    "NPC reaction emoji diversity below threshold"
+                );
+            }
+            Some(_) => {
+                // Already flagged; stay quiet until diversity recovers.
+            }
+            None => {
+                self.reaction_monoculture_active = false;
+            }
+        }
+    }
+
+    /// Returns the current reaction-emoji diversity buffer (oldest first).
+    ///
+    /// Exposed for diagnostics and tests; production callers don't need
+    /// to inspect the buffer directly.
+    pub fn reaction_emoji_buffer(&self) -> Vec<String> {
+        self.reaction_emoji_buffer.iter().cloned().collect()
     }
 
     // ── Introduction / name tracking ─────────────────────────────────────────
@@ -238,6 +322,59 @@ impl NpcManager {
             }
         }
         prefix_match
+    }
+
+    /// Finds an NPC at a location by occupation/role (case-insensitive).
+    ///
+    /// Returns `Some` only if exactly one co-located NPC matches — protects
+    /// against silently routing to the wrong person when a role is shared
+    /// (e.g. two farmers at the same farm). Used as a fallback by
+    /// `resolve_npc_targets` so human players can address NPCs by
+    /// role-vocative ("Father", "Priest", "Widow", "Constable") when the
+    /// reference is unambiguous (issue #998).
+    ///
+    /// Matching tiers, tried in order until one returns a unique hit:
+    /// 1. Exact case-insensitive equality (`"Widow" == "Widow"`).
+    /// 2. Whole-word token overlap (`"Priest"` matches `"Parish Priest"`,
+    ///    `"Constable"` matches `"Retired Constable"`).
+    /// 3. Built-in vocative aliases (`"Father" → priest occupations`).
+    ///
+    /// Ambiguous at any tier returns `None` so the caller's "no one here by
+    /// that name" path fires instead of guessing.
+    pub fn find_by_role_at(&self, role: &str, location: LocationId) -> Option<&Npc> {
+        let needle = role.trim();
+        if needle.is_empty() {
+            return None;
+        }
+        let npcs = self.npcs_at(location);
+
+        // Tier 1: exact case-insensitive equality.
+        if let Some(hit) = unique_match(&npcs, |npc| npc.occupation.eq_ignore_ascii_case(needle)) {
+            return Some(hit);
+        }
+
+        // Tier 2: needle matches any whole word in the occupation.
+        let needle_lower = needle.to_ascii_lowercase();
+        if let Some(hit) = unique_match(&npcs, |npc| {
+            npc.occupation
+                .split_whitespace()
+                .any(|tok| tok.eq_ignore_ascii_case(&needle_lower))
+        }) {
+            return Some(hit);
+        }
+
+        // Tier 3: built-in vocative aliases (Irish 1820 Catholic context).
+        if let Some(canonical) = role_alias(&needle_lower)
+            && let Some(hit) = unique_match(&npcs, |npc| {
+                npc.occupation
+                    .split_whitespace()
+                    .any(|tok| tok.eq_ignore_ascii_case(canonical))
+            })
+        {
+            return Some(hit);
+        }
+
+        None
     }
 
     /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
@@ -487,6 +624,20 @@ impl NpcManager {
         )
     }
 
+    /// Silently populates `tier_assignments` from the current world +
+    /// NPC state without publishing any `GameEvent` or running
+    /// inflation/deflation. Call this once after rebuilding the
+    /// manager from a snapshot — see
+    /// [`crate::tier_assign::seed_tier_state`] for the rationale.
+    pub fn seed_tier_state(&mut self, world: &WorldState) {
+        crate::tier_assign::seed_tier_state(
+            &self.npcs,
+            &mut self.tier_assignments,
+            &mut self.bfs_distances_cache,
+            world,
+        );
+    }
+
     /// Applies the results of a Tier 4 tick to NPC state.
     ///
     /// See [`crate::tier4::apply_events`] for full documentation.
@@ -531,6 +682,42 @@ impl NpcManager {
 impl Default for NpcManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Returns the unique NPC matching `predicate`, or `None` if zero or
+/// multiple match. Helper for `find_by_role_at` — refusing on ambiguity
+/// keeps the resolver from silently picking the wrong person.
+fn unique_match<'a, F>(npcs: &[&'a Npc], predicate: F) -> Option<&'a Npc>
+where
+    F: Fn(&Npc) -> bool,
+{
+    let mut hit: Option<&Npc> = None;
+    for &npc in npcs {
+        if predicate(npc) {
+            if hit.is_some() {
+                return None;
+            }
+            hit = Some(npc);
+        }
+    }
+    hit
+}
+
+/// Maps common Irish 1820 role-vocatives to a canonical occupation token.
+///
+/// Returns the token to look for inside the NPC's `occupation` field. The
+/// caller already case-folded the input.
+fn role_alias(needle_lower: &str) -> Option<&'static str> {
+    match needle_lower {
+        // Catholic clergy — "Father", "Fr", "Fr.", "Parson", "Reverend" all
+        // address a priest in period dialogue. Rundale's data uses
+        // occupation labels like "Parish Priest" / "Curate".
+        "father" | "fr" | "fr." | "parson" | "reverend" => Some("priest"),
+        // Constabulary — historical Irish parish addressed peace officers
+        // as "Constable" or "Officer".
+        "officer" => Some("constable"),
+        _ => None,
     }
 }
 
@@ -669,6 +856,133 @@ mod tests {
         mgr.mark_introduced(NpcId(1));
 
         assert!(mgr.find_by_name("Nobody", LocationId(2)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_unique_match_resolves() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        let found = mgr.find_by_role_at("Widow", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_role_at_case_insensitive() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Father".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("father", LocationId(2)).is_some());
+        assert!(mgr.find_by_role_at("FATHER", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_ambiguous_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut a = make_test_npc(1, 2);
+        a.occupation = "Farmer".to_string();
+        let mut b = make_test_npc(2, 2);
+        b.occupation = "Farmer".to_string();
+        mgr.add_npc(a);
+        mgr.add_npc(b);
+
+        assert!(
+            mgr.find_by_role_at("Farmer", LocationId(2)).is_none(),
+            "two NPCs share the role — resolver must refuse to guess"
+        );
+    }
+
+    #[test]
+    fn test_find_by_role_at_wrong_location_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("Widow", LocationId(99)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_token_overlap_priest_matches_parish_priest() {
+        // Player addresses "Priest" — Rundale data uses "Parish Priest".
+        let mut mgr = NpcManager::new();
+        let mut tierney = make_test_npc(1, 2);
+        tierney.occupation = "Parish Priest".to_string();
+        mgr.add_npc(tierney);
+
+        let found = mgr.find_by_role_at("Priest", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_role_at_token_overlap_constable_matches_retired_constable() {
+        let mut mgr = NpcManager::new();
+        let mut flanagan = make_test_npc(1, 2);
+        flanagan.occupation = "Retired Constable".to_string();
+        mgr.add_npc(flanagan);
+
+        assert!(mgr.find_by_role_at("Constable", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_alias_father_routes_to_priest() {
+        // "Father, a word" — period-correct vocative for a Catholic priest.
+        let mut mgr = NpcManager::new();
+        let mut tierney = make_test_npc(1, 2);
+        tierney.occupation = "Parish Priest".to_string();
+        mgr.add_npc(tierney);
+
+        let found = mgr.find_by_role_at("Father", LocationId(2));
+        assert!(found.is_some(), "Father vocative should resolve to priest");
+        assert_eq!(found.unwrap().id, NpcId(1));
+
+        // "Fr." / "Fr" abbreviations.
+        assert!(mgr.find_by_role_at("Fr.", LocationId(2)).is_some());
+        assert!(mgr.find_by_role_at("fr", LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn test_find_by_role_at_alias_refuses_when_ambiguous_across_priests() {
+        let mut mgr = NpcManager::new();
+        let mut priest = make_test_npc(1, 2);
+        priest.occupation = "Parish Priest".to_string();
+        let mut curate = make_test_npc(2, 2);
+        curate.occupation = "Curate Priest".to_string();
+        mgr.add_npc(priest);
+        mgr.add_npc(curate);
+
+        assert!(
+            mgr.find_by_role_at("Father", LocationId(2)).is_none(),
+            "two priests share the vocative — must refuse"
+        );
+    }
+
+    #[test]
+    fn test_find_by_role_at_unknown_alias_does_not_match() {
+        let mut mgr = NpcManager::new();
+        let mut publican = make_test_npc(1, 2);
+        publican.occupation = "Publican".to_string();
+        mgr.add_npc(publican);
+
+        // "Sir" is not a registered alias and isn't a token of "Publican".
+        assert!(mgr.find_by_role_at("Sir", LocationId(2)).is_none());
+    }
+
+    #[test]
+    fn test_find_by_role_at_empty_input_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.occupation = "Widow".to_string();
+        mgr.add_npc(npc);
+
+        assert!(mgr.find_by_role_at("", LocationId(2)).is_none());
+        assert!(mgr.find_by_role_at("   ", LocationId(2)).is_none());
     }
 
     #[test]
@@ -1056,5 +1370,64 @@ mod tests {
 
         assert_eq!(mgr.last_tier4_game_time(), Some(now));
         assert!(!mgr.needs_tier4_tick(now));
+    }
+
+    // ── Reaction-emoji diversity sensor (issue #995) ────────────────────────
+
+    #[test]
+    fn reaction_emoji_buffer_caps_at_capacity() {
+        let mut mgr = NpcManager::new();
+        for _ in 0..(REACTION_EMOJI_BUFFER_CAPACITY + 4) {
+            mgr.record_reaction_emoji("🤔");
+        }
+        assert_eq!(
+            mgr.reaction_emoji_buffer().len(),
+            REACTION_EMOJI_BUFFER_CAPACITY,
+            "buffer must cap at REACTION_EMOJI_BUFFER_CAPACITY"
+        );
+    }
+
+    #[test]
+    fn reaction_emoji_diverse_history_does_not_flag() {
+        // Eight distinct emoji → distinct_count=8, dominant_ratio=1/8 = 0.125
+        // → detector returns None, no WARN, no active state.
+        let mut mgr = NpcManager::new();
+        for e in &["🤔", "😊", "😢", "😡", "😏", "👀", "🍺", "✝️"] {
+            mgr.record_reaction_emoji(e);
+        }
+        assert!(
+            !mgr.reaction_monoculture_active,
+            "diverse buffer must leave the sensor un-flagged"
+        );
+    }
+
+    #[test]
+    fn reaction_emoji_monoculture_flips_active_state() {
+        let mut mgr = NpcManager::new();
+        for _ in 0..REACTION_EMOJI_BUFFER_CAPACITY {
+            mgr.record_reaction_emoji("🤔");
+        }
+        assert!(
+            mgr.reaction_monoculture_active,
+            "sustained same-emoji push must flip the sensor to active"
+        );
+    }
+
+    #[test]
+    fn reaction_emoji_monoculture_clears_when_diversity_returns() {
+        let mut mgr = NpcManager::new();
+        for _ in 0..REACTION_EMOJI_BUFFER_CAPACITY {
+            mgr.record_reaction_emoji("🤔");
+        }
+        assert!(mgr.reaction_monoculture_active);
+
+        // Flush the buffer with distinct emoji until ratio falls back below 0.7.
+        for e in &["😊", "😢", "😡", "😏", "👀", "🍺", "✝️", "😳"] {
+            mgr.record_reaction_emoji(e);
+        }
+        assert!(
+            !mgr.reaction_monoculture_active,
+            "recovering diversity must clear the sensor so it can fire again later"
+        );
     }
 }

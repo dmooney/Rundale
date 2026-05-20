@@ -32,6 +32,48 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'loading', { active: false });
 		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
+
+	// Regression for #991: the backend's handle_npc_conversation cancels
+	// and re-spawns the loading animation per addressed NPC turn, so
+	// `loading {active:false}` arrives mid-chain (between phase-1 NPC
+	// turns, or between phase-1 and the autonomous follow-up chain).
+	// The frontend must NOT re-enable the input field on that mid-chain
+	// loading=false — only the chain's terminal `stream-end` may.
+	test('input stays disabled across mid-chain loading=false (#991)', async ({ page }) => {
+		const input = page.locator('[data-testid="input-field"]');
+
+		// Chain begins.
+		await emitEvent(page, 'loading', { active: true });
+		await expect(input).toHaveAttribute('aria-disabled', 'true');
+
+		// NPC 1 streams a reply and the per-turn cancel fires.
+		await emitEvent(page, 'stream-token', { token: 'Dia dhuit. ', turn_id: 1001, source: 'Padraig' });
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1001 });
+		await emitEvent(page, 'loading', { active: false });
+
+		// Input must remain disabled even though loading=false has arrived,
+		// because the chain has not yet emitted `stream-end`.
+		await expect(input).toHaveAttribute('aria-disabled', 'true');
+
+		// Capture the mid-chain state as proof for #991 (rule #10 screenshot tier).
+		await page.screenshot({
+			path: '../../../docs/proofs/991-streaming-active-chain-gap/screenshots/mid-chain-input-disabled.png',
+			fullPage: false
+		});
+
+		// Autonomous follow-up turn (no fresh loading=true in this path).
+		await emitEvent(page, 'stream-token', { token: 'Aye, indeed.', turn_id: 1002, source: 'Siobhan' });
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1002 });
+
+		// Still disabled — chain still alive.
+		await expect(input).toHaveAttribute('aria-disabled', 'true');
+
+		// Chain terminates.
+		await emitEvent(page, 'stream-end', { hints: [] });
+
+		// Only now does the input re-enable.
+		await expect(input).toHaveAttribute('aria-disabled', 'false');
+	});
 });
 
 test.describe('Streaming simulation', () => {

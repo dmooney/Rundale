@@ -79,7 +79,7 @@ pub type IdempotencyCache = TokioMutex<LruCache<IdempotencyKey, CachedResponse>>
 pub struct OAuthConfig {
     pub client_id: String,
     pub client_secret: String,
-    /// Public base URL of the server, e.g. `https://yourapp.railway.app`.
+    /// Public base URL of the server, e.g. `https://parish.example.com`.
     /// Used to construct the OAuth redirect URI.
     pub base_url: String,
 }
@@ -941,7 +941,60 @@ fn spawn_session_ticks(
     state: Arc<AppState>,
     shutdown_token: tokio_util::sync::CancellationToken,
 ) -> Vec<JoinHandle<()>> {
-    let mut handles = Vec::with_capacity(3);
+    let mut handles = Vec::with_capacity(4);
+
+    // ── Character-log subscriber ───────────────────────────────────────────
+    //
+    // Per-character markdown logs (rule #12: orchestration lives in
+    // parish-core; this is the thin server-side wiring). Gated by the
+    // `character-logs` flag (default on). Subscribes BEFORE the profile
+    // rewrite so no events fired during/just after initial profile
+    // generation are lost.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            use parish_core::character_log::{CharacterLogManager, FEATURE_FLAG};
+
+            let enabled = {
+                let cfg = s.config.lock().await;
+                !cfg.flags.is_disabled(FEATURE_FLAG)
+            };
+            if !enabled {
+                return;
+            }
+            let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
+            let branch_id = s.current_branch_id.lock().await.unwrap_or(1);
+            let manager = CharacterLogManager::new(&app_name, branch_id, true);
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            {
+                let world = s.world.lock().await;
+                let npc_mgr = s.npc_manager.lock().await;
+                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                    tracing::warn!(error = %e, "character-log profile write failed");
+                }
+            }
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            let world = s.world.lock().await;
+                            let npc_mgr = s.npc_manager.lock().await;
+                            if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
+                                tracing::warn!(error = %e, "character-log write failed");
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
 
     // ── World tick (5 s) ─────────────────────────────────────────────────────
     {
@@ -1027,7 +1080,14 @@ fn spawn_session_ticks(
 
                     // Advance the generation counter so handle_game_input can
                     // detect TOCTOU races (see issue #283).
-                    world.increment_tick_generation();
+                    //
+                    // Skip while inference-paused: the player input is
+                    // mid-flight and the clock is frozen, so this tick is a
+                    // no-op from the player's perspective. Bumping the
+                    // counter anyway falsely tripped the TOCTOU guard.
+                    if !world.clock.is_inference_paused() {
+                        world.increment_tick_generation();
+                    }
 
                     // #621 — Per-session tick metric. Emitted as a structured
                     // tracing event so log-based metric tools can aggregate

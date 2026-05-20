@@ -515,6 +515,65 @@ pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) 
 
 // ── Background ticks ────────────────────────────────────────────────────────
 
+/// One-shot writer + long-running subscriber for the per-character
+/// markdown logs (rule #12: orchestration lives in `parish-core`; this
+/// is the thin Tauri-side wiring).
+///
+/// Reads the `character-logs` flag off `state.config`; when disabled,
+/// returns without subscribing so flag-off has zero runtime cost.
+pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_name: String) {
+    use parish_core::character_log::{CharacterLogManager, FEATURE_FLAG};
+
+    let enabled = {
+        let cfg = state.config.lock().await;
+        !cfg.flags.is_disabled(FEATURE_FLAG)
+    };
+    if !enabled {
+        return;
+    }
+    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = Arc::new(CharacterLogManager::new(&app_name, branch_id, true));
+
+    // Subscribe BEFORE writing profiles so the rx doesn't miss any events
+    // fired between the profile write and the subscriber task starting.
+    let rx = {
+        let world = state.world.lock().await;
+        world.event_bus.subscribe()
+    };
+
+    // One-shot profile rewrite.
+    {
+        let world = state.world.lock().await;
+        let npc_mgr = state.npc_manager.lock().await;
+        if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+            tracing::warn!(error = %e, "character-log profile write failed");
+        }
+    }
+
+    let state_sub = Arc::clone(state);
+    let token = state.shutdown_token.clone();
+    let manager_sub = Arc::clone(&manager);
+    tokio::spawn(async move {
+        let mut rx = rx;
+        loop {
+            tokio::select! {
+                _ = token.cancelled() => break,
+                result = rx.recv() => match result {
+                    Ok(event) => {
+                        let world = state_sub.world.lock().await;
+                        let npc_mgr = state_sub.npc_manager.lock().await;
+                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
+                            tracing::warn!(error = %e, "character-log write failed");
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                },
+            }
+        }
+    });
+}
+
 /// Subscribes to `world.event_bus` and buffers the last `DEBUG_EVENT_CAPACITY`
 /// events into `state.game_events` for the debug panel.
 ///
@@ -1042,7 +1101,17 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
             // Advance the generation counter so handle_game_input can
             // detect TOCTOU races (see issue #283).
-            world.increment_tick_generation();
+            //
+            // Skip while the clock is inference-paused: the player's input
+            // is mid-flight and the game clock is frozen by construction,
+            // so this tick's work (weather, tiers — all keyed on the
+            // frozen clock) is a no-op from the player's perspective.
+            // Bumping the counter anyway falsely tripped the TOCTOU guard
+            // and surfaced "The world shifted while your words were in
+            // the air." on every multi-second LLM call.
+            if !world.clock.is_inference_paused() {
+                world.increment_tick_generation();
+            }
         }
     });
 }

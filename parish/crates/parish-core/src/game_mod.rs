@@ -43,6 +43,12 @@ pub struct ModMeta {
     pub title: Option<String>,
     /// Machine-friendly mod identifier (e.g. `rundale`).
     pub id: String,
+    /// Optional override for the per-user data-directory name (saves +
+    /// tile cache). When set, takes precedence over `name`; engine fallback
+    /// when neither is meaningful is `"Parish"`. Set explicitly so a future
+    /// rename of `name` doesn't silently relocate everyone's saves.
+    #[serde(default)]
+    pub save_root: Option<String>,
     /// Semantic version string.
     pub version: String,
     /// Short description of the mod.
@@ -456,6 +462,70 @@ pub struct GameMod {
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
     pub reactions: crate::npc::reactions::ReactionTemplates,
+}
+
+impl ModMeta {
+    /// Name used for the per-user data folder (saves + tile cache).
+    ///
+    /// Resolution: explicit `save_root` field on `mod.toml` first (when it
+    /// has non-whitespace content), then `name`. Engine-only runs with no
+    /// mod loaded should use [`parish_persistence::paths::DEFAULT_APP_NAME`]
+    /// instead of calling this.
+    ///
+    /// This does **not** sanitise path separators; callers that turn the
+    /// result into a directory name must use [`app_name_from_mod`] (or apply
+    /// equivalent basename + traversal guarding) so a malicious `save_root`
+    /// can't write outside the user-data root.
+    pub fn app_name(&self) -> &str {
+        self.save_root
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&self.name)
+    }
+}
+
+/// Shared resolver for the per-user data folder name used by saves + tile cache.
+///
+/// Centralises the `Option<GameMod>` → `app_name` mapping so the server,
+/// Tauri, and CLI entry points never drift (rule #12). Returns the first of:
+///
+/// 1. Sanitised `save_root` from the active mod's `mod.toml` (when set and
+///    valid after sanitisation).
+/// 2. Sanitised `name` from the active mod's `mod.toml`.
+/// 3. The engine fallback [`parish_persistence::paths::DEFAULT_APP_NAME`]
+///    — used only when no mod is loaded or every candidate sanitises away.
+///
+/// Sanitisation: trims whitespace, strips any path separators by taking the
+/// basename only, and rejects `.` / `..` / empty. A mod that sets
+/// `save_root = "../../etc"` therefore can't redirect save I/O outside the
+/// per-user root — and an invalid `save_root` falls through to the mod's
+/// `name` rather than collapsing unrelated mods into a shared `Parish` dir.
+pub fn app_name_from_mod(game_mod: &Option<GameMod>) -> String {
+    if let Some(gm) = game_mod.as_ref() {
+        let meta = &gm.manifest.meta;
+        if let Some(s) = meta.save_root.as_deref().and_then(sanitize_app_name) {
+            return s;
+        }
+        if let Some(s) = sanitize_app_name(&meta.name) {
+            return s;
+        }
+    }
+    parish_persistence::paths::DEFAULT_APP_NAME.to_string()
+}
+
+/// Returns a safe folder-name form of `raw`, or `None` if `raw` cannot be
+/// used as a directory name without breaking per-user isolation.
+fn sanitize_app_name(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let basename = std::path::Path::new(trimmed).file_name()?.to_str()?;
+    if basename.is_empty() || basename == "." || basename == ".." {
+        return None;
+    }
+    Some(basename.to_string())
 }
 
 impl GameMod {
@@ -990,11 +1060,110 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
+    fn test_mod_meta_app_name_falls_back_to_name() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: None,
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        assert_eq!(meta.app_name(), "Rundale");
+    }
+
+    #[test]
+    fn test_mod_meta_app_name_treats_blank_save_root_as_unset() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: Some("   ".to_string()),
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        // Whitespace-only save_root must fall back to `name`, not collapse
+        // saves into the bare user-data root.
+        assert_eq!(meta.app_name(), "Rundale");
+    }
+
+    #[test]
+    fn test_sanitize_app_name_strips_traversal_and_separators() {
+        // Basename extraction handles "../etc" and absolute paths.
+        assert_eq!(sanitize_app_name("Rundale"), Some("Rundale".to_string()));
+        assert_eq!(
+            sanitize_app_name("  Rundale  "),
+            Some("Rundale".to_string())
+        );
+        assert_eq!(sanitize_app_name("../etc"), Some("etc".to_string()));
+        assert_eq!(
+            sanitize_app_name("/abs/Rundale"),
+            Some("Rundale".to_string())
+        );
+        // Pure traversal / dot / empty all reject.
+        assert_eq!(sanitize_app_name(".."), None);
+        assert_eq!(sanitize_app_name("."), None);
+        assert_eq!(sanitize_app_name(""), None);
+        assert_eq!(sanitize_app_name("   "), None);
+        // Trailing separator: file_name on "foo/" returns Some("foo").
+        assert_eq!(sanitize_app_name("Rundale/"), Some("Rundale".to_string()));
+    }
+
+    #[test]
+    fn test_app_name_from_mod_engine_fallback_when_none() {
+        let resolved = app_name_from_mod(&None);
+        assert_eq!(resolved, parish_persistence::paths::DEFAULT_APP_NAME);
+    }
+
+    #[test]
+    fn test_app_name_from_mod_falls_through_to_name_when_save_root_invalid() {
+        // Build a real GameMod via the test fixture, then mutate save_root
+        // to an invalid value to verify the resolver falls back to `name`
+        // rather than to the engine default.
+        let tmp = create_test_mod();
+        let mut gm = GameMod::load(tmp.path()).unwrap();
+        gm.manifest.meta.save_root = Some("..".to_string());
+        let resolved = app_name_from_mod(&Some(gm));
+        // Invalid save_root rejected, falls back to sanitised `name`
+        // (the fixture's `name = "Test Mod"` → basename "Test Mod").
+        assert_eq!(resolved, "Test Mod");
+    }
+
+    #[test]
+    fn test_mod_meta_app_name_uses_save_root_when_set() {
+        let meta = ModMeta {
+            name: "Rundale".to_string(),
+            title: None,
+            id: "rundale".to_string(),
+            save_root: Some("Rundale-Beta".to_string()),
+            version: "0.1".to_string(),
+            description: String::new(),
+            kind: ModKind::default(),
+            dependencies: vec![],
+            optional_dependencies: vec![],
+            conflicts: vec![],
+        };
+        assert_eq!(meta.app_name(), "Rundale-Beta");
+    }
+
+    #[test]
     fn test_load_mod_from_directory() {
         let tmp = create_test_mod();
         let gm = GameMod::load(tmp.path()).expect("should load test mod");
         assert_eq!(gm.manifest.meta.id, "test-mod");
         assert_eq!(gm.manifest.meta.name, "Test Mod");
+        // Schema-additive: test fixture omits `save_root`, so it must
+        // round-trip as None and `app_name()` falls back to `name`.
+        assert!(gm.manifest.meta.save_root.is_none());
+        assert_eq!(gm.manifest.meta.app_name(), "Test Mod");
         assert_eq!(gm.prompts.tier1_system, "You are tier1.");
         assert_eq!(gm.anachronisms.terms.len(), 1);
         assert_eq!(gm.festivals.len(), 2);
@@ -1236,7 +1405,7 @@ default_accent = "#112233"
                 "names": [
                     {"word": "Niamh", "pronunciation": "NEEV", "meaning": "brightness", "matches": ["Niamh"]},
                     {"word": "Siobhán", "pronunciation": "shiv-AWN", "meaning": "Irish form of Joan", "matches": ["Siobhan"]},
-                    {"word": "Kilteevan", "pronunciation": "kill-TEE-van", "meaning": "church of St. Tíobán", "matches": ["Kilteevan"]}
+                    {"word": "Kilteevan", "pronunciation": "kill-TEE-van", "meaning": "Cill Taobháin — Teevan's Church", "matches": ["Kilteevan"]}
                 ]
             }"#,
         )

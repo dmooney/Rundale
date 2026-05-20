@@ -770,6 +770,8 @@ fn emit_npc_reactions(
                         chrono::Utc::now(),
                     );
                 }
+                // Feed the per-session diversity sensor (#995).
+                npc_manager.record_reaction_emoji(&emoji);
             });
         },
     );

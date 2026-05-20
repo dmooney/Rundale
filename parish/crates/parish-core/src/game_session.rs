@@ -133,12 +133,25 @@ pub fn apply_movement(
         } => {
             // Build travel-start payload *before* mutating state so the path is valid
             let travel_start = build_travel_start(&path, minutes, &world.graph);
+            let origin = world.player_location;
 
             // Apply world state changes
             world.record_path_traversal(&path);
             world.clock.advance(minutes as i64);
             world.player_location = destination;
             world.mark_visited(destination);
+
+            // Publish PlayerMoved on the broadcast bus so the character-log
+            // writer can record the journey in player.md. Fires here (not at
+            // the higher-level `handle_movement`) so the script harness —
+            // which calls `apply_movement` directly — emits the event too.
+            world
+                .event_bus
+                .publish(parish_types::events::GameEvent::PlayerMoved {
+                    from: origin,
+                    to: destination,
+                    timestamp: world.clock.now(),
+                });
 
             // Update legacy locations map
             if let Some(data) = world.graph.get(destination) {
@@ -488,9 +501,17 @@ fn build_look_text(
 /// - `model` — model name passed to the LLM
 /// - `inference_log` — optional log to record each call for the debug panel
 /// - `emit_text_log(turn_id, npc_name)` — called once per reaction to create
-///   an empty placeholder in the frontend chat log before streaming begins
+///   an empty placeholder in the frontend chat log before streaming begins.
+///   The implementation MUST tie the placeholder to `turn_id` via
+///   `text_log_for_stream_turn` so the UI's streaming-placeholder guard
+///   recognises it and `finalizeStreamingEntry` can remove it when the turn
+///   ends with no tokens (otherwise an empty bubble lingers in the chat).
 /// - `emit_stream_token(turn_id, source, batch)` — called with each batched
 ///   token chunk to be appended to the current streaming entry
+/// - `emit_stream_turn_end(turn_id)` — called exactly once after the per-NPC
+///   token stream finishes (success, timeout, or empty). The UI uses this to
+///   finalise the streaming entry; without it an empty-output reaction leaves
+///   a blank placeholder bubble forever (#984 follow-up).
 #[allow(clippy::too_many_arguments)]
 // Justification: mirrors the previous resolve_reaction_texts signature; all
 // arguments are necessary to build the per-NPC prompt and wire the callbacks.
@@ -508,6 +529,7 @@ pub async fn stream_reaction_texts(
     language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
+    mut emit_stream_turn_end: impl FnMut(u64),
 ) {
     use crate::ipc::stream_npc_tokens;
     use crate::npc::reactions::build_reaction_prompt;
@@ -530,38 +552,48 @@ pub async fn stream_reaction_texts(
 
         if reaction.use_llm {
             if let (Some(c), Some(npc)) = (client, npc) {
-                let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
-                let is_introduced = introduced.contains(&reaction.npc_id);
-                let (system, context) = build_reaction_prompt(
-                    npc,
-                    loc_name,
-                    tod,
-                    weather,
-                    is_introduced,
-                    at_workplace,
-                    language,
-                );
-                llm_log_info = Some((context.len(), system.clone(), context.clone()));
+                if c.is_simulator() {
+                    // The simulator generates Markov nonsense for free-text
+                    // prompts, which surfaces in the chat bubble as gibberish
+                    // ("bridget from the new collection ... God help us").
+                    // Use the deterministic canned line instead so reactions
+                    // remain readable when offline / in headless test runs.
+                    let _ = tx.try_send(reaction.canned_text.clone());
+                    drop(tx);
+                } else {
+                    let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
+                    let is_introduced = introduced.contains(&reaction.npc_id);
+                    let (system, context) = build_reaction_prompt(
+                        npc,
+                        loc_name,
+                        tod,
+                        weather,
+                        is_introduced,
+                        at_workplace,
+                        language,
+                    );
+                    llm_log_info = Some((context.len(), system.clone(), context.clone()));
 
-                let c_clone = c.clone();
-                let model_str = model.to_string();
-                tokio::spawn(async move {
-                    let _ = tokio::time::timeout(
-                        Duration::from_secs(timeout_secs),
-                        c_clone.generate_stream(
-                            &model_str,
-                            &context,
-                            Some(&system),
-                            tx,
-                            Some(100),
-                            None,
-                        ),
-                    )
-                    .await;
-                    // tx is consumed by generate_stream; when it returns (success or
-                    // timeout) tx is dropped, closing the channel and allowing
-                    // stream_npc_tokens to finish.
-                });
+                    let c_clone = c.clone();
+                    let model_str = model.to_string();
+                    tokio::spawn(async move {
+                        let _ = tokio::time::timeout(
+                            Duration::from_secs(timeout_secs),
+                            c_clone.generate_stream(
+                                &model_str,
+                                &context,
+                                Some(&system),
+                                tx,
+                                Some(100),
+                                None,
+                            ),
+                        )
+                        .await;
+                        // tx is consumed by generate_stream; when it returns (success or
+                        // timeout) tx is dropped, closing the channel and allowing
+                        // stream_npc_tokens to finish.
+                    });
+                }
             } else {
                 // No client or NPC not found — fall back to canned text.
                 // Single send on a fresh channel; try_send will not fail.
@@ -582,6 +614,11 @@ pub async fn stream_reaction_texts(
         })
         .await;
         let elapsed_ms = started.elapsed().as_millis() as u64;
+
+        // Finalise this NPC's streaming entry so the UI removes the empty
+        // placeholder if no tokens arrived (LLM timeout / empty output) or
+        // marks the populated entry as no-longer-streaming otherwise.
+        emit_stream_turn_end(turn_id);
 
         if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
             (llm_log_info, inference_log)
@@ -705,6 +742,7 @@ mod tests {
 
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
+        let mut turn_ends: Vec<u64> = Vec::new();
 
         let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
@@ -721,6 +759,7 @@ mod tests {
             &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |turn_id| turn_ends.push(turn_id),
         )
         .await;
 
@@ -737,6 +776,62 @@ mod tests {
             token_chunks.join(""),
             "Hello there!",
             "concatenated chunks equal the canned text"
+        );
+        assert_eq!(
+            turn_ends.len(),
+            1,
+            "exactly one stream-turn-end per reaction"
+        );
+    }
+
+    /// Regression: when the reaction client is the offline Markov simulator,
+    /// the LLM path must be skipped so the chat stream never shows Markov
+    /// gibberish ("bridget from the new collection... God help us").
+    #[tokio::test]
+    async fn stream_reaction_texts_skips_llm_when_client_is_simulator() {
+        use crate::npc::Npc;
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+        use parish_inference::{AnyClient, simulator::SimulatorClient};
+        use std::sync::Arc;
+
+        let reaction = NpcReaction {
+            npc_id: NpcId(42),
+            npc_display_name: "Bridie".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Welcome, stranger.".to_string(),
+            introduces: false,
+            use_llm: true,
+        };
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(42);
+        npc.name = "Bridie".to_string();
+
+        let client = AnyClient::Simulator(Arc::new(SimulatorClient::new()));
+        let mut token_chunks: Vec<String> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &[reaction],
+            &[npc],
+            LocationId(0),
+            "Kilteevan",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            Some(&client),
+            "sim",
+            None,
+            &lang,
+            |_, _| {},
+            |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |_turn_id| {},
+        )
+        .await;
+
+        let combined = token_chunks.join("");
+        assert_eq!(
+            combined, "Welcome, stranger.",
+            "simulator client must yield canned text, not Markov nonsense"
         );
     }
 
@@ -915,6 +1010,45 @@ mod tests {
         assert!(!effects.world_changed);
     }
 
+    /// Regression: location descriptions and travel narration emitted after a
+    /// successful move must carry `source: "system"`, never an NPC name. If
+    /// the source ever drifts to an NPC name, the frontend renders the line
+    /// as a dialogue bubble (#chat-mistagging report from 10-turn demo).
+    #[test]
+    fn apply_movement_arrival_messages_are_system_sourced() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let neighbor = world
+            .graph
+            .neighbors(world.player_location)
+            .into_iter()
+            .next();
+        let Some((neighbor_id, _)) = neighbor else {
+            return;
+        };
+        let neighbor_name = world
+            .graph
+            .get(neighbor_id)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+
+        assert!(effects.world_changed);
+        assert!(
+            !effects.messages.is_empty(),
+            "arrival should produce at least one player-visible message"
+        );
+        for msg in &effects.messages {
+            assert_eq!(
+                msg.source, "system",
+                "post-move message had non-system source {:?}: {}",
+                msg.source, msg.text
+            );
+        }
+    }
+
     #[test]
     fn apply_movement_records_edge_traversal_and_visit() {
         let Some((mut world, mut mgr, templates, transport)) = setup() else {
@@ -987,6 +1121,7 @@ mod tests {
     async fn stream_reaction_texts_empty_list_emits_nothing() {
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
+        let mut turn_ends: Vec<u64> = Vec::new();
 
         let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
@@ -1003,10 +1138,83 @@ mod tests {
             &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+            |turn_id| turn_ends.push(turn_id),
         )
         .await;
 
         assert!(log_sources.is_empty());
         assert!(token_chunks.is_empty());
+        assert!(turn_ends.is_empty());
+    }
+
+    /// Regression for the "blank NPC reply" bug: every per-NPC reaction MUST
+    /// emit a `stream-turn-end` (callback `emit_stream_turn_end`) after its
+    /// token stream finishes — including when the LLM produces zero tokens.
+    /// Without this, the frontend's stream-manager never finalises the empty
+    /// placeholder bubble and the chat shows a permanent blank entry.
+    #[tokio::test]
+    async fn stream_reaction_texts_emits_stream_turn_end_for_each_reaction() {
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+
+        // Two reactions with empty canned text — simulates the LLM-disabled
+        // path producing nothing visible (worst case for the UI cleanup hook).
+        let reactions = vec![
+            NpcReaction {
+                npc_id: NpcId(1),
+                npc_display_name: "Aoife".to_string(),
+                kind: ReactionKind::Greeting,
+                canned_text: String::new(),
+                introduces: false,
+                use_llm: false,
+            },
+            NpcReaction {
+                npc_id: NpcId(2),
+                npc_display_name: "Brian".to_string(),
+                kind: ReactionKind::Greeting,
+                canned_text: String::new(),
+                introduces: false,
+                use_llm: false,
+            },
+        ];
+
+        let mut placeholder_turn_ids: Vec<u64> = Vec::new();
+        let mut turn_end_ids: Vec<u64> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &reactions,
+            &[],
+            LocationId(0),
+            "Galway",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            &lang,
+            |turn_id, _name| placeholder_turn_ids.push(turn_id),
+            |_turn_id, _source, _tok| { /* no tokens emitted for empty canned */ },
+            |turn_id| turn_end_ids.push(turn_id),
+        )
+        .await;
+
+        // Each reaction must produce exactly one placeholder AND one turn-end,
+        // with matching turn_ids in the same order. The UI relies on this 1:1
+        // pairing to clean up empty bubbles.
+        assert_eq!(
+            placeholder_turn_ids.len(),
+            2,
+            "expected one text-log placeholder per reaction"
+        );
+        assert_eq!(
+            turn_end_ids.len(),
+            2,
+            "expected one stream-turn-end per reaction (blank-reply regression)"
+        );
+        assert_eq!(
+            placeholder_turn_ids, turn_end_ids,
+            "placeholder turn_ids must match stream-turn-end turn_ids 1:1"
+        );
     }
 }
