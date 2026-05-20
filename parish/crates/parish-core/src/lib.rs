@@ -19,6 +19,7 @@ pub mod identity;
 pub mod inference_guard;
 pub mod ipc;
 pub mod loading;
+pub mod location_log;
 pub mod mod_source;
 pub mod prompts;
 pub mod secret_store;

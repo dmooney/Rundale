@@ -132,9 +132,12 @@ async fn run_headless_repl_loop(
         }
 
         dispatch_headless_weather(app);
-        let schedule_events =
-            app.npc_manager
-                .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
+        let schedule_events = app.npc_manager.tick_schedules(
+            &app.world.clock,
+            &app.world.graph,
+            app.world.weather,
+            &app.world.event_bus,
+        );
         process_headless_schedule_events(app, &schedule_events);
         dispatch_headless_banshee(app);
         dispatch_headless_tier4_tick(app);
@@ -143,6 +146,7 @@ async fn run_headless_repl_loop(
         dispatch_headless_autosave(app).await;
 
         drain_character_log_events(app);
+        drain_location_log_events(app);
 
         if app.should_quit {
             break;
@@ -366,6 +370,25 @@ pub async fn run_headless(
         app.character_log = Some(std::sync::Arc::new(manager));
     }
 
+    // Location logs — same gate, default-on `location-logs` flag.
+    {
+        let enabled = !app
+            .flags
+            .is_disabled(parish_core::location_log::FEATURE_FLAG);
+        let manager = parish_core::location_log::LocationLogManager::new(
+            &app_name,
+            app.active_branch_id,
+            enabled,
+        );
+        if manager.enabled() {
+            app.location_log_rx = Some(app.world.event_bus.subscribe());
+            if let Err(e) = manager.write_all_profiles(&app.world, &app.npc_manager) {
+                tracing::warn!(error = %e, "location-log profile write failed");
+            }
+        }
+        app.location_log = Some(std::sync::Arc::new(manager));
+    }
+
     // Show initial location
     print_location_arrival(&app);
     print_arrival_reactions(&mut app).await;
@@ -448,6 +471,30 @@ fn drain_character_log_events(app: &mut App) {
             Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
             Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
                 tracing::warn!(skipped, "character-log subscriber lagged; events lost");
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+        }
+    }
+}
+
+/// Same shape as [`drain_character_log_events`] but for the per-location
+/// markdown log writer. Both run at the tail of each REPL iteration.
+fn drain_location_log_events(app: &mut App) {
+    let (Some(manager), Some(rx)) = (app.location_log.as_ref(), app.location_log_rx.as_mut())
+    else {
+        return;
+    };
+    loop {
+        match rx.try_recv() {
+            Ok(event) => {
+                if let Err(e) = manager.process_event(&event, &app.world, &app.npc_manager) {
+                    tracing::warn!(error = %e, "location-log write failed");
+                }
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "location-log subscriber lagged; events lost");
                 continue;
             }
             Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
@@ -1403,6 +1450,7 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
                         app.npc_manager.npcs_mut(),
                         &app.world.graph,
                         game_time,
+                        &app.world.event_bus,
                     );
                     app.npc_manager.record_tier3_tick(game_time);
                     app.debug_event(format!("[tier3] {} updates", updates.len()));
@@ -1490,6 +1538,7 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                         app.npc_manager.npcs_mut(),
                         game_time,
                         &NpcConfig::default(),
+                        &app.world.event_bus,
                     );
                     parish_core::npc::ticks::create_gossip_from_tier2_event(
                         event,

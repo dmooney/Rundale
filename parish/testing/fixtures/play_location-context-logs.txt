@@ -1,0 +1,38 @@
+# location-context-logs play-test
+# ================================
+# Exercises the per-location markdown writer end-to-end:
+#  * profile rewrite on session start
+#  * PlayerMoved journal entries
+#  * NpcArrived / NpcDeparted from schedule transit
+#  * DialogueOccurred (player + NPC lines)
+#  * MoodChanged + RelationshipChanged for co-located NPCs
+
+/status
+
+# 1. Walk into the pub — fires PlayerMoved on Crossroads → Darcy's Pub.
+#    Schedule departures and arrivals from background ticks also land
+#    in their respective location files.
+go to The Crossroads
+/wait 2
+
+go to Darcy's Pub
+/wait 1
+
+# 2. Talk to both NPCs at the pub. Each `say` line, paired with a
+#    canned reply via /stub, fires a DialogueOccurred event that the
+#    location log writes under a "Dialogue" heading.
+/stub Padraig Darcy: Sure, the parish has been quiet since the spring planting.
+/stub Niamh Darcy: My father's the one to ask about hurling matches.
+say Good morning, Padraig.
+/wait 1
+say Niamh, what's the talk of the town?
+/wait 1
+
+# 3. Walk back out and into the village so the round-trip pattern
+#    (which previously triggered duplicate arrivals) is exercised too.
+go to The Crossroads
+/wait 2
+go to Kilteevan Village
+/wait 5
+
+/status

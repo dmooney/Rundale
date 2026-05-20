@@ -310,7 +310,12 @@ fn handle_time_control_command(
         Command::Wait(minutes) => {
             world.clock.advance(minutes as i64);
             npc_manager.assign_tiers(world, &[]);
-            let _events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+            let _events = npc_manager.tick_schedules(
+                &world.clock,
+                &world.graph,
+                world.weather,
+                &world.event_bus,
+            );
             let now = world.clock.now();
             let tod = world.clock.time_of_day();
             CommandResult::text(format!(
@@ -323,7 +328,12 @@ fn handle_time_control_command(
         }
         Command::Tick => {
             npc_manager.assign_tiers(world, &[]);
-            let events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+            let events = npc_manager.tick_schedules(
+                &world.clock,
+                &world.graph,
+                world.weather,
+                &world.event_bus,
+            );
             let count = events.len();
             if count == 0 {
                 CommandResult::text("No NPC activity.")

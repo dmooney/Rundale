@@ -139,6 +139,7 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::NpcDeparted { npc_id: id, .. }
         | GameEvent::LifeEvent { npc_id: id, .. } => *id == npc_id,
         GameEvent::RelationshipChanged { npc_a, npc_b, .. } => *npc_a == npc_id || *npc_b == npc_id,
+        GameEvent::NpcInteraction { participants, .. } => participants.contains(&npc_id),
         GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
         | GameEvent::PlayerMoved { .. } => false,
@@ -176,6 +177,9 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
         }
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
+        }
+        GameEvent::NpcInteraction { summary, .. } => {
+            format!("Interacted with others: {summary}")
         }
         GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }

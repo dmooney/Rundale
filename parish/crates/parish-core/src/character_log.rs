@@ -33,7 +33,6 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Datelike, Timelike, Utc};
@@ -61,28 +60,15 @@ pub const FEATURE_FLAG: &str = "character-logs";
 /// One instance per session — the log directory is fixed at construction
 /// time so a later cwd change cannot redirect file I/O (rule #9).
 ///
-/// Holds a small mutex-protected map of "last journal arrival per NPC" so
-/// the writer can drop spurious `NpcArrived` / `NpcDeparted` events fired
-/// by every tier-recompute (the bus republishes a Tier1 promotion every
-/// time an NPC briefly leaves and returns to the player's vicinity — left
-/// unfiltered, a few hours of game time produces hundreds of identical
-/// "Arrived at X" lines).
+/// Stateless beyond the log directory: every `NpcArrived` / `NpcDeparted`
+/// / `PlayerMoved` event on the bus describes a real physical movement
+/// (published from `schedule::tick_schedules`, `ticks::apply_tier3_updates`,
+/// and `game_session::apply_movement`), so the writer has nothing to
+/// dedup.
 #[derive(Debug)]
 pub struct CharacterLogManager {
     log_dir: PathBuf,
     enabled: bool,
-    /// Last location *name* written to each NPC's journal for an arrival
-    /// event. Used to suppress repeat lines for an NPC who hasn't moved
-    /// since the previous journal entry. The map is seeded on `new()`
-    /// by scanning each existing NPC log so a new session resuming the
-    /// same branch doesn't re-emit the previous session's last arrival.
-    /// The name is the value of the location's `name` field — same
-    /// string the heading renders — so cross-session comparison doesn't
-    /// require a world-graph handle.
-    last_arrival: Mutex<HashMap<NpcId, String>>,
-    /// Last location name recorded for the player. Defensive twin of
-    /// [`Self::last_arrival`].
-    last_player_arrival: Mutex<Option<String>>,
 }
 
 impl CharacterLogManager {
@@ -96,8 +82,6 @@ impl CharacterLogManager {
             return Self {
                 log_dir: PathBuf::new(),
                 enabled: false,
-                last_arrival: Mutex::new(HashMap::new()),
-                last_player_arrival: Mutex::new(None),
             };
         }
         let log_dir = resolve_user_data_dir(app_name)
@@ -118,8 +102,6 @@ impl CharacterLogManager {
             return Self {
                 log_dir: PathBuf::new(),
                 enabled: false,
-                last_arrival: Mutex::new(HashMap::new()),
-                last_player_arrival: Mutex::new(None),
             };
         }
         if let Err(e) = std::fs::create_dir_all(&log_dir) {
@@ -129,17 +111,7 @@ impl CharacterLogManager {
                 "failed to create character-log directory",
             );
         }
-        // Seed dedup state from existing on-disk journals so a fresh
-        // `CharacterLogManager` resuming the same branch doesn't
-        // re-emit the previous session's final arrivals as duplicates.
-        let last_arrival = scan_existing_npc_arrivals(&log_dir);
-        let last_player_arrival = scan_existing_player_arrival(&log_dir);
-        Self {
-            log_dir,
-            enabled,
-            last_arrival: Mutex::new(last_arrival),
-            last_player_arrival: Mutex::new(last_player_arrival),
-        }
+        Self { log_dir, enabled }
     }
 
     /// Returns the directory all log files are written under.
@@ -163,46 +135,6 @@ impl CharacterLogManager {
         let slug = slugify(&npc.name);
         self.log_dir
             .join(format!("npc-{:03}-{}.md", npc.id.0, slug))
-    }
-
-    /// Records that NPC `npc_id` just arrived at `location` and returns
-    /// `true` iff the journal should be appended — i.e. the location
-    /// differs from the previously recorded arrival for this NPC. The
-    /// timestamp is captured for future enrichment; the dedup itself is
-    /// location-only so identical "arrival" pings at increasing
-    /// timestamps collapse to one entry.
-    fn bump_last_arrival(&self, npc_id: NpcId, location_name: &str) -> bool {
-        let mut guard = match self.last_arrival.lock() {
-            Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        match guard.get(&npc_id) {
-            Some(prev) if prev == location_name => false,
-            _ => {
-                guard.insert(npc_id, location_name.to_string());
-                true
-            }
-        }
-    }
-
-    /// Same shape as [`Self::bump_last_arrival`] but for the player —
-    /// drops `PlayerMoved` events whose destination matches the last
-    /// recorded location. Defensive: `game_session::apply_movement` only
-    /// fires on `MovementResult::Arrived`, but a future caller bypassing
-    /// that seam would otherwise produce the same flood the NPC writer
-    /// guards against.
-    fn bump_last_player_arrival(&self, location_name: &str) -> bool {
-        let mut guard = match self.last_player_arrival.lock() {
-            Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        match guard.as_deref() {
-            Some(prev) if prev == location_name => false,
-            _ => {
-                *guard = Some(location_name.to_string());
-                true
-            }
-        }
     }
 
     /// Rewrites the PROFILE section in every per-character log file.
@@ -284,7 +216,7 @@ impl CharacterLogManager {
                 // The player appears by their known name (or "a
                 // stranger" when this NPC hasn't been introduced) and
                 // the NPC refers to themselves in the first person.
-                let player_label = player_diary_label(world, npc_manager, *npc_id);
+                let player_label = player_diary_label_for(world, npc_manager, *npc_id);
                 let mut body = String::new();
                 if !player_line.is_empty() {
                     body.push_str(&format!("**{}:** {}\n", player_label, player_line));
@@ -322,14 +254,7 @@ impl CharacterLogManager {
             GameEvent::NpcArrived {
                 npc_id, location, ..
             } => {
-                // Drop the entry if the NPC's last journal-recorded
-                // location matches. State is seeded from on-disk
-                // history in `new()` so reruns of the same script
-                // don't re-emit the previous session's final arrival.
                 let loc = loc_of(*location);
-                if !self.bump_last_arrival(*npc_id, &loc) {
-                    return Ok(());
-                }
                 if let Some(npc) = npc_manager.get(*npc_id) {
                     append_journal_entry(
                         &self.npc_log_path(npc),
@@ -343,9 +268,6 @@ impl CharacterLogManager {
                 npc_id, location, ..
             } => {
                 let loc = loc_of(*location);
-                if !self.bump_last_arrival(*npc_id, &loc) {
-                    return Ok(());
-                }
                 if let Some(npc) = npc_manager.get(*npc_id) {
                     append_journal_entry(
                         &self.npc_log_path(npc),
@@ -357,9 +279,6 @@ impl CharacterLogManager {
             }
             GameEvent::PlayerMoved { from, to, .. } => {
                 let to_n = loc_of(*to);
-                if !self.bump_last_player_arrival(&to_n) {
-                    return Ok(());
-                }
                 let from_n = loc_of(*from);
                 let body = format!("*From {} to {}*\n", from_n, to_n);
                 append_journal_entry(
@@ -390,6 +309,36 @@ impl CharacterLogManager {
                 if let Some(npc) = npc_manager.get(*npc_id) {
                     let body = format!("*{}*\n", description);
                     append_journal_entry(&self.npc_log_path(npc), ts, Some("Life event"), &body)?;
+                }
+            }
+            GameEvent::NpcInteraction {
+                participants,
+                summary,
+                ..
+            } => {
+                // Write one entry per participant — each gets the
+                // summary in their own diary with the other names
+                // formatted as "with X, Y". Self is excluded so the
+                // "With X" header reads naturally.
+                let trimmed = summary.trim();
+                if trimmed.is_empty() {
+                    return Ok(());
+                }
+                for pid in participants {
+                    let Some(npc) = npc_manager.get(*pid) else {
+                        continue;
+                    };
+                    let others: Vec<String> = participants
+                        .iter()
+                        .filter(|&p| p != pid)
+                        .map(|p| name_of(*p))
+                        .collect();
+                    let body = if others.is_empty() {
+                        format!("*{}*\n", trimmed)
+                    } else {
+                        format!("*With {}: {}*\n", others.join(", "), trimmed)
+                    };
+                    append_journal_entry(&self.npc_log_path(npc), ts, Some("Interaction"), &body)?;
                 }
             }
         }
@@ -579,77 +528,6 @@ fn strength_bar(s: f64) -> String {
 
 // ── File I/O ────────────────────────────────────────────────────────────────
 
-/// Reads each `npc-NNN-*.md` file in `log_dir`, parses the final
-/// `### … — Arrived at <name>` / `… — Departed from <name>` heading
-/// in the journal section, and returns a map from NpcId to that
-/// location name. Missing or unparseable files contribute nothing.
-fn scan_existing_npc_arrivals(log_dir: &Path) -> HashMap<NpcId, String> {
-    let mut out = HashMap::new();
-    let read_dir = match std::fs::read_dir(log_dir) {
-        Ok(r) => r,
-        Err(_) => return out,
-    };
-    for entry in read_dir.flatten() {
-        let path = entry.path();
-        let Some(filename) = path.file_name().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        let Some(rest) = filename.strip_prefix("npc-") else {
-            continue;
-        };
-        let Some((id_str, _)) = rest.split_once('-') else {
-            continue;
-        };
-        let Ok(id_u32) = id_str.parse::<u32>() else {
-            continue;
-        };
-        let Ok(contents) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        if let Some(loc) = parse_last_arrival_location(&contents) {
-            out.insert(NpcId(id_u32), loc);
-        }
-    }
-    out
-}
-
-/// Same as [`scan_existing_npc_arrivals`] but for `player.md`.
-fn scan_existing_player_arrival(log_dir: &Path) -> Option<String> {
-    let path = log_dir.join("player.md");
-    let contents = std::fs::read_to_string(&path).ok()?;
-    parse_last_arrival_location(&contents)
-}
-
-/// Parses the final `### … — Arrived at <name>` or `… — Departed from
-/// <name>` heading in `contents` and returns the trailing location
-/// name. Returns `None` when no such heading exists.
-///
-/// Other suffixes (`Mood`, `Relationship`, `Festival: …`, `Life event`)
-/// are skipped — they're valid journal headings but don't carry a
-/// location and must not abort the scan.
-fn parse_last_arrival_location(contents: &str) -> Option<String> {
-    let mut last: Option<String> = None;
-    for line in contents.lines() {
-        if !line.starts_with("### ") {
-            continue;
-        }
-        let after_em_dash = match line.split_once(" — ") {
-            Some((_, tail)) => tail,
-            None => continue,
-        };
-        let Some(loc) = after_em_dash
-            .strip_prefix("Arrived at ")
-            .or_else(|| after_em_dash.strip_prefix("Departed from "))
-        else {
-            // Non-arrival heading (Mood / Relationship / Festival / …);
-            // keep scanning rather than aborting the whole file.
-            continue;
-        };
-        last = Some(loc.trim().to_string());
-    }
-    last
-}
-
 /// How an NPC names the player in their own diary.
 ///
 /// - If the NPC has been told the player's name (tracked by
@@ -658,7 +536,11 @@ fn parse_last_arrival_location(contents: &str) -> Option<String> {
 /// - Otherwise return `"A stranger"`. Keeps the diary entry in the
 ///   right POV — an NPC who hasn't been introduced wouldn't write
 ///   the player's name in their journal.
-fn player_diary_label(world: &WorldState, npc_manager: &NpcManager, npc_id: NpcId) -> String {
+pub fn player_diary_label_for(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    npc_id: NpcId,
+) -> String {
     if npc_manager.knows_player_name(npc_id)
         && let Some(name) = world.player_name.as_deref()
         && !name.trim().is_empty()

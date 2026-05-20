@@ -120,6 +120,22 @@ pub enum GameEvent {
         /// When the event occurred.
         timestamp: DateTime<Utc>,
     },
+    /// A Tier 2 simulation tick produced a narrative interaction
+    /// between two or more NPCs at a shared location. Carries the
+    /// LLM-generated `summary` describing what happened so per-location
+    /// and per-character logs record the story beat, not just the
+    /// mechanical mood / relationship deltas.
+    NpcInteraction {
+        /// NPCs who participated. First entry is the prompt's "lead"
+        /// NPC; remainder are the others present.
+        participants: Vec<NpcId>,
+        /// Location where the interaction occurred.
+        location: LocationId,
+        /// LLM-generated description (verbatim from `Tier2Event.summary`).
+        summary: String,
+        /// In-fiction game time when the tick fired.
+        timestamp: DateTime<Utc>,
+    },
 }
 
 impl GameEvent {
@@ -134,7 +150,8 @@ impl GameEvent {
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
             | GameEvent::PlayerMoved { timestamp, .. }
-            | GameEvent::LifeEvent { timestamp, .. } => *timestamp,
+            | GameEvent::LifeEvent { timestamp, .. }
+            | GameEvent::NpcInteraction { timestamp, .. } => *timestamp,
         }
     }
 
@@ -150,6 +167,7 @@ impl GameEvent {
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::PlayerMoved { .. } => "PlayerMoved",
             GameEvent::LifeEvent { .. } => "LifeEvent",
+            GameEvent::NpcInteraction { .. } => "NpcInteraction",
         }
     }
 }

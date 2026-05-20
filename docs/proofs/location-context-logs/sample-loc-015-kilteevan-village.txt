@@ -1,0 +1,44 @@
+<!-- PROFILE_START -->
+# Kilteevan Village — Location Log
+*Outdoor · Public*
+
+## Description
+
+The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.
+
+## Geography
+
+- Coordinates: 53.6325°N, 8.1022°W
+- Kind: Manual
+- Also known as: town, the town, village, kilteevan
+- Source: OS 6-inch First Edition, Roscommon sheet, ca. 1837
+
+## Mythological Significance
+
+*Kilteevan — Cill Taobháin, Teevan's Church, named for the early Christian Taobhán who once kept a cell here. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder.*
+
+## Connections
+
+- **The Crossroads** — the road north past low fields to the crossroads
+- **The Forge** — a lane toward the ring of the anvil
+- **The Holy Well** — a mossy path south past the old ruins to the holy well *(⚠ Flood)*
+- **The Mill** — a track west along the stream to the mill *(⚠ Flood)*
+- **The Weaver's Cottage** — a short walk past the cottages to the weaver's door
+- **Knockcroghery Village** — the southern road toward Knockcroghery
+- **St. Brigid's Church** — an old lane between settlements
+- **Murphy's Farm** — an old lane between settlements
+- **The Lime Kiln** — an old lane between settlements
+- **The Letter Office** — an old lane between settlements
+
+## Residents
+
+- Brigid Ni Fhatharta (Midwife)
+- Sean Ruadh Kelly (Labourer)
+- Peig Hannigan (Widow)
+
+<!-- PROFILE_END -->
+
+---
+
+## Journal
+

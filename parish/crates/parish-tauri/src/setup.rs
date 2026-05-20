@@ -574,6 +574,59 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
     });
 }
 
+/// One-shot writer + long-running subscriber for the per-location
+/// markdown logs. Mirrors [`spawn_character_log_subscriber`] but uses
+/// the `location-logs` flag and `LocationLogManager`.
+pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_name: String) {
+    use parish_core::location_log::{FEATURE_FLAG, LocationLogManager};
+
+    let enabled = {
+        let cfg = state.config.lock().await;
+        !cfg.flags.is_disabled(FEATURE_FLAG)
+    };
+    if !enabled {
+        return;
+    }
+    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = Arc::new(LocationLogManager::new(&app_name, branch_id, true));
+
+    let rx = {
+        let world = state.world.lock().await;
+        world.event_bus.subscribe()
+    };
+
+    {
+        let world = state.world.lock().await;
+        let npc_mgr = state.npc_manager.lock().await;
+        if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+            tracing::warn!(error = %e, "location-log profile write failed");
+        }
+    }
+
+    let state_sub = Arc::clone(state);
+    let token = state.shutdown_token.clone();
+    let manager_sub = Arc::clone(&manager);
+    tokio::spawn(async move {
+        let mut rx = rx;
+        loop {
+            tokio::select! {
+                _ = token.cancelled() => break,
+                result = rx.recv() => match result {
+                    Ok(event) => {
+                        let world = state_sub.world.lock().await;
+                        let npc_mgr = state_sub.npc_manager.lock().await;
+                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
+                            tracing::warn!(error = %e, "location-log write failed");
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                },
+            }
+        }
+    });
+}
+
 /// Subscribes to `world.event_bus` and buffers the last `DEBUG_EVENT_CAPACITY`
 /// events into `state.game_events` for the debug panel.
 ///
@@ -682,8 +735,12 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                     }
                 }
 
-                let schedule_events =
-                    npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
+                let schedule_events = npc_mgr.tick_schedules(
+                    &world.clock,
+                    &world.graph,
+                    world.weather,
+                    &world.event_bus,
+                );
                 let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
 
                 // Banshee tick — herald and finalise doomed NPCs.
@@ -933,6 +990,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                         npc_mgr.npcs_mut(),
                                         &world.graph,
                                         game_time,
+                                        &world.event_bus,
                                     );
                                     npc_mgr.record_tier3_tick(game_time);
                                     tracing::debug!(
@@ -1069,6 +1127,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                             npc_mgr.npcs_mut(),
                                             game_time,
                                             &parish_core::config::NpcConfig::default(),
+                                            &world.event_bus,
                                         );
                                     // Push gossip so it can propagate to other NPCs.
                                     parish_core::npc::ticks::create_gossip_from_tier2_event(
