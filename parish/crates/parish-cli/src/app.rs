@@ -145,6 +145,12 @@ pub struct App {
     /// shareable across threads — see `character_log::process_event` in
     /// the REPL loop for the pump.
     pub character_log_rx: Option<broadcast::Receiver<GameEvent>>,
+    /// Per-location markdown log writer (gated by `location-logs` flag).
+    pub location_log: Option<Arc<parish_core::location_log::LocationLogManager>>,
+    /// Drains [`GameEvent`]s into `location_log` on the same cadence as
+    /// `character_log_rx`. Independent receiver so both writers see every
+    /// event without contention.
+    pub location_log_rx: Option<broadcast::Receiver<GameEvent>>,
 }
 
 impl App {
@@ -199,6 +205,8 @@ impl App {
             session_store: Arc::new(DbSessionStore::new(PathBuf::from("saves"))),
             character_log: None,
             character_log_rx: None,
+            location_log: None,
+            location_log_rx: None,
         }
     }
 

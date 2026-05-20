@@ -744,28 +744,54 @@ pub fn apply_tier2_event_with_config(
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
     config: &NpcConfig,
+    event_bus: &parish_types::events::EventBus,
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
+    // Publish the narrative beat before mutating state so the bus carries
+    // the story before downstream subscribers see deltas.
+    if !event.summary.trim().is_empty() {
+        event_bus.publish(parish_types::events::GameEvent::NpcInteraction {
+            participants: event.participants.clone(),
+            location: event.location,
+            summary: event.summary.clone(),
+            timestamp: game_time,
+        });
+    }
+
     // Apply mood changes
     for mc in &event.mood_changes {
-        if let Some(npc) = npcs.get_mut(&mc.npc_id) {
-            if npc.mood != mc.new_mood {
-                debug_events.push(format!(
-                    "{} mood: {} -> {}",
-                    npc.name, npc.mood, mc.new_mood
-                ));
-            }
+        if let Some(npc) = npcs.get_mut(&mc.npc_id)
+            && npc.mood != mc.new_mood
+        {
+            debug_events.push(format!(
+                "{} mood: {} -> {}",
+                npc.name, npc.mood, mc.new_mood
+            ));
             npc.mood = mc.new_mood.clone();
+            event_bus.publish(parish_types::events::GameEvent::MoodChanged {
+                npc_id: mc.npc_id,
+                new_mood: mc.new_mood.clone(),
+                timestamp: game_time,
+            });
         }
     }
 
     // Apply relationship changes
     for rc in &event.relationship_changes {
+        if rc.delta == 0.0 {
+            continue;
+        }
         if let Some(npc) = npcs.get_mut(&rc.from)
             && let Some(rel) = npc.relationships.get_mut(&rc.to)
         {
             rel.adjust_strength(rc.delta);
+            event_bus.publish(parish_types::events::GameEvent::RelationshipChanged {
+                npc_a: rc.from,
+                npc_b: rc.to,
+                delta: rc.delta,
+                timestamp: game_time,
+            });
         }
     }
 
@@ -820,7 +846,13 @@ pub(crate) fn apply_tier2_event(
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
 ) -> Vec<String> {
-    apply_tier2_event_with_config(event, npcs, game_time, &NpcConfig::default())
+    apply_tier2_event_with_config(
+        event,
+        npcs,
+        game_time,
+        &NpcConfig::default(),
+        &parish_types::events::EventBus::new(),
+    )
 }
 
 /// Creates gossip from a Tier 2 event if it is notable.
@@ -1131,12 +1163,19 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
 /// For each update: sets mood, stores activity_summary as `last_activity`,
 /// updates location (if valid in graph), and adjusts relationships.
 ///
+/// Publishes `GameEvent::NpcDeparted` / `GameEvent::NpcArrived` when a
+/// Tier 3 update actually moves the NPC to a different valid location.
+/// No event is emitted when `new_location == npc.location` — the LLM
+/// often "re-asserts" the current location; treating that as movement
+/// produces phantom arrivals.
+///
 /// Returns debug event strings describing what happened.
 pub fn apply_tier3_updates(
     updates: &[Tier3Update],
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     graph: &WorldGraph,
     game_time: chrono::DateTime<Utc>,
+    event_bus: &parish_types::events::EventBus,
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
@@ -1183,11 +1222,24 @@ pub fn apply_tier3_updates(
         // Update location if valid
         if let Some(new_loc) = update.new_location {
             if graph.get(new_loc).is_some() {
-                debug_events.push(format!(
-                    "{} moved: {:?} -> {:?} (tier3)",
-                    npc.name, npc.location, new_loc
-                ));
-                npc.location = new_loc;
+                if new_loc != npc.location {
+                    debug_events.push(format!(
+                        "{} moved: {:?} -> {:?} (tier3)",
+                        npc.name, npc.location, new_loc
+                    ));
+                    let from = npc.location;
+                    npc.location = new_loc;
+                    event_bus.publish(parish_types::events::GameEvent::NpcDeparted {
+                        npc_id: update.npc_id,
+                        location: from,
+                        timestamp: game_time,
+                    });
+                    event_bus.publish(parish_types::events::GameEvent::NpcArrived {
+                        npc_id: update.npc_id,
+                        location: new_loc,
+                        timestamp: game_time,
+                    });
+                }
             } else {
                 tracing::warn!(
                     npc_id = update.npc_id.0,
@@ -1580,7 +1632,13 @@ mod tests {
             ..NpcConfig::default()
         };
 
-        let events = apply_tier2_event_with_config(&event, &mut npcs, game_time, &config);
+        let events = apply_tier2_event_with_config(
+            &event,
+            &mut npcs,
+            game_time,
+            &config,
+            &parish_types::events::EventBus::new(),
+        );
         assert!(!events.is_empty());
 
         // The stored memory content should be truncated to ~40 chars
@@ -2031,7 +2089,13 @@ mod tests {
         }];
 
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
-        let events = apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+        let events = apply_tier3_updates(
+            &updates,
+            &mut npcs,
+            &graph,
+            game_time,
+            &parish_types::events::EventBus::new(),
+        );
 
         // Mood updated
         assert_eq!(npcs.get(&NpcId(1)).unwrap().mood, "jovial");
@@ -2078,7 +2142,13 @@ mod tests {
         }];
 
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
-        apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+        apply_tier3_updates(
+            &updates,
+            &mut npcs,
+            &graph,
+            game_time,
+            &parish_types::events::EventBus::new(),
+        );
 
         // Location should NOT have changed
         assert_eq!(npcs.get(&NpcId(1)).unwrap().location, LocationId(2));
@@ -2102,7 +2172,13 @@ mod tests {
         }];
 
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
-        let events = apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+        let events = apply_tier3_updates(
+            &updates,
+            &mut npcs,
+            &graph,
+            game_time,
+            &parish_types::events::EventBus::new(),
+        );
 
         // Should produce no events (NPC not found)
         assert!(events.is_empty());

@@ -32,8 +32,14 @@ pub struct TierTransition {
 /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
 ///
 /// Writes the new tier map into `tier_assignments`. Performs inflation on
-/// promotion and deflation on demotion. Publishes `NpcArrived` on the world
-/// event bus for every NPC entering Tier 1.
+/// promotion and deflation on demotion.
+///
+/// Does **not** publish `NpcArrived` / `NpcDeparted` — those events describe
+/// physical movement and are emitted by `schedule::tick_schedules` and the
+/// Tier 3 update path. Tier promotion only means "the player got closer to
+/// an NPC that was already where they are"; conflating that with arrival
+/// produced duplicate journal entries every time the player walked back and
+/// forth.
 ///
 /// `bfs_cache` is keyed by the player's location; passing the same location
 /// twice reuses the cached distances (the world graph is immutable during a
@@ -102,7 +108,7 @@ pub fn assign_tiers(
         let promoted = tier_rank(*new_tier) < tier_rank(*old_tier);
         let demoted = tier_rank(*new_tier) > tier_rank(*old_tier);
 
-        let (npc_name, tier1_location) = if let Some(npc) = npcs.get_mut(npc_id) {
+        let npc_name = if let Some(npc) = npcs.get_mut(npc_id) {
             if promoted {
                 inflate_npc_context(npc, recent_events, game_time);
                 tracing::debug!(
@@ -122,20 +128,10 @@ pub fn assign_tiers(
                     "NPC demoted (deflated)"
                 );
             }
-            let tier1_loc = (*new_tier == CogTier::Tier1 && *old_tier != CogTier::Tier1)
-                .then_some(npc.location);
-            (npc.name.clone(), tier1_loc)
+            npc.name.clone()
         } else {
-            (String::new(), None)
+            String::new()
         };
-
-        if let Some(location) = tier1_location {
-            world.event_bus.publish(GameEvent::NpcArrived {
-                npc_id: *npc_id,
-                location,
-                timestamp: game_time,
-            });
-        }
 
         transitions.push(TierTransition {
             npc_id: *npc_id,

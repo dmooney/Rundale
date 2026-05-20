@@ -603,8 +603,9 @@ impl NpcManager {
         clock: &GameClock,
         graph: &WorldGraph,
         weather: Weather,
+        event_bus: &parish_types::events::EventBus,
     ) -> Vec<ScheduleEvent> {
-        crate::schedule::tick_schedules(&mut self.npcs, clock, graph, weather)
+        crate::schedule::tick_schedules(&mut self.npcs, clock, graph, weather, event_bus)
     }
 
     /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.

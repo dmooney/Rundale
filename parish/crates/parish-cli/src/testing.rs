@@ -204,6 +204,27 @@ impl GameTestHarness {
             app.character_log = Some(Arc::new(manager));
         }
 
+        // Location logs — same opt-in pattern as the character logs.
+        {
+            let flag_on = !app
+                .flags
+                .is_disabled(parish_core::location_log::FEATURE_FLAG);
+            let enabled = enable_character_logs && flag_on;
+            let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
+            let manager = parish_core::location_log::LocationLogManager::new(
+                &app_name,
+                app.active_branch_id,
+                enabled,
+            );
+            if manager.enabled() {
+                app.location_log_rx = Some(app.world.event_bus.subscribe());
+                if let Err(e) = manager.write_all_profiles(&app.world, &app.npc_manager) {
+                    tracing::warn!(error = %e, "location-log profile write failed");
+                }
+            }
+            app.location_log = Some(Arc::new(manager));
+        }
+
         Self {
             app,
             canned_responses: HashMap::new(),
@@ -321,6 +342,7 @@ impl GameTestHarness {
             &self.app.world.clock,
             &self.app.world.graph,
             self.app.world.weather,
+            &self.app.world.event_bus,
         );
         self.process_schedule_events(&schedule_events);
 
@@ -357,6 +379,27 @@ impl GameTestHarness {
                             manager.process_event(&event, &self.app.world, &self.app.npc_manager)
                         {
                             tracing::warn!(error = %e, "character-log write failed");
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+                }
+            }
+        }
+
+        // Same drain for the per-location log writer.
+        if let (Some(manager), Some(rx)) = (
+            self.app.location_log.clone(),
+            self.app.location_log_rx.as_mut(),
+        ) {
+            loop {
+                match rx.try_recv() {
+                    Ok(event) => {
+                        if let Err(e) =
+                            manager.process_event(&event, &self.app.world, &self.app.npc_manager)
+                        {
+                            tracing::warn!(error = %e, "location-log write failed");
                         }
                     }
                     Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
@@ -481,6 +524,7 @@ impl GameTestHarness {
             &self.app.world.clock,
             &self.app.world.graph,
             self.app.world.weather,
+            &self.app.world.event_bus,
         );
         self.process_schedule_events(&events);
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
@@ -628,6 +672,7 @@ impl GameTestHarness {
                     &self.app.world.clock,
                     &self.app.world.graph,
                     self.app.world.weather,
+                    &self.app.world.event_bus,
                 );
                 let count = events.len();
                 self.process_schedule_events(&events);

@@ -1134,9 +1134,12 @@ mod tests {
     }
 
     #[test]
-    fn genuine_tier_promotion_after_restore_still_fires() {
-        // Build a world with TWO locations connected by a path so the
-        // BFS tier compute can yield distinct values per NPC.
+    fn tier_promotion_does_not_fire_npc_arrived() {
+        // Cognitive tier transitions describe player-relative attention,
+        // not physical movement. An NPC that was already at LocationId(2)
+        // when the player walks toward them did not "arrive" anywhere —
+        // they were always there. NpcArrived only fires from real moves
+        // (schedule transit completing, tier-3 LLM-driven relocations).
         let mut world = WorldState::new();
         let file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(
@@ -1157,7 +1160,6 @@ mod tests {
         world.player_location = LocationId(1);
 
         let mut npcs = NpcManager::new();
-        // NPC at LocationId(2) — Tier2 (distance 1).
         npcs.add_npc(make_test_npc(7, 2));
 
         let _ = npcs.assign_tiers(&world, &[]);
@@ -1170,17 +1172,19 @@ mod tests {
         let mut rx = new_world.event_bus.subscribe();
         snapshot.restore(&mut new_world, &mut new_npcs);
 
-        // No events during restore.
         assert!(matches!(
             rx.try_recv(),
             Err(tokio::sync::broadcast::error::TryRecvError::Empty)
         ));
 
-        // C4 — now the *player* moves to the NPC's location, which
-        // promotes the NPC from Tier2 → Tier1. Exactly one NpcArrived
-        // should fire.
+        // Player walks to the NPC's location → NPC promotes Tier2 → Tier1.
+        // No NpcArrived event must fire; the NPC didn't move.
         new_world.player_location = LocationId(2);
-        let _ = new_npcs.assign_tiers(&new_world, &[]);
+        let transitions = new_npcs.assign_tiers(&new_world, &[]);
+        assert!(
+            transitions.iter().any(|t| t.npc_id == NpcId(7)),
+            "NPC should have transitioned tiers"
+        );
         let mut arrived_for_seven = 0;
         while let Ok(evt) = rx.try_recv() {
             if let GameEvent::NpcArrived { npc_id, .. } = evt
@@ -1190,9 +1194,8 @@ mod tests {
             }
         }
         assert_eq!(
-            arrived_for_seven, 1,
-            "C4: a genuine Tier2→Tier1 promotion after restore must \
-             fire NpcArrived exactly once; saw {}",
+            arrived_for_seven, 0,
+            "tier promotion alone must not publish NpcArrived; saw {}",
             arrived_for_seven,
         );
     }
