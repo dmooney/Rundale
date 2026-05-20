@@ -181,8 +181,12 @@ pub fn apply_movement(
 
             // Tick schedules so NPCs whose transit completed during travel
             // are now Present before we check for reactions
-            let _schedule_events =
-                npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+            let _schedule_events = npc_manager.tick_schedules(
+                &world.clock,
+                &world.graph,
+                world.weather,
+                &world.event_bus,
+            );
 
             // Generate arrival reactions; canned text is logged to world.log.
             // Raw reactions are returned so backends with an LLM client can

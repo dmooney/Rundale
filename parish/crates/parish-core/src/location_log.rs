@@ -1,0 +1,739 @@
+//! Per-location markdown log files.
+//!
+//! Each location in `WorldState::graph` gets a markdown file on disk under
+//! `<user-data-dir>/<app>/logs/<branch>/` named `loc-NNN-slug.md`. The file
+//! contains:
+//!
+//! * A **profile** section (vital stats, description, geography,
+//!   connections, residents) bounded by HTML comment markers
+//!   `<!-- PROFILE_START -->` / `<!-- PROFILE_END -->`. Rewritten on every
+//!   session start by [`LocationLogManager::write_all_profiles`].
+//! * A **journal** section, append-only, that grows as [`GameEvent`]s
+//!   relevant to a location flow off the world's broadcast bus into
+//!   [`LocationLogManager::process_event`].
+//!
+//! Mirrors the structure of [`crate::character_log`]; reuses its
+//! `rewrite_profile_section` / `append_journal_entry` helpers.
+//!
+//! Gated by the `location-logs` feature flag, default on.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+
+use parish_npc::NpcId;
+use parish_npc::manager::NpcManager;
+use parish_persistence::paths::resolve_user_data_dir;
+use parish_types::LocationId;
+use parish_types::events::GameEvent;
+use parish_world::WorldState;
+use parish_world::graph::{GeoKind, Hazard, LocationData};
+
+use crate::character_log::{append_journal_entry, player_diary_label_for, rewrite_profile_section};
+
+/// Feature-flag name controlling whether location logs are written.
+pub const FEATURE_FLAG: &str = "location-logs";
+
+/// Writes per-location markdown logs to disk.
+///
+/// One instance per session — the log directory is fixed at construction
+/// time so a later cwd change cannot redirect file I/O (rule #9).
+///
+/// Stateless beyond the log directory: every `NpcArrived` / `NpcDeparted`
+/// / `PlayerMoved` event on the bus describes a real physical movement
+/// (published from `schedule::tick_schedules`, `ticks::apply_tier3_updates`,
+/// and `game_session::apply_movement`), so the writer has nothing to
+/// dedup.
+#[derive(Debug)]
+pub struct LocationLogManager {
+    log_dir: PathBuf,
+    enabled: bool,
+}
+
+impl LocationLogManager {
+    /// Resolves the log directory for `app_name`/`branch_id` and creates it.
+    pub fn new(app_name: &str, branch_id: i64, enabled: bool) -> Self {
+        if !enabled {
+            return Self::disabled();
+        }
+        let log_dir = resolve_user_data_dir(app_name)
+            .join("logs")
+            .join(format!("branch-{}", branch_id));
+        Self::new_at_dir(log_dir, true)
+    }
+
+    /// Constructs a manager rooted at an explicit directory. Exposed for
+    /// tests that need a `tempfile::tempdir` without env-var setup.
+    pub fn new_at_dir(log_dir: PathBuf, enabled: bool) -> Self {
+        if !enabled {
+            return Self::disabled();
+        }
+        if let Err(e) = std::fs::create_dir_all(&log_dir) {
+            tracing::warn!(
+                path = %log_dir.display(),
+                error = %e,
+                "failed to create location-log directory",
+            );
+        }
+        Self { log_dir, enabled }
+    }
+
+    fn disabled() -> Self {
+        Self {
+            log_dir: PathBuf::new(),
+            enabled: false,
+        }
+    }
+
+    /// Returns the directory all log files are written under.
+    pub fn log_dir(&self) -> &Path {
+        &self.log_dir
+    }
+
+    /// Returns whether this manager is active.
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Path of a location's log file: `loc-NNN-slug.md`.
+    pub fn location_log_path(&self, loc: &LocationData) -> PathBuf {
+        let slug = slugify(&loc.name);
+        self.log_dir
+            .join(format!("loc-{:03}-{}.md", loc.id.0, slug))
+    }
+
+    /// Rewrites the PROFILE section in every per-location log file.
+    /// Journal sections of existing files are preserved verbatim.
+    pub fn write_all_profiles(&self, world: &WorldState, npc_manager: &NpcManager) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let names: HashMap<NpcId, (String, String)> = npc_manager
+            .all_npcs()
+            .map(|n| (n.id, (n.name.clone(), n.occupation.clone())))
+            .collect();
+
+        let mut ids = world.graph.location_ids();
+        ids.sort_by_key(|id| id.0);
+        for id in ids {
+            let Some(loc) = world.graph.get(id) else {
+                continue;
+            };
+            let path = self.location_log_path(loc);
+            let profile = format_location_profile(loc, world, &names);
+            rewrite_profile_section(&path, &profile)
+                .with_context(|| format!("rewrite location profile {}", path.display()))?;
+        }
+        Ok(())
+    }
+
+    /// Appends a journal entry to the appropriate location log file(s).
+    pub fn process_event(
+        &self,
+        event: &GameEvent,
+        world: &WorldState,
+        npc_manager: &NpcManager,
+    ) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        let ts = event.timestamp();
+
+        let path_for = |loc_id: LocationId| -> Option<PathBuf> {
+            world
+                .graph
+                .get(loc_id)
+                .map(|loc| self.location_log_path(loc))
+        };
+        let loc_name = |loc_id: LocationId| -> String {
+            world
+                .graph
+                .get(loc_id)
+                .map(|d| d.name.clone())
+                .unwrap_or_else(|| format!("location {}", loc_id.0))
+        };
+
+        match event {
+            GameEvent::PlayerMoved { from, to, .. } => {
+                let Some(path) = path_for(*to) else {
+                    return Ok(());
+                };
+                let body = format!("*Arrived from {}*\n", loc_name(*from));
+                append_journal_entry(&path, ts, Some("Player arrived"), &body)?;
+            }
+            GameEvent::NpcArrived {
+                npc_id, location, ..
+            } => {
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let suffix = format!("{} arrived", npc.name);
+                append_journal_entry(&path, ts, Some(&suffix), "")?;
+            }
+            GameEvent::NpcDeparted {
+                npc_id, location, ..
+            } => {
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let suffix = format!("{} departed", npc.name);
+                append_journal_entry(&path, ts, Some(&suffix), "")?;
+            }
+            GameEvent::DialogueOccurred {
+                npc_id,
+                summary,
+                player_said,
+                npc_said,
+                ..
+            } => {
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(npc.location) else {
+                    return Ok(());
+                };
+                let player_line = player_said.as_deref().unwrap_or("").trim();
+                let npc_line = npc_said
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| summary.trim());
+                if player_line.is_empty() && npc_line.is_empty() {
+                    return Ok(());
+                }
+                let player_label = player_diary_label_for(world, npc_manager, *npc_id);
+                let mut body = String::new();
+                if !player_line.is_empty() {
+                    body.push_str(&format!("**{}:** {}\n", player_label, player_line));
+                }
+                if !npc_line.is_empty() {
+                    body.push_str(&format!("**{}:** {}\n", npc.name, npc_line));
+                }
+                append_journal_entry(&path, ts, Some("Dialogue"), &body)?;
+            }
+            GameEvent::WeatherChanged { new_weather, .. } => {
+                let Some(path) = path_for(world.player_location) else {
+                    return Ok(());
+                };
+                let body = format!("*Weather: {}*\n", new_weather);
+                append_journal_entry(&path, ts, Some("Weather"), &body)?;
+            }
+            GameEvent::FestivalStarted { name, .. } => {
+                let Some(path) = path_for(world.player_location) else {
+                    return Ok(());
+                };
+                let body = format!("*Festival begins: {}*\n", name);
+                append_journal_entry(&path, ts, Some(&format!("Festival: {}", name)), &body)?;
+            }
+            GameEvent::LifeEvent {
+                npc_id,
+                description,
+                ..
+            } => {
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(npc.location) else {
+                    return Ok(());
+                };
+                let body = format!("*{} — {}*\n", npc.name, description);
+                append_journal_entry(&path, ts, Some("Life event"), &body)?;
+            }
+            GameEvent::MoodChanged {
+                npc_id, new_mood, ..
+            } => {
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(npc.location) else {
+                    return Ok(());
+                };
+                let body = format!("*{}: mood shifted to {}*\n", npc.name, new_mood);
+                append_journal_entry(&path, ts, Some("Mood"), &body)?;
+            }
+            GameEvent::RelationshipChanged {
+                npc_a,
+                npc_b,
+                delta,
+                ..
+            } => {
+                let Some(a) = npc_manager.get(*npc_a) else {
+                    return Ok(());
+                };
+                let Some(b) = npc_manager.get(*npc_b) else {
+                    return Ok(());
+                };
+                // Log only when both NPCs are co-located — the relationship
+                // shifted because something happened here. Cross-location
+                // shifts (gossip, memory) belong in the character log only.
+                if a.location != b.location {
+                    return Ok(());
+                }
+                let Some(path) = path_for(a.location) else {
+                    return Ok(());
+                };
+                let body = format!("*{} ↔ {}: bond shifted by {:+.2}*\n", a.name, b.name, delta);
+                append_journal_entry(&path, ts, Some("Relationship"), &body)?;
+            }
+            GameEvent::NpcInteraction {
+                participants,
+                location,
+                summary,
+                ..
+            } => {
+                let trimmed = summary.trim();
+                if trimmed.is_empty() {
+                    return Ok(());
+                }
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let names: Vec<String> = participants
+                    .iter()
+                    .map(|p| {
+                        npc_manager
+                            .get(*p)
+                            .map(|n| n.name.clone())
+                            .unwrap_or_else(|| format!("NPC({})", p.0))
+                    })
+                    .collect();
+                let suffix = format!("Interaction ({} present)", names.len());
+                let body = format!("**{}:** {}\n", names.join(", "), trimmed);
+                append_journal_entry(&path, ts, Some(&suffix), &body)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+// ── Profile formatter ───────────────────────────────────────────────────────
+
+/// Renders the full PROFILE markdown for a location.
+pub fn format_location_profile(
+    loc: &LocationData,
+    world: &WorldState,
+    npcs_by_id: &HashMap<NpcId, (String, String)>,
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("# {} — Location Log\n", loc.name));
+    out.push_str(&format!(
+        "*{} · {}*\n\n",
+        if loc.indoor { "Indoor" } else { "Outdoor" },
+        if loc.public { "Public" } else { "Private" },
+    ));
+
+    out.push_str("## Description\n\n");
+    out.push_str(loc.description_template.trim());
+    out.push_str("\n\n");
+
+    out.push_str("## Geography\n\n");
+    if loc.lat != 0.0 || loc.lon != 0.0 {
+        out.push_str(&format!(
+            "- Coordinates: {:.4}°{}, {:.4}°{}\n",
+            loc.lat.abs(),
+            if loc.lat >= 0.0 { "N" } else { "S" },
+            loc.lon.abs(),
+            if loc.lon >= 0.0 { "E" } else { "W" },
+        ));
+    }
+    out.push_str(&format!("- Kind: {}\n", geo_kind_label(loc.geo_kind)));
+    if !loc.aliases.is_empty() {
+        out.push_str(&format!("- Also known as: {}\n", loc.aliases.join(", ")));
+    }
+    if let Some(source) = loc.geo_source.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push_str(&format!("- Source: {}\n", source));
+    }
+    out.push('\n');
+
+    if let Some(myth) = loc
+        .mythological_significance
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        out.push_str("## Mythological Significance\n\n");
+        out.push_str(&format!("*{}*\n\n", myth.trim()));
+    }
+
+    out.push_str("## Connections\n\n");
+    if loc.connections.is_empty() {
+        out.push_str("*(none)*\n\n");
+    } else {
+        for conn in &loc.connections {
+            let target_name = world
+                .graph
+                .get(conn.target)
+                .map(|d| d.name.clone())
+                .unwrap_or_else(|| format!("location {}", conn.target.0));
+            let hazard_tag = hazard_label(conn.hazard)
+                .map(|h| format!(" *(⚠ {})*", h))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "- **{}** — {}{}\n",
+                target_name,
+                conn.path_description.trim(),
+                hazard_tag,
+            ));
+        }
+        out.push('\n');
+    }
+
+    if !loc.associated_npcs.is_empty() {
+        out.push_str("## Residents\n\n");
+        let mut residents: Vec<NpcId> = loc.associated_npcs.clone();
+        residents.sort_by_key(|id| id.0);
+        for id in residents {
+            let (name, occupation) = npcs_by_id
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| (format!("NPC({})", id.0), String::new()));
+            if occupation.trim().is_empty() {
+                out.push_str(&format!("- {}\n", name));
+            } else {
+                out.push_str(&format!("- {} ({})\n", name, occupation));
+            }
+        }
+        out.push('\n');
+    }
+
+    out
+}
+
+fn geo_kind_label(k: GeoKind) -> &'static str {
+    match k {
+        GeoKind::Real => "Real",
+        GeoKind::Manual => "Manual",
+        GeoKind::Fictional => "Fictional",
+    }
+}
+
+fn hazard_label(h: Hazard) -> Option<&'static str> {
+    match h {
+        Hazard::None => None,
+        Hazard::Flood => Some("Flood"),
+        Hazard::Lakeshore => Some("Lakeshore"),
+        Hazard::Exposed => Some("Exposed"),
+    }
+}
+
+/// Returns a lowercase ASCII slug of `s` suitable for a filename.
+fn slugify(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut last_dash = true;
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            last_dash = false;
+        } else if !last_dash {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    if out.is_empty() {
+        out.push_str("unnamed");
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, TimeZone, Utc};
+    use parish_npc::Npc;
+    use parish_npc::manager::NpcManager;
+    use parish_npc::memory::{LongTermMemory, ShortTermMemory};
+    use parish_npc::reactions::ReactionLog;
+    use parish_npc::types::{Intelligence, NpcState};
+    use parish_world::WorldState;
+    use parish_world::graph::{Connection, LocationData, WorldGraph};
+    use std::collections::HashMap;
+
+    fn ts() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(1820, 3, 3, 14, 30, 0).unwrap()
+    }
+
+    fn make_world_two_locations() -> WorldState {
+        // Build a minimal two-node bidirectional graph via JSON so we
+        // exercise the same load path the real world uses.
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "The Crossroads",
+                    "description_template": "A windy fork in the road.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.7234,
+                    "lon": -8.1234,
+                    "associated_npcs": [],
+                    "mythological_significance": "An ancient fairy fort.",
+                    "aliases": [],
+                    "geo_kind": "real",
+                    "connections": [
+                        {"target": 2, "path_description": "a worn path", "hazard": "flood"}
+                    ]
+                },
+                {
+                    "id": 2,
+                    "name": "Darcy's Pub",
+                    "description_template": "Warm hearth, low ceiling.",
+                    "indoor": true,
+                    "public": true,
+                    "lat": 53.7300,
+                    "lon": -8.1100,
+                    "associated_npcs": [7],
+                    "mythological_significance": null,
+                    "aliases": [],
+                    "geo_kind": "fictional",
+                    "connections": [
+                        {"target": 1, "path_description": "a worn path", "hazard": "flood"}
+                    ]
+                }
+            ]
+        }"#;
+        let mut world = WorldState::new();
+        world.graph = WorldGraph::load_from_str(json).unwrap();
+        world.player_location = LocationId(1);
+        world
+    }
+
+    fn make_npc(id: u32, name: &str, loc: LocationId) -> Npc {
+        Npc {
+            id: NpcId(id),
+            name: name.to_string(),
+            brief_description: format!("a person called {}", name),
+            age: 40,
+            occupation: "Publican".to_string(),
+            personality: "Warm-hearted".to_string(),
+            intelligence: Intelligence::new(3, 3, 3, 3, 3, 3),
+            location: loc,
+            mood: "content".to_string(),
+            home: None,
+            workplace: None,
+            schedule: None,
+            relationships: HashMap::new(),
+            memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
+            knowledge: Vec::new(),
+            state: NpcState::default(),
+            deflated_summary: None,
+            reaction_log: ReactionLog::default(),
+            last_activity: None,
+            is_ill: false,
+            doom: None,
+            banshee_heralded: false,
+        }
+    }
+
+    #[test]
+    fn slugify_basic_cases() {
+        assert_eq!(slugify("The Crossroads"), "the-crossroads");
+        assert_eq!(slugify("Darcy's Pub"), "darcy-s-pub");
+        assert_eq!(slugify("---weird---"), "weird");
+        assert_eq!(slugify(""), "unnamed");
+    }
+
+    #[test]
+    fn profile_section_contains_name_and_connections() {
+        let world = make_world_two_locations();
+        let loc = world.graph.get(LocationId(1)).unwrap();
+        let names = HashMap::new();
+        let profile = format_location_profile(loc, &world, &names);
+        assert!(profile.contains("The Crossroads"), "{}", profile);
+        assert!(profile.contains("Outdoor · Public"), "{}", profile);
+        assert!(profile.contains("## Connections"), "{}", profile);
+        assert!(profile.contains("Darcy's Pub"), "{}", profile);
+        assert!(profile.contains("⚠ Flood"), "{}", profile);
+        assert!(profile.contains("Mythological Significance"), "{}", profile);
+    }
+
+    #[test]
+    fn profile_section_lists_residents() {
+        let world = make_world_two_locations();
+        let loc = world.graph.get(LocationId(2)).unwrap();
+        let mut names = HashMap::new();
+        names.insert(
+            NpcId(7),
+            ("Padraig Darcy".to_string(), "Publican".to_string()),
+        );
+        let profile = format_location_profile(loc, &world, &names);
+        assert!(profile.contains("## Residents"), "{}", profile);
+        assert!(profile.contains("Padraig Darcy (Publican)"), "{}", profile);
+    }
+
+    #[test]
+    fn profile_rewrite_preserves_journal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::PlayerMoved {
+            from: LocationId(2),
+            to: LocationId(1),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        // Rewriting profiles must not destroy the journal entry above.
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+        let path = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("Player arrived"), "{}", contents);
+        assert!(contents.contains("The Crossroads"), "{}", contents);
+    }
+
+    #[test]
+    fn player_moved_event_appends_to_destination_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::PlayerMoved {
+            from: LocationId(1),
+            to: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let dest = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&dest).unwrap();
+        assert!(contents.contains("Player arrived"), "{}", contents);
+        assert!(
+            contents.contains("Arrived from The Crossroads"),
+            "{}",
+            contents,
+        );
+    }
+
+    #[test]
+    fn npc_arrived_event_appends_to_location_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(2)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::NpcArrived {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("Padraig Darcy arrived"), "{}", contents,);
+    }
+
+    #[test]
+    fn dialogue_event_writes_to_npcs_current_location() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(2)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::DialogueOccurred {
+            npc_id: NpcId(7),
+            summary: "discussed weather".into(),
+            player_said: Some("Good afternoon, Padraig.".into()),
+            npc_said: Some("Ah, God bless ye.".into()),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("Dialogue"), "{}", contents);
+        assert!(
+            contents.contains("Good afternoon, Padraig."),
+            "{}",
+            contents,
+        );
+        assert!(contents.contains("Ah, God bless ye."), "{}", contents);
+        // Should NOT appear in the other location's log.
+        let other = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let other_contents = std::fs::read_to_string(&other).unwrap();
+        assert!(
+            !other_contents.contains("Good afternoon, Padraig."),
+            "dialogue leaked to wrong location: {}",
+            other_contents,
+        );
+    }
+
+    #[test]
+    fn writer_appends_every_event_it_receives() {
+        // Stateless contract: the writer no longer filters. Whoever
+        // publishes `NpcArrived` to the bus is responsible for not
+        // firing spurious copies. Two distinct events → two entries.
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(2)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let arrive = GameEvent::NpcArrived {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            timestamp: ts(),
+        };
+        let depart = GameEvent::NpcDeparted {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 3, 14, 35, 0).unwrap(),
+        };
+        let re_arrive = GameEvent::NpcArrived {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 3, 15, 0, 0).unwrap(),
+        };
+        mgr.process_event(&arrive, &world, &npcs).unwrap();
+        mgr.process_event(&depart, &world, &npcs).unwrap();
+        mgr.process_event(&re_arrive, &world, &npcs).unwrap();
+
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(contents.matches("Padraig Darcy arrived").count(), 2);
+        assert_eq!(contents.matches("Padraig Darcy departed").count(), 1);
+    }
+
+    #[test]
+    fn disabled_manager_is_noop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), false);
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+        let event = GameEvent::PlayerMoved {
+            from: LocationId(1),
+            to: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        // log_dir is empty when disabled; nothing should have been written.
+        assert!(mgr.log_dir().as_os_str().is_empty() || !mgr.log_dir().exists());
+    }
+
+    #[test]
+    fn unused_connection_import_is_live() {
+        // Keep `Connection` import live for non-trivial cross-module use.
+        let _ = std::mem::size_of::<Connection>();
+        let _ = std::mem::size_of::<LocationData>();
+    }
+}

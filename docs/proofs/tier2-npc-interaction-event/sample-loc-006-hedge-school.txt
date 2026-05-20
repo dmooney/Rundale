@@ -1,0 +1,115 @@
+<!-- PROFILE_START -->
+# The Hedge School — Location Log
+*Outdoor · Public*
+
+## Description
+
+A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is {time}. The sky is {weather}.
+
+## Geography
+
+- Coordinates: 53.6355°N, 8.1151°W
+- Kind: Fictional
+- Also known as: school, schoolhouse
+
+## Connections
+
+- **The Crossroads** — the muddy path back to the crossroads
+- **The Hurling Green** — a beaten path down to the hurling green
+
+<!-- PROFILE_END -->
+
+---
+
+## Journal
+
+### Monday 20 March 1820, 08:23 — Aoife Brennan arrived
+
+### Monday 20 March 1820, 08:36 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 08:43 — Liam Murphy arrived
+
+### Monday 20 March 1820, 08:47 — Interaction (2 present)
+**Aoife Brennan, Liam Murphy:** Aoife Brennan stands at the blackboard, passionately explaining a poem to the quiet Liam Murphy, who listens with a puzzled expression.
+
+### Monday 20 March 1820, 09:00 — Liam Murphy departed
+
+### Monday 20 March 1820, 09:09 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 09:21 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 09:33 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 09:45 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 09:53 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 10:06 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 10:27 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 10:36 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 10:51 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 11:05 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 11:17 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 11:28 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 11:48 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 12:11 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 12:31 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 12:52 — Interaction (1 present)
+**Aoife Brennan:** Aoife Brennan goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 13:04 — Niamh Darcy arrived
+
+### Monday 20 March 1820, 13:15 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan are chatting merrily by the Mill's stream.
+
+### Monday 20 March 1820, 13:26 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan are engaged in a lively discussion about storytelling techniques.
+
+### Monday 20 March 1820, 13:38 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan are discussing the merits of various storytelling techniques while seated at a table in The Mill.
+
+### Monday 20 March 1820, 13:50 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan chat animatedly by the hearth, Niamh weaving a lively tale.
+
+### Monday 20 March 1820, 14:04 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan are discussing the beauty of poetry and storytelling in the garden near The Mill.
+
+### Monday 20 March 1820, 14:17 — Interaction (2 present)
+**Niamh Darcy, Aoife Brennan:** Niamh Darcy and Aoife Brennan are deep in conversation, discussing the nuances of poetry and storytelling.
+
+### Monday 20 March 1820, 15:01 — Aoife Brennan departed
+
+### Monday 20 March 1820, 15:18 — Maire Gallagher arrived
+
+### Monday 20 March 1820, 15:27 — Interaction (1 present)
+**Niamh Darcy:** Niamh Darcy goes about their business at The Hedge School.
+
+### Monday 20 March 1820, 15:32 — Interaction (2 present)
+**Niamh Darcy, Maire Gallagher:** Niamh Darcy saunters around the Mill, her eyes scanning the crowd for interesting faces, while Maire Gallagher hammers away at the anvil, her mind as sharp as her tools.
+

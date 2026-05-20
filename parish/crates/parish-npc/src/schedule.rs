@@ -9,6 +9,7 @@ use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
 use crate::types::NpcState;
 use crate::{Npc, NpcId};
+use parish_types::events::{EventBus, GameEvent};
 use parish_types::{LocationId, Weather};
 use parish_world::graph::WorldGraph;
 use parish_world::time::{DayType, GameClock, Season};
@@ -116,12 +117,18 @@ fn needs_weather_shelter(
 /// somewhere else, starts transit. For NPCs that are `InTransit` and whose
 /// arrival time has passed, completes the move.
 ///
+/// Publishes `GameEvent::NpcDeparted` when transit starts and
+/// `GameEvent::NpcArrived` when transit completes — the two events that
+/// describe a real physical move. Cognitive-tier transitions do **not**
+/// publish these; they are reserved for actual location changes.
+///
 /// Returns a list of structured schedule events describing what happened.
 pub fn tick_schedules(
     npcs: &mut HashMap<NpcId, Npc>,
     clock: &GameClock,
     graph: &WorldGraph,
     weather: Weather,
+    event_bus: &EventBus,
 ) -> Vec<ScheduleEvent> {
     let now = clock.now();
     let current_hour = now.hour() as u8;
@@ -177,6 +184,11 @@ pub fn tick_schedules(
                             minutes: travel_minutes,
                         },
                     });
+                    event_bus.publish(GameEvent::NpcDeparted {
+                        npc_id: id,
+                        location: from,
+                        timestamp: now,
+                    });
                     tracing::debug!(
                         npc = %npc.name,
                         from = from.0,
@@ -208,6 +220,11 @@ pub fn tick_schedules(
                             location: destination,
                             location_name: dest_name,
                         },
+                    });
+                    event_bus.publish(GameEvent::NpcArrived {
+                        npc_id: id,
+                        location: destination,
+                        timestamp: now,
                     });
                     tracing::debug!(npc = %npc.name, location = destination.0, "NPC arrived");
                     let Some(npc_mut) = npcs.get_mut(&id) else {
@@ -247,7 +264,7 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
 
         let npc = npcs.get(&NpcId(1)).unwrap();
         assert!(
@@ -271,7 +288,7 @@ mod tests {
         clock.pause();
 
         // Start transit.
-        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
         assert!(matches!(
             npcs.get(&NpcId(1)).unwrap().state,
             NpcState::InTransit { .. }
@@ -279,7 +296,7 @@ mod tests {
 
         // Advance past arrival.
         clock.advance(30);
-        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
 
         let npc = npcs.get(&NpcId(1)).unwrap();
         assert!(
@@ -305,7 +322,7 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
 
         assert!(matches!(
             npcs.get(&NpcId(1)).unwrap().state,
@@ -332,7 +349,13 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        tick_schedules(&mut npcs, &clock, &graph, Weather::HeavyRain);
+        tick_schedules(
+            &mut npcs,
+            &clock,
+            &graph,
+            Weather::HeavyRain,
+            &EventBus::new(),
+        );
 
         let npc = npcs.get(&NpcId(1)).unwrap();
         assert!(
@@ -365,7 +388,13 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        tick_schedules(&mut npcs, &clock, &graph, Weather::LightRain);
+        tick_schedules(
+            &mut npcs,
+            &clock,
+            &graph,
+            Weather::LightRain,
+            &EventBus::new(),
+        );
 
         let npc = npcs.get(&NpcId(1)).unwrap();
         assert!(
@@ -418,7 +447,7 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
 
         assert!(matches!(
             npcs.get(&NpcId(1)).unwrap().state,

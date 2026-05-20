@@ -1,0 +1,106 @@
+<!-- PROFILE_START -->
+# Kilteevan Village — Location Log
+*Outdoor · Public*
+
+## Description
+
+The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.
+
+## Geography
+
+- Coordinates: 53.6325°N, 8.1022°W
+- Kind: Manual
+- Also known as: town, the town, village, kilteevan
+- Source: OS 6-inch First Edition, Roscommon sheet, ca. 1837
+
+## Mythological Significance
+
+*Kilteevan — Cill Taobháin, Teevan's Church, named for the early Christian Taobhán who once kept a cell here. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder.*
+
+## Connections
+
+- **The Crossroads** — the road north past low fields to the crossroads
+- **The Forge** — a lane toward the ring of the anvil
+- **The Holy Well** — a mossy path south past the old ruins to the holy well *(⚠ Flood)*
+- **The Mill** — a track west along the stream to the mill *(⚠ Flood)*
+- **The Weaver's Cottage** — a short walk past the cottages to the weaver's door
+- **Knockcroghery Village** — the southern road toward Knockcroghery
+- **St. Brigid's Church** — an old lane between settlements
+- **Murphy's Farm** — an old lane between settlements
+- **The Lime Kiln** — an old lane between settlements
+- **The Letter Office** — an old lane between settlements
+
+## Residents
+
+- Brigid Ni Fhatharta (Midwife)
+- Sean Ruadh Kelly (Labourer)
+- Peig Hannigan (Widow)
+
+<!-- PROFILE_END -->
+
+---
+
+## Journal
+
+### Monday 20 March 1820, 08:07 — Mick Flanagan departed
+
+### Monday 20 March 1820, 08:07 — Aoife Brennan departed
+
+### Monday 20 March 1820, 08:07 — Brigid Ni Fhatharta departed
+
+### Monday 20 March 1820, 08:07 — Sean Ruadh Kelly departed
+
+### Monday 20 March 1820, 08:26 — Dialogue
+**A stranger:** Good mornin'. Might I ask ye if ye've lived here all yer life?
+**Peig Hannigan:** Ah, aye, 'tis been my home for nigh on seventy years. Why, didn't ye know the Hannigan name in these parts? Come, there's much to see in Kilteevan. What brings ye to our village today, if ye don't mind me asking, mo chara?
+
+### Monday 20 March 1820, 08:47 — Dialogue
+**A stranger:** I've come from over by the Shannon, just takin' in the sights. Might I ask if ye've lived here all yer life?
+**Peig Hannigan:** Sure, 'tis been my life, and no mistake. Ye've seen the likes of Kilteevan afore, then? What draws ye here this day?
+
+### Monday 20 March 1820, 08:57 — Dialogue
+**A stranger:** I've come from over by the Shannon, just takin' in the sights. What draws ye here, Mrs. Hannigan?
+**Peig Hannigan:** Aye, I've seen my fair share of sights in Kilteevan, but I stay put for the warmth of home and the company of friends. What draws ye to our humble village, then?
+
+### Monday 20 March 1820, 09:00 — Peig Hannigan departed
+
+### Monday 20 March 1820, 09:09 — Fr. Declan Tierney arrived
+
+### Monday 20 March 1820, 09:12 — Dialogue
+**A stranger:** I've come from over by the Shannon, just takin' in the sights and hearin' tales. Tell me, Mrs. Hannigan, what brings ye to stay in Kilteevan all yer life?
+**Fr. Declan Tierney:** Ah, the tales of Kilteevan do weave a fine tapestry, do they not? Mrs. Hannigan here, as ye might've guessed, has roots deeper than the river itself. And as for meself, the parish has been my life, rooted here as firmly as the ancient oaks that line the lanes. What brings ye to our corner of the world, mornin' caller?
+
+### Monday 20 March 1820, 09:33 — Dialogue
+**A stranger:** ask Fr. Declan Tierney if he's lived here all his life
+**Fr. Declan Tierney:** Sure enough, 'tis not just me but the whole parish that's become a part of Kilteevan's heartbeat. Ye ask if I've lived here all me life? Well, nigh on twenty-five years it's been, and it feels like home. What brings ye to our corner of the world, mornin' caller?
+
+### Monday 20 March 1820, 09:53 — Dialogue
+**A stranger:** ask Fr. Declan Tierney if twenty-five years be long enough to call a place home
+**Fr. Declan Tierney:** Ah, twenty-five years, indeed. 'Tis long enough to call a place home, surely, and yet still a blink in the eye of God. What brings ye to question the length of time one must call a place home, mornin' caller? Is there a tale ye wish to share with us here in Kilteevan's embrace, perhaps?
+
+### Monday 20 March 1820, 10:13 — Dialogue
+**A stranger:** to share, or a question on yer mind?
+**Fr. Declan Tierney:** Sure enough, there's many a tale to be told and many a question to be asked in this parish. Ye seem curious, mornin' caller. Is there a particular question ye wish to put to mind? Ye need not be shy, for we're all friends here in Kilteevan's embrace. Mayhap ye seek wisdom on a matter of the soul, or perhaps ye yearn for knowledge of the lands and the people. What is it that draws ye to us today, beyond just the sights and the tales?
+
+### Monday 20 March 1820, 10:15 — Dialogue
+**A stranger:** I've come to see the land and meet the folk. Is there any story or event ye'd like to share, Father?
+**Fr. Declan Tierney:** Sure, there's many a story to be shared, but I'll leave it to ye to hear them in yer own time. For now, I might ask what brings ye to take such interest in our tales, mornin' caller? Is there something in particular ye seek to learn or understand about our humble parish here in Kilteevan's heart? Mayhap 'tis a tale of faith or perhaps a question on yer mind that ye wish to ponder with a man of the cloth. Speak yer mind, for I'm here to listen and guide if I may, as I have for nigh on twenty-five years now. 'Tis a long time, but it feels like just a blink in the great scheme of things, does it not? What draws ye to our corner of the world today, beyond just the sight of the land and the faces of the folk? Mayhap it's a spirit of curiosity or a search for something deeper, something more profound. What is it, mornin' caller, that brings ye to us today?
+
+### Monday 20 March 1820, 10:56 — Dialogue
+**A stranger:** Sure, Father. What brings ye to the parish, and what keeps ye here?
+**Fr. Declan Tierney:** Ah, I come to the parish for the souls of the folk, and I stay for the love of them. What else could bind a man to a place but the hearts of those he serves, mornin' caller? What draws ye to Kilteevan, then, if I might ask the question back in yer direction? Is it the land, the stories, or perhaps the people themselves that ye find of interest hereabouts? Speak yer mind, for 'tis a safe space here in the embrace of Kilteevan's heart and soul. What is it that ye seek, beyond just the face of the land and the tales of the past? Mayhap there is a purpose or a reason that draws ye to us, as there is for me to stay here, nigh on twenty-five years on. What say ye, mornin' caller, to that notion of purpose and belonging in our humble parish? Is there something ye wish to share with us in turn, or a question that ye seek to understand better about the hearts and minds of our people here in Kilteevan's embrace? Speak freely, for I am here to listen and guide if I may, as I have for many a year now. What draws ye to our corner of the world, if I might ask once more with a soft heart and a gentle ear? Mayhaps it's something simple, or perhaps it's something profound and deeply felt. What is it, mornin' caller, that brings ye to us today beyond just the sight of the land and the faces of the folk? Speak yer mind, for I am here to hear and understand as best I can, with the wisdom and experience of these nigh on twenty-five years on in the parish. What draws ye to Kilteevan, then, if I might ask in turn with a quiet curiosity and a deep empathy for yer journey and yer search for meaning and connection in our corner of the world? Speak freely, for I am here to listen and guide if I may, with the love and care of a man of the cloth and a friend to all in Kilteevan's embrace. What draws ye to us, mornin' caller, if I might ask once more with a soft heart and a gentle ear? Speak yer mind, for I am here to hear and understand as best I can, with the wisdom and experience of these nigh on twenty-five years on in the parish. What draws ye to
+
+### Monday 20 March 1820, 12:00 — Fr. Declan Tierney departed
+
+### Monday 20 March 1820, 12:36 — Brigid Ni Fhatharta arrived
+
+### Monday 20 March 1820, 13:04 — Mick Flanagan arrived
+
+### Monday 20 March 1820, 13:16 — Peig Hannigan arrived
+
+### Monday 20 March 1820, 14:00 — Brigid Ni Fhatharta departed
+
+### Monday 20 March 1820, 15:01 — Mick Flanagan departed
+
+### Monday 20 March 1820, 15:01 — Peig Hannigan departed
+

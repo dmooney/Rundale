@@ -1,0 +1,41 @@
+<!-- PROFILE_START -->
+# The Crossroads — Location Log
+*Outdoor · Public*
+
+## Description
+
+A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.
+
+## Geography
+
+- Coordinates: 53.6362°N, 8.1153°W
+- Kind: Manual
+- Also known as: crossroads
+- Source: manually placed from modern Kilteevan crossroads coord
+
+## Mythological Significance
+
+*Crossroads hold power in Irish folklore — a place between places, where the veil is thin.*
+
+## Connections
+
+- **Darcy's Pub** — a short lane past a row of cottages
+- **St. Brigid's Church** — a winding boreen lined with hawthorn
+- **The Letter Office** — the road past a hand-lettered sign
+- **The Hedge School** — a muddy path along the schoolmaster's wall
+- **Connolly's Shop** — a few steps across the road
+- **Kilteevan Village** — the Kilteevan road heading south past low fields
+- **The Hurling Green** — an old lane between settlements
+
+<!-- PROFILE_END -->
+
+---
+
+## Journal
+
+### Monday 20 March 1820, 08:13 — Player arrived
+*Arrived from Kilteevan Village*
+
+### Monday 20 March 1820, 08:19 — Player arrived
+*Arrived from Darcy's Pub*
+

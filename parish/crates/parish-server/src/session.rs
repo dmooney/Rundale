@@ -996,6 +996,56 @@ fn spawn_session_ticks(
         }));
     }
 
+    // ── Location-log subscriber ────────────────────────────────────────────
+    //
+    // Mirrors the character-log subscriber above; writes per-location
+    // markdown logs. Gated by the `location-logs` flag (default on).
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            use parish_core::location_log::{FEATURE_FLAG, LocationLogManager};
+
+            let enabled = {
+                let cfg = s.config.lock().await;
+                !cfg.flags.is_disabled(FEATURE_FLAG)
+            };
+            if !enabled {
+                return;
+            }
+            let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
+            let branch_id = s.current_branch_id.lock().await.unwrap_or(1);
+            let manager = LocationLogManager::new(&app_name, branch_id, true);
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            {
+                let world = s.world.lock().await;
+                let npc_mgr = s.npc_manager.lock().await;
+                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                    tracing::warn!(error = %e, "location-log profile write failed");
+                }
+            }
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            let world = s.world.lock().await;
+                            let npc_mgr = s.npc_manager.lock().await;
+                            if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
+                                tracing::warn!(error = %e, "location-log write failed");
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
     // ── World tick (5 s) ─────────────────────────────────────────────────────
     {
         let s = Arc::clone(&state);
@@ -1047,7 +1097,12 @@ fn spawn_session_ticks(
                         );
                     }
 
-                    npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
+                    npc_mgr.tick_schedules(
+                        &world.clock,
+                        &world.graph,
+                        world.weather,
+                        &world.event_bus,
+                    );
                     npc_mgr.assign_tiers(&world, &[]);
 
                     // Banshee tick — herald and finalise doomed NPCs.

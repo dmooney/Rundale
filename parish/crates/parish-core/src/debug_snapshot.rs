@@ -722,6 +722,19 @@ fn build_event_bus_debug(
                 GameEvent::PlayerMoved { from, to, .. } => {
                     format!("Player: {} → {}", loc_of(*from), loc_of(*to))
                 }
+                GameEvent::NpcInteraction {
+                    participants,
+                    location,
+                    summary,
+                    ..
+                } => {
+                    let names = participants
+                        .iter()
+                        .map(|p| name_of(*p))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("@{} [{}]: {}", loc_of(*location), names, summary)
+                }
             };
             GameEventDebug {
                 timestamp,

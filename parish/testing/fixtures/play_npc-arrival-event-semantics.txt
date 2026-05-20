@@ -1,0 +1,28 @@
+# npc-arrival-event-semantics play-test
+# ======================================
+# Round-trip walk that, before the fix, produced duplicate
+# NpcArrived events on every Tier1 re-promotion. After the fix,
+# each physical arrival/departure yields exactly one journal entry.
+
+/status
+
+# Walk away from Kilteevan Village — every NPC there demotes
+# below Tier1 as the player leaves.
+go to The Crossroads
+/wait 2
+
+# Walk further — second hop deepens the demotion.
+go to Darcy's Pub
+/wait 2
+
+# Walk back — NPCs at the destination re-promote. Pre-fix the
+# bus republished NpcArrived for every one of them.
+go to The Crossroads
+/wait 2
+
+go to Kilteevan Village
+/wait 2
+
+# Final state — log files inspected post-run for duplicate
+# "<name> arrived" headings.
+/status
