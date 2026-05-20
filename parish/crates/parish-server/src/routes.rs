@@ -9,6 +9,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::IntoResponse;
 
 use parish_core::config::InferenceCategory;
@@ -105,6 +106,44 @@ pub async fn get_ui_config(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Json<crate::state::UiConfigSnapshot> {
     Json(state.ui_config.clone())
+}
+
+/// `GET /api/app-icon.png` — serves the active mod's browser icon override.
+pub async fn get_app_icon(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
+    serve_mod_icon(state.game_mod.as_ref().and_then(|gm| gm.app_icon_path())).await
+}
+
+/// `GET /api/favicon.png` — serves the active mod's small browser favicon.
+pub async fn get_favicon(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
+    serve_mod_icon(state.game_mod.as_ref().and_then(|gm| gm.favicon_path())).await
+}
+
+async fn serve_mod_icon(path: Option<PathBuf>) -> axum::response::Response {
+    let Some(path) = path else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    match tokio::fs::read(&path).await {
+        // Mod branding is constrained to local assets by parish-core, but the
+        // asset format itself is mod-owned. Preserve the authored MIME type.
+        Ok(bytes) => (
+            [
+                (
+                    CONTENT_TYPE,
+                    mime_guess::from_path(&path)
+                        .first_or_octet_stream()
+                        .to_string(),
+                ),
+                (CACHE_CONTROL, "public, max-age=86400".to_string()),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::warn!(path = %path.display(), error = %e, "failed to read mod app icon");
+            StatusCode::NOT_FOUND.into_response()
+        }
+    }
 }
 
 /// Redact an inference call log for web clients (#333).
@@ -1561,6 +1600,8 @@ pub mod tests {
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
             auto_pause_timeout_seconds: 300,
+            app_icon_url: None,
+            favicon_url: None,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
@@ -2626,5 +2667,32 @@ pub mod tests {
             npcs.is_empty() || !npcs.is_empty(),
             "response must be a valid JSON array of NpcInfo"
         );
+    }
+
+    #[tokio::test]
+    async fn serve_mod_icon_uses_async_read_and_extension_mime_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("icon.jpg");
+        tokio::fs::write(&path, b"not really a jpeg, but enough for route bytes")
+            .await
+            .unwrap();
+
+        let resp = super::serve_mod_icon(Some(path)).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
+            "image/jpeg"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CACHE_CONTROL)
+                .unwrap(),
+            "public, max-age=86400"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        assert_eq!(&body[..], b"not really a jpeg, but enough for route bytes");
     }
 }

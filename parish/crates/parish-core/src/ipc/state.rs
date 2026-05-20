@@ -111,6 +111,12 @@ pub struct UiConfigSnapshot {
     pub tile_sources: Vec<crate::ipc::TileSourceSnapshot>,
     /// How many seconds of inactivity before the game auto-pauses.
     pub auto_pause_timeout_seconds: u64,
+    /// Browser-safe URL or data URL for the active mod's app icon override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_icon_url: Option<String>,
+    /// Browser-safe URL or data URL for the active mod's small favicon.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub favicon_url: Option<String>,
 }
 
 #[cfg(test)]

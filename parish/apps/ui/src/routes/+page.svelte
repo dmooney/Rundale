@@ -60,6 +60,7 @@
 	import { captureScreen } from '$lib/screenshot';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
 	import { createStreamManager } from '$lib/setup/stream-manager';
+	import { applyAppIcon } from '$lib/app-icon';
 
 	/** Transient toast text shown after a screenshot is saved (or fails). */
 	let screenshotToast = $state<string | null>(null);
@@ -283,6 +284,7 @@
 			const cfg = await getUiConfig();
 			uiConfig.set(cfg);
 			tiles.initFromUiConfig(cfg);
+			applyAppIcon(cfg.app_icon_url, cfg.favicon_url);
 			if (cfg.splash_text) {
 				textLog.update((log) => [
 					{ source: 'system', content: cfg.splash_text },
