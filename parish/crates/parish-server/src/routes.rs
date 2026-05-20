@@ -124,10 +124,17 @@ async fn serve_mod_icon(path: Option<PathBuf>) -> axum::response::Response {
     };
 
     match tokio::fs::read(&path).await {
+        // Mod branding is constrained to local assets by parish-core, but the
+        // asset format itself is mod-owned. Preserve the authored MIME type.
         Ok(bytes) => (
             [
-                (CONTENT_TYPE, "image/png"),
-                (CACHE_CONTROL, "public, max-age=86400"),
+                (
+                    CONTENT_TYPE,
+                    mime_guess::from_path(&path)
+                        .first_or_octet_stream()
+                        .to_string(),
+                ),
+                (CACHE_CONTROL, "public, max-age=86400".to_string()),
             ],
             bytes,
         )
@@ -2660,5 +2667,32 @@ pub mod tests {
             npcs.is_empty() || !npcs.is_empty(),
             "response must be a valid JSON array of NpcInfo"
         );
+    }
+
+    #[tokio::test]
+    async fn serve_mod_icon_uses_async_read_and_extension_mime_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("icon.jpg");
+        tokio::fs::write(&path, b"not really a jpeg, but enough for route bytes")
+            .await
+            .unwrap();
+
+        let resp = super::serve_mod_icon(Some(path)).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
+            "image/jpeg"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CACHE_CONTROL)
+                .unwrap(),
+            "public, max-age=86400"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        assert_eq!(&body[..], b"not really a jpeg, but enough for route bytes");
     }
 }
