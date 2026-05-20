@@ -21,6 +21,24 @@ with an antialiased rounded-rectangle alpha mask. `sips -g hasAlpha` reports
 A PNG alpha decode check confirmed all four corner pixels are alpha `0` and
 the center pixel remains alpha `255` for representative sizes.
 
+Acceptance criteria mapping:
+
+- Mod ownership and engine icon separation: Rundale icons are present under
+  `mods/rundale/assets/icons/app/`; the Parish engine icon file was not changed.
+- Branding declaration and path safety: `mods/rundale/ui.toml` contains the
+  `[branding]` icon paths, and
+  `cargo test -p parish-core game_mod::tests::test_mod_icon_paths` covers both
+  valid asset resolution and escaping-path rejection.
+- Web/browser surface: `app-icon.test.ts` verifies active-mod favicon and
+  apple-touch icon link updates.
+- Desktop surface: `cargo check -p parish-tauri` validates the Tauri window,
+  macOS Dock, and `RunEvent::Ready` icon paths; `just run` launched the dev path
+  that uses the Ready-event reapply.
+- Transparent corners: `sips -g hasAlpha` and a PNG alpha decode spot-check
+  verified RGBA output, alpha `0` corners, and alpha `255` centers.
+- Full gate: `just agent-check`, `git diff --check`, and `just check` passed
+  after the implementation and asset updates.
+
 Checks run:
 
 - `cargo test -p parish-core game_mod::tests::test_mod_icon_paths`
