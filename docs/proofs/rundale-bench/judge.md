@@ -17,7 +17,7 @@ The PR ships Phase 1 of the [rundale-bench plan](../../plans/rundale-bench.md): 
 ## Independent verification
 
 - `rundale-bench/v1/MANIFEST.json` — `merkle_root_sha256` reproduces from `python3 rundale-bench/build_manifest.py v1`.
-- `parish/scripts/local-eval/eval_lib.py::load_slice` — resolves `BENCH_ROOT` from `Path(__file__).resolve().parents[2] / "testing" / "rundale-bench"`. Verified by running the script from outside its own directory and observing the loader finds the slice.
+- `parish/scripts/local-eval/eval_lib.py::load_slice` — resolves `BENCH_ROOT` from `Path(__file__).resolve().parents[3] / "rundale-bench"`. Verified by running the script from outside its own directory and observing the loader finds the slice.
 - `parish/scripts/local-eval/flaw_scan.py` — `PROMPTS = [r["prompt"] for r in load_slice("dialogue", version="v1")]` followed by `assert len(PROMPTS) >= 100`. The previous 100-line inline list is removed; this is a pure relocation.
 - `parish/scripts/local-eval/gen_dlg.py` — `PROMPTS = [r["prompt"] for r in load_slice("dialogue", version="v1", tier="core")]` followed by `assert len(PROMPTS) == 5`.
 - Live smoke run produced `rundale-bench/artifacts/post_freeze_flaw_scan.md`: 25/25 successful, 0/25 flagged, $0.00 cost (OpenRouter free tier).

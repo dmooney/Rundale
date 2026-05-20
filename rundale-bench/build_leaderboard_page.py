@@ -101,12 +101,17 @@ def build_data() -> dict:
             }
     out["perf"] = list(latest_perf.values())
 
-    # Keep only the latest Gaeilge measurement per candidate/base/split. Bench
-    # run files are timestamped; sorted iteration means later runs supersede
-    # earlier smoke probes for the same target.
+    # Keep only the latest Gaeilge measurement per candidate/base/split. Direct
+    # Gaeilge runs and documented `--slice all` sweeps both carry
+    # slices.gaeilge.summary, so ingest both filename shapes.
     latest_gaeilge: dict[tuple[str, str, str], dict] = {}
-    for f in sorted(glob.glob(str(_ARTIFACTS_DIR / "run_*_gaeilge_*.json"))):
-        d = json.loads(Path(f).read_text(encoding="utf-8"))
+    gaeilge_run_files = sorted({
+        Path(f)
+        for pattern in ("run_*_gaeilge_*.json", "run_*_all_*.json")
+        for f in glob.glob(str(_ARTIFACTS_DIR / pattern))
+    })
+    for path in gaeilge_run_files:
+        d = json.loads(path.read_text(encoding="utf-8"))
         target = d.get("target") or {}
         summary = ((d.get("slices") or {}).get("gaeilge") or {}).get("summary") or {}
         if not target or not summary:
@@ -118,7 +123,7 @@ def build_data() -> dict:
             "candidate": candidate,
             "base_url": base_url,
             "split": split,
-            "file": Path(f).name,
+            "file": path.name,
             "n": summary.get("records", 0),
             "errors": summary.get("errors", 0),
             "overall": _round(summary.get("overall_mean")),
