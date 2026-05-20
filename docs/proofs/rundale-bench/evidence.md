@@ -2,14 +2,14 @@
 
 Evidence type: gameplay transcript
 
-Phase 1 of the [rundale-bench plan](../../plans/rundale-bench.md) promotes the ad-hoc dialogue prompt corpus into a versioned JSONL slice at `parish/testing/rundale-bench/v1/dialogue.jsonl` with content-addressed integrity via `MANIFEST.json`.
+Phase 1 of the [rundale-bench plan](../../plans/rundale-bench.md) promotes the ad-hoc dialogue prompt corpus into a versioned JSONL slice at `rundale-bench/v1/dialogue.jsonl` with content-addressed integrity via `MANIFEST.json`.
 
 ## What changed
 
-- New `parish/testing/rundale-bench/v1/dialogue.jsonl` — 100 records (5 `core` + 95 `extended`), schema documented in [`parish/testing/rundale-bench/README.md`](../../../parish/testing/rundale-bench/README.md).
-- New `parish/testing/rundale-bench/v1/MANIFEST.json` — per-slice SHA-256, byte count, record count, plus `merkle_root_sha256` over the sorted list of slice hashes. Suite version is `v1-dev`; `frozen=false`.
-- New `parish/testing/rundale-bench/build_manifest.py` — rebuilds the manifest. Refuses to mutate a frozen suite.
-- New `parish/testing/rundale-bench/README.md` — slice schema, tier semantics, contribution rules.
+- New `rundale-bench/v1/dialogue.jsonl` — 100 records (5 `core` + 95 `extended`), schema documented in [`rundale-bench/README.md`](../../../rundale-bench/README.md).
+- New `rundale-bench/v1/MANIFEST.json` — per-slice SHA-256, byte count, record count, plus `merkle_root_sha256` over the sorted list of slice hashes. Suite version is `v1-dev`; `frozen=false`.
+- New `rundale-bench/build_manifest.py` — rebuilds the manifest. Refuses to mutate a frozen suite.
+- New `rundale-bench/README.md` — slice schema, tier semantics, contribution rules.
 - `parish/scripts/local-eval/eval_lib.py` — adds `load_slice(slice_name, version, tier, verify=True)` which verifies the slice bytes against the manifest SHA-256 on every load. `RuntimeError` on mismatch.
 - `parish/scripts/local-eval/flaw_scan.py` — drops the inline 100-prompt `PROMPTS` list, loads from `dialogue.jsonl`.
 - `parish/scripts/local-eval/gen_dlg.py` — drops the inline 5-prompt list, loads `tier="core"` records from `dialogue.jsonl`.
@@ -34,7 +34,7 @@ Re-running the same probe used to validate [PR #958](https://github.com/dmooney/
 ```sh
 python3 parish/scripts/local-eval/flaw_scan.py \
     --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \
-    --output docs/proofs/rundale-bench/post_freeze_flaw_scan.md \
+    --output rundale-bench/artifacts/post_freeze_flaw_scan.md \
     --prompts 25 --workers 2
 ```
 

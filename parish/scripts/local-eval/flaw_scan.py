@@ -58,7 +58,7 @@ SYSTEM = (
 
 # Prompts are loaded from the frozen rundale-bench v1 dataset so the same
 # corpus drives both this flaw-scan probe and the broader benchmark. Edit
-# parish/testing/rundale-bench/v1/dialogue.jsonl + rebuild MANIFEST.json to
+# rundale-bench/v1/dialogue.jsonl + rebuild MANIFEST.json to
 # add or change prompts; this script auto-loads any new records.
 _RECORDS = load_slice('dialogue', version='v1')
 PROMPTS = [r['prompt'] for r in _RECORDS]

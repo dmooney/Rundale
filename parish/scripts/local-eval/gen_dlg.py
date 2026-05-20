@@ -29,7 +29,7 @@ SYSTEM = (
 )
 
 # Core 5-prompt set drawn from the frozen rundale-bench v1 dialogue slice.
-# Edit parish/testing/rundale-bench/v1/dialogue.jsonl (tier=core) and rebuild
+# Edit rundale-bench/v1/dialogue.jsonl (tier=core) and rebuild
 # MANIFEST.json to change them.
 PROMPTS = [r["prompt"] for r in load_slice("dialogue", version="v1", tier="core")]
 assert len(PROMPTS) == 5, f"core tier must have 5 prompts, has {len(PROMPTS)}"

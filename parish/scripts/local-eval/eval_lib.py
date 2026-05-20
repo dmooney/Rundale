@@ -402,9 +402,9 @@ class CostTracker:
 # rundale-bench dataset loader
 # ---------------------------------------------------------------------------
 
-# Resolve <repo>/parish/testing/rundale-bench from this file's location:
-# parish/scripts/local-eval/eval_lib.py -> parents[2] is <repo>/parish.
-BENCH_ROOT = Path(__file__).resolve().parents[2] / "testing" / "rundale-bench"
+# Resolve <repo>/rundale-bench from this file's location:
+# parish/scripts/local-eval/eval_lib.py -> parents[3] is <repo>.
+BENCH_ROOT = Path(__file__).resolve().parents[3] / "rundale-bench"
 
 
 def load_slice(

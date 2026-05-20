@@ -286,7 +286,7 @@ eval-gaeilge TARGET LIMIT="":
     if [ -n "{{LIMIT}}" ]; then
       args+=(--limit "{{LIMIT}}")
     fi
-    python3 testing/rundale-bench/rundale_bench.py "${args[@]}"
+    python3 ../rundale-bench/rundale_bench.py "${args[@]}"
 
 # ─── Lint, Format & Quality Gates ────────────────────────────────────────────
 

@@ -24,7 +24,7 @@ One-page index of every top-level directory. Use this when navigating an unfamil
 | `parish/apps/ui/` | Svelte 5 + TS frontend (one for all modes) | `src/routes/`, `src/lib/` | [CLAUDE.md](../../parish/apps/ui/CLAUDE.md) |
 | `parish/testing/fixtures/` | Harness scripts | — | [CLAUDE.md](../../parish/testing/CLAUDE.md) |
 | `parish/testing/evals/` | Rubric configs | — | (same) |
-| `parish/testing/rundale-bench/` | ELO dialogue benchmark | — | (same) |
+| `rundale-bench/` | ELO dialogue benchmark | — | (same) |
 | `parish/scripts/` | Check/CI helpers (shellcheck-clean) | — | — |
 | `mods/rundale/` | Game content (NPCs, world, prompts) | `mod.toml` | [CLAUDE.md](../../mods/rundale/CLAUDE.md) |
 | `docs/` | Project documentation hub | [`index.md`](../index.md) | — |
