@@ -119,7 +119,7 @@ errors cannot be tied back to the originating request or account.
 
 ### Rule 8: Sticky-session routing required at the web tier
 
-The web tier (Railway, nginx, or any future reverse proxy) must be configured
+The web tier (nginx or any future reverse proxy) must be configured
 to route requests from the same browser session to the same server instance,
 keyed on the `parish_sid` cookie. In-memory game state on `AppState` is not
 replicated across instances; load-balancing without stickiness sends requests
@@ -127,7 +127,7 @@ to cold instances with no session state.
 
 **Seam:** `parish_sid` cookie set by `parish/crates/parish-server/src/middleware.rs` —
 the infrastructure configuration that enforces stickiness lives outside the
-Rust codebase (load-balancer / `railway.toml`).
+Rust codebase (load-balancer config).
 **What this prevents:** session state loss mid-game when a request lands on
 the wrong server instance, and the cascade of 500 errors that follows.
 

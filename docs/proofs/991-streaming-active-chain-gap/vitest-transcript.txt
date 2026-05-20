@@ -1,0 +1,23 @@
+
+ RUN  v4.1.6 /Users/dmooney/Rundale/.claude/worktrees/sad-carson-42bae5/parish/apps/ui
+
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > starts with chainInProgress false 1ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > sets chainInProgress true when the first stream-token queues a turn 0ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > stays true between per-turn finalisations within one chain 0ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > resets to false only after finishNpcStream runs 0ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > finishNpcStream clears streamingActive and chainInProgress 0ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > dispose resets chainInProgress 0ms
+ ✓ src/lib/setup/stream-manager.test.ts > createStreamManager — chainInProgress (#991) > reports chainInProgress=true across the mid-chain loading=false window 0ms
+ ✓ src/lib/demo-player.test.ts > stopDemo > sets demoEnabled to false 1ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > returns immediately when demo is disabled 0ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > returns immediately when demo is paused 0ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > sets status to waiting when demo is active 63ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > dispatches /quit when CLI demo reaches max_turns 64ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > does not dispatch /quit for UI-launched demos at max_turns 63ms
+ ✓ src/lib/demo-player.test.ts > runDemoTurn > waits_through_per_turn_loading_false_within_chain 2ms
+
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  17:24:29
+   Duration  975ms (transform 220ms, setup 113ms, import 259ms, tests 196ms, environment 989ms)
+

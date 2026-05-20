@@ -461,3 +461,129 @@ def load_slice(
     if tier is not None:
         records = [r for r in records if r.get("tier") == tier]
     return records
+
+
+# ---------------------------------------------------------------------------
+# Runtime-equivalent dialogue system prompt (rundale persona: Brigid O'Brien)
+# ---------------------------------------------------------------------------
+#
+# The bench is the score-of-record for dialogue regressions. Its system
+# prompt must track what the live runtime sends to the LLM — otherwise
+# prompt-quality work doesn't show up in the scoreboard (issue #994).
+#
+# Source of truth is `mods/rundale/prompts/tier1_system.txt`, mirroring
+# `parish_npc::build_tier1_system_prompt`. The bench fills the persona
+# slots with the synthetic "Brigid O'Brien, 42, midwife" character used
+# across rundale-bench scripts and appends the same `language_directive`
+# the runtime emits for en-IE / ga-IE (see `parish_npc::language_directive`).
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_RUNDALE_TIER1_TEMPLATE = _REPO_ROOT / "mods" / "rundale" / "prompts" / "tier1_system.txt"
+
+# Mirrors `parish_npc::GA_IE_PHRASE_GUIDE` (parish/crates/parish-npc/src/lib.rs).
+# Keep in sync when the runtime guide changes.
+_GA_IE_PHRASE_GUIDE = (
+    "\n    Preferred ga-IE phrases (use these where natural; do not confabulate "
+    "other Irish): "
+    "Greetings: \"Dia dhuit\" (hello), \"Dia is Muire dhuit\" (reply), "
+    "\"Conas atá tú?\" (how are you), \"Slán\" (goodbye), "
+    "\"Slán abhaile\" (safe home). "
+    "Blessings / thanks: \"Go raibh maith agat\" (thank you), "
+    "\"Le cúnamh Dé\" (with God's help), \"Buíochas le Dia\" (thank God), "
+    "\"Beannacht Dé ort\" (God bless you), \"Go n-éirí leat\" (good luck to you). "
+    "Exclamations: \"Mo ghrá\" (my love), \"A chroí\" (dear, sweetheart), "
+    "\"A stór\" (treasure / dear), \"A leanbh\" (child), \"Mhuise\" (well, indeed), "
+    "\"Faith\", \"Bedad\", \"Bedambut\". "
+    "Concepts: \"sídhe\" (fairy folk), \"sí\" (fairy mound), "
+    "\"seanchaí\" (storyteller), \"céilí\" (gathering), "
+    "\"poitín\" (illicit spirits), \"piseog\" (superstition)."
+)
+
+
+def _language_directive(player: str, native: Optional[str]) -> str:
+    """Python mirror of `parish_npc::language_directive`.
+
+    Reproduces the locale clause the runtime appends to every Tier-1
+    dialogue system prompt. Defined here so the bench's system prompt
+    matches what the real game sends to the LLM.
+    """
+    directive = (
+        f"LANGUAGE: Speak in {player}. "
+        f"Use spelling, idioms, and conventions appropriate to that BCP 47 locale."
+    )
+    player_lower = player.lower()
+    if player_lower.startswith("en") and player_lower != "en-us":
+        directive += (
+            f" Never use en-US spellings such as \"color\", \"realize\", "
+            f"\"favor\", \"neighbor\", or \"-ize\" verb endings "
+            f"— use the spelling appropriate to {player}."
+        )
+    if native:
+        directive += (
+            f" Where a native speaker would naturally code-switch, sprinkle words "
+            f"and short phrases from {native} into your dialogue and record them "
+            f"in the `language_hints` metadata array. "
+            f"CRITICAL: {native} is a SPRINKLE only — at most one short phrase "
+            f"(1-5 words) per reply, woven into otherwise-{player} prose. "
+            f"{player} must carry the meaning of every sentence. "
+            f"NEVER reply entirely in {native}, even if the player's question "
+            f"seems to invite it. The player may not speak {native}; the meaning "
+            f"of your reply must be clear to a {player} speaker who knows zero "
+            f"{native}. "
+            f"Use ONLY {player} and {native} — no other language under any "
+            f"circumstances."
+        )
+        if native.lower() in ("ga-ie", "ga"):
+            directive += _GA_IE_PHRASE_GUIDE
+    else:
+        directive += f" Stay in {player} — do not invent or import other languages."
+    directive += (
+        " Every character you emit must be Latin script (a-z, A-Z, accented "
+        "Latin such as á é í ó ú ü ñ ç ß) or standard punctuation. "
+        "Do NOT emit Cyrillic (Russian), Han (Chinese), Hiragana / Katakana "
+        "(Japanese), Hangul (Korean), Arabic, Hebrew, Greek, or Devanagari "
+        "characters — replace any tempted non-Latin word with its English or "
+        "native-language equivalent, or omit it."
+    )
+    return directive
+
+
+# Brigid is the canonical bench persona; her personality string is bench-
+# provided (she does not appear in `mods/rundale/npcs.json`).
+_BRIGID_PERSONALITY = (
+    "kind but direct, with a deep knowledge of local plants and folk medicine. "
+    "Has known the player's family for years."
+)
+
+
+def build_dialogue_system_prompt(
+    *,
+    name: str = "Brigid O'Brien",
+    age: int = 42,
+    occupation: str = "midwife",
+    personality: str = _BRIGID_PERSONALITY,
+    mood: str = "content",
+    improv: bool = False,
+    player_language: str = "en-IE",
+    native_language: Optional[str] = "ga-IE",
+) -> str:
+    """Render the rundale-bench dialogue system prompt.
+
+    Reads `mods/rundale/prompts/tier1_system.txt`, substitutes the persona
+    slots, and appends the same language directive the runtime emits. The
+    defaults reproduce the historical bench persona (Brigid O'Brien, 42,
+    midwife) with the rundale mod's player/native language pair (en-IE /
+    ga-IE).
+    """
+    template = _RUNDALE_TIER1_TEMPLATE.read_text(encoding="utf-8")
+    body = template.format(
+        name=name,
+        age=age,
+        occupation=occupation,
+        personality=personality,
+        mood=mood,
+        improv_section="" if not improv else "\n\n[improv-craft guidance enabled]",
+        intel_guidance="",
+        tone_guidance="",
+    )
+    return body.rstrip() + "\n\n" + _language_directive(player_language, native_language)

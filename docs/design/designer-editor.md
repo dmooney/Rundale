@@ -212,7 +212,7 @@ All commands return `Result<T, String>` (string errors for easy UI display).
 - Extend `AppState` in `crates/parish-server/src/state.rs:94-133` with the same `editor: Mutex<EditorState>` field
 - Register new routes in `crates/parish-server/src/lib.rs:130-146`
 - Route naming follows the auto-rewrite in `apps/ui/src/lib/ipc.ts:39`: `editor_list_mods` → `/api/editor-list-mods`. Flat kebab-case, no hierarchy needed for Phase 1.
-- **Deployed-web gate.** `parish --web` can run on a server where `mods/` is ephemeral and writes would be silently discarded. Gate editor route registration behind an env var `PARISH_ENABLE_EDITOR=1`. In deployed modes (Railway, containers), leave it unset so the editor 404s cleanly.
+- **Deployed-web gate.** `parish --web` can run on a server where `mods/` is ephemeral and writes would be silently discarded. Gate editor route registration behind an env var `PARISH_ENABLE_EDITOR=1`. In deployed modes (containers, managed hosts), leave it unset so the editor 404s cleanly.
 
 ### Frontend — `apps/ui/src/`
 
@@ -363,7 +363,7 @@ for minimal code because the underlying functions already exist:
 - **Save-format evolution.** `GameSnapshot` uses `#[serde(default)]` for backward compat. The inspector parses into `serde_json::Value` first, then tries `GameSnapshot`, falling back to raw JSON view on failure.
 - **Validation error positions.** Editor edits structured data, not text. Translate serde errors into `field_path` (e.g. `npcs[3].relationships[1].target_id`) so the UI can jump to the field.
 - **Bidirectional edge enforcement** must be atomic at the frontend level: when `LocationDetail` adds `A→B`, it must also insert `B→A` in the `locations` array before the save command fires. Same for deletion. Never leave it to the user.
-- **Deployed-web gate.** Gate editor route registration in `parish-server` behind `PARISH_ENABLE_EDITOR=1` so a deployed instance on Railway / containers doesn't expose writable editor endpoints against an ephemeral filesystem.
+- **Deployed-web gate.** Gate editor route registration in `parish-server` behind `PARISH_ENABLE_EDITOR=1` so a deployed instance (containers, managed hosts) doesn't expose writable editor endpoints against an ephemeral filesystem.
 - **Test coverage.** `CLAUDE.md` rule #3 requires ≥90%. Editor handler and persist functions need inline unit tests.
 - **Frontend routes.** SvelteKit with `adapter-static` + `fallback: 'index.html'` + `ssr = false` means new routes work unchanged. Set `export const ssr = false` in `apps/ui/src/routes/editor/+page.ts` to match the layout.
 

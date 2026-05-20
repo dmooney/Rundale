@@ -64,10 +64,10 @@ in the logs — that confirms both credentials were picked up. Then visit http:/
 - **Redirect URI must match exactly.** The code builds the callback URL as `${PARISH_PUBLIC_URL}/auth/callback/google` (with any trailing slash trimmed via `trim_end_matches('/')`). Whatever you register in Google Cloud must match byte-for-byte, including scheme (`http` vs `https`) and port. If `PARISH_PUBLIC_URL` is not set, `PARISH_BASE_URL` is used as a fallback.
 - **Silent disable.** Missing or empty credentials don't raise an error — the auth routes just aren't registered. If `/auth/login/google` returns 404, check that both env vars are actually set in the process's environment.
 
-## Railway deployment
+## Production deployment
 
-When deploying to Railway (or any other host):
+When deploying to any production host:
 
-1. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `PARISH_PUBLIC_URL` in the service's environment variables. `PARISH_PUBLIC_URL` must be the public URL Railway assigns you (e.g. `https://parish-production.up.railway.app`).
+1. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `PARISH_PUBLIC_URL` in the service's environment variables. `PARISH_PUBLIC_URL` must be the public URL the host serves the server under (e.g. `https://parish.example.com`).
 2. Add the production callback URL (`${PARISH_PUBLIC_URL}/auth/callback/google`) to the authorized redirect URIs list in Google Cloud Console **before** the first production login attempt — Google rejects unregistered redirect URIs.
 3. You can reuse the same OAuth client for local and production by listing both redirect URIs on the same credential, or create separate clients per environment.

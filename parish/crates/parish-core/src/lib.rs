@@ -8,6 +8,7 @@
 //! crates under `parish/crates/`.
 
 // Retained modules — IPC, orchestration glue, and mod loading
+pub mod character_log;
 pub mod debug_snapshot;
 pub mod editor;
 pub mod event_bus;

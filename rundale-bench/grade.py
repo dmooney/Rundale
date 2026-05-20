@@ -24,6 +24,154 @@ from typing import Any, Callable, Optional
 _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
 
+# Mirrors `parish_npc::strip_json_fence`. Some providers (notably
+# Anthropic) wrap JSON in a Markdown code fence; strip it before
+# envelope detection. Case-sensitive lowercase ```json (matching the
+# runtime parser): uppercase variants fall through as legacy text so
+# bench/runtime treat them identically.
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?")
+
+
+def _strip_json_fence(text: str) -> str:
+    t = text.strip()
+    m = _JSON_FENCE_RE.match(t)
+    if m is None:
+        return t
+    inner = t[m.end():]
+    if inner.endswith("```"):
+        inner = inner[: -len("```")]
+    return inner.strip()
+
+
+# Mirrors `parish_npc::extract_dialogue_field_heuristic`. Recovers
+# the `"dialogue"` field from a truncated / malformed JSON envelope
+# (max_tokens cutoff, network blip). Anchored to the start of input
+# after optional `{` + whitespace so we only recover when `dialogue`
+# is the leading key — same constraint as the runtime helper, so the
+# bench doesn't extract dialogue strings that runtime would discard.
+_DIALOGUE_KEY_RE = re.compile(
+    r"""^\s*\{?\s*(?P<key>"dialogue"|'dialogue'|dialogue)\s*:\s*(?P<q>["'])""",
+    flags=re.DOTALL,
+)
+
+
+def _extract_dialogue_field_heuristic(text: str) -> Optional[str]:
+    m = _DIALOGUE_KEY_RE.match(text)
+    if m is None:
+        return None
+    opener = m.group("q")
+    i = m.end()
+    out: list[str] = []
+    while i < len(text):
+        c = text[i]
+        if c == "\\" and i + 1 < len(text):
+            nxt = text[i + 1]
+            mapped = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "'": "'", "\\": "\\"}
+            if nxt in mapped:
+                out.append(mapped[nxt])
+            else:
+                out.append("\\")
+                out.append(nxt)
+            i += 2
+            continue
+        if c == opener:
+            break
+        out.append(c)
+        i += 1
+    trimmed = "".join(out).strip()
+    return trimmed or None
+
+
+def extract_dialogue_for_judging(reply: str) -> str:
+    """Strip the runtime metadata envelope so the judge scores what the
+    player sees.
+
+    Mirrors `parish_npc::parse_npc_stream_response` — the runtime path
+    that decides what reaches the player UI. The bench must apply the
+    same transformations to its judge input, otherwise the judge scores
+    scaffolding the player never sees and bench/runtime drift.
+
+    Pipeline:
+
+    1. **Markdown code-fence strip** — providers like Anthropic wrap
+       JSON in ```` ```json … ``` ````. Stripped before envelope
+       detection so fenced outputs aren't treated as legacy plain text.
+
+    2. **`---` delimiter** — mod-template format:
+       ``<dialogue>\\n---\\n{...metadata...}``. Anywhere the marker
+       appears (including as the first line of the reply, when the
+       model omits dialogue) ends the dialogue and starts the metadata
+       block. Everything from the marker onward is stripped.
+
+    3. **JSON-first object** — Rust-builder format:
+       ``{"dialogue": "...", "action": "...", ...}``. Parsed via
+       ``json.JSONDecoder().raw_decode`` so trailing junk after the
+       closing brace is tolerated.
+
+    4. **Truncated-JSON heuristic** — when the JSON is cut off
+       mid-string (max_tokens hit, network blip), the
+       ``"dialogue": "..."`` prefix is usually intact. Same recovery
+       the runtime uses (`extract_dialogue_field_heuristic`). Without
+       it, bench would penalise truncated outputs as raw scaffolding
+       even though the runtime would still show the player a usable
+       dialogue line.
+
+    5. **Verbatim fallback** — no envelope detected (legacy plain-text
+       replies from the pre-#994 bench prompt era). Reply returned
+       unchanged.
+
+    Never raises; malformed inputs fall through to verbatim return so
+    the judge scores what the model emitted.
+    """
+    if not reply:
+        return reply
+
+    stripped = _strip_json_fence(reply)
+
+    # Envelope 1 (tried first, mirrors runtime order in
+    # `parish_npc::parse_npc_stream_response`): JSON-first. Try the
+    # full parse before the ``---`` split — otherwise a JSON dialogue
+    # string containing the literal text ``---`` (e.g. an em-dash
+    # spelled out by the model) is mangled into a partial envelope.
+    #
+    # ``json.loads`` is the Python equivalent of runtime
+    # ``serde_json::from_str``: it requires the entire input to be
+    # consumed (modulo surrounding whitespace) and rejects trailing
+    # junk. ``raw_decode`` would accept trailing junk, drifting from
+    # runtime semantics. When the JSON parses but the ``dialogue``
+    # field is absent or non-string, return ``""`` — runtime's
+    # ``NpcJsonResponse`` uses ``#[serde(default)]``, so the player
+    # sees an empty dialogue rather than the raw envelope.
+    if stripped.startswith("{"):
+        try:
+            obj = json.loads(stripped)
+        except (ValueError, json.JSONDecodeError):
+            # Full parse failed — fall through to the truncated-JSON
+            # heuristic, then to the ``---`` split.
+            obj = None
+
+        if isinstance(obj, dict):
+            dialogue = obj.get("dialogue", "")
+            return dialogue if isinstance(dialogue, str) else ""
+
+        recovered = _extract_dialogue_field_heuristic(stripped)
+        if recovered is not None:
+            return recovered
+
+    # Envelope 2: ``---`` delimiter for the mod-template format
+    # (``<dialogue>\n---\n{...}``). Runtime splits on bare ``---``
+    # anywhere in the reply (`parish-core::game_session` and
+    # `parish-npc::reactions::arrival_reactions`), so we match the same
+    # — no newline required before/after. Only reached when the reply
+    # isn't a JSON envelope, so we won't mangle JSON dialogue strings
+    # that happen to contain ``---``.
+    delim_idx = stripped.find("---")
+    if delim_idx != -1:
+        return stripped[:delim_idx].rstrip()
+
+    return reply
+
+
 def _tokens(s: Optional[str]) -> set[str]:
     if not s:
         return set()
@@ -226,9 +374,13 @@ def grade_dialogue(reply: str, judge: dict, invoke: Callable[..., dict]) -> dict
             "required": ["character", "authenticity", "language", "responsiveness", "craft", "overall"],
         },
     }
+    # Judge scores the dialogue the player sees, not the raw envelope.
+    # `_non_latin` still scans the full reply so script leaks anywhere
+    # in the model's output are still flagged.
+    dialogue = extract_dialogue_for_judging(reply)
     user = (
         "Reply to judge — score the candidate label `Model X` only:\n\n"
-        f"Model X: {reply}\n"
+        f"Model X: {dialogue}\n"
     )
     nl = _non_latin(reply)
     try:
@@ -273,7 +425,7 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
             "required": ["in_character"],
         },
     }
-    user = f"Persona: {persona}\n\nReply: {reply}\n"
+    user = f"Persona: {persona}\n\nReply: {extract_dialogue_for_judging(reply)}\n"
     try:
         scores = invoke(judge["rubric"], user, schema)
         if not isinstance(scores, dict):
@@ -331,8 +483,8 @@ def grade_pairwise(
     }
     user = (
         f"Player prompt: {prompt}\n\n"
-        f"=== Reply A ===\n{reply_a}\n\n"
-        f"=== Reply B ===\n{reply_b}\n"
+        f"=== Reply A ===\n{extract_dialogue_for_judging(reply_a)}\n\n"
+        f"=== Reply B ===\n{extract_dialogue_for_judging(reply_b)}\n"
     )
     try:
         out = invoke(judge["rubric"], user, schema)

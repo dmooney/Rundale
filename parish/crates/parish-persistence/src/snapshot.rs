@@ -474,6 +474,16 @@ impl GameSnapshot {
         world.gossip_network = self.gossip_network;
         world.conversation_log = self.conversation_log;
         world.player_name = self.player_name;
+
+        // `restore_npcs` rebuilds the manager from scratch, which wipes
+        // the in-memory `tier_assignments` map. Silently re-seed it
+        // here so the next live `assign_tiers` call doesn't see every
+        // NPC's `old_tier` default to `Tier4` and re-broadcast bogus
+        // `NpcArrived` events for everyone who happens to be at Tier1
+        // in the saved state. Tier is derivable from the world+NPC
+        // state we just restored, so we don't need to persist it in
+        // the snapshot.
+        npc_manager.seed_tier_state(world);
     }
 }
 
@@ -1009,5 +1019,181 @@ mod tests {
         assert_eq!(loc.id, LocationId(2));
         assert_eq!(loc.name, "Darcy's Pub");
         assert!(loc.indoor);
+    }
+
+    // ── snapshot-tier-preserve ──────────────────────────────────────────
+    //
+    // Regression tests for the "every session resume re-fires
+    // `NpcArrived` for everyone at Tier1" bug. `restore_npcs` wipes
+    // `tier_assignments` by rebuilding `NpcManager` from scratch; the
+    // fix is `seed_tier_state(world)` in `restore` so the next live
+    // `assign_tiers` call doesn't see all NPCs as `Tier4` defaults.
+
+    use parish_npc::types::CogTier;
+    use parish_types::events::GameEvent;
+
+    fn snapshot_tier_preserve_world_with_npcs() -> (WorldState, NpcManager) {
+        let mut world = WorldState::new();
+        world.player_location = LocationId(1);
+        let mut mgr = NpcManager::new();
+        // NPC at the player's location → ends up at Tier1.
+        mgr.add_npc(make_test_npc(1, 1));
+        // NPC at the same location too — second Tier1.
+        mgr.add_npc(make_test_npc(2, 1));
+        (world, mgr)
+    }
+
+    #[test]
+    fn tier_state_preserved_across_restore() {
+        let (mut world, mut npcs) = snapshot_tier_preserve_world_with_npcs();
+
+        // Run a real `assign_tiers` so the tier map is populated for the
+        // capture below.
+        let _ = npcs.assign_tiers(&world, &[]);
+        assert_eq!(npcs.tier_of(NpcId(1)), Some(CogTier::Tier1));
+        assert_eq!(npcs.tier_of(NpcId(2)), Some(CogTier::Tier1));
+
+        let snapshot = GameSnapshot::capture(&world, &npcs);
+
+        // C1 — fresh manager, restore, then check tier state was seeded
+        // even though `tier_assignments` isn't serialised.
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+        assert_eq!(
+            new_npcs.tier_of(NpcId(1)),
+            Some(CogTier::Tier1),
+            "C1: tier_assignments missing for NpcId(1) after restore",
+        );
+        assert_eq!(
+            new_npcs.tier_of(NpcId(2)),
+            Some(CogTier::Tier1),
+            "C1: tier_assignments missing for NpcId(2) after restore",
+        );
+
+        // Subsequent `assign_tiers` on the restored state should be a
+        // no-op for tier transitions.
+        let transitions = new_npcs.assign_tiers(&new_world, &[]);
+        assert!(
+            transitions.is_empty(),
+            "C3: assign_tiers after restore must produce no transitions, \
+             got {} (tiers were re-promoted from Tier4 default)",
+            transitions.len(),
+        );
+
+        // Replicate the C1/C3 chain on the same world reused (not a
+        // fresh `WorldState::new()`) — guards against accidental
+        // dependency on the new-world default state.
+        let _ = world.event_bus.subscribe(); // detach from prior tests
+        let _ = npcs.assign_tiers(&world, &[]); // re-prime
+        let snapshot2 = GameSnapshot::capture(&world, &npcs);
+        let mut npcs2 = NpcManager::new();
+        snapshot2.restore(&mut world, &mut npcs2);
+        let transitions2 = npcs2.assign_tiers(&world, &[]);
+        assert!(transitions2.is_empty(), "C3 (same-world reuse)");
+    }
+
+    #[test]
+    fn restore_publishes_no_npc_arrived_events() {
+        let (world, mut npcs) = snapshot_tier_preserve_world_with_npcs();
+        let _ = npcs.assign_tiers(&world, &[]);
+        let snapshot = GameSnapshot::capture(&world, &npcs);
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        let mut rx = new_world.event_bus.subscribe();
+
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        // C2 — drain the bus and assert no `NpcArrived` event fired.
+        let mut npc_arrived_count = 0;
+        while let Ok(evt) = rx.try_recv() {
+            if matches!(evt, GameEvent::NpcArrived { .. }) {
+                npc_arrived_count += 1;
+            }
+        }
+        assert_eq!(
+            npc_arrived_count, 0,
+            "C2: restore must not publish NpcArrived; saw {} event(s)",
+            npc_arrived_count,
+        );
+
+        // C3 — same drain after the first post-restore `assign_tiers`.
+        let _ = new_npcs.assign_tiers(&new_world, &[]);
+        let mut post_assign_count = 0;
+        while let Ok(evt) = rx.try_recv() {
+            if matches!(evt, GameEvent::NpcArrived { .. }) {
+                post_assign_count += 1;
+            }
+        }
+        assert_eq!(
+            post_assign_count, 0,
+            "C3: first assign_tiers after restore must not refire NpcArrived; saw {} event(s)",
+            post_assign_count,
+        );
+    }
+
+    #[test]
+    fn genuine_tier_promotion_after_restore_still_fires() {
+        // Build a world with TWO locations connected by a path so the
+        // BFS tier compute can yield distinct values per NPC.
+        let mut world = WorldState::new();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            r#"{
+                "locations": [
+                    {"id":1,"name":"Home","description_template":"","indoor":true,
+                     "public":true,"lat":53.0,"lon":-8.0,
+                     "connections":[{"target":2,"path_description":"path"}]},
+                    {"id":2,"name":"Away","description_template":"","indoor":false,
+                     "public":true,"lat":53.001,"lon":-8.0,
+                     "connections":[{"target":1,"path_description":"path"}]}
+                ]
+            }"#,
+        )
+        .unwrap();
+        world.graph = parish_world::graph::WorldGraph::load_from_file(file.path()).unwrap();
+        world.player_location = LocationId(1);
+
+        let mut npcs = NpcManager::new();
+        // NPC at LocationId(2) — Tier2 (distance 1).
+        npcs.add_npc(make_test_npc(7, 2));
+
+        let _ = npcs.assign_tiers(&world, &[]);
+        assert_eq!(npcs.tier_of(NpcId(7)), Some(CogTier::Tier2));
+
+        let snapshot = GameSnapshot::capture(&world, &npcs);
+        let mut new_world = WorldState::new();
+        new_world.graph = world.graph.clone();
+        let mut new_npcs = NpcManager::new();
+        let mut rx = new_world.event_bus.subscribe();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        // No events during restore.
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
+
+        // C4 — now the *player* moves to the NPC's location, which
+        // promotes the NPC from Tier2 → Tier1. Exactly one NpcArrived
+        // should fire.
+        new_world.player_location = LocationId(2);
+        let _ = new_npcs.assign_tiers(&new_world, &[]);
+        let mut arrived_for_seven = 0;
+        while let Ok(evt) = rx.try_recv() {
+            if let GameEvent::NpcArrived { npc_id, .. } = evt
+                && npc_id == NpcId(7)
+            {
+                arrived_for_seven += 1;
+            }
+        }
+        assert_eq!(
+            arrived_for_seven, 1,
+            "C4: a genuine Tier2→Tier1 promotion after restore must \
+             fire NpcArrived exactly once; saw {}",
+            arrived_for_seven,
+        );
     }
 }

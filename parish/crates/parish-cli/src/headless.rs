@@ -142,6 +142,8 @@ async fn run_headless_repl_loop(
         dispatch_headless_tier2_tick(app).await;
         dispatch_headless_autosave(app).await;
 
+        drain_character_log_events(app);
+
         if app.should_quit {
             break;
         }
@@ -343,6 +345,27 @@ pub async fn run_headless(
         }
     }
 
+    // Character logs — gated by `character-logs` flag (default on).
+    // Subscribe BEFORE writing profiles so the rx doesn't miss any
+    // events that fire during/just after profile generation.
+    {
+        let enabled = !app
+            .flags
+            .is_disabled(parish_core::character_log::FEATURE_FLAG);
+        let manager = parish_core::character_log::CharacterLogManager::new(
+            &app_name,
+            app.active_branch_id,
+            enabled,
+        );
+        if manager.enabled() {
+            app.character_log_rx = Some(app.world.event_bus.subscribe());
+            if let Err(e) = manager.write_all_profiles(&app.world, &app.npc_manager) {
+                tracing::warn!(error = %e, "character-log profile write failed");
+            }
+        }
+        app.character_log = Some(std::sync::Arc::new(manager));
+    }
+
     // Show initial location
     print_location_arrival(&app);
     print_arrival_reactions(&mut app).await;
@@ -404,6 +427,33 @@ async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::Async
 /// Headless idle message counter.
 static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
+
+/// Drains every `GameEvent` queued on `app.character_log_rx` and feeds it
+/// to the character-log writer. Runs synchronously at the tail of each
+/// REPL iteration — the CLI's `App` is not `Send` enough for a tokio
+/// background task, but a synchronous drain catches everything since the
+/// REPL is the only producer between drains.
+fn drain_character_log_events(app: &mut App) {
+    let (Some(manager), Some(rx)) = (app.character_log.as_ref(), app.character_log_rx.as_mut())
+    else {
+        return;
+    };
+    loop {
+        match rx.try_recv() {
+            Ok(event) => {
+                if let Err(e) = manager.process_event(&event, &app.world, &app.npc_manager) {
+                    tracing::warn!(error = %e, "character-log write failed");
+                }
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "character-log subscriber lagged; events lost");
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+        }
+    }
+}
 
 /// Handles a system command in headless mode.
 ///
@@ -938,6 +988,8 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
                 chrono::Utc::now(),
             );
         }
+        // Feed the per-session diversity sensor (#995).
+        app.npc_manager.record_reaction_emoji(&emoji);
         println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }

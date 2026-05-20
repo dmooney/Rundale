@@ -19,14 +19,17 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from eval_lib import CostTracker, call_chat, load_slice, parse_target  # noqa: E402
-
-SYSTEM = (
-    "You are Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. "
-    "You are kind but direct, with a deep knowledge of local plants and folk "
-    "medicine. You have known the player's family for years.\n\n"
-    "Stay in character. Speak in 1-3 sentences. Do not use modern language."
+from eval_lib import (  # noqa: E402
+    CostTracker,
+    build_dialogue_system_prompt,
+    call_chat,
+    load_slice,
+    parse_target,
 )
+
+# Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
+# scoring tracks the runtime tier-1 grounding (issue #994).
+SYSTEM = build_dialogue_system_prompt()
 
 # Core 5-prompt set drawn from the frozen rundale-bench v1 dialogue slice.
 # Edit rundale-bench/v1/dialogue.jsonl (tier=core) and rebuild

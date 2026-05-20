@@ -494,7 +494,8 @@ export interface SaveState {
 
 export interface DemoNpcInfo {
 	name: string;
-	description: string;
+	occupation?: string | null;
+	mood: string;
 }
 
 export interface DemoAdjacentLocation {

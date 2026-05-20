@@ -1,0 +1,17 @@
+== sanity-check: render the new bench dialogue system prompt ==
+prompt length: 3894 chars
+
+  [x] 1820 fact preamble              -> True
+  [x] cultural guidelines             -> True
+  [x] persona binding                 -> True
+  [x] GA_IE phrase whitelist          -> True
+  [x] Latin-script guard              -> True
+  [x] en-IE locale                    -> True
+  [x] ga-IE sprinkle clause           -> True
+
+== sanity-check: all 5 sites build the prompt ==
+  parish/testing/rundale-bench/cache_dialogue_replies.py: DIALOGUE_SYS len=3894 sample="You are Brigid O'Brien, a 42-year-old midwife in"
+  parish/testing/rundale-bench/rundale_bench.py: DIALOGUE_SYS len=3894 sample="You are Brigid O'Brien, a 42-year-old midwife in"
+  parish/testing/rundale-bench/bench_perf.py: DIALOGUE_SYS len=3894 sample="You are Brigid O'Brien, a 42-year-old midwife in"
+  parish/scripts/local-eval/gen_samples.py: DIALOGUE_SYS len=3894 sample="You are Brigid O'Brien, a 42-year-old midwife in"
+  parish/scripts/local-eval/gen_dlg.py: SYSTEM len=3894 sample="You are Brigid O'Brien, a 42-year-old midwife in"

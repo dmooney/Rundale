@@ -133,12 +133,25 @@ pub fn apply_movement(
         } => {
             // Build travel-start payload *before* mutating state so the path is valid
             let travel_start = build_travel_start(&path, minutes, &world.graph);
+            let origin = world.player_location;
 
             // Apply world state changes
             world.record_path_traversal(&path);
             world.clock.advance(minutes as i64);
             world.player_location = destination;
             world.mark_visited(destination);
+
+            // Publish PlayerMoved on the broadcast bus so the character-log
+            // writer can record the journey in player.md. Fires here (not at
+            // the higher-level `handle_movement`) so the script harness —
+            // which calls `apply_movement` directly — emits the event too.
+            world
+                .event_bus
+                .publish(parish_types::events::GameEvent::PlayerMoved {
+                    from: origin,
+                    to: destination,
+                    timestamp: world.clock.now(),
+                });
 
             // Update legacy locations map
             if let Some(data) = world.graph.get(destination) {

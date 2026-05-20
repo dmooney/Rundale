@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grade import (  # noqa: E402
     _jaccard,
+    extract_dialogue_for_judging,
     grade_dialogue,
     grade_gaeilge,
     grade_intent,
@@ -381,6 +382,197 @@ def test_simulation_valid_then_judge():
     assert r["schema_valid"]
     assert r["plausibility"] == 4
     assert r["score"] == 0.8
+
+
+# ---------------------------------------------------------------------------
+# extract_dialogue_for_judging — strip runtime metadata envelope
+# ---------------------------------------------------------------------------
+
+def test_extract_dialogue_dash_marker():
+    reply = (
+        "Chew on a few cloves if you can get them, or make a warm poultice from "
+        "willow bark to draw out the ache.\n"
+        "---\n"
+        "{\"action\": \"reaches into her basket\", \"mood\": \"content\", \"language_hints\": []}"
+    )
+    out = extract_dialogue_for_judging(reply)
+    assert "---" not in out
+    assert "action" not in out
+    assert out.startswith("Chew on a few cloves")
+    assert out.endswith("draw out the ache.")
+
+
+def test_extract_dialogue_dash_marker_trailing_whitespace():
+    reply = "dialogue line\n--- \n{\"action\": \"x\"}"
+    assert extract_dialogue_for_judging(reply) == "dialogue line"
+
+
+def test_extract_dialogue_dash_marker_no_trailing_block():
+    # Some replies emit the `---` then truncate — still strip everything
+    # from the marker onward.
+    reply = "spoken text\n---"
+    assert extract_dialogue_for_judging(reply) == "spoken text"
+
+
+def test_extract_dialogue_dash_at_start_returns_empty():
+    # Reply that opens with `---` has no preamble. Helper returns the
+    # empty-string prefix (rstripped) so the judge sees the model emitted
+    # nothing the player would have heard.
+    reply = "\n---\n{\"action\": \"x\"}"
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_json_first():
+    reply = (
+        "{\"dialogue\": \"Ah, good morning to ye!\", "
+        "\"action\": \"looks up\", \"mood\": \"friendly\", "
+        "\"language_hints\": []}"
+    )
+    assert extract_dialogue_for_judging(reply) == "Ah, good morning to ye!"
+
+
+def test_extract_dialogue_json_first_with_escaped_quotes():
+    reply = (
+        "{\"dialogue\": \"She said \\\"hello\\\" to me.\", "
+        "\"action\": \"shrugs\"}"
+    )
+    assert extract_dialogue_for_judging(reply) == "She said \"hello\" to me."
+
+
+def test_extract_dialogue_json_first_missing_dialogue_field():
+    # Codex review #PRRT_kwDORqdnvs6C0Zc8: runtime's `NpcJsonResponse`
+    # uses `#[serde(default)]`, so a parseable JSON envelope without
+    # a `dialogue` field surfaces as `""` to the player. Bench must
+    # mirror that — return empty string, not the raw envelope.
+    reply = "{\"action\": \"x\", \"mood\": \"y\"}"
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_json_dialogue_field_non_string():
+    # JSON parses but `dialogue` is non-string (None, number). Treat
+    # the same as missing — runtime serde default → empty string.
+    assert extract_dialogue_for_judging('{"dialogue": null}') == ""
+    assert extract_dialogue_for_judging('{"dialogue": 42}') == ""
+
+
+def test_extract_dialogue_empty_json_object():
+    # `{}` is the degenerate envelope — player sees empty dialogue.
+    assert extract_dialogue_for_judging("{}") == ""
+
+
+def test_extract_dialogue_legacy_plain_text():
+    # Pre-#994 bench prompt era — no envelope. Return as-is.
+    reply = "Aye, the toothache's a cruel thing, especially when it robs your rest."
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_malformed_json_recovers():
+    # Truncated mid-string: runtime's heuristic recovers the dialogue
+    # prefix; bench mirrors that. Without recovery the judge would see
+    # the raw JSON envelope.
+    reply = "{\"dialogue\": \"unterminated"
+    assert extract_dialogue_for_judging(reply) == "unterminated"
+
+
+def test_extract_dialogue_completely_malformed_falls_through():
+    # No envelope, no dialogue key — return verbatim.
+    reply = "{not json at all"
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_empty_input():
+    assert extract_dialogue_for_judging("") == ""
+
+
+def test_extract_dialogue_multiple_dash_lines():
+    # Only the FIRST `\n---` ends the dialogue; later occurrences are
+    # part of the metadata block.
+    reply = "first line\n---\n{\"action\": \"---\"}"
+    assert extract_dialogue_for_judging(reply) == "first line"
+
+
+def test_extract_dialogue_dash_at_very_start_no_newline():
+    # Codex review #PRRT_kwDORqdnvs6CzukN: model emits metadata-only
+    # output with no leading newline before `---`. Runtime splits on
+    # `---` itself; bench must match.
+    reply = "--- \n{\"action\": \"shrugs\"}"
+    assert extract_dialogue_for_judging(reply) == ""
+
+
+def test_extract_dialogue_markdown_json_fence():
+    # Codex review #PRRT_kwDORqdnvs6CzukS: Anthropic-style fence wrap.
+    # Runtime strips fences in `parish_npc::strip_json_fence`; bench
+    # must match.
+    reply = '```json\n{"dialogue": "Aye, fine day.", "action": "nods"}\n```'
+    assert extract_dialogue_for_judging(reply) == "Aye, fine day."
+
+
+def test_extract_dialogue_bare_markdown_fence():
+    reply = '```\n{"dialogue": "Plain fence", "action": "nods"}\n```'
+    assert extract_dialogue_for_judging(reply) == "Plain fence"
+
+
+def test_extract_dialogue_truncated_json_recovery():
+    # Codex review #PRRT_kwDORqdnvs6CzukL: max_tokens hit mid-stream.
+    # Runtime's heuristic recovers the dialogue prefix; bench must match.
+    reply = '{"dialogue": "Ah, the toothache is a cruel thing", "actio'
+    assert extract_dialogue_for_judging(reply) == "Ah, the toothache is a cruel thing"
+
+
+def test_extract_dialogue_truncated_json_with_escaped_quotes():
+    reply = '{"dialogue": "She said \\"hi\\" to me", "act'
+    assert extract_dialogue_for_judging(reply) == 'She said "hi" to me'
+
+
+def test_extract_dialogue_json_with_trailing_junk():
+    # Codex review #PRRT_kwDORqdnvs6C0ZdL: runtime
+    # `parse_npc_stream_response` uses `serde_json::from_str` and
+    # rejects trailing junk after the closing brace. The full parse
+    # fails, then the truncated-JSON heuristic recovers the
+    # `"dialogue"` field — same chain runtime follows. Result: clean
+    # dialogue without the trailing scaffolding.
+    reply = '{"dialogue": "Hello", "action": "wave"}\n\nextra prose'
+    assert extract_dialogue_for_judging(reply) == "Hello"
+
+
+def test_extract_dialogue_fenced_truncated_json():
+    # Belt-and-braces: fence + truncation both present.
+    reply = '```json\n{"dialogue": "fenced and cut"'
+    assert extract_dialogue_for_judging(reply) == "fenced and cut"
+
+
+def test_extract_dialogue_dash_inline_metadata():
+    # Codex review #PRRT_kwDORqdnvs6C0CIf: runtime splits on bare `---`,
+    # so `dialogue---{json}` (no newline before delimiter) should still
+    # strip the metadata.
+    reply = 'spoken text---{"action": "x"}'
+    assert extract_dialogue_for_judging(reply) == "spoken text"
+
+
+def test_extract_dialogue_uppercase_fence_falls_through():
+    # Codex review #PRRT_kwDORqdnvs6C0CIe: runtime fence stripper is
+    # case-sensitive lowercase. Uppercase ```JSON should NOT be
+    # treated as a fence; bench must mirror that.
+    reply = '```JSON\n{"dialogue": "x"}\n```'
+    assert extract_dialogue_for_judging(reply) == reply
+
+
+def test_extract_dialogue_json_dialogue_contains_em_dash():
+    # Codex review #PRRT_kwDORqdnvs6C0Je2: a valid JSON reply whose
+    # dialogue text contains `---` (spelled-out em-dash) must NOT be
+    # mangled by the delimiter split. Runtime parses JSON first; bench
+    # mirrors that order.
+    reply = '{"dialogue": "Well---maybe so", "action": "shrugs"}'
+    assert extract_dialogue_for_judging(reply) == "Well---maybe so"
+
+
+def test_extract_dialogue_dialogue_key_not_leading_falls_through():
+    # Codex review #PRRT_kwDORqdnvs6C0CIZ: runtime only recovers when
+    # `dialogue` is the leading key. If the recovery regex were
+    # `.search`-based, this malformed payload would extract "leaked"
+    # even though runtime would discard it.
+    reply = '{"action": "x", "dialogue": "leaked"'
+    assert extract_dialogue_for_judging(reply) == reply
 
 
 # ---------------------------------------------------------------------------

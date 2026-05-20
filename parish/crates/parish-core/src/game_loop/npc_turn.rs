@@ -315,6 +315,23 @@ pub async fn run_npc_turn(
                 player_name.as_deref(),
             );
         }
+
+        // Publish the full-text dialogue event so the character-log
+        // writer can record a verbatim diary entry in the NPC's journal.
+        // We emit even when `parsed.dialogue` is empty so journal entries
+        // line up with the player's prompt, but we skip if both sides
+        // are empty (no useful record).
+        if !prompt_input.trim().is_empty() || !parsed.dialogue.trim().is_empty() {
+            world
+                .event_bus
+                .publish(parish_types::GameEvent::DialogueOccurred {
+                    npc_id: speaker_id,
+                    summary: parsed.dialogue.clone(),
+                    player_said: Some(prompt_input.to_string()),
+                    npc_said: Some(parsed.dialogue.clone()),
+                    timestamp: game_time,
+                });
+        }
     }
 
     let line = if parsed.dialogue.trim().is_empty() {

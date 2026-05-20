@@ -99,7 +99,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **WebSocket events** for world updates, streaming tokens, theme changes, and map source switches.
 - **Per-session save isolation** — game state lives under `<user-data>/saves/<session_id>/` and survives restarts. The user-data root is platform-native (`~/Library/Application Support/Rundale` on macOS, `$XDG_DATA_HOME/rundale` on Linux, `%APPDATA%\Rundale` on Windows) and named after the active mod's `save_root`. Override with `PARISH_SAVES_DIR` (saves), `PARISH_TILE_CACHE_DIR` (tile cache), or `PARISH_USER_DATA_DIR` (root).
 - **Prometheus-style `/metrics`** for auth failures, session counts, and inference call stats.
-- **Deploy artifacts** — multi-stage `Dockerfile` and Railway watchdog script in `deploy/`.
+- **Deploy artifacts** — multi-stage `Dockerfile` in `deploy/`.
 
 ### Headless / CLI
 
@@ -216,7 +216,7 @@ parish/
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
 mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
-deploy/                Dockerfile + railway.toml
+deploy/                Dockerfile
 docs/                  design, ADRs, plans, research, agent guides
 justfile               Top-level proxies for common tasks
 ```

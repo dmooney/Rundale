@@ -1,0 +1,23 @@
+# snapshot-tier-preserve fixture
+# ==============================
+# Sanity script — confirms the world is still playable after the
+# snapshot::restore fix. The actual restore-path assertions live in
+# the parish-persistence integration test
+# (`tests::tier_state_preserved_across_restore`); this fixture just
+# proves the surrounding game loop is undisturbed.
+
+/status
+/time
+/npcs
+
+# Movement so any tier-recompute path runs at least once.
+go to The Crossroads
+/npcs
+/wait 30
+/npcs
+go to Darcy's Pub
+/npcs
+
+# Final state.
+/debug clock
+/debug npcs
