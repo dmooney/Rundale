@@ -8,14 +8,14 @@ Corpus is intentionally undersized vs the plan's 1100-prompt target (155 actual)
 
 ## Phase 2 — intent slice + deterministic grader
 
-- `parish/testing/rundale-bench/v1/intent.jsonl` — 30 records (10 core, 20 extended), spanning move/talk/look/interact/examine/unknown. Adversarial cases included (past-tense place mentions = talk not move).
-- `parish/testing/rundale-bench/grade.py::grade_intent` — exact-match intent label × Jaccard(target) × Jaccard(dialogue). Score is `label_match * (0.5 + 0.25*target_jaccard + 0.25*dialogue_jaccard)`; label mismatch zeros the score (parser bugs are not partial-credit).
-- `parish/testing/rundale-bench/rundale_bench.py` — orchestrator with `--slice intent`. Production `INTENT_SYS` system prompt copied verbatim from `parish/scripts/local-eval/gen_samples.py`.
+- `rundale-bench/v1/intent.jsonl` — 30 records (10 core, 20 extended), spanning move/talk/look/interact/examine/unknown. Adversarial cases included (past-tense place mentions = talk not move).
+- `rundale-bench/grade.py::grade_intent` — exact-match intent label × Jaccard(target) × Jaccard(dialogue). Score is `label_match * (0.5 + 0.25*target_jaccard + 0.25*dialogue_jaccard)`; label mismatch zeros the score (parser bugs are not partial-credit).
+- `rundale-bench/rundale_bench.py` — orchestrator with `--slice intent`. Production `INTENT_SYS` system prompt copied verbatim from `parish/scripts/local-eval/gen_samples.py`.
 
 ### Smoke run
 
 ```sh
-python3 parish/testing/rundale-bench/rundale_bench.py \
+python3 rundale-bench/rundale_bench.py \
     --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \
     --suite v1 --slice intent --limit 30
 ```
@@ -24,8 +24,8 @@ Result: `label_match_rate=0.700, mean_score=0.676` on 30 records, 12.8 min wall 
 
 ## Phase 3 — dialogue extension + pinned judge
 
-- `parish/testing/rundale-bench/v1/dialogue.jsonl` grown from 100 → 150 records. Added 50 new `extended` records spanning emotional/social (15), medical/herbal (15), folklore/supernatural (12), practical/everyday (8). Hand-authored; not LLM-generated, to avoid trivial vocabulary clustering.
-- `parish/testing/rundale-bench/v1/judge_v1.json` — pinned LLM judge:
+- `rundale-bench/v1/dialogue.jsonl` grown from 100 → 150 records. Added 50 new `extended` records spanning emotional/social (15), medical/herbal (15), folklore/supernatural (12), practical/everyday (8). Hand-authored; not LLM-generated, to avoid trivial vocabulary clustering.
+- `rundale-bench/v1/judge_v1.json` — pinned LLM judge:
   - `model = claude-sonnet-4-6` (chosen over Opus to keep per-judge cost low; rubric is a 5-axis 1-5 scoring task that doesn't need Opus capability headroom)
   - `temperature = 0`
   - `rubric_sha256 = 1dcb5da5e0a6c1c322812b231e318604ff41a46f0a2eb71761c187071e0709e6`
@@ -55,7 +55,7 @@ Schema validator is hand-rolled — no `jsonschema` dep added. Supports the subs
 
 ## Phase 5 — holdout split
 
-- `parish/testing/rundale-bench/split_holdout.py` — deterministic split by `sha256(id)` bottom-20%. Reproducible across machines + immune to record reordering.
+- `rundale-bench/split_holdout.py` — deterministic split by `sha256(id)` bottom-20%. Reproducible across machines + immune to record reordering.
 - `core` tier preserved in dev — never moves to holdout, so `gen_dlg.py` and `flaw_scan.py` keep working from the same canonical 5-prompt smoke set.
 - `eval_lib.load_slice` takes `split="dev"|"holdout"`; manifest tracks both files; loader verifies sha256 for whichever side was requested.
 - Encryption deferred. v1-dev holdouts are plaintext-in-repo. Phase 7 freeze will age-encrypt holdouts behind a CI-only key.
@@ -72,7 +72,7 @@ Effective holdout rates fall short of the 20% target because the `core` tier car
 
 ## Phase 6 — leaderboard scaffold
 
-- `docs/proofs/rundale-bench/leaderboard.md` — append-only ranking table. Seeded with one row from the pre-split intent smoke; future rows must run against the split slices.
+- `rundale-bench/artifacts/leaderboard.md` — append-only ranking table. Seeded with one row from the pre-split intent smoke; future rows must run against the split slices.
 - Submission rules documented inline: holdout is the leaderboard, dev rows are reproducibility-only, re-runs replace earlier tuples, cost must come from `CostTracker`, `harness_sha` is `git rev-parse HEAD` at run-time.
 - Eligible-targets backlog lists every `preset_models()` cloud + local pick that should be benchmarked before any preset swap.
 

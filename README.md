@@ -6,6 +6,8 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 
 [![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
 
+**Model leaderboard:** [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md) tracks dialogue, performance, JSON-compliance, and Gaeilge fluency scores from the reproducible [`rundale-bench`](rundale-bench/) harness.
+
 <table>
   <tr>
     <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" width="160"/><br/><b>Map</b></a></td>

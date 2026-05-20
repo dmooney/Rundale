@@ -9,7 +9,7 @@ The transcript demonstrates:
    test — every provider TOML (including the updated openrouter, groq,
    mistral, and vllm files) parses correctly at compile time.
 2. Each preset change is backed by quantitative eval data from
-   `docs/proofs/rundale-bench/` (dual-judge multi-axis scores, May 15 2026).
+   `rundale-bench/artifacts/` (dual-judge multi-axis scores, May 15 2026).
 3. The model-catalog.ts change is a pure data addition; no TypeScript errors
    were introduced.
 4. No gameplay logic, IPC handlers, or runtime paths changed — this is

@@ -6,7 +6,7 @@ The absolute 5-axis rubric saturated near the ceiling (gpt-oss-120b:free scored 
 
 ## Changes
 
-- `parish/testing/rundale-bench/v1/judge_pairwise_v1.json` — new pinned judge config. Same model as `judge_v1` (qwen3-235b on OpenRouter) but pairwise rubric; `rubric_sha256 = b5664f96…dc7c0` independent from `judge_v1.rubric_sha256`.
+- `rundale-bench/v1/judge_pairwise_v1.json` — new pinned judge config. Same model as `judge_v1` (qwen3-235b on OpenRouter) but pairwise rubric; `rubric_sha256 = b5664f96…dc7c0` independent from `judge_v1.rubric_sha256`.
 - `grade.py::grade_pairwise(reply_a, reply_b, prompt, judge, invoke)` — judge picks A | B | tie + one-sentence reason. Non-Latin script in one reply auto-disqualifies that reply (judge can't be trusted to enforce this consistently).
 - `rundale_bench.py --mode elo` — new top-level mode. Takes repeated `--target` flags (≥2 required), runs every candidate over the dialogue slice once, then schedules a pairwise match per prompt per (a,b) pair with randomized position. ELO accumulates with K=32 → K=16 after 50 matches per candidate. Bootstrap 5/95 CI over 500 resamples.
 - `test_grade.py` — 5 new tests for `grade_pairwise` (winner, tie, invalid winner, non-Latin auto-DQ, rubric tamper). 27/27 pass.
@@ -14,7 +14,7 @@ The absolute 5-axis rubric saturated near the ceiling (gpt-oss-120b:free scored 
 ## Smoke run
 
 ```sh
-python3 parish/testing/rundale-bench/rundale_bench.py \
+python3 rundale-bench/rundale_bench.py \
     --mode elo \
     --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \
     --target 'qwen/qwen3-235b-a22b-2507@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \

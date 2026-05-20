@@ -18,7 +18,7 @@ and the frontend model autocomplete catalog were touched.
 
 ## Eval evidence motivating each change
 
-Dual-judge multi-axis scores from `docs/proofs/rundale-bench/`:
+Dual-judge multi-axis scores from `rundale-bench/artifacts/`:
 
 ### Flagship tier (May 15, 15 prompts/candidate)
 

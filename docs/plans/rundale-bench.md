@@ -43,7 +43,7 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
 
 ## Deliverables
 
-1. **Dataset.** `parish/testing/rundale-bench/v1/<slice>.jsonl`, one record per line:
+1. **Dataset.** `rundale-bench/v1/<slice>.jsonl`, one record per line:
    ```jsonl
    {"id": "intent-0001", "prompt": "...", "schema": {...}, "gold": {"intent": "talk", "target": "Padraig", "dialogue": "I saw his cow"}}
    ```
@@ -51,13 +51,13 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
 
 2. **Holdout split.** 20% reserved as `<slice>.holdout.jsonl`. Sealed: encrypted-at-rest in repo (age key in CI secret) or hosted externally. Never decrypted in interactive sessions; only the `rundale_bench.py` CI runner sees the plaintext. Hashes of holdout prompts checked in alongside ciphertext so contamination can be audited.
 
-3. **Graders.** `parish/testing/rundale-bench/grade.py`:
+3. **Graders.** `rundale-bench/grade.py`:
    - `grade_intent(pred, gold)` — exact-match label + Jaccard on optional fields, returns 0.0-1.0
    - `grade_schema(pred, schema)` — JSON-Schema validation, returns boolean
    - `grade_dialogue(pred, rubric, judge)` — calls pinned judge model with frozen rubric prompt, returns the 5-axis scores + overall
    - `grade_simulation(pred, schema, judge)` — schema-validate then plausibility-judge
 
-4. **Harness.** `parish/testing/rundale-bench/rundale_bench.py`:
+4. **Harness.** `rundale-bench/rundale_bench.py`:
    ```sh
    python3 -m rundale_bench --target '<spec>' --suite v1 --split dev
    python3 -m rundale_bench --target '<spec>' --suite v1 --split holdout    # CI-only
@@ -74,7 +74,7 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
    - citation BibTeX
    - errata + version history
 
-7. **Leaderboard.** `docs/proofs/rundale-bench/leaderboard.md` — append-only table:
+7. **Leaderboard.** `rundale-bench/artifacts/leaderboard.md` — generated Markdown table:
    ```
    | Date (UTC)        | Target                                                     | Dev / Holdout overall | Intent | Reaction | Tier2 | Tier3 | Dialogue | $/1k | p50 ms | Harness SHA |
    ```
@@ -128,7 +128,7 @@ Acceptance: a CI run on `gpt-oss-120b:free` produces a leaderboard row; the dev 
 
 ### Phase 6 — Leaderboard + submission protocol
 
-- Author `docs/proofs/rundale-bench/leaderboard.md` with starter rows for the current `preset_models()` picks.
+- Author `rundale-bench/artifacts/leaderboard.md` with starter rows for the current `preset_models()` picks.
 - Spec out the submission protocol: PR adds a leaderboard row, CI re-runs the harness to verify the score.
 - Optional: external mirror so the leaderboard is searchable without cloning the repo.
 
