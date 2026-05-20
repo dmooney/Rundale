@@ -10,5 +10,6 @@ NSApplication's application icon, which is the Dock surface; the existing window
 icon path remains in place for window-level icon support. The runtime also
 reapplies the icon on Tauri `RunEvent::Ready`, after Tauri dev mode's own
 bundle-icon update, so `just run` and packaged launches use the same mod-owned
-Dock icon. The included 64px proof artifact confirms the generated artwork
-remains legible at small icon sizes.
+Dock icon. The mod icon PNGs now carry alpha with transparent rounded corners,
+and the included 64px proof artifact confirms the generated artwork remains
+legible at small icon sizes while preserving the transparent corner mask.

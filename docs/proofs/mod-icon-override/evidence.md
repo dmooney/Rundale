@@ -15,12 +15,20 @@ macOS. The desktop runtime now reapplies the active mod icon from the app's
 `Ready` callback after Tauri's own dev icon update, keeping `just run` aligned
 with packaged launches.
 
+Transparent-corner follow-up: the Rundale mod icon set now ships as RGBA PNGs
+with an antialiased rounded-rectangle alpha mask. `sips -g hasAlpha` reports
+`hasAlpha: yes` for `icon-512.png`, `icon-64.png`, and the proof thumbnail.
+A PNG alpha decode check confirmed all four corner pixels are alpha `0` and
+the center pixel remains alpha `255` for representative sizes.
+
 Checks run:
 
 - `cargo test -p parish-core game_mod::tests::test_mod_icon_paths`
 - `npm run test -- app-icon.test.ts`
 - `cargo check -p parish-tauri`
 - `just run` (launched and interrupted after confirming the dev path reaches the app)
+- `sips -g hasAlpha mods/rundale/assets/icons/app/icon-512.png mods/rundale/assets/icons/app/icon-64.png docs/proofs/mod-icon-override/rundale-icon-64.png`
+- PNG alpha decode spot-check for `icon-16.png`, `icon-64.png`, `icon-512.png`, `icon-1024.png`, and `favicon-32.png`
 - `just notices`
 - `just agent-check`
 - `git diff --check`
