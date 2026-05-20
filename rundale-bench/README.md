@@ -1,8 +1,10 @@
 # rundale-bench
 
-Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference. Drives model + provider choices in [`parish-config::presets::preset_models()`](../../crates/parish-config/src/presets.rs) and the broader cloud / local inference selection.
+Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference. Drives model + provider choices in [`parish-config::presets::preset_models()`](../parish/crates/parish-config/src/presets.rs) and the broader cloud / local inference selection.
 
-Spec + roadmap: [`docs/plans/rundale-bench.md`](../../../docs/plans/rundale-bench.md).
+Spec + roadmap: [`docs/plans/rundale-bench.md`](../docs/plans/rundale-bench.md).
+
+Generated benchmark outputs live in [`artifacts/`](artifacts/). The GitHub-renderable leaderboard is [`artifacts/leaderboard.md`](artifacts/leaderboard.md); the interactive static dashboard is [`artifacts/leaderboard.html`](artifacts/leaderboard.html).
 
 ## Status
 
@@ -17,11 +19,13 @@ Spec + roadmap: [`docs/plans/rundale-bench.md`](../../../docs/plans/rundale-benc
 | 5 — Holdout split | landed | deterministic id-hash split; `core` tier preserved in dev; encryption deferred to v1.0 freeze |
 | 6 — Leaderboard | landed (seed row only) | append-only table; one seed row pre-split; needs broader sweep |
 | 7 — v1.0 freeze | deferred | requires corpus growth + 3+ leaderboard rows before tag |
+| Gaeilge fluency slice | landed (starter corpus) | 12 source-backed records from Tatoeba and UD Irish-IDT for translation, idiom variants, grammar, comprehension, and English-leakage resistance; `judge_gaeilge_v1` pinned |
 
 ## Layout
 
-```
-parish/testing/rundale-bench/
+```text
+rundale-bench/
+├── artifacts/                  — generated run/sample/perf JSON + leaderboard pages
 ├── README.md                   — this file
 ├── build_manifest.py           — rebuild MANIFEST.json after dataset edits
 ├── split_holdout.py            — deterministic dev/holdout split (20% via SHA-256 of id)
@@ -40,29 +44,37 @@ parish/testing/rundale-bench/
     ├── tier2-sim.holdout.jsonl
     ├── tier3-sim.jsonl         — 15 records, 6+ hour NPC batch JSON (Phase 4)
     ├── tier3-sim.holdout.jsonl
+    ├── gaeilge.jsonl           — Gaeilge fluency tasks
+    ├── gaeilge.holdout.jsonl
+    ├── GAEILGE_SOURCES.md      — Gaeilge source provenance + licences
     ├── judge_v1.json           — pinned LLM judge for dialogue (rubric_sha256-verified)
     ├── judge_reaction_v1.json  — pinned judge for reaction in-character score
-    └── judge_sim_v1.json       — pinned judge for sim plausibility
+    ├── judge_sim_v1.json       — pinned judge for sim plausibility
+    └── judge_gaeilge_v1.json   — pinned judge for Gaeilge fluency
 ```
 
 ## Running the bench
 
 ```sh
 # One slice on a target's dev split:
-python3 parish/testing/rundale-bench/rundale_bench.py \
+python3 rundale-bench/rundale_bench.py \
     --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \
     --suite v1 --slice intent --split dev --limit 30
 
 # Full sweep — every slice, dev split:
-python3 parish/testing/rundale-bench/rundale_bench.py \
+python3 rundale-bench/rundale_bench.py \
     --target '<spec>' --suite v1 --slice all --split dev
 
+# Gaeilge fluency slice only:
+python3 rundale-bench/rundale_bench.py \
+    --target '<spec>' --suite v1 --slice gaeilge --split dev
+
 # Holdout (gates leaderboard submission):
-python3 parish/testing/rundale-bench/rundale_bench.py \
+python3 rundale-bench/rundale_bench.py \
     --target '<spec>' --suite v1 --slice all --split holdout
 ```
 
-Outputs land in `docs/proofs/rundale-bench/run_<target>_<slice>_<UTC>.json`. Append a row to `docs/proofs/rundale-bench/leaderboard.md` for each holdout sweep.
+Outputs land in `rundale-bench/artifacts/run_<target>_<slice>_<UTC>.json`. Rebuild `rundale-bench/artifacts/leaderboard.md` and `.html` with `python3 rundale-bench/build_leaderboard_page.py`.
 
 ## Slice record schema
 
@@ -93,7 +105,7 @@ Each line of a `*.jsonl` slice is a JSON object:
 `MANIFEST.json` records per-slice byte count, record count, and SHA-256, plus a single `merkle_root_sha256` over the sorted list of per-slice hashes. Rebuild after any intentional dataset edit:
 
 ```sh
-python3 parish/testing/rundale-bench/build_manifest.py v1
+python3 rundale-bench/build_manifest.py v1
 ```
 
 Then commit `MANIFEST.json` alongside the slice change so reviewers can see the hash delta.
@@ -120,12 +132,10 @@ After `frozen=true`, edits require a new version directory (`v1.1/`, `v2/`).
 - One record per line, no embedded newlines (use `\n` in JSON strings).
 - Run `python3 -c 'import json; [json.loads(l) for l in open(<path>)]'` on the slice before committing — a malformed line poisons every downstream grader.
 
-## What's not yet here
+## Still pending
 
-- Holdout splits (Phase 5).
-- Deterministic graders (`grade.py`, Phase 2+).
-- Pinned LLM-judge (Phase 3).
-- Bench orchestrator (`rundale_bench.py`, Phase 4).
-- Leaderboard (Phase 6).
+- Corpus growth to the planned v1.0 size.
+- Encrypted holdout handling for the eventual frozen release.
+- Broader leaderboard coverage across at least one frontier cloud target, one open-weight target, and one local MLX target on the holdout split.
 
-Each of these lands as its own incremental PR — see the [plan doc](../../../docs/plans/rundale-bench.md) for the phased rollout.
+See the [plan doc](../docs/plans/rundale-bench.md) for the remaining freeze work.

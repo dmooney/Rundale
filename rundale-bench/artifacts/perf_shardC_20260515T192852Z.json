@@ -1,0 +1,812 @@
+{
+  "ran_at_utc": "2026-05-15T19:39:39.605471+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "qwen/qwen3-max": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1173,
+      "ttft_ms_p90": 1410,
+      "total_ms_median": 2904,
+      "tokens_per_second_median": 32.6,
+      "tokens_per_second_p90": 37.5,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1152,
+          "total_ms": 2609,
+          "completion_tokens": 40,
+          "prompt_tokens": 69,
+          "tokens_per_second": 27.45367192862045,
+          "reply_len": 166,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1486,
+          "total_ms": 4118,
+          "completion_tokens": 88,
+          "prompt_tokens": 73,
+          "tokens_per_second": 33.43465045592705,
+          "reply_len": 356,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1144,
+          "total_ms": 2692,
+          "completion_tokens": 57,
+          "prompt_tokens": 73,
+          "tokens_per_second": 36.82170542635659,
+          "reply_len": 209,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 936,
+          "total_ms": 3825,
+          "completion_tokens": 48,
+          "prompt_tokens": 69,
+          "tokens_per_second": 16.614745586708203,
+          "reply_len": 170,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1033,
+          "total_ms": 3303,
+          "completion_tokens": 68,
+          "prompt_tokens": 71,
+          "tokens_per_second": 29.955947136563875,
+          "reply_len": 279,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1191,
+          "total_ms": 2922,
+          "completion_tokens": 53,
+          "prompt_tokens": 70,
+          "tokens_per_second": 30.618139803581744,
+          "reply_len": 202,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1389,
+          "total_ms": 2934,
+          "completion_tokens": 57,
+          "prompt_tokens": 70,
+          "tokens_per_second": 36.89320388349515,
+          "reply_len": 208,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1245,
+          "total_ms": 2741,
+          "completion_tokens": 56,
+          "prompt_tokens": 69,
+          "tokens_per_second": 37.4331550802139,
+          "reply_len": 226,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1155,
+          "total_ms": 2887,
+          "completion_tokens": 55,
+          "prompt_tokens": 69,
+          "tokens_per_second": 31.755196304849886,
+          "reply_len": 228,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-max",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1402,
+          "total_ms": 2703,
+          "completion_tokens": 49,
+          "prompt_tokens": 72,
+          "tokens_per_second": 37.66333589546503,
+          "reply_len": 205,
+          "error": null
+        }
+      ]
+    },
+    "deepseek/deepseek-v3.2": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 691,
+      "ttft_ms_p90": 1554,
+      "total_ms_median": 2704,
+      "tokens_per_second_median": 22.2,
+      "tokens_per_second_p90": 50.9,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1801,
+          "total_ms": 2552,
+          "completion_tokens": 37,
+          "prompt_tokens": 57,
+          "tokens_per_second": 49.2676431424767,
+          "reply_len": 142,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 515,
+          "total_ms": 4186,
+          "completion_tokens": 45,
+          "prompt_tokens": 61,
+          "tokens_per_second": 12.258240261509126,
+          "reply_len": 183,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 419,
+          "total_ms": 4095,
+          "completion_tokens": 31,
+          "prompt_tokens": 61,
+          "tokens_per_second": 8.433079434167572,
+          "reply_len": 124,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 236,
+          "total_ms": 694,
+          "completion_tokens": 30,
+          "prompt_tokens": 57,
+          "tokens_per_second": 65.50218340611353,
+          "reply_len": 113,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1527,
+          "total_ms": 2135,
+          "completion_tokens": 20,
+          "prompt_tokens": 59,
+          "tokens_per_second": 32.89473684210527,
+          "reply_len": 96,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1469,
+          "total_ms": 3088,
+          "completion_tokens": 40,
+          "prompt_tokens": 58,
+          "tokens_per_second": 24.706609017912292,
+          "reply_len": 142,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 721,
+          "total_ms": 2206,
+          "completion_tokens": 27,
+          "prompt_tokens": 58,
+          "tokens_per_second": 18.18181818181818,
+          "reply_len": 97,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 662,
+          "total_ms": 2987,
+          "completion_tokens": 29,
+          "prompt_tokens": 57,
+          "tokens_per_second": 12.473118279569892,
+          "reply_len": 122,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1235,
+          "total_ms": 2856,
+          "completion_tokens": 32,
+          "prompt_tokens": 57,
+          "tokens_per_second": 19.740900678593462,
+          "reply_len": 141,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v3.2",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 513,
+          "total_ms": 1522,
+          "completion_tokens": 31,
+          "prompt_tokens": 60,
+          "tokens_per_second": 30.72348860257681,
+          "reply_len": 129,
+          "error": null
+        }
+      ]
+    },
+    "deepseek/deepseek-v4-pro": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1317,
+      "ttft_ms_p90": 2125,
+      "total_ms_median": 6170,
+      "tokens_per_second_median": 39.2,
+      "tokens_per_second_p90": 66.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1258,
+          "total_ms": 3628,
+          "completion_tokens": 153,
+          "prompt_tokens": 57,
+          "tokens_per_second": 64.55696202531645,
+          "reply_len": 598,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1391,
+          "total_ms": 7269,
+          "completion_tokens": 200,
+          "prompt_tokens": 61,
+          "tokens_per_second": 34.02517863218782,
+          "reply_len": 780,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1481,
+          "total_ms": 6612,
+          "completion_tokens": 132,
+          "prompt_tokens": 61,
+          "tokens_per_second": 25.725979341259013,
+          "reply_len": 515,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1011,
+          "total_ms": 4841,
+          "completion_tokens": 170,
+          "prompt_tokens": 57,
+          "tokens_per_second": 44.38642297650131,
+          "reply_len": 704,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 626,
+          "total_ms": 3380,
+          "completion_tokens": 159,
+          "prompt_tokens": 59,
+          "tokens_per_second": 57.734204793028326,
+          "reply_len": 643,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 4817,
+          "total_ms": 9636,
+          "completion_tokens": 158,
+          "prompt_tokens": 58,
+          "tokens_per_second": 32.78688524590164,
+          "reply_len": 612,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1826,
+          "total_ms": 6986,
+          "completion_tokens": 176,
+          "prompt_tokens": 58,
+          "tokens_per_second": 34.10852713178294,
+          "reply_len": 695,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1039,
+          "total_ms": 5728,
+          "completion_tokens": 231,
+          "prompt_tokens": 57,
+          "tokens_per_second": 49.26423544465771,
+          "reply_len": 995,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 674,
+          "total_ms": 2197,
+          "completion_tokens": 130,
+          "prompt_tokens": 57,
+          "tokens_per_second": 85.35784635587656,
+          "reply_len": 541,
+          "error": null
+        },
+        {
+          "candidate": "deepseek/deepseek-v4-pro",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1376,
+          "total_ms": 10891,
+          "completion_tokens": 200,
+          "prompt_tokens": 60,
+          "tokens_per_second": 21.019442984760904,
+          "reply_len": 886,
+          "error": null
+        }
+      ]
+    },
+    "moonshotai/kimi-k2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 942,
+      "ttft_ms_p90": 2073,
+      "total_ms_median": 7220,
+      "tokens_per_second_median": 37.6,
+      "tokens_per_second_p90": 70.7,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 577,
+          "total_ms": 6559,
+          "completion_tokens": 200,
+          "prompt_tokens": 66,
+          "tokens_per_second": 33.433634236041456,
+          "reply_len": 916,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1189,
+          "total_ms": 7152,
+          "completion_tokens": 200,
+          "prompt_tokens": 69,
+          "tokens_per_second": 33.5401643468053,
+          "reply_len": 765,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1423,
+          "total_ms": 12964,
+          "completion_tokens": 797,
+          "prompt_tokens": 70,
+          "tokens_per_second": 69.058140542414,
+          "reply_len": 3328,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1749,
+          "total_ms": 7605,
+          "completion_tokens": 200,
+          "prompt_tokens": 65,
+          "tokens_per_second": 34.15300546448088,
+          "reply_len": 798,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 725,
+          "total_ms": 7289,
+          "completion_tokens": 269,
+          "prompt_tokens": 68,
+          "tokens_per_second": 40.98110907982937,
+          "reply_len": 1111,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 437,
+          "total_ms": 4025,
+          "completion_tokens": 200,
+          "prompt_tokens": 67,
+          "tokens_per_second": 55.74136008918617,
+          "reply_len": 822,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 623,
+          "total_ms": 2951,
+          "completion_tokens": 200,
+          "prompt_tokens": 67,
+          "tokens_per_second": 85.9106529209622,
+          "reply_len": 786,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 527,
+          "total_ms": 3653,
+          "completion_tokens": 200,
+          "prompt_tokens": 66,
+          "tokens_per_second": 63.97952655150352,
+          "reply_len": 869,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1159,
+          "total_ms": 7460,
+          "completion_tokens": 200,
+          "prompt_tokens": 65,
+          "tokens_per_second": 31.740993493096333,
+          "reply_len": 803,
+          "error": null
+        },
+        {
+          "candidate": "moonshotai/kimi-k2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 4990,
+          "total_ms": 26538,
+          "completion_tokens": 200,
+          "prompt_tokens": 69,
+          "tokens_per_second": 9.281603861147207,
+          "reply_len": 928,
+          "error": null
+        }
+      ]
+    },
+    "z-ai/glm-4.6": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1442,
+      "ttft_ms_p90": 2844,
+      "total_ms_median": 16883,
+      "tokens_per_second_median": 34.7,
+      "tokens_per_second_p90": 53.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 608,
+          "total_ms": 5597,
+          "completion_tokens": 257,
+          "prompt_tokens": 60,
+          "tokens_per_second": 51.51332932451393,
+          "reply_len": 966,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1390,
+          "total_ms": 13750,
+          "completion_tokens": 857,
+          "prompt_tokens": 63,
+          "tokens_per_second": 69.33656957928802,
+          "reply_len": 3302,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1564,
+          "total_ms": 24194,
+          "completion_tokens": 951,
+          "prompt_tokens": 63,
+          "tokens_per_second": 42.02386212991604,
+          "reply_len": 3595,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 2756,
+          "total_ms": 27602,
+          "completion_tokens": 645,
+          "prompt_tokens": 59,
+          "tokens_per_second": 25.959913064477178,
+          "reply_len": 2474,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 566,
+          "total_ms": 7465,
+          "completion_tokens": 200,
+          "prompt_tokens": 62,
+          "tokens_per_second": 28.989708653428032,
+          "reply_len": 758,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1494,
+          "total_ms": 34912,
+          "completion_tokens": 961,
+          "prompt_tokens": 60,
+          "tokens_per_second": 28.7569573283859,
+          "reply_len": 3645,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 646,
+          "total_ms": 5978,
+          "completion_tokens": 262,
+          "prompt_tokens": 61,
+          "tokens_per_second": 49.13728432108027,
+          "reply_len": 1042,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 659,
+          "total_ms": 7692,
+          "completion_tokens": 200,
+          "prompt_tokens": 60,
+          "tokens_per_second": 28.437366699843594,
+          "reply_len": 848,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 3640,
+          "total_ms": 28902,
+          "completion_tokens": 647,
+          "prompt_tokens": 59,
+          "tokens_per_second": 25.611590531232682,
+          "reply_len": 2488,
+          "error": null
+        },
+        {
+          "candidate": "z-ai/glm-4.6",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1589,
+          "total_ms": 20016,
+          "completion_tokens": 744,
+          "prompt_tokens": 62,
+          "tokens_per_second": 40.37553589840994,
+          "reply_len": 2930,
+          "error": null
+        }
+      ]
+    },
+    "openai/gpt-oss-120b": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 427,
+      "ttft_ms_p90": 816,
+      "total_ms_median": 3072,
+      "tokens_per_second_median": 62.7,
+      "tokens_per_second_p90": 600.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 469,
+          "total_ms": 3465,
+          "completion_tokens": 184,
+          "prompt_tokens": 126,
+          "tokens_per_second": 61.415220293724964,
+          "reply_len": 758,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 430,
+          "total_ms": 595,
+          "completion_tokens": 200,
+          "prompt_tokens": 131,
+          "tokens_per_second": 1212.121212121212,
+          "reply_len": 663,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 639,
+          "total_ms": 2722,
+          "completion_tokens": 168,
+          "prompt_tokens": 118,
+          "tokens_per_second": 80.65290446471435,
+          "reply_len": 633,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 398,
+          "total_ms": 3201,
+          "completion_tokens": 143,
+          "prompt_tokens": 114,
+          "tokens_per_second": 51.01676774884053,
+          "reply_len": 523,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 400,
+          "total_ms": 3631,
+          "completion_tokens": 200,
+          "prompt_tokens": 116,
+          "tokens_per_second": 61.90034045187249,
+          "reply_len": 753,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 314,
+          "total_ms": 893,
+          "completion_tokens": 200,
+          "prompt_tokens": 111,
+          "tokens_per_second": 345.4231433506045,
+          "reply_len": 782,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 473,
+          "total_ms": 2944,
+          "completion_tokens": 157,
+          "prompt_tokens": 127,
+          "tokens_per_second": 63.537029542695265,
+          "reply_len": 542,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 366,
+          "total_ms": 3520,
+          "completion_tokens": 189,
+          "prompt_tokens": 114,
+          "tokens_per_second": 59.92390615091947,
+          "reply_len": 742,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 424,
+          "total_ms": 4503,
+          "completion_tokens": 200,
+          "prompt_tokens": 114,
+          "tokens_per_second": 49.03162539838196,
+          "reply_len": 815,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-oss-120b",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 2418,
+          "total_ms": 2694,
+          "completion_tokens": 147,
+          "prompt_tokens": 127,
+          "tokens_per_second": 532.6086956521739,
+          "reply_len": 268,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 646.6279489994049,
+  "cost": {
+    "usd": 0.0006577899999999999,
+    "calls": 180
+  }
+}

@@ -1,0 +1,237 @@
+{
+  "scored_at_utc": "2026-05-14T18:49:02.123078+00:00",
+  "samples_file": "rundale-bench/artifacts/dialogue_samples_20260514T173823Z.json",
+  "judge": {
+    "model": "x-ai/grok-4.3",
+    "url": "https://openrouter.ai/api/v1"
+  },
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "rubric": "You are an impartial judge scoring a single piece of fictional dialogue from rural Ireland in 1820. The model is playing Brigid O'Brien, a 42-year-old midwife.\n\nScore the reply on each axis independently on an integer 0-10 scale, where:\n\n  - 0  = broken, off-topic, or non-Latin script anywhere in the reply\n  - 3  = recognisable midwife voice but flat, anachronistic, or unresponsive\n  - 6  = period-plausible, on-topic, no glaring tells\n  - 8  = strong period voice with idiomatic Hiberno-English\n  - 10 = a sentence a real 1820 Irish midwife could have spoken\n\nAxes:\n  - CHARACTER         — reads as the specific persona (rural Irish midwife, 1820, woman of folk-medicine experience)\n  - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms (\"hi\", \"okay\", \"guys\")\n  - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0\n  - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding\n  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing\n\nAfter the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.\n\nOutput ONLY a JSON object: {\"character\":<0-10>, \"authenticity\":<0-10>, \"language\":<0-10>, \"responsiveness\":<0-10>, \"craft\":<0-10>, \"total\":<0.0-10.0>, \"reason\":\"<one short sentence, ≤25 words>\"}. No prose, no markdown.",
+  "aggregates": {
+    "qwen/qwen3-max": {
+      "character_mean": 8.8,
+      "character_n": 15,
+      "authenticity_mean": 9.066666666666666,
+      "authenticity_n": 15,
+      "language_mean": 8.666666666666666,
+      "language_n": 15,
+      "responsiveness_mean": 8.333333333333334,
+      "responsiveness_n": 15,
+      "craft_mean": 8.4,
+      "craft_n": 15,
+      "total_mean": 8.653333333333334,
+      "total_n": 15
+    }
+  },
+  "ranked": [
+    {
+      "candidate": "qwen/qwen3-max",
+      "character_mean": 8.8,
+      "character_n": 15,
+      "authenticity_mean": 9.066666666666666,
+      "authenticity_n": 15,
+      "language_mean": 8.666666666666666,
+      "language_n": 15,
+      "responsiveness_mean": 8.333333333333334,
+      "responsiveness_n": 15,
+      "craft_mean": 8.4,
+      "craft_n": 15,
+      "total_mean": 8.653333333333334,
+      "total_n": 15
+    }
+  ],
+  "per_record": [
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0001",
+      "reply": "Ah, child, come sit by the fire—those dreams won’t drown ye if we face ’em proper. Have ye been brewing that bog myrtle I left with yer mam last month? A spoonful in warm milk afore bed might quiet the mind.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Fits midwife persona with apt folk remedy and Hiberno-English phrasing."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0002",
+      "reply": "Ah, the Cailleach near the rath? Old Maeve, God bless her—sharp as a blackthorn switch and twice as prickly. She’s known for her knowledge of the *luibhean*—herbs, I mean—and won’t suffer fools, but she’s never harmed a soul who showed her proper respect. Mind you don’t cut hawthorn near her fort; she’ll curse your cow’s milk dry before you’ve walked home.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Strong folk-midwife voice with apt period idiom and local lore."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0003",
+      "reply": "Ah, the poor soul—bring her this syrup made of honey, fresh thyme, and a drop o’ whiskey; it’ll loosen the phlegm and soothe her throat. Have her sip it warm, twice a day, and wrap her chest in a cloth soaked in mullein oil. Keep her by the fire and out o’ the damp—this cough’ll not linger if she’s kept warm and rested.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Folk remedy advice in strong, idiomatic rural Irish voice with no anachronisms."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0004",
+      "reply": "Aye, I saw him myself—tall fella with a limp and a satchel full of strange bottles. He’s taken the old miller’s cottage, though why anyone’d choose that damp ruin beats me. Keep your door barred after dark, child; not all strangers bring blessings.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Strong period voice and idiom with natural caution fitting a midwife."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0005",
+      "reply": "Ah, the poor beast—aye, could be more than a wolf. Lately, I’ve heard whispers of the *púca* stirring near the blackthorn grove, and fever-grass has been scarce, driving creatures to strange hunger. Best salt your remaining flock’s wool and hang rowan branches by the byre—better safe than sorrowful.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Fits 1820 midwife with strong folkloric Hiberno-English and direct advice."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0006",
+      "reply": "Ah, well I do—’twas the spring of ’09, near planting time. I set the bone myself with comfrey poultices and a splint of ash wood, God rest him. You were just a wee lad then, pale as milk, holding his hand through the fever.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong folk-medicine voice with natural Hiberno-English cadence and period detail."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0007",
+      "reply": "Ah, child, those were the will-o’-the-wisps—fairy lanterns, some call ’em. Best not follow ’em, mind; they’ll lead a soul straight into the bog. The good folk don’t take kindly to being spied on.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with authentic Irish folklore phrasing."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0008",
+      "reply": "Ah, child, that’s no small thing—strange-tasting water can be the first whisper of trouble. Bring me a dipperful tomorrow, and I’ll have a look; could be nothing, or it might be the old tannery upstream leaching again. Until then, boil it fierce before drinking, or better yet, use rainwater if you’ve any saved.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Evocative 1820 midwife voice with natural Hiberno-English and direct advice."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0009",
+      "reply": "Ah, God bless her. Send for me when her waters break or when the pains come regular as church bells—about a quarter-hour apart. And mind you’ve got clean linen, hot water, and a good fire lit before I arrive.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 9.2,
+      "reason": "Strong period voice delivering practical birthing instructions idiomatically."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0010",
+      "reply": "Ah, Father Cathal means well, God bless him, but he forgets that the old ways kept babes breathing and fevers broken long before his kind came to these hills. I’ll not argue with the Church, mind you—but I’ll keep my yarrow poultices and rowan charms close all the same. Your own mam swore by them when you were born, and here you stand, hale and whole.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Evocative 1820 midwife voice defending folk remedies in natural Hiberno-English."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0011",
+      "reply": "Ah, child, I’ve seen that pain twist many a face. Chew on a bit of clove—’tis sharp but eases the ache—or steep some willow bark in hot water and swill it round the sore tooth. And mind you don’t swallow it all, now.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Fits persona with apt folk remedies and period phrasing."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0012",
+      "reply": "Ah, child, that heat means the devil’s in it—likely festering. Wash it well with boiled rainwater and yarrow tea, then bind it tight with a poultice of crushed plantain leaves. Keep it raised and rest by the hearth; I’ll fetch my tincture of feverfew if it worsens by dawn.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 8,
+      "total": 8.6,
+      "reason": "Evocative period folk advice with solid Hiberno flavour and direct response."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0013",
+      "reply": "Aye, that I did—brought both those wee lads into the world during the ’09 blizzard, with naught but a tallow candle and a prayer. Their mam’s been bringing me currant buns ever since, God love her.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Evocative midwife voice with natural Hiberno-English and period detail."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0014",
+      "reply": "Ah, child, the crows know more than we do—aye, it’s an omen, but not always a dire one. They gather where the veil’s thin, at crossroads and dusk, when the wind carries whispers from beyond. Keep your hearth bright and your salt bowl full; that’ll ward what’s not meant for your door.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 7,
+      "craft": 9,
+      "total": 8.2,
+      "reason": "Fits folk-midwife persona well with authentic idiom but lacks specific prompt context."
+    },
+    {
+      "candidate": "qwen/qwen3-max",
+      "prompt_id": "dialogue-0015",
+      "reply": "Ah, child, three nights is no accident—that’s her way of reaching through the veil. Likely she’s got a warning or a blessing to pass on, or maybe just misses your face. Light a candle by the hearth tonight and whisper her name; she’ll find her way if you give her an opening.",
+      "character": 9,
+      "authenticity": 8,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 8,
+      "total": 8.4,
+      "reason": "Fits 1820 midwife persona with apt folk advice and solid Hiberno idiom."
+    }
+  ],
+  "cost": {
+    "calls": 15,
+    "usd": 0.0,
+    "prompt_tokens": 10559,
+    "completion_tokens": 10237
+  }
+}

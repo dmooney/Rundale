@@ -2,17 +2,17 @@
 #
 # Run from repo root, NOT this directory:
 #
-#     just -f parish/testing/rundale-bench/justfile <recipe> [args...]
+#     just -f rundale-bench/justfile <recipe> [args...]
 #
 # Most recipes load /Users/.../.env before invoking python so OPENROUTER_API_KEY
 # (and friends) reach the candidate / judge HTTP layer. Override via env var or
 # shell `export` if you keep credentials elsewhere.
 
-ENV_FILE := justfile_directory() / "../../../.env"
+ENV_FILE := justfile_directory() / "../.env"
 BENCH := justfile_directory()
-REPO_ROOT := justfile_directory() / "../../.."
-SCRIPTS := BENCH / "../../scripts/local-eval"
-SAMPLES_DIR := justfile_directory() / "../../../docs/proofs/rundale-bench"
+REPO_ROOT := justfile_directory() / ".."
+SCRIPTS := REPO_ROOT / "parish" / "scripts" / "local-eval"
+SAMPLES_DIR := BENCH / "artifacts"
 
 # Bundled candidate fleets — re-cached as model lineup shifts.
 CHEAP_TARGETS := "--target 'qwen/qwen3-235b-a22b-2507@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'mistralai/mistral-small-24b-instruct-2501@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'google/gemma-3-27b-it@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'microsoft/phi-4@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'deepseek/deepseek-v3.2@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'openai/gpt-oss-120b@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY'"
@@ -56,7 +56,7 @@ split version="v1":
 # Quick intent smoke against any OpenAI-compatible target. No judge calls — grade
 # is deterministic on the gold labels.
 #
-#     just -f parish/testing/rundale-bench/justfile intent 'gpt-oss-120b:free@.../v1#env:OR_KEY'
+#     just -f rundale-bench/justfile intent 'gpt-oss-120b:free@.../v1#env:OR_KEY'
 intent target limit="20":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -189,9 +189,9 @@ absolute-from-cache samples rubric axis_scale="10" judge=JUDGE output="":
 # Multi-axis 0-10 scoring over cached samples. Five axes (character /
 # authenticity / language / responsiveness / craft) + a judge-computed total.
 # Writes per-record scores + per-candidate aggregates to
-# docs/proofs/rundale-bench/multiaxis_<UTC>.json (auto-stamped).
+# rundale-bench/artifacts/multiaxis_<UTC>.json (auto-stamped).
 #
-#     just -f .../justfile multiaxis docs/proofs/rundale-bench/dialogue_samples_<ts>.json
+#     just -f .../justfile multiaxis rundale-bench/artifacts/dialogue_samples_<ts>.json
 #
 # Recipe args are positional. To override judge or rubric pass them in order:
 #
@@ -243,7 +243,7 @@ perf-many targets prompts="10":
 # ----------------------------------------------------------------------------
 
 # Regenerate the static HTML leaderboard from cached + judged data.
-# Output: docs/proofs/rundale-bench/leaderboard.html (open in any browser).
+# Output: rundale-bench/artifacts/leaderboard.html (open in any browser).
 leaderboard:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -255,7 +255,7 @@ leaderboard:
 # convenience
 # ----------------------------------------------------------------------------
 
-# List every cached sample file under docs/proofs/rundale-bench/.
+# List every cached sample file under rundale-bench/artifacts/.
 list-samples:
     @ls -1t {{ SAMPLES_DIR }}/dialogue_samples_*.json 2>/dev/null || echo "no cached samples yet"
 

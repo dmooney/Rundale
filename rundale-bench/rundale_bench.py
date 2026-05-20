@@ -8,7 +8,7 @@ leaderboard.
 
 Usage::
 
-    python3 parish/testing/rundale-bench/rundale_bench.py \\
+    python3 rundale-bench/rundale_bench.py \\
         --target 'model@base_url[#env:VAR]' --suite v1 --slice <name|all> \\
         [--judge <id>] [--limit N] [--split dev|holdout]
 """
@@ -23,10 +23,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+_BENCH_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BENCH_DIR.parent
 # Make the eval_lib loader available; lives alongside the local-eval scripts.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(_BENCH_DIR))
 
 from eval_lib import (  # noqa: E402
     CostTracker,
@@ -38,6 +39,7 @@ from eval_lib import (  # noqa: E402
 )
 from grade import (  # noqa: E402
     grade_dialogue,
+    grade_gaeilge,
     grade_intent,
     grade_pairwise,
     grade_reaction,
@@ -48,8 +50,7 @@ from grade import (  # noqa: E402
 import itertools
 import random
 
-_BENCH_DIR = Path(__file__).resolve().parent
-_PROOFS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
+_ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
 INTENT_SYS = (
     "You are a text adventure input parser. Given the player's natural language input, "
@@ -89,6 +90,13 @@ INTENT_SCHEMA = {
 # Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
 # bench scores track the runtime tier-1 grounding (issue #994).
 DIALOGUE_SYS = build_dialogue_system_prompt()
+
+GAEILGE_SYS = (
+    "You are being evaluated for fluency in Irish Gaeilge.\n\n"
+    "Follow the task exactly. Unless the task explicitly says otherwise, answer only "
+    "in Irish Gaeilge, not English. Do not explain your choices. Prefer natural Irish "
+    "syntax and idiom over word-for-word translation from English."
+)
 
 
 def slug(s: str) -> str:
@@ -249,6 +257,61 @@ def run_simulation(slice_name: str, target: Target, records: list[dict], tracker
     return {"summary": summary, "results": results}
 
 
+def _gaeilge_candidate_prompt(rec: dict) -> str:
+    constraints = "\n".join(f"- {c}" for c in rec.get("constraints", []))
+    return (
+        f"Task type: {rec['task_type']}\n\n"
+        f"Prompt:\n{rec['prompt']}\n\n"
+        f"Constraints:\n{constraints}\n\n"
+        "Respond now."
+    )
+
+
+def run_gaeilge(target: Target, records: list[dict], tracker: CostTracker, args) -> dict:
+    judge = load_judge("judge_gaeilge_v1", args.suite)
+    invoke = judge_invoker(judge, tracker)
+    results = []
+    axis_sums = {
+        k: 0.0
+        for k in ("fluency", "grammar", "idiom", "task_fulfillment", "english_leakage", "overall")
+    }
+    leakage_flags = 0
+    error_count = 0
+    for rec in records:
+        try:
+            reply, usage = call_chat(
+                target,
+                GAEILGE_SYS,
+                _gaeilge_candidate_prompt(rec),
+                max_tokens=rec.get("max_tokens", 300),
+                temperature=0.2,
+            )
+            tracker.record(target, usage)
+        except Exception as e:
+            results.append({"id": rec["id"], "error": str(e)})
+            error_count += 1
+            continue
+        graded = grade_gaeilge(reply, rec, judge, invoke)
+        graded["id"] = rec["id"]
+        graded["reply"] = reply
+        results.append(graded)
+        if graded.get("error"):
+            error_count += 1
+        for k in axis_sums:
+            axis_sums[k] += graded.get(k, 0)
+        if graded.get("english_leakage", 0) < 4:
+            leakage_flags += 1
+    n = max(1, len(records))
+    summary = {
+        "slice": "gaeilge",
+        "records": len(records),
+        "errors": error_count,
+        "english_leakage_flag_rate": leakage_flags / n,
+        **{f"{k}_mean": v / n for k, v in axis_sums.items()},
+    }
+    return {"summary": summary, "results": results}
+
+
 def run_slice(slice_name: str, target: Target, tracker: CostTracker, args) -> dict:
     records = load_slice(slice_name, version=args.suite, split=args.split)
     if args.limit:
@@ -261,6 +324,8 @@ def run_slice(slice_name: str, target: Target, tracker: CostTracker, args) -> di
         return run_reaction(target, records, tracker, args)
     if slice_name in ("tier2-sim", "tier3-sim"):
         return run_simulation(slice_name, target, records, tracker, args)
+    if slice_name == "gaeilge":
+        return run_gaeilge(target, records, tracker, args)
     raise SystemExit(f"unknown slice: {slice_name}")
 
 
@@ -438,7 +503,7 @@ def main() -> None:
                     help="model@base_url[#env:VAR]; pass multiple times in --mode elo")
     ap.add_argument("--suite", default="v1")
     ap.add_argument("--slice", default=None,
-                    choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"],
+                    choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "gaeilge", "all"],
                     help="absolute-score mode: one slice to run (omit when --mode elo)")
     ap.add_argument("--mode", default="absolute", choices=["absolute", "elo"],
                     help="absolute: per-slice graders; elo: pairwise ELO over dialogue slice")
@@ -466,8 +531,8 @@ def main() -> None:
         out["cost"] = {"calls": tracker.calls, "prompt_tokens": tracker.prompt_tokens,
                        "completion_tokens": tracker.completion_tokens, "usd": tracker.usd}
         print(f"\ntotal: {tracker.summary()} in {elapsed:.1f}s")
-        _PROOFS_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = _PROOFS_DIR / f"elo_{utc_stamp()}.json"
+        _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+        out_path = _ARTIFACTS_DIR / f"elo_{utc_stamp()}.json"
         out_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
         print(f"wrote {out_path}")
         return
@@ -484,7 +549,7 @@ def main() -> None:
     started = time.time()
 
     slices = (
-        ["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim"]
+        ["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "gaeilge"]
         if args.slice == "all"
         else [args.slice]
     )
@@ -519,8 +584,8 @@ def main() -> None:
     }
     print(f"\ntotal: {tracker.summary()} in {elapsed:.1f}s")
 
-    _PROOFS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = _PROOFS_DIR / f"run_{slug(target.model)}_{args.slice}_{utc_stamp()}.json"
+    _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = _ARTIFACTS_DIR / f"run_{slug(target.model)}_{args.slice}_{utc_stamp()}.json"
     out_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
     print(f"wrote {out_path}")
 

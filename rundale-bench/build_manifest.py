@@ -3,7 +3,7 @@
 
 Usage::
 
-    python3 parish/testing/rundale-bench/build_manifest.py v1
+    python3 rundale-bench/build_manifest.py v1
 
 The manifest records per-slice SHA-256, record count, and byte count, plus
 a single `merkle_root_sha256` computed over the sorted list of per-slice

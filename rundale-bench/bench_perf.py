@@ -13,12 +13,12 @@ Measures three things the rubric quality benches don't capture:
 Usage::
 
     set -a; source .env; set +a
-    python3 parish/testing/rundale-bench/bench_perf.py \\
+    python3 rundale-bench/bench_perf.py \\
         --target 'google/gemma-4-31b-it@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
         --target 'qwen/qwen-2.5-72b-instruct@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
         --prompts 10
 
-Writes `docs/proofs/rundale-bench/perf_<UTC>.json` with per-call records
+Writes `rundale-bench/artifacts/perf_<UTC>.json` with per-call records
 plus per-candidate medians.
 """
 from __future__ import annotations
@@ -31,7 +31,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BENCH_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BENCH_DIR.parent
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
 
 from eval_lib import (  # noqa: E402
@@ -43,7 +44,7 @@ from eval_lib import (  # noqa: E402
     parse_target,
 )
 
-_PROOFS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
+_ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
 # Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
 # perf measurements use realistic runtime prompt lengths (issue #994).
@@ -224,7 +225,7 @@ def main() -> None:
         out_path = Path(args.output)
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = _PROOFS_DIR / f"perf_{stamp}.json"
+        out_path = _ARTIFACTS_DIR / f"perf_{stamp}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 

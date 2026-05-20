@@ -1,0 +1,554 @@
+{
+  "ran_at_utc": "2026-05-14T20:24:05.119077+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "google/gemma-4-31b-it": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1160,
+      "ttft_ms_p90": 2111,
+      "total_ms_median": 3214,
+      "tokens_per_second_median": 21.9,
+      "tokens_per_second_p90": 30.1,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1050,
+          "total_ms": 2509,
+          "completion_tokens": 35,
+          "prompt_tokens": 88,
+          "tokens_per_second": 23.989033584647018,
+          "reply_len": 164,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 523,
+          "total_ms": 3259,
+          "completion_tokens": 45,
+          "prompt_tokens": 81,
+          "tokens_per_second": 16.44736842105263,
+          "reply_len": 168,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1057,
+          "total_ms": 4833,
+          "completion_tokens": 35,
+          "prompt_tokens": 81,
+          "tokens_per_second": 9.26906779661017,
+          "reply_len": 140,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1473,
+          "total_ms": 3190,
+          "completion_tokens": 34,
+          "prompt_tokens": 88,
+          "tokens_per_second": 19.801980198019802,
+          "reply_len": 138,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 6272,
+          "total_ms": 8357,
+          "completion_tokens": 36,
+          "prompt_tokens": 90,
+          "tokens_per_second": 17.26618705035971,
+          "reply_len": 147,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1604,
+          "total_ms": 2823,
+          "completion_tokens": 39,
+          "prompt_tokens": 78,
+          "tokens_per_second": 31.993437243642326,
+          "reply_len": 159,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1649,
+          "total_ms": 3239,
+          "completion_tokens": 41,
+          "prompt_tokens": 89,
+          "tokens_per_second": 25.786163522012576,
+          "reply_len": 155,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 535,
+          "total_ms": 1676,
+          "completion_tokens": 34,
+          "prompt_tokens": 77,
+          "tokens_per_second": 29.798422436459244,
+          "reply_len": 138,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 943,
+          "total_ms": 2080,
+          "completion_tokens": 34,
+          "prompt_tokens": 88,
+          "tokens_per_second": 29.90325417766051,
+          "reply_len": 147,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-4-31b-it",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1263,
+          "total_ms": 4789,
+          "completion_tokens": 50,
+          "prompt_tokens": 91,
+          "tokens_per_second": 14.180374361883155,
+          "reply_len": 229,
+          "error": null
+        }
+      ]
+    },
+    "qwen/qwen-2.5-72b-instruct": {
+      "n_streamed": 10,
+      "n_ok": 1,
+      "ttft_ms_median": null,
+      "ttft_ms_p90": null,
+      "total_ms_median": 5242,
+      "tokens_per_second_median": null,
+      "tokens_per_second_p90": null,
+      "json_freeform": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "HTTPError: HTTP Error 429: Too Many Requests"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 5242,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 272,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 271,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": null,
+          "total_ms": 329,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 278,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 353,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 370,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": null,
+          "total_ms": 388,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 747,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        },
+        {
+          "candidate": "qwen/qwen-2.5-72b-instruct",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 237,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 400: Bad Request"
+        }
+      ]
+    },
+    "google/gemma-3-27b-it": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 380,
+      "ttft_ms_p90": 766,
+      "total_ms_median": 2328,
+      "tokens_per_second_median": 37.9,
+      "tokens_per_second_p90": 48.5,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 625,
+          "total_ms": 1938,
+          "completion_tokens": 61,
+          "prompt_tokens": 68,
+          "tokens_per_second": 46.45849200304646,
+          "reply_len": 264,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1258,
+          "total_ms": 3284,
+          "completion_tokens": 77,
+          "prompt_tokens": 72,
+          "tokens_per_second": 38.005923000987174,
+          "reply_len": 332,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 430,
+          "total_ms": 2962,
+          "completion_tokens": 79,
+          "prompt_tokens": 72,
+          "tokens_per_second": 31.200631911532383,
+          "reply_len": 303,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 287,
+          "total_ms": 3124,
+          "completion_tokens": 63,
+          "prompt_tokens": 68,
+          "tokens_per_second": 22.20655622136059,
+          "reply_len": 260,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 413,
+          "total_ms": 1676,
+          "completion_tokens": 61,
+          "prompt_tokens": 70,
+          "tokens_per_second": 48.29770387965163,
+          "reply_len": 247,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 318,
+          "total_ms": 2487,
+          "completion_tokens": 76,
+          "prompt_tokens": 69,
+          "tokens_per_second": 35.03918856615952,
+          "reply_len": 287,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 347,
+          "total_ms": 2010,
+          "completion_tokens": 63,
+          "prompt_tokens": 69,
+          "tokens_per_second": 37.88334335538184,
+          "reply_len": 224,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 309,
+          "total_ms": 1709,
+          "completion_tokens": 61,
+          "prompt_tokens": 68,
+          "tokens_per_second": 43.57142857142858,
+          "reply_len": 273,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 336,
+          "total_ms": 2873,
+          "completion_tokens": 87,
+          "prompt_tokens": 68,
+          "tokens_per_second": 34.29247142294048,
+          "reply_len": 315,
+          "error": null
+        },
+        {
+          "candidate": "google/gemma-3-27b-it",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 712,
+          "total_ms": 2170,
+          "completion_tokens": 74,
+          "prompt_tokens": 75,
+          "tokens_per_second": 50.75445816186557,
+          "reply_len": 303,
+          "error": null
+        }
+      ]
+    },
+    "qwen/qwen3-235b-a22b-2507": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 363,
+      "ttft_ms_p90": 666,
+      "total_ms_median": 1696,
+      "tokens_per_second_median": 54.2,
+      "tokens_per_second_p90": 65.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 209,
+          "total_ms": 1342,
+          "completion_tokens": 73,
+          "prompt_tokens": 69,
+          "tokens_per_second": 64.43071491615181,
+          "reply_len": 293,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 380,
+          "total_ms": 1689,
+          "completion_tokens": 78,
+          "prompt_tokens": 73,
+          "tokens_per_second": 59.58747135217724,
+          "reply_len": 300,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 536,
+          "total_ms": 1314,
+          "completion_tokens": 57,
+          "prompt_tokens": 73,
+          "tokens_per_second": 73.26478149100257,
+          "reply_len": 198,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 330,
+          "total_ms": 2803,
+          "completion_tokens": 52,
+          "prompt_tokens": 69,
+          "tokens_per_second": 21.027092600080874,
+          "reply_len": 185,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 346,
+          "total_ms": 1703,
+          "completion_tokens": 66,
+          "prompt_tokens": 71,
+          "tokens_per_second": 48.636698599852615,
+          "reply_len": 255,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 501,
+          "total_ms": 1601,
+          "completion_tokens": 61,
+          "prompt_tokens": 70,
+          "tokens_per_second": 55.45454545454545,
+          "reply_len": 229,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1154,
+          "total_ms": 2875,
+          "completion_tokens": 67,
+          "prompt_tokens": 70,
+          "tokens_per_second": 38.9308541545613,
+          "reply_len": 242,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 338,
+          "total_ms": 1546,
+          "completion_tokens": 65,
+          "prompt_tokens": 69,
+          "tokens_per_second": 53.80794701986755,
+          "reply_len": 229,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 289,
+          "total_ms": 8879,
+          "completion_tokens": 48,
+          "prompt_tokens": 69,
+          "tokens_per_second": 5.587892898719441,
+          "reply_len": 197,
+          "error": null
+        },
+        {
+          "candidate": "qwen/qwen3-235b-a22b-2507",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 612,
+          "total_ms": 2207,
+          "completion_tokens": 87,
+          "prompt_tokens": 72,
+          "tokens_per_second": 54.54545454545455,
+          "reply_len": 349,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 467.2768220901489,
+  "cost": {
+    "usd": 0.00022686999999999995,
+    "calls": 110
+  }
+}

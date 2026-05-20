@@ -13,10 +13,10 @@ the 1-5 scale, now stretched to 0-10 for finer discrimination.
 Usage::
 
     set -a; source .env; set +a
-    python3 parish/testing/rundale-bench/score_multiaxis.py \\
-        --samples docs/proofs/rundale-bench/dialogue_samples_<ts>.json \\
+    python3 rundale-bench/score_multiaxis.py \\
+        --samples rundale-bench/artifacts/dialogue_samples_<ts>.json \\
         --judge-model mistralai/mistral-large-2512 \\
-        --output docs/proofs/rundale-bench/multiaxis_<ts>.json
+        --output rundale-bench/artifacts/multiaxis_<ts>.json
 
 Or use the justfile recipe `multiaxis-from-cache`.
 """
@@ -32,7 +32,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BENCH_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BENCH_DIR.parent
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -219,7 +220,7 @@ def main() -> None:
         out_path = Path(args.output)
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_path = _REPO_ROOT / "docs" / "proofs" / "rundale-bench" / f"multiaxis_{stamp}.json"
+        out_path = _BENCH_DIR / "artifacts" / f"multiaxis_{stamp}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {out_path}")

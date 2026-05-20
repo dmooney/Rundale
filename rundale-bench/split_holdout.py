@@ -6,12 +6,12 @@ This is reproducible across machines + immune to record-order changes.
 
 Usage::
 
-    python3 parish/testing/rundale-bench/split_holdout.py v1                # all slices
-    python3 parish/testing/rundale-bench/split_holdout.py v1 intent        # one slice
+    python3 rundale-bench/split_holdout.py v1                # all slices
+    python3 rundale-bench/split_holdout.py v1 intent        # one slice
 
 After running, rebuild the manifest:
 
-    python3 parish/testing/rundale-bench/build_manifest.py v1
+    python3 rundale-bench/build_manifest.py v1
 
 The holdout files (`<slice>.holdout.jsonl`) live next to their dev sources.
 For v1-dev they are stored in plaintext — anyone with repo read can see

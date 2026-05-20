@@ -16,12 +16,12 @@ Modes
 Examples::
 
     # Score every sample on a single-axis 1-10 rubric
-    python3 parish/testing/rundale-bench/rubric_lab.py \\
-        --samples docs/proofs/rundale-bench/dialogue_samples_<ts>.json \\
+    python3 rundale-bench/rubric_lab.py \\
+        --samples rundale-bench/artifacts/dialogue_samples_<ts>.json \\
         --rubric-file my_rubric.txt --mode absolute --axis-scale 10
 
     # Pairwise: enumerate every (a, b) pair per prompt, ELO-rank
-    python3 parish/testing/rundale-bench/rubric_lab.py \\
+    python3 rundale-bench/rubric_lab.py \\
         --samples ... --rubric-file pairwise_rubric.txt --mode pairwise
 
 Rubric files
@@ -45,7 +45,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BENCH_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BENCH_DIR.parent
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 

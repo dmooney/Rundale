@@ -3,6 +3,8 @@ parish/node_modules/
 *.swp
 *.swo
 *~
+__pycache__/
+*.py[cod]
 .env
 *.db
 *.db-journal

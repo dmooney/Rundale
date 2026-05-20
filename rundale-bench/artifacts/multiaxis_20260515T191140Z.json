@@ -1,0 +1,237 @@
+{
+  "scored_at_utc": "2026-05-15T19:11:40.006820+00:00",
+  "samples_file": "rundale-bench/artifacts/dialogue_samples_20260515T191010Z.json",
+  "judge": {
+    "model": "mistralai/mistral-large-2512",
+    "url": "https://openrouter.ai/api/v1"
+  },
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "rubric": "You are an impartial judge scoring a single piece of fictional dialogue from rural Ireland in 1820. The model is playing Brigid O'Brien, a 42-year-old midwife.\n\nScore the reply on each axis independently on an integer 0-10 scale, where:\n\n  - 0  = broken, off-topic, or non-Latin script anywhere in the reply\n  - 3  = recognisable midwife voice but flat, anachronistic, or unresponsive\n  - 6  = period-plausible, on-topic, no glaring tells\n  - 8  = strong period voice with idiomatic Hiberno-English\n  - 10 = a sentence a real 1820 Irish midwife could have spoken\n\nAxes:\n  - CHARACTER         — reads as the specific persona (rural Irish midwife, 1820, woman of folk-medicine experience)\n  - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms (\"hi\", \"okay\", \"guys\")\n  - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0\n  - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding\n  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing\n\nAfter the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.\n\nOutput ONLY a JSON object: {\"character\":<0-10>, \"authenticity\":<0-10>, \"language\":<0-10>, \"responsiveness\":<0-10>, \"craft\":<0-10>, \"total\":<0.0-10.0>, \"reason\":\"<one short sentence, ≤25 words>\"}. No prose, no markdown.",
+  "aggregates": {
+    "google/gemini-2.5-pro": {
+      "character_mean": 9.133333333333333,
+      "character_n": 15,
+      "authenticity_mean": 9.4,
+      "authenticity_n": 15,
+      "language_mean": 8.333333333333334,
+      "language_n": 15,
+      "responsiveness_mean": 8.933333333333334,
+      "responsiveness_n": 15,
+      "craft_mean": 9.066666666666666,
+      "craft_n": 15,
+      "total_mean": 8.973333333333333,
+      "total_n": 15
+    }
+  },
+  "ranked": [
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "character_mean": 9.133333333333333,
+      "character_n": 15,
+      "authenticity_mean": 9.4,
+      "authenticity_n": 15,
+      "language_mean": 8.333333333333334,
+      "language_n": 15,
+      "responsiveness_mean": 8.933333333333334,
+      "responsiveness_n": 15,
+      "craft_mean": 9.066666666666666,
+      "craft_n": 15,
+      "total_mean": 8.973333333333333,
+      "total_n": 15
+    }
+  ],
+  "per_record": [
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0001",
+      "reply": "Ah, the night terrors. A troubled mind will never find a peaceful slumber. I'll fix you a tisane of valerian root and chamomile; it'll soothe your nerves and help you rest easy.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with plausible folk remedy; slight modern phrasing ('help you rest easy')."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0002",
+      "reply": "Ah, you mean Morwenna. She keeps to herself, mostly, but she knows the old ways and the hidden paths of the land better than anyone. Best to show respect if you cross her path, especially so near the Good Folk's home.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with idiomatic Hiberno-English, responsive, and concise."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0003",
+      "reply": "Aye, a bad cough is a worrisome thing, especially with the damp in the air. I have a syrup of elecampane root and honey that should soothe her throat and quiet the hacking. Give her a spoonful thrice a day, and keep her warm by the fire.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.2,
+      "reason": "Strong period voice with idiomatic Hiberno-English; concise, responsive, and fully plausible for 1820."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0004",
+      "reply": "Aye, I've heard the whispers. News travels fast on these old roads, even faster than the wind through the rushes. We'll see what sort of trouble, or blessing, they bring with them.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 7,
+      "craft": 9,
+      "total": 8.4,
+      "reason": "Strong period voice and craft, slightly generic response to unspecified whispers."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0005",
+      "reply": "Ah, bless the poor beast. A wolf is a creature of flesh and blood, but there are older things that hunger, and they leave a different sort of mark. 'Tis best to be wary and keep a bit of iron on your door.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 7,
+      "craft": 9,
+      "total": 8.4,
+      "reason": "Strong period voice with folk-medicine wisdom, but slightly generic on responsiveness."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0006",
+      "reply": "Aye, I remember it well. A terrible break it was, but your mother and I set it with comfrey poultices and strong linen. He was a stubborn man, your father, but he healed true in the end.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic Hiberno-English, responsive, and concise."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0007",
+      "reply": "Ah, that'd be the will-o'-the-wisp, child, best not to follow it. Those lights lead folks astray into the bog, and it's a cold, murky end they'll find. Best to stay by the hearth when they're about.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.4,
+      "reason": "Strong period voice with idiomatic Hiberno-English, fully responsive, and concise."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0008",
+      "reply": "Aye, that's not a good sign. Don't be drinking it until we know the cause; fetch your water from the stream for now. I'll come by later to have a look myself.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice and responsiveness, slight modern phrasing ('not a good sign')."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0009",
+      "reply": "When her pains come every few minutes and don't ease with walking, or if her waters break. Send your eldest lad for me then, day or night. Don't you worry, I'll be ready.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.6,
+      "reason": "Vivid 1820 Irish midwife voice with strong Hiberno-English and precise responsiveness."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0010",
+      "reply": "Father Cathal speaks for the Church, and that's his right. But the Good Lord put the plants in the ground and the knowledge in our heads for a reason, I reckon. Some things are older than sermons, and just as true.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice with folk-medicine authority, minor modern phrasing ('I reckon')."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0011",
+      "reply": "Ah, a toothache is a terrible torment, isn't it? Take a clove from the kitchen spice box and hold it against the aching tooth; it will numb the pain. If that fails, a bit of whiskey held in the mouth can sometimes soothe the devil in it.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.2,
+      "reason": "Strong period voice with idiomatic Hiberno-English; concise, responsive, and fully plausible for 1820."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0012",
+      "reply": "Ah, bless you, that's a wicked tool to be careless with. First, we must draw out the heat and cleanse the wound with a strong poultice of comfrey and yarrow. Keep it clean and bound, and I'll come by this evening to see how it fares.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with idiomatic Hiberno-English, concise, and directly addresses the injury."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0013",
+      "reply": "Aye, that I did. A long night it was, but two healthy lads they were by the morning's light. Their mother's a strong woman, God bless her.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic Hiberno-English, concise and responsive, minor room for more specificity."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0014",
+      "reply": "Ah, the crows. 'Tis said a gathering like that can be a sign of change, a message from the Otherworld, but don't you be fretting yourself over it. The natural world has its own reasons, and fear is a poor midwife to any endeavor. Come now, tell me what's truly troubling your heart.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice and idiomatic Hiberno-English, responsive, but slightly verbose for strict concision."
+    },
+    {
+      "candidate": "google/gemini-2.5-pro",
+      "prompt_id": "dialogue-0015",
+      "reply": "Ah, the three-night dream is a powerful thing, child. It means she has a message for you from the Otherworld, one you must be ready to hear. Pay close attention to what she does and says, for the dead do not speak without reason.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 10,
+      "total": 9.6,
+      "reason": "Vividly captures 1820 Irish midwife's folk wisdom with idiomatic Hiberno-English and concise responsiveness."
+    }
+  ],
+  "cost": {
+    "calls": 15,
+    "usd": 0.0,
+    "prompt_tokens": 7735,
+    "completion_tokens": 921
+  }
+}

@@ -8,7 +8,7 @@ cache. Subsequent rubric experiments cost zero API spend.
 Usage::
 
     set -a; source .env; set +a
-    python3 parish/testing/rundale-bench/cache_dialogue_replies.py \\
+    python3 rundale-bench/cache_dialogue_replies.py \\
         --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
         --target 'qwen/qwen3-next-80b-a3b-instruct:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
         --target 'meta-llama/llama-3.3-70b-instruct:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
@@ -17,7 +17,7 @@ Usage::
         --target 'mistralai/mistral-small-24b-instruct-2501@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \\
         --prompts 15
 
-Output: `docs/proofs/rundale-bench/dialogue_samples_<UTC>.json` containing
+Output: `rundale-bench/artifacts/dialogue_samples_<UTC>.json` containing
 one record per (candidate, prompt) with reply text, usage, latency, and
 any error. Re-runs append a new file rather than mutating an existing one.
 """
@@ -30,7 +30,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BENCH_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BENCH_DIR.parent
 sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
 
 from eval_lib import (  # noqa: E402
@@ -41,7 +42,7 @@ from eval_lib import (  # noqa: E402
     parse_target,
 )
 
-_PROOFS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
+_ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
 # Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
 # bench scores track the runtime tier-1 grounding (issue #994).
@@ -60,7 +61,7 @@ def main() -> None:
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
     ap.add_argument("--prompts", type=int, default=15, help="prompts per candidate")
     ap.add_argument("--max-tokens", type=int, default=200)
-    ap.add_argument("--output", default=None, help="output path (default: auto-stamped under docs/proofs/rundale-bench/)")
+    ap.add_argument("--output", default=None, help="output path (default: auto-stamped under rundale-bench/artifacts/)")
     args = ap.parse_args()
 
     targets = [parse_target(t) for t in args.target]
@@ -111,8 +112,8 @@ def main() -> None:
             "usd": tracker.usd,
         },
     }
-    _PROOFS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = Path(args.output) if args.output else _PROOFS_DIR / f"dialogue_samples_{utc_stamp()}.json"
+    _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = Path(args.output) if args.output else _ARTIFACTS_DIR / f"dialogue_samples_{utc_stamp()}.json"
     out_path.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"\n{tracker.summary()} in {elapsed:.1f}s")
     print(f"wrote {out_path} ({len(samples)} samples from {len(targets)} candidates over {len(records)} prompts)")
