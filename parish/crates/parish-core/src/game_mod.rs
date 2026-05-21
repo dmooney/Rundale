@@ -1557,8 +1557,8 @@ tier2_system = "prompts/tier2_system.txt"
 
     #[test]
     fn test_load_real_default_mod() {
-        let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../mods/rundale");
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         if rundale_dir.exists() {
             let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
             assert!(!gm.manifest.meta.name.is_empty());
@@ -1574,8 +1574,8 @@ tier2_system = "prompts/tier2_system.txt"
 
     #[test]
     fn test_real_mod_npc_name_hints() {
-        let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../mods/rundale");
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         if rundale_dir.exists() {
             let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
 
