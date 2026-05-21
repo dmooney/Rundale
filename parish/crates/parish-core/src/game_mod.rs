@@ -1557,23 +1557,27 @@ tier2_system = "prompts/tier2_system.txt"
 
     #[test]
     fn test_load_real_default_mod() {
-        if let Some(mod_dir) = find_default_mod() {
-            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+        let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../mods/rundale");
+        if rundale_dir.exists() {
+            let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
             assert!(!gm.manifest.meta.name.is_empty());
             assert!(gm.world_path().is_absolute());
             assert!(gm.npcs_path().is_absolute());
             // The rundale mod should have pronunciation data
             assert!(
                 !gm.pronunciations.is_empty(),
-                "default mod should have pronunciation entries"
+                "rundale mod should have pronunciation entries"
             );
         }
     }
 
     #[test]
     fn test_real_mod_npc_name_hints() {
-        if let Some(mod_dir) = find_default_mod() {
-            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+        let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../mods/rundale");
+        if rundale_dir.exists() {
+            let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
 
             // Each NPC with an Irish name should produce a hint
             let hints = gm.name_hints_for(&["Padraig Darcy"]);
