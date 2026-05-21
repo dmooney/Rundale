@@ -146,8 +146,8 @@ impl GameTestHarness {
     /// content (locations, NPC names, etc.) so they remain stable regardless
     /// of which mod is currently active.
     fn build_rundale(enable_character_logs: bool) -> Self {
-        let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../mods/rundale");
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         Self::build_with_mod(enable_character_logs, Some(&rundale_dir))
     }
 
