@@ -1,0 +1,8 @@
+# Active setting mod selector — analogous to Factorio's mod-list.json.
+#
+# When multiple mods declare kind = "setting", this file picks which one loads.
+# Omit active_setting (or delete this file) when only one setting mod exists.
+#
+# Switch to Rundale:  active_setting = "rundale"
+# Switch to Testbed:  active_setting = "testbed"
+active_setting = "testbed"

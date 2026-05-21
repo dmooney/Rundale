@@ -103,6 +103,7 @@ export interface UiConfig {
 	auto_pause_timeout_seconds: number;
 	app_icon_url?: string | null;
 	favicon_url?: string | null;
+	map_overlay?: string | null;
 }
 
 /** A single map tile source sent from the backend. Mirrors

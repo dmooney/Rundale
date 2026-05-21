@@ -794,6 +794,7 @@ fn resolve_engine_and_ui_config(
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: gm.app_icon_path().map(|_| "/api/app-icon.png".to_string()),
             favicon_url: gm.favicon_path().map(|_| "/api/favicon.png".to_string()),
+            map_overlay: gm.ui.theme.map_overlay.clone(),
         }
     } else {
         UiConfigSnapshot {
@@ -805,6 +806,7 @@ fn resolve_engine_and_ui_config(
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
         }
     };
 

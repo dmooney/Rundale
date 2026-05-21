@@ -418,6 +418,21 @@ impl LanguageSettings {
 /// thanks, and a few period-appropriate plant/herb names. Each entry
 /// includes a brief English gloss so the model can match phrase to
 /// register.
+/// Pig Latin phrase guide appended to the directive when native is `x-pig-lat`.
+///
+/// Gives the model the transformation rules and a small set of pre-verified
+/// forms so NPCs produce recognisable Pig Latin rather than garbled output.
+const PIG_LAT_PHRASE_GUIDE: &str = "\n\
+    Pig Latin rules: move the initial consonant cluster to the end and add \
+    \"ay\" (e.g. \"pig\" → \"igpay\", \"street\" → \"eetstray\", \
+    \"there\" → \"erethay\"). \
+    For words starting with a vowel, append \"way\" \
+    (e.g. \"inside\" → \"insideway\", \"all\" → \"allway\"). \
+    Pre-verified forms you may use: ellohay (hello), oodgay (good), \
+    ayday (day), ankthay ouyay (thank you), easyplay (please), \
+    eresway (where's), atwhay (what), oday ouyay (do you), \
+    iendsfray (friends), omingcay (coming).";
+
 const GA_IE_PHRASE_GUIDE: &str = "\n\
     Preferred ga-IE phrases (use these where natural; do not confabulate \
     other Irish): \
@@ -484,6 +499,8 @@ pub fn language_directive(lang: &LanguageSettings) -> String {
         ));
         if native.eq_ignore_ascii_case("ga-IE") || native.eq_ignore_ascii_case("ga") {
             directive.push_str(GA_IE_PHRASE_GUIDE);
+        } else if native.eq_ignore_ascii_case("x-pig-lat") {
+            directive.push_str(PIG_LAT_PHRASE_GUIDE);
         }
     } else {
         directive.push_str(&format!(
@@ -1403,6 +1420,28 @@ mod tests {
         assert!(
             !directive.contains("Preferred ga-IE phrases"),
             "ga-IE phrase guide must only fire for Irish native"
+        );
+    }
+
+    #[test]
+    fn language_directive_includes_pig_lat_guide() {
+        let lang = LanguageSettings::new("en", Some("x-pig-lat".into()));
+        let directive = language_directive(&lang);
+        assert!(
+            directive.contains("x-pig-lat"),
+            "directive should name the pig Latin code"
+        );
+        assert!(
+            directive.contains("Pig Latin rules"),
+            "x-pig-lat native should append the pig Latin phrase guide"
+        );
+        assert!(
+            directive.contains("igpay"),
+            "phrase guide should include a canonical example"
+        );
+        assert!(
+            !directive.contains("Preferred ga-IE phrases"),
+            "ga-IE phrase guide must not appear for pig Latin native"
         );
     }
 

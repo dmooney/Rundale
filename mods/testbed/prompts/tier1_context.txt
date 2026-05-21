@@ -1,0 +1,9 @@
+Current testbed state:
+- Location: {location_name}
+- Time: {time}
+- Weather: {weather}
+- Nearby agents: {npcs_here}
+
+Recent events: {recent_events}
+
+Player input: {player_input}

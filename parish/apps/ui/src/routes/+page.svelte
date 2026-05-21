@@ -285,6 +285,7 @@
 			uiConfig.set(cfg);
 			tiles.initFromUiConfig(cfg);
 			applyAppIcon(cfg.app_icon_url, cfg.favicon_url);
+			document.body.classList.toggle('blueprint-mode', cfg.map_overlay === 'grid');
 			if (cfg.splash_text) {
 				textLog.update((log) => [
 					{ source: 'system', content: cfg.splash_text },

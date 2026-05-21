@@ -117,6 +117,9 @@ pub struct UiConfigSnapshot {
     /// Browser-safe URL or data URL for the active mod's small favicon.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub favicon_url: Option<String>,
+    /// Map overlay style requested by the active mod, if any (e.g. `"grid"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map_overlay: Option<String>,
 }
 
 #[cfg(test)]
