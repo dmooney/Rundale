@@ -15,6 +15,8 @@ bottom; don't lengthen items past 2-3 lines.
 - **`DayType` has three variants** (`Weekday`, `Sunday`, `MarketDay`). No `Holiday`. See `parish-types/src/time.rs`.
 - **`parish --script` uses the active mod from `mods/mod-list.toml`.** `GameTestHarness::new()` loads Rundale, but live script mode currently follows `active_setting`; use a Rundale-only `PARISH_MODS_DIR` for Rundale-specific proof runs when the active setting is `testbed`.
 - **`mods/mod-list.toml` selects the default setting mod when both Rundale and testbed exist.** Keep the checked-in value at `active_setting = "rundale"` unless a test explicitly switches it.
+- **Demo profiling must isolate `PARISH_USER_CONFIG_DIR`.** Tauri reapplies saved wizard/category overrides from the user config dir after base env resolution, which can bypass a proxy unless the profiling run points config/data/saves at a temp directory.
+- **Tauri demo reads per-category routing from user config, not category env vars.** `PARISH_INTENT_MODEL` works for the CLI config path, but Tauri startup hydrates category overrides from `PARISH_USER_CONFIG_DIR/parish.toml`.
 
 ## Character logs (`parish-core/src/character_log.rs`)
 

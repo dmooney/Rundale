@@ -140,6 +140,10 @@ demo PAUSE="2" MAX_TURNS="":
         cargo tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:$PORT\"}}" -- -- $DEMO_ARGS
     fi
 
+# Profile inference request volume during a human-paced local-inference demo run.
+demo-profile DURATION="300" PAUSE="10" MODEL="mlx-community/Qwen2.5-14B-Instruct-4bit" UPSTREAM="http://localhost:8000/v1":
+    python3 scripts/profile-demo-requests.py --duration-secs {{DURATION}} --pause {{PAUSE}} --model {{MODEL}} --upstream {{UPSTREAM}}
+
 # Run the game in headless REPL mode (plain stdin/stdout)
 run-headless:
     cargo run -p parish -- --headless
