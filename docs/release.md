@@ -1,9 +1,21 @@
 # Releasing Rundale
 
 Rundale ships from a single source of truth — a `vMAJOR.MINOR.PATCH` git tag.
-Pushing the tag triggers `.github/workflows/release.yml`, which builds a
-Linux x86_64 binary tarball and publishes it as a GitHub Release with
+Pushing the tag triggers `.github/workflows/release.yml`, which builds CLI
+binaries plus Tauri desktop bundles for Linux x86_64, macOS (x86_64 and
+aarch64), and Windows x86_64, then publishes them as a GitHub Release with
 auto-generated notes.
+
+For each platform the release attaches:
+
+- `parish-vX.Y.Z-<target>.tar.gz` / `.zip` — headless CLI binary + license files
+- A platform-native Tauri bundle (`.dmg`, `.AppImage`, `.deb`, `.msi`, `.exe`)
+- `.sha256` checksum for the CLI archive
+
+Bundles are **unsigned** for the 0.1.0 series — macOS users will see a
+Gatekeeper "unidentified developer" warning (right-click → Open), and
+Windows users will see SmartScreen ("More info" → "Run anyway"). Code
+signing is queued for 0.2.0.
 
 ## Files that get bumped
 
@@ -113,13 +125,16 @@ release lands, or `mcp__github__get_release_by_tag` with `v0.2.0`.
 
 ## Scope (what this pipeline does NOT do)
 
-- No macOS / Windows builds — Linux x86_64 only for now. Adding a runner
-  matrix is straightforward (mirror the patterns in `.github/workflows/ci.yml`)
-  but bigger than the initial cut.
-- No Tauri desktop bundle (`.deb` / `.AppImage` / `.dmg` / `.msi`). The
-  `tauri.conf.json` version is bumped so a future `cargo tauri build` will
-  produce correctly-versioned bundles, but no automated bundle build is wired.
-- No publish to crates.io or npm — every workspace crate is `publish = false`,
+- **No code signing or notarization.** macOS Gatekeeper and Windows SmartScreen
+  will flag the bundles. Tracked for 0.2.0.
+- **No auto-updater wiring.** Tauri's updater plugin is unconfigured; users
+  download new releases manually.
+- **No publish to crates.io or npm** — every workspace crate is `publish = false`,
   and the UI package is `private: true`.
-- No CHANGELOG.md generation. GitHub's auto-generated release notes (commit
+- **No CHANGELOG.md generation.** GitHub's auto-generated release notes (commit
   list + PR titles since the previous tag) cover this for now.
+- **Bundle icons are derived from `parish/crates/parish-tauri/icons/icon.png`.**
+  That file must be ≥1024×1024 for the macOS/Windows bundlers to generate
+  `.icns` / `.ico` correctly. If you replace it, regenerate platform icons
+  with `cargo tauri icon parish/crates/parish-tauri/icons/icon.png` before
+  tagging.
