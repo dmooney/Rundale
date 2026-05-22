@@ -142,7 +142,7 @@ demo PAUSE="2" MAX_TURNS="":
 
 # Run the game in headless REPL mode (plain stdin/stdout)
 run-headless:
-    cargo run -p parish -- --headless
+    cargo run -p parish-repl -- --headless
 
 # Run the axum web server (serves the Svelte UI in a browser)
 #
@@ -151,7 +151,7 @@ run-headless:
 # (rebase/checkout/merge), making source edits appear invisible in the served
 # UI and spuriously re-emitting already-fixed build warnings.
 web PORT="3001": ui-build
-    cargo run -p parish -- --web {{PORT}}
+    cargo run -p parish-repl -- --web {{PORT}}
 
 # ─── Tauri & Frontend ────────────────────────────────────────────────────────
 
@@ -248,17 +248,17 @@ coverage-check:
 
 # Run the main game walkthrough test script
 game-test:
-    cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt
+    cargo run -p parish-repl -- --script testing/fixtures/test_walkthrough.txt
 
 # Run a specific test fixture by name (without path/extension)
 game-test-one NAME:
-    cargo run -p parish -- --script testing/fixtures/{{NAME}}.txt
+    cargo run -p parish-repl -- --script testing/fixtures/{{NAME}}.txt
 
 # Run all test fixtures
 game-test-all:
     @for f in testing/fixtures/*.txt; do \
         echo "=== Running $f ==="; \
-        cargo run -p parish -- --script "$f" > /dev/null && echo "  PASS" || echo "  FAIL"; \
+        cargo run -p parish-repl -- --script "$f" > /dev/null && echo "  PASS" || echo "  FAIL"; \
     done
 
 # List available test fixtures
@@ -316,7 +316,7 @@ check-doc-paths:
 # JSON instead of asserting on it. See crates/parish-cli/tests/eval_baselines.rs
 # and docs/design/testing.md §Eval baselines.
 baselines:
-    UPDATE_BASELINES=1 cargo test -p parish --test eval_baselines
+    UPDATE_BASELINES=1 cargo test -p parish-repl --test eval_baselines
 
 # Read-only audit: cross-references fixtures, eval baselines, and the roadmap
 # to surface gameplay subsystems that ship without a play_*.txt fixture.
