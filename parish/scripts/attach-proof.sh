@@ -96,7 +96,7 @@ if [[ -n "$existing_id" ]]; then
         --field body=@"$body_file" >/dev/null
 else
     echo "attach-proof: posting new comment on PR #$pr_number as $self_login."
-    gh pr comment "$pr_number" --body-file "$body_file" >/dev/null
+    gh pr comment "$pr_number" --repo "$repo_full" --body-file "$body_file" >/dev/null
 fi
 
 echo "attach-proof: done. View: $(gh pr view "$pr_number" --json url --jq .url)"

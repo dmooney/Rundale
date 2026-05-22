@@ -98,8 +98,16 @@ emit_attachments_section() {
     fi
 }
 
-# ── Render ──────────────────────────────────────────────────────────────
-cat <<EOF
+# ── Render (to a staging file so we can size-check before stdout) ──────
+# GitHub caps PR comment bodies at 65536 chars. Renderer keeps output
+# under 60000 chars to leave headroom for the closing fence and a few
+# attachment lines added at the tail.
+COMMENT_BYTE_CAP=60000
+staged="$(mktemp)"
+trap 'rm -f "$staged"' EXIT
+
+{
+    cat <<EOF
 <!-- parish-proof-bundle:${task_id} v=1 -->
 
 ## Proof: ${task_id}
@@ -113,18 +121,57 @@ $(cat "$ac")
 $(cat "$evidence")
 EOF
 
-emit_transcript_inline
+    emit_transcript_inline
 
-cat <<EOF
+    cat <<EOF
 
 ### Judge
 
 $(cat "$judge")
 EOF
 
-emit_attachments_section
+    emit_attachments_section
 
-cat <<EOF
+    cat <<EOF
 
 <!-- /parish-proof-bundle:${task_id} -->
 EOF
+} > "$staged"
+
+staged_bytes=$(wc -c < "$staged" | tr -d ' ')
+if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
+    # Re-render without the inline transcript section. The transcript
+    # file is still listed under "Artifacts" for upload via the GitHub
+    # UI. This keeps the bundle attached and CI happy even when the
+    # transcript is dense enough to bust the comment cap.
+    {
+        cat <<EOF
+<!-- parish-proof-bundle:${task_id} v=1 -->
+
+## Proof: ${task_id}
+
+### Acceptance criteria
+
+$(cat "$ac")
+
+### Evidence
+
+$(cat "$evidence")
+
+### Transcript
+
+_omitted from inline comment — exceeds GitHub comment-body byte cap. Drop the file referenced below into this PR comment via the GitHub UI to share the full capture._
+
+### Judge
+
+$(cat "$judge")
+EOF
+        emit_attachments_section
+        cat <<EOF
+
+<!-- /parish-proof-bundle:${task_id} -->
+EOF
+    } > "$staged"
+fi
+
+cat "$staged"

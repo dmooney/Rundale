@@ -332,7 +332,7 @@ gather_bundles_pr() {
         [[ -f "$block_file" ]] || continue
         echo "$block_file" >> "$evidence"
         echo "$block_file" >> "$judges"
-        if grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file"; then
+        if grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$block_file"; then
             echo "$block_file" >> "$ac_files"
         fi
     done
@@ -478,7 +478,7 @@ if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 || "$ac_count" -gt 0 ]]; t
         # PR mode: every block must contain a real `## Acceptance criteria`
         # heading, plus the judge verdict lines (validated above per-file).
         while IFS= read -r block_file; do
-            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file"; then
+            if ! grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$block_file"; then
                 bundle_id="$(basename "$block_file" .md | sed 's/^pr_block_//')"
                 echo "agent-check FAILED: PR comment for bundle '$bundle_id' has no '## Acceptance criteria' section." >&2
                 echo "The judge verdict line 'Acceptance criteria: met' alone does NOT satisfy rule 13." >&2
@@ -502,7 +502,7 @@ if [[ "$judge_count" -gt 0 ]]; then
             # needs the 'Acceptance criteria: met' line. Verdict-only
             # bundles can't sneak through by matching `Acceptance criteria:`
             # against the verdict line itself.
-            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$file"; then
+            if ! grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$file"; then
                 check=0
             fi
         fi

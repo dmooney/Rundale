@@ -145,11 +145,18 @@ _proof_bundle_dirs() {
         | sed "s|^$ROOT/||" \
         | grep -E '\.proofs/.*/(evidence|judge)\.md$' \
         | sed 's|/[^/]*$||' || true
-      # Bash scan: write-indicative contexts (>, >>, tee) catch the common
-      # path. Additionally any cp/mv/install/python/curl/wget command
-      # that names a .proofs/*/{evidence,judge}.md target is treated as
-      # a write — the original git-diff fallback is gone (`.proofs/` is
-      # gitignored), so we cannot rely on the filesystem after the fact.
+      # Bash scan: any command that names a .proofs/<id>/(evidence|judge).md
+      # target is treated as session work. Covers redirect/tee plus
+      # cp/mv/install/python/curl/etc. (the original git-diff fallback is
+      # gone since .proofs/ is gitignored). False positives from
+      # read-only commands like `cat .proofs/x/judge.md` are harmless —
+      # the AC check that follows passes if the dir has an AC file
+      # alongside.
+      #
+      # Disk walk of .proofs/ is intentionally NOT used as a fallback:
+      # .proofs/ persists across branches and sessions, so stale bundles
+      # from prior work would block unrelated sessions (regresses the
+      # session-scoped gate).
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
@@ -157,16 +164,6 @@ _proof_bundle_dirs() {
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
         | grep -oE '\.proofs/[^/[:space:]\"]+/(evidence|judge)\.md' \
-        | sed 's|/[^/]*$||' || true
-    fi
-    # Belt-and-suspenders disk walk: any bundle dir that currently exists
-    # and contains a judge.md or evidence.md is treated as session work.
-    # This catches every other write path (generators, redirected python
-    # output, etc.) without depending on transcript heuristics.
-    if [ -d "$ROOT/.proofs" ]; then
-      find "$ROOT/.proofs" -mindepth 2 -maxdepth 2 -type f \
-        \( -name 'evidence.md' -o -name 'judge.md' \) 2>/dev/null \
-        | sed "s|^$ROOT/||" \
         | sed 's|/[^/]*$||' || true
     fi
   } | grep -v '^$' | sort -u || true
