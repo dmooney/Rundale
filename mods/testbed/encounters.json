@@ -1,0 +1,9 @@
+{
+  "dawn": "A soft chime marks the start of a new test cycle.",
+  "morning": "Somewhere in the grid, instruments click through their calibration sequence.",
+  "midday": "The overhead indicators cycle through green, amber, green.",
+  "afternoon": "A distant terminal prints a long stream of status codes.",
+  "dusk": "The grid lighting dims one notch as the day-cycle winds down.",
+  "night": "The testbed hums quietly. Background processes tick on.",
+  "midnight": "All indicators show nominal. The grid is at rest."
+}

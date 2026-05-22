@@ -1118,6 +1118,7 @@ pub fn run() {
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: mod_asset_data_url(gm.app_icon_path()),
             favicon_url: mod_asset_data_url(gm.favicon_path()),
+            map_overlay: gm.ui.theme.map_overlay.clone(),
         }
     } else {
         UiConfigSnapshot {
@@ -1129,6 +1130,7 @@ pub fn run() {
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
         }
     };
 

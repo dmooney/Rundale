@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { mapData, pushErrorLog, formatIpcError } from '../stores/game';
+	import { mapData, pushErrorLog, formatIpcError, uiConfig } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
@@ -138,6 +138,9 @@
 		<span aria-hidden="true">&times;</span>
 	</button>
 	<div class="map-container" bind:this={container}></div>
+	{#if $uiConfig.map_overlay === 'grid'}
+		<div class="blueprint-grid-overlay"></div>
+	{/if}
 	<MapTooltip info={tooltip} variant="full" />
 </div>
 

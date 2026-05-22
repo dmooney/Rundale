@@ -139,6 +139,27 @@ body::before {
 	}
 }
 
+/* ── Blueprint mode — activated when map_overlay === "grid" ──
+   Overrides typography to monospace and supplies the graph-paper grid
+   overlay used by the testbed mod. */
+.blueprint-mode {
+	--font-body: 'IBM Plex Mono', 'Courier New', monospace;
+	--font-display: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+/* SVG grid: 30 × 30 px cells, cyan lines at 0.15 opacity.
+   Rendered as a background-image on an absolutely-positioned div so it
+   sits above the MapLibre canvas without interfering with pointer events. */
+.blueprint-grid-overlay {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 2;
+	opacity: 0.15;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cpath d='M 30 0 L 0 0 0 30' fill='none' stroke='%2300d4ff' stroke-width='0.5'/%3E%3C/svg%3E");
+	background-size: 30px 30px;
+}
+
 /* ── Mobile adjustments ── */
 @media (max-width: 768px) {
 	html, body {

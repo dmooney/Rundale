@@ -13,6 +13,7 @@
 	import DemoPanel from '../components/DemoPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
+	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
@@ -27,7 +28,7 @@
 	 * same Sidebar side-by-side on desktop. */
 	let isMobile = $state(false);
 	import { debugVisible, debugSnapshot, debugDockLeft } from '../stores/debug';
-	import { savePickerVisible } from '../stores/save';
+	import { savePickerVisible, modSelectorVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
 	import { tiles } from '../stores/tiles';
 	import { startTravel, cancelTravel } from '../stores/travel';
@@ -291,6 +292,7 @@
 			uiConfig.set(cfg);
 			tiles.initFromUiConfig(cfg);
 			applyAppIcon(cfg.app_icon_url, cfg.favicon_url);
+			document.body.classList.toggle('blueprint-mode', cfg.map_overlay === 'grid');
 			if (cfg.splash_text) {
 				textLog.update((log) => [
 					{ source: 'system', content: cfg.splash_text },
@@ -550,6 +552,9 @@
 {/if}
 <SavePicker />
 <SetupOverlay />
+{#if $modSelectorVisible}
+	<ModSelectorOverlay onclose={() => modSelectorVisible.set(false)} />
+{/if}
 
 {#if screenshotToast}
 	<div class="screenshot-toast" role="status" aria-live="polite">{screenshotToast}</div>
