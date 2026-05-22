@@ -120,6 +120,61 @@ pub async fn handle_validate_provider_config(
     validate::validate(&provider, &url, key_to_use).await
 }
 
+/// Provider metadata exposed to the UI / external clients via
+/// `list_available_providers`. Fields match the shape the BYOK wizard
+/// rendered from its old hand-curated `byokProviders.ts` arrays.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderInfo {
+    /// Lowercase provider id. Matches `Provider::from_str_loose` on the
+    /// Rust side.
+    pub id: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Short tagline shown under the label in the picker.
+    pub blurb: Option<String>,
+    /// Where to get an API key.
+    pub signup_url: Option<String>,
+    /// True when the provider needs an explicit base URL (e.g. `custom`).
+    pub needs_base_url: bool,
+    /// True when the provider does not require an API key (local /
+    /// simulator providers).
+    pub keyless: bool,
+    /// True for providers the engine recommends as primary picks.
+    pub featured: bool,
+}
+
+/// Returns every provider in the registry, split into the featured /
+/// other lists the BYOK wizard renders. Featured providers come first;
+/// both lists are sorted by id.
+pub fn handle_list_available_providers()
+-> std::collections::HashMap<&'static str, Vec<ProviderInfo>> {
+    use parish_config::registry;
+    let mut featured: Vec<ProviderInfo> = Vec::new();
+    let mut other: Vec<ProviderInfo> = Vec::new();
+    for p in registry().all() {
+        let info = ProviderInfo {
+            id: p.id().to_string(),
+            display_name: p.display_name().to_string(),
+            blurb: p.0.blurb.clone(),
+            signup_url: p.0.signup_url.clone(),
+            needs_base_url: p.needs_base_url_from_user(),
+            keyless: !p.requires_api_key(),
+            featured: p.0.featured,
+        };
+        if p.0.featured {
+            featured.push(info);
+        } else {
+            other.push(info);
+        }
+    }
+    featured.sort_by(|a, b| a.id.cmp(&b.id));
+    other.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut out = std::collections::HashMap::new();
+    out.insert("featured", featured);
+    out.insert("other", other);
+    out
+}
+
 /// Returns `{provider_id: [preset_options]}` for every provider that has presets.
 /// Single source of truth for the wizard's model prefill.
 pub fn handle_list_preset_models() -> std::collections::BTreeMap<String, Vec<ProviderPresetOption>>

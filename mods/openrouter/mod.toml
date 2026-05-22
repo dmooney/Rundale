@@ -1,0 +1,6 @@
+[mod]
+name = "OpenRouter Provider"
+id = "openrouter"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for OpenRouter."
+kind = "providers"

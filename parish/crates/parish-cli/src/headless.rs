@@ -1843,6 +1843,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_set_category_provider_rebuilds() {
+        parish_core::config::ensure_test_mods_loaded();
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
@@ -1873,6 +1874,7 @@ mod tests {
     /// Verify SetCloudProvider sets cloud_provider_name without panicking (issue #80).
     #[tokio::test]
     async fn test_set_cloud_provider_sets_name_without_panic() {
+        parish_core::config::ensure_test_mods_loaded();
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
             &mut app,

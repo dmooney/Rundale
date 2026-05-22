@@ -1,0 +1,6 @@
+[mod]
+name = "Cohere Provider"
+id = "cohere"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Cohere."
+kind = "providers"

@@ -1,0 +1,6 @@
+[mod]
+name = "Qwen (Alibaba) Provider"
+id = "qwen"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Qwen (Alibaba)."
+kind = "providers"

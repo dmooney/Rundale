@@ -1,0 +1,6 @@
+[mod]
+name = "Moonshot AI Provider"
+id = "moonshot"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Moonshot AI."
+kind = "providers"

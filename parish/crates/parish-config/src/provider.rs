@@ -1,15 +1,28 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Providers are loaded at compile time from TOML files in
-//! `parish/crates/parish-config/providers/*.toml` via `build.rs`.
-//! The `ProviderRegistry` is initialised once via `OnceLock` and
-//! accessible through the `registry()` function.
+//! Five providers are built in (see `builtin_providers/`): `simulator`,
+//! `ollama`, `vllm`, `vllmmlx`, `custom`. The engine ships them as
+//! `include_str!` TOMLs because it manages their local processes / model
+//! downloads, or because they serve as universal fallbacks (`custom`).
+//!
+//! All other providers (anthropic, openai, openrouter, ...) are loaded at
+//! runtime from `mods/<id>/providers/<id>.toml` via `discover_mods` +
+//! `ProviderRegistry::register_mod_providers`. Adding a new cloud provider
+//! requires no recompile — drop a mod under `mods/`.
+//!
+//! Bootstrap order: `registry()` returns a `RwLock<ProviderRegistry>`
+//! pre-populated with builtins. The bootstrap path acquires a write lock
+//! and calls `register_mod_providers` after `discover_mods`. After that
+//! point the registry is read-only in practice; existing
+//! `Arc<ProviderMod>` handles keep pointing at their snapshot regardless
+//! of subsequent merges.
 
+use crate::builtin_providers;
 use parish_types::ParishError;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 // ── ProviderKind ─────────────────────────────────────────────────────────────
 
@@ -35,7 +48,7 @@ pub enum ProviderKind {
 /// is actually loaded. Without this, `fill_missing_models_from_presets`
 /// picks the preset model but inherits the base URL — guaranteeing a
 /// model/URL mismatch and a 404 on every reaction/simulation call.
-#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
 pub struct PresetBaseUrls {
     pub dialogue: Option<String>,
     pub simulation: Option<String>,
@@ -55,7 +68,7 @@ impl PresetBaseUrls {
 }
 
 /// One named model configuration shipped with a provider.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct ProviderPreset {
     pub key: String,
     pub label: String,
@@ -87,7 +100,7 @@ impl ProviderPreset {
 // ── ProviderMod ───────────────────────────────────────────────────────────────
 
 /// All data about one provider, deserialized from TOML.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct ProviderMod {
     pub id: String,
     pub display_name: String,
@@ -245,69 +258,58 @@ impl Provider {
         registry().lookup(s)
     }
 
-    // Named constructors used throughout the codebase.
+    // Builtin convenience constructors. Builtins are always present.
     pub fn ollama() -> Self {
-        registry().get("ollama").expect("ollama must be registered")
+        Self::from_id("ollama").expect("ollama builtin must be registered")
     }
     pub fn simulator() -> Self {
-        registry()
-            .get("simulator")
-            .expect("simulator must be registered")
-    }
-    pub fn openrouter() -> Self {
-        registry()
-            .get("openrouter")
-            .expect("openrouter must be registered")
+        Self::from_id("simulator").expect("simulator builtin must be registered")
     }
     pub fn custom() -> Self {
-        registry().get("custom").expect("custom must be registered")
+        Self::from_id("custom").expect("custom builtin must be registered")
     }
-    pub fn anthropic() -> Self {
-        registry()
-            .get("anthropic")
-            .expect("anthropic must be registered")
-    }
-    pub fn openai() -> Self {
-        registry().get("openai").expect("openai must be registered")
-    }
-    pub fn google() -> Self {
-        registry().get("google").expect("google must be registered")
-    }
-    pub fn groq() -> Self {
-        registry().get("groq").expect("groq must be registered")
-    }
-    pub fn xai() -> Self {
-        registry().get("xai").expect("xai must be registered")
-    }
-    pub fn mistral() -> Self {
-        registry()
-            .get("mistral")
-            .expect("mistral must be registered")
-    }
-    pub fn deepseek() -> Self {
-        registry()
-            .get("deepseek")
-            .expect("deepseek must be registered")
-    }
-    pub fn together() -> Self {
-        registry()
-            .get("together")
-            .expect("together must be registered")
+    pub fn vllm() -> Self {
+        Self::from_id("vllm").expect("vllm builtin must be registered")
     }
     pub fn vllmmlx() -> Self {
-        registry()
-            .get("vllmmlx")
-            .expect("vllmmlx must be registered")
+        Self::from_id("vllmmlx").expect("vllmmlx builtin must be registered")
+    }
+    // Cloud-provider convenience constructors. These look up providers loaded
+    // from `mods/<id>/providers/<id>.toml`; if the mod is missing they panic.
+    // Callers that handle a missing provider should use `Provider::from_id`
+    // or `Provider::from_str_loose` instead.
+    pub fn openrouter() -> Self {
+        Self::from_id("openrouter").expect("openrouter provider mod must be loaded")
+    }
+    pub fn anthropic() -> Self {
+        Self::from_id("anthropic").expect("anthropic provider mod must be loaded")
+    }
+    pub fn openai() -> Self {
+        Self::from_id("openai").expect("openai provider mod must be loaded")
+    }
+    pub fn google() -> Self {
+        Self::from_id("google").expect("google provider mod must be loaded")
+    }
+    pub fn groq() -> Self {
+        Self::from_id("groq").expect("groq provider mod must be loaded")
+    }
+    pub fn xai() -> Self {
+        Self::from_id("xai").expect("xai provider mod must be loaded")
+    }
+    pub fn mistral() -> Self {
+        Self::from_id("mistral").expect("mistral provider mod must be loaded")
+    }
+    pub fn deepseek() -> Self {
+        Self::from_id("deepseek").expect("deepseek provider mod must be loaded")
+    }
+    pub fn together() -> Self {
+        Self::from_id("together").expect("together provider mod must be loaded")
     }
     pub fn lmstudio() -> Self {
-        registry()
-            .get("lmstudio")
-            .expect("lmstudio must be registered")
+        Self::from_id("lmstudio").expect("lmstudio provider mod must be loaded")
     }
     pub fn github_models() -> Self {
-        registry()
-            .get("github_models")
-            .expect("github_models must be registered")
+        Self::from_id("github_models").expect("github_models provider mod must be loaded")
     }
 }
 
@@ -336,39 +338,54 @@ impl std::fmt::Display for Provider {
 
 // ── ProviderRegistry ─────────────────────────────────────────────────────────
 
+/// Provider registry. Uses interior mutability so the static `REGISTRY`
+/// can be pre-populated with builtins and then have mod-loaded providers
+/// merged in post-init via `register_mod_providers`. Existing
+/// `Arc<ProviderMod>` handles handed out before a merge keep pointing at
+/// their snapshot.
 pub struct ProviderRegistry {
-    by_id: HashMap<String, Provider>,
+    by_id: RwLock<HashMap<String, Provider>>,
 }
 
 impl ProviderRegistry {
-    fn load() -> Self {
-        let mut by_id = HashMap::new();
-        for raw in RAW_PROVIDER_MODS {
-            let m: ProviderMod =
-                toml::from_str(raw).expect("provider TOML parse failed — check providers/*.toml");
+    /// Loads the registry pre-populated with the five engine builtins.
+    /// Cloud providers are *not* loaded here; they arrive later via
+    /// `register_mod_providers` after `discover_mods` runs in bootstrap.
+    fn load_with_builtins() -> Self {
+        let mut by_id: HashMap<String, Provider> = HashMap::new();
+
+        for raw in builtin_providers::ALL {
+            let m: ProviderMod = toml::from_str(raw)
+                .expect("builtin provider TOML parse failed — check builtin_providers/*.toml");
             let p = Provider(Arc::new(m));
-            by_id.insert(p.id().to_string(), p.clone());
+            by_id.insert(p.id().to_string(), p);
         }
-        ProviderRegistry { by_id }
+
+        ProviderRegistry {
+            by_id: RwLock::new(by_id),
+        }
     }
 
     pub fn get(&self, id: &str) -> Option<Provider> {
-        self.by_id.get(id).cloned()
+        self.by_id
+            .read()
+            .expect("registry poisoned")
+            .get(id)
+            .cloned()
     }
 
     pub fn lookup(&self, s: &str) -> Result<Provider, ParishError> {
         let lower = s.to_lowercase();
-        // Try id directly
-        if let Some(p) = self.by_id.get(&lower) {
+        let guard = self.by_id.read().expect("registry poisoned");
+        if let Some(p) = guard.get(&lower) {
             return Ok(p.clone());
         }
-        // Try aliases
-        for p in self.by_id.values() {
+        for p in guard.values() {
             if p.0.aliases.iter().any(|a| a == &lower) {
                 return Ok(p.clone());
             }
         }
-        let mut known: Vec<&str> = self.by_id.keys().map(String::as_str).collect();
+        let mut known: Vec<&str> = guard.keys().map(String::as_str).collect();
         known.sort();
         Err(ParishError::Config(format!(
             "unknown provider '{}'. Known: {}",
@@ -378,7 +395,13 @@ impl ProviderRegistry {
     }
 
     pub fn all(&self) -> Vec<Provider> {
-        let mut v: Vec<_> = self.by_id.values().cloned().collect();
+        let mut v: Vec<_> = self
+            .by_id
+            .read()
+            .expect("registry poisoned")
+            .values()
+            .cloned()
+            .collect();
         v.sort_by(|a, b| a.id().cmp(b.id()));
         v
     }
@@ -386,6 +409,8 @@ impl ProviderRegistry {
     pub fn featured(&self) -> Vec<Provider> {
         let mut v: Vec<_> = self
             .by_id
+            .read()
+            .expect("registry poisoned")
             .values()
             .filter(|p| p.0.featured)
             .cloned()
@@ -393,15 +418,104 @@ impl ProviderRegistry {
         v.sort_by(|a, b| a.id().cmp(b.id()));
         v
     }
-}
 
-// Include the generated array of raw TOML strings at module level.
-include!(concat!(env!("OUT_DIR"), "/providers_gen.rs"));
+    /// Merges runtime-loaded providers into the registry. Called from the
+    /// bootstrap path once per process, after `discover_mods` collects
+    /// `ModKind::Providers` mods. Last-wins on id collision with a WARN
+    /// log; the collision message is the only operator signal that two
+    /// mods (or a mod and a builtin) ship the same provider id.
+    pub fn register_mod_providers(&self, mods: Vec<ProviderMod>) -> Result<(), ParishError> {
+        let mut guard = self.by_id.write().expect("registry poisoned");
+        for m in mods {
+            let id = m.id.clone();
+            if let Some(existing) = guard.get(&id) {
+                // Silent no-op when re-registering identical content — the
+                // auto-loader and bootstrap may both fire in debug builds
+                // and that overlap should not log spam.
+                if existing.0.as_ref() == &m {
+                    continue;
+                }
+                tracing::warn!(
+                    "mod-loaded provider '{}' overrides existing registry entry (last-wins)",
+                    id
+                );
+            }
+            guard.insert(id, Provider(Arc::new(m)));
+        }
+        Ok(())
+    }
+}
 
 static REGISTRY: OnceLock<ProviderRegistry> = OnceLock::new();
 
 pub fn registry() -> &'static ProviderRegistry {
-    REGISTRY.get_or_init(ProviderRegistry::load)
+    let r = REGISTRY.get_or_init(ProviderRegistry::load_with_builtins);
+    // In debug builds (cargo run, cargo test for any workspace crate),
+    // transparently make mods/ providers available so unit tests + dev
+    // runs see the same registry without each having to call
+    // ensure_test_mods_loaded() manually. Release builds skip this and
+    // rely on `parish_core::game_mod::register_provider_mods_once` from
+    // the explicit bootstrap path.
+    #[cfg(debug_assertions)]
+    ensure_test_mods_loaded();
+    r
+}
+
+/// Test helper: discover and register every `mods/<id>/providers/*.toml`
+/// found by walking up from this crate's compile-time `CARGO_MANIFEST_DIR`
+/// to a directory containing `mods/`. Idempotent (guarded by an internal
+/// `Once`); safe to call from any test setup.
+///
+/// Production builds use `parish_core::game_mod::register_provider_mods_once`
+/// invoked from the startup mod-load path; this helper exists so unit-test
+/// crates that cannot reach that bootstrap (parish-config, parish-cli, ...)
+/// still see the cloud-provider mods their fixtures expect.
+pub fn ensure_test_mods_loaded() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let crate_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut dir = crate_dir.to_path_buf();
+        let mods_dir = loop {
+            let candidate = dir.join("mods");
+            if candidate.is_dir() {
+                break Some(candidate);
+            }
+            if !dir.pop() {
+                break None;
+            }
+        };
+        let Some(mods_dir) = mods_dir else { return };
+        let Ok(read) = std::fs::read_dir(&mods_dir) else {
+            return;
+        };
+        let mut all: Vec<ProviderMod> = Vec::new();
+        for entry in read.flatten() {
+            let providers = entry.path().join("providers");
+            if !providers.is_dir() {
+                continue;
+            }
+            let Ok(files) = std::fs::read_dir(&providers) else {
+                continue;
+            };
+            for f in files.flatten() {
+                if f.path().extension().is_none_or(|x| x != "toml") {
+                    continue;
+                }
+                let Ok(raw) = std::fs::read_to_string(f.path()) else {
+                    continue;
+                };
+                if let Ok(m) = toml::from_str::<ProviderMod>(&raw) {
+                    all.push(m);
+                }
+            }
+        }
+        // Avoid recursing back through `registry()` — it would re-enter this
+        // `Once::call_once` and deadlock. Use the underlying static directly,
+        // which is guaranteed initialized by the caller in `registry()`.
+        let r = REGISTRY.get_or_init(ProviderRegistry::load_with_builtins);
+        let _ = r.register_mod_providers(all);
+    });
 }
 
 // ── InferenceCategory ────────────────────────────────────────────────────────
@@ -780,7 +894,83 @@ mod tests {
     use serial_test::serial;
     use std::io::Write;
 
+    #[test]
+    #[serial(provider_registry)]
+    fn builtin_providers_parse_and_register() {
+        // The five engine builtins must always be present in the registry,
+        // even before any mod registration runs.
+        for id in builtin_providers::BUILTIN_IDS {
+            assert!(
+                Provider::from_id(id).is_some(),
+                "builtin '{}' must be registered on first access",
+                id
+            );
+        }
+    }
+
+    #[test]
+    #[serial(provider_registry)]
+    fn register_mod_providers_merges_new_ids() {
+        let raw = r#"
+id = "test-merge-provider"
+display_name = "Test Merge"
+kind = "openai-compat"
+default_base_url = "http://127.0.0.1:9001/v1"
+requires_api_key = false
+requires_model = true
+featured = false
+"#;
+        let m: ProviderMod = toml::from_str(raw).unwrap();
+        registry().register_mod_providers(vec![m]).unwrap();
+        let p = Provider::from_id("test-merge-provider")
+            .expect("registered provider must be retrievable");
+        assert_eq!(p.id(), "test-merge-provider");
+        assert_eq!(p.default_base_url(), "http://127.0.0.1:9001/v1");
+    }
+
+    #[test]
+    #[serial(provider_registry)]
+    fn register_mod_providers_last_wins_on_collision() {
+        let original_url = Provider::from_id("simulator")
+            .unwrap()
+            .default_base_url()
+            .to_string();
+
+        let overridden = r#"
+id = "simulator"
+display_name = "Simulator OVERRIDDEN"
+kind = "simulator"
+default_base_url = "http://overridden.example/v1"
+requires_api_key = false
+requires_model = false
+featured = false
+"#;
+        let m: ProviderMod = toml::from_str(overridden).unwrap();
+        registry().register_mod_providers(vec![m]).unwrap();
+        let p = Provider::from_id("simulator").unwrap();
+        assert_eq!(p.default_base_url(), "http://overridden.example/v1");
+
+        // Restore so subsequent tests see the original builtin.
+        let restore = format!(
+            r#"
+id = "simulator"
+display_name = "Simulator"
+kind = "simulator"
+default_base_url = "{}"
+requires_api_key = false
+requires_model = false
+featured = false
+"#,
+            original_url
+        );
+        let m: ProviderMod = toml::from_str(&restore).unwrap();
+        registry().register_mod_providers(vec![m]).unwrap();
+    }
+
     fn clear_parish_env() {
+        // Make sure provider mods from mods/ are loaded before any env
+        // manipulation triggers a registry lookup.
+        ensure_test_mods_loaded();
         // SAFETY: All callers are annotated with `#[serial(parish_env)]`
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");

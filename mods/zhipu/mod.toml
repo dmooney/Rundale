@@ -1,0 +1,6 @@
+[mod]
+name = "Zhipu AI Provider"
+id = "zhipu"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Zhipu AI."
+kind = "providers"

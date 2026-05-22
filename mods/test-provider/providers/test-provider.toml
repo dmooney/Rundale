@@ -1,0 +1,17 @@
+id = "test-provider"
+display_name = "Test Provider"
+aliases = []
+kind = "openai-compat"
+default_base_url = "http://127.0.0.1:9999/v1"
+requires_api_key = false
+needs_base_url_from_user = true
+requires_model = true
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "test-model-dialogue"
+simulation = "test-model-simulation"
+intent = "test-model-intent"
+reaction = "test-model-reaction"

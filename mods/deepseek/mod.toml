@@ -1,0 +1,6 @@
+[mod]
+name = "DeepSeek Provider"
+id = "deepseek"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for DeepSeek."
+kind = "providers"

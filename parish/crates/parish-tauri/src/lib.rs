@@ -1301,6 +1301,7 @@ pub fn run() {
             commands::clear_provider_config,
             commands::list_byok_env_keys,
             commands::list_preset_models,
+            commands::list_available_providers,
             commands::get_onboarding_options,
             commands::start_local_inference_setup,
             commands::submit_input,

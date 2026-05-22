@@ -1,0 +1,6 @@
+[mod]
+name = "Groq Provider"
+id = "groq"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Groq."
+kind = "providers"

@@ -1,0 +1,6 @@
+[mod]
+name = "Test Provider"
+id = "test-provider"
+version = "0.0.1"
+description = "Verification-fixture provider mod for the runtime-loaded refactor."
+kind = "providers"

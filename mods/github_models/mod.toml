@@ -1,0 +1,6 @@
+[mod]
+name = "GitHub Models Provider"
+id = "github_models"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for GitHub Models."
+kind = "providers"

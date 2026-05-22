@@ -138,6 +138,9 @@ impl ModSource for LocalDiskModSource {
         let root = self.root.clone();
         Box::pin(async move {
             let discovered = discover_mods_in(&root)?;
+            if let Err(e) = crate::game_mod::register_provider_mods_once(&discovered) {
+                tracing::warn!("Failed to register provider mods: {}", e);
+            }
 
             // Setting mod is first in the list; auxiliary follow in lex order.
             let mut summaries = Vec::with_capacity(1 + discovered.auxiliary.len());
@@ -203,6 +206,9 @@ pub fn load_setting_mod_sync() -> Option<ModBundle> {
     let source = LocalDiskModSource::new().ok()?;
     let root = source.root.clone();
     let discovered = discover_mods_in(&root).ok()?;
+    if let Err(e) = crate::game_mod::register_provider_mods_once(&discovered) {
+        tracing::warn!("Failed to register provider mods: {}", e);
+    }
     match GameMod::load(&discovered.setting) {
         Ok(gm) => {
             tracing::info!(
