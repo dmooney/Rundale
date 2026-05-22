@@ -46,9 +46,18 @@ web PORT="3001":
 check:
     cd parish && just check
 
-# Agent proof gate: requires changed proof evidence and judge verdicts for proof-relevant PRs
-agent-check:
-    bash parish/scripts/agent-check.sh
+# Agent proof gate (local mode): validates the bundle in .proofs/<task-id>/
+# against the same rules CI uses. Pass `--source=pr <num>` to validate a
+# PR comment instead (what CI does).
+agent-check *ARGS:
+    bash parish/scripts/agent-check.sh {{ARGS}}
+
+# Attach a proof bundle to a PR as a structured comment. The bundle lives
+# at .proofs/<TASK_ID>/ (gitignored). Idempotent — re-running edits the
+# existing parish-proof-bundle comment instead of appending. PR_NUM
+# defaults to the PR for the current branch.
+attach-proof TASK_ID PR_NUM="":
+    bash parish/scripts/attach-proof.sh {{TASK_ID}} {{PR_NUM}}
 
 # Pre-push gate: check + game harness walkthrough
 verify:

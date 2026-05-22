@@ -1,8 +1,0 @@
-
-
-
-Running 1 test using 1 worker
-
-
-[1A[2K[1/1] [chromium] › e2e/interactions.spec.ts:42:2 › Input field interactions › input stays disabled across mid-chain loading=false (#991)
-[1A[2K  1 passed (4.6s)

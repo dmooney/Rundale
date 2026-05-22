@@ -1,3 +1,0 @@
-Verdict: sufficient
-Technical debt: clear
-All 9 items (TD-015 through TD-023) are manifest hygiene, dead-API removal, Rule 9 migration, and test fixes. TD-015 maps informational journal events to `None` (no gameplay behavior change — `NpcArrived`/`NpcDeparted` were never replayed). TD-016 replaces the deprecated `ensure_saves_dir()` with `resolve_project_saves_dir` at all callers, eliminating the cwd-walk Rule 9 violation. TD-019 removes a dead `covers_path` predicate with no callers. All changes verified by `cargo test -p parish-persistence` (115 tests pass) and `cargo clippy -p parish-persistence --all-targets -- -D warnings` (no warnings). Dependent crates clean after TD-016 migration.
