@@ -33,6 +33,7 @@ hex            = "0.4"
 base64         = "0.22"
 governor       = { workspace = true }
 lru            = { workspace = true }
+toml           = { workspace = true }
 tower-sessions = "0.15"
 mime_guess     = "2"
 

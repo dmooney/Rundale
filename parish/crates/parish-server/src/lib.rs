@@ -466,6 +466,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/new-save-file", post(routes::new_save_file))
         .route("/api/new-game", post(routes::new_game))
         .route("/api/save-state", get(routes::get_save_state))
+        .route("/api/mods", get(routes::list_mods))
+        .route("/api/mods/switch", post(routes::switch_mod))
         // ── Demo routes (desktop-only feature; server returns 501) ──────────
         .route("/api/demo-config", get(routes::get_demo_config))
         .route("/api/demo-context", get(routes::get_demo_context))

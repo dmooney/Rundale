@@ -94,6 +94,15 @@ export interface LanguageHint {
 }
 
 
+export interface ModEntry {
+	id: string;
+	name: string;
+	title: string | null;
+	version: string;
+	description: string;
+	active: boolean;
+}
+
 export interface UiConfig {
 	hints_label: string;
 	default_accent: string;

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { worldState } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
-	import { savePickerVisible } from '../stores/save';
+	import { savePickerVisible, modSelectorVisible } from '../stores/save';
 	import { onDestroy } from 'svelte';
 	import AuthStatus from './AuthStatus.svelte';
 
@@ -103,6 +103,7 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
+		<button type="button" class="mod-toggle" aria-label="Switch active mod" onclick={() => modSelectorVisible.set(true)} title="Switch mod">Mod</button>
 		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
 		<a class="designer-link" href="/editor" title="Parish Designer — edit mod data">Designer</a>
 		<button type="button" class="debug-toggle" class:debug-active={$debugVisible} aria-pressed={$debugVisible} aria-label="Toggle debug panel" onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
@@ -193,6 +194,7 @@
 		font-style: italic;
 	}
 
+	.mod-toggle,
 	.save-toggle {
 		background: none;
 		border: 1px solid var(--color-border);
@@ -205,6 +207,8 @@
 		transition: color 0.2s, border-color 0.2s;
 	}
 
+	.mod-toggle:hover,
+	.mod-toggle:focus-visible,
 	.save-toggle:hover,
 	.save-toggle:focus-visible {
 		color: var(--color-fg);
@@ -271,6 +275,7 @@
 			display: inline;
 		}
 
+		.mod-toggle,
 		.save-toggle,
 		.debug-toggle,
 		.designer-link {
