@@ -11,6 +11,7 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 | `/fix-issue` | End-to-end GitHub issue workflow |
 | `/chrome-test` | Live browser testing session via browser MCP tools |
 | `/play [scenario]` | Play-test the game via script harness |
+| `parish [command]` | CLI client for a running Parish server. Single-shot, `--script FILE`, or interactive REPL. Calls `POST /api/command`; returns rendered prose. Use when you need real LLM responses or are testing server-mode features. |
 | `/prove <feature>` | Prove a gameplay feature works at runtime (required after implementing features) |
 | `/rubric` | Run snapshot-baseline + structural-rubric eval sensors over gameplay fixtures (sister to `/prove`) |
 | `/feature-scaffold <name>` | Depth-first decomposition: design note + failing fixture + plan, before any code |

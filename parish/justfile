@@ -144,6 +144,10 @@ demo PAUSE="2" MAX_TURNS="":
 run-headless:
     cargo run -p parish-repl -- --headless
 
+# Run the parish HTTP client (requires a running server; see `just web`)
+run-client SERVER="http://localhost:3001":
+    cargo run -p parish-client -- --server {{SERVER}}
+
 # Run the axum web server (serves the Svelte UI in a browser)
 #
 # Always rebuilds the frontend first with a clean cache, because Vite's

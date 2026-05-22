@@ -44,6 +44,31 @@ Play-test Rundale via the `--script` mode, which outputs structured JSON per com
    - Any anomalies, bugs, or missing features
    - Overall assessment of the gameplay experience
 
+## Live-server alternative
+
+When a `parish-server` is already running and you need real LLM responses
+(e.g. to verify NPC dialogue or test a server-mode feature), use the `parish`
+client instead of `--script`:
+
+```sh
+# Interactive (send commands one at a time, read porcelain output):
+parish [--server http://localhost:3001]
+
+# Script file against live server:
+parish --script testing/fixtures/play_session.txt
+
+# Single command:
+parish "go to the church"
+```
+
+The `parish` client calls `POST /api/command` and returns complete responses
+synchronously — no WebSocket, no polling. Output includes location, time,
+NPCs, and the full text log after every command.
+
+Use `--script` mode (local harness) for deterministic testing without LLM.
+Use `parish` (live server) when you need real NPC dialogue or are testing
+a server-mode feature.
+
 ## Tips for Script Generation
 
 Available commands in scripts:

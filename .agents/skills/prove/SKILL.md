@@ -16,7 +16,20 @@ Prove that a gameplay feature works at runtime — not just that tests pass.
 
 1. **Write a targeted test script** at `testing/fixtures/play_prove.txt` that exercises the feature from a player's perspective. Use `/wait` to advance time, move between locations, and use `/time`, `/status`, `/debug clock`, `/debug npcs`, `look`, `/npcs` to observe effects. Design the script to make the feature's impact visible in the output.
 
-2. **Run it**: `cargo run -- --script testing/fixtures/play_prove.txt`
+2. **Run it**:
+
+   ```sh
+   # Local headless harness (no LLM, fast, deterministic):
+   cargo run -p parish-repl -- --script testing/fixtures/play_prove.txt
+
+   # Against a live server (real LLM — required for inference/dialogue features):
+   parish --script testing/fixtures/play_prove.txt
+   ```
+
+   Use the live-server path when the feature under proof requires real NPC
+   inference. Watch for `"outcome": "timeout"` lines if the provider is not
+   configured — these indicate the LLM did not respond.
+
 
 3. **Read the JSON output critically**. For each line, ask:
    - Do values change when expected? (e.g., weather transitions, NPC relocations)
