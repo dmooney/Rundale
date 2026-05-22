@@ -11,7 +11,7 @@ Run the full Rundale quality gate. All steps must pass before any commit.
 Run `just check` from the repo root. This runs: `agent-check`, `fmt-check`, `clippy`, `test`, `witness-scan`, and `check-doc-paths`.
 
 If `just check` fails, diagnose by running the steps individually:
-1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `docs/proofs/` when it reports missing evidence.
+1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `.proofs/<task-id>/` when it reports missing evidence. The bundle is posted to the PR via `just attach-proof <task-id>`; it is not committed.
 2. **Format**: `cd parish && cargo fmt --check`. Fix with `cd parish && cargo fmt`, then re-check.
 3. **Lint**: `cd parish && cargo clippy -- -D warnings`. Fix warnings before proceeding.
 4. **Tests**: `cd parish && cargo test`. All tests must pass.

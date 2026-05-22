@@ -3,14 +3,11 @@
 
 ## Proof Evidence
 
-- [ ] Changed proof bundle added under docs/proofs/{proof-id}/.
-- [ ] Evidence is a gameplay transcript, screenshot, or gif.
-- [ ] docs/proofs/{proof-id}/judge.md records an independent sufficiency verdict.
+- [ ] Proof bundle prepared in `.proofs/{task-id}/` (gitignored — not committed).
+- [ ] Evidence is a gameplay transcript, screenshot, or gif; `Evidence type: live ...` header set for runtime changes.
+- [ ] `.proofs/{task-id}/judge.md` records an independent sufficiency verdict and `Acceptance criteria: met`.
 - [ ] `just agent-check` passes locally.
-
-Evidence:
-
-Judge:
+- [ ] Posted to this PR with `just attach-proof {task-id}` — look for the `parish-proof-bundle:{task-id}` comment below.
 
 ## Checks
 
