@@ -17,6 +17,7 @@
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
 	import { startDemoLoop, stopDemo } from '../lib/demo-player';
+	import { SceneDeduplicator } from '../lib/scene-dedup';
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
@@ -239,6 +240,11 @@
 		};
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 
+		// Scene deduplicator: tracks the last-seen location to prevent scene
+		// descriptions from being appended on every world update when the
+		// location hasn't changed.
+		const sceneDedup = new SceneDeduplicator();
+
 		// Initial data fetch (theme first to avoid color flash).
 		//
 		// Use `allSettled` so a single failed endpoint doesn't block the
@@ -256,7 +262,7 @@
 			worldState.set(snap);
 			palette.applyGameHour(snap.hour);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
-			if (snap.location_description) {
+			if (snap.location_description && sceneDedup.shouldShowDescription(snap.location_name)) {
 				textLog.update((log) => [
 					...log,
 					{ source: 'system', content: snap.location_description }
@@ -308,6 +314,13 @@
 				tracker.onWorldStateChange(snap.paused);
 				palette.applyGameHour(snap.hour);
 				if (snap.name_hints) nameHints.set(snap.name_hints);
+				// Append scene description only if location has changed
+				if (snap.location_description && sceneDedup.shouldShowDescription(snap.location_name)) {
+					textLog.update((log) => [
+						...log,
+						{ source: 'system', content: snap.location_description }
+					]);
+				}
 				try {
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
 					mapData.set(map);
