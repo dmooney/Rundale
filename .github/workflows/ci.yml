@@ -40,6 +40,10 @@ jobs:
     # bumps Cargo.lock / Cargo.toml without touching engine logic; the
     # proof gate has no useful signal there.
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
     defaults:
       run:
         working-directory: ${{ github.workspace }}

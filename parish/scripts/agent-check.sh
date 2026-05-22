@@ -28,6 +28,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 source_mode="local"
 pr_number=""
+bundle_filter=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --source=local)
@@ -48,9 +49,21 @@ while [[ $# -gt 0 ]]; do
             pr_number="${1#--source=pr=}"
             shift
             ;;
+        --bundle)
+            bundle_filter="${2:-}"
+            if [[ -z "$bundle_filter" ]]; then
+                echo "agent-check: --bundle requires a task-id." >&2
+                exit 2
+            fi
+            shift 2
+            ;;
+        --bundle=*)
+            bundle_filter="${1#--bundle=}"
+            shift
+            ;;
         *)
             echo "agent-check: unknown argument: $1" >&2
-            echo "Usage: agent-check.sh [--source=local | --source=pr <number>]" >&2
+            echo "Usage: agent-check.sh [--source=local | --source=pr <number>] [--bundle <task-id>]" >&2
             exit 2
             ;;
     esac
@@ -236,6 +249,10 @@ fi
 gather_bundles_local() {
     [[ -d .proofs ]] || return 0
     while IFS= read -r f; do
+        # If --bundle <id> was passed, scope to just that bundle.
+        if [[ -n "$bundle_filter" ]]; then
+            [[ "$f" == ".proofs/${bundle_filter}/"* ]] || continue
+        fi
         case "$f" in
             .proofs/*/judge.md)
                 echo "$f" >> "$judges"
@@ -255,12 +272,30 @@ gather_bundles_pr() {
         echo "agent-check FAILED: --source=pr requires 'gh' to be installed." >&2
         return 1
     fi
+
+    # Only ingest content authored by trusted users: the PR author. The
+    # PR body is always trusted (only the PR author can edit it). Comments
+    # are filtered by author.login == PR.author.login. This prevents
+    # third-party commenters on public repos from forging or spoofing a
+    # bundle that satisfies or breaks the gate.
+    local pr_author
+    pr_author="$(gh pr view "$pr_number" --json author --jq '.author.login // empty' 2>/dev/null || true)"
+    if [[ -z "$pr_author" ]]; then
+        echo "agent-check FAILED: could not resolve PR #$pr_number author." >&2
+        return 1
+    fi
+    echo "agent-check: PR #$pr_number author is '$pr_author'; trusting only that login for proof comments."
+
     local raw="$tmpdir/comments_and_body.txt"
     : > "$raw"
     gh pr view "$pr_number" --json body --jq '.body // empty' >> "$raw" 2>/dev/null \
         || { echo "agent-check FAILED: could not fetch PR #$pr_number." >&2; return 1; }
     printf '\n' >> "$raw"
-    gh pr view "$pr_number" --json comments --jq '.comments[].body // empty' >> "$raw" 2>/dev/null \
+    # Filter comments by login server-side so untrusted bodies never reach
+    # the extractor.
+    gh pr view "$pr_number" --json comments \
+        --jq ".comments[] | select(.author.login == \"$pr_author\") | .body // empty" \
+        >> "$raw" 2>/dev/null \
         || { echo "agent-check FAILED: could not fetch PR #$pr_number comments." >&2; return 1; }
 
     # Extract each `<!-- parish-proof-bundle:ID v=N -->` ... `<!-- /parish-proof-bundle:ID -->`
@@ -288,13 +323,16 @@ gather_bundles_pr() {
     ' "$raw"
 
     # Register every extracted block as evidence + judge + AC. The validators
-    # below will independently confirm each required header line is present.
+    # below independently confirm each required header line is present.
+    # AC section detection is intentionally strict: it requires a real
+    # `## Acceptance criteria` heading. The judge verdict line
+    # `Acceptance criteria: met` alone does NOT count, so a bundle that
+    # only contains judge boilerplate cannot satisfy rule 13.
     for block_file in "$tmpdir"/pr_block_*.md; do
         [[ -f "$block_file" ]] || continue
         echo "$block_file" >> "$evidence"
         echo "$block_file" >> "$judges"
-        if grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file" \
-            || grep -Eiq '^Acceptance criteria:' "$block_file"; then
+        if grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file"; then
             echo "$block_file" >> "$ac_files"
         fi
     done
@@ -401,30 +439,49 @@ else
     echo "agent-check: no proof-relevant changes; proof bundle not required."
 fi
 
-# New proof bundles must include acceptance-criteria.md — enforced regardless
-# of whether proof-relevant code changed (catches proof-only PRs too).
-# In local mode, every `.proofs/<id>/` with a judge or evidence file must
-# have an acceptance-criteria.md sibling. In PR mode, every extracted block
-# must contain an Acceptance criteria section.
-if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
+# Per-bundle completeness: every bundle that exists at all must contain
+# judge + evidence + acceptance-criteria. Catches the case where bundle A
+# has a judge and bundle B has only an evidence file — the aggregate
+# `judge_count > 0` test would have silently allowed B to pass.
+# AC section heading is required (not the verdict line) per rule 13.
+if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 || "$ac_count" -gt 0 ]]; then
     if [[ "$source_mode" == "local" ]]; then
+        # Collect every bundle dir touched.
         while IFS= read -r bundle_dir; do
-            ac_path="$bundle_dir/acceptance-criteria.md"
-            if [[ ! -f "$ac_path" ]]; then
+            [[ -z "$bundle_dir" ]] && continue
+            if [[ ! -f "$bundle_dir/judge.md" ]]; then
+                echo "agent-check FAILED: bundle '$bundle_dir/' is missing judge.md." >&2
+                failed=1
+            fi
+            # An evidence file means any of: evidence.md, transcript.{md,txt}, or
+            # a binary artifact in the bundle dir.
+            local_has_evidence=0
+            for ev in "$bundle_dir"/*.md "$bundle_dir"/*.txt "$bundle_dir"/*.png "$bundle_dir"/*.jpg "$bundle_dir"/*.jpeg "$bundle_dir"/*.gif; do
+                [[ -f "$ev" ]] || continue
+                case "$ev" in
+                    "$bundle_dir/judge.md"|"$bundle_dir/acceptance-criteria.md") ;;
+                    *) local_has_evidence=1; break ;;
+                esac
+            done
+            if [[ "$local_has_evidence" -eq 0 ]]; then
+                echo "agent-check FAILED: bundle '$bundle_dir/' has no evidence file (.md, .txt, image)." >&2
+                failed=1
+            fi
+            if [[ ! -f "$bundle_dir/acceptance-criteria.md" ]]; then
                 echo "agent-check FAILED: bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
                 echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
                 echo "See rule 13 in AGENTS.md." >&2
                 failed=1
             fi
-        done < <(cat "$evidence" "$judges" 2>/dev/null | grep -E '^\.proofs/[^/]+/(evidence|judge)\.md$' | sed 's|/[^/]*$||' | sort -u)
+        done < <(cat "$evidence" "$judges" "$ac_files" 2>/dev/null | grep -E '^\.proofs/[^/]+/' | sed 's|/[^/]*$||' | sort -u)
     else
-        # PR mode: every block must contain an AC section.
+        # PR mode: every block must contain a real `## Acceptance criteria`
+        # heading, plus the judge verdict lines (validated above per-file).
         while IFS= read -r block_file; do
-            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file" \
-                && ! grep -Eiq '^Acceptance criteria:' "$block_file"; then
+            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file"; then
                 bundle_id="$(basename "$block_file" .md | sed 's/^pr_block_//')"
-                echo "agent-check FAILED: PR comment for bundle '$bundle_id' has no Acceptance criteria section." >&2
-                echo "See rule 13 in AGENTS.md." >&2
+                echo "agent-check FAILED: PR comment for bundle '$bundle_id' has no '## Acceptance criteria' section." >&2
+                echo "The judge verdict line 'Acceptance criteria: met' alone does NOT satisfy rule 13." >&2
                 failed=1
             fi
         done < <(sort -u "$judges")
@@ -441,11 +498,11 @@ if [[ "$judge_count" -gt 0 ]]; then
             bundle_dir="$(dirname "$file")"
             [[ -f "$bundle_dir/acceptance-criteria.md" ]] || check=0
         else
-            # PR mode: every block that listed an AC section also needs the
-            # 'Acceptance criteria: met' line. Already validated above for
-            # AC-section presence; here we check the verdict line.
-            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$file" \
-                && ! grep -Eiq '^Acceptance criteria:' "$file"; then
+            # PR mode: every block that listed a real AC section also
+            # needs the 'Acceptance criteria: met' line. Verdict-only
+            # bundles can't sneak through by matching `Acceptance criteria:`
+            # against the verdict line itself.
+            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$file"; then
                 check=0
             fi
         fi

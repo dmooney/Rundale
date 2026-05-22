@@ -145,18 +145,28 @@ _proof_bundle_dirs() {
         | sed "s|^$ROOT/||" \
         | grep -E '\.proofs/.*/(evidence|judge)\.md$' \
         | sed 's|/[^/]*$||' || true
-      # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
-      # false positives from read-only commands like cat/grep/sed.
-      # Handles optional quotes and ./ prefix (e.g. > ".proofs/...", > ./.proofs/...,
-      # tee -a ".proofs/..."). The tee alternative allows optional flags first.
+      # Bash scan: write-indicative contexts (>, >>, tee) catch the common
+      # path. Additionally any cp/mv/install/python/curl/wget command
+      # that names a .proofs/*/{evidence,judge}.md target is treated as
+      # a write — the original git-diff fallback is gone (`.proofs/` is
+      # gitignored), so we cannot rely on the filesystem after the fact.
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-{1,2}[[:alnum:]-]+)*[[:space:]]+"?\.?/?)\.proofs/[^/]+/(evidence|judge)\.md' \
-        | grep -oE '\.proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -oE '\.proofs/[^/[:space:]\"]+/(evidence|judge)\.md' \
+        | sed 's|/[^/]*$||' || true
+    fi
+    # Belt-and-suspenders disk walk: any bundle dir that currently exists
+    # and contains a judge.md or evidence.md is treated as session work.
+    # This catches every other write path (generators, redirected python
+    # output, etc.) without depending on transcript heuristics.
+    if [ -d "$ROOT/.proofs" ]; then
+      find "$ROOT/.proofs" -mindepth 2 -maxdepth 2 -type f \
+        \( -name 'evidence.md' -o -name 'judge.md' \) 2>/dev/null \
+        | sed "s|^$ROOT/||" \
         | sed 's|/[^/]*$||' || true
     fi
   } | grep -v '^$' | sort -u || true

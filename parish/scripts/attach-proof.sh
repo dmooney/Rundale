@@ -60,26 +60,42 @@ body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 bash parish/scripts/render-proof-comment.sh "$task_id" > "$body_file"
 
-# Resolve owner/repo for REST calls.
-repo_full="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+# Resolve the PR's base repository (where the PR lives), NOT the local
+# repo. Fork contributors clone their fork as origin, so `gh repo view`
+# returns the wrong nameWithOwner. Issue comments are posted to the base
+# repo, so always derive it from the PR metadata.
+repo_full="$(gh pr view "$pr_number" --json baseRepository --jq '.baseRepository.nameWithOwner // empty')"
+if [[ -z "$repo_full" ]]; then
+    echo "attach-proof: could not resolve base repository for PR #$pr_number." >&2
+    exit 1
+fi
 
-# Look for an existing comment with this bundle's fence. REST returns
-# integer `id`s suitable for PATCH; GraphQL node IDs would require a
-# different mutation path.
+# Resolve the authenticated user so we can filter for our own prior
+# comments. A reviewer who quoted the fence in their review must not
+# become the target of the PATCH.
+self_login="$(gh api user --jq '.login // empty')"
+if [[ -z "$self_login" ]]; then
+    echo "attach-proof: could not resolve authenticated gh user." >&2
+    exit 1
+fi
+
+# Look for an existing comment with this bundle's fence AUTHORED BY the
+# current user. REST returns integer `id`s suitable for PATCH; GraphQL
+# node IDs would require a different mutation path.
 fence="<!-- parish-proof-bundle:${task_id} "
 existing_id="$(
     gh api --paginate "repos/${repo_full}/issues/${pr_number}/comments" \
-        --jq ".[] | select(.body | contains(\"${fence}\")) | .id" \
+        --jq ".[] | select(.user.login == \"$self_login\") | select(.body | contains(\"${fence}\")) | .id" \
         2>/dev/null | head -n 1 || true
 )"
 
 if [[ -n "$existing_id" ]]; then
-    echo "attach-proof: editing existing comment $existing_id on PR #$pr_number."
+    echo "attach-proof: editing existing comment $existing_id on PR #$pr_number (author $self_login)."
     gh api --method PATCH \
         "repos/${repo_full}/issues/comments/${existing_id}" \
         --field body=@"$body_file" >/dev/null
 else
-    echo "attach-proof: posting new comment on PR #$pr_number."
+    echo "attach-proof: posting new comment on PR #$pr_number as $self_login."
     gh pr comment "$pr_number" --body-file "$body_file" >/dev/null
 fi
 
