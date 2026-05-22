@@ -1,0 +1,15 @@
+# Placeholder fixture for task demo-intent-leak.
+#
+# The CLI script harness does not exercise the demo auto-player code path
+# (`get_llm_player_action` lives in parish-tauri and requires the Tauri GUI +
+# an LLM client). Verification for this task is therefore a live `just demo`
+# transcript, not a CLI script run.
+#
+# This file exists so the task-start skill's directory layout is honoured and
+# so that anyone grepping `parish/testing/fixtures/` for the task id finds
+# this note pointing at the real verification path:
+#
+#   just demo 2 5 2>&1 | tee docs/proofs/demo-intent-leak/transcript.txt
+#
+# See docs/proofs/demo-intent-leak/acceptance-criteria.md for the full
+# acceptance criteria and live-proof expectations.
