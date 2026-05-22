@@ -160,7 +160,7 @@ async fn process_tile(
 async fn fetch_raw(
     http: &reqwest::Client,
     url_template: &str,
-    cache_dir: &PathBuf,
+    cache_dir: &std::path::Path,
     z: u32,
     x: u32,
     y: u32,
