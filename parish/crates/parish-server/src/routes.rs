@@ -1935,6 +1935,11 @@ pub mod tests {
             let mut config = state.config.lock().await;
             config.model_name = "test-model".to_string();
             config.max_follow_up_turns = 1;
+            // Bystander chain is gated behind `autonomous-npc-chain` (off by
+            // default); enable it so this regression guard exercises Phase 2.
+            config
+                .flags
+                .enable(parish_core::game_loop::AUTONOMOUS_NPC_CHAIN_FLAG);
         }
 
         let (_prompts, worker) = install_scripted_inference_queue(
@@ -1961,6 +1966,185 @@ pub mod tests {
         // Expect: player → Siobhan (addressed) → Padraig (addressed) → Sean (chain).
         assert_eq!(transcript.len(), 4, "transcript = {:?}", transcript);
         assert_eq!(transcript[3].speaker, "Sean Brennan");
+
+        worker.abort();
+    }
+
+    /// AC1 — Default off: with no flag set and bystanders present, only the
+    /// addressed NPC replies. The chain that the always-on behaviour would
+    /// have produced must not fire.
+    #[tokio::test]
+    async fn handle_npc_conversation_chain_disabled_by_default() {
+        use parish_core::npc::types::{Relationship, RelationshipKind};
+
+        let state = test_app_state();
+        add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+        add_introduced_npc(&state, 2, "Padraig Darcy", "Farmer").await;
+
+        // High-strength friendship — under the old always-on chain this would
+        // have lured Padraig into Phase 2. Off-by-default must suppress it.
+        {
+            let mut npc_manager = state.npc_manager.lock().await;
+            if let Some(padraig) = npc_manager.get_mut(NpcId(2)) {
+                padraig.relationships.insert(
+                    NpcId(1),
+                    Relationship {
+                        kind: RelationshipKind::Friend,
+                        strength: 0.9,
+                        history: Vec::new(),
+                    },
+                );
+            }
+        }
+
+        {
+            let mut config = state.config.lock().await;
+            config.model_name = "test-model".to_string();
+            config.max_follow_up_turns = 2;
+            // No `flags.enable(...)` — relying on default-off.
+            assert!(
+                !config
+                    .flags
+                    .is_enabled(parish_core::game_loop::AUTONOMOUS_NPC_CHAIN_FLAG),
+                "flag must default to disabled"
+            );
+        }
+
+        let (_prompts, worker) = install_scripted_inference_queue(
+            &state,
+            // Only one reply is needed when the chain is gated off.
+            vec![r#"{"dialogue":"I heard the fair will be lively.","action":"speaks","mood":"curious"}"#],
+        )
+        .await;
+
+        handle_npc_conversation(
+            "What news is there?".to_string(),
+            vec!["Siobhan Murphy".to_string()],
+            &state,
+        )
+        .await;
+
+        let transcript = {
+            let conversation = state.conversation.lock().await;
+            conversation.transcript.iter().cloned().collect::<Vec<_>>()
+        };
+        // Expect: player → Siobhan only. No Padraig chain turn.
+        assert_eq!(transcript.len(), 2, "transcript = {:?}", transcript);
+        assert_eq!(transcript[1].speaker, "Siobhan Murphy");
+
+        worker.abort();
+    }
+
+    /// AC3 — Explicit disable: `flags.disable(...)` behaves identically to
+    /// the never-set default. Guards against an accidental coupling where
+    /// `is_disabled` ever became the gating predicate.
+    #[tokio::test]
+    async fn handle_npc_conversation_chain_explicit_disable_matches_default() {
+        use parish_core::npc::types::{Relationship, RelationshipKind};
+
+        let state = test_app_state();
+        add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+        add_introduced_npc(&state, 2, "Padraig Darcy", "Farmer").await;
+
+        {
+            let mut npc_manager = state.npc_manager.lock().await;
+            if let Some(padraig) = npc_manager.get_mut(NpcId(2)) {
+                padraig.relationships.insert(
+                    NpcId(1),
+                    Relationship {
+                        kind: RelationshipKind::Friend,
+                        strength: 0.9,
+                        history: Vec::new(),
+                    },
+                );
+            }
+        }
+
+        {
+            let mut config = state.config.lock().await;
+            config.model_name = "test-model".to_string();
+            config.max_follow_up_turns = 2;
+            config
+                .flags
+                .disable(parish_core::game_loop::AUTONOMOUS_NPC_CHAIN_FLAG);
+        }
+
+        let (_prompts, worker) = install_scripted_inference_queue(
+            &state,
+            vec![r#"{"dialogue":"Quiet at the fair.","action":"speaks","mood":"content"}"#],
+        )
+        .await;
+
+        handle_npc_conversation(
+            "Anything stirring?".to_string(),
+            vec!["Siobhan Murphy".to_string()],
+            &state,
+        )
+        .await;
+
+        let transcript = {
+            let conversation = state.conversation.lock().await;
+            conversation.transcript.iter().cloned().collect::<Vec<_>>()
+        };
+        assert_eq!(transcript.len(), 2, "transcript = {:?}", transcript);
+        assert_eq!(transcript[1].speaker, "Siobhan Murphy");
+
+        worker.abort();
+    }
+
+    /// AC5 — Flag on but `max_follow_up_turns = 0` still wins. The numeric
+    /// cap remains the per-conversation upper bound once the chain is opted
+    /// in; the flag does not override it.
+    #[tokio::test]
+    async fn handle_npc_conversation_chain_zero_max_overrides_flag() {
+        use parish_core::npc::types::{Relationship, RelationshipKind};
+
+        let state = test_app_state();
+        add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+        add_introduced_npc(&state, 2, "Padraig Darcy", "Farmer").await;
+
+        {
+            let mut npc_manager = state.npc_manager.lock().await;
+            if let Some(padraig) = npc_manager.get_mut(NpcId(2)) {
+                padraig.relationships.insert(
+                    NpcId(1),
+                    Relationship {
+                        kind: RelationshipKind::Friend,
+                        strength: 0.9,
+                        history: Vec::new(),
+                    },
+                );
+            }
+        }
+
+        {
+            let mut config = state.config.lock().await;
+            config.model_name = "test-model".to_string();
+            config.max_follow_up_turns = 0;
+            config
+                .flags
+                .enable(parish_core::game_loop::AUTONOMOUS_NPC_CHAIN_FLAG);
+        }
+
+        let (_prompts, worker) = install_scripted_inference_queue(
+            &state,
+            vec![r#"{"dialogue":"Nothing new under the sun.","action":"speaks","mood":"content"}"#],
+        )
+        .await;
+
+        handle_npc_conversation(
+            "Anything stirring?".to_string(),
+            vec!["Siobhan Murphy".to_string()],
+            &state,
+        )
+        .await;
+
+        let transcript = {
+            let conversation = state.conversation.lock().await;
+            conversation.transcript.iter().cloned().collect::<Vec<_>>()
+        };
+        assert_eq!(transcript.len(), 2, "transcript = {:?}", transcript);
+        assert_eq!(transcript[1].speaker, "Siobhan Murphy");
 
         worker.abort();
     }
