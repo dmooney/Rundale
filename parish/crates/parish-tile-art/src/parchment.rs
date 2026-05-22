@@ -159,20 +159,20 @@ fn remap_pixel(r: u8, g: u8, b: u8) -> [u8; 3] {
     let luma_val = (r as f32 * 0.299 + g as f32 * 0.587 + b as f32 * 0.114) as u8;
 
     // Water: blue-shifted with meaningful saturation
-    if s > 0.12 && h >= 170.0 && h <= 235.0 {
+    if s > 0.12 && (170.0..=235.0).contains(&h) {
         // Blend toward water colour; stronger blue bias = more water colour
         let t = (s * 4.0).min(1.0);
         return blend_rgb(FIELD, WATER, t);
     }
 
     // Woodland / hedgerow: green-shifted
-    if s > 0.10 && h >= 65.0 && h <= 158.0 {
+    if s > 0.10 && (65.0..=158.0).contains(&h) {
         let t = (s * 5.0).min(1.0);
         return blend_rgb(FIELD, WOODLAND, t);
     }
 
     // Settlements: warm grey-brown (desaturated, mid-luma)
-    if s > 0.05 && h >= 15.0 && h < 40.0 && luma_val > 80 && luma_val < 170 {
+    if s > 0.05 && (15.0..40.0).contains(&h) && luma_val > 80 && luma_val < 170 {
         let t = (s * 6.0).min(1.0);
         return blend_rgb(FIELD, SETTLEMENT, t);
     }
