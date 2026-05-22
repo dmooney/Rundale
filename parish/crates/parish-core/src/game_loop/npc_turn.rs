@@ -592,6 +592,10 @@ pub async fn handle_npc_conversation(
 /// Emits `"stream-end"` after the full sequence completes.  Updates
 /// `conversation.last_spoken_at` regardless of inference success, creating a
 /// cooldown that prevents spam when inference is down.
+///
+/// Gated by the default-on `npc-idle-banter` feature flag — operators may
+/// silence spontaneous chatter without disabling player-initiated NPC
+/// reactions (`npc-llm-reactions`).
 pub async fn run_idle_banter(
     ctx: &GameLoopContext<'_>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
@@ -601,6 +605,10 @@ pub async fn run_idle_banter(
         let npc_manager = ctx.npc_manager.lock().await;
         let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
+
+        if config.flags.is_disabled("npc-idle-banter") {
+            return;
+        }
 
         let mut speakers = npc_manager.npcs_at_ids(world.player_location);
         speakers.sort_by_key(|id| id.0);
@@ -939,6 +947,59 @@ pub mod tests {
         assert_eq!(
             names_a, names_b,
             "cross-mode: event sequences must match across two independent invocations"
+        );
+    }
+
+    /// Disabling the `npc-idle-banter` flag must cause `run_idle_banter` to
+    /// return immediately with no events emitted and no conversation-state
+    /// mutation. Player-initiated dialogue paths are unaffected (covered by
+    /// the other tests in this module).
+    #[tokio::test]
+    async fn idle_banter_skipped_when_flag_disabled() {
+        use crate::npc::Npc;
+
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = player_loc;
+        npc_mgr.add_npc(npc);
+
+        let mut cfg = GameConfig::default();
+        cfg.flags.disable("npc-idle-banter");
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(cfg);
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        super::run_idle_banter(&ctx, || None).await;
+
+        assert!(
+            emitter.event_names().is_empty(),
+            "expected no events when npc-idle-banter is disabled; got {:?}",
+            emitter.event_names()
+        );
+        assert!(
+            !ctx.conversation.lock().await.conversation_in_progress,
+            "conversation_in_progress must remain false when flag is disabled"
         );
     }
 }
