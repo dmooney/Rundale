@@ -119,3 +119,4 @@ falls through to raw NLS tiles from the upstream URL.
 - [Map Evolution](map-evolution.md) — Phase D.2 offline bundling context
 - `parish/crates/parish-tile-art/` — pipeline implementation
 - `parish/crates/parish-geo-tool/src/tile_seeder.rs` — seeder
+- `docs/proofs/stylized-nls-tiles/` — proof bundle (acceptance criteria, live transcript, judge verdict)
