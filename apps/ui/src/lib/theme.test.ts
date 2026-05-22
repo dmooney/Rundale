@@ -1,11 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-	applyThemePalette,
-	DEFAULT_THEME_PALETTE,
-	SOLARIZED_LIGHT,
-	ZORK_C64,
-	ZORK_DOS
-} from './theme';
+import { applyThemePalette, DEFAULT_THEME_PALETTE } from './theme';
+import type { ThemePalette } from './types';
+
+const PARCHMENT: ThemePalette = DEFAULT_THEME_PALETTE;
+
+const ZORK_C64: ThemePalette = {
+	bg: '#1f1b96',
+	fg: '#a8a8ff',
+	accent: '#ffffff',
+	panel_bg: '#1f1b96',
+	input_bg: '#15116b',
+	border: '#7878ff',
+	muted: '#6c5eb5',
+	font_body: "'Courier New', monospace",
+	font_display: "'Courier New', monospace",
+	chat_align: 'left',
+	bubble_style: 'flat',
+	status_invert: true
+};
 
 describe('applyThemePalette', () => {
 	beforeEach(() => {
@@ -13,22 +25,22 @@ describe('applyThemePalette', () => {
 	});
 
 	it('writes the seven base color slots for any palette', () => {
-		applyThemePalette(SOLARIZED_LIGHT);
+		applyThemePalette(PARCHMENT);
 		const s = document.documentElement.style;
-		expect(s.getPropertyValue('--color-bg')).toBe(SOLARIZED_LIGHT.bg);
-		expect(s.getPropertyValue('--color-fg')).toBe(SOLARIZED_LIGHT.fg);
-		expect(s.getPropertyValue('--color-accent')).toBe(SOLARIZED_LIGHT.accent);
+		expect(s.getPropertyValue('--color-bg')).toBe(PARCHMENT.bg);
+		expect(s.getPropertyValue('--color-fg')).toBe(PARCHMENT.fg);
+		expect(s.getPropertyValue('--color-accent')).toBe(PARCHMENT.accent);
 	});
 
 	it('does not set structural overrides for a palette without them', () => {
-		applyThemePalette(SOLARIZED_LIGHT);
+		applyThemePalette(PARCHMENT);
 		const s = document.documentElement.style;
 		expect(s.getPropertyValue('--bubble-player-justify')).toBe('');
 		expect(s.getPropertyValue('--status-bg')).toBe('');
 		expect(s.getPropertyValue('--bubble-npc-bg')).toBe('');
 	});
 
-	it('sets monospace font, left chat alignment, flat bubbles, and inverted status for Zork C64', () => {
+	it('applies monospace font, left chat alignment, flat bubbles, and inverted status when set', () => {
 		applyThemePalette(ZORK_C64);
 		const s = document.documentElement.style;
 		expect(s.getPropertyValue('--font-body')).toContain('monospace');
@@ -43,18 +55,9 @@ describe('applyThemePalette', () => {
 		expect(s.getPropertyValue('--status-accent-fg')).toBe(ZORK_C64.bg);
 	});
 
-	it('uses black/grey for Zork DOS', () => {
-		applyThemePalette(ZORK_DOS);
-		const s = document.documentElement.style;
-		expect(s.getPropertyValue('--color-bg')).toBe('#000000');
-		expect(s.getPropertyValue('--color-fg')).toBe('#c0c0c0');
-		expect(s.getPropertyValue('--status-bg')).toBe('#c0c0c0');
-		expect(s.getPropertyValue('--status-fg')).toBe('#000000');
-	});
-
-	it('clears Zork overrides when switching back to a plain palette', () => {
+	it('clears all structural overrides when switching back to a plain palette', () => {
 		applyThemePalette(ZORK_C64);
-		applyThemePalette(DEFAULT_THEME_PALETTE);
+		applyThemePalette(PARCHMENT);
 		const s = document.documentElement.style;
 		expect(s.getPropertyValue('--bubble-player-justify')).toBe('');
 		expect(s.getPropertyValue('--bubble-npc-bg')).toBe('');

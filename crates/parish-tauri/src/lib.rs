@@ -139,12 +139,17 @@ pub struct UiConfigSnapshot {
     pub hints_label: String,
     /// Default accent colour (CSS hex string).
     pub default_accent: String,
+    /// Default palette (from the active setting mod's `[theme.palette]`).
+    /// Used by the frontend for `/theme default` and initial render.
+    pub default_palette: parish_core::ipc::ThemePalette,
     /// Splash text displayed on game start (Zork-style).
     pub splash_text: String,
     /// Id of the currently-active tile source (matches a `tile_sources` key).
     pub active_tile_source: String,
     /// Registry of available map tile sources, alphabetical by id.
     pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
+    /// All themes loaded from `kind = "asset"` mods.
+    pub themes: parish_core::themes::ThemeRegistrySnapshot,
 }
 
 /// Runtime conversation/session state used for continuity and inactivity timers.
@@ -564,6 +569,14 @@ pub fn run() {
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
 
+    // Asset-mod themes: walk every `kind = "asset"` mod and merge its
+    // `themes.toml`. The `/theme` handler consults this registry.
+    let theme_registry = parish_core::game_mod::discover_mods()
+        .ok()
+        .map(|d| parish_core::themes::load_asset_themes(&d.auxiliary))
+        .unwrap_or_default();
+    let theme_snapshot = theme_registry.snapshot();
+
     // engine_config already loaded above (before provider bootstrap) and
     // includes both map tile-source registry and inference timeouts. (#417)
     let tile_sources_snapshot =
@@ -575,17 +588,21 @@ pub fn run() {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
             default_accent: theme_palette.accent.clone(),
+            default_palette: theme_palette.clone(),
             splash_text: splash_text.clone(),
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
+            themes: theme_snapshot.clone(),
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
             default_accent: theme_palette.accent.clone(),
+            default_palette: theme_palette.clone(),
             splash_text,
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot,
+            themes: theme_snapshot.clone(),
         }
     };
 
@@ -654,6 +671,7 @@ pub fn run() {
             active_tile_source,
             tile_sources: engine_config.map.id_label_pairs(),
             reveal_unexplored_locations: false,
+            theme_registry: theme_registry.clone(),
         }),
     });
 

@@ -269,6 +269,9 @@ export const onThemeUpdate = (cb: (payload: ThemePalette) => void) =>
 export interface ThemeSwitchPayload {
 	name: string;
 	mode: string;
+	/** Resolved palette from the backend's registry. `null` when the theme
+	 *  name/mode wasn't found — frontend should fall back to local resolution. */
+	palette: ThemePalette | null;
 }
 export const onThemeSwitch = (cb: (payload: ThemeSwitchPayload) => void) =>
 	onEvent<ThemeSwitchPayload>('theme-switch', cb);

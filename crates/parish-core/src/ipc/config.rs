@@ -7,6 +7,7 @@
 
 use crate::config::{FeatureFlags, InferenceCategory, RateLimitConfig};
 use crate::inference::InferenceRateLimiter;
+use crate::themes::ThemeRegistry;
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
 ///
@@ -71,6 +72,10 @@ pub struct GameConfig {
     /// immediate frontier. When `true`, all graph nodes are shown with
     /// unvisited locations still marked `visited: false`.
     pub reveal_unexplored_locations: bool,
+    /// Registry of UI themes loaded from `kind = "asset"` mods at startup.
+    /// Empty when no theme mods are installed — the `/theme` command then
+    /// only knows `default` (the active setting mod's palette).
+    pub theme_registry: ThemeRegistry,
 }
 
 impl GameConfig {
@@ -210,6 +215,7 @@ impl Default for GameConfig {
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
+            theme_registry: ThemeRegistry::default(),
         }
     }
 }

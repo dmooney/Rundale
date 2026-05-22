@@ -97,9 +97,34 @@ export type IrishWordHint = LanguageHint;
 export interface UiConfig {
 	hints_label: string;
 	default_accent: string;
+	default_palette: ThemePalette;
 	splash_text: string;
 	active_tile_source: string;
 	tile_sources: TileSource[];
+	themes: ThemeRegistrySnapshot;
+}
+
+/** Wire shape of a single theme entry from the backend's registry. */
+export interface ThemeRegistryEntry {
+	name: string;
+	mode: string;
+	label: string;
+	palette: ThemePalette;
+}
+
+/** Synthetic mode that resolves to another mode based on game time. */
+export interface ThemeModeAlias {
+	name: string;
+	mode: string;
+	day_mode: string;
+	night_mode: string;
+}
+
+/** Wire shape of the theme registry sent over `GET /api/ui-config`. */
+export interface ThemeRegistrySnapshot {
+	themes: ThemeRegistryEntry[];
+	mode_aliases: ThemeModeAlias[];
+	mode_defaults: Record<string, string>;
 }
 
 /** A single map tile source sent from the backend. Mirrors

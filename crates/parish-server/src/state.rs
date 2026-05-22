@@ -31,12 +31,18 @@ pub struct UiConfigSnapshot {
     pub hints_label: String,
     /// Default accent colour (CSS hex string).
     pub default_accent: String,
+    /// Default palette (from the active setting mod's `[theme.palette]`).
+    /// The frontend uses this for `/theme default` and the initial render.
+    pub default_palette: ThemePalette,
     /// Splash text displayed on game start (Zork-style).
     pub splash_text: String,
     /// Id of the currently-active tile source (matches a `tile_sources` key).
     pub active_tile_source: String,
     /// Registry of available map tile sources, alphabetical by id.
     pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
+    /// All themes loaded from `kind = "asset"` mods. Frontend uses this to
+    /// resolve `/theme <name> [mode]` palettes locally.
+    pub themes: parish_core::themes::ThemeRegistrySnapshot,
 }
 
 /// Current save state for display in the StatusBar.

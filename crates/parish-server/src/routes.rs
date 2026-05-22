@@ -486,9 +486,24 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                 });
             }
             CommandEffect::ApplyTheme(name, mode) => {
+                // Look up the palette so the frontend can apply it without
+                // any hardcoded knowledge of theme names. `default` always
+                // resolves to the active setting mod's palette.
+                let palette = if name == "default" {
+                    Some(state.theme_palette.clone())
+                } else {
+                    let cfg = state.config.lock().await;
+                    cfg.theme_registry
+                        .get(name.as_str(), mode.as_str())
+                        .map(|e| e.palette.clone())
+                };
                 state.event_bus.emit(
                     "theme-switch",
-                    &serde_json::json!({ "name": name, "mode": mode }),
+                    &serde_json::json!({
+                        "name": name,
+                        "mode": mode,
+                        "palette": palette,
+                    }),
                 );
             }
             CommandEffect::ApplyTiles(id) => {
@@ -2348,9 +2363,11 @@ pub(crate) mod tests {
         let ui_config = crate::state::UiConfigSnapshot {
             hints_label: "test".to_string(),
             default_accent: "#000".to_string(),
+            default_palette: parish_core::game_mod::default_theme_palette(),
             splash_text: String::new(),
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
+            themes: parish_core::themes::ThemeRegistrySnapshot::default(),
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../saves");
@@ -2380,6 +2397,7 @@ pub(crate) mod tests {
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
                 reveal_unexplored_locations: false,
+                theme_registry: parish_core::themes::ThemeRegistry::default(),
             },
             None,
             transport,

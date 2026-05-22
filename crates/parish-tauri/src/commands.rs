@@ -485,9 +485,24 @@ async fn handle_system_command(
                 });
             }
             CommandEffect::ApplyTheme(name, mode) => {
+                // Look up the palette so the frontend can apply it without
+                // hardcoded knowledge of theme names. `default` resolves to
+                // the active setting mod's palette.
+                let palette = if name == "default" {
+                    Some(state.theme_palette.clone())
+                } else {
+                    let cfg = state.config.lock().await;
+                    cfg.theme_registry
+                        .get(name, mode)
+                        .map(|e| e.palette.clone())
+                };
                 let _ = app.emit(
                     crate::events::EVENT_THEME_SWITCH,
-                    serde_json::json!({ "name": name, "mode": mode }),
+                    serde_json::json!({
+                        "name": name,
+                        "mode": mode,
+                        "palette": palette,
+                    }),
                 );
             }
             CommandEffect::ApplyTiles(id) => {

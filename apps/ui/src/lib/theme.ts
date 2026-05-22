@@ -1,5 +1,10 @@
 import type { ThemePalette } from './types';
 
+/**
+ * Fallback palette used before the backend's `/api/ui-config` response lands
+ * (or in tests). Real-life palettes are loaded from the active setting mod's
+ * `[theme.palette]` plus any `kind = "asset"` mods under `mods/`.
+ */
 export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	bg: '#fafad8',
 	fg: '#31240f',
@@ -10,65 +15,35 @@ export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	muted: '#76663b'
 };
 
-/** Solarized Light — Ethan Schoonover's palette mapped to Parish color slots. */
-export const SOLARIZED_LIGHT: ThemePalette = {
-	bg: '#fdf6e3', // base3
-	fg: '#586e75', // base00
-	accent: '#268bd2', // blue
-	panel_bg: '#eee8d5', // base2
-	input_bg: '#e6dfc5', // between base2 and base3
-	border: '#93a1a1', // base1
-	muted: '#93a1a1' // base1
-};
+/** Wire shape of one theme entry from the backend's registry snapshot. */
+export interface ThemeRegistryEntry {
+	name: string;
+	mode: string;
+	label: string;
+	palette: ThemePalette;
+}
 
-/** Solarized Dark — Ethan Schoonover's palette mapped to Parish color slots. */
-export const SOLARIZED_DARK: ThemePalette = {
-	bg: '#002b36', // base03
-	fg: '#839496', // base0
-	accent: '#268bd2', // blue
-	panel_bg: '#073642', // base02
-	input_bg: '#0d3f4f', // slightly lighter than base02
-	border: '#586e75', // base01
-	muted: '#586e75' // base01
-};
+/** Synthetic mode that resolves to another mode based on game time. */
+export interface ModeAlias {
+	name: string;
+	mode: string;
+	day_mode: string;
+	night_mode: string;
+}
 
-const ZORK_FONT = "'Courier New', Consolas, ui-monospace, monospace";
+/** Wire shape of the full theme registry. */
+export interface ThemeRegistrySnapshot {
+	themes: ThemeRegistryEntry[];
+	mode_aliases: ModeAlias[];
+	mode_defaults: Record<string, string>;
+}
 
-/** Zork on Commodore 64 — VIC-II light-blue on blue, monospace, inverted status bar. */
-export const ZORK_C64: ThemePalette = {
-	bg: '#1f1b96',
-	fg: '#a8a8ff',
-	accent: '#ffffff',
-	panel_bg: '#1f1b96',
-	input_bg: '#15116b',
-	border: '#7878ff',
-	muted: '#6c5eb5',
-	font_body: ZORK_FONT,
-	font_display: ZORK_FONT,
-	chat_align: 'left',
-	bubble_style: 'flat',
-	status_invert: true
-};
-
-/** Zork on IBM PC / DOS — light-grey on black, monospace, inverted status bar. */
-export const ZORK_DOS: ThemePalette = {
-	bg: '#000000',
-	fg: '#c0c0c0',
-	accent: '#ffff55',
-	panel_bg: '#000000',
-	input_bg: '#0a0a0a',
-	border: '#808080',
-	muted: '#808080',
-	font_body: ZORK_FONT,
-	font_display: ZORK_FONT,
-	chat_align: 'left',
-	bubble_style: 'flat',
-	status_invert: true
-};
-
+/** User's persisted theme selection. The set of valid `name`s is dynamic — it
+ *  depends on which asset mods are installed. We type it as `string` and let
+ *  the registry validate at apply time. */
 export interface ThemePreference {
-	name: 'default' | 'solarized' | 'zork';
-	mode: 'light' | 'dark' | 'auto' | 'c64' | 'dos' | '';
+	name: string;
+	mode: string;
 }
 
 export const DEFAULT_PREFERENCE: ThemePreference = { name: 'default', mode: '' };

@@ -36,9 +36,19 @@ function cfg(active = 'osm', sources = [osm(), historic()]): UiConfig {
 	return {
 		hints_label: '',
 		default_accent: '',
+		default_palette: {
+			bg: '',
+			fg: '',
+			accent: '',
+			panel_bg: '',
+			input_bg: '',
+			border: '',
+			muted: ''
+		},
 		splash_text: '',
 		active_tile_source: active,
-		tile_sources: sources
+		tile_sources: sources,
+		themes: { themes: [], mode_aliases: [], mode_defaults: {} }
 	};
 }
 

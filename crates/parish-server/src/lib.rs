@@ -246,6 +246,14 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
 
+    // Asset-mod themes: walk every `kind = "asset"` mod and merge its
+    // `themes.toml`. The `/theme` handler consults this registry.
+    let theme_registry = parish_core::game_mod::discover_mods()
+        .ok()
+        .map(|d| parish_core::themes::load_asset_themes(&d.auxiliary))
+        .unwrap_or_default();
+    config.theme_registry = theme_registry.clone();
+
     // Load engine config (parish.toml) for the tile-source registry. Missing
     // file or parse errors fall back to baked defaults
     // (OSM + Ireland Historic 6").
@@ -256,21 +264,26 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.active_tile_source = active_tile_source.clone();
     config.tile_sources = engine_config.map.id_label_pairs();
 
+    let theme_snapshot = theme_registry.snapshot();
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
             default_accent: theme_palette.accent.clone(),
+            default_palette: theme_palette.clone(),
             splash_text,
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
+            themes: theme_snapshot,
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
             default_accent: theme_palette.accent.clone(),
+            default_palette: theme_palette.clone(),
             splash_text,
             active_tile_source,
             tile_sources: tile_sources_snapshot,
+            themes: theme_snapshot,
         }
     };
 
@@ -641,6 +654,8 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
+        // Theme registry populated after this returns, once mods are discovered.
+        theme_registry: parish_core::themes::ThemeRegistry::default(),
     };
 
     (provider_cfg, config)
