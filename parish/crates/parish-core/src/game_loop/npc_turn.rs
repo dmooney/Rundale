@@ -593,9 +593,9 @@ pub async fn handle_npc_conversation(
 /// `conversation.last_spoken_at` regardless of inference success, creating a
 /// cooldown that prevents spam when inference is down.
 ///
-/// Gated by the default-on `npc-idle-banter` feature flag — operators may
-/// silence spontaneous chatter without disabling player-initiated NPC
-/// reactions (`npc-llm-reactions`).
+/// Gated by the default-off `npc-idle-banter` feature flag — operators must
+/// opt in (`/flag enable npc-idle-banter`) to allow spontaneous chatter.
+/// Player-initiated NPC reactions (`npc-llm-reactions`) are unaffected.
 pub async fn run_idle_banter(
     ctx: &GameLoopContext<'_>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
@@ -606,7 +606,7 @@ pub async fn run_idle_banter(
         let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
 
-        if config.flags.is_disabled("npc-idle-banter") {
+        if !config.flags.is_enabled("npc-idle-banter") {
             return;
         }
 
@@ -950,12 +950,13 @@ pub mod tests {
         );
     }
 
-    /// Disabling the `npc-idle-banter` flag must cause `run_idle_banter` to
+    /// The `npc-idle-banter` flag is default-off — `run_idle_banter` must
     /// return immediately with no events emitted and no conversation-state
-    /// mutation. Player-initiated dialogue paths are unaffected (covered by
-    /// the other tests in this module).
+    /// mutation unless the flag has been explicitly enabled. Player-initiated
+    /// dialogue paths are unaffected (covered by the other tests in this
+    /// module).
     #[tokio::test]
-    async fn idle_banter_skipped_when_flag_disabled() {
+    async fn idle_banter_skipped_by_default() {
         use crate::npc::Npc;
 
         let emitter = Arc::new(CapturingEmitter::new());
@@ -966,12 +967,10 @@ pub mod tests {
         npc.location = player_loc;
         npc_mgr.add_npc(npc);
 
-        let mut cfg = GameConfig::default();
-        cfg.flags.disable("npc-idle-banter");
-
+        // GameConfig::default() leaves npc-idle-banter unset → off.
         let world = tokio::sync::Mutex::new(world_state);
         let npc_manager = tokio::sync::Mutex::new(npc_mgr);
-        let config = tokio::sync::Mutex::new(cfg);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
         let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
         let inference_queue = tokio::sync::Mutex::new(None);
         let client = tokio::sync::Mutex::new(None);
@@ -994,12 +993,12 @@ pub mod tests {
 
         assert!(
             emitter.event_names().is_empty(),
-            "expected no events when npc-idle-banter is disabled; got {:?}",
+            "expected no events when npc-idle-banter is unset (default-off); got {:?}",
             emitter.event_names()
         );
         assert!(
             !ctx.conversation.lock().await.conversation_in_progress,
-            "conversation_in_progress must remain false when flag is disabled"
+            "conversation_in_progress must remain false when flag is unset"
         );
     }
 }

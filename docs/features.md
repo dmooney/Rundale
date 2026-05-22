@@ -157,9 +157,11 @@ Known engine flags (all **default-on**; disable to opt out):
 - `inference-rejection-sampler` / `rundale-dialect-model` — see
   `docs/design/gemma4-rundale-training-plan.md`.
 - `night-visions` — see `docs/design/night-visions.md`.
+
+Opt-in engine flags (**default-off**; `/flag enable <name>` to turn on):
 - `npc-idle-banter` — spontaneous NPC chatter triggered after
-  `idle_banter_after_secs` of player silence. Disable to keep nearby NPCs
-  quiet until directly addressed; player-initiated dialogue
+  `idle_banter_after_secs` of player silence. Opt in to let nearby NPCs
+  start talking when the player is idle; player-initiated dialogue
   (`npc-llm-reactions`) is unaffected.
 
 **Provider Configuration (base):**
