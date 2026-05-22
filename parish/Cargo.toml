@@ -16,6 +16,7 @@ members = [
     "crates/parish-npc-tool",
     "crates/parish-persistence",
     "crates/parish-input",
+    "crates/parish-tile-art",
 ]
 default-members = ["crates/parish-cli"]
 
@@ -40,6 +41,12 @@ parish-npc        = { path = "crates/parish-npc" }
 parish-persistence = { path = "crates/parish-persistence" }
 parish-input      = { path = "crates/parish-input" }
 parish-core       = { path = "crates/parish-core" }
+parish-tile-art   = { path = "crates/parish-tile-art" }
+
+# Image processing (used by parish-tile-art)
+image         = { version = "0.25", default-features = false, features = ["png"] }
+imageproc     = { version = "0.25", default-features = false }
+fastnoise-lite = "1"
 
 # Serialization
 serde      = { version = "1", features = ["derive"] }

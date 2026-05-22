@@ -1,0 +1,46 @@
+Third-Party Data Licence Notice
+================================
+
+The "Rundale Illustrated Map" tile set (source ID: rundale-map) is a
+derivative work of historic cartographic data provided by the National
+Library of Scotland.
+
+Original work
+-------------
+Title:       Ordnance Survey of Ireland, First Edition 6-inch series
+             (surveyed 1829–1842, published 1837–1846)
+Creator:     Ordnance Survey of Ireland
+Held by:     National Library of Scotland
+             George IV Bridge, Edinburgh EH1 1EW, Scotland
+Online:      https://maps.nls.uk/os/6inch-ireland/
+
+Licence
+-------
+Creative Commons Attribution (CC-BY)
+Licence URI: https://creativecommons.org/licenses/by/4.0/
+(NLS specifies no version; CC-BY ≥ 3.0 is implied per maps.nls.uk/copyright.html)
+
+Required attribution text (as displayed in the Rundale map UI):
+  "Derived from Historic 6" OS Ireland (1829–1842),
+   National Library of Scotland (CC-BY); stylized for Rundale"
+
+Modifications made
+------------------
+The raw raster tiles have been converted to an illustrated parchment art
+style using the parish-tile-art pipeline (see parish/crates/parish-tile-art/).
+Modifications include:
+  - Per-pixel colour remap to a warm sepia/parchment palette
+  - Sobel edge detection and ink-stroke overlay
+  - Deterministic Perlin paper-grain texture
+  - Optional AI img2img stylization via local Stable Diffusion
+
+These modifications produce derivative tiles intended for use as in-game
+map artwork in the Rundale interactive fiction game.  The derivative tiles
+are distributed under the same CC-BY licence as the original work.
+
+Pre-release coordination
+------------------------
+Before any public release that includes pre-generated (bundled) stylized
+tiles, coordinate with the National Library of Scotland at geo@nls.uk to
+confirm their preferred distribution arrangement for stylized derivatives.
+See docs/design/map-evolution.md for background.

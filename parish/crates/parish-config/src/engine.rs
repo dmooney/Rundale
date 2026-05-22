@@ -821,6 +821,28 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             tms: false,
         },
     );
+    m.insert(
+        "rundale-map".to_string(),
+        TileSourceConfig {
+            label: "Rundale Illustrated Map".to_string(),
+            // Same upstream as "historic"; pre-stylized tiles are served from
+            // bundled_tiles_dir (populated by `parish-geo-tool seed-tiles`).
+            // Falls back to raw NLS tile for any z/x/y not yet seeded.
+            url: "/tiles/rundale-map/{z}/{x}/{y}.png".to_string(),
+            upstream_url:
+                "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
+                    .to_string(),
+            tile_size: 256,
+            minzoom: 1,
+            maxzoom: 17,
+            attribution: "Derived from Historic 6\" OS Ireland (1829–1842), \
+                 National Library of Scotland (CC-BY); stylized for Rundale"
+                .to_string(),
+            raster_saturation: 0.0,
+            raster_opacity: 1.0,
+            tms: false,
+        },
+    );
     m
 }
 
@@ -1124,7 +1146,7 @@ memory_capacity = 30
     fn test_engine_config_includes_map_defaults() {
         let cfg = EngineConfig::default();
         assert_eq!(cfg.map.default_tile_source, "historic");
-        assert_eq!(cfg.map.tile_sources.len(), 2);
+        assert_eq!(cfg.map.tile_sources.len(), 3);
     }
 
     #[test]
@@ -1199,7 +1221,7 @@ memory_capacity = 30
     fn test_load_engine_config_missing_file() {
         let cfg = load_engine_config(Path::new("/nonexistent/parish.toml"));
         assert_eq!(cfg.map.default_tile_source, "historic");
-        assert_eq!(cfg.map.tile_sources.len(), 2);
+        assert_eq!(cfg.map.tile_sources.len(), 3);
     }
 
     #[test]
@@ -1221,8 +1243,8 @@ url = "https://override/{z}/{x}/{y}.png"
         assert_eq!(cfg.map.default_tile_source, "historic");
         assert_eq!(
             cfg.map.tile_sources.len(),
-            2,
-            "apply_defaults folded historic back in"
+            3,
+            "apply_defaults folded historic + rundale-map back in"
         );
         assert_eq!(
             cfg.map.tile_sources["osm"].url,
@@ -1234,10 +1256,11 @@ url = "https://override/{z}/{x}/{y}.png"
     fn test_map_config_id_label_pairs_is_sorted() {
         let cfg = MapConfig::default();
         let pairs = cfg.id_label_pairs();
-        assert_eq!(pairs.len(), 2);
-        // BTreeMap iterates in sorted order, so "historic" < "osm".
+        assert_eq!(pairs.len(), 3);
+        // BTreeMap iterates in sorted order: "historic" < "osm" < "rundale-map".
         assert_eq!(pairs[0].0, "historic");
         assert_eq!(pairs[1].0, "osm");
+        assert_eq!(pairs[2].0, "rundale-map");
     }
 
     #[test]
@@ -1254,8 +1277,8 @@ attribution = "custom attribution"
         cfg.apply_defaults();
         assert_eq!(
             cfg.tile_sources.len(),
-            2,
-            "apply_defaults folds in historic"
+            3,
+            "apply_defaults folds in historic + rundale-map"
         );
         assert_eq!(
             cfg.tile_sources["osm"].url,
