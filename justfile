@@ -59,6 +59,17 @@ agent-check *ARGS:
 attach-proof TASK_ID PR_NUM="":
     bash parish/scripts/attach-proof.sh {{TASK_ID}} {{PR_NUM}}
 
+# Self-improving feedback loop: distil recent dev-time failure signals
+# (CI, judges, review bots, Stop-hook blocks) into LEARNINGS.md bullets.
+# Local mode — no GitHub API calls. Needs ANTHROPIC_API_KEY for the full
+# run; pass --skip-llm or --dump-signals to inspect without one.
+learn *ARGS:
+    python3 parish/scripts/learn/driver.py --local {{ARGS}}
+
+# Dry-run the loop against the bundled fixture (no API calls, no edits).
+learn-dry:
+    python3 parish/scripts/learn/driver.py --fixture parish/scripts/learn/tests/fixtures/signals.json --skip-llm --dry-run
+
 # Pre-push gate: check + game harness walkthrough
 verify:
     cd parish && just verify

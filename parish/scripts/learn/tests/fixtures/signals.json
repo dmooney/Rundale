@@ -1,0 +1,34 @@
+[
+  {
+    "source": "ci",
+    "anchor": "run#9876543 (Rundale CI, abc1234)",
+    "summary": "Rundale CI: feat(map): wire new pathfinder",
+    "raw_excerpt": "----- 4_cargo test.txt -----\n   Compiling parish-cli v0.0.0\nerror[E0432]: unresolved import `parish_world::pathfinder::dijkstra`\n  --> parish/crates/parish-cli/src/main.rs:42:5\n   |\n42 | use parish_world::pathfinder::dijkstra;\n   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `dijkstra` in `pathfinder`\nthread 'pathfinder::tests::find_shortest' panicked at parish/crates/parish-world/src/pathfinder.rs:212:9:\nassertion `left == right` failed\n  left: 4\n right: 3\nProcess completed with exit code 101",
+    "ts": "2026-05-21T11:04:00Z",
+    "extra": {"workflow": "Rundale CI", "head_sha": "abc1234", "html_url": "https://example/run/9876543"}
+  },
+  {
+    "source": "judge",
+    "anchor": "PR#1042 judge",
+    "summary": "PR #1042: feat(npc): autonomous market arrivals",
+    "raw_excerpt": "verdict: REJECT\nAcceptance criteria: not met\n- AC#2 says 'NPC must broadcast arrival via apply_movement' — proof transcript shows direct write to npc.location in parish-npc/src/autonomous/mod.rs:88, bypassing parish-core/src/game_session.rs::apply_movement. Tier reassign event missing.",
+    "ts": "2026-05-20T15:22:00Z",
+    "extra": {"pr": 1042, "html_url": "https://example/pr/1042"}
+  },
+  {
+    "source": "review",
+    "anchor": "PR#1041 parish/crates/parish-server/src/state.rs:120",
+    "summary": "ultrareview-bot on PR #1041",
+    "raw_excerpt": "should resolve saves dir from AppState, not std::env::current_dir(). See AGENTS.md rule 9 — packaged builds and daemonised servers break the cwd assumption (#771).",
+    "ts": "2026-05-19T08:11:00Z",
+    "extra": {"path": "parish/crates/parish-server/src/state.rs", "line": 120, "user": "ultrareview-bot"}
+  },
+  {
+    "source": "stop-block",
+    "anchor": "stop-hook parish/crates/parish-tauri/src/main.rs",
+    "summary": "Stop hook blocked — no live proof",
+    "raw_excerpt": "LIVE proof required: a runtime-shipping path changed this session. Changed files: parish/crates/parish-tauri/src/main.rs. Unit tests (cargo test) are NOT sufficient; need mcp__parish__* or `just demo`.",
+    "ts": "2026-05-19T18:40:00Z",
+    "extra": {"evidence_type": "test-only", "paths_touched": ["parish/crates/parish-tauri/src/main.rs"]}
+  }
+]

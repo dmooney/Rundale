@@ -352,6 +352,27 @@ CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
 fi
 
 # ── Block ──────────────────────────────────────────────────────────────
+# Append a structured record of the block to .claude/logs/proof-blocks.jsonl
+# for the self-improving learn loop (parish/scripts/learn/collect_stop_blocks.py).
+# Best-effort: log failures must never block the hook itself.
+{
+  LOG_DIR="$ROOT/.claude/logs"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  LOG_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")"
+  if [ -n "$RUNTIME_CHANGED" ]; then
+    LOG_TIER="live"
+  else
+    LOG_TIER="test"
+  fi
+  CHANGED_JSON="$(printf '%s\n' "$CHANGED" | jq -R . | jq -sc . 2>/dev/null || echo '[]')"
+  jq -nc \
+    --arg ts "$LOG_TS" \
+    --arg tier "$LOG_TIER" \
+    --argjson paths "$CHANGED_JSON" \
+    '{ts:$ts, evidence_type:$tier, paths_touched:$paths, reason:"proof-required"}' \
+    >> "$LOG_DIR/proof-blocks.jsonl" 2>/dev/null || true
+} || true
+
 FILES_PREVIEW="$(printf '%s\n' "$CHANGED" | head -8 | sed 's/^/  - /')"
 EXTRA="$(printf '%s\n' "$CHANGED" | wc -l | tr -d ' ')"
 TRAIL=""
