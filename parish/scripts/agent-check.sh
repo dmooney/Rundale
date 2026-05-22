@@ -264,12 +264,15 @@ gather_bundles_pr() {
         || { echo "agent-check FAILED: could not fetch PR #$pr_number comments." >&2; return 1; }
 
     # Extract each `<!-- parish-proof-bundle:ID v=N -->` ... `<!-- /parish-proof-bundle:ID -->`
-    # block into a per-bundle file. The validators below treat that file
-    # as the merged judge + evidence + AC artifact for the bundle.
+    # block into a per-bundle file. Opener and closer must be on their
+    # own line so that inline-code prose (e.g. PR descriptions that
+    # mention the fence as a literal example) doesn't trigger false
+    # extractions.
     awk -v outdir="$tmpdir" '
-        match($0, /<!--[[:space:]]*parish-proof-bundle:[^[:space:]]+/) {
-            id = substr($0, RSTART, RLENGTH)
-            sub(/.*parish-proof-bundle:/, "", id)
+        match($0, /^[[:space:]]*<!--[[:space:]]+parish-proof-bundle:[^[:space:]]+[[:space:]]+v=[0-9]+[[:space:]]*-->[[:space:]]*$/) {
+            id = $0
+            sub(/^[[:space:]]*<!--[[:space:]]+parish-proof-bundle:/, "", id)
+            sub(/[[:space:]]+v=.*$/, "", id)
             sanitised = id
             gsub(/[^A-Za-z0-9_.-]/, "_", sanitised)
             block_file = outdir "/pr_block_" sanitised ".md"
@@ -277,7 +280,7 @@ gather_bundles_pr() {
             print "" > block_file
             next
         }
-        /<!--[[:space:]]*\/parish-proof-bundle:/ {
+        /^[[:space:]]*<!--[[:space:]]+\/parish-proof-bundle:[^[:space:]]+[[:space:]]*-->[[:space:]]*$/ {
             if (in_block) { close(block_file); in_block = 0 }
             next
         }
