@@ -76,6 +76,13 @@ export interface ThemePalette {
 	input_bg: string;
 	border: string;
 	muted: string;
+	// Structural overrides — optional so existing palettes and the
+	// server-pushed time-of-day palette stay valid. When unset, CSS defaults apply.
+	font_body?: string;
+	font_display?: string;
+	chat_align?: 'standard' | 'left';
+	bubble_style?: 'card' | 'flat';
+	status_invert?: boolean;
 }
 
 export interface LanguageHint {

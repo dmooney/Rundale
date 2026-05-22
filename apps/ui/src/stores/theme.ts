@@ -4,6 +4,8 @@ import {
 	DEFAULT_THEME_PALETTE,
 	SOLARIZED_LIGHT,
 	SOLARIZED_DARK,
+	ZORK_C64,
+	ZORK_DOS,
 	applyThemePalette,
 	type ThemePreference,
 	DEFAULT_PREFERENCE,
@@ -41,8 +43,14 @@ function createPaletteStore() {
 				// 'light' or unspecified — default to light
 				apply(SOLARIZED_LIGHT);
 			}
+		} else if (pref.name === 'zork') {
+			apply(pref.mode === 'dos' ? ZORK_DOS : ZORK_C64);
+		} else {
+			// 'default': clear any structural overrides left over from a previous theme
+			// by applying the parchment palette explicitly. The server may push a fresh
+			// time-of-day palette shortly afterwards via applyServerPalette.
+			apply(DEFAULT_THEME_PALETTE);
 		}
-		// 'default': no-op — server palette is applied via applyServerPalette
 	}
 
 	/**

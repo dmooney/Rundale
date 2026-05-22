@@ -512,9 +512,9 @@ pub fn handle_command(
         Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
         Command::Theme(arg) => match arg.as_deref().map(str::trim) {
             None | Some("") => CommandResult::text(
-                "Available themes: default, solarized\n\
-                 Usage: /theme <name> [light|dark|auto]\n\
-                 Solarized auto switches with real-world sunrise and sunset.",
+                "Available themes: default, solarized, zork\n\
+                 Usage: /theme <name> [mode]\n\
+                 Modes: solarized [light|dark|auto], zork [c64|dos]. Solarized auto follows the game's time of day.",
             ),
             Some("default") => CommandResult::with_effect(
                 "Reverting to the parish's natural colours.",
@@ -547,8 +547,33 @@ pub fn handle_command(
                             CommandEffect::ApplyTheme("solarized".to_string(), mode),
                         )
                     }
+                    "zork" => {
+                        let mode = if mode.is_empty() {
+                            "c64".to_string()
+                        } else {
+                            mode
+                        };
+                        let msg = match mode.as_str() {
+                            "c64" => {
+                                "Theme set to Zork (C64). It is pitch black. You are likely to be eaten by a grue."
+                            }
+                            "dos" => {
+                                "Theme set to Zork (DOS). West of House. You are standing in an open field."
+                            }
+                            other => {
+                                return CommandResult::text(format!(
+                                    "Unknown zork mode '{}'. Try: c64, dos",
+                                    other
+                                ));
+                            }
+                        };
+                        CommandResult::with_effect(
+                            msg,
+                            CommandEffect::ApplyTheme("zork".to_string(), mode),
+                        )
+                    }
                     other => CommandResult::text(format!(
-                        "Unknown theme '{}'. Available: default, solarized",
+                        "Unknown theme '{}'. Available: default, solarized, zork",
                         other
                     )),
                 }
@@ -1396,6 +1421,56 @@ mod tests {
         );
         assert!(result.response.contains("taupe"));
         assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_zork_defaults_to_c64() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("zork".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "zork" && mode == "c64"
+        )));
+    }
+
+    #[test]
+    fn theme_zork_dos_explicit() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("zork dos".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "zork" && mode == "dos"
+        )));
+    }
+
+    #[test]
+    fn theme_zork_invalid_mode() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("zork amiga".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("amiga"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_no_arg_lists_zork() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Theme(None), &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("zork"));
     }
 
     // ── NpcsHere with population ─────────────────────────────────────────────
