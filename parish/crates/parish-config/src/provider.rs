@@ -274,43 +274,6 @@ impl Provider {
     pub fn vllmmlx() -> Self {
         Self::from_id("vllmmlx").expect("vllmmlx builtin must be registered")
     }
-    // Cloud-provider convenience constructors. These look up providers loaded
-    // from `mods/<id>/providers/<id>.toml`; if the mod is missing they panic.
-    // Callers that handle a missing provider should use `Provider::from_id`
-    // or `Provider::from_str_loose` instead.
-    pub fn openrouter() -> Self {
-        Self::from_id("openrouter").expect("openrouter provider mod must be loaded")
-    }
-    pub fn anthropic() -> Self {
-        Self::from_id("anthropic").expect("anthropic provider mod must be loaded")
-    }
-    pub fn openai() -> Self {
-        Self::from_id("openai").expect("openai provider mod must be loaded")
-    }
-    pub fn google() -> Self {
-        Self::from_id("google").expect("google provider mod must be loaded")
-    }
-    pub fn groq() -> Self {
-        Self::from_id("groq").expect("groq provider mod must be loaded")
-    }
-    pub fn xai() -> Self {
-        Self::from_id("xai").expect("xai provider mod must be loaded")
-    }
-    pub fn mistral() -> Self {
-        Self::from_id("mistral").expect("mistral provider mod must be loaded")
-    }
-    pub fn deepseek() -> Self {
-        Self::from_id("deepseek").expect("deepseek provider mod must be loaded")
-    }
-    pub fn together() -> Self {
-        Self::from_id("together").expect("together provider mod must be loaded")
-    }
-    pub fn lmstudio() -> Self {
-        Self::from_id("lmstudio").expect("lmstudio provider mod must be loaded")
-    }
-    pub fn github_models() -> Self {
-        Self::from_id("github_models").expect("github_models provider mod must be loaded")
-    }
 }
 
 impl PartialEq for Provider {
@@ -819,7 +782,7 @@ pub fn resolve_cloud_config(
     // Default to OpenRouter for cloud
     let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
-        None => Provider::openrouter(),
+        None => Provider::from_id("openrouter").expect("openrouter provider mod must be loaded"),
     };
 
     let mut api_key = raw.api_key.filter(|s| !s.is_empty());
@@ -1123,7 +1086,9 @@ featured = false
             "http://localhost:1234"
         );
         assert_eq!(
-            Provider::openrouter().default_base_url(),
+            Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded")
+                .default_base_url(),
             "https://openrouter.ai/api"
         );
         assert_eq!(
@@ -1171,7 +1136,9 @@ featured = false
             "https://integrate.api.nvidia.com"
         );
         assert_eq!(
-            Provider::anthropic().default_base_url(),
+            Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .default_base_url(),
             "https://api.anthropic.com"
         );
         assert_eq!(Provider::custom().default_base_url(), "");
@@ -1194,7 +1161,11 @@ featured = false
         assert!(!Provider::custom().requires_api_key());
 
         // All cloud providers require API keys
-        assert!(Provider::openrouter().requires_api_key());
+        assert!(
+            Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded")
+                .requires_api_key()
+        );
         assert!(
             Provider::from_str_loose("openai")
                 .unwrap()
@@ -1227,7 +1198,11 @@ featured = false
                 .unwrap()
                 .requires_api_key()
         );
-        assert!(Provider::anthropic().requires_api_key());
+        assert!(
+            Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .requires_api_key()
+        );
 
         // Only Ollama and Simulator auto-detect model
         assert!(!Provider::ollama().requires_model());
@@ -1237,7 +1212,11 @@ featured = false
                 .unwrap()
                 .requires_model()
         );
-        assert!(Provider::openrouter().requires_model());
+        assert!(
+            Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded")
+                .requires_model()
+        );
         assert!(
             Provider::from_str_loose("vllmmlx")
                 .unwrap()
@@ -1267,7 +1246,11 @@ featured = false
                 .unwrap()
                 .requires_model()
         );
-        assert!(Provider::anthropic().requires_model());
+        assert!(
+            Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .requires_model()
+        );
         assert!(Provider::custom().requires_model());
     }
 
@@ -2009,7 +1992,9 @@ model = "toml-model"
     #[test]
     fn test_provider_api_key_env_var() {
         assert_eq!(
-            Provider::anthropic().api_key_env_var(),
+            Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .api_key_env_var(),
             Some("ANTHROPIC_API_KEY")
         );
         assert_eq!(
@@ -2019,7 +2004,9 @@ model = "toml-model"
             Some("OPENAI_API_KEY")
         );
         assert_eq!(
-            Provider::openrouter().api_key_env_var(),
+            Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded")
+                .api_key_env_var(),
             Some("OPENROUTER_API_KEY")
         );
         assert_eq!(
@@ -2105,16 +2092,28 @@ model = "toml-model"
                 .unwrap()
                 .is_configured_in_env()
         );
-        assert!(!Provider::anthropic().is_configured_in_env());
+        assert!(
+            !Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .is_configured_in_env()
+        );
 
         // Set a key and verify
         // SAFETY: serialised by #[serial(parish_env)]
         unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-test") };
-        assert!(Provider::anthropic().is_configured_in_env());
+        assert!(
+            Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .is_configured_in_env()
+        );
 
         // Empty string counts as not configured
         unsafe { std::env::set_var("ANTHROPIC_API_KEY", "") };
-        assert!(!Provider::anthropic().is_configured_in_env());
+        assert!(
+            !Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded")
+                .is_configured_in_env()
+        );
     }
 
     #[test]
@@ -2310,7 +2309,7 @@ model = "toml-model"
 
     #[test]
     fn provider_display_name_and_kind_accessors() {
-        let p = Provider::anthropic();
+        let p = Provider::from_id("anthropic").expect("anthropic provider mod must be loaded");
         assert!(!p.display_name().is_empty());
         assert_eq!(p.kind(), ProviderKind::Anthropic);
         let sim = Provider::simulator();
@@ -2319,7 +2318,7 @@ model = "toml-model"
 
     #[test]
     fn provider_equality_and_hash_by_id() {
-        let a = Provider::openai();
+        let a = Provider::from_id("openai").expect("openai provider mod must be loaded");
         let b = Provider::from_id("openai").unwrap();
         assert_eq!(a, b);
         use std::collections::HashSet;
@@ -2381,16 +2380,61 @@ model = "toml-model"
 
     #[test]
     fn all_named_constructors_return_correct_id() {
-        assert_eq!(Provider::openai().id(), "openai");
-        assert_eq!(Provider::google().id(), "google");
-        assert_eq!(Provider::groq().id(), "groq");
-        assert_eq!(Provider::xai().id(), "xai");
-        assert_eq!(Provider::mistral().id(), "mistral");
-        assert_eq!(Provider::deepseek().id(), "deepseek");
-        assert_eq!(Provider::together().id(), "together");
+        assert_eq!(
+            Provider::from_id("openai")
+                .expect("openai provider mod must be loaded")
+                .id(),
+            "openai"
+        );
+        assert_eq!(
+            Provider::from_id("google")
+                .expect("google provider mod must be loaded")
+                .id(),
+            "google"
+        );
+        assert_eq!(
+            Provider::from_id("groq")
+                .expect("groq provider mod must be loaded")
+                .id(),
+            "groq"
+        );
+        assert_eq!(
+            Provider::from_id("xai")
+                .expect("xai provider mod must be loaded")
+                .id(),
+            "xai"
+        );
+        assert_eq!(
+            Provider::from_id("mistral")
+                .expect("mistral provider mod must be loaded")
+                .id(),
+            "mistral"
+        );
+        assert_eq!(
+            Provider::from_id("deepseek")
+                .expect("deepseek provider mod must be loaded")
+                .id(),
+            "deepseek"
+        );
+        assert_eq!(
+            Provider::from_id("together")
+                .expect("together provider mod must be loaded")
+                .id(),
+            "together"
+        );
         assert_eq!(Provider::vllmmlx().id(), "vllmmlx");
-        assert_eq!(Provider::lmstudio().id(), "lmstudio");
-        assert_eq!(Provider::openrouter().id(), "openrouter");
+        assert_eq!(
+            Provider::from_id("lmstudio")
+                .expect("lmstudio provider mod must be loaded")
+                .id(),
+            "lmstudio"
+        );
+        assert_eq!(
+            Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded")
+                .id(),
+            "openrouter"
+        );
         assert_eq!(Provider::custom().id(), "custom");
         assert_eq!(Provider::ollama().id(), "ollama");
     }

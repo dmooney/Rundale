@@ -12,16 +12,13 @@
 		validateProviderConfig,
 		listByokEnvKeys,
 		listPresetModels,
+		listAvailableProviders,
+		type AvailableProviderInfo,
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
 		type ProviderPresetOption
 	} from '$lib/ipc';
-	import {
-		FEATURED_PROVIDERS,
-		OTHER_PROVIDERS,
-		findProvider,
-		type ByokProviderMeta
-	} from '$lib/byokProviders';
+	import { toByokMeta, findProvider, type ByokProviderMeta } from '$lib/byokProviders';
 
 	let {
 		onComplete,
@@ -44,8 +41,13 @@
 	let validationError = $state<ValidationOutcome | null>(null);
 	let saveError = $state('');
 
+	// Provider lists fetched once on mount. Source of truth is the runtime
+	// provider registry (parish-config builtins + mods/<id>/providers/*.toml);
+	// the static byokProviders.ts arrays are no longer the picker's truth.
+	let featured = $state<ByokProviderMeta[]>([]);
+	let other = $state<ByokProviderMeta[]>([]);
 	let chosen = $derived<ByokProviderMeta | undefined>(
-		chosenId ? findProvider(chosenId) : undefined
+		chosenId ? findProvider(chosenId, featured, other) : undefined
 	);
 
 	// Map of {provider_id: has_env_key} fetched once on mount. The backend
@@ -56,6 +58,15 @@
 	let envKeys = $state<Record<string, boolean>>({});
 	let presetModels = $state<Record<string, ProviderPresetOption[]>>({});
 	onMount(() => {
+		listAvailableProviders()
+			.then((r) => {
+				featured = r.featured.map(toByokMeta);
+				other = r.other.map(toByokMeta);
+			})
+			.catch(() => {
+				featured = [];
+				other = [];
+			});
 		listByokEnvKeys()
 			.then((m) => (envKeys = m))
 			.catch(() => (envKeys = {}));
@@ -170,7 +181,7 @@
 			<p class="byok__sub">Pick the API you want Rundale to use for NPC dialogue.</p>
 
 			<div class="byok__grid">
-				{#each FEATURED_PROVIDERS as p (p.id + p.label)}
+				{#each featured as p (p.id + p.label)}
 					<button class="byok__card" type="button" onclick={() => pick(p)}>
 						<h3>{p.label}</h3>
 						<p>{p.blurb}</p>
@@ -180,7 +191,7 @@
 
 			<div class="byok__other-label">Other providers</div>
 			<div class="byok__chips">
-				{#each OTHER_PROVIDERS as p (p.id + p.label)}
+				{#each other as p (p.id + p.label)}
 					<button class="byok__chip" type="button" onclick={() => pick(p)} title={p.blurb}>
 						{p.label}
 					</button>

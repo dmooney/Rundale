@@ -478,6 +478,24 @@ export interface ProviderPresetOption {
 export const listPresetModels = () =>
 	command<Record<string, ProviderPresetOption[]>>('list_preset_models');
 
+export interface AvailableProviderInfo {
+	id: string;
+	display_name: string;
+	blurb: string | null;
+	signup_url: string | null;
+	needs_base_url: boolean;
+	keyless: boolean;
+	featured: boolean;
+}
+
+export interface AvailableProvidersResponse {
+	featured: AvailableProviderInfo[];
+	other: AvailableProviderInfo[];
+}
+
+export const listAvailableProviders = () =>
+	command<AvailableProvidersResponse>('list_available_providers');
+
 /**
  * Bindings for the local-inference onboarding flow (vllm-mlx on macOS).
  *

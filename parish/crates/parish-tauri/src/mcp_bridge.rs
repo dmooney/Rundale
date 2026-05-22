@@ -103,7 +103,7 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/submit-byok", post(submit_byok))
         .route("/api/byok-env-keys", get(byok_env_keys))
         .route("/api/preset-models", get(preset_models))
-        .route("/api/available-providers", get(available_providers))
+        .route("/api/list-available-providers", get(available_providers))
         // ── Local-inference onboarding (vllm-mlx fork) ────────────────────
         // GET returns the same fork-variant + RAM data the Svelte
         // `LocalInferenceFork` reads on mount. POST drives the same

@@ -1535,7 +1535,7 @@ fn build_cloud_client_from_env(
     let provider_enum = provider
         .as_deref()
         .and_then(|p| Provider::from_str_loose(p).ok())
-        .unwrap_or_else(Provider::openrouter);
+        .unwrap_or_else(|| Provider::from_id("openrouter").unwrap_or_default());
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())

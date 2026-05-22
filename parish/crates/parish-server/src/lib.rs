@@ -453,6 +453,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
         .route("/api/theme", get(routes::get_theme))
+        .route(
+            "/api/list-available-providers",
+            get(routes::get_available_providers),
+        )
         .route("/api/ui-config", get(routes::get_ui_config))
         .route("/api/app-icon.png", get(routes::get_app_icon))
         .route("/api/favicon.png", get(routes::get_favicon))
@@ -1197,7 +1201,9 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
     let provider_enum = provider
         .as_deref()
         .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-        .unwrap_or_else(parish_core::config::Provider::openrouter);
+        .unwrap_or_else(|| {
+            parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
+        });
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())
