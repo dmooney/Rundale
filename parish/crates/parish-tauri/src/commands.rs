@@ -2139,6 +2139,56 @@ pub async fn get_demo_context(
     ))
 }
 
+/// Detects if a string is command-form intent description (bare verb-first
+/// pattern like "ask about X", "tell Name Y", "whisper to X") rather than
+/// first-person speech or direct command. This guard prevents the demo
+/// auto-player from leaking the LLM's internal intent reasoning as player chat.
+///
+/// Command-form intent leaks are specifically dialogue-related intent
+/// descriptions that the LLM might output during reasoning:
+/// - "ask about X", "ask the Y", "ask a Z"
+/// - "tell Name something"
+/// - "whisper to Name"
+///
+/// Movement/exploration commands like "go to X" and "look" are valid player inputs
+/// and NOT considered intent leaks.
+///
+/// Returns `true` if the text matches a dialogue intent leak pattern.
+fn is_command_form_intent_leak(text: &str) -> bool {
+    let trimmed = text.trim();
+
+    // Bare direct commands that are valid (single word, no object) are NOT intent leaks.
+    // These are legitimate player inputs for the game engine.
+    let valid_direct_commands = ["look", "wait", "go", "listen", "think"];
+    if valid_direct_commands.contains(&trimmed) {
+        return false;
+    }
+
+    // Check for dialogue-form intent leaks: bare verbs used for dialogue.
+    // These are patterns where the LLM outputs its internal reasoning about
+    // what dialogue to attempt, rather than the dialogue itself.
+    let dialogue_intent_patterns = [
+        // Dialogue-related intent leaks
+        "ask about ",
+        "ask the ",
+        "ask a ",
+        "ask if ",
+        "ask ", // bare "ask" followed by something (but not bare "ask" alone)
+        "tell ",
+        "whisper ",
+        "whisper to ",
+    ];
+
+    let lower = trimmed.to_lowercase();
+    for pattern in &dialogue_intent_patterns {
+        if lower.starts_with(pattern) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Extracts the player action from an LLM response.
 ///
 /// Handles four patterns:
@@ -2167,7 +2217,10 @@ fn extract_action_from_response(text: &str) -> String {
     if !completion.is_empty() && !completion.starts_with('{') && !completion.contains("action") {
         // Check that the raw response looked like a completion (no full JSON object).
         if !trimmed.contains("{\"action\"") && !trimmed.contains("{ \"action\"") {
-            return completion.to_string();
+            // Guard against command-form intent leaks (e.g., "ask about ...").
+            if !is_command_form_intent_leak(completion) {
+                return completion.to_string();
+            }
         }
     }
 
@@ -2180,7 +2233,10 @@ fn extract_action_from_response(text: &str) -> String {
         {
             let action = action.trim();
             if !action.is_empty() {
-                return action.to_string();
+                // Guard against command-form intent leaks.
+                if !is_command_form_intent_leak(action) {
+                    return action.to_string();
+                }
             }
         }
         search = &search[start + 1..];
@@ -2196,11 +2252,27 @@ fn extract_action_from_response(text: &str) -> String {
     if let Some(cleaned) = strip_envelope_leak(trimmed)
         && !cleaned.is_empty()
     {
-        return cleaned;
+        // Guard against command-form intent leaks.
+        if !is_command_form_intent_leak(&cleaned) {
+            return cleaned;
+        }
     }
 
     // Pattern 4: fallback — take last meaningful line from already-stripped text.
-    trimmed.trim_matches('"').trim_matches('\'').to_string()
+    // Skip if the text looks like JSON (Pattern 2 already tried to extract from it).
+    if trimmed.contains("{\"") || trimmed.contains("{ \"") || trimmed.starts_with('{') {
+        // All JSON patterns either returned a leak or found nothing.
+        return String::new();
+    }
+    let fallback = trimmed.trim_matches('"').trim_matches('\'').to_string();
+    // Guard against command-form intent leaks before returning fallback.
+    if !is_command_form_intent_leak(&fallback) {
+        fallback
+    } else {
+        // If all patterns extracted a command-form intent leak, return empty
+        // to indicate the LLM failed to produce valid player input.
+        String::new()
+    }
 }
 
 /// Strips a leaked JSON envelope from `text`. Returns `Some(inner)` when at
@@ -2373,9 +2445,9 @@ words or command directly.\n\
 Examples:\n\
   {{\"action\": \"Good mornin'. Might I look about the village a while?\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
+  {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
   {{\"action\": \"go to the mill\"}}\n\
   {{\"action\": \"look\"}}\n\
-  {{\"action\": \"ask about the harvest\"}}\n\
 \n\
 Your entire response must be a single JSON object — nothing before or after it.",
         extra = extra_section,
@@ -2458,8 +2530,11 @@ mod demo_tests {
 
     #[test]
     fn falls_back_to_stripping_when_no_json() {
-        let input = "Some reasoning.\nask about the harvest";
-        assert_eq!(extract_action_from_response(input), "ask about the harvest");
+        let input = "Some reasoning.\nMight I ask about the harvest, then?";
+        assert_eq!(
+            extract_action_from_response(input),
+            "Might I ask about the harvest, then?"
+        );
     }
 
     #[test]
@@ -2538,6 +2613,112 @@ mod demo_tests {
     fn strips_multi_sentence_reasoning_single_newline() {
         let input = "Based on my previous interaction with Peig, I should explore. The mill is unvisited.\nask about the mill";
         assert_eq!(strip_thinking_block(input), "ask about the mill");
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_rejects_ask_patterns() {
+        assert!(super::is_command_form_intent_leak(
+            "ask about the places nearby that are worth visiting"
+        ));
+        assert!(super::is_command_form_intent_leak("ask about the harvest"));
+        assert!(super::is_command_form_intent_leak("ask the priest"));
+        assert!(super::is_command_form_intent_leak("ask a stranger"));
+        assert!(super::is_command_form_intent_leak("ask if anyone knows"));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_rejects_tell_patterns() {
+        assert!(super::is_command_form_intent_leak("tell Brigid my name"));
+        assert!(super::is_command_form_intent_leak(
+            "tell the stranger something"
+        ));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_rejects_whisper_patterns() {
+        assert!(super::is_command_form_intent_leak("whisper a secret"));
+        assert!(super::is_command_form_intent_leak("whisper to Brigid"));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_accepts_look_patterns() {
+        // "look" variants are movement/exploration commands, not dialogue intent leaks.
+        assert!(!super::is_command_form_intent_leak("look at the stranger"));
+        assert!(!super::is_command_form_intent_leak("look for water"));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_accepts_movement_commands() {
+        // Movement commands are valid player inputs, NOT intent leaks.
+        assert!(!super::is_command_form_intent_leak("go to the mill"));
+        assert!(!super::is_command_form_intent_leak("go back home"));
+        assert!(!super::is_command_form_intent_leak("go into the house"));
+        assert!(!super::is_command_form_intent_leak(
+            "go towards the village"
+        ));
+        assert!(!super::is_command_form_intent_leak("walk to the mill"));
+        assert!(!super::is_command_form_intent_leak("travel to Dublin"));
+        assert!(!super::is_command_form_intent_leak("move to the window"));
+        assert!(!super::is_command_form_intent_leak("climb to the hill"));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_accepts_bare_commands() {
+        // Bare valid commands should NOT be flagged as intent leaks.
+        assert!(!super::is_command_form_intent_leak("look"));
+        assert!(!super::is_command_form_intent_leak("wait"));
+        assert!(!super::is_command_form_intent_leak("go"));
+        assert!(!super::is_command_form_intent_leak("listen"));
+        assert!(!super::is_command_form_intent_leak("think"));
+    }
+
+    #[test]
+    fn is_command_form_intent_leak_accepts_natural_speech() {
+        // Natural first-person speech should pass through.
+        assert!(!super::is_command_form_intent_leak(
+            "Good mornin'. Might I look about the village a while?"
+        ));
+        assert!(!super::is_command_form_intent_leak(
+            "I've come from up the road. What news do ye have hereabouts?"
+        ));
+        assert!(!super::is_command_form_intent_leak(
+            "Might I ask about the harvest, then?"
+        ));
+        assert!(!super::is_command_form_intent_leak(
+            "Hello there, good morning!"
+        ));
+    }
+
+    #[test]
+    fn extract_action_rejects_intent_leak_from_json() {
+        let input = r#"{"action": "ask about the places nearby that are worth visiting"}"#;
+        // Should return empty string since the intent leak is detected.
+        assert_eq!(extract_action_from_response(input), "");
+    }
+
+    #[test]
+    fn extract_action_rejects_dialogue_intent_leak_from_completion() {
+        let input = r#"ask about the places nearby that are worth visiting"}"#;
+        // Completion pattern that is a dialogue intent leak should return empty.
+        assert_eq!(extract_action_from_response(input), "");
+    }
+
+    #[test]
+    fn extract_action_accepts_natural_speech_in_json() {
+        let input = r#"{"action": "Might I ask about the harvest, then?"}"#;
+        assert_eq!(
+            extract_action_from_response(input),
+            "Might I ask about the harvest, then?"
+        );
+    }
+
+    #[test]
+    fn extract_action_accepts_bare_commands() {
+        let input = r#"{"action": "look"}"#;
+        assert_eq!(extract_action_from_response(input), "look");
+
+        let input2 = r#"{"action": "go"}"#;
+        assert_eq!(extract_action_from_response(input2), "go");
     }
 }
 
