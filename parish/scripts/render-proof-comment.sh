@@ -138,25 +138,38 @@ EOF
 EOF
 } > "$staged"
 
-staged_bytes=$(wc -c < "$staged" | tr -d ' ')
-if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
-    # Re-render without the inline transcript section. The transcript
-    # file is still listed under "Artifacts" for upload via the GitHub
-    # UI. This keeps the bundle attached and CI happy even when the
-    # transcript is dense enough to bust the comment cap.
-    {
-        cat <<EOF
+# Cap individual section bodies so that even huge AC/evidence/judge
+# files can't bust the comment ceiling. Each section is hard-truncated
+# to 15 000 bytes individually; when applied alongside the omitted
+# transcript section that leaves headroom under the 60 000 ceiling for
+# fences and the attachments list. The truncation marker is shown so
+# reviewers know the file was clipped.
+SECTION_BYTE_CAP=15000
+truncate_section_body() {
+    local file="$1"
+    local bytes
+    bytes=$(wc -c < "$file" | tr -d ' ')
+    if [[ "$bytes" -le "$SECTION_BYTE_CAP" ]]; then
+        cat "$file"
+    else
+        head -c "$SECTION_BYTE_CAP" "$file"
+        printf '\n\n_... [section truncated; %s bytes total — see attached file] ..._\n' "$bytes"
+    fi
+}
+
+emit_truncated_render() {
+    cat <<EOF
 <!-- parish-proof-bundle:${task_id} v=1 -->
 
 ## Proof: ${task_id}
 
 ### Acceptance criteria
 
-$(cat "$ac")
+$(truncate_section_body "$ac")
 
 ### Evidence
 
-$(cat "$evidence")
+$(truncate_section_body "$evidence")
 
 ### Transcript
 
@@ -164,14 +177,27 @@ _omitted from inline comment — exceeds GitHub comment-body byte cap. Drop the 
 
 ### Judge
 
-$(cat "$judge")
+$(truncate_section_body "$judge")
 EOF
-        emit_attachments_section
-        cat <<EOF
+    emit_attachments_section
+    cat <<EOF
 
 <!-- /parish-proof-bundle:${task_id} -->
 EOF
-    } > "$staged"
+}
+
+staged_bytes=$(wc -c < "$staged" | tr -d ' ')
+if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
+    # First fallback: drop the inline transcript section. The transcript
+    # file is still listed under "Artifacts" for upload via the GitHub
+    # UI. Re-check size after the rewrite — if AC/evidence/judge themselves
+    # are huge, hard-truncate each section so the comment always fits.
+    emit_truncated_render > "$staged"
+    staged_bytes=$(wc -c < "$staged" | tr -d ' ')
+    if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
+        echo "render-proof-comment: ERROR — rendered body $staged_bytes bytes exceeds $COMMENT_BYTE_CAP even after section truncation. Reduce the bundle's source files manually." >&2
+        exit 1
+    fi
 fi
 
 cat "$staged"

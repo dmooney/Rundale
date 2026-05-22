@@ -39,7 +39,7 @@ fi
 # `just agent-check` invocation handles that as part of the normal
 # pre-push workflow. We only need to confirm the bundle is well-formed.
 echo "attach-proof: validating .proofs/$task_id/ against the local proof gate..."
-if ! bash parish/scripts/agent-check.sh --source=local >/dev/null; then
+if ! bash parish/scripts/agent-check.sh --source=local --bundle "$task_id" >/dev/null; then
     echo "attach-proof FAILED: local agent-check rejected the bundle. Fix the issues and re-run." >&2
     exit 1
 fi
@@ -99,7 +99,7 @@ else
     gh pr comment "$pr_number" --repo "$repo_full" --body-file "$body_file" >/dev/null
 fi
 
-echo "attach-proof: done. View: $(gh pr view "$pr_number" --json url --jq .url)"
+echo "attach-proof: done. View: $(gh pr view "$pr_number" --repo "$repo_full" --json url --jq .url)"
 
 # Reminder: images/transcripts are referenced by name in the comment but
 # the actual binary files have to be uploaded by drag-drop in the GitHub
