@@ -7,9 +7,9 @@ import {
 	demoTurnCount,
 	demoConfig,
 } from '../stores/demo';
-import { streamingActive } from '../stores/game';
+import { streamingActive, textLog } from '../stores/game';
 import { runDemoTurn, stopDemo } from './demo-player';
-import { submitInput } from './ipc';
+import { getLlmPlayerAction, submitInput } from './ipc';
 import { createStreamManager } from './setup/stream-manager';
 
 const testConfig = {
@@ -19,15 +19,23 @@ const testConfig = {
 	max_turns: null,
 };
 
+const KILTEEVAN_SCENE =
+	'The small village of Kilteevan — a handful of whitewashed cottages clustered around a well.';
+
 vi.mock('../lib/ipc', () => ({
 	getDemoContext: vi.fn(async () => ({
-		world_description: 'A village',
+		location_name: 'Kilteevan',
+		location_description: KILTEEVAN_SCENE,
+		game_time: 'Wednesday, 14 May 1820, morning',
+		season: 'spring',
+		weather: 'clear sky',
+		npcs_here: [],
+		adjacent: [],
 		recent_log: [],
-		nearby_npcs: [],
-		recent_events: [],
+		recent_actions: [],
 		extra_prompt: null,
 	})),
-	getLlmPlayerAction: vi.fn(async () => '"look around"'),
+	getLlmPlayerAction: vi.fn(async () => '"Good morning"'),
 	submitInput: vi.fn(async () => {}),
 }));
 
@@ -37,7 +45,9 @@ beforeEach(() => {
 	demoStatus.set('idle');
 	demoTurnCount.set(0);
 	demoConfig.set(testConfig);
+	textLog.set([]);
 	vi.mocked(submitInput).mockClear();
+	vi.mocked(getLlmPlayerAction).mockClear();
 });
 
 describe('stopDemo', () => {
@@ -158,5 +168,53 @@ describe('runDemoTurn', () => {
 		// chain rather than resolving on the mid-chain loading=false.
 		expect(get(streamingActive)).toBe(false);
 		expect(sm.isChainInProgress()).toBe(false);
+	});
+
+	// Regression for #999: `[system]` text-log entries that echo the
+	// current location description must NOT appear in the `recent_log`
+	// passed to `getLlmPlayerAction`. The static `location_description`
+	// field already conveys the scene; duplicating it via recent_log
+	// floods the prompt and anchors the auto-player on repeating itself.
+	it('filters scene-description echoes out of recent_log', async () => {
+		demoEnabled.set(true);
+		textLog.set([
+			{ id: 'a', source: 'player', content: 'Good morning' },
+			// A `[system]` echo of the current scene description — must
+			// be filtered.
+			{ id: 'b', source: 'system', content: KILTEEVAN_SCENE },
+			{ id: 'c', source: 'system', content: 'The clock chimes nine.' },
+		]);
+
+		await runDemoTurn();
+
+		expect(getLlmPlayerAction).toHaveBeenCalledTimes(1);
+		const ctxArg = vi.mocked(getLlmPlayerAction).mock.calls[0][0];
+		expect(ctxArg.recent_log).toEqual([
+			'[player] Good morning',
+			'[system] The clock chimes nine.',
+		]);
+	});
+
+	// Regression for #999: `recent_actions` must be populated from the
+	// last `[player]` entries of the text log so the demo system prompt
+	// can show the LLM what it has already said and break repetition.
+	it('populates recent_actions from the last 5 player log entries', async () => {
+		demoEnabled.set(true);
+		textLog.set([
+			{ id: 'p1', source: 'player', content: 'Good morning' },
+			{ id: 's1', source: 'system', content: 'The clock chimes nine.' },
+			{ id: 'p2', source: 'player', content: 'Good morning' },
+			{ id: 'n1', source: 'Padraig', content: 'And to ye.' },
+			{ id: 'p3', source: 'player', content: 'go to the mill' },
+		]);
+
+		await runDemoTurn();
+
+		const ctxArg = vi.mocked(getLlmPlayerAction).mock.calls[0][0];
+		expect(ctxArg.recent_actions).toEqual([
+			'Good morning',
+			'Good morning',
+			'go to the mill',
+		]);
 	});
 });

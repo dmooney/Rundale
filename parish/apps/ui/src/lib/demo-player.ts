@@ -73,9 +73,32 @@ export async function runDemoTurn(): Promise<void> {
 	const ctx = await getDemoContext();
 
 	// Fill recent log from frontend text log store (last 40 lines).
-	ctx.recent_log = get(textLog)
-		.slice(-40)
+	//
+	// #999: drop `[system]` entries that echo the current location description.
+	// The static `location_description` field already conveys the scene to the
+	// LLM; without this filter, any future or LLM-triggered `look` flood
+	// dominates recent_log with copies of the same blurb and the auto-player
+	// gets anchored on repeating itself.
+	const sceneHead = ctx.location_description.slice(0, 60).trim();
+	const log = get(textLog).slice(-40);
+	ctx.recent_log = log
+		.filter(
+			(e) =>
+				!(
+					e.source === 'system' &&
+					sceneHead.length > 0 &&
+					e.content.startsWith(sceneHead)
+				)
+		)
 		.map((e) => `[${e.source}] ${e.content}`);
+
+	// #999: surface the auto-player's own recent actions as a separate field so
+	// the demo system prompt can call them out explicitly ("do not repeat your
+	// last action"). Take the last 5 `[player]` entries, oldest first.
+	ctx.recent_actions = log
+		.filter((e) => e.source === 'player')
+		.slice(-5)
+		.map((e) => e.content);
 
 	// Frontend store's extra_prompt always wins — null means "cleared by user".
 	ctx.extra_prompt = config.extra_prompt;

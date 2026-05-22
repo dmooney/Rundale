@@ -1,0 +1,25 @@
+# Placeholder fixture for task 999-demo-look-loop.
+#
+# The CLI script harness does not exercise the demo auto-player code path
+# (`get_llm_player_action` lives in parish-tauri and requires the Tauri GUI +
+# an LLM client). Additionally, the LLM-backed `parse_intent` runs only when
+# an LLM client is configured, so the intent-classification regression for
+# narrative "look" is not reachable from a clientless CLI run.
+#
+# Verification for this task is therefore split:
+#
+#   1. Unit/integration tests for the four code seams:
+#        cargo test -p parish-input intent_llm
+#        cargo test -p parish-core ipc::demo
+#        (cd parish/apps/ui && npm test -- demo-player)
+#
+#   2. A live demo transcript proving the loop is gone and the scene blurb
+#      no longer re-emits between every player line:
+#        just demo 2 8 2>&1 | tee docs/proofs/999-demo-look-loop/transcript.txt
+#
+# This file exists so the task-start skill's directory layout is honoured and
+# so anyone grepping `parish/testing/fixtures/` for the task id finds this
+# note pointing at the real verification path.
+#
+# See docs/proofs/999-demo-look-loop/acceptance-criteria.md for the full
+# criteria and live-proof expectations.

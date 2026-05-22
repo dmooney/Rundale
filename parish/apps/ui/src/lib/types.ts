@@ -515,6 +515,7 @@ export interface DemoContextSnapshot {
 	npcs_here: DemoNpcInfo[];
 	adjacent: DemoAdjacentLocation[];
 	recent_log: string[];
+	recent_actions: string[];
 	extra_prompt: string | null;
 }
 
