@@ -29,7 +29,8 @@ One-page index of every top-level directory. Use this when navigating an unfamil
 | `mods/rundale/` | Game content (NPCs, world, prompts) | `mod.toml` | [CLAUDE.md](../../mods/rundale/CLAUDE.md) |
 | `docs/` | Project documentation hub | [`index.md`](../index.md) | — |
 | `docs/agent/` | Agent-facing engineering docs | [`README.md`](README.md) | — |
-| `docs/proofs/` | Proof bundles (rule #10) | — | — |
+| `.proofs/` | Per-task proof bundles (rule #10, gitignored — posted to PRs via `just attach-proof`) | — | — |
+| `docs/proofs/` | Long-lived benchmark archives (`local-perf/`, `rundale-bench/`) | — | — |
 | `docs/screenshots/` | UI baselines | — | — |
 | `deploy/` | Packaging + release artifacts | — | — |
 | `.claude/` | Claude Code config (skills, hooks, settings) | `settings.json` | — |

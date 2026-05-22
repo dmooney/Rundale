@@ -13,7 +13,7 @@ Run the complete Rundale pre-push verification checklist.
 Run `just verify` from the repo root. This runs: agent-check, fmt-check, clippy, tests, witness-scan, doc-paths, and the game harness walkthrough script.
 
 If `just verify` fails, diagnose by running steps individually:
-1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `docs/proofs/` when it reports missing evidence.
+1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `.proofs/<task-id>/` when it reports missing evidence. The bundle is posted to the PR via `just attach-proof <task-id>`; it is not committed.
 2. **Format check**: `cd parish && cargo fmt --check`. Fix with `cd parish && cargo fmt`, then report what changed.
 3. **Lint**: `cd parish && cargo clippy -- -D warnings`. Fix any warnings before proceeding.
 4. **Tests**: `cd parish && cargo test`. All tests must pass.

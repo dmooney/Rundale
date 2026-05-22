@@ -120,16 +120,18 @@ CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$'
 # sessions (proof files written without any code edits) also get the
 # AC gate.
 #
-# Detection strategy: collect all bundle dirs that had an evidence.md or
-# judge.md written this session via any method:
+# Proof bundles live in `.proofs/<task-id>/` (gitignored — they are
+# attached to the PR via `just attach-proof`, not committed). Detection
+# sources:
 #   a) transcript Write/Edit/MultiEdit tool_use entries
-#   b) transcript Bash commands — catches heredoc/redirect workflows and
-#      proof artifacts committed mid-session (git diff/untracked misses these)
-#   c) git diff HEAD + untracked files — catches remaining gaps
-# Then check on disk whether each bundle has an acceptance-criteria.md,
-# which may have been written in a prior session or commit. Scoped
-# per-bundle: docs/proofs/A/judge.md + docs/proofs/B/ac.md does NOT
-# satisfy the gate for bundle A.
+#   b) transcript Bash commands — heredoc/redirect/tee writes
+# The git-diff source from the old `docs/proofs/` scheme is gone:
+# `.proofs/` is gitignored, so `git diff` / `ls-files --exclude-standard`
+# don't see it. Disk-walk would over-trigger across stale bundles from
+# prior branches; we scope detection to this session via the transcript.
+# Then check on disk whether each detected bundle has an
+# acceptance-criteria.md (prior-session files count too). Per-bundle:
+# `.proofs/A/judge.md` + `.proofs/B/ac.md` does NOT satisfy bundle A.
 
 _proof_bundle_dirs() {
   {
@@ -141,37 +143,36 @@ _proof_bundle_dirs() {
         | .input.file_path // empty
       ' "$TRANSCRIPT" 2>/dev/null \
         | sed "s|^$ROOT/||" \
-        | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' \
+        | grep -E '\.proofs/.*/(evidence|judge)\.md$' \
         | sed 's|/[^/]*$||' || true
       # Bash scan: only match write-indicative contexts (>, >>, tee) to avoid
       # false positives from read-only commands like cat/grep/sed.
-      # Handles optional quotes and ./ prefix (e.g. > "docs/...", > ./docs/...,
-      # tee -a "docs/..."). The tee alternative allows optional flags first.
+      # Handles optional quotes and ./ prefix (e.g. > ".proofs/...", > ./.proofs/...,
+      # tee -a ".proofs/..."). The tee alternative allows optional flags first.
       jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-{1,2}[[:alnum:]-]+)*[[:space:]]+"?\.?/?)docs/proofs/[^/]+/(evidence|judge)\.md' \
-        | grep -oE 'docs/proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -E '(>>?[[:space:]]*"?\.?/?|tee([[:space:]]+-{1,2}[[:alnum:]-]+)*[[:space:]]+"?\.?/?)\.proofs/[^/]+/(evidence|judge)\.md' \
+        | grep -oE '\.proofs/[^/]+/(evidence|judge)\.md' \
         | sed 's|/[^/]*$||' || true
     fi
-    {
-      git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
-      git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-    } | grep -E 'docs/proofs/.*/(evidence|judge)\.md$' | sed 's|/[^/]*$||' || true
   } | grep -v '^$' | sort -u || true
 }
 
 PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
 
 # For each bundle written this session, verify acceptance-criteria.md exists
-# on disk (current session or pre-existing from a prior commit).
+# on disk (current session or pre-existing from a prior commit). Bundles
+# that no longer exist on disk (e.g. scratch dirs deleted later in the
+# same session) are skipped — there's nothing to validate.
 BUNDLE_MISSING_AC=""
 if [ -n "$PROOF_BUNDLE_DIRS" ]; then
   while IFS= read -r bundle_dir; do
     [ -z "$bundle_dir" ] && continue
+    [ -d "$ROOT/$bundle_dir" ] || continue
     if [ ! -f "$ROOT/$bundle_dir/acceptance-criteria.md" ]; then
       BUNDLE_MISSING_AC="$bundle_dir"
       break
@@ -392,9 +393,11 @@ Before claiming done, exercise the change:
 
 ${EXAMPLES}
 
-Also required (rule 13): write docs/proofs/<task-id>/acceptance-criteria.md
+Also required (rule 13): write .proofs/<task-id>/acceptance-criteria.md
 BEFORE coding, run the game, capture the transcript, and include
 'Acceptance criteria: met' in judge.md. Use /task-start <task-id>.
+After the bundle is complete, run `just attach-proof <task-id>` to post it
+to the PR — bundles are not committed (`.proofs/` is gitignored).
 
 Then restate in your message what you exercised and what the result was.
 Type-checking and svelte-check are not proof of behavior — they catch

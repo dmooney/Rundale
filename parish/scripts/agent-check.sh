@@ -2,12 +2,59 @@
 #
 # PR proof gate for agent-assisted changes.
 #
-# This script is intentionally self-contained: CI can run it before installing
+# Two source modes:
+#   --source=local              (default) Validate proof bundles in .proofs/ on
+#                               disk. Used by `just agent-check` and the Stop
+#                               hook before push.
+#   --source=pr <number>        Validate proof bundles posted to a PR as
+#                               structured comments. Used by CI's agent-check
+#                               job. Requires `gh` and read access to the PR.
+#
+# In both modes the script:
+#   - Diffs the working tree against the base ref.
+#   - Categorises changed files into proof-relevant / runtime-shipping.
+#   - Validates that proof artifacts (evidence, judge, acceptance-criteria)
+#     exist and contain the required header lines.
+#   - Rejects placeholder debt markers in changed files.
+#   - Rejects any `.proofs/` path appearing in the diff (those files are
+#     meant to live in PR comments only — see `just attach-proof`).
+#
+# The script is intentionally self-contained: CI can run it before installing
 # Rust, Node, or `just`, and local agents can run the same check while their
 # work is still unstaged.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+
+source_mode="local"
+pr_number=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --source=local)
+            source_mode="local"
+            shift
+            ;;
+        --source=pr)
+            source_mode="pr"
+            pr_number="${2:-}"
+            if [[ -z "$pr_number" ]]; then
+                echo "agent-check: --source=pr requires a PR number." >&2
+                exit 2
+            fi
+            shift 2
+            ;;
+        --source=pr=*)
+            source_mode="pr"
+            pr_number="${1#--source=pr=}"
+            shift
+            ;;
+        *)
+            echo "agent-check: unknown argument: $1" >&2
+            echo "Usage: agent-check.sh [--source=local | --source=pr <number>]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 base_ref="${AGENT_CHECK_BASE_REF:-}"
 if [[ -z "$base_ref" ]]; then
@@ -52,7 +99,7 @@ is_proof_relevant() {
     local file="$1"
     case "$file" in
         # Proof bundles themselves are never the trigger.
-        docs/proofs/*)
+        docs/proofs/*|.proofs/*)
             return 1
             ;;
         # Documentation, agent instructions, build config, CI workflows,
@@ -116,44 +163,6 @@ is_runtime_path() {
     esac
 }
 
-is_evidence_file() {
-    local file="$1"
-    case "$file" in
-        docs/proofs/*/judge.md|docs/proofs/README.md|docs/proofs/*/acceptance-criteria.md)
-            return 1
-            ;;
-        docs/proofs/*/*.md|docs/proofs/*/*.txt|docs/proofs/*/*.png|\
-        docs/proofs/*/*.jpg|docs/proofs/*/*.jpeg|docs/proofs/*/*.gif)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-is_judge_file() {
-    case "$1" in
-        docs/proofs/*/judge.md)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-is_acceptance_criteria_file() {
-    case "$1" in
-        docs/proofs/*/acceptance-criteria.md)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
 validate_evidence_file() {
     local file="$1"
     case "$file" in
@@ -168,7 +177,7 @@ validate_evidence_file() {
         *.txt)
             return 0
             ;;
-        *.md)
+        *.md|*)
             # Accept the optional `live ` prefix that the runtime-path
             # tier (rule #10) requires for proofs of changes touching
             # the Tauri/server/CLI/UI/mod seams. Plain
@@ -178,10 +187,6 @@ validate_evidence_file() {
                 return 0
             fi
             echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)'." >&2
-            return 1
-            ;;
-        *)
-            echo "agent-check FAILED: $file is not an accepted proof artifact type." >&2
             return 1
             ;;
     esac
@@ -207,6 +212,7 @@ scan_for_debt_markers() {
         -- "$file"
 }
 
+# ── Relevance & runtime classification (both modes share this) ───────────
 while IFS= read -r file; do
     if is_proof_relevant "$file"; then
         echo "$file" >> "$relevant"
@@ -214,16 +220,88 @@ while IFS= read -r file; do
     if is_runtime_path "$file"; then
         echo "$file" >> "$runtime"
     fi
-    if [[ -f "$file" ]] && is_evidence_file "$file"; then
-        echo "$file" >> "$evidence"
-    fi
-    if [[ -f "$file" ]] && is_judge_file "$file"; then
-        echo "$file" >> "$judges"
-    fi
-    if [[ -f "$file" ]] && is_acceptance_criteria_file "$file"; then
-        echo "$file" >> "$ac_files"
-    fi
 done < "$changed"
+
+# Lint: `.proofs/` must never appear in the diff. Bundles are gitignored
+# and posted to the PR via `just attach-proof`. A leaked `.proofs/` file
+# means someone ran `git add -f` or removed the gitignore entry.
+if grep -E '^\.proofs/' "$changed" >/dev/null 2>&1; then
+    echo "agent-check FAILED: .proofs/ paths appear in the diff:" >&2
+    grep -E '^\.proofs/' "$changed" | head -5 | sed 's/^/  - /' >&2
+    echo "Proof bundles are gitignored. Use 'just attach-proof <task-id>' to post them to the PR." >&2
+    exit 1
+fi
+
+# ── Bundle discovery (mode-specific) ─────────────────────────────────────
+gather_bundles_local() {
+    [[ -d .proofs ]] || return 0
+    while IFS= read -r f; do
+        case "$f" in
+            .proofs/*/judge.md)
+                echo "$f" >> "$judges"
+                ;;
+            .proofs/*/acceptance-criteria.md)
+                echo "$f" >> "$ac_files"
+                ;;
+            .proofs/*/*.md|.proofs/*/*.txt|.proofs/*/*.png|.proofs/*/*.jpg|.proofs/*/*.jpeg|.proofs/*/*.gif)
+                echo "$f" >> "$evidence"
+                ;;
+        esac
+    done < <(find .proofs -mindepth 2 -maxdepth 2 -type f 2>/dev/null || true)
+}
+
+gather_bundles_pr() {
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "agent-check FAILED: --source=pr requires 'gh' to be installed." >&2
+        return 1
+    fi
+    local raw="$tmpdir/comments_and_body.txt"
+    : > "$raw"
+    gh pr view "$pr_number" --json body --jq '.body // empty' >> "$raw" 2>/dev/null \
+        || { echo "agent-check FAILED: could not fetch PR #$pr_number." >&2; return 1; }
+    printf '\n' >> "$raw"
+    gh pr view "$pr_number" --json comments --jq '.comments[].body // empty' >> "$raw" 2>/dev/null \
+        || { echo "agent-check FAILED: could not fetch PR #$pr_number comments." >&2; return 1; }
+
+    # Extract each `<!-- parish-proof-bundle:ID v=N -->` ... `<!-- /parish-proof-bundle:ID -->`
+    # block into a per-bundle file. The validators below treat that file
+    # as the merged judge + evidence + AC artifact for the bundle.
+    awk -v outdir="$tmpdir" '
+        match($0, /<!--[[:space:]]*parish-proof-bundle:[^[:space:]]+/) {
+            id = substr($0, RSTART, RLENGTH)
+            sub(/.*parish-proof-bundle:/, "", id)
+            sanitised = id
+            gsub(/[^A-Za-z0-9_.-]/, "_", sanitised)
+            block_file = outdir "/pr_block_" sanitised ".md"
+            in_block = 1
+            print "" > block_file
+            next
+        }
+        /<!--[[:space:]]*\/parish-proof-bundle:/ {
+            if (in_block) { close(block_file); in_block = 0 }
+            next
+        }
+        in_block { print >> block_file }
+    ' "$raw"
+
+    # Register every extracted block as evidence + judge + AC. The validators
+    # below will independently confirm each required header line is present.
+    for block_file in "$tmpdir"/pr_block_*.md; do
+        [[ -f "$block_file" ]] || continue
+        echo "$block_file" >> "$evidence"
+        echo "$block_file" >> "$judges"
+        if grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file" \
+            || grep -Eiq '^Acceptance criteria:' "$block_file"; then
+            echo "$block_file" >> "$ac_files"
+        fi
+    done
+}
+
+if [[ "$source_mode" == "local" ]]; then
+    gather_bundles_local
+else
+    gather_bundles_pr || exit 1
+fi
 
 changed_count="$(wc -l < "$changed" | tr -d ' ')"
 relevant_count="$(wc -l < "$relevant" | tr -d ' ')"
@@ -232,7 +310,7 @@ evidence_count="$(wc -l < "$evidence" | tr -d ' ')"
 judge_count="$(wc -l < "$judges" | tr -d ' ')"
 ac_count="$(wc -l < "$ac_files" | tr -d ' ')"
 
-echo "agent-check: comparing $changed_count changed file(s) against $base_ref."
+echo "agent-check: source=$source_mode; comparing $changed_count changed file(s) against $base_ref."
 
 failed=0
 
@@ -240,8 +318,13 @@ if [[ "$relevant_count" -gt 0 ]]; then
     echo "agent-check: $relevant_count proof-relevant file(s) changed."
 
     if [[ "$evidence_count" -eq 0 ]]; then
-        echo "agent-check FAILED: proof-relevant changes require a changed artifact under docs/proofs/<proof-id>/." >&2
-        echo "Accepted evidence forms: gameplay transcript (.md or .txt), screenshot (.png/.jpg/.jpeg), or gif (.gif)." >&2
+        if [[ "$source_mode" == "pr" ]]; then
+            echo "agent-check FAILED: PR #$pr_number has no parish-proof-bundle comment." >&2
+            echo "Run 'just attach-proof <task-id> $pr_number' to post the bundle." >&2
+        else
+            echo "agent-check FAILED: proof-relevant changes require a bundle under .proofs/<task-id>/." >&2
+            echo "Accepted evidence forms: gameplay transcript (.md or .txt), screenshot (.png/.jpg/.jpeg), or gif (.gif)." >&2
+        fi
         failed=1
     else
         while IFS= read -r file; do
@@ -250,8 +333,12 @@ if [[ "$relevant_count" -gt 0 ]]; then
     fi
 
     if [[ "$judge_count" -eq 0 ]]; then
-        echo "agent-check FAILED: proof-relevant changes require docs/proofs/<proof-id>/judge.md." >&2
-        echo "The judge file must include 'Verdict: sufficient' and 'Technical debt: clear'." >&2
+        if [[ "$source_mode" == "pr" ]]; then
+            echo "agent-check FAILED: PR comment is missing judge.md content." >&2
+        else
+            echo "agent-check FAILED: proof-relevant changes require .proofs/<task-id>/judge.md." >&2
+        fi
+        echo "The judge content must include 'Verdict: sufficient' and 'Technical debt: clear'." >&2
         failed=1
     else
         while IFS= read -r file; do
@@ -267,28 +354,18 @@ if [[ "$relevant_count" -gt 0 ]]; then
     fi
 
     if [[ "$ac_count" -gt 0 ]]; then
-        echo "agent-check: $ac_count acceptance-criteria file(s) present."
+        echo "agent-check: $ac_count acceptance-criteria artifact(s) present."
     fi
 
     # Runtime-path tier: when the diff touches a path that only fires in
-    # a real process (Tauri startup, server routes, CLI bootstrap,
-    # NPC tick loop, mod content, UI components), the evidence must
-    # show the change was actually run live. Accepted live signals:
-    #   - any binary artifact (screenshot .png/.jpg/.jpeg, gif .gif) —
-    #     these can't be produced without running the app, and
-    #   - an `.md` summary file that declares
-    #     'Evidence type: live gameplay transcript'.
-    # A plain 'Evidence type: gameplay transcript' is not enough — that
-    # phrasing is used today for analysis-only writeups that never
-    # touch a live process. The added word "live" is the explicit
-    # author affirmation that the run happened (#NNN).
-    #
-    # `.txt` transcripts carry raw program output and are exempt from
-    # the header requirement under `validate_evidence_file` — grepping
-    # them here would risk a false-positive live signal from literal
-    # output containing the regex pattern. The `.md` is where the
-    # author makes the live claim; the `.txt` is the corroborating
-    # evidence body.
+    # a real process, the evidence must show the change was actually run
+    # live. Accepted live signals:
+    #   - any binary artifact (screenshot .png/.jpg/.jpeg, gif .gif)
+    #   - an artifact that declares 'Evidence type: live ...'
+    # In PR mode the block content carries the header. In local mode the
+    # `.md` summary file declares it; `.txt` transcripts are exempt from
+    # the header requirement (literal program output may match the regex
+    # by accident).
     if [[ "$runtime_count" -gt 0 ]]; then
         echo "agent-check: $runtime_count runtime-shipping file(s) changed; live proof required."
         live_found=0
@@ -298,7 +375,10 @@ if [[ "$relevant_count" -gt 0 ]]; then
                     *.png|*.jpg|*.jpeg|*.gif)
                         live_found=1
                         ;;
-                    *.md)
+                    *.txt)
+                        # Exempt from header grep — see comment above.
+                        ;;
+                    *)
                         if grep -Eiq '^Evidence type:[[:space:]]*live[[:space:]]+(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
                             live_found=1
                         fi
@@ -308,10 +388,9 @@ if [[ "$relevant_count" -gt 0 ]]; then
         fi
         if [[ "$live_found" -eq 0 ]]; then
             echo "agent-check FAILED: runtime-shipping changes require evidence from a live process." >&2
-            echo "Provide a screenshot/gif under docs/proofs/<proof-id>/, or a transcript whose" >&2
-            echo "header declares 'Evidence type: live gameplay transcript' (the literal word 'live'" >&2
-            echo "asserts the change was exercised in a real Tauri / server / CLI / browser, not just" >&2
-            echo "in unit tests)." >&2
+            echo "Provide a screenshot/gif in the bundle, or include 'Evidence type: live gameplay transcript'" >&2
+            echo "in the evidence section. The word 'live' asserts the change was exercised in a real" >&2
+            echo "Tauri / server / CLI / browser, not just in unit tests." >&2
             failed=1
         fi
     fi
@@ -321,32 +400,55 @@ fi
 
 # New proof bundles must include acceptance-criteria.md — enforced regardless
 # of whether proof-relevant code changed (catches proof-only PRs too).
-# Novelty is per bundle dir: "new" means neither evidence.md nor judge.md
-# existed in base. Adding extra artifacts to an existing bundle is not new.
+# In local mode, every `.proofs/<id>/` with a judge or evidence file must
+# have an acceptance-criteria.md sibling. In PR mode, every extracted block
+# must contain an Acceptance criteria section.
 if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 ]]; then
-    while IFS= read -r bundle_dir; do
-        ac_path="$bundle_dir/acceptance-criteria.md"
-        if ! git show "$base:$bundle_dir/evidence.md" >/dev/null 2>&1 && \
-           ! git show "$base:$bundle_dir/judge.md" >/dev/null 2>&1; then
+    if [[ "$source_mode" == "local" ]]; then
+        while IFS= read -r bundle_dir; do
+            ac_path="$bundle_dir/acceptance-criteria.md"
             if [[ ! -f "$ac_path" ]]; then
-                echo "agent-check FAILED: new proof bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
+                echo "agent-check FAILED: bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
                 echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
                 echo "See rule 13 in AGENTS.md." >&2
                 failed=1
             fi
-        fi
-    done < <(cat "$evidence" "$judges" 2>/dev/null | grep -E '/(evidence|judge)\.md$' | sed 's|/[^/]*$||' | sort -u)
+        done < <(cat "$evidence" "$judges" 2>/dev/null | grep -E '^\.proofs/[^/]+/(evidence|judge)\.md$' | sed 's|/[^/]*$||' | sort -u)
+    else
+        # PR mode: every block must contain an AC section.
+        while IFS= read -r block_file; do
+            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$block_file" \
+                && ! grep -Eiq '^Acceptance criteria:' "$block_file"; then
+                bundle_id="$(basename "$block_file" .md | sed 's/^pr_block_//')"
+                echo "agent-check FAILED: PR comment for bundle '$bundle_id' has no Acceptance criteria section." >&2
+                echo "See rule 13 in AGENTS.md." >&2
+                failed=1
+            fi
+        done < <(sort -u "$judges")
+    fi
 fi
 
-# Confirm 'Acceptance criteria: met' in every judge file whose bundle has an
+# Confirm 'Acceptance criteria: met' in every judge whose bundle has an
 # acceptance-criteria.md — enforced unconditionally so proof-only PRs (where
 # relevant_count is 0) cannot bypass the gate.
 if [[ "$judge_count" -gt 0 ]]; then
     while IFS= read -r file; do
-        bundle_dir="$(dirname "$file")"
-        if [[ -f "$bundle_dir/acceptance-criteria.md" ]]; then
+        check=1
+        if [[ "$source_mode" == "local" ]]; then
+            bundle_dir="$(dirname "$file")"
+            [[ -f "$bundle_dir/acceptance-criteria.md" ]] || check=0
+        else
+            # PR mode: every block that listed an AC section also needs the
+            # 'Acceptance criteria: met' line. Already validated above for
+            # AC-section presence; here we check the verdict line.
+            if ! grep -Eiq '^##[[:space:]]+Acceptance criteria' "$file" \
+                && ! grep -Eiq '^Acceptance criteria:' "$file"; then
+                check=0
+            fi
+        fi
+        if [[ "$check" -eq 1 ]]; then
             if ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$file"; then
-                echo "agent-check FAILED: $file must include 'Acceptance criteria: met' (bundle has acceptance-criteria.md)." >&2
+                echo "agent-check FAILED: $file must include 'Acceptance criteria: met'." >&2
                 echo "The judge must verify every criterion from acceptance-criteria.md against the game log." >&2
                 failed=1
             fi
@@ -360,6 +462,7 @@ while IFS= read -r file; do
     [[ "$file" == "parish/scripts/agent-check.sh" ]] && continue
     [[ "$file" == "parish/justfile" ]] && continue
     [[ "$file" == "docs/agent/witness.md" ]] && continue
+    [[ "$file" == "docs/agent/agent-check.md" ]] && continue
     [[ "$file" == ".agents/skills/rundale-ci-pitfalls/SKILL.md" ]] && continue
     [[ "$file" == ".agents/skills/task-start/SKILL.md" ]] && continue
     if scan_for_debt_markers "$file"; then
