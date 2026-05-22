@@ -12,6 +12,7 @@ import type {
 	NpcInfo,
 	ThemePalette,
 	UiConfig,
+	ModEntry,
 	StreamTokenPayload,
 	StreamTurnEndPayload,
 	StreamEndPayload,
@@ -69,6 +70,26 @@ export const submitInput = (text: string, addressedTo: string[] = []) =>
 export const getDebugSnapshot = () => command<DebugSnapshot>('get_debug_snapshot');
 
 export const getUiConfig = () => command<UiConfig>('get_ui_config');
+
+// ── Mod selection ────────────────────────────────────────────────────────────
+
+export const getMods = (): Promise<ModEntry[]> => {
+	if (IS_TAURI) {
+		return Promise.resolve([]);
+	}
+	return fetch('/api/mods').then((r) => r.json());
+};
+
+export const switchMod = (modId: string): Promise<{ ok: boolean; error?: string }> => {
+	if (IS_TAURI) {
+		return Promise.resolve({ ok: false, error: 'not supported in desktop mode' });
+	}
+	return fetch('/api/mods/switch', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ mod_id: modId })
+	}).then((r) => r.json());
+};
 
 // ── Persistence commands ────────────────────────────────────────────────────
 

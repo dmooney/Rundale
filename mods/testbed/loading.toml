@@ -1,0 +1,29 @@
+spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+spinner_colors = [
+    [0, 212, 255],
+    [0, 180, 230],
+    [0, 150, 200],
+    [0, 180, 230],
+    [0, 212, 255],
+    [100, 220, 255],
+    [0, 212, 255],
+]
+phrases = [
+    "Initialising subsystems...",
+    "Running diagnostics...",
+    "Allocating test fixtures...",
+    "Calibrating grid coordinates...",
+    "Verifying NPC schedules...",
+    "Compiling acceptance criteria...",
+    "Checking time-of-day interpolation...",
+    "Instantiating Alpha, Beta, and Gamma...",
+    "Loading world graph...",
+    "Resolving relative coordinates...",
+    "Warming up inference pipeline...",
+    "Attaching language directive...",
+    "Pig Latin module: eadyray...",
+    "Validating connection topology...",
+    "Asserting mod schema integrity...",
+    "Calibrating palette contrast floors...",
+    "Rendering blueprint overlay...",
+]

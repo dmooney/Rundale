@@ -94,6 +94,15 @@ export interface LanguageHint {
 }
 
 
+export interface ModEntry {
+	id: string;
+	name: string;
+	title: string | null;
+	version: string;
+	description: string;
+	active: boolean;
+}
+
 export interface UiConfig {
 	hints_label: string;
 	default_accent: string;
@@ -103,6 +112,7 @@ export interface UiConfig {
 	auto_pause_timeout_seconds: number;
 	app_icon_url?: string | null;
 	favicon_url?: string | null;
+	map_overlay?: string | null;
 }
 
 /** A single map tile source sent from the backend. Mirrors

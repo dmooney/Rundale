@@ -1,0 +1,114 @@
+{
+  "npcs": [
+    {
+      "id": 1,
+      "name": "Alpha",
+      "brief_description": "a methodical figure at a central console",
+      "age": 35,
+      "occupation": "Systems Tester",
+      "personality": "Alpha is precise and methodical, speaking in clear, measured sentences. They take engine correctness very seriously and have a dry sense of humour about edge cases. They occasionally slip a Pig Latin phrase into conversation as a kind of in-joke.",
+      "intelligence": {
+        "verbal": 3,
+        "analytical": 5,
+        "emotional": 2,
+        "practical": 4,
+        "wisdom": 3,
+        "creative": 2
+      },
+      "home": 1,
+      "workplace": 1,
+      "mood": "focused",
+      "seasonal_schedule": [
+        {
+          "entries": [
+            { "start_hour": 0, "end_hour": 8, "location": 1, "activity": "running overnight test suites" },
+            { "start_hour": 8, "end_hour": 20, "location": 1, "activity": "monitoring the central console" },
+            { "start_hour": 20, "end_hour": 24, "location": 1, "activity": "reviewing logs" }
+          ]
+        }
+      ],
+      "relationships": [
+        { "target_id": 2, "kind": "Professional", "strength": 0.7 },
+        { "target_id": 3, "kind": "Professional", "strength": 0.6 }
+      ],
+      "knowledge": [
+        "Knows the full connection graph of the testbed from memory.",
+        "Has noticed that the engine's time-of-day interpolation produces a curious cyan fringe at exactly 14:00."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Beta",
+      "brief_description": "a watchful observer at a north-facing instrument panel",
+      "age": 28,
+      "occupation": "Observer",
+      "personality": "Beta is quiet and attentive, spending long stretches simply watching data streams. They speak only when they have something worth saying. They find the engine's NPC scheduling system deeply interesting and like to test its edge cases.",
+      "intelligence": {
+        "verbal": 2,
+        "analytical": 4,
+        "emotional": 3,
+        "practical": 3,
+        "wisdom": 4,
+        "creative": 3
+      },
+      "home": 2,
+      "workplace": 2,
+      "mood": "calm",
+      "seasonal_schedule": [
+        {
+          "entries": [
+            { "start_hour": 0, "end_hour": 9, "location": 2, "activity": "sleeping at the monitoring station" },
+            { "start_hour": 9, "end_hour": 12, "location": 1, "activity": "morning briefing with Alpha" },
+            { "start_hour": 12, "end_hour": 22, "location": 2, "activity": "observing instrument readings" },
+            { "start_hour": 22, "end_hour": 24, "location": 2, "activity": "preparing overnight reports" }
+          ]
+        }
+      ],
+      "relationships": [
+        { "target_id": 1, "kind": "Professional", "strength": 0.7 },
+        { "target_id": 3, "kind": "Friend", "strength": 0.5 }
+      ],
+      "knowledge": [
+        "Has catalogued every location in the testbed grid and its relative coordinates.",
+        "Suspects the scheduling system has a subtle off-by-one on the hour boundaries."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Gamma",
+      "brief_description": "a brisk technician surrounded by scrolling readouts",
+      "age": 42,
+      "occupation": "Validator",
+      "personality": "Gamma is efficient and slightly impatient, preferring action over deliberation. They are the resident expert on the validation pipeline and will happily explain it at length if prompted — perhaps a little too happily. They use Pig Latin words as shorthand.",
+      "intelligence": {
+        "verbal": 4,
+        "analytical": 4,
+        "emotional": 2,
+        "practical": 5,
+        "wisdom": 3,
+        "creative": 2
+      },
+      "home": 3,
+      "workplace": 3,
+      "mood": "brisk",
+      "seasonal_schedule": [
+        {
+          "entries": [
+            { "start_hour": 0, "end_hour": 7, "location": 3, "activity": "sleeping by the east terminal" },
+            { "start_hour": 7, "end_hour": 19, "location": 3, "activity": "running validation cycles" },
+            { "start_hour": 19, "end_hour": 21, "location": 1, "activity": "evening sync with Alpha" },
+            { "start_hour": 21, "end_hour": 24, "location": 3, "activity": "archiving daily results" }
+          ]
+        }
+      ],
+      "relationships": [
+        { "target_id": 1, "kind": "Professional", "strength": 0.6 },
+        { "target_id": 2, "kind": "Friend", "strength": 0.5 }
+      ],
+      "knowledge": [
+        "Knows the expected output format for every engine command.",
+        "Has run the full acceptance-criteria suite more than three hundred times."
+      ]
+    }
+  ]
+}

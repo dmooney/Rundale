@@ -2757,6 +2757,7 @@ mod cmd_tests {
             auto_pause_timeout_seconds: 300,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let pronunciations = Vec::new();

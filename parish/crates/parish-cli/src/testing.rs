@@ -116,29 +116,49 @@ pub struct GameTestHarness {
 }
 
 impl GameTestHarness {
-    /// Creates a new harness with the full parish world loaded from the
-    /// active mod. Character-log writers are **disabled** in this default
-    /// constructor so the hundreds of cargo-test instances that
-    /// instantiate a harness don't pollute the shared user-data dir
-    /// (`~/Library/Application Support/<app>/logs/branch-1/`). Use
-    /// [`Self::new_with_character_logs`] when you actually want logs on
-    /// disk — `run_script_mode` does that for `parish --script` runs.
+    /// Creates a new harness loaded from the Rundale mod. Used by all
+    /// unit tests that assert on Rundale-specific content (location names,
+    /// NPC names, etc.). Character-log writers are **disabled** so the
+    /// hundreds of cargo-test instances don't pollute the shared user-data dir.
     pub fn new() -> Self {
+        Self::build_rundale(false)
+    }
+
+    /// Creates a harness from whichever mod `mods/mod-list.toml` selects
+    /// (i.e. the currently-active mod). Used by `run_script_mode` so that
+    /// `parish --script` exercises the mod that is actually deployed.
+    pub fn new_from_active_mod() -> Self {
         Self::build(false)
     }
 
-    /// Same as [`Self::new`] but with the per-character markdown writer
-    /// turned on. Only `run_script_mode` (the live-proof path) calls
-    /// this; tests stay on the default.
+    /// Same as [`Self::new_from_active_mod`] but with the per-character
+    /// markdown writer turned on. Only `run_script_mode` calls this.
     pub fn new_with_character_logs() -> Self {
         Self::build(true)
     }
 
     fn build(enable_character_logs: bool) -> Self {
+        Self::build_with_mod(enable_character_logs, None)
+    }
+
+    /// Builds a harness loaded from the Rundale mod directory explicitly,
+    /// bypassing `mod-list.toml`. Used by tests that assert on Rundale-specific
+    /// content (locations, NPC names, etc.) so they remain stable regardless
+    /// of which mod is currently active.
+    fn build_rundale(enable_character_logs: bool) -> Self {
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        Self::build_with_mod(enable_character_logs, Some(&rundale_dir))
+    }
+
+    fn build_with_mod(enable_character_logs: bool, mod_dir: Option<&std::path::Path>) -> Self {
         let mut app = App::new();
 
-        let game_mod = parish_core::game_mod::find_default_mod()
-            .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
+        let game_mod = match mod_dir {
+            Some(dir) => parish_core::game_mod::GameMod::load(dir).ok(),
+            None => parish_core::game_mod::find_default_mod()
+                .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok()),
+        };
 
         if let Some(ref gm) = game_mod {
             match parish_core::game_mod::world_state_from_mod(gm) {
@@ -1414,7 +1434,10 @@ fn strip_dialogue_verb(raw: &str) -> String {
 /// one JSON line of output. This allows Claude Code (or any script)
 /// to verify game behavior without a terminal or Ollama.
 pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
-    run_script_mode_with(script_path, GameTestHarness::new_with_character_logs())
+    // Build a harness from the currently-active mod (respects mod-list.toml)
+    // with character logs enabled so live-proof transcripts are written.
+    let harness = GameTestHarness::build(true);
+    run_script_mode_with(script_path, harness)
 }
 
 /// Same as [`run_script_mode`] but takes a pre-built harness so

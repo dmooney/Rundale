@@ -1,0 +1,5 @@
+{
+  "context_alert_prefix": "OUT-OF-SCOPE TERM: The player used the term",
+  "context_alert_suffix": "which falls outside the testbed's conceptual scope. Redirect naturally.",
+  "terms": []
+}

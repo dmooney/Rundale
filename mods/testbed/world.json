@@ -1,0 +1,92 @@
+{
+  "locations": [
+    {
+      "id": 1,
+      "name": "Origin",
+      "description_template": "A central node. Grid lines converge here from all directions. The {weather} conditions outside the testbed are {time}.",
+      "indoor": false,
+      "public": true,
+      "connections": [
+        { "target": 2, "path_description": "a straight corridor heading north" },
+        { "target": 3, "path_description": "a straight corridor heading east" },
+        { "target": 4, "path_description": "a straight corridor heading south" },
+        { "target": 5, "path_description": "a straight corridor heading west" }
+      ],
+      "lat": 40.0,
+      "lon": -75.0,
+      "associated_npcs": [1],
+      "mythological_significance": null,
+      "aliases": ["origin", "center", "central node", "start"],
+      "geo_kind": "fictional",
+      "geo_source": "testbed anchor"
+    },
+    {
+      "id": 2,
+      "name": "North Station",
+      "description_template": "A monitoring station at the northern edge of the grid. Instruments line the walls. It is {time} and the conditions are {weather}.",
+      "indoor": true,
+      "public": true,
+      "connections": [
+        { "target": 1, "path_description": "a straight corridor heading south" },
+        { "target": 3, "path_description": "a corridor along the north edge heading east" }
+      ],
+      "relative_to": { "anchor": 1, "dnorth_m": 300.0, "deast_m": 0.0 },
+      "associated_npcs": [2],
+      "mythological_significance": null,
+      "aliases": ["north", "north station", "northern station"],
+      "geo_kind": "fictional",
+      "geo_source": "300m north of origin"
+    },
+    {
+      "id": 3,
+      "name": "East Station",
+      "description_template": "A validation terminal at the eastern edge of the grid. Readouts scroll continuously. It is {time}.",
+      "indoor": true,
+      "public": true,
+      "connections": [
+        { "target": 1, "path_description": "a straight corridor heading west" },
+        { "target": 2, "path_description": "a corridor along the north edge heading west" }
+      ],
+      "relative_to": { "anchor": 1, "dnorth_m": 0.0, "deast_m": 300.0 },
+      "associated_npcs": [3],
+      "mythological_significance": null,
+      "aliases": ["east", "east station", "eastern station"],
+      "geo_kind": "fictional",
+      "geo_source": "300m east of origin"
+    },
+    {
+      "id": 4,
+      "name": "South Station",
+      "description_template": "A logging terminal at the southern edge of the grid. Output streams fill the walls. It is {time}.",
+      "indoor": true,
+      "public": true,
+      "connections": [
+        { "target": 1, "path_description": "a straight corridor heading north" },
+        { "target": 5, "path_description": "a corridor along the south edge heading west" }
+      ],
+      "relative_to": { "anchor": 1, "dnorth_m": -300.0, "deast_m": 0.0 },
+      "associated_npcs": [],
+      "mythological_significance": null,
+      "aliases": ["south", "south station", "southern station"],
+      "geo_kind": "fictional",
+      "geo_source": "300m south of origin"
+    },
+    {
+      "id": 5,
+      "name": "West Station",
+      "description_template": "A diagnostic post at the western edge of the grid. The smell of solder and warm circuits fills the air. It is {time}.",
+      "indoor": true,
+      "public": true,
+      "connections": [
+        { "target": 1, "path_description": "a straight corridor heading east" },
+        { "target": 4, "path_description": "a corridor along the south edge heading east" }
+      ],
+      "relative_to": { "anchor": 1, "dnorth_m": 0.0, "deast_m": -300.0 },
+      "associated_npcs": [],
+      "mythological_significance": null,
+      "aliases": ["west", "west station", "western station"],
+      "geo_kind": "fictional",
+      "geo_source": "300m west of origin"
+    }
+  ]
+}

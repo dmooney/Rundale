@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import { mapData, fullMapOpen, pushErrorLog, formatIpcError } from '../stores/game';
+	import { mapData, fullMapOpen, pushErrorLog, formatIpcError, uiConfig } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
@@ -298,6 +298,9 @@
 	     before mapData arrives. MapLibre needs a stable element to attach to. -->
 	<div class="map-wrap">
 		<div class="map-container" bind:this={container}></div>
+		{#if $uiConfig.map_overlay === 'grid'}
+			<div class="blueprint-grid-overlay"></div>
+		{/if}
 		{#if $mapData && stubs.length > 0}
 			<svg
 				class="stub-overlay"

@@ -286,6 +286,9 @@ pub struct ThemeConfig {
     /// Fixed theme palette used by the frontend.
     #[serde(default)]
     pub palette: ThemePaletteConfig,
+    /// Optional map overlay style (e.g. `"grid"` for blueprint graph-paper).
+    #[serde(default)]
+    pub map_overlay: Option<String>,
 }
 
 /// UI configuration loaded from `ui.toml`.
@@ -835,11 +838,24 @@ struct ModMetaOnly {
     meta: ModMeta,
 }
 
+/// Selects among multiple setting mods when `mods/mod-list.toml` is present.
+///
+/// Analogous to Factorio's `mod-list.json` — lets multiple setting mods coexist
+/// in the `mods/` directory, with one declared active at a time. When absent,
+/// the engine reverts to the original single-setting-mod enforcement.
+#[derive(serde::Deserialize, Default)]
+struct ModList {
+    #[serde(default)]
+    active_setting: Option<String>,
+}
+
 /// Walk up from the current working directory looking for a `mods/`
 /// directory; once found, enumerate every `mods/*/mod.toml` and classify
 /// each by its declared `kind`.
 ///
-/// Errors at startup if zero or more-than-one setting mods are present.
+/// When `mods/mod-list.toml` specifies `active_setting`, multiple
+/// `kind = "setting"` mods may coexist and the named one is selected.
+/// Without that file, exactly one setting mod is required.
 pub fn discover_mods() -> Result<DiscoveredMods, ParishError> {
     let mods_root = find_mods_root()
         .ok_or_else(|| ParishError::Config("No `mods/` directory found".to_string()))?;
@@ -849,6 +865,11 @@ pub fn discover_mods() -> Result<DiscoveredMods, ParishError> {
 /// Variant of [`discover_mods`] that scans an explicit `mods/` root. Used by
 /// tests; production callers want [`discover_mods`].
 pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError> {
+    let mod_list: ModList = std::fs::read_to_string(mods_root.join("mod-list.toml"))
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+        .unwrap_or_default();
+
     let mut entries: Vec<_> = std::fs::read_dir(mods_root)
         .map_err(|e| ParishError::Config(format!("read_dir({}): {e}", mods_root.display())))?
         .filter_map(Result::ok)
@@ -858,6 +879,8 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
 
     let mut setting: Option<PathBuf> = None;
     let mut setting_id: Option<String> = None;
+    // Candidates collected when mod-list.toml declares active_setting.
+    let mut setting_candidates: Vec<(PathBuf, String)> = Vec::new();
     let mut auxiliary: Vec<DiscoveredMod> = Vec::new();
 
     for entry in entries {
@@ -870,14 +893,19 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
         let meta = parsed.meta;
         match meta.kind {
             ModKind::Setting => {
-                if let Some(prev) = &setting_id {
-                    return Err(ParishError::Config(format!(
-                        "Multiple setting mods active: '{prev}' and '{}'. Only one mod may declare kind = \"setting\".",
-                        meta.id
-                    )));
+                if mod_list.active_setting.is_some() {
+                    setting_candidates.push((dir, meta.id));
+                } else {
+                    if let Some(prev) = &setting_id {
+                        return Err(ParishError::Config(format!(
+                            "Multiple setting mods found: '{prev}' and '{}'. \
+                            Add mods/mod-list.toml with active_setting = \"<id>\" to select one.",
+                            meta.id
+                        )));
+                    }
+                    setting = Some(dir.clone());
+                    setting_id = Some(meta.id);
                 }
-                setting = Some(dir.clone());
-                setting_id = Some(meta.id);
             }
             other => auxiliary.push(DiscoveredMod {
                 path: dir,
@@ -885,6 +913,20 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
                 id: meta.id,
             }),
         }
+    }
+
+    if let Some(ref target) = mod_list.active_setting {
+        let chosen = setting_candidates
+            .into_iter()
+            .find(|(_, id)| id == target)
+            .ok_or_else(|| {
+                ParishError::Config(format!(
+                    "mod-list.toml specifies active_setting = \"{target}\" \
+                    but no setting mod with that id was found in {}.",
+                    mods_root.display()
+                ))
+            })?;
+        setting = Some(chosen.0);
     }
 
     let setting = setting.ok_or_else(|| {
@@ -1515,23 +1557,27 @@ tier2_system = "prompts/tier2_system.txt"
 
     #[test]
     fn test_load_real_default_mod() {
-        if let Some(mod_dir) = find_default_mod() {
-            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        if rundale_dir.exists() {
+            let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
             assert!(!gm.manifest.meta.name.is_empty());
             assert!(gm.world_path().is_absolute());
             assert!(gm.npcs_path().is_absolute());
             // The rundale mod should have pronunciation data
             assert!(
                 !gm.pronunciations.is_empty(),
-                "default mod should have pronunciation entries"
+                "rundale mod should have pronunciation entries"
             );
         }
     }
 
     #[test]
     fn test_real_mod_npc_name_hints() {
-        if let Some(mod_dir) = find_default_mod() {
-            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+        let rundale_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        if rundale_dir.exists() {
+            let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
 
             // Each NPC with an Irish name should produce a hint
             let hints = gm.name_hints_for(&["Padraig Darcy"]);
@@ -1599,9 +1645,39 @@ tier2_system = "prompts/tier2_system.txt"
         let mods = tmp.path().join("mods");
         write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
         write_manifest(&mods.join("hokkaido"), "hokkaido", Some("setting"));
-        let err = discover_mods_in(&mods).expect_err("two settings is a hard error");
+        let err =
+            discover_mods_in(&mods).expect_err("two settings without mod-list is a hard error");
         let msg = format!("{err:?}");
         assert!(msg.contains("Multiple setting mods"));
+    }
+
+    #[test]
+    fn discover_mods_selects_via_mod_list() {
+        let tmp = TempDir::new().unwrap();
+        let mods = tmp.path().join("mods");
+        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("testbed"), "testbed", Some("setting"));
+        fs::write(mods.join("mod-list.toml"), "active_setting = \"testbed\"\n").unwrap();
+        let discovered = discover_mods_in(&mods).expect("mod-list.toml selection succeeds");
+        assert!(
+            discovered.setting.ends_with("testbed"),
+            "should select the testbed mod"
+        );
+    }
+
+    #[test]
+    fn discover_mods_errors_when_active_setting_missing() {
+        let tmp = TempDir::new().unwrap();
+        let mods = tmp.path().join("mods");
+        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        fs::write(
+            mods.join("mod-list.toml"),
+            "active_setting = \"nonexistent\"\n",
+        )
+        .unwrap();
+        let err = discover_mods_in(&mods).expect_err("unknown active_setting is a hard error");
+        let msg = format!("{err:?}");
+        assert!(msg.contains("nonexistent"));
     }
 
     #[test]
