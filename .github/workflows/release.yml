@@ -17,6 +17,15 @@ name: Release
 #
 # The tag version is the source of truth and must match parish-cli's
 # Cargo.toml `[package].version` — the validate-tag job enforces this.
+#
+# Platform matrix:
+#   - Linux x86_64       (CLI tarball + .deb + .AppImage)
+#   - macOS x86_64       (CLI tarball + .app.tar.gz + .dmg)
+#   - macOS aarch64      (CLI tarball + .app.tar.gz + .dmg)
+#   - Windows x86_64     (CLI zip + .msi + .exe NSIS installer)
+#
+# All bundles are unsigned for 0.1.0 — users will see Gatekeeper / SmartScreen
+# warnings. Code signing is queued for 0.2.0.
 
 on:
   push:
@@ -100,26 +109,60 @@ jobs:
             exit 1
           fi
 
-  build-linux:
-    name: Build Linux x86_64 release binary
+  build:
+    name: Build ${{ matrix.name }}
     needs: resolve
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      tarball: ${{ steps.package.outputs.tarball }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cli_archive: tar.gz
+            cli_ext: ""
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            cli_archive: tar.gz
+            cli_ext: ""
+          - name: macos-aarch64
+            os: macos-14
+            target: aarch64-apple-darwin
+            cli_archive: tar.gz
+            cli_ext: ""
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cli_archive: zip
+            cli_ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: parish
+          # Per-target cache so Linux/macOS/Windows builds don't poison each other.
+          key: release-${{ matrix.target }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: parish/apps/ui/package-lock.json
 
       - name: Install Linux native deps
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -130,35 +173,86 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
-      - name: Build parish (release)
+      - name: Install frontend deps
+        working-directory: parish/apps/ui
+        run: npm ci
+
+      - name: Build parish CLI (release)
         working-directory: parish
         # No --locked: a freshly-bumped workspace member version would race
         # ahead of Cargo.lock until the next regular CI run picks up the
         # refreshed lockfile. release.sh refreshes it best-effort locally.
-        run: cargo build -p parish --release
+        run: cargo build -p parish --release --target ${{ matrix.target }}
 
-      - name: Package tarball
-        id: package
+      - name: Package CLI archive (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           version="${{ needs.resolve.outputs.version }}"
           stage="$(mktemp -d)"
-          name="parish-v${version}-x86_64-linux-gnu"
+          name="parish-v${version}-${{ matrix.target }}"
           mkdir -p "$stage/$name"
-          cp parish/target/release/parish "$stage/$name/"
+          cp parish/target/${{ matrix.target }}/release/parish${{ matrix.cli_ext }} "$stage/$name/"
           cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md "$stage/$name/"
           ( cd "$stage" && tar czf "$name.tar.gz" "$name" )
           mkdir -p dist
           mv "$stage/$name.tar.gz" "dist/$name.tar.gz"
-          ( cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
-          echo "tarball=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
+          ( cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256" )
+          ls -la dist
+
+      - name: Package CLI archive (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.resolve.outputs.version }}"
+          stage="$(mktemp -d)"
+          name="parish-v${version}-${{ matrix.target }}"
+          mkdir -p "$stage/$name"
+          cp parish/target/${{ matrix.target }}/release/parish${{ matrix.cli_ext }} "$stage/$name/"
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md "$stage/$name/"
+          mkdir -p dist
+          ( cd "$stage" && 7z a -tzip "$OLDPWD/dist/$name.zip" "$name" )
+          ( cd dist && sha256sum "$name.zip" > "$name.zip.sha256" )
+          ls -la dist
+
+      - name: Build Tauri desktop bundle
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: parish/crates/parish-tauri
+          args: --target ${{ matrix.target }}
+          # No tagName / releaseId — we collect artifacts ourselves and let
+          # the publish job attach them to the Release. tauri-action just
+          # builds and uploads to the workflow's artifact store.
+          includeUpdaterJson: false
+
+      - name: Collect Tauri bundle outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_dir="parish/target/${{ matrix.target }}/release/bundle"
+          if [[ ! -d "$bundle_dir" ]]; then
+            echo "::error::Tauri bundle directory missing: $bundle_dir"
+            ls -la parish/target/${{ matrix.target }}/release/ || true
+            exit 1
+          fi
+          echo "Bundle contents:"
+          find "$bundle_dir" -type f -print
+          mkdir -p dist
+          # Copy every bundle artifact into dist/, preserving filenames.
+          # Tauri emits each format into its own subdirectory (dmg/, deb/, msi/, etc.).
+          find "$bundle_dir" -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.deb" \
+            -o -name "*.AppImage" -o -name "*.rpm" -o -name "*.msi" \
+            -o -name "*.exe" \) \
+            -exec cp {} dist/ \;
           ls -la dist
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: parish-linux-x86_64
+          name: parish-${{ matrix.name }}
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -167,7 +261,7 @@ jobs:
     name: Publish GitHub Release
     # Hard gate: only real tag pushes can publish. workflow_dispatch is
     # dry-run-only — it can't slip a release out without a tag landing.
-    needs: [resolve, validate-tag, build-linux]
+    needs: [resolve, validate-tag, build]
     if: github.event_name == 'push' && needs.resolve.outputs.dry_run != 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -176,11 +270,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download build artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: parish-linux-x86_64
+          pattern: parish-*
           path: dist
+          merge-multiple: true
+
+      - name: List collected artifacts
+        shell: bash
+        run: ls -la dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -191,11 +290,18 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             dist/*.tar.gz
+            dist/*.zip
             dist/*.sha256
+            dist/*.dmg
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.rpm
+            dist/*.msi
+            dist/*.exe
 
   dry-run-summary:
     name: Dry-run summary
-    needs: [resolve, build-linux]
+    needs: [resolve, build]
     if: needs.resolve.outputs.dry_run == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -205,8 +311,12 @@ jobs:
           {
             echo "## Dry run for ${{ needs.resolve.outputs.tag }}"
             echo
-            echo "- Built tarball: \`${{ needs.build-linux.outputs.tarball }}\`"
+            echo "- Built artifacts for all platforms in the matrix."
             echo "- No tag was created."
             echo "- No GitHub Release was published."
-            echo "- Artifact is available on this run under \`parish-linux-x86_64\`."
+            echo "- Per-platform artifacts are downloadable from this run:"
+            echo "  - \`parish-linux-x86_64\`"
+            echo "  - \`parish-macos-x86_64\`"
+            echo "  - \`parish-macos-aarch64\`"
+            echo "  - \`parish-windows-x86_64\`"
           } >> "$GITHUB_STEP_SUMMARY"
