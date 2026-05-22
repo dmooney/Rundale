@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 parish-core        = { workspace = true }
+parish-tile-art    = { workspace = true }
 tokio              = { workspace = true }
 clap               = { workspace = true }
 anyhow             = { workspace = true }

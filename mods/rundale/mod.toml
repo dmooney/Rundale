@@ -28,6 +28,13 @@ ui = "ui.toml"
 pronunciations = "pronunciations.json"
 transport = "transport.toml"
 
+[[data_sources]]
+name        = "NLS Historic 6\" OS Ireland (1829–1842)"
+url         = "https://maps.nls.uk/os/6inch-ireland/"
+licence     = "CC-BY"
+modification = "stylized as illustrated parchment for the rundale-map tile source"
+notice      = "docs/licenses/NLS_CC-BY_derivative.txt"
+
 [prompts]
 tier1_system = "prompts/tier1_system.txt"
 tier1_context = "prompts/tier1_context.txt"
