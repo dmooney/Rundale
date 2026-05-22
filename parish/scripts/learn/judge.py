@@ -51,7 +51,15 @@ def _format_asserts(candidate: LessonCandidate, repo_root: Path) -> Optional[str
         return "no file path or backticked symbol referenced — un-anchored claim"
     anchor = candidate.anchor_file
     if anchor:
-        if not (repo_root / anchor).exists():
+        if anchor.startswith("/") or ".." in Path(anchor).parts:
+            return f"anchor_file must be a relative repo path: {anchor!r}"
+        try:
+            resolved = (repo_root / anchor).resolve()
+            repo_resolved = repo_root.resolve()
+            resolved.relative_to(repo_resolved)
+        except (ValueError, OSError):
+            return f"anchor_file resolves outside repo: {anchor!r}"
+        if not resolved.exists():
             return f"anchor_file does not exist on disk: {anchor}"
     return None
 
@@ -69,6 +77,9 @@ def judge_format(
     return out
 
 
+_MAX_DEDUPE_CALLS = 20  # Hard fan-out cap; mirrors extract.MAX_CANDIDATES.
+
+
 def judge_dedupe(
     judged: list[JudgedCandidate],
     learnings_md: str,
@@ -76,11 +87,25 @@ def judge_dedupe(
     model: str = MODEL,
 ) -> dict[str, int]:
     """LLM-judge each surviving candidate for substantive duplication.
-    Updates `judged` in place. Returns aggregated token usage."""
+    Updates `judged` in place. Returns aggregated token usage.
+
+    LEARNINGS.md is folded into the cached system block so a multi-call
+    dedupe pass within the same run hits the prompt cache.
+    """
     survivors = [j for j in judged if j.accepted]
     if not survivors:
         return {}
-    system = PROMPT_PATH.read_text(encoding="utf-8")
+    if len(survivors) > _MAX_DEDUPE_CALLS:
+        for j in survivors[_MAX_DEDUPE_CALLS:]:
+            j.accepted = False
+            j.reason = f"skipped — fan-out cap of {_MAX_DEDUPE_CALLS} dedupe calls reached"
+        survivors = survivors[:_MAX_DEDUPE_CALLS]
+    base_system = PROMPT_PATH.read_text(encoding="utf-8")
+    full_system = (
+        f"{base_system}\n\n"
+        "# Current LEARNINGS.md\n\n"
+        f"```markdown\n{learnings_md}\n```\n"
+    )
     usage_total = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -89,13 +114,11 @@ def judge_dedupe(
     }
     for j in survivors:
         user = (
-            "# Existing LEARNINGS.md\n\n"
-            f"```markdown\n{learnings_md}\n```\n\n"
             "# Candidate\n\n"
             f"section: {j.candidate.section}\n"
             f"bullet:\n{j.candidate.bullet}\n"
         )
-        text, usage = call_anthropic(system, user, model=model)
+        text, usage = call_anthropic(full_system, user, model=model)
         for k in usage_total:
             usage_total[k] += usage.get(k, 0)
         try:
@@ -104,11 +127,15 @@ def judge_dedupe(
             j.accepted = False
             j.reason = f"dedupe judge returned non-JSON: {text[:200]!r}"
             continue
+        if not isinstance(payload, dict):
+            j.accepted = False
+            j.reason = f"dedupe judge returned non-object JSON: {type(payload).__name__}"
+            continue
         dup = payload.get("duplicate_of")
         if dup:
             j.accepted = False
             j.reason = payload.get("reasoning") or "duplicate"
-            j.duplicate_of = dup
+            j.duplicate_of = str(dup)
     return usage_total
 
 

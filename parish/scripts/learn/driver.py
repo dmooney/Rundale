@@ -36,7 +36,7 @@ if __package__ in (None, ""):
     __package__ = "learn"  # type: ignore[assignment]
 
 from learn import collect_ci, collect_judges, collect_reviews, collect_stop_blocks  # noqa: E402
-from learn.extract import extract, MODEL  # noqa: E402
+from learn.extract import ExtractParseError, MAX_CANDIDATES, MODEL, extract  # noqa: E402
 from learn.judge import run as run_judge  # noqa: E402
 from learn.signals import Signal, dump_signals, load_signals  # noqa: E402
 from learn.write import diff_preview, render, write_file  # noqa: E402
@@ -140,6 +140,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print collected signals as JSON and exit.",
     )
+    parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=MAX_CANDIDATES,
+        help=(
+            f"Hard cap on extractor candidates per run (default {MAX_CANDIDATES}). "
+            "Bounds dedupe-judge LLM fan-out."
+        ),
+    )
     args = parser.parse_args(argv)
 
     print(f"[learn] collecting signals (since-days={args.since_days}, local={args.local})", file=sys.stderr)
@@ -172,7 +181,30 @@ def main(argv: list[str] | None = None) -> int:
     current = learnings_path.read_text(encoding="utf-8")
 
     print(f"[learn] extracting candidates with model={args.model}", file=sys.stderr)
-    result = extract(signals, current, model=args.model)
+    try:
+        result = extract(
+            signals,
+            current,
+            model=args.model,
+            max_candidates=args.max_candidates,
+        )
+    except ExtractParseError as exc:
+        # Persist the unparseable response so a human can debug the
+        # prompt regression, then bail without touching LEARNINGS.md.
+        bad_path = REPO_ROOT / "docs" / "proofs" / "learn-runs" / (
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ") + "-parse-error.md"
+        )
+        bad_path.parent.mkdir(parents=True, exist_ok=True)
+        bad_path.write_text(
+            f"# Extractor parse error\n\n{exc}\n\n## Raw response\n\n```\n{exc.raw_response[:8000]}\n```\n",
+            encoding="utf-8",
+        )
+        print(
+            f"[learn] extractor parse error: {exc}; raw written to "
+            f"{bad_path.relative_to(REPO_ROOT)}",
+            file=sys.stderr,
+        )
+        return 3
     print(
         f"[learn] extractor returned {len(result.candidates)} candidate(s); "
         f"usage={result.usage}",

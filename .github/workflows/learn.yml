@@ -31,6 +31,7 @@ jobs:
   distil:
     name: Distil signals into LEARNINGS.md
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Skip if the previous push WAS the loop's own PR being merged, to
     # avoid feedback amplification.
     if: ${{ !contains(github.event.head_commit.message, 'chore(learnings)') }}

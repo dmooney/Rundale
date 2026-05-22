@@ -10,11 +10,13 @@ HERE = Path(__file__).resolve().parent
 PKG = HERE.parent
 sys.path.insert(0, str(PKG.parent))
 
-from learn.extract import LessonCandidate  # noqa: E402
+from learn.extract import ExtractParseError, LessonCandidate, parse_candidates  # noqa: E402
 from learn.judge import judge_format, _format_asserts  # noqa: E402
 from learn.signals import load_signals, dump_signals, truncate  # noqa: E402
 from learn.write import _split_existing, render, FOOTER_RE  # noqa: E402
 from learn.judge import JudgedCandidate  # noqa: E402
+
+import pytest  # noqa: E402
 
 REPO_ROOT = HERE.parent.parent.parent.parent
 
@@ -129,6 +131,71 @@ def test_render_creates_new_section() -> None:
     out = render(text, [judged])
     assert "## New Section" in out
     assert "- **Novel.**" in out
+
+
+def test_format_asserts_reject_path_traversal() -> None:
+    bad = LessonCandidate(
+        section="Engine + runtime",
+        bullet="- **Foo.** ref `parish/x.rs`.",
+        anchor_file="../../etc/passwd",
+    )
+    reason = _format_asserts(bad, REPO_ROOT)
+    assert reason is not None
+    assert "relative" in reason or "outside" in reason
+
+
+def test_format_asserts_reject_absolute_anchor() -> None:
+    bad = LessonCandidate(
+        section="Engine + runtime",
+        bullet="- **Foo.** ref `parish/x.rs`.",
+        anchor_file="/etc/passwd",
+    )
+    reason = _format_asserts(bad, REPO_ROOT)
+    assert reason is not None
+
+
+def test_parse_candidates_strips_fences() -> None:
+    text = (
+        "```json\n"
+        "{\n"
+        '  "candidates": [\n'
+        '    {"section": "Engine + runtime",\n'
+        '     "bullet": "- **Foo.** ref `parish/x.rs`.",\n'
+        '     "anchor_file": "parish/x.rs"}\n'
+        "  ]\n"
+        "}\n"
+        "```\n"
+    )
+    cands = parse_candidates(text)
+    assert len(cands) == 1
+    assert cands[0].section == "Engine + runtime"
+
+
+def test_parse_candidates_empty_is_ok() -> None:
+    assert parse_candidates('{"candidates": []}') == []
+
+
+def test_parse_candidates_rejects_non_json() -> None:
+    with pytest.raises(ExtractParseError):
+        parse_candidates("not json at all")
+
+
+def test_parse_candidates_rejects_missing_key() -> None:
+    with pytest.raises(ExtractParseError) as exc_info:
+        parse_candidates('{"foo": "bar"}')
+    assert "candidates" in str(exc_info.value)
+
+
+def test_parse_candidates_rejects_non_object_candidate() -> None:
+    with pytest.raises(ExtractParseError):
+        parse_candidates('{"candidates": ["a string"]}')
+
+
+def test_parse_candidates_rejects_empty_bullet() -> None:
+    with pytest.raises(ExtractParseError):
+        parse_candidates(
+            '{"candidates": [{"section": "X", "bullet": ""}]}'
+        )
 
 
 def test_judge_format_batch() -> None:

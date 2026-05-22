@@ -14,6 +14,11 @@ from .signals import Signal, dump_signals
 MODEL = os.environ.get("LEARN_MODEL", "claude-sonnet-4-6")
 PROMPT_PATH = Path(__file__).parent / "prompts" / "extract.md"
 
+# Hard cap on candidates returned per run. Bounds dedupe-judge LLM
+# calls (one per surviving candidate) so a runaway extractor response
+# can't fan out into 100+ paid API calls.
+MAX_CANDIDATES = 12
+
 
 @dataclass
 class LessonCandidate:
@@ -83,30 +88,85 @@ def call_anthropic(system: str, user: str, *, model: str = MODEL) -> tuple[str, 
     return text, usage
 
 
+class ExtractParseError(RuntimeError):
+    """Extractor returned non-JSON or schema-invalid output."""
+
+    def __init__(self, message: str, raw_response: str):
+        super().__init__(message)
+        self.raw_response = raw_response
+
+
+def parse_candidates(text: str) -> list[LessonCandidate]:
+    """Parse the LLM response into LessonCandidate records.
+
+    Raises ExtractParseError with the raw text attached so the driver
+    can persist it to the rejection log instead of crashing the run.
+    """
+    try:
+        payload = json.loads(_strip_fences(text))
+    except json.JSONDecodeError as exc:
+        raise ExtractParseError(
+            f"extractor returned non-JSON: {exc.msg} at pos {exc.pos}", text
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ExtractParseError(
+            f"extractor returned non-object JSON (got {type(payload).__name__})", text
+        )
+    raw_candidates = payload.get("candidates")
+    if raw_candidates is None:
+        raise ExtractParseError("extractor JSON missing 'candidates' key", text)
+    if not isinstance(raw_candidates, list):
+        raise ExtractParseError(
+            f"'candidates' must be a list, got {type(raw_candidates).__name__}", text
+        )
+    out: list[LessonCandidate] = []
+    for i, c in enumerate(raw_candidates):
+        if not isinstance(c, dict):
+            raise ExtractParseError(
+                f"candidates[{i}] is not an object (got {type(c).__name__})", text
+            )
+        for required in ("section", "bullet"):
+            if not isinstance(c.get(required), str) or not c[required].strip():
+                raise ExtractParseError(
+                    f"candidates[{i}].{required} must be a non-empty string", text
+                )
+        out.append(
+            LessonCandidate(
+                section=c["section"].strip(),
+                bullet=c["bullet"].rstrip(),
+                anchor_file=str(c.get("anchor_file") or "").strip(),
+                source_signal_indices=[
+                    int(x) for x in (c.get("source_signal_indices") or [])
+                ],
+            )
+        )
+    return out
+
+
 def extract(
     signals: list[Signal],
     learnings_md: str,
     *,
     model: str = MODEL,
     system: Optional[str] = None,
+    max_candidates: int = MAX_CANDIDATES,
 ) -> ExtractResult:
+    """Run the extractor LLM call.
+
+    The system block holds the static prompt + the (slow-changing)
+    current LEARNINGS.md, so multiple calls within the same run pay
+    for it once (prompt caching). The user block holds the signals,
+    which are unique per run.
+    """
     system_prompt = system or PROMPT_PATH.read_text(encoding="utf-8")
-    user = (
-        "# Current LEARNINGS.md\n\n"
-        f"```markdown\n{learnings_md}\n```\n\n"
-        "# Signals\n\n"
-        f"```json\n{dump_signals(signals)}\n```\n"
+    full_system = (
+        f"{system_prompt}\n\n"
+        "# Current LEARNINGS.md (do not paraphrase existing bullets)\n\n"
+        f"```markdown\n{learnings_md}\n```\n"
     )
-    text, usage = call_anthropic(system_prompt, user, model=model)
-    payload = json.loads(_strip_fences(text))
-    raw_candidates = payload.get("candidates", [])
-    candidates = [
-        LessonCandidate(
-            section=c["section"],
-            bullet=c["bullet"].rstrip(),
-            anchor_file=c.get("anchor_file", ""),
-            source_signal_indices=list(c.get("source_signal_indices", [])),
-        )
-        for c in raw_candidates
-    ]
+    user = "# Signals\n\n" f"```json\n{dump_signals(signals)}\n```\n"
+    text, usage = call_anthropic(full_system, user, model=model)
+    candidates = parse_candidates(text)
+    if len(candidates) > max_candidates:
+        candidates = candidates[:max_candidates]
     return ExtractResult(candidates=candidates, usage=usage, raw_response=text)
