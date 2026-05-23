@@ -3,15 +3,14 @@
 # Exercises: log subscribers rebind their directory when the active
 # branch changes (load_branch / fork_branch).
 #
-# Uses the testbed mod (Origin / Station grid), which is the default
-# active setting in mods/mod-list.toml. PlayerMoved events fire on
-# every successful /go because the path is short and unambiguous.
+# Uses the default Rundale mod. PlayerMoved events fire on every
+# successful /go because these paths are short and unambiguous.
 
 # 1. Baseline on branch 1 — fire PlayerMoved events so journal entries
 #    land under logs/branch-1/.
 /status
-go to North Station
-go to Origin
+go to The Crossroads
+go to Kilteevan Village
 
 # 2. Fork to a new branch. `/fork demo-branch` mutates
 #    app.active_branch_id without firing an immediate log event.
@@ -21,8 +20,8 @@ go to Origin
 
 # 3. Move so a PlayerMoved event fires AFTER the fork. The drain pump
 #    must rebind the log manager to the new branch dir before writing.
-go to East Station
-go to Origin
+go to The Forge
+go to Kilteevan Village
 
 # 4. List branches so the transcript shows the active id explicitly.
 /branches
@@ -30,5 +29,5 @@ go to Origin
 # 5. Switch back to main and fire one more event; subsequent writes
 #    must land under logs/branch-1/ again.
 /load main
-go to South Station
+go to The Holy Well
 /branches

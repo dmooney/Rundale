@@ -1775,6 +1775,18 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
+    fn checked_in_mod_list_selects_rundale_by_default() {
+        let mods = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods");
+        if mods.exists() {
+            let discovered = discover_mods_in(&mods).expect("repo mod discovery succeeds");
+            assert!(
+                discovered.setting.ends_with("rundale"),
+                "checked-in mods/mod-list.toml should select Rundale by default"
+            );
+        }
+    }
+
+    #[test]
     fn discover_mods_errors_when_active_setting_missing() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
