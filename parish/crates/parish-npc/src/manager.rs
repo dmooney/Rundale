@@ -295,33 +295,50 @@ impl NpcManager {
             .collect()
     }
 
-    /// Finds an NPC at a location by name (case-insensitive).
+    /// Finds an NPC at a location by display or canonical name (case-insensitive).
     ///
-    /// Tries exact match first, then first-name prefix match.
+    /// Tries exact display/canonical match first, then introduced first-name
+    /// match. Canonical exact matches are kept for explicit recipient lists
+    /// such as UI chip selections; free-text mention parsing is responsible
+    /// for not exposing hidden names before introduction. Ambiguous matches
+    /// return `None` rather than guessing.
     pub fn find_by_name(&self, name: &str, location: LocationId) -> Option<&Npc> {
         let npcs = self.npcs_at(location);
-        let lower = name.to_lowercase();
-        let mut prefix_match: Option<&Npc> = None;
-        for &npc in &npcs {
-            let name_lower = npc.name.to_lowercase();
-            let display_lower = self.display_name(npc).to_lowercase();
-            if name_lower == lower || display_lower == lower {
-                return Some(npc);
-            }
-            if prefix_match.is_none()
-                && (name_lower
-                    .split_whitespace()
-                    .next()
-                    .is_some_and(|first| first == lower)
-                    || display_lower
+        let lower = name.trim().to_lowercase();
+        if lower.is_empty() {
+            return None;
+        }
+
+        let exact_matches: Vec<&Npc> = npcs
+            .iter()
+            .copied()
+            .filter(|npc| {
+                self.display_name(npc).to_lowercase() == lower || npc.name.to_lowercase() == lower
+            })
+            .collect();
+        match exact_matches.as_slice() {
+            [npc] => return Some(npc),
+            [] => {}
+            _ => return None,
+        }
+
+        let first_name_matches: Vec<&Npc> = npcs
+            .iter()
+            .copied()
+            .filter(|npc| {
+                self.is_introduced(npc.id)
+                    && npc
+                        .name
+                        .to_lowercase()
                         .split_whitespace()
                         .next()
-                        .is_some_and(|first| first == lower))
-            {
-                prefix_match = Some(npc);
-            }
+                        .is_some_and(|first| first == lower)
+            })
+            .collect();
+        match first_name_matches.as_slice() {
+            [npc] => Some(npc),
+            _ => None,
         }
-        prefix_match
     }
 
     /// Finds an NPC at a location by occupation/role (case-insensitive).
@@ -840,6 +857,21 @@ mod tests {
     }
 
     #[test]
+    fn test_find_by_name_ambiguous_first_name_returns_none() {
+        let mut mgr = NpcManager::new();
+        let mut a = make_test_npc(1, 2);
+        a.name = "Mary Byrne".to_string();
+        let mut b = make_test_npc(2, 2);
+        b.name = "Mary Kelly".to_string();
+        mgr.add_npc(a);
+        mgr.add_npc(b);
+        mgr.mark_introduced(NpcId(1));
+        mgr.mark_introduced(NpcId(2));
+
+        assert!(mgr.find_by_name("Mary", LocationId(2)).is_none());
+    }
+
+    #[test]
     fn test_find_by_name_wrong_location() {
         let mut mgr = NpcManager::new();
         let mut npc = make_test_npc(1, 2);
@@ -996,6 +1028,20 @@ mod tests {
         let found = mgr.find_by_name("an older man behind the bar", LocationId(2));
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_name_unintroduced_allows_exact_canonical_target() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.name = "Padraig Darcy".to_string();
+        npc.brief_description = "an older man behind the bar".to_string();
+        mgr.add_npc(npc);
+
+        let found = mgr.find_by_name("Padraig Darcy", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+        assert!(mgr.find_by_name("Padraig", LocationId(2)).is_none());
     }
 
     #[test]
