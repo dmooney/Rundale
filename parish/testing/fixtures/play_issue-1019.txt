@@ -1,0 +1,36 @@
+# issue-1019 play-test
+# ====================
+# Exercises free-text multi-NPC dialogue routing without requiring @mention
+# prefixes, plus the existing @mention path and the co-location guard.
+#
+# Run with Rundale active. In worktrees where mods/mod-list.toml selects the
+# generic testbed mod, set PARISH_MODS_DIR to a temporary mods root containing
+# only mods/rundale.
+
+/status
+/wait 120
+go to The Crossroads
+go to Darcy's Pub
+/npcs
+
+# Natural-name routing: both co-located NPCs should answer this single line
+# in the order their names appear, without @ prefixes.
+/stub Padraig Darcy: A fair morning to ye from Padraig.
+/stub Niamh Darcy: And a good day back to ye from Niamh.
+say Good morning, Padraig and good day, Niamh.
+/wait 1
+
+# Existing @mention routing must keep working and preserve mention order.
+/stub Niamh Darcy: Niamh heard her name first this time.
+/stub Padraig Darcy: Padraig follows after Niamh.
+say @Niamh Darcy @Padraig Darcy what news has reached the bar?
+/wait 1
+
+# Co-location guard: once the player leaves the pub, plain references to
+# Padraig and Niamh should not route dialogue to those absent pub NPCs.
+go to The Crossroads
+/npcs
+/stub Padraig Darcy: This should not appear while Padraig is absent.
+/stub Niamh Darcy: This should not appear while Niamh is absent.
+say I saw Padraig and Niamh by the road.
+/status

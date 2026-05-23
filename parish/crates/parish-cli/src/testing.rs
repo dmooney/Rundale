@@ -19,8 +19,8 @@
 use crate::app::App;
 use crate::inference::simulator::SimulatorClient;
 use crate::input::{self, Command, InputResult, IntentKind};
-use crate::npc::Npc;
 use crate::npc::manager::NpcManager;
+use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::time::{Season, TimeOfDay};
 use crate::world::{DEFAULT_START_LOCATION, LocationId};
@@ -1212,10 +1212,11 @@ impl GameTestHarness {
         }
     }
 
-    /// Checks all NPCs at the current location for canned responses,
-    /// not just the first one. This allows tests to target specific NPCs
-    /// regardless of iteration order. Also runs anachronism detection on
-    /// the player's input and includes any detected terms in the result.
+    /// Checks NPCs at the current location for canned responses. Free-text
+    /// names and `@mentions` use the shared routing resolver; generic
+    /// untargeted dialogue keeps the historical first-canned-response fallback.
+    /// Also runs anachronism detection on the player's input and includes any
+    /// detected terms in the result.
     ///
     /// When a canned response is consumed, the interaction is processed
     /// through the same memory pipeline as a real LLM response: the NPC's
@@ -1233,117 +1234,168 @@ impl GameTestHarness {
         let detected = crate::npc::anachronism::check_input(text);
         let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
 
-        // Check each NPC at this location for canned responses
-        for npc in &npcs_here {
-            let key = npc.name.to_lowercase();
-            if let Some(responses) = self.canned_responses.get_mut(&key)
-                && !responses.is_empty()
-            {
-                let dialogue = responses.remove(0);
-                let name = npc.name.clone();
-                let npc_id = npc.id;
-                self.app.world.log(format!("{}: {}", name, dialogue));
+        let mentions =
+            parish_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
+        let target_ids = if mentions.names.is_empty() {
+            Vec::new()
+        } else {
+            parish_core::ipc::resolve_npc_targets(
+                &self.app.world,
+                &self.app.npc_manager,
+                &mentions.names,
+            )
+        };
 
-                // Build a synthetic NPC response and run it through the memory pipeline
-                let response = crate::npc::NpcStreamResponse {
-                    dialogue: dialogue.clone(),
-                    metadata: Some(crate::npc::NpcMetadata {
-                        action: "responds".to_string(),
-                        mood: npc.mood.clone(),
-                        internal_thought: None,
-                        language_hints: Vec::new(),
-                        mentioned_people: Vec::new(),
-                    }),
-                };
-                let game_time = self.app.world.clock.now();
-                let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
-                    self.app.world.player_name.clone()
-                } else {
-                    None
-                };
-                if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
-                    let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
-                        npc_mut,
-                        &response,
-                        text,
-                        game_time,
-                        &Default::default(),
-                        player_name_for_mem.as_deref(),
-                    );
-                    for event in debug_events {
-                        self.app.debug_event(event);
-                    }
-                }
+        if !mentions.names.is_empty() && target_ids.is_empty() {
+            return ActionResult::NpcNotAvailable;
+        }
 
-                // Record conversation exchange for scene awareness
-                let location = self.app.world.player_location;
-                self.app.world.conversation_log.add(
-                    crate::npc::conversation::ConversationExchange {
-                        timestamp: game_time,
-                        speaker_id: npc_id,
-                        speaker_name: name.clone(),
-                        player_input: text.to_string(),
-                        npc_dialogue: dialogue.clone(),
-                        location,
-                    },
-                );
+        let ordered_npcs: Vec<(NpcId, String, String)> = if target_ids.is_empty() {
+            npcs_here
+                .into_iter()
+                .map(|npc| (npc.id, npc.name.clone(), npc.mood.clone()))
+                .collect()
+        } else {
+            target_ids
+                .iter()
+                .filter_map(|id| self.app.npc_manager.get(*id))
+                .map(|npc| (npc.id, npc.name.clone(), npc.mood.clone()))
+                .collect()
+        };
 
-                // Record witness memories for bystander NPCs
-                let witness_events = crate::npc::ticks::record_witness_memories(
-                    self.app.npc_manager.npcs_mut(),
-                    npc_id,
-                    &name,
-                    text,
-                    &dialogue,
-                    game_time,
-                    location,
-                );
-                for event in witness_events {
-                    self.app.debug_event(event);
-                }
+        let allow_multiple = !target_ids.is_empty();
+        let mut first_response = None;
+        for (npc_id, name, mood) in ordered_npcs.iter().cloned() {
+            let Some(result) =
+                self.consume_canned_npc_response(npc_id, name, mood, text, &anachronism_terms)
+            else {
+                continue;
+            };
 
-                // Mirror the live game-loop behaviour: publish a full-text
-                // DialogueOccurred so the character-log subscriber records
-                // both **You:** and **NPC:** lines for canned-response runs.
-                //
-                // Strip the leading verb (`say `, `tell <name>`, etc.) so
-                // the player line in the journal reads as natural speech.
-                // The live LLM path passes a clean `prompt_input`; only the
-                // harness gets the raw command text.
-                let player_line = strip_dialogue_verb(text);
-                self.app.world.event_bus.publish(
-                    parish_core::world::events::GameEvent::DialogueOccurred {
-                        npc_id,
-                        summary: dialogue.clone(),
-                        player_said: Some(player_line),
-                        npc_said: Some(dialogue.clone()),
-                        timestamp: game_time,
-                    },
-                );
-
-                return ActionResult::NpcResponse {
-                    npc: name,
-                    dialogue,
-                    anachronisms: anachronism_terms,
-                };
+            if !allow_multiple {
+                return result;
             }
+            if first_response.is_none() {
+                first_response = Some(result);
+            }
+        }
+
+        if let Some(result) = first_response {
+            return result;
         }
 
         // No canned response — fall back to the simulator if configured.
         if let Some(ref sim) = self.simulator
-            && let Some(npc) = npcs_here.first()
+            && let Some((_, name, _)) = ordered_npcs.first()
         {
             let dialogue = sim.generate_sync(text, None);
-            let name = npc.name.clone();
             self.app.world.log(format!("{}: {}", name, dialogue));
             return ActionResult::NpcResponse {
-                npc: name,
+                npc: name.clone(),
                 dialogue,
                 anachronisms: anachronism_terms,
             };
         }
 
         ActionResult::NpcNotAvailable
+    }
+
+    fn consume_canned_npc_response(
+        &mut self,
+        npc_id: NpcId,
+        name: String,
+        mood: String,
+        text: &str,
+        anachronism_terms: &[String],
+    ) -> Option<ActionResult> {
+        let key = name.to_lowercase();
+        let responses = self.canned_responses.get_mut(&key)?;
+        if responses.is_empty() {
+            return None;
+        }
+
+        let dialogue = responses.remove(0);
+        self.app.world.log(format!("{}: {}", name, dialogue));
+
+        // Build a synthetic NPC response and run it through the memory pipeline
+        let response = crate::npc::NpcStreamResponse {
+            dialogue: dialogue.clone(),
+            metadata: Some(crate::npc::NpcMetadata {
+                action: "responds".to_string(),
+                mood,
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+            }),
+        };
+        let game_time = self.app.world.clock.now();
+        let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
+            self.app.world.player_name.clone()
+        } else {
+            None
+        };
+        if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
+            let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
+                npc_mut,
+                &response,
+                text,
+                game_time,
+                &Default::default(),
+                player_name_for_mem.as_deref(),
+            );
+            for event in debug_events {
+                self.app.debug_event(event);
+            }
+        }
+
+        // Record conversation exchange for scene awareness
+        let location = self.app.world.player_location;
+        self.app
+            .world
+            .conversation_log
+            .add(crate::npc::conversation::ConversationExchange {
+                timestamp: game_time,
+                speaker_id: npc_id,
+                speaker_name: name.clone(),
+                player_input: text.to_string(),
+                npc_dialogue: dialogue.clone(),
+                location,
+            });
+
+        // Record witness memories for bystander NPCs
+        let witness_events = crate::npc::ticks::record_witness_memories(
+            self.app.npc_manager.npcs_mut(),
+            npc_id,
+            &name,
+            text,
+            &dialogue,
+            game_time,
+            location,
+        );
+        for event in witness_events {
+            self.app.debug_event(event);
+        }
+
+        // Mirror the live game-loop behaviour: publish a full-text
+        // DialogueOccurred so the character-log subscriber records both
+        // **You:** and **NPC:** lines for canned-response runs.
+        let player_line = strip_dialogue_verb(text);
+        self.app
+            .world
+            .event_bus
+            .publish(parish_core::world::events::GameEvent::DialogueOccurred {
+                npc_id,
+                summary: dialogue.clone(),
+                player_said: Some(player_line),
+                npc_said: Some(dialogue.clone()),
+                timestamp: game_time,
+            });
+
+        Some(ActionResult::NpcResponse {
+            npc: name,
+            dialogue,
+            anachronisms: anachronism_terms.to_vec(),
+        })
     }
 
     /// Renders the current location description.
@@ -1670,6 +1722,53 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn test_canned_multi_npc_response_from_free_text_names() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(120); // 10am — Padraig and Niamh are scheduled at the pub.
+        h.execute("go to crossroads");
+        h.execute("go to pub");
+
+        let npcs = h.npcs_here();
+        assert!(npcs.iter().any(|n| n == &"Padraig Darcy"), "{npcs:?}");
+        assert!(npcs.iter().any(|n| n == &"Niamh Darcy"), "{npcs:?}");
+
+        h.add_canned_response("Padraig Darcy", "A fair morning to ye from Padraig.");
+        h.add_canned_response("Niamh Darcy", "And a good day back to ye from Niamh.");
+
+        let result = h.execute("Good morning, Padraig and good day, Niamh.");
+        assert!(matches!(result, ActionResult::NpcResponse { .. }));
+
+        let loc = h.location_id();
+        let recent = h.app.world.conversation_log.recent_at(loc, 2);
+        let speakers: Vec<&str> = recent
+            .iter()
+            .map(|exchange| exchange.speaker_name.as_str())
+            .collect();
+        assert_eq!(speakers, vec!["Padraig Darcy", "Niamh Darcy"]);
+    }
+
+    #[test]
+    fn test_canned_free_text_names_ignore_absent_npcs() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(120);
+        h.execute("go to crossroads");
+
+        h.add_canned_response("Padraig Darcy", "This should not fire.");
+        h.add_canned_response("Niamh Darcy", "Nor should this.");
+
+        let result = h.execute("I saw Padraig and Niamh by the road.");
+        assert!(!matches!(result, ActionResult::NpcResponse { .. }));
+        assert!(
+            h.text_log()
+                .iter()
+                .all(|line| !line.contains("This should not fire")
+                    && !line.contains("Nor should this")),
+            "{:?}",
+            h.text_log()
+        );
     }
 
     #[test]

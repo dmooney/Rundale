@@ -949,45 +949,19 @@ pub(crate) async fn handle_game_input(
         return;
     }
 
-    // `talk to <name>` / `speak to <name>` — bypass @mention parsing and
-    // route directly to the multi-target dispatch loop with this single
-    // addressee. The chip-selection list still gets prepended below.
-    //
-    // Pass `raw` (the original input) rather than an empty string so that
-    // dialogue like "Hello Brigid, good morning!" is not discarded when the
-    // intent parser classifies it as Talk. An empty `raw` still produces the
-    // "say something first" prompt, which is correct for bare "talk to X".
-    if is_talk && let Some(target) = talk_target {
-        // Pre-allocate at the validated upper bound. Using the constant
-        // directly (rather than `addressed_to.len() + 1`) keeps the
-        // allocation size independent of user-controlled values for
-        // CodeQL's `rust/uncontrolled-allocation-size` query (#933).
-        let mut targets: Vec<String> = Vec::with_capacity(MAX_ADDRESSED_TO + 1);
-        for name in addressed_to {
-            if !targets.iter().any(|t| t == &name) {
-                targets.push(name);
-            }
-        }
-        if !targets.iter().any(|t| t == &target) {
-            targets.push(target);
-        }
-        handle_npc_conversation(raw, targets, state, app).await;
-        return;
-    }
-
     let mentions = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    // Chip selections (real names from the frontend) come first, then any
-    // inline @mentions that aren't already in the chip set. Deduping happens
-    // in `resolve_npc_targets` via `find_by_name`, which matches both real
-    // and display names.
-    // See note above. Pre-allocate at the fixed upper bound so the
-    // allocation argument is a constant — independent of any user-controlled
-    // input — and CodeQL's data-flow analyzer can see that.
+    // Chip selections (real names from the frontend) come first, then names
+    // detected in the player's text, then the LLM's single talk target when it
+    // supplied one. Deduping happens in `resolve_npc_targets` via
+    // `find_by_name`, which matches both real and display names.
+    // Pre-allocate at the fixed upper bound so the allocation argument is a
+    // constant — independent of any user-controlled input — and CodeQL's
+    // data-flow analyzer can see that.
     let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
@@ -998,6 +972,12 @@ pub(crate) async fn handle_game_input(
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
         }
+    }
+    if is_talk
+        && let Some(target) = talk_target
+        && !targets.iter().any(|t| t == &target)
+    {
+        targets.push(target);
     }
 
     handle_npc_conversation(mentions.remaining, targets, state, app).await;
