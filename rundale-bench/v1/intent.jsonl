@@ -23,3 +23,11 @@
 {"id": "intent-0028", "tier": "extended", "persona": "intent-parser", "prompt": "pick up the iron horseshoe", "gold": {"intent": "interact", "target": "the iron horseshoe", "dialogue": null}}
 {"id": "intent-0029", "tier": "extended", "persona": "intent-parser", "prompt": "latch the barn door", "gold": {"intent": "interact", "target": "the barn door", "dialogue": null}}
 {"id": "intent-0030", "tier": "extended", "persona": "intent-parser", "prompt": "sláinte mhaith chugat", "gold": {"intent": "unknown", "target": null, "dialogue": null}}
+{"id": "intent-0031", "tier": "extended", "persona": "intent-parser", "prompt": "head over to the chapel", "gold": {"intent": "move", "target": "the chapel", "dialogue": null}}
+{"id": "intent-0032", "tier": "extended", "persona": "intent-parser", "prompt": "ask Mary if she knows the way to Cashel", "gold": {"intent": "talk", "target": "Mary", "dialogue": "do you know the way to Cashel"}}
+{"id": "intent-0033", "tier": "extended", "persona": "intent-parser", "prompt": "smell the bread", "gold": {"intent": "examine", "target": "the bread", "dialogue": null}}
+{"id": "intent-0036", "tier": "extended", "persona": "intent-parser", "prompt": "close the door behind you", "gold": {"intent": "interact", "target": "the door", "dialogue": null}}
+{"id": "intent-0037", "tier": "extended", "persona": "intent-parser", "prompt": "I should go see Father Sullivan", "gold": {"intent": "move", "target": "Father Sullivan", "dialogue": null}}
+{"id": "intent-0038", "tier": "extended", "persona": "intent-parser", "prompt": "what does the brooch look like", "gold": {"intent": "examine", "target": "the brooch", "dialogue": null}}
+{"id": "intent-0040", "tier": "extended", "persona": "intent-parser", "prompt": "yesterday I walked all the way from the river", "gold": {"intent": "talk", "target": null, "dialogue": "yesterday I walked all the way from the river"}}
+{"id": "intent-0042", "tier": "extended", "persona": "intent-parser", "prompt": "turn round and have a proper look", "gold": {"intent": "look", "target": null, "dialogue": null}}

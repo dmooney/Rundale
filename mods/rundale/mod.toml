@@ -8,7 +8,7 @@ id = "rundale"
 save_root = "Rundale"
 version = "1.0.0"
 description = "Rural Ireland, 1820 — a living world of land, labour, and community"
-kind = "setting"
+kind = "base"
 
 [setting]
 start_date = "1820-03-20T08:00:00Z"

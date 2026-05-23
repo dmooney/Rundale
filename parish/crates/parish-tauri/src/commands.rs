@@ -141,14 +141,32 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the current time-of-day palette as CSS hex colours.
+/// Returns the current palette as CSS hex colours.
+///
+/// Resolution order:
+/// 1. Mod-provided time-of-day keyframes → interpolated palette for the
+///    current game hour.
+/// 2. Mod-provided static `[theme.palette]` (no keyframes) → returned as-is.
+/// 3. No mod loaded → `neutral_grey_palette()` so the prompt overlay renders.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
     use chrono::Timelike;
-    use parish_palette::compute_palette;
-    let world = state.world.lock().await;
-    let now = world.clock.now();
-    let raw = compute_palette(now.hour(), now.minute());
+    use parish_core::config::PaletteConfig;
+    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+    let raw = if !state.theme_keyframes.is_empty() {
+        let world = state.world.lock().await;
+        let now = world.clock.now();
+        compute_palette_with_keyframes(
+            now.hour(),
+            now.minute(),
+            &state.theme_keyframes,
+            &PaletteConfig::default(),
+        )
+    } else if let Some(p) = state.static_raw_palette {
+        p
+    } else {
+        neutral_grey_palette()
+    };
     Ok(ThemePalette::from(raw))
 }
 
@@ -308,6 +326,18 @@ pub async fn list_preset_models() -> Result<
     String,
 > {
     Ok(parish_core::ipc::byok::handle_list_preset_models())
+}
+
+/// Returns the registry split into `featured` + `other` lists. The BYOK
+/// wizard renders directly from this — the source of truth is now the
+/// provider registry (builtins + mod-loaded), not a hand-curated TS
+/// constant.
+#[tauri::command]
+pub async fn list_available_providers() -> Result<
+    std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>,
+    String,
+> {
+    Ok(parish_core::ipc::byok::handle_list_available_providers())
 }
 
 // ── #?: local-inference onboarding commands ────────────────────────────────
@@ -919,45 +949,19 @@ pub(crate) async fn handle_game_input(
         return;
     }
 
-    // `talk to <name>` / `speak to <name>` — bypass @mention parsing and
-    // route directly to the multi-target dispatch loop with this single
-    // addressee. The chip-selection list still gets prepended below.
-    //
-    // Pass `raw` (the original input) rather than an empty string so that
-    // dialogue like "Hello Brigid, good morning!" is not discarded when the
-    // intent parser classifies it as Talk. An empty `raw` still produces the
-    // "say something first" prompt, which is correct for bare "talk to X".
-    if is_talk && let Some(target) = talk_target {
-        // Pre-allocate at the validated upper bound. Using the constant
-        // directly (rather than `addressed_to.len() + 1`) keeps the
-        // allocation size independent of user-controlled values for
-        // CodeQL's `rust/uncontrolled-allocation-size` query (#933).
-        let mut targets: Vec<String> = Vec::with_capacity(MAX_ADDRESSED_TO + 1);
-        for name in addressed_to {
-            if !targets.iter().any(|t| t == &name) {
-                targets.push(name);
-            }
-        }
-        if !targets.iter().any(|t| t == &target) {
-            targets.push(target);
-        }
-        handle_npc_conversation(raw, targets, state, app).await;
-        return;
-    }
-
     let mentions = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    // Chip selections (real names from the frontend) come first, then any
-    // inline @mentions that aren't already in the chip set. Deduping happens
-    // in `resolve_npc_targets` via `find_by_name`, which matches both real
-    // and display names.
-    // See note above. Pre-allocate at the fixed upper bound so the
-    // allocation argument is a constant — independent of any user-controlled
-    // input — and CodeQL's data-flow analyzer can see that.
+    // Chip selections (real names from the frontend) come first, then names
+    // detected in the player's text, then the LLM's single talk target when it
+    // supplied one. Deduping happens in `resolve_npc_targets` via
+    // `find_by_name`, which matches both real and display names.
+    // Pre-allocate at the fixed upper bound so the allocation argument is a
+    // constant — independent of any user-controlled input — and CodeQL's
+    // data-flow analyzer can see that.
     let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
@@ -968,6 +972,12 @@ pub(crate) async fn handle_game_input(
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
         }
+    }
+    if is_talk
+        && let Some(target) = talk_target
+        && !targets.iter().any(|t| t == &target)
+    {
+        targets.push(target);
     }
 
     handle_npc_conversation(mentions.remaining, targets, state, app).await;
@@ -1235,6 +1245,8 @@ async fn handle_npc_conversation(
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     let app_for_loading = app.clone();
@@ -1266,6 +1278,8 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     emit_world_update(state, app).await;
@@ -2442,12 +2456,16 @@ Respond with a JSON object containing a single field \"action\" — the text the
 would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
 words or command directly.\n\
 \n\
+Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
+\"Recent events\" block of the user prompt, pick a different action — try a different \
+greeting, ask a different question, or travel somewhere new. The location description \
+is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
+\n\
 Examples:\n\
-  {{\"action\": \"Good mornin'. Might I look about the village a while?\"}}\n\
+  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
   {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
   {{\"action\": \"go to the mill\"}}\n\
-  {{\"action\": \"look\"}}\n\
 \n\
 Your entire response must be a single JSON object — nothing before or after it.",
         extra = extra_section,
@@ -2757,6 +2775,8 @@ mod cmd_tests {
             auto_pause_timeout_seconds: 300,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let pronunciations = Vec::new();
@@ -2808,6 +2828,10 @@ mod cmd_tests {
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
+            theme_keyframes: Vec::new(),
+            static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations,
             reaction_templates,
             save_path: Mutex::new(None),

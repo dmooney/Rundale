@@ -1,0 +1,31 @@
+# Engine Testbed — Mod Manifest
+[mod]
+name = "Testbed"
+title = "Engine Testbed"
+id = "testbed"
+# Explicit save_root prevents a rename of `name` from silently relocating saves.
+save_root = "Testbed"
+version = "0.1.0"
+description = "Minimal engine test harness — blueprint aesthetic, pig Latin code-switch, five-location grid world"
+kind = "base"
+
+[setting]
+start_date = "2000-01-01T08:00:00Z"
+start_location = 1
+period_year = 2000
+player_language = "en"
+native_language = "x-pig-lat"
+
+[files]
+world = "world.json"
+npcs = "npcs.json"
+anachronisms = "anachronisms.json"
+festivals = "festivals.json"
+encounters = "encounters.json"
+loading = "loading.toml"
+ui = "ui.toml"
+
+[prompts]
+tier1_system = "prompts/tier1_system.txt"
+tier1_context = "prompts/tier1_context.txt"
+tier2_system = "prompts/tier2_system.txt"

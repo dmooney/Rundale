@@ -103,6 +103,7 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/submit-byok", post(submit_byok))
         .route("/api/byok-env-keys", get(byok_env_keys))
         .route("/api/preset-models", get(preset_models))
+        .route("/api/list-available-providers", get(available_providers))
         // ── Local-inference onboarding (vllm-mlx fork) ────────────────────
         // GET returns the same fork-variant + RAM data the Svelte
         // `LocalInferenceFork` reads on mount. POST drives the same
@@ -331,6 +332,12 @@ async fn preset_models()
     Json(parish_core::ipc::byok::handle_list_preset_models())
 }
 
+#[allow(clippy::unused_async)]
+async fn available_providers()
+-> Json<std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>> {
+    Json(parish_core::ipc::byok::handle_list_available_providers())
+}
+
 async fn setup_status(State(b): State<BridgeState>) -> Json<serde_json::Value> {
     Json(do_setup_status(&b.state).await)
 }
@@ -504,6 +511,8 @@ mod tests {
             auto_pause_timeout_seconds: 300,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let game_config = GameConfig {
@@ -551,6 +560,10 @@ mod tests {
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
+            theme_keyframes: Vec::new(),
+            static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations: Vec::new(),
             reaction_templates: parish_core::npc::reactions::ReactionTemplates::default(),
             save_path: Mutex::new(None),

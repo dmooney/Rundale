@@ -531,8 +531,8 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
     if !enabled {
         return;
     }
-    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
-    let manager = Arc::new(CharacterLogManager::new(&app_name, branch_id, true));
+    let initial_branch = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = CharacterLogManager::new(&app_name, initial_branch, true);
 
     // Subscribe BEFORE writing profiles so the rx doesn't miss any events
     // fired between the profile write and the subscriber task starting.
@@ -552,18 +552,44 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
 
     let state_sub = Arc::clone(state);
     let token = state.shutdown_token.clone();
-    let manager_sub = Arc::clone(&manager);
     tokio::spawn(async move {
         let mut rx = rx;
+        let mut current_branch = initial_branch;
+        let mut manager = manager;
         loop {
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
                     Ok(event) => {
-                        let world = state_sub.world.lock().await;
-                        let npc_mgr = state_sub.npc_manager.lock().await;
-                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
-                            tracing::warn!(error = %e, "character-log write failed");
+                        // Rebind manager when the active branch has changed
+                        // (e.g. load_branch / create_branch). Without this the
+                        // writer keeps appending to the original branch's
+                        // log directory after a branch switch (#1011).
+                        let bid = state_sub.current_branch_id.lock().await.unwrap_or(1);
+                        if bid != current_branch {
+                            current_branch = bid;
+                            manager = CharacterLogManager::new(&app_name, bid, true);
+                            let world = state_sub.world.lock().await;
+                            let npc_mgr = state_sub.npc_manager.lock().await;
+                            if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                tracing::warn!(error = %e, "character-log profile write failed after branch switch");
+                            }
+                        }
+                        // Clone the Arc<AppState> (cheap) and run the blocking
+                        // I/O task in a dedicated thread pool, avoiding lock
+                        // contention on the async side (#1012).
+                        let mgr_clone = manager.clone();
+                        let evt_clone = event.clone();
+                        let state_clone = Arc::clone(&state_sub);
+                        let handle = tokio::task::spawn_blocking(move || {
+                            let world = state_clone.world.blocking_lock();
+                            let npc_mgr = state_clone.npc_manager.blocking_lock();
+                            mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                        });
+                        match handle.await {
+                            Ok(Ok(())) => {}
+                            Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
+                            Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -587,8 +613,8 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
     if !enabled {
         return;
     }
-    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
-    let manager = Arc::new(LocationLogManager::new(&app_name, branch_id, true));
+    let initial_branch = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = LocationLogManager::new(&app_name, initial_branch, true);
 
     let rx = {
         let world = state.world.lock().await;
@@ -605,18 +631,43 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
 
     let state_sub = Arc::clone(state);
     let token = state.shutdown_token.clone();
-    let manager_sub = Arc::clone(&manager);
     tokio::spawn(async move {
         let mut rx = rx;
+        let mut current_branch = initial_branch;
+        let mut manager = manager;
         loop {
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
                     Ok(event) => {
-                        let world = state_sub.world.lock().await;
-                        let npc_mgr = state_sub.npc_manager.lock().await;
-                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
-                            tracing::warn!(error = %e, "location-log write failed");
+                        // Rebind manager when the active branch has changed
+                        // (e.g. load_branch / create_branch). Mirrors the
+                        // character-log subscriber fix from #1011 (#1034).
+                        let bid = state_sub.current_branch_id.lock().await.unwrap_or(1);
+                        if bid != current_branch {
+                            current_branch = bid;
+                            manager = LocationLogManager::new(&app_name, bid, true);
+                            let world = state_sub.world.lock().await;
+                            let npc_mgr = state_sub.npc_manager.lock().await;
+                            if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                tracing::warn!(error = %e, "location-log profile write failed after branch switch");
+                            }
+                        }
+                        // Clone the Arc<AppState> (cheap) and run the blocking
+                        // I/O task in a dedicated thread pool, avoiding lock
+                        // contention on the async side (#1012).
+                        let mgr_clone = manager.clone();
+                        let evt_clone = event.clone();
+                        let state_clone = Arc::clone(&state_sub);
+                        let handle = tokio::task::spawn_blocking(move || {
+                            let world = state_clone.world.blocking_lock();
+                            let npc_mgr = state_clone.npc_manager.blocking_lock();
+                            mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                        });
+                        match handle.await {
+                            Ok(Ok(())) => {}
+                            Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
+                            Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -690,12 +741,25 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                     &state.pronunciations,
                 );
                 let _ = handle.emit(events::EVENT_WORLD_UPDATE, snapshot);
-                // Emit current time-of-day palette
+                // Emit current palette (mod-keyframed when present, static
+                // mod palette otherwise, neutral grey when no mod loaded).
                 {
                     use chrono::Timelike;
-                    use parish_palette::compute_palette;
-                    let now = world.clock.now();
-                    let raw = compute_palette(now.hour(), now.minute());
+                    use parish_core::config::PaletteConfig;
+                    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+                    let raw = if !state.theme_keyframes.is_empty() {
+                        let now = world.clock.now();
+                        compute_palette_with_keyframes(
+                            now.hour(),
+                            now.minute(),
+                            &state.theme_keyframes,
+                            &PaletteConfig::default(),
+                        )
+                    } else if let Some(p) = state.static_raw_palette {
+                        p
+                    } else {
+                        neutral_grey_palette()
+                    };
                     if last_palette != Some(raw) {
                         let _ = handle.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
                         last_palette = Some(raw);

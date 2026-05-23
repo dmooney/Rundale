@@ -1,0 +1,22 @@
+# Test character log writes during fast-paced gameplay.
+# This fixture fires multiple events quickly to verify that
+# the character-log subscriber doesn't hold world/npc_manager locks
+# across file I/O.
+
+/load main
+/speed fast
+/wait 200
+# Move around to trigger PlayerMoved and NpcArrived/Departed events
+/move church
+/wait 100
+/move school
+/wait 100
+/move pub
+/wait 100
+# Trigger some dialogue
+/say hello
+/wait 50
+/say test
+/wait 50
+# Ensure logs are written by ending the session
+/quit

@@ -469,6 +469,19 @@ pub struct AppState {
     pub ui_config: UiConfigSnapshot,
     /// Fixed theme palette from the loaded game mod.
     pub theme_palette: ThemePalette,
+    /// Time-of-day palette keyframes from the loaded game mod. Empty when the
+    /// mod ships only a static palette (or no mod is loaded).
+    pub theme_keyframes: Vec<parish_palette::Keyframe>,
+    /// Static palette in RawPalette form, used by `get_theme` when the mod
+    /// declares no keyframes. `None` when no mod is loaded (engine falls back
+    /// to `neutral_grey_palette`).
+    pub static_raw_palette: Option<parish_palette::RawPalette>,
+    /// Atmospheric flavour shown when NPC inference fails. Empty when the
+    /// mod provides none — engine falls back to a single ellipsis.
+    pub inference_failure_messages: Vec<String>,
+    /// Atmospheric flavour shown when the player addresses no-one. Empty
+    /// when the mod provides none — engine falls back to a blank line.
+    pub idle_messages: Vec<String>,
     /// Name pronunciation entries from the loaded game mod.
     pub pronunciations: Vec<PronunciationEntry>,
     /// NPC arrival reaction templates from the loaded game mod.
@@ -996,9 +1009,9 @@ pub fn run() {
     };
 
     // Try to load game mod (auto-detect from workspace root) via the
-    // ModSource abstraction.  load_setting_mod_sync is used here because
+    // ModSource abstraction. load_base_mod_sync is used here because
     // Tauri's run() is synchronous and no tokio runtime exists yet.
-    let game_mod = parish_core::mod_source::load_setting_mod_sync();
+    let game_mod = parish_core::mod_source::load_base_mod_sync();
 
     // Load world — prefer mod data, fall back to legacy data/ directory
     let world = if let Some(ref gm) = game_mod {
@@ -1081,6 +1094,21 @@ pub fn run() {
         env!("PARISH_BUILD_TIME"),
     );
 
+    // Build runtime palette state from the loaded mod.
+    let theme_keyframes = game_mod
+        .as_ref()
+        .map(|gm| gm.ui.theme.resolved_keyframes())
+        .unwrap_or_default();
+    let static_raw_palette = game_mod.as_ref().map(|gm| gm.ui.theme.static_raw_palette());
+    let inference_failure_messages = game_mod
+        .as_ref()
+        .map(|gm| gm.loading.inference_failure_messages.clone())
+        .unwrap_or_default();
+    let idle_messages = game_mod
+        .as_ref()
+        .map(|gm| gm.loading.idle_messages.clone())
+        .unwrap_or_default();
+
     // Build transport config from mod or defaults
     let transport = game_mod
         .as_ref()
@@ -1118,6 +1146,8 @@ pub fn run() {
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: mod_asset_data_url(gm.app_icon_path()),
             favicon_url: mod_asset_data_url(gm.favicon_path()),
+            map_overlay: gm.ui.theme.map_overlay.clone(),
+            base_mod_required: false,
         }
     } else {
         UiConfigSnapshot {
@@ -1129,6 +1159,8 @@ pub fn run() {
             auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: true,
         }
     };
 
@@ -1258,6 +1290,10 @@ pub fn run() {
         inference_log: new_inference_log(),
         ui_config,
         theme_palette,
+        theme_keyframes,
+        static_raw_palette,
+        inference_failure_messages,
+        idle_messages,
         pronunciations,
         reaction_templates,
         save_path: Mutex::new(None),
@@ -1301,6 +1337,7 @@ pub fn run() {
             commands::clear_provider_config,
             commands::list_byok_env_keys,
             commands::list_preset_models,
+            commands::list_available_providers,
             commands::get_onboarding_options,
             commands::start_local_inference_setup,
             commands::submit_input,
@@ -1534,7 +1571,7 @@ fn build_cloud_client_from_env(
     let provider_enum = provider
         .as_deref()
         .and_then(|p| Provider::from_str_loose(p).ok())
-        .unwrap_or_else(Provider::openrouter);
+        .unwrap_or_else(|| Provider::from_id("openrouter").unwrap_or_default());
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())

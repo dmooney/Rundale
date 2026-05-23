@@ -138,8 +138,8 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/flag list", "List all feature flags"),
     ("/fork <name>", "Fork a new branch from here"),
     ("/help", "Show this help"),
+    ("/hints", "Toggle language-hints sidebar"),
     ("/improv", "Toggle improv craft mode"),
-    ("/irish", "Toggle Irish pronunciation sidebar"),
     ("/load <name>", "Load a named branch"),
     ("/log", "Show branch history"),
     ("/map [id]", "List or switch map tile sources"),
@@ -355,10 +355,10 @@ fn handle_info_command(
         Command::About => CommandResult::text(
             [
                 &format!(
-                    "Parish v{} — An Irish Living World Text Adventure",
+                    "Parish v{} — a living-world text-adventure engine",
                     env!("CARGO_PKG_VERSION")
                 ),
-                "Set in 1820 rural Ireland, powered by the custom Parish engine.",
+                "Set and story content come from the active base mod (see /help).",
                 "",
                 "Created by Dave Mooney © 2026",
                 "Licensed under GNU General Public License v3.0.",
@@ -576,10 +576,20 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
 /// Provider preset commands.
 fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
     match cmd {
-        Command::ShowPreset => CommandResult::text(
-            "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
-             groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm-mlx",
-        ),
+        Command::ShowPreset => {
+            use parish_config::registry;
+            let mut ids: Vec<String> = registry()
+                .all()
+                .into_iter()
+                .filter(|p| p.has_preset())
+                .map(|p| p.id().to_string())
+                .collect();
+            ids.sort();
+            CommandResult::text(format!(
+                "Usage: /preset <provider>. Providers with presets: {}",
+                ids.join(", ")
+            ))
+        }
         Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 if !provider.has_preset() {

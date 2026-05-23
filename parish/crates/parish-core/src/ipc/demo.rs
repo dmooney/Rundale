@@ -67,6 +67,13 @@ pub struct DemoContextSnapshot {
     /// Recent text-log entries. The Tauri command leaves this empty; the
     /// frontend fills it from its `textLog` store before invoking the LLM.
     pub recent_log: Vec<String>,
+    /// The auto-player's own most recent actions (oldest first, last 5).
+    /// The Tauri command leaves this empty; the frontend fills it from the
+    /// `[player]` entries of its `textLog` store before invoking the LLM.
+    /// Surfaced in the rendered prompt as a `Your last actions:` block so the
+    /// model can detect and break out of repetition loops (#999).
+    #[serde(default)]
+    pub recent_actions: Vec<String>,
     /// Operator-supplied steering text from the demo CLI flags.
     pub extra_prompt: Option<String>,
 }
@@ -125,8 +132,33 @@ pub fn build_demo_context(
         npcs_here,
         adjacent,
         recent_log: Vec::new(),
+        recent_actions: Vec::new(),
         extra_prompt,
     }
+}
+
+/// Dedupes consecutive identical entries in `actions`, returning each unique
+/// run with its repeat count. Used by [`render_user_prompt`] to surface
+/// repetition signals to the LLM without flooding the prompt with copies.
+///
+/// Input is oldest-first; output preserves order. Empty/whitespace entries
+/// are dropped to avoid `(last 0 turns)` artefacts.
+fn collapse_consecutive_actions(actions: &[String]) -> Vec<(String, usize)> {
+    let mut out: Vec<(String, usize)> = Vec::new();
+    for action in actions {
+        let trimmed = action.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(last) = out.last_mut()
+            && last.0 == trimmed
+        {
+            last.1 += 1;
+            continue;
+        }
+        out.push((trimmed.to_string(), 1));
+    }
+    out
 }
 
 /// Renders the demo snapshot into the user-prompt body shown to the LLM.
@@ -169,6 +201,21 @@ pub fn render_user_prompt(ctx: &DemoContextSnapshot) -> String {
             })
             .collect();
         parts.push(format!("Adjacent locations:\n{}", lines.join("\n")));
+    }
+
+    let collapsed = collapse_consecutive_actions(&ctx.recent_actions);
+    if !collapsed.is_empty() {
+        let lines: Vec<String> = collapsed
+            .iter()
+            .map(|(text, count)| match count {
+                1 => format!("  - {}", text),
+                n => format!("  - {} (last {} turns)", text, n),
+            })
+            .collect();
+        parts.push(format!(
+            "Your last actions (do not repeat these):\n{}",
+            lines.join("\n")
+        ));
     }
 
     if !ctx.recent_log.is_empty() {
@@ -418,6 +465,94 @@ mod tests {
         assert!(
             ctx.adjacent.iter().all(|a| a.name != "Distant Hamlet"),
             "non-adjacent location leaked"
+        );
+    }
+
+    #[test]
+    fn build_demo_context_initialises_empty_recent_actions() {
+        let ctx = build_demo_context(
+            &world_snapshot(),
+            &[],
+            &map_data(vec![], vec![]),
+            "Wednesday".to_string(),
+            "spring".to_string(),
+            None,
+        );
+        assert!(
+            ctx.recent_actions.is_empty(),
+            "Tauri/server build path must leave recent_actions empty; frontend fills it"
+        );
+    }
+
+    #[test]
+    fn render_user_prompt_omits_block_when_no_recent_actions() {
+        let ctx = build_demo_context(
+            &world_snapshot(),
+            &[],
+            &map_data(vec![], vec![]),
+            "Wednesday".to_string(),
+            "spring".to_string(),
+            None,
+        );
+        let prompt = render_user_prompt(&ctx);
+        assert!(
+            !prompt.contains("Your last actions"),
+            "empty recent_actions must not render the header:\n{prompt}"
+        );
+    }
+
+    /// #999 regression guard: when the auto-player has repeated the same
+    /// greeting two turns in a row, the rendered prompt must show that
+    /// repetition with a turn-count suffix so the model can break the loop.
+    #[test]
+    fn render_user_prompt_collapses_consecutive_recent_actions_with_count() {
+        let mut ctx = build_demo_context(
+            &world_snapshot(),
+            &[],
+            &map_data(vec![], vec![]),
+            "Wednesday".to_string(),
+            "spring".to_string(),
+            None,
+        );
+        ctx.recent_actions = vec![
+            "Good morning".to_string(),
+            "Good morning".to_string(),
+            "go to the mill".to_string(),
+        ];
+        let prompt = render_user_prompt(&ctx);
+        assert!(
+            prompt.contains("Your last actions (do not repeat these):"),
+            "missing header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Good morning (last 2 turns)"),
+            "missing collapsed repeat:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("- go to the mill"),
+            "missing singleton action:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn collapse_consecutive_actions_handles_runs_and_singletons() {
+        let input = vec![
+            "a".to_string(),
+            "a".to_string(),
+            "a".to_string(),
+            "b".to_string(),
+            "a".to_string(),
+            "  ".to_string(), // whitespace dropped
+            "a".to_string(),
+        ];
+        let collapsed = collapse_consecutive_actions(&input);
+        assert_eq!(
+            collapsed,
+            vec![
+                ("a".to_string(), 3),
+                ("b".to_string(), 1),
+                ("a".to_string(), 2),
+            ]
         );
     }
 }

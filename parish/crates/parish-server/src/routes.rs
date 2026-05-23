@@ -91,13 +91,40 @@ pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<V
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// `GET /api/theme` — returns the current time-of-day palette.
+/// `GET /api/available-providers` — featured + other LLM provider lists,
+/// sourced from the runtime-loaded `ProviderRegistry` (builtins +
+/// `mods/<id>/providers/`). The same payload Tauri exposes via
+/// `list_available_providers`; the web UI consumes it for its picker.
+#[allow(clippy::unused_async)]
+pub async fn get_available_providers()
+-> Json<std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>> {
+    Json(parish_core::ipc::byok::handle_list_available_providers())
+}
+
+/// `GET /api/theme` — returns the current palette.
+///
+/// Resolution order:
+/// 1. Mod-provided time-of-day keyframes → interpolated for the current game hour.
+/// 2. Mod-provided static `[theme.palette]` (no keyframes) → returned as-is.
+/// 3. No mod loaded → `neutral_grey_palette()` so the prompt overlay renders.
 pub async fn get_theme(Extension(state): Extension<Arc<AppState>>) -> Json<ThemePalette> {
     use chrono::Timelike;
-    use parish_palette::compute_palette;
-    let world = state.world.lock().await;
-    let now = world.clock.now();
-    let raw = compute_palette(now.hour(), now.minute());
+    use parish_core::config::PaletteConfig;
+    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+    let raw = if !state.theme_keyframes.is_empty() {
+        let world = state.world.lock().await;
+        let now = world.clock.now();
+        compute_palette_with_keyframes(
+            now.hour(),
+            now.minute(),
+            &state.theme_keyframes,
+            &PaletteConfig::default(),
+        )
+    } else if let Some(p) = state.static_raw_palette {
+        p
+    } else {
+        neutral_grey_palette()
+    };
     Json(ThemePalette::from(raw))
 }
 
@@ -528,6 +555,8 @@ fn make_game_loop_ctx<'a>(
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     }
 }
 
@@ -1525,6 +1554,127 @@ pub async fn session_init(
     (StatusCode::OK, Json(SessionInitResponse { token }))
 }
 
+// ── Mod selector ─────────────────────────────────────────────────────────────
+
+/// Lightweight per-mod payload returned by `GET /api/mods`.
+#[derive(serde::Serialize)]
+pub struct ModEntry {
+    pub id: String,
+    pub name: String,
+    pub title: Option<String>,
+    pub version: String,
+    pub description: String,
+    pub active: bool,
+}
+
+/// Returns the canonical `mods/` root relative to the loaded game mod.
+fn mods_root_path(state: &AppState) -> std::path::PathBuf {
+    if let Some(ref gm) = state.game_mod
+        && let Some(parent) = gm.mod_dir.parent()
+    {
+        return parent.to_path_buf();
+    }
+    parish_core::game_mod::find_default_mod()
+        .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("mods"))
+}
+
+/// Scans `root` for setting mods and returns them with an `active` flag.
+fn collect_base_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry> {
+    use parish_core::game_mod::{ModKind, ModManifest};
+
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut mods: Vec<ModEntry> = entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| {
+            let manifest_path = e.path().join("mod.toml");
+            let text = std::fs::read_to_string(&manifest_path).ok()?;
+            let manifest: ModManifest = toml::from_str(&text).ok()?;
+            if manifest.meta.kind != ModKind::Base {
+                return None;
+            }
+            Some(ModEntry {
+                active: manifest.meta.id == active_id,
+                id: manifest.meta.id.clone(),
+                name: manifest.meta.name.clone(),
+                title: manifest.meta.title.clone(),
+                version: manifest.meta.version.clone(),
+                description: manifest.meta.description.clone(),
+            })
+        })
+        .collect();
+    mods.sort_by(|a, b| a.id.cmp(&b.id));
+    mods
+}
+
+/// `GET /api/mods` — lists all discoverable base mods with an `active` flag.
+pub async fn list_mods(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<ModEntry>> {
+    let root = mods_root_path(&state);
+    let active_id = state
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.id.clone())
+        .unwrap_or_default();
+    let mods = tokio::task::spawn_blocking(move || collect_base_mods(&root, &active_id))
+        .await
+        .unwrap_or_default();
+    Json(mods)
+}
+
+#[derive(serde::Deserialize)]
+pub struct SwitchModBody {
+    pub mod_id: String,
+}
+
+/// `POST /api/mods/switch` — updates `mods/mod-list.toml` to select a new
+/// active base mod.
+///
+/// The running server continues with the currently-loaded mod until it is
+/// restarted; the client should reload after a server restart to see the new
+/// world, palette, and NPC roster.
+pub async fn switch_mod(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(body): Json<SwitchModBody>,
+) -> impl IntoResponse {
+    let root = mods_root_path(&state);
+
+    // Validate the requested id exists on disk before writing anything.
+    let active_id = state
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.manifest.meta.id.clone())
+        .unwrap_or_default();
+    let available = tokio::task::spawn_blocking({
+        let root = root.clone();
+        let active_id = active_id.clone();
+        move || collect_base_mods(&root, &active_id)
+    })
+    .await
+    .unwrap_or_default();
+
+    if !available.iter().any(|m| m.id == body.mod_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"ok": false, "error": "unknown mod id"})),
+        );
+    }
+
+    let mod_list_path = root.join("mod-list.toml");
+    let content = format!("active_base = {:?}\n", body.mod_id);
+    if let Err(e) = std::fs::write(&mod_list_path, &content) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"ok": false, "error": e.to_string()})),
+        );
+    }
+
+    tracing::info!("Mod switch requested: {} → {}", active_id, body.mod_id);
+    (StatusCode::OK, Json(serde_json::json!({"ok": true})))
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -1602,6 +1752,8 @@ pub mod tests {
             auto_pause_timeout_seconds: 300,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");

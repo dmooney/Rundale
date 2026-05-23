@@ -1,0 +1,14 @@
+[sidebar]
+hints_label = "Pig Latin Hints"
+
+[theme]
+map_overlay = "grid"
+
+[theme.palette]
+bg = "#0a1929"
+fg = "#e0f0ff"
+accent = "#00d4ff"
+panel_bg = "#0d2137"
+input_bg = "#0f2744"
+border = "#1a4a6b"
+muted = "#4a8aab"

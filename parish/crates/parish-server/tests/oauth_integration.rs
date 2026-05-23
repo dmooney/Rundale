@@ -54,6 +54,8 @@ fn make_global_state(tmp: &tempfile::TempDir, with_oauth: bool) -> Arc<GlobalSta
             auto_pause_timeout_seconds: 300,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
         },
         theme_palette: parish_core::game_mod::default_theme_palette(),
         transport: parish_core::world::transport::TransportConfig::default(),

@@ -621,6 +621,8 @@ mod tests {
             auto_pause_timeout_seconds: 60,
             app_icon_url: None,
             favicon_url: None,
+            map_overlay: None,
+            base_mod_required: true,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =

@@ -3436,6 +3436,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "toml 0.8.2",
  "tower",
  "tower-http",
  "tower-sessions",

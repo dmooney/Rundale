@@ -33,11 +33,19 @@ IMPORTANT: \"move\" is ONLY for when the player expresses a present desire to \
 navigate somewhere (imperative or future intent). Narrative, past-tense, or \
 reflective statements that merely mention a place name are \"talk\", not \"move\".\n\
 \n\
+IMPORTANT: \"look\" is ONLY for a bare imperative observation command — \
+\"look\", \"look around\", \"examine the room\", \"where am I\". A sentence \
+that merely contains the word \"look\" inside conversational speech (e.g. \
+\"Might I look about the village a while?\", \"I'll have a look at the \
+cattle later\", \"It looks fine to me\") is \"talk\", not \"look\".\n\
+\n\
 Examples:\n\
 Input: \"go to the pub\" → {\"intent\": \"move\", \"target\": \"the pub\", \"dialogue\": null}\n\
 Input: \"talk to Mary\" → {\"intent\": \"talk\", \"target\": \"Mary\", \"dialogue\": null}\n\
 Input: \"tell Padraig I saw his cow\" → {\"intent\": \"talk\", \"target\": \"Padraig\", \"dialogue\": \"I saw his cow\"}\n\
 Input: \"look around\" → {\"intent\": \"look\", \"target\": null, \"dialogue\": null}\n\
+Input: \"Might I look about the village a while?\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"Might I look about the village a while?\"}\n\
+Input: \"I'll have a look at the cattle later\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I'll have a look at the cattle later\"}\n\
 Input: \"pick up the stone\" → {\"intent\": \"interact\", \"target\": \"the stone\", \"dialogue\": null}\n\
 Input: \"I came from the coast\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I came from the coast\"}\n\
 Input: \"I was at the shore yesterday\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I was at the shore yesterday\"}\n\
@@ -97,5 +105,32 @@ mod tests {
         assert!(resp.intent.is_none());
         assert!(resp.target.is_none());
         assert!(resp.dialogue.is_none());
+    }
+
+    /// Regression: the demo auto-player's own exemplar ("Might I look about
+    /// the village a while?") was being classified as `look` because the
+    /// intent system prompt did not distinguish narrative use of the word
+    /// "look" from the imperative observation command. That caused
+    /// `handle_look` to fire every turn, spamming the location description.
+    /// Closes #999.
+    #[test]
+    fn intent_system_prompt_distinguishes_narrative_look() {
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("\"look\" is ONLY for a bare imperative"),
+            "intent system prompt lost the narrative-look carve-out"
+        );
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("Might I look about the village a while?"),
+            "intent system prompt lost the narrative-look exemplar"
+        );
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("I'll have a look at the cattle later"),
+            "intent system prompt lost the second narrative-look exemplar"
+        );
+        // Regression guards for the imperative form.
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("\"look around\" → {\"intent\": \"look\""),
+            "intent system prompt lost the imperative-look exemplar"
+        );
     }
 }

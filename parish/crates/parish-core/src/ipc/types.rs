@@ -7,8 +7,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::npc::LanguageHint;
-
-use crate::npc::IrishWordHint;
 use parish_palette::{RawColor, RawPalette};
 
 // ── World snapshot ──────────────────────────────────────────────────────────
@@ -183,7 +181,7 @@ pub struct StreamTurnEndPayload {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StreamEndPayload {
     /// Irish word hints extracted from the completed NPC response.
-    pub hints: Vec<IrishWordHint>,
+    pub hints: Vec<LanguageHint>,
 }
 
 /// Payload for `text-log` events.

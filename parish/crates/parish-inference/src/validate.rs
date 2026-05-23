@@ -280,7 +280,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk-good")).await;
+        let outcome = validate(
+            &Provider::from_id("openai").expect("openai provider mod must be loaded"),
+            &server.uri(),
+            Some("sk-good"),
+        )
+        .await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -293,7 +298,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk-bad")).await;
+        let outcome = validate(
+            &Provider::from_id("openai").expect("openai provider mod must be loaded"),
+            &server.uri(),
+            Some("sk-bad"),
+        )
+        .await;
         match outcome {
             ValidationOutcome::AuthFailed {
                 status,
@@ -319,7 +329,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk")).await;
+        let outcome = validate(
+            &Provider::from_id("openai").expect("openai provider mod must be loaded"),
+            &server.uri(),
+            Some("sk"),
+        )
+        .await;
         assert_eq!(
             outcome,
             ValidationOutcome::RateLimited {
@@ -379,7 +394,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
+        let outcome = validate(
+            &Provider::from_id("github_models").expect("github_models provider mod must be loaded"),
+            &server.uri(),
+            Some("ghp_token"),
+        )
+        .await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -398,7 +418,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
+        let outcome = validate(
+            &Provider::from_id("github_models").expect("github_models provider mod must be loaded"),
+            &server.uri(),
+            Some("ghp_token"),
+        )
+        .await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -411,7 +436,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_bad")).await;
+        let outcome = validate(
+            &Provider::from_id("github_models").expect("github_models provider mod must be loaded"),
+            &server.uri(),
+            Some("ghp_bad"),
+        )
+        .await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -431,7 +461,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::anthropic(), &server.uri(), Some("sk-ant-good")).await;
+        let outcome = validate(
+            &Provider::from_id("anthropic").expect("anthropic provider mod must be loaded"),
+            &server.uri(),
+            Some("sk-ant-good"),
+        )
+        .await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -444,7 +479,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::anthropic(), &server.uri(), Some("sk-ant-bad")).await;
+        let outcome = validate(
+            &Provider::from_id("anthropic").expect("anthropic provider mod must be loaded"),
+            &server.uri(),
+            Some("sk-ant-bad"),
+        )
+        .await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -453,7 +493,12 @@ mod tests {
 
     #[tokio::test]
     async fn anthropic_validate_no_key_short_circuits_auth_failed() {
-        let outcome = validate(&Provider::anthropic(), "https://nowhere.invalid", None).await;
+        let outcome = validate(
+            &Provider::from_id("anthropic").expect("anthropic provider mod must be loaded"),
+            "https://nowhere.invalid",
+            None,
+        )
+        .await;
         match outcome {
             ValidationOutcome::AuthFailed { .. } => {}
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -476,7 +521,12 @@ mod tests {
     #[tokio::test]
     async fn validate_network_error_when_unreachable() {
         // Port 1 is reserved + unbindable; reqwest will fail to connect.
-        let outcome = validate(&Provider::openai(), "http://127.0.0.1:1", Some("sk")).await;
+        let outcome = validate(
+            &Provider::from_id("openai").expect("openai provider mod must be loaded"),
+            "http://127.0.0.1:1",
+            Some("sk"),
+        )
+        .await;
         match outcome {
             ValidationOutcome::Network { .. } => {}
             other => panic!("expected Network, got {other:?}"),
@@ -492,7 +542,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::groq(), &server.uri(), Some("gsk")).await;
+        let outcome = validate(
+            &Provider::from_id("groq").expect("groq provider mod must be loaded"),
+            &server.uri(),
+            Some("gsk"),
+        )
+        .await;
         match outcome {
             ValidationOutcome::Unexpected { status, .. } => assert_eq!(status, 500),
             other => panic!("expected Unexpected, got {other:?}"),
@@ -511,7 +566,12 @@ mod tests {
             .await;
 
         let base_with_v1 = format!("{}/v1", server.uri());
-        let outcome = validate(&Provider::openai(), &base_with_v1, Some("sk-test")).await;
+        let outcome = validate(
+            &Provider::from_id("openai").expect("openai provider mod must be loaded"),
+            &base_with_v1,
+            Some("sk-test"),
+        )
+        .await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 }

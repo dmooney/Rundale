@@ -1,0 +1,7 @@
+# play_mod-selector-ui.txt
+#
+# Verifies the active mod at CLI startup (rundale → Kilteevan) so the proof
+# transcript confirms which mod is selected before any UI interaction.
+# API and UI criteria are verified separately via curl + browser screenshot.
+/status
+look
