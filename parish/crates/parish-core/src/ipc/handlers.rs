@@ -325,7 +325,8 @@ pub struct ConversationLine {
 pub struct MentionedNpcs {
     /// Mentioned NPC display names, deduplicated while preserving order.
     pub names: Vec<String>,
-    /// Remaining player text with the mentions stripped out.
+    /// Remaining player text. Explicit `@mentions` are stripped; natural
+    /// free-text name mentions are retained as part of the utterance.
     pub remaining: String,
 }
 
@@ -340,21 +341,118 @@ fn mention_boundary(ch: Option<char>) -> bool {
     }
 }
 
+#[derive(Debug, Clone)]
+struct NpcMentionCandidate {
+    text: String,
+    target: String,
+}
+
+fn add_npc_mention_candidate(
+    candidates: &mut Vec<NpcMentionCandidate>,
+    seen: &mut HashSet<String>,
+    text: &str,
+    target: &str,
+) {
+    let text = text.trim();
+    if text.is_empty() {
+        return;
+    }
+
+    let key = text.to_lowercase();
+    if seen.insert(key) {
+        candidates.push(NpcMentionCandidate {
+            text: text.to_string(),
+            target: target.to_string(),
+        });
+    }
+}
+
+fn npc_mention_candidates(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+) -> Vec<NpcMentionCandidate> {
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+
+    for npc in npc_manager.npcs_at(world.player_location) {
+        add_npc_mention_candidate(&mut candidates, &mut seen, &npc.name, &npc.name);
+
+        if let Some(first_name) = npc.name.split_whitespace().next() {
+            add_npc_mention_candidate(&mut candidates, &mut seen, first_name, &npc.name);
+        }
+
+        let display = npc_manager.display_name(npc);
+        add_npc_mention_candidate(&mut candidates, &mut seen, display, display);
+    }
+
+    candidates
+}
+
+fn find_natural_npc_mentions(
+    raw: &str,
+    candidates: &[NpcMentionCandidate],
+) -> Vec<(usize, usize, String)> {
+    let raw_lower = raw.to_ascii_lowercase();
+    let mut spans: Vec<(usize, usize, String)> = Vec::new();
+
+    for candidate in candidates {
+        let needle = candidate.text.to_ascii_lowercase();
+        if needle.is_empty() {
+            continue;
+        }
+
+        let mut cursor = 0usize;
+        while cursor < raw_lower.len() {
+            let Some(rel_start) = raw_lower[cursor..].find(&needle) else {
+                break;
+            };
+            let start = cursor + rel_start;
+            let end = start + candidate.text.len();
+            let before = if start == 0 {
+                None
+            } else {
+                raw[..start].chars().next_back()
+            };
+            let after = raw[end..].chars().next();
+
+            if mention_boundary(before) && mention_boundary(after) {
+                spans.push((start, end, candidate.target.clone()));
+            }
+
+            cursor = end;
+        }
+    }
+
+    spans.sort_by(|(a_start, a_end, _), (b_start, b_end, _)| {
+        a_start
+            .cmp(b_start)
+            .then_with(|| (b_end - b_start).cmp(&(a_end - a_start)))
+    });
+
+    let mut filtered = Vec::new();
+    let mut last_end = 0usize;
+    for (start, end, target) in spans {
+        if start >= last_end {
+            filtered.push((start, end, target));
+            last_end = end;
+        }
+    }
+
+    filtered
+}
+
 /// Extracts all valid `@mentions` that match NPCs at the player's location.
 ///
-/// Matching is done against the NPCs currently present using their visible
-/// display names, so multi-word lowercase descriptions like "an older man
-/// behind the bar" remain parseable.
+/// Matching is done against the NPCs currently present. Explicit `@mentions`
+/// and natural free-text names match full names, first names, and visible
+/// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
+/// descriptions like `an older man behind the bar` remain parseable.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
     npc_manager: &NpcManager,
 ) -> MentionedNpcs {
-    let candidates: Vec<String> = npc_manager
-        .npcs_at(world.player_location)
-        .into_iter()
-        .map(|npc| npc_manager.display_name(npc).to_string())
-        .collect();
+    let candidates = npc_mention_candidates(world, npc_manager);
 
     if candidates.is_empty() {
         return MentionedNpcs {
@@ -379,17 +477,17 @@ pub fn extract_npc_mentions(
 
         let rest = &raw[at + 1..];
         let mut matched: Option<(usize, String)> = None;
-        for name in &candidates {
-            if rest.len() < name.len() {
+        for candidate in &candidates {
+            if rest.len() < candidate.text.len() {
                 continue;
             }
-            let candidate = &rest[..name.len()];
-            if candidate.eq_ignore_ascii_case(name)
-                && mention_boundary(rest[name.len()..].chars().next())
+            let text = &rest[..candidate.text.len()];
+            if text.eq_ignore_ascii_case(&candidate.text)
+                && mention_boundary(rest[candidate.text.len()..].chars().next())
             {
                 match &matched {
-                    Some((len, _)) if *len >= name.len() => {}
-                    _ => matched = Some((name.len(), name.clone())),
+                    Some((len, _)) if *len >= candidate.text.len() => {}
+                    _ => matched = Some((candidate.text.len(), candidate.target.clone())),
                 }
             }
         }
@@ -403,6 +501,21 @@ pub fn extract_npc_mentions(
     }
 
     if spans.is_empty() {
+        let spans = find_natural_npc_mentions(raw, &candidates);
+        if !spans.is_empty() {
+            let mut names = Vec::new();
+            let mut dedupe = HashSet::new();
+            for (_, _, name) in spans {
+                if dedupe.insert(name.to_lowercase()) {
+                    names.push(name);
+                }
+            }
+            return MentionedNpcs {
+                names,
+                remaining: raw.trim().to_string(),
+            };
+        }
+
         return MentionedNpcs {
             names: vec![],
             remaining: raw.trim().to_string(),
@@ -997,6 +1110,73 @@ mod tests {
             vec!["an older man behind the bar".to_string()]
         );
         assert_eq!(extracted.remaining, "what have you heard?");
+    }
+
+    #[test]
+    fn extract_npc_mentions_detects_free_text_names_in_order() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc1 = Npc::new_test_npc();
+        npc1.id = NpcId(1);
+        npc1.name = "Padraig Darcy".to_string();
+        npc1.location = world.player_location;
+
+        let mut npc2 = Npc::new_test_npc();
+        npc2.id = NpcId(2);
+        npc2.name = "Niamh Darcy".to_string();
+        npc2.location = world.player_location;
+
+        npc_mgr.add_npc(npc1);
+        npc_mgr.add_npc(npc2);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let raw = "Good morning, Padraig and good day, Niamh Darcy.";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert_eq!(
+            extracted.names,
+            vec!["Padraig Darcy".to_string(), "Niamh Darcy".to_string()]
+        );
+        assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_free_text_only_matches_co_located_npcs() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Padraig Darcy".to_string();
+        npc.location = LocationId(world.player_location.0 + 1);
+        npc_mgr.add_npc(npc);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let raw = "I saw Padraig Darcy yesterday.";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert!(extracted.names.is_empty());
+        assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_detects_free_text_display_description() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc.brief_description = "an older man behind the bar".to_string();
+        npc_mgr.add_npc(npc);
+
+        let raw = "Could I ask an older man behind the bar about the harvest?";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert_eq!(
+            extracted.names,
+            vec!["an older man behind the bar".to_string()]
+        );
+        assert_eq!(extracted.remaining, raw);
     }
 
     #[test]
