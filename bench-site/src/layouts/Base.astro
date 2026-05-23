@@ -4,7 +4,9 @@ const { title = 'Rundale Bench' } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const nav = [
   { href: base, label: 'Leaderboard' },
-  { href: `${base}/perf`, label: 'Perf matrix' },
+  { href: `${base}/gaeilge`, label: 'Gaeilge' },
+  { href: `${base}/perf`, label: 'Perf' },
+  { href: `${base}/datasets`, label: 'Datasets' },
   { href: `${base}/methodology`, label: 'Methodology' },
 ];
 ---
@@ -15,7 +17,6 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <script is:inline>
-      // Restore theme before paint to avoid a flash of the wrong palette.
       const saved = localStorage.getItem('bench-theme');
       if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
     </script>

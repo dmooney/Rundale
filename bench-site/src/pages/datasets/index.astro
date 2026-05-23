@@ -1,0 +1,35 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/bench.json';
+const base = import.meta.env.BASE_URL;
+const datasets = data.datasets ?? {};
+const slices = Object.entries(datasets);
+const total = slices.reduce((n, [, v]) => n + (v?.count ?? 0), 0);
+---
+<Base title="Rundale Bench — Datasets">
+  <h2>Datasets (suite {data.suite}, dev split)</h2>
+  <p class="muted">
+    The frozen rundale-bench prompt set. Six slices, {total} records on the
+    dev split. The 20% holdout is sealed and never shown — model picks must be
+    defensible without it.
+  </p>
+  <table>
+    <thead><tr><th>Slice</th><th class="num">Records</th><th>Browse</th></tr></thead>
+    <tbody>
+      {slices.map(([name, info]) => (
+        <tr>
+          <td><strong>{name}</strong></td>
+          <td class="num">{info.count}</td>
+          <td><a href={`${base}/datasets/${name}`}>open →</a></td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  <p class="muted">
+    Slices: <strong>dialogue</strong> (Brigid persona), <strong>reaction</strong>
+    (in-character one-liners), <strong>tier2-sim</strong> /
+    <strong>tier3-sim</strong> (structured world ticks),
+    <strong>gaeilge</strong> (Irish fluency), <strong>intent</strong>
+    (deterministic input parsing).
+  </p>
+</Base>

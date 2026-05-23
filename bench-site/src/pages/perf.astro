@@ -2,22 +2,27 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/bench.json';
 const perf = data.perf ?? [];
+const fmt = (v, d = 0) => (typeof v === 'number' ? v.toFixed(d) : '—');
 ---
 <Base title="Rundale Bench — Perf matrix">
   <h2>Per-provider performance</h2>
   <p class="muted">
-    Latency, throughput, price, and reliability per (model, provider). Measured
-    independently of quality — the same model differs across providers.
+    Latency, throughput, price, and reliability per (model, provider). Quality
+    is judged once on the cheapest provider — perf is measured independently
+    so the leaderboard isn't biased by speed or price. <span class="badge">legacy</span>
+    rows come from earlier OpenRouter sweeps (TTFT + total ms);
+    <span class="badge">phase3</span> rows are the new harness (full latency + observed $/Mtok).
   </p>
   {perf.length === 0 ? (
-    <div class="empty">No perf measurements yet. Run <code>perf --model &lt;id&gt; --providers all</code>.</div>
+    <div class="empty">No perf measurements yet.</div>
   ) : (
     <table>
       <thead>
         <tr>
           <th>Model</th><th>Provider</th>
-          <th class="num">p50 ms</th><th class="num">p95 ms</th>
-          <th class="num">tok/s</th><th class="num">$/Mtok</th><th class="num">err</th>
+          <th class="num">total p50 ms</th><th class="num">total p95/p90 ms</th>
+          <th class="num">tok/s</th><th class="num">ttft p50 ms</th>
+          <th class="num">$/Mtok</th><th class="num">err</th><th>source</th>
         </tr>
       </thead>
       <tbody>
@@ -25,11 +30,13 @@ const perf = data.perf ?? [];
           <tr>
             <td>{r.model_id}</td>
             <td><span class="badge">{r.provider_id}</span></td>
-            <td class="num">{Math.round(r.latency_p50_ms)}</td>
-            <td class="num">{Math.round(r.latency_p95_ms)}</td>
-            <td class="num">{r.tokens_per_sec_mean.toFixed(1)}</td>
-            <td class="num">${r.usd_per_mtok_observed}</td>
-            <td class="num">{(r.error_rate * 100).toFixed(0)}%</td>
+            <td class="num">{fmt(r.latency_p50_ms)}</td>
+            <td class="num">{fmt(r.latency_p95_ms)}</td>
+            <td class="num">{fmt(r.tokens_per_sec_mean, 1)}</td>
+            <td class="num">{fmt(r.ttft_p50_ms)}</td>
+            <td class="num">{r.usd_per_mtok_observed != null ? `$${r.usd_per_mtok_observed}` : '—'}</td>
+            <td class="num">{fmt((r.error_rate ?? 0) * 100)}%</td>
+            <td><span class="badge">{r.source ?? 'phase3'}</span></td>
           </tr>
         ))}
       </tbody>

@@ -1,0 +1,20 @@
+---
+import Base from '../../layouts/Base.astro';
+import DatasetBrowser from '../../components/DatasetBrowser.svelte';
+import data from '../../data/bench.json';
+const base = import.meta.env.BASE_URL;
+
+export function getStaticPaths() {
+  return Object.keys(data.datasets ?? {}).map((slice) => ({
+    params: { slice },
+    props: { records: data.datasets[slice].records },
+  }));
+}
+const { records } = Astro.props;
+const slice = Astro.params.slice;
+---
+<Base title={`Rundale Bench — ${slice} dataset`}>
+  <p><a href={`${base}/datasets`}>← all datasets</a></p>
+  <h2>{slice} ({records.length} records, dev split)</h2>
+  <DatasetBrowser client:load records={records} slice={slice} />
+</Base>
