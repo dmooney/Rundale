@@ -12,6 +12,7 @@
 # genuine hard blocker that truly cannot be automated (rare).
 
 set -euo pipefail
+trap 'rc=$?; printf "Stop hook %s failed (exit=%d) at line %d\n" "${BASH_SOURCE[0]##*/}" "$rc" "$LINENO" >&2' ERR
 
 INPUT="$(cat)"
 
