@@ -295,10 +295,13 @@ impl NpcManager {
             .collect()
     }
 
-    /// Finds an NPC at a location by visible name (case-insensitive).
+    /// Finds an NPC at a location by display or canonical name (case-insensitive).
     ///
-    /// Tries exact visible display-name match first, then introduced first-name
-    /// match. Ambiguous matches return `None` rather than guessing.
+    /// Tries exact display/canonical match first, then introduced first-name
+    /// match. Canonical exact matches are kept for explicit recipient lists
+    /// such as UI chip selections; free-text mention parsing is responsible
+    /// for not exposing hidden names before introduction. Ambiguous matches
+    /// return `None` rather than guessing.
     pub fn find_by_name(&self, name: &str, location: LocationId) -> Option<&Npc> {
         let npcs = self.npcs_at(location);
         let lower = name.trim().to_lowercase();
@@ -309,7 +312,9 @@ impl NpcManager {
         let exact_matches: Vec<&Npc> = npcs
             .iter()
             .copied()
-            .filter(|npc| self.display_name(npc).to_lowercase() == lower)
+            .filter(|npc| {
+                self.display_name(npc).to_lowercase() == lower || npc.name.to_lowercase() == lower
+            })
             .collect();
         match exact_matches.as_slice() {
             [npc] => return Some(npc),
@@ -1026,14 +1031,16 @@ mod tests {
     }
 
     #[test]
-    fn test_find_by_name_unintroduced_rejects_hidden_real_name() {
+    fn test_find_by_name_unintroduced_allows_exact_canonical_target() {
         let mut mgr = NpcManager::new();
         let mut npc = make_test_npc(1, 2);
         npc.name = "Padraig Darcy".to_string();
         npc.brief_description = "an older man behind the bar".to_string();
         mgr.add_npc(npc);
 
-        assert!(mgr.find_by_name("Padraig Darcy", LocationId(2)).is_none());
+        let found = mgr.find_by_name("Padraig Darcy", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
         assert!(mgr.find_by_name("Padraig", LocationId(2)).is_none());
     }
 
