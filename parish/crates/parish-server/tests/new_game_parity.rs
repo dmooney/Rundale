@@ -60,6 +60,7 @@ fn default_ui_config() -> UiConfigSnapshot {
         app_icon_url: None,
         favicon_url: None,
         map_overlay: None,
+        base_mod_required: false,
     }
 }
 

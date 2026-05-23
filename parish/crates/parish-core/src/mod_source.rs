@@ -151,14 +151,14 @@ impl ModSource for LocalDiskModSource {
             .await
             .map_err(|e| ParishError::Config(format!("mod discovery task panicked: {e}")))??;
 
-            // Setting mod is first in the list; auxiliary follow in lex order.
+            // Base mod is first in the list; auxiliary follow in lex order.
             let mut summaries = Vec::with_capacity(1 + discovered.auxiliary.len());
-            // Peek at the setting manifest to obtain its id.
-            let setting_id = peek_mod_id(&discovered.setting).unwrap_or_else(|| "unknown".into());
+            // Peek at the base manifest to obtain its id.
+            let base_id = peek_mod_id(&discovered.base).unwrap_or_else(|| "unknown".into());
             summaries.push(ModSummary {
-                id: setting_id,
-                kind: ModKind::Setting,
-                path: discovered.setting,
+                id: base_id,
+                kind: ModKind::Base,
+                path: discovered.base,
             });
             for aux in discovered.auxiliary {
                 summaries.push(ModSummary {
@@ -177,10 +177,10 @@ impl ModSource for LocalDiskModSource {
         Box::pin(async move {
             // Discover to find the directory for this id.
             let discovered = discover_mods_in(&root)?;
-            let setting_id = peek_mod_id(&discovered.setting).unwrap_or_else(|| "unknown".into());
+            let base_id = peek_mod_id(&discovered.base).unwrap_or_else(|| "unknown".into());
 
-            let mod_dir = if setting_id == mod_id {
-                discovered.setting
+            let mod_dir = if base_id == mod_id {
+                discovered.base
             } else {
                 discovered
                     .auxiliary
@@ -201,24 +201,21 @@ impl ModSource for LocalDiskModSource {
 // Sync convenience helper (used by synchronous entry points such as Tauri)
 // ---------------------------------------------------------------------------
 
-/// Load the primary setting mod from the local disk, returning `None` on any
+/// Load the primary base mod from the local disk, returning `None` on any
 /// error.
 ///
 /// This is the synchronous equivalent of constructing a
 /// [`LocalDiskModSource`] and awaiting `list_mods` + `load_mod`.  It is
 /// provided as a free function for entry points that cannot `.await` (Tauri's
 /// synchronous `run()` function, for example).
-///
-/// Behavior is identical to the old `find_default_mod().and_then(|dir|
-/// GameMod::load(&dir).ok())` pattern so there is no behavior change.
-pub fn load_setting_mod_sync() -> Option<ModBundle> {
+pub fn load_base_mod_sync() -> Option<ModBundle> {
     let source = LocalDiskModSource::new().ok()?;
     let root = source.root.clone();
     let discovered = discover_mods_in(&root).ok()?;
     if let Err(e) = crate::game_mod::register_provider_mods_once(&discovered) {
         tracing::warn!("Failed to register provider mods: {}", e);
     }
-    match GameMod::load(&discovered.setting) {
+    match GameMod::load(&discovered.base) {
         Ok(gm) => {
             tracing::info!(
                 "Loaded game mod '{}' via LocalDiskModSource (sync)",
@@ -227,8 +224,8 @@ pub fn load_setting_mod_sync() -> Option<ModBundle> {
             Some(gm)
         }
         Err(e) => {
-            let setting_id = peek_mod_id(&discovered.setting).unwrap_or_else(|| "unknown".into());
-            tracing::warn!("Failed to load setting mod '{}': {}", setting_id, e);
+            let base_id = peek_mod_id(&discovered.base).unwrap_or_else(|| "unknown".into());
+            tracing::warn!("Failed to load base mod '{}': {}", base_id, e);
             None
         }
     }
@@ -282,17 +279,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_mods_returns_setting_first() {
+    async fn list_mods_returns_base_first() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("base"));
         write_minimal_manifest(&mods.join("solarized"), "solarized", Some("asset"));
 
         let src = LocalDiskModSource::with_root(mods);
         let summaries = src.list_mods().await.expect("list_mods should succeed");
         assert_eq!(summaries.len(), 2);
         assert_eq!(summaries[0].id, "rundale");
-        assert_eq!(summaries[0].kind, ModKind::Setting);
+        assert_eq!(summaries[0].kind, ModKind::Base);
         assert_eq!(summaries[1].id, "solarized");
         assert_eq!(summaries[1].kind, ModKind::Asset);
     }
@@ -301,7 +298,7 @@ mod tests {
     async fn load_mod_returns_error_for_unknown_id() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("base"));
 
         let src = LocalDiskModSource::with_root(mods);
         let result = src.load_mod("no-such-mod").await;
@@ -326,7 +323,7 @@ mod tests {
         // Ensure the trait can be used as a trait object (Arc<dyn ModSource>).
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_minimal_manifest(&mods.join("rundale"), "rundale", Some("base"));
 
         let src: Arc<dyn ModSource> = Arc::new(LocalDiskModSource::with_root(mods));
         let summaries = src

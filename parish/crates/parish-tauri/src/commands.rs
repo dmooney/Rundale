@@ -141,14 +141,32 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the current time-of-day palette as CSS hex colours.
+/// Returns the current palette as CSS hex colours.
+///
+/// Resolution order:
+/// 1. Mod-provided time-of-day keyframes → interpolated palette for the
+///    current game hour.
+/// 2. Mod-provided static `[theme.palette]` (no keyframes) → returned as-is.
+/// 3. No mod loaded → `neutral_grey_palette()` so the prompt overlay renders.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
     use chrono::Timelike;
-    use parish_palette::compute_palette;
-    let world = state.world.lock().await;
-    let now = world.clock.now();
-    let raw = compute_palette(now.hour(), now.minute());
+    use parish_core::config::PaletteConfig;
+    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+    let raw = if !state.theme_keyframes.is_empty() {
+        let world = state.world.lock().await;
+        let now = world.clock.now();
+        compute_palette_with_keyframes(
+            now.hour(),
+            now.minute(),
+            &state.theme_keyframes,
+            &PaletteConfig::default(),
+        )
+    } else if let Some(p) = state.static_raw_palette {
+        p
+    } else {
+        neutral_grey_palette()
+    };
     Ok(ThemePalette::from(raw))
 }
 
@@ -1247,6 +1265,8 @@ async fn handle_npc_conversation(
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     let app_for_loading = app.clone();
@@ -1278,6 +1298,8 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     emit_world_update(state, app).await;
@@ -2774,6 +2796,7 @@ mod cmd_tests {
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let pronunciations = Vec::new();
@@ -2825,6 +2848,10 @@ mod cmd_tests {
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
+            theme_keyframes: Vec::new(),
+            static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations,
             reaction_templates,
             save_path: Mutex::new(None),

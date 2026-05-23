@@ -33,3 +33,27 @@ phrases = [
     "Sweeping the hearth...",
     "Searching for the right word...",
 ]
+
+# Atmospheric flavour text — moved here from parish-core during the
+# rundale-extraction refactor. Both arrays are optional; mods that omit
+# them get the engine's minimal neutral fallback.
+
+inference_failure_messages = [
+    "A sudden fog rolls in and swallows the conversation whole.",
+    "A crow lands between you, caws loudly, and the moment is lost.",
+    "The wind picks up and carries their words clean away.",
+    "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
+    "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
+    "They stare at you blankly, as if the thought simply left their head.",
+    "A strange silence falls over the parish. Even the birds have stopped.",
+]
+
+idle_messages = [
+    "The wind stirs, but nothing else.",
+    "Only the sound of a distant crow.",
+    "A dog barks somewhere beyond the hill.",
+    "The clouds shift. The parish carries on.",
+    "Somewhere nearby, a door creaks shut.",
+    "A wren hops along the stone wall and vanishes.",
+    "The smell of turf smoke drifts from a cottage chimney.",
+]

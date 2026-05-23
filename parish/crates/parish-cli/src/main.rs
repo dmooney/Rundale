@@ -228,7 +228,7 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
             }
         }
     } else {
-        parish_core::mod_source::load_setting_mod_sync()
+        parish_core::mod_source::load_base_mod_sync()
     }
 }
 

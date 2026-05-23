@@ -53,8 +53,8 @@ pub struct ModMeta {
     pub version: String,
     /// Short description of the mod.
     pub description: String,
-    /// Mod kind. Defaults to [`ModKind::Setting`] when omitted, so older
-    /// manifests without the field continue to load as primary mods.
+    /// Mod kind. Defaults to [`ModKind::Base`] when omitted, so a manifest
+    /// without `kind = "..."` loads as the primary base mod.
     #[serde(default)]
     pub kind: ModKind,
     /// Hard dependencies (parsed but not yet enforced — reserved for the
@@ -72,18 +72,19 @@ pub struct ModMeta {
 /// Kinds of Parish mod, in the Factorio sense — declared via `kind = "..."`
 /// in a manifest's `[mod]` table.
 ///
-/// Implemented today: [`ModKind::Setting`] (the existing primary path),
+/// Implemented today: [`ModKind::Base`] (the primary game world mod),
 /// [`ModKind::Asset`] (additive registries such as themes), and
 /// [`ModKind::Providers`] (LLM provider catalog mods loaded into
 /// `ProviderRegistry` at startup). The remaining variants are reserved so
-/// manifests can be authored against the final schema today.
+/// manifests can be authored against the final schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ModKind {
-    /// Owns the world graph, NPC roster, prompts, and calendar baseline.
-    /// Exactly one setting mod must be active.
+    /// Owns the world graph, NPC roster, prompts, palette, and calendar
+    /// baseline. Exactly one base mod must be active for the engine to
+    /// have something to render.
     #[default]
-    Setting,
+    Base,
     /// Pure additive registries (themes, sounds, fonts). No gameplay content.
     Asset,
     /// LLM provider catalog. Carries one or more `providers/<id>.toml` files
@@ -93,7 +94,7 @@ pub enum ModKind {
     Providers,
     /// Adds new gameplay entries (extra NPCs, locations, festivals).
     Content,
-    /// Mutates entries already in the active setting.
+    /// Mutates entries already in the active base mod.
     Override,
     /// Localized strings and pronunciations.
     Localization,
@@ -219,6 +220,15 @@ pub struct LoadingConfig {
     pub spinner_colors: Vec<[u8; 3]>,
     /// Random phrases shown while loading.
     pub phrases: Vec<String>,
+    /// Atmospheric flavour messages shown when NPC inference fails. Empty
+    /// when the mod ships none — engine falls back to a single ellipsis.
+    #[serde(default)]
+    pub inference_failure_messages: Vec<String>,
+    /// Atmospheric messages shown when no NPC is present and the player
+    /// addresses no-one. Empty when the mod ships none — engine falls
+    /// back to a blank line.
+    #[serde(default)]
+    pub idle_messages: Vec<String>,
 }
 
 /// Sidebar section of the UI configuration.
@@ -292,9 +302,24 @@ pub struct ThemeConfig {
     /// Fixed theme palette used by the frontend.
     #[serde(default)]
     pub palette: ThemePaletteConfig,
+    /// Optional time-of-day keyframes. When present, the engine smoothly
+    /// interpolates between them to compute the live palette; when empty,
+    /// the static [`Self::palette`] is used directly.
+    #[serde(default)]
+    pub keyframes: Vec<ThemeKeyframeConfig>,
     /// Optional map overlay style (e.g. `"grid"` for blueprint graph-paper).
     #[serde(default)]
     pub map_overlay: Option<String>,
+}
+
+/// A single time-of-day palette anchor loaded from `ui.toml`'s
+/// `[[theme.keyframes]]` array.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ThemeKeyframeConfig {
+    /// Anchor hour in [0.0, 24.0) — e.g. `8.5` for morning midpoint.
+    pub hour: f32,
+    /// Palette at this anchor.
+    pub palette: ThemePaletteConfig,
 }
 
 /// UI configuration loaded from `ui.toml`.
@@ -326,32 +351,34 @@ fn default_hints_label() -> String {
     "Language Hints".to_string()
 }
 
+// Neutral charcoal-grey defaults used only when no base mod is loaded — the
+// engine itself ships no aesthetic. Mods always override these via `ui.toml`.
 fn default_theme_bg() -> String {
-    "#fafad8".to_string()
+    "#18181a".to_string()
 }
 
 fn default_theme_fg() -> String {
-    "#31240f".to_string()
+    "#dcdce0".to_string()
 }
 
 fn default_theme_accent() -> String {
-    "#b08531".to_string()
+    "#8c8c96".to_string()
 }
 
 fn default_theme_panel_bg() -> String {
-    "#f5f5d3".to_string()
+    "#202024".to_string()
 }
 
 fn default_theme_input_bg() -> String {
-    "#f0f0ce".to_string()
+    "#28282c".to_string()
 }
 
 fn default_theme_border() -> String {
-    "#cec293".to_string()
+    "#484850".to_string()
 }
 
 fn default_theme_muted() -> String {
-    "#76663b".to_string()
+    "#96969e".to_string()
 }
 
 /// Returns the built-in fixed theme palette used when a mod does not provide one.
@@ -375,6 +402,45 @@ impl ThemeConfig {
             palette.accent = accent.clone();
         }
         palette
+    }
+
+    /// Converts the mod-provided keyframes into the runtime [`parish_palette::Keyframe`]
+    /// form consumed by `compute_palette_with_keyframes`. Returns an empty vec
+    /// when the mod ships only a static palette.
+    pub fn resolved_keyframes(&self) -> Vec<parish_palette::Keyframe> {
+        self.keyframes
+            .iter()
+            .map(|kf| parish_palette::Keyframe {
+                hour: kf.hour,
+                palette: theme_palette_config_to_raw(&kf.palette),
+            })
+            .collect()
+    }
+
+    /// Returns the static palette as a [`parish_palette::RawPalette`] for use
+    /// when no keyframes are provided.
+    pub fn static_raw_palette(&self) -> parish_palette::RawPalette {
+        theme_palette_config_to_raw(&self.palette)
+    }
+}
+
+/// Converts a hex-string [`ThemePaletteConfig`] into the byte-RGB
+/// [`parish_palette::RawPalette`] form used by interpolation. Malformed hex
+/// values silently fall back to black so a typo in a single channel can't
+/// crash startup; the loader logs a warning when this is wrong enough to
+/// notice.
+fn theme_palette_config_to_raw(p: &ThemePaletteConfig) -> parish_palette::RawPalette {
+    let parse = |s: &str| {
+        parish_palette::parse_hex_color(s).unwrap_or(parish_palette::RawColor::new(0, 0, 0))
+    };
+    parish_palette::RawPalette {
+        bg: parse(&p.bg),
+        fg: parse(&p.fg),
+        accent: parse(&p.accent),
+        panel_bg: parse(&p.panel_bg),
+        input_bg: parse(&p.input_bg),
+        border: parse(&p.border),
+        muted: parse(&p.muted),
     }
 }
 
@@ -820,12 +886,12 @@ fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String
 
 /// All mods discovered under a `mods/` root.
 ///
-/// `setting` is the unique [`ModKind::Setting`] mod (rundale today). Every
+/// `base` is the unique [`ModKind::Base`] mod (e.g. rundale, testbed). Every
 /// other mod is recorded in `auxiliary` in lexicographic-by-directory-name
 /// order so registry merging is deterministic across machines and tests.
 #[derive(Debug, Clone)]
 pub struct DiscoveredMods {
-    pub setting: PathBuf,
+    pub base: PathBuf,
     pub auxiliary: Vec<DiscoveredMod>,
 }
 
@@ -844,11 +910,11 @@ struct ModMetaOnly {
     meta: ModMeta,
 }
 
-/// Selects among multiple setting mods when `mods/mod-list.toml` is present.
+/// Selects among multiple base mods when `mods/mod-list.toml` is present.
 ///
-/// Analogous to Factorio's `mod-list.json` — lets multiple setting mods coexist
+/// Analogous to Factorio's `mod-list.json` — lets multiple base mods coexist
 /// in the `mods/` directory, with one declared active at a time. When absent,
-/// the engine reverts to the original single-setting-mod enforcement.
+/// the engine reverts to single-base-mod enforcement.
 #[derive(serde::Deserialize, Default)]
 struct ModList {
     #[serde(default)]
@@ -859,9 +925,9 @@ struct ModList {
 /// directory; once found, enumerate every `mods/*/mod.toml` and classify
 /// each by its declared `kind`.
 ///
-/// When `mods/mod-list.toml` specifies `active_setting`, multiple
-/// `kind = "setting"` mods may coexist and the named one is selected.
-/// Without that file, exactly one setting mod is required.
+/// When `mods/mod-list.toml` specifies `active_base`, multiple
+/// `kind = "base"` mods may coexist and the named one is selected.
+/// Without that file, exactly one base mod is required.
 pub fn discover_mods() -> Result<DiscoveredMods, ParishError> {
     let mods_root = find_mods_root()
         .ok_or_else(|| ParishError::Config("No `mods/` directory found".to_string()))?;
@@ -883,10 +949,10 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
         .collect();
     entries.sort_by_key(|e| e.file_name());
 
-    let mut setting: Option<PathBuf> = None;
-    let mut setting_id: Option<String> = None;
-    // Candidates collected when mod-list.toml declares active_setting.
-    let mut setting_candidates: Vec<(PathBuf, String)> = Vec::new();
+    let mut base: Option<PathBuf> = None;
+    let mut base_id: Option<String> = None;
+    // Candidates collected when mod-list.toml declares active_base.
+    let mut base_candidates: Vec<(PathBuf, String)> = Vec::new();
     let mut auxiliary: Vec<DiscoveredMod> = Vec::new();
 
     for entry in entries {
@@ -898,19 +964,18 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
             .map_err(|e| ParishError::Config(format!("parse {}: {e}", manifest_path.display())))?;
         let meta = parsed.meta;
         match meta.kind {
-            ModKind::Setting => {
+            ModKind::Base => {
                 if mod_list.active_setting.is_some() {
-                    setting_candidates.push((dir, meta.id));
+                    base_candidates.push((dir, meta.id));
+                } else if let Some(prev) = &base_id {
+                    return Err(ParishError::Config(format!(
+                        "Multiple base mods found: '{prev}' and '{}'. \
+                        Add mods/mod-list.toml with active_setting = \"<id>\" to select one.",
+                        meta.id
+                    )));
                 } else {
-                    if let Some(prev) = &setting_id {
-                        return Err(ParishError::Config(format!(
-                            "Multiple setting mods found: '{prev}' and '{}'. \
-                            Add mods/mod-list.toml with active_setting = \"<id>\" to select one.",
-                            meta.id
-                        )));
-                    }
-                    setting = Some(dir.clone());
-                    setting_id = Some(meta.id);
+                    base = Some(dir.clone());
+                    base_id = Some(meta.id);
                 }
             }
             other => auxiliary.push(DiscoveredMod {
@@ -922,25 +987,25 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
     }
 
     if let Some(ref target) = mod_list.active_setting {
-        let chosen = setting_candidates
+        let chosen = base_candidates
             .into_iter()
             .find(|(_, id)| id == target)
             .ok_or_else(|| {
                 ParishError::Config(format!(
                     "mod-list.toml specifies active_setting = \"{target}\" \
-                    but no setting mod with that id was found in {}.",
+                    but no base mod with that id was found in {}.",
                     mods_root.display()
                 ))
             })?;
-        setting = Some(chosen.0);
+        base = Some(chosen.0);
     }
 
-    let setting = setting.ok_or_else(|| {
+    let base = base.ok_or_else(|| {
         ParishError::Config(
-            "No setting mod found (expected exactly one mod with kind = \"setting\").".to_string(),
+            "No base mod found (expected exactly one mod with kind = \"base\").".to_string(),
         )
     })?;
-    Ok(DiscoveredMods { setting, auxiliary })
+    Ok(DiscoveredMods { base, auxiliary })
 }
 
 /// Iterate every `ModKind::Providers` mod in `discovered.auxiliary`, load
@@ -1091,7 +1156,7 @@ pub(crate) fn find_mods_root() -> Option<PathBuf> {
 ///
 /// Returns the mod directory path (not the `mod.toml` path) if found.
 pub fn find_default_mod() -> Option<PathBuf> {
-    discover_mods().ok().map(|d| d.setting)
+    discover_mods().ok().map(|d| d.base)
 }
 
 // ---------------------------------------------------------------------------
@@ -1491,8 +1556,10 @@ phrases = ["Loading"]
         let toml_str = "";
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.sidebar.hints_label, "Language Hints");
-        assert_eq!(ui.theme.palette.bg, "#fafad8");
-        assert_eq!(ui.theme.palette.accent, "#b08531");
+        // Defaults are now neutral grey — the engine ships no aesthetic of
+        // its own. Mods supply colours via `ui.toml`.
+        assert_eq!(ui.theme.palette.bg, "#18181a");
+        assert_eq!(ui.theme.palette.accent, "#8c8c96");
     }
 
     #[test]
@@ -1509,7 +1576,7 @@ bg = "#010203"
         assert_eq!(ui.sidebar.hints_label, "Custom");
         assert_eq!(ui.theme.palette.bg, "#010203");
         assert_eq!(ui.theme.palette.accent, "#ff0000");
-        assert_eq!(ui.theme.palette.fg, "#31240f");
+        assert_eq!(ui.theme.palette.fg, "#dcdce0");
     }
 
     #[test]
@@ -1520,7 +1587,7 @@ default_accent = "#112233"
 "##;
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.theme.resolved_palette().accent, "#112233");
-        assert_eq!(ui.theme.resolved_palette().bg, "#fafad8");
+        assert_eq!(ui.theme.resolved_palette().bg, "#18181a");
     }
 
     #[test]
@@ -1727,61 +1794,60 @@ tier2_system = "prompts/tier2_system.txt"
     fn discover_mods_finds_setting_and_auxiliary_in_lex_order() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         write_manifest(&mods.join("solarized"), "solarized", Some("asset"));
         write_manifest(&mods.join("aurora"), "aurora", Some("asset"));
 
         let discovered = discover_mods_in(&mods).expect("discovery succeeds");
-        assert!(discovered.setting.ends_with("rundale"));
+        assert!(discovered.base.ends_with("rundale"));
         let aux_ids: Vec<_> = discovered.auxiliary.iter().map(|m| m.id.as_str()).collect();
         assert_eq!(aux_ids, vec!["aurora", "solarized"]);
         assert_eq!(discovered.auxiliary[0].kind, ModKind::Asset);
     }
 
     #[test]
-    fn discover_mods_treats_missing_kind_as_setting() {
+    fn discover_mods_treats_missing_kind_as_base() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
         write_manifest(&mods.join("rundale"), "rundale", None);
         let discovered = discover_mods_in(&mods).expect("discovery succeeds");
-        assert!(discovered.setting.ends_with("rundale"));
+        assert!(discovered.base.ends_with("rundale"));
         assert!(discovered.auxiliary.is_empty());
     }
 
     #[test]
-    fn discover_mods_rejects_two_settings() {
+    fn discover_mods_rejects_two_bases() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
-        write_manifest(&mods.join("hokkaido"), "hokkaido", Some("setting"));
-        let err =
-            discover_mods_in(&mods).expect_err("two settings without mod-list is a hard error");
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
+        write_manifest(&mods.join("hokkaido"), "hokkaido", Some("base"));
+        let err = discover_mods_in(&mods).expect_err("two bases without mod-list is a hard error");
         let msg = format!("{err:?}");
-        assert!(msg.contains("Multiple setting mods"));
+        assert!(msg.contains("Multiple base mods"));
     }
 
     #[test]
     fn discover_mods_selects_via_mod_list() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
-        write_manifest(&mods.join("testbed"), "testbed", Some("setting"));
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
+        write_manifest(&mods.join("testbed"), "testbed", Some("base"));
         fs::write(mods.join("mod-list.toml"), "active_setting = \"testbed\"\n").unwrap();
         let discovered = discover_mods_in(&mods).expect("mod-list.toml selection succeeds");
         assert!(
-            discovered.setting.ends_with("testbed"),
+            discovered.base.ends_with("testbed"),
             "should select the testbed mod"
         );
     }
 
     #[test]
-    fn checked_in_mod_list_selects_rundale_by_default() {
+    fn checked_in_mod_list_selects_testbed_by_default() {
         let mods = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods");
         if mods.exists() {
             let discovered = discover_mods_in(&mods).expect("repo mod discovery succeeds");
             assert!(
-                discovered.setting.ends_with("rundale"),
-                "checked-in mods/mod-list.toml should select Rundale by default"
+                discovered.base.ends_with("testbed"),
+                "checked-in mods/mod-list.toml should select testbed for blueprint testing"
             );
         }
     }
@@ -1790,7 +1856,7 @@ tier2_system = "prompts/tier2_system.txt"
     fn discover_mods_errors_when_active_setting_missing() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         fs::write(
             mods.join("mod-list.toml"),
             "active_setting = \"nonexistent\"\n",
@@ -1802,20 +1868,20 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
-    fn discover_mods_requires_a_setting() {
+    fn discover_mods_requires_a_base() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
         write_manifest(&mods.join("solarized"), "solarized", Some("asset"));
-        let err = discover_mods_in(&mods).expect_err("no setting mod is fatal");
+        let err = discover_mods_in(&mods).expect_err("no base mod is fatal");
         let msg = format!("{err:?}");
-        assert!(msg.contains("No setting mod"));
+        assert!(msg.contains("No base mod"));
     }
 
     #[test]
     fn discover_mods_classifies_providers_kind() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         write_manifest(&mods.join("anthropic"), "anthropic", Some("providers"));
         let discovered = discover_mods_in(&mods).expect("discovery succeeds");
         assert_eq!(discovered.auxiliary.len(), 1);

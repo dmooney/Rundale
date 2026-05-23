@@ -41,7 +41,7 @@ use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 
 // Re-export shared types from parish-types
 pub use parish_types::{
-    IrishWordHint, LanguageHint, NpcId, extract_dialogue_from_partial_json, floor_char_boundary,
+    LanguageHint, NpcId, extract_dialogue_from_partial_json, floor_char_boundary,
 };
 
 // Re-export the NPC data-file schema so downstream crates (e.g. the Parish

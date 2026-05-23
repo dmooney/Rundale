@@ -61,8 +61,8 @@ pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 512;
 pub struct TurnOutcome {
     /// The spoken line, or `None` if the NPC produced no dialogue.
     pub line: Option<ConversationLine>,
-    /// Irish-word pronunciation hints extracted from the NPC response.
-    pub hints: Vec<crate::npc::IrishWordHint>,
+    /// Pronunciation hints extracted from the NPC response.
+    pub hints: Vec<crate::npc::LanguageHint>,
 }
 
 /// Runs a single NPC inference turn and emits all events via `ctx.emitter`.
@@ -255,11 +255,16 @@ pub async fn run_npc_turn(
     if response.error.is_some() {
         tracing::warn!("Inference error: {:?}", response.error);
         if player_initiated {
-            let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+            let msg = if ctx.inference_failure_messages.is_empty() {
+                let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+                INFERENCE_FAILURE_MESSAGES[idx].to_string()
+            } else {
+                let idx = response.id as usize % ctx.inference_failure_messages.len();
+                ctx.inference_failure_messages[idx].clone()
+            };
             ctx.emitter.emit_event(
                 "text-log",
-                serde_json::to_value(text_log("system", INFERENCE_FAILURE_MESSAGES[idx]))
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
             );
         }
         if let Some(cancel) = loading_cancel {
@@ -363,7 +368,7 @@ async fn run_autonomous_chain(
     model: &str,
     chain_cap: usize,
     transcript: &mut Vec<ConversationLine>,
-    combined_hints: &mut Vec<crate::npc::IrishWordHint>,
+    combined_hints: &mut Vec<crate::npc::LanguageHint>,
     spoken_this_chain: &mut Vec<NpcId>,
     last_speaker: &mut Option<NpcId>,
     targets: &[NpcId],
@@ -450,11 +455,16 @@ pub async fn handle_npc_conversation(
     };
 
     if !npc_present {
-        let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
+        let msg = if ctx.idle_messages.is_empty() {
+            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
+            IDLE_MESSAGES[idx].to_string()
+        } else {
+            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % ctx.idle_messages.len();
+            ctx.idle_messages[idx].clone()
+        };
         ctx.emitter.emit_event(
             "text-log",
-            serde_json::to_value(text_log("system", IDLE_MESSAGES[idx]))
-                .unwrap_or(serde_json::Value::Null),
+            serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
         );
         return;
     }
@@ -514,7 +524,7 @@ pub async fn handle_npc_conversation(
         world.clock.inference_pause();
     }
 
-    let mut combined_hints: Vec<crate::npc::IrishWordHint> = Vec::new();
+    let mut combined_hints: Vec<crate::npc::LanguageHint> = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
 
@@ -637,7 +647,7 @@ pub async fn run_idle_banter(
         world.clock.inference_pause();
     }
 
-    let mut combined_hints: Vec<crate::npc::IrishWordHint> = Vec::new();
+    let mut combined_hints: Vec<crate::npc::LanguageHint> = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
 
@@ -768,6 +778,8 @@ pub mod tests {
                 client: $client,
                 cloud_client: $cloud_client,
                 language: crate::npc::LanguageSettings::english_only(),
+                inference_failure_messages: &[],
+                idle_messages: &[],
             }
         };
     }
@@ -927,6 +939,8 @@ pub mod tests {
                 client: &client,
                 cloud_client: &cloud_client,
                 language: crate::npc::LanguageSettings::english_only(),
+                inference_failure_messages: &[],
+                idle_messages: &[],
             };
 
             super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;

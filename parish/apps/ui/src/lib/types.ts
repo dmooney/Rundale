@@ -113,6 +113,7 @@ export interface UiConfig {
 	app_icon_url?: string | null;
 	favicon_url?: string | null;
 	map_overlay?: string | null;
+	base_mod_required?: boolean;
 }
 
 /** A single map tile source sent from the backend. Mirrors

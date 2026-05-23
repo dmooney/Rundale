@@ -372,7 +372,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let (config, runtime_processes) = run_llm_bootstrap(provider_cfg, config).await?;
 
     // ── Game mod / engine config / UI config ──────────────────────────────────
-    let game_mod: Option<GameMod> = load_setting_mod_via_source().await;
+    let game_mod: Option<GameMod> = load_base_mod_via_source().await;
     let (splash_text, theme_palette) = resolve_splash_and_theme(&game_mod);
 
     let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
@@ -801,6 +801,7 @@ fn resolve_engine_and_ui_config(
             app_icon_url: gm.app_icon_path().map(|_| "/api/app-icon.png".to_string()),
             favicon_url: gm.favicon_path().map(|_| "/api/favicon.png".to_string()),
             map_overlay: gm.ui.theme.map_overlay.clone(),
+            base_mod_required: false,
         }
     } else {
         UiConfigSnapshot {
@@ -813,6 +814,7 @@ fn resolve_engine_and_ui_config(
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: true,
         }
     };
 
@@ -1050,13 +1052,13 @@ fn should_use_tower_sessions(global: &GlobalState) -> bool {
 /// Using the [`ModSource`] trait here means a future S3/HTTP source can
 /// replace [`LocalDiskModSource`] without changing the call site in
 /// [`run_server`].
-async fn load_setting_mod_via_source() -> Option<GameMod> {
+async fn load_base_mod_via_source() -> Option<GameMod> {
     let source = LocalDiskModSource::new().ok()?;
     let summaries = source.list_mods().await.ok()?;
-    let setting = summaries
+    let base = summaries
         .into_iter()
-        .find(|s| s.kind == parish_core::game_mod::ModKind::Setting)?;
-    match source.load_mod(&setting.id).await {
+        .find(|s| s.kind == parish_core::game_mod::ModKind::Base)?;
+    match source.load_mod(&base.id).await {
         Ok(gm) => {
             tracing::info!(
                 "Loaded game mod '{}' via LocalDiskModSource",
@@ -1065,7 +1067,7 @@ async fn load_setting_mod_via_source() -> Option<GameMod> {
             Some(gm)
         }
         Err(e) => {
-            tracing::warn!("Failed to load mod '{}': {}", setting.id, e);
+            tracing::warn!("Failed to load mod '{}': {}", base.id, e);
             None
         }
     }
