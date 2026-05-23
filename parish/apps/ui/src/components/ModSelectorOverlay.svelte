@@ -4,9 +4,10 @@
 
 	interface Props {
 		onclose: () => void;
+		required?: boolean;
 	}
 
-	let { onclose }: Props = $props();
+	let { onclose, required = false }: Props = $props();
 
 	let mods = $state<ModEntry[]>([]);
 	let selected = $state<string>('');
@@ -49,7 +50,7 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && !switching && !switched) {
+		if (e.key === 'Escape' && !switching && !switched && !required) {
 			onclose();
 		}
 	}
@@ -63,7 +64,7 @@
 	<div class="overlay-panel">
 		<div class="overlay-header">
 			<span class="overlay-title">Select Mod</span>
-			{#if !switching && !switched}
+			{#if !switching && !switched && !required}
 				<button type="button" class="close-btn" aria-label="Close" onclick={onclose}>&times;</button>
 			{/if}
 		</div>
@@ -113,7 +114,9 @@
 			</ul>
 
 			<div class="overlay-footer">
-				<button type="button" class="cancel-btn" onclick={onclose}>Cancel</button>
+				{#if !required}
+					<button type="button" class="cancel-btn" onclick={onclose}>Cancel</button>
+				{/if}
 				<button
 					type="button"
 					class="action-btn"

@@ -7,7 +7,7 @@ id = "testbed"
 save_root = "Testbed"
 version = "0.1.0"
 description = "Minimal engine test harness — blueprint aesthetic, pig Latin code-switch, five-location grid world"
-kind = "setting"
+kind = "base"
 
 [setting]
 start_date = "2000-01-01T08:00:00Z"

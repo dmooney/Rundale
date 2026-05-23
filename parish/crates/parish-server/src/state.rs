@@ -157,6 +157,19 @@ pub struct AppState {
     pub ui_config: UiConfigSnapshot,
     /// Fixed theme palette from the loaded game mod.
     pub theme_palette: ThemePalette,
+    /// Time-of-day palette keyframes from the loaded game mod. Empty when the
+    /// mod ships only a static palette (or no mod is loaded).
+    pub theme_keyframes: Vec<parish_palette::Keyframe>,
+    /// Static palette in `RawPalette` form, used by `get_theme` when the mod
+    /// declares no keyframes. `None` when no mod is loaded (engine falls back
+    /// to `neutral_grey_palette`).
+    pub static_raw_palette: Option<parish_palette::RawPalette>,
+    /// Atmospheric flavour shown when NPC inference fails. Empty when the
+    /// mod provides none — engine falls back to a single ellipsis.
+    pub inference_failure_messages: Vec<String>,
+    /// Atmospheric flavour shown when the player addresses no-one. Empty
+    /// when the mod provides none — engine falls back to a blank line.
+    pub idle_messages: Vec<String>,
     /// Directory where save files are stored.
     pub saves_dir: PathBuf,
     /// Directory containing game data files (world.json, npcs.json, etc.).
@@ -294,6 +307,21 @@ pub fn build_app_state(
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
 
+    // Extract palette runtime state (keyframes + static) from the loaded mod.
+    let theme_keyframes = game_mod
+        .as_ref()
+        .map(|gm| gm.ui.theme.resolved_keyframes())
+        .unwrap_or_default();
+    let static_raw_palette = game_mod.as_ref().map(|gm| gm.ui.theme.static_raw_palette());
+    let inference_failure_messages = game_mod
+        .as_ref()
+        .map(|gm| gm.loading.inference_failure_messages.clone())
+        .unwrap_or_default();
+    let idle_messages = game_mod
+        .as_ref()
+        .map(|gm| gm.loading.idle_messages.clone())
+        .unwrap_or_default();
+
     // Extract language settings from game mod
     let language_settings = game_mod
         .as_ref()
@@ -334,6 +362,10 @@ pub fn build_app_state(
         transport,
         ui_config,
         theme_palette,
+        theme_keyframes,
+        static_raw_palette,
+        inference_failure_messages,
+        idle_messages,
         saves_dir,
         data_dir,
         save_path: Mutex::new(None),

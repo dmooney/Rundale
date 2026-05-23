@@ -57,4 +57,11 @@ pub struct GameLoopContext<'a> {
     /// Injected into every dialogue prompt builder so NPCs use locale-correct
     /// spelling and code-switch naturally when `native` is set.
     pub language: LanguageSettings,
+    /// Atmospheric flavour text shown when NPC inference fails. Empty when
+    /// the mod ships none — engine falls back to a single ellipsis.
+    pub inference_failure_messages: &'a [String],
+    /// Atmospheric flavour text shown when no NPC is present at the
+    /// current location. Empty when the mod ships none — engine falls
+    /// back to a blank line.
+    pub idle_messages: &'a [String],
 }

@@ -111,9 +111,6 @@ pub struct LanguageHint {
     pub meaning: Option<String>,
 }
 
-/// Backward-compatible alias for [`LanguageHint`].
-pub type IrishWordHint = LanguageHint;
-
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
 /// If `pos` is already a char boundary, returns it unchanged. Otherwise

@@ -900,10 +900,18 @@ async fn handle_headless_game_input(
                 stream_headless_npc_dialogue(app, text, setup, request_id).await;
             } else {
                 let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                println!(
-                    "{}",
+                let mod_msgs = app
+                    .game_mod
+                    .as_ref()
+                    .map(|gm| gm.loading.idle_messages.as_slice())
+                    .unwrap_or(&[]);
+                let msg = if mod_msgs.is_empty() {
                     parish_core::ipc::IDLE_MESSAGES[idx % parish_core::ipc::IDLE_MESSAGES.len()]
-                );
+                        .to_string()
+                } else {
+                    mod_msgs[idx % mod_msgs.len()].clone()
+                };
+                println!("{}", msg);
             }
         }
     }

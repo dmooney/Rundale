@@ -512,6 +512,7 @@ mod tests {
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let game_config = GameConfig {
@@ -559,6 +560,10 @@ mod tests {
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
+            theme_keyframes: Vec::new(),
+            static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations: Vec::new(),
             reaction_templates: parish_core::npc::reactions::ReactionTemplates::default(),
             save_path: Mutex::new(None),

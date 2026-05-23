@@ -120,6 +120,10 @@ pub struct UiConfigSnapshot {
     /// Map overlay style requested by the active mod, if any (e.g. `"grid"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map_overlay: Option<String>,
+    /// True if no base mod is currently loaded, indicating that the frontend
+    /// should display a non-dismissable mod selector overlay to the user.
+    #[serde(default)]
+    pub base_mod_required: bool,
 }
 
 #[cfg(test)]
