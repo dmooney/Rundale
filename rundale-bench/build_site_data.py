@@ -232,66 +232,98 @@ def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[
     return [row for _, row in sorted(latest.values(), key=lambda kv: -(kv[1].get("overall") or 0))]
 
 
-def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
-    """Per-model dialogue samples: (model_slug) -> {model_id, judge_id, items}.
+_SLICE_AXES = {
+    "dialogue": AXES,
+    "gaeilge": GAEILGE_AXES,
+}
 
-    Each item carries `id`, `prompt` (joined from the dataset), `reply`, and
-    inline judge scores when present (legacy runs scored inline; subagent
-    runs leave scores to `ingest` which folds them in via the cache).
+# Slice-specific default judge ids when legacy runs don't record one.
+_LEGACY_JUDGE = {
+    "dialogue": ("judge_v1 (qwen3-235b)", "qwen/qwen3-235b-a22b-2507"),
+    "gaeilge": ("gaeilge_fluency_judge_v1", "claude-sonnet-4-6"),
+}
+
+
+def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
+    """Per-model per-slice samples: slug -> {model_id, dialogue?, gaeilge?, ...}.
+
+    Each slice block carries `judge_id`, `judge_model`, `measured_utc`, `axes`
+    (list of axis names for the slice), and `items` of `{id, prompt, reply,
+    axes:{...}, overall, reason?, extras...}`. Latest run per (model, slice)
+    wins.
     """
-    prompt_lookup: dict[str, str] = {}
-    for slice_name in ("dialogue",):
-        for rec in (datasets.get(slice_name) or {}).get("records", []):
-            prompt_lookup[rec["id"]] = rec.get("prompt", "")
+    prompt_lookup: dict[str, dict[str, str]] = {}
+    for slice_name in _SLICE_AXES:
+        prompt_lookup[slice_name] = {
+            rec["id"]: rec.get("prompt", "")
+            for rec in (datasets.get(slice_name) or {}).get("records", [])
+        }
+
     by_model: dict[str, dict] = {}
-    latest_ts: dict[str, str] = {}
+    latest_ts: dict[tuple[str, str], str] = {}
+
     for p in sorted(glob.glob(str(artifacts_dir / "run_*.json"))):
         path = Path(p)
         try:
             out = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        dia = out.get("slices", {}).get("dialogue")
-        if not dia or "results" not in dia:
-            continue
         model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
         if not model_id:
             continue
         ts = _run_ts(out, path)
-        if model_id in latest_ts and ts <= latest_ts[model_id]:
-            continue
-        latest_ts[model_id] = ts
-        items = []
-        for r in dia.get("results", []):
-            if r.get("error") or r.get("reply") is None:
+        slug = slugify(model_id)
+
+        for slice_name, axis_names in _SLICE_AXES.items():
+            block = out.get("slices", {}).get(slice_name)
+            if not block or "results" not in block:
                 continue
-            scores = {a: r.get(a) for a in AXES if isinstance(r.get(a), (int, float))}
-            j = r.get("judgment") or {}
-            if isinstance(j.get("axes"), dict):
-                scores = j["axes"]
-            items.append({
-                "id": r["id"],
-                "prompt": prompt_lookup.get(r["id"], ""),
-                "reply": r["reply"],
-                "axes": scores,
-                "overall": r.get("overall") if "overall" in r else j.get("overall"),
-                "non_latin_chars": r.get("non_latin_chars") or {},
-            })
-        by_model[slugify(model_id)] = {
-            "model_id": model_id,
-            "slug": slugify(model_id),
-            "judge_id": (dia.get("summary", {}).get("judge")) or "judge_v1 (qwen3-235b)",
-            "judge_model": dia.get("summary", {}).get("judge_model") or "qwen/qwen3-235b-a22b-2507",
-            "measured_utc": ts,
-            "items": items,
-        }
+            key = (slug, slice_name)
+            if key in latest_ts and ts <= latest_ts[key]:
+                continue
+            latest_ts[key] = ts
+
+            items = []
+            for r in block.get("results", []):
+                if r.get("error") or r.get("reply") is None:
+                    continue
+                inline = {a: r.get(a) for a in axis_names if isinstance(r.get(a), (int, float))}
+                j = r.get("judgment") or {}
+                axes_out = j["axes"] if isinstance(j.get("axes"), dict) else inline
+                overall = r.get("overall") if "overall" in r else j.get("overall")
+                entry = {
+                    "id": r["id"],
+                    "prompt": prompt_lookup[slice_name].get(r["id"], ""),
+                    "reply": r["reply"],
+                    "axes": axes_out,
+                    "overall": overall,
+                }
+                if r.get("reason"):
+                    entry["reason"] = r["reason"]
+                if r.get("english_leakage_examples"):
+                    entry["english_leakage_examples"] = r["english_leakage_examples"]
+                if r.get("non_latin_chars"):
+                    entry["non_latin_chars"] = r["non_latin_chars"]
+                items.append(entry)
+
+            summary = block.get("summary", {})
+            legacy_id, legacy_model = _LEGACY_JUDGE.get(slice_name, ("unknown", None))
+            slice_data = {
+                "judge_id": summary.get("judge") or legacy_id,
+                "judge_model": summary.get("judge_model") or legacy_model,
+                "measured_utc": ts,
+                "axes": list(axis_names),
+                "items": items,
+            }
+            by_model.setdefault(slug, {"model_id": model_id, "slug": slug})[slice_name] = slice_data
+
     return by_model
 
 
 JUDGE_LABELS = {
     "judge_sonnet_v1": ("dialogue", "Dialogue (Sonnet-judged)"),
     "judge_v1": ("dialogue (legacy)", "Dialogue — legacy OpenRouter judge"),
-    "judge_gaeilge_v1": ("gaeilge", "Irish (Gaeilge) fluency"),
+    "gaeilge_fluency_judge_v1": ("gaeilge", "Irish (Gaeilge) fluency"),
     "judge_reaction_v1": ("reaction", "NPC reactions"),
     "judge_sim_v1": ("tier2-sim / tier3-sim", "Structured world-tick simulation"),
     "judge_pairwise_v1": ("dialogue (ELO)", "Pairwise dialogue (ELO mode)"),

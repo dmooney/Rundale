@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import data from '../data/bench.json';
+const base = import.meta.env.BASE_URL;
 const rows = data.gaeilge ?? [];
 const AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'english_leakage'];
 const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
@@ -35,7 +36,7 @@ const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
       <tbody>
         {rows.map((r) => (
           <tr>
-            <td>{r.model_id} {r.family !== 'unknown' && <span class="badge">{r.family}</span>}</td>
+            <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a> {r.family !== 'unknown' && <span class="badge">{r.family}</span>}</td>
             <td class="num"><strong>{fmt(r.overall)}</strong></td>
             {AXES.map((a) => <td class="num">{fmt(r[a])}</td>)}
             <td class="num">{fmt((r.english_leakage_flag_rate ?? 0) * 100)}%</td>

@@ -1,36 +1,95 @@
 ---
 import Base from '../../layouts/Base.astro';
+import SamplesBrowser from '../../components/SamplesBrowser.svelte';
 import data from '../../data/bench.json';
 const base = import.meta.env.BASE_URL;
 
 export function getStaticPaths() {
-  const d = data;
-  return d.leaderboard.map((row) => ({ params: { slug: row.slug }, props: { row } }));
+  // Union of leaderboard models, gaeilge models, and any model with samples —
+  // so a model with a gaeilge run but no dialogue row still gets a page.
+  const slugs = new Map();
+  for (const row of data.leaderboard ?? []) slugs.set(row.slug, { dialogue: row, model_id: row.model_id });
+  for (const row of data.gaeilge ?? []) {
+    const e = slugs.get(row.slug) ?? { model_id: row.model_id };
+    e.gaeilge_row = row; slugs.set(row.slug, e);
+  }
+  for (const [slug, s] of Object.entries(data.samples ?? {})) {
+    const e = slugs.get(slug) ?? { model_id: s.model_id };
+    e.samples = s; slugs.set(slug, e);
+  }
+  return [...slugs.entries()].map(([slug, view]) => ({ params: { slug }, props: { slug, view } }));
 }
-const { row } = Astro.props;
-const AXES = ['character', 'authenticity', 'language', 'responsiveness', 'craft'];
-const perf = (data.perf ?? []).filter((p) => p.model_id === row.model_id);
+
+const { slug, view } = Astro.props;
+const samples = (data.samples ?? {})[slug] ?? {};
+const dialogueRow = view.dialogue;
+const gaeilgeRow = view.gaeilge_row;
+const perf = (data.perf ?? []).filter((p) => p.model_id === view.model_id);
+const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
+const DIALOGUE_AXES = ['character', 'authenticity', 'language', 'responsiveness', 'craft'];
+const GAEILGE_AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'english_leakage'];
 ---
-<Base title={`Rundale Bench — ${row.model_id}`}>
+<Base title={`Rundale Bench — ${view.model_id}`}>
   <p><a href={base}>← leaderboard</a></p>
-  <h2>{row.model_id}</h2>
-  <p class="muted">
-    family {row.family} · tier {row.tier ?? 'n/a'} · judged {row.judged ?? '—'} prompt(s)
-    {row.non_latin_rate ? ` · non-Latin rate ${(row.non_latin_rate * 100).toFixed(1)}%` : ''}
-  </p>
+  <h2>{view.model_id}</h2>
 
-  <h3>Dialogue axes</h3>
-  <table>
-    <thead><tr><th>Axis</th><th class="num">Score</th></tr></thead>
-    <tbody>
-      <tr><td><strong>Overall</strong></td><td class="num"><strong>{row.overall?.toFixed(2) ?? '—'}</strong></td></tr>
-      {AXES.map((ax) => (
-        <tr><td>{ax}</td><td class="num">{typeof row[ax] === 'number' ? row[ax].toFixed(2) : '—'}</td></tr>
-      ))}
-    </tbody>
-  </table>
+  {dialogueRow && (
+    <>
+      <h3>Dialogue</h3>
+      <p class="muted">
+        family {dialogueRow.family} · tier {dialogueRow.tier ?? 'n/a'} ·
+        judged by <span class="badge">⚖ {dialogueRow.judge_id}</span>
+        · {dialogueRow.judged ?? '—'} prompt(s)
+        {dialogueRow.non_latin_rate ? ` · non-Latin rate ${(dialogueRow.non_latin_rate * 100).toFixed(1)}%` : ''}
+      </p>
+      <table>
+        <thead><tr><th>Axis</th><th class="num">Score</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Overall</strong></td><td class="num"><strong>{fmt(dialogueRow.overall)}</strong></td></tr>
+          {DIALOGUE_AXES.map((ax) => (
+            <tr><td>{ax}</td><td class="num">{fmt(dialogueRow[ax])}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      {samples.dialogue?.items?.length > 0 && (
+        <>
+          <h4>Dialogue prompts &amp; responses</h4>
+          <p class="muted">All {samples.dialogue.items.length} judged prompt(s) with per-axis scores.</p>
+          <SamplesBrowser client:load items={samples.dialogue.items} axes={samples.dialogue.axes} />
+        </>
+      )}
+    </>
+  )}
 
-  <h3>Perf by provider</h3>
+  {gaeilgeRow && (
+    <>
+      <h3 style="margin-top:2rem">Gaeilge fluency</h3>
+      <p class="muted">
+        judged by <span class="badge">⚖ {samples.gaeilge?.judge_id ?? 'gaeilge_fluency_judge_v1'}</span>
+        ({samples.gaeilge?.judge_model ?? 'claude-sonnet-4-6'}) ·
+        {gaeilgeRow.records ?? '—'} prompt(s) · english-leakage flag rate
+        {((gaeilgeRow.english_leakage_flag_rate ?? 0) * 100).toFixed(1)}%
+      </p>
+      <table>
+        <thead><tr><th>Axis</th><th class="num">Score</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Overall</strong></td><td class="num"><strong>{fmt(gaeilgeRow.overall)}</strong></td></tr>
+          {GAEILGE_AXES.map((ax) => (
+            <tr><td>{ax}</td><td class="num">{fmt(gaeilgeRow[ax])}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      {samples.gaeilge?.items?.length > 0 && (
+        <>
+          <h4>Gaeilge prompts &amp; responses</h4>
+          <p class="muted">All {samples.gaeilge.items.length} judged prompt(s) with per-axis scores and the judge's reason.</p>
+          <SamplesBrowser client:load items={samples.gaeilge.items} axes={samples.gaeilge.axes} />
+        </>
+      )}
+    </>
+  )}
+
+  <h3 style="margin-top:2rem">Perf by provider</h3>
   {perf.length === 0 ? (
     <div class="empty">No perf measured for this model yet.</div>
   ) : (
@@ -39,9 +98,9 @@ const perf = (data.perf ?? []).filter((p) => p.model_id === row.model_id);
       <tbody>
         {perf.map((p) => (
           <tr><td><span class="badge">{p.provider_id}</span></td>
-            <td class="num">{Math.round(p.latency_p50_ms)}</td>
-            <td class="num">{p.tokens_per_sec_mean.toFixed(1)}</td>
-            <td class="num">${p.usd_per_mtok_observed}</td></tr>
+            <td class="num">{typeof p.latency_p50_ms === 'number' ? Math.round(p.latency_p50_ms) : '—'}</td>
+            <td class="num">{typeof p.tokens_per_sec_mean === 'number' ? p.tokens_per_sec_mean.toFixed(1) : '—'}</td>
+            <td class="num">{p.usd_per_mtok_observed != null ? `$${p.usd_per_mtok_observed}` : '—'}</td></tr>
         ))}
       </tbody>
     </table>

@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-23T22:42:24.501007+00:00",
+  "generated_utc": "2026-05-23T22:45:01.162014+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -5212,91 +5212,270 @@
     }
   },
   "samples": {
+    "mlx-community-qwen2-5-14b-instruct-4bit": {
+      "model_id": "mlx-community/Qwen2.5-14B-Instruct-4bit",
+      "slug": "mlx-community-qwen2-5-14b-instruct-4bit",
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-18T17:48:11.349071+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Ba mhaith an t-se\u00f3il sa bhliain seo isteach.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.5,
+            "reason": "The candidate response uses 'se\u00f3il' (a sail/luck idiom) rather than 'f\u00f3mhar' (harvest), misses the past tense of 'b\u00ed', and the phrase 'sa bhliain seo isteach' is not standard Irish for 'this year' (i mbliana); the sentence does not convey the meaning of a good harvest this year."
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "M\u00e1thair mhair dom chon banc.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.0,
+            "reason": "The candidate response is nonsensical Irish that does not convey the meaning 'I have to go to the bank' \u2014 it appears to be a garbled string of Irish-looking words with no coherent grammar or meaning related to the source sentence."
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "Is \u00e9 an tionscal a mhaith liom duit a r\u00e1.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.5,
+            "reason": "The candidate response does not translate 'I want to tell you the truth' \u2014 'tionscal' means 'industry/enterprise', not 'truth', and the construction is garbled; the meaning is entirely lost despite no English words appearing."
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "Bh\u00edomar ag ithe an briosca.",
+            "axes": {
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.5,
+            "reason": "The candidate translated 'we were eating a biscuit/cookie' instead of 'I ate the bread'; wrong subject (plural), wrong tense (progressive past), and wrong noun (briosca = biscuit, not ar\u00e1n = bread), completely failing to preserve the source meaning."
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "D'\u00e9irigh leat an leabhar a cheeks\u00fa inniu.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 3
+            },
+            "overall": 1.0,
+            "reason": "The response is largely nonsensical and does not translate 'You will buy the book today'; it uses a past tense construction (d'\u00e9irigh leat) meaning 'you succeeded' and contains the invented/nonsense word 'cheeks\u00fa' which is not Irish.",
+            "english_leakage_examples": [
+              "cheeks\u00fa"
+            ]
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "Is min an t-sneach at\u00e1 agam a bpr\u00f3imhbhricfeasaiocht.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.0,
+            "reason": "The candidate response is largely invented pseudo-Irish gibberish ('pr\u00f3imhbhricfeasaiocht' is not a real Irish word) and fails to convey the meaning of looking forward to snow in any recognizable Irish phrasing."
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "An bhfuil airgead aici?",
+            "axes": {
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 5,
+              "english_leakage": 5
+            },
+            "overall": 5.0,
+            "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' for possession."
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1 muid ag imr\u00ed go dt\u00ed an teach-aitheach.",
+            "axes": {
+              "fluency": 1,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1,
+              "english_leakage": 5
+            },
+            "overall": 1.2,
+            "reason": "The candidate uses 'muid' (first-person plural) instead of singular, 'ag imr\u00ed' (playing) instead of 'ag dul' (going), and 'teach-aitheach' is not a real Irish word for shop (siopa); the translation is semantically wrong and contains invented vocabulary."
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 5,
+              "english_leakage": 5
+            },
+            "overall": 5.0,
+            "reason": "The candidate response exactly matches the reference answer, correctly identifying the man as the walker and the woman as the companion in perfect Irish."
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "N\u00edor labhair Se\u00e1n.",
+            "axes": {
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 3,
+              "task_fulfillment": 2,
+              "english_leakage": 5
+            },
+            "overall": 2.5,
+            "reason": "The candidate produced a negative declarative ('N\u00edor labhair Se\u00e1n') rather than the required positive declarative ('Labhair Se\u00e1n'); the task asked for a positive statement, not just a change from interrogative to declarative negative."
+          },
+          {
+            "id": "gaeilge-0012",
+            "prompt": "M\u00ednigh an abairt seo i nGaeilge shimpl\u00ed: \"T\u00f3g go bog \u00e9.\"",
+            "reply": "Is \u00e9 \"t\u00f3g go bog \u00e9\" abairt a \u00fasedar chun aitheantas a ghabh\u00e1il ar bheith in \u00e9ineacht le daoine eile, gan \u00e9igean a bhrath.",
+            "axes": {
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2,
+              "english_leakage": 5
+            },
+            "overall": 2.0,
+            "reason": "The response is in Irish with no English leakage, but the explanation is semantically wrong \u2014 't\u00f3g go bog \u00e9' means 'take it easy/calm down', not something about being in company with others without feeling compelled; the grammar is also awkward ('\u00fasedar' is non-standard, 'aitheantas a ghabh\u00e1il ar bh"
+          }
+        ]
+      }
+    },
     "openai-gpt-oss-120b-free": {
       "model_id": "openai/gpt-oss-120b:free",
       "slug": "openai-gpt-oss-120b-free",
-      "judge_id": "judge_v1 (qwen3-235b)",
-      "judge_model": "qwen/qwen3-235b-a22b-2507",
-      "measured_utc": "2026-05-13T20:59:06.320321+00:00",
-      "items": [
-        {
-          "id": "dialogue-0001",
-          "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
-          "reply": "Ah, lass, steep a cup of mugwort tea and place a sprig beneath thy pillow, whilst a pinch of dried lavender is scattered \u2019round the bed; a warm bath of rosemary leaves ere you retire may quiet the restless spirit. If the dreams still haunt, a gentle poultice of comfrey on the chest before sleep oft steadies the mind. May the night bring you peace.",
-          "axes": {
-            "character": 5,
-            "authenticity": 5,
-            "language": 5,
-            "responsiveness": 5,
-            "craft": 4
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-13T20:59:06.320321+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, lass, steep a cup of mugwort tea and place a sprig beneath thy pillow, whilst a pinch of dried lavender is scattered \u2019round the bed; a warm bath of rosemary leaves ere you retire may quiet the restless spirit. If the dreams still haunt, a gentle poultice of comfrey on the chest before sleep oft steadies the mind. May the night bring you peace.",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
           },
-          "overall": 4.8,
-          "non_latin_chars": {}
-        },
-        {
-          "id": "dialogue-0002",
-          "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
-          "reply": "Ah, the Cailleach o\u2019 the hill\u2011top cairn\u2014she\u2019s the ancient hag of stone and snow, said to shape the winter and turn the hills to barren. Folk say she dwells by the old fairy fort, where the wind howls through the standing stones, and she watches over the cold months, granting shelter to those who leave a loaf and milk upon her stone altar. Keep respect, and she may spare your cattle from the harsh frost.",
-          "axes": {
-            "character": 4,
-            "authenticity": 5,
-            "language": 5,
-            "responsiveness": 4,
-            "craft": 4
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach o\u2019 the hill\u2011top cairn\u2014she\u2019s the ancient hag of stone and snow, said to shape the winter and turn the hills to barren. Folk say she dwells by the old fairy fort, where the wind howls through the standing stones, and she watches over the cold months, granting shelter to those who leave a loaf and milk upon her stone altar. Keep respect, and she may spare your cattle from the harsh frost.",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.3
           },
-          "overall": 4.3,
-          "non_latin_chars": {}
-        },
-        {
-          "id": "dialogue-0003",
-          "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
-          "reply": "Ah, a harsh cough can be eased with a draught of warm water steeped with fresh thyme and a spoon\u2011ful of honey, taken thrice a day; a slice of raw onion placed upon the chest at night may also draw out the phlegm. If she can bear it, a poultice of crushed nettles and a pinch of salt, moistened with milk, pressed to the throat will bring comfort. Should the cough persist beyond a week, send word and we\u2019ll seek a stronger herb.",
-          "axes": {
-            "character": 5,
-            "authenticity": 5,
-            "language": 5,
-            "responsiveness": 5,
-            "craft": 5
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ah, a harsh cough can be eased with a draught of warm water steeped with fresh thyme and a spoon\u2011ful of honey, taken thrice a day; a slice of raw onion placed upon the chest at night may also draw out the phlegm. If she can bear it, a poultice of crushed nettles and a pinch of salt, moistened with milk, pressed to the throat will bring comfort. Should the cough persist beyond a week, send word and we\u2019ll seek a stronger herb.",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
           },
-          "overall": 5.0,
-          "non_latin_chars": {}
-        },
-        {
-          "id": "dialogue-0004",
-          "prompt": "They say a stranger arrived in the village. Have you heard?",
-          "reply": "Aye, a tall man with a soot\u2011black coat came in by the road last eve, askin\u2019 for a place to set his horse. He kept to himself, but the lads at the inn say he\u2019s a merchant from Dublin.",
-          "axes": {
-            "character": 5,
-            "authenticity": 5,
-            "language": 5,
-            "responsiveness": 5,
-            "craft": 5
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Aye, a tall man with a soot\u2011black coat came in by the road last eve, askin\u2019 for a place to set his horse. He kept to himself, but the lads at the inn say he\u2019s a merchant from Dublin.",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
           },
-          "overall": 5.0,
-          "non_latin_chars": {}
-        },
-        {
-          "id": "dialogue-0005",
-          "prompt": "I lost a sheep last night. Could it be more than a wolf?",
-          "reply": "Aye, wolves do roam the hills, but a lone sheep can also fall victim to a stray dog, a hungry fox, or even a sudden bout of lameness that sends it wandering off. Look for fresh tracks by the hedge and any signs of a bite; the shape of the prints will tell ye which beast took it. If the sheep\u2019s hide bears no claw marks, perhaps it simply strayed and met a cruel fall.",
-          "axes": {
-            "character": 5,
-            "authenticity": 5,
-            "language": 5,
-            "responsiveness": 5,
-            "craft": 5
-          },
-          "overall": 5.0,
-          "non_latin_chars": {}
-        }
-      ]
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Aye, wolves do roam the hills, but a lone sheep can also fall victim to a stray dog, a hungry fox, or even a sudden bout of lameness that sends it wandering off. Look for fresh tracks by the hedge and any signs of a bite; the shape of the prints will tell ye which beast took it. If the sheep\u2019s hide bears no claw marks, perhaps it simply strayed and met a cruel fall.",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          }
+        ]
+      }
     }
   },
   "judge_prompts": {
     "gaeilge_fluency_judge_v1": {
       "judge_id": "gaeilge_fluency_judge_v1",
-      "label": "gaeilge_fluency_judge_v1",
-      "slice": "(unknown)",
+      "label": "Irish (Gaeilge) fluency",
+      "slice": "gaeilge",
       "model": "claude-sonnet-4-6",
       "base_url": "https://api.anthropic.com/v1",
       "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9",

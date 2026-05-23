@@ -43,8 +43,7 @@
         <tr>
           <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a>
             {#if r.family && r.family !== 'unknown'}<span class="badge">{r.family}</span>{/if}
-            {#if r.judge_id}<span class="badge" title="judge model" style="margin-left:0.3rem">⚖ {r.judge_id}</span>{/if}
-            <a href={`${base}/samples/${r.slug}`} style="margin-left:0.4rem;font-size:0.85rem">prompts →</a></td>
+            {#if r.judge_id}<span class="badge" title="judge model" style="margin-left:0.3rem">⚖ {r.judge_id}</span>{/if}</td>
           <td class="num"><strong>{fmt(r.overall)}</strong></td>
           {#each AXES as ax}<td class="num">{fmt(r[ax])}</td>{/each}
           <td class="num">{r.judged ?? '—'}</td>
