@@ -158,7 +158,12 @@ pub fn handle_list_available_providers()
             blurb: p.0.blurb.clone(),
             signup_url: p.0.signup_url.clone(),
             needs_base_url: p.needs_base_url_from_user(),
-            keyless: !p.requires_api_key(),
+            // Use the explicit `keyless` TOML flag (local-inference
+            // providers only) rather than `!requires_api_key` — the
+            // latter mislabels `custom`, which has no key requirement
+            // but still needs a model name + base URL (codex P2
+            // regression fix).
+            keyless: p.0.keyless,
             featured: p.0.featured,
         };
         if p.0.featured {

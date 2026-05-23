@@ -119,6 +119,14 @@ pub struct ProviderMod {
     pub signup_url: Option<String>,
     #[serde(default)]
     pub featured: bool,
+    /// True when the provider is local inference where API keys are
+    /// irrelevant (ollama, lmstudio, vllm, vllm_mlx, simulator). The
+    /// onboarding wizard uses this to relax model-name/key guards.
+    /// Distinct from `requires_api_key`: `custom` does not require an
+    /// API key but still needs a model name and base URL, so its
+    /// `keyless` is `false` (codex P2 regression fix).
+    #[serde(default)]
+    pub keyless: bool,
     #[serde(default)]
     pub presets: Vec<ProviderPreset>,
 }
@@ -413,41 +421,54 @@ static REGISTRY: OnceLock<ProviderRegistry> = OnceLock::new();
 
 pub fn registry() -> &'static ProviderRegistry {
     let r = REGISTRY.get_or_init(ProviderRegistry::load_with_builtins);
-    // In debug builds (cargo run, cargo test for any workspace crate),
-    // transparently make mods/ providers available so unit tests + dev
-    // runs see the same registry without each having to call
-    // ensure_test_mods_loaded() manually. Release builds skip this and
-    // rely on `parish_core::game_mod::register_provider_mods_once` from
-    // the explicit bootstrap path.
-    #[cfg(debug_assertions)]
-    ensure_test_mods_loaded();
+    // Auto-discover and register provider mods on first access. This
+    // runs in all build profiles so that release startup paths which
+    // resolve provider config before the explicit bootstrap
+    // (`parish_core::game_mod::register_provider_mods_once`) still see
+    // the same registry as debug/test builds. The walk is idempotent
+    // (guarded by `Once`) and silently no-ops when no `mods/` directory
+    // is discoverable — production deployments that need a non-default
+    // location set `PARISH_MODS_DIR`.
+    ensure_mods_loaded();
     r
 }
 
-/// Test helper: discover and register every `mods/<id>/providers/*.toml`
-/// found by walking up from this crate's compile-time `CARGO_MANIFEST_DIR`
-/// to a directory containing `mods/`. Idempotent (guarded by an internal
-/// `Once`); safe to call from any test setup.
+/// Discover and register every `mods/<id>/providers/*.toml` from the
+/// first directory found via, in priority order:
 ///
-/// Production builds use `parish_core::game_mod::register_provider_mods_once`
-/// invoked from the startup mod-load path; this helper exists so unit-test
-/// crates that cannot reach that bootstrap (parish-config, parish-cli, ...)
-/// still see the cloud-provider mods their fixtures expect.
-pub fn ensure_test_mods_loaded() {
+/// 1. `PARISH_MODS_DIR` env var (operator override for packaged builds);
+/// 2. walk-up from this crate's compile-time `CARGO_MANIFEST_DIR` to a
+///    directory containing `mods/` (dev tree, `cargo test`/`cargo run`).
+///
+/// Idempotent — guarded by an internal `Once`; safe to call repeatedly.
+///
+/// Returns silently when no mods directory is discoverable. The explicit
+/// `parish_core::game_mod::register_provider_mods_once` bootstrap path is
+/// still authoritative for runtime mod loads with surfaced error
+/// reporting; this helper exists so that any `Provider::from_id` /
+/// `from_str_loose` call hit before that bootstrap (release startup,
+/// downstream test crates, env-var-only cloud configs) still finds the
+/// shipped provider mods.
+pub fn ensure_mods_loaded() {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let crate_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut dir = crate_dir.to_path_buf();
-        let mods_dir = loop {
-            let candidate = dir.join("mods");
-            if candidate.is_dir() {
-                break Some(candidate);
-            }
-            if !dir.pop() {
-                break None;
-            }
-        };
+        let mods_dir = std::env::var_os("PARISH_MODS_DIR")
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_dir())
+            .or_else(|| {
+                let crate_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+                let mut dir = crate_dir.to_path_buf();
+                loop {
+                    let candidate = dir.join("mods");
+                    if candidate.is_dir() {
+                        break Some(candidate);
+                    }
+                    if !dir.pop() {
+                        break None;
+                    }
+                }
+            });
         let Some(mods_dir) = mods_dir else { return };
         let Ok(read) = std::fs::read_dir(&mods_dir) else {
             return;
@@ -779,10 +800,21 @@ pub fn resolve_cloud_config(
         return Ok(None);
     }
 
-    // Default to OpenRouter for cloud
+    // Default to OpenRouter for cloud. If the openrouter mod is absent
+    // from this deployment, surface that as a config error instead of
+    // panicking — operators who never set `PARISH_CLOUD_PROVIDER` should
+    // get an actionable message, not a crashed binary (codex P1).
     let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
-        None => Provider::from_id("openrouter").expect("openrouter provider mod must be loaded"),
+        None => Provider::from_id("openrouter").ok_or_else(|| {
+            ParishError::Config(
+                "Cloud provider default 'openrouter' is not registered. \
+                 Set PARISH_CLOUD_PROVIDER (or [llm.cloud].provider) to a \
+                 registered provider id, or install the openrouter \
+                 provider mod under mods/openrouter-provider/."
+                    .into(),
+            )
+        })?,
     };
 
     let mut api_key = raw.api_key.filter(|s| !s.is_empty());
@@ -933,7 +965,7 @@ featured = false
     fn clear_parish_env() {
         // Make sure provider mods from mods/ are loaded before any env
         // manipulation triggers a registry lookup.
-        ensure_test_mods_loaded();
+        ensure_mods_loaded();
         // SAFETY: All callers are annotated with `#[serial(parish_env)]`
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");

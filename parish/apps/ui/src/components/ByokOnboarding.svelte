@@ -18,7 +18,12 @@
 		type SetProviderConfigArgs,
 		type ProviderPresetOption
 	} from '$lib/ipc';
-	import { toByokMeta, findProvider, type ByokProviderMeta } from '$lib/byokProviders';
+	import {
+		toByokMeta,
+		findProvider,
+		FALLBACK_FEATURED,
+		type ByokProviderMeta
+	} from '$lib/byokProviders';
 
 	let {
 		onComplete,
@@ -46,6 +51,10 @@
 	// the static byokProviders.ts arrays are no longer the picker's truth.
 	let featured = $state<ByokProviderMeta[]>([]);
 	let other = $state<ByokProviderMeta[]>([]);
+	// True when the backend fetch failed and `featured` is the static
+	// fallback set. The picker is still usable; the banner just tells
+	// the user the dynamic list is stale (codex P2 regression fix).
+	let providersFallback = $state(false);
 	let chosen = $derived<ByokProviderMeta | undefined>(
 		chosenId ? findProvider(chosenId, featured, other) : undefined
 	);
@@ -62,10 +71,16 @@
 			.then((r) => {
 				featured = r.featured.map(toByokMeta);
 				other = r.other.map(toByokMeta);
+				providersFallback = false;
 			})
 			.catch(() => {
-				featured = [];
+				// Backend unreachable (transient web-mode network blip,
+				// server cold-start, ad-blocker, ...). Fall back to a
+				// minimal hand-picked set so onboarding is never blocked
+				// by a single failed fetch.
+				featured = FALLBACK_FEATURED;
 				other = [];
+				providersFallback = true;
 			});
 		listByokEnvKeys()
 			.then((m) => (envKeys = m))
@@ -179,6 +194,13 @@
 		<div class="byok__inner">
 			<h2>Choose a provider</h2>
 			<p class="byok__sub">Pick the API you want Rundale to use for NPC dialogue.</p>
+
+			{#if providersFallback}
+				<p class="byok__fallback" role="status">
+					Provider list unavailable; showing a minimal fallback set. Refresh to
+					retry.
+				</p>
+			{/if}
 
 			<div class="byok__grid">
 				{#each featured as p (p.id + p.label)}
@@ -320,6 +342,14 @@
 	}
 	.byok__sub a {
 		color: inherit;
+	}
+	.byok__fallback {
+		margin: 0.5rem 0 1rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 4px;
+		background: rgba(220, 180, 80, 0.15);
+		border: 1px solid rgba(220, 180, 80, 0.4);
+		font-size: 0.9rem;
 	}
 	.byok__grid {
 		display: grid;

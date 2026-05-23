@@ -381,7 +381,7 @@ mod tests {
         // Provider mods now live under mods/<id>/. parish-cli tests reference
         // cloud providers (openrouter, anthropic, ...) that the registry only
         // knows about after this helper walks them in from the workspace.
-        parish_core::config::ensure_test_mods_loaded();
+        parish_core::config::ensure_mods_loaded();
         // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
         // which serialises every test that touches env vars across this
         // module and the sibling `parish-config` tests.

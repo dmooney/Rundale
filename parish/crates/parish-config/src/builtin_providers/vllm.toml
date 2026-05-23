@@ -30,3 +30,4 @@ dialogue = "http://localhost:8000"
 simulation = "http://localhost:8001"
 intent = "http://localhost:8002"
 reaction = "http://localhost:8001"
+keyless = true
