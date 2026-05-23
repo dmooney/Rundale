@@ -600,15 +600,20 @@ pub async fn run_idle_banter(
     ctx: &GameLoopContext<'_>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) {
+    // Feature gate (default-off). Bail before any inference work, but still
+    // bump the idle cooldown so inactivity ticks back off instead of
+    // re-entering every second — otherwise the server/Tauri wrappers re-emit
+    // world-update snapshots on every tick while the player sits idle.
+    if !ctx.config.lock().await.flags.is_enabled("npc-idle-banter") {
+        ctx.conversation.lock().await.last_spoken_at = std::time::Instant::now();
+        return;
+    }
+
     let (queue, model, player_location, max_follow_up_turns, speakers) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
-
-        if !config.flags.is_enabled("npc-idle-banter") {
-            return;
-        }
 
         let mut speakers = npc_manager.npcs_at_ids(world.player_location);
         speakers.sort_by_key(|id| id.0);
@@ -955,6 +960,12 @@ pub mod tests {
     /// mutation unless the flag has been explicitly enabled. Player-initiated
     /// dialogue paths are unaffected (covered by the other tests in this
     /// module).
+    ///
+    /// The context is given a *live* (but immediately-closed) inference queue
+    /// and a co-located NPC so the guard is actually exercised: if the flag
+    /// check were removed, the function would proceed past it and emit events
+    /// for the NPC. A `None` queue would mask that by short-circuiting later
+    /// regardless of the flag.
     #[tokio::test]
     async fn idle_banter_skipped_by_default() {
         use crate::npc::Npc;
@@ -967,15 +978,25 @@ pub mod tests {
         npc.location = player_loc;
         npc_mgr.add_npc(npc);
 
+        // Closed channels: any inference send fails fast so the test never
+        // blocks on a response, while keeping the queue `Some` so the flag
+        // guard is the only thing standing between entry and event emission.
+        let (itx, _) = tokio::sync::mpsc::channel(1);
+        let (btx, _) = tokio::sync::mpsc::channel(1);
+        let (xtx, _) = tokio::sync::mpsc::channel(1);
+        let queue = super::InferenceQueue::new(itx, btx, xtx);
+
         // GameConfig::default() leaves npc-idle-banter unset → off.
         let world = tokio::sync::Mutex::new(world_state);
         let npc_manager = tokio::sync::Mutex::new(npc_mgr);
         let config = tokio::sync::Mutex::new(GameConfig::default());
         let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
-        let inference_queue = tokio::sync::Mutex::new(None);
+        let inference_queue = tokio::sync::Mutex::new(Some(queue));
         let client = tokio::sync::Mutex::new(None);
         let cloud_client = tokio::sync::Mutex::new(None);
         let inference_config = crate::config::InferenceConfig::default();
+
+        let last_spoken_before = conversation.lock().await.last_spoken_at;
 
         let ctx = make_test_ctx!(
             &world,
@@ -996,9 +1017,14 @@ pub mod tests {
             "expected no events when npc-idle-banter is unset (default-off); got {:?}",
             emitter.event_names()
         );
+        let conversation = ctx.conversation.lock().await;
         assert!(
-            !ctx.conversation.lock().await.conversation_in_progress,
+            !conversation.conversation_in_progress,
             "conversation_in_progress must remain false when flag is unset"
+        );
+        assert!(
+            conversation.last_spoken_at > last_spoken_before,
+            "disabled path must still bump last_spoken_at so inactivity ticks back off"
         );
     }
 }
