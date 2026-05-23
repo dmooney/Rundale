@@ -95,6 +95,22 @@ def _is_reasoning_model(model_id: str) -> bool:
     return any(mid.startswith(p) for p in REASONING_MODEL_PREFIXES)
 
 
+# Local mlx_lm.server-hosted models whose chat template defaults to thinking
+# mode. For these we inject `chat_template_kwargs={"enable_thinking": False}`
+# so the reply we score is the actual answer rather than the leaked reasoning
+# trace. (Cloud reasoning models use the `reasoning` body field above instead;
+# mlx_lm.server doesn't honour that, only chat_template_kwargs.)
+THINKING_MLX_PREFIXES = (
+    "mlx-community/Qwen3-",
+    "mlx-community/Qwen3.5-",
+    "mlx-community/Qwen3.6-",
+)
+
+
+def _is_thinking_mlx_model(model_id: str) -> bool:
+    return any(model_id.startswith(p) for p in THINKING_MLX_PREFIXES)
+
+
 def _default_reasoning_for(model_id: str) -> dict:
     """OpenRouter doesn't normalise reasoning-suppression syntax across
     providers, so we pick the form each model actually honours.
@@ -154,7 +170,17 @@ def call_chat(
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
         body["reasoning"] = _default_reasoning_for(target.model)
-    headers = {"Content-Type": "application/json"}
+    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
+    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
+    # score the model's internal monologue rather than its reply.
+    if _is_thinking_mlx_model(target.model):
+        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
+    headers = {
+        "Content-Type": "application/json",
+        # Some providers front their API with Cloudflare (e.g. opencode.ai)
+        # which 403s the default Python-urllib UA via firewall rule 1010.
+        "User-Agent": "rundale-bench/1.0 (+https://github.com/davidmooney/Rundale)",
+    }
     key = target.api_key()
     if key:
         headers["Authorization"] = f"Bearer {key}"
@@ -260,7 +286,11 @@ def call_chat_streaming(
         body["max_tokens"] = max_tokens
     if schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
-    headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        "User-Agent": "rundale-bench/1.0 (+https://github.com/davidmooney/Rundale)",
+    }
     key = target.api_key()
     if key:
         headers["Authorization"] = f"Bearer {key}"
@@ -357,6 +387,27 @@ COSTS: dict[str, Tuple[float, float]] = {
     "openai/gpt-oss-20b:free": (0.0, 0.0),
     "qwen/qwen3-next-80b-a3b-instruct:free": (0.0, 0.0),
     "meta-llama/llama-3.3-70b-instruct:free": (0.0, 0.0),
+    # xAI via OpenRouter (verify at openrouter.ai/api/v1/models)
+    "x-ai/grok-4.3": (3.00, 15.00),
+    "x-ai/grok-3-mini": (0.30, 0.50),
+    "x-ai/grok-4-fast": (0.20, 0.50),
+    # OpenCode Go (flat-rate subscription — opencode.ai/go).
+    # Per-call cost reported as $0 since the platform doesn't bill per-token.
+    "qwen3.6-plus": (0.0, 0.0),
+    "qwen3.5-plus": (0.0, 0.0),
+    "kimi-k2.6": (0.0, 0.0),
+    "kimi-k2.5": (0.0, 0.0),
+    "glm-5.1": (0.0, 0.0),
+    "glm-5": (0.0, 0.0),
+    "deepseek-v4-pro": (0.0, 0.0),
+    "deepseek-v4-flash": (0.0, 0.0),
+    "minimax-m2.7": (0.0, 0.0),
+    "minimax-m2.5": (0.0, 0.0),
+    "mimo-v2-pro": (0.0, 0.0),
+    "mimo-v2-omni": (0.0, 0.0),
+    "mimo-v2.5-pro": (0.0, 0.0),
+    "mimo-v2.5": (0.0, 0.0),
+    "hy3-preview": (0.0, 0.0),
     # Local (free)
     "mlx-community/Qwen2.5-1.5B-Instruct-4bit": (0.0, 0.0),
     "mlx-community/Qwen2.5-7B-Instruct-4bit": (0.0, 0.0),
