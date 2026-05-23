@@ -1,0 +1,28 @@
+id = "vllmmlx"
+display_name = "vLLM (MLX)"
+aliases = ["vllm-mlx", "vllm_mlx"]
+kind = "local"
+default_base_url = "http://localhost:8000"
+requires_api_key = false
+requires_model = true
+blurb = "Self-hosted OpenAI-compatible server."
+signup_url = "https://docs.vllm.ai"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+# Two-slot Apple Silicon loadout:
+#   Slot 1 (:8000) — 14B model for dialogue + simulation (narrative weight)
+#   Slot 2 (:8001) — 1.5B model for intent + reaction (low-latency)
+dialogue = "mlx-community/Qwen2.5-14B-Instruct-4bit"
+simulation = "mlx-community/Qwen2.5-14B-Instruct-4bit"
+intent = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+reaction = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[presets.base_urls]
+dialogue = "http://localhost:8000"
+simulation = "http://localhost:8000"
+intent = "http://localhost:8001"
+reaction = "http://localhost:8001"
+keyless = true

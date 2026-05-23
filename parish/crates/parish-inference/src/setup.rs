@@ -2061,7 +2061,8 @@ mod tests {
         // ensure_slots on empty slot slices (also no network). Both new
         // `let vllm = VllmProcess::ensure_slots(...)` lines are exercised.
         let cfg = ProviderConfig {
-            provider: parish_config::Provider::openrouter(),
+            provider: parish_config::Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded"),
             base_url: "http://localhost:9999".to_string(),
             api_key: Some("test-key".to_string()),
             model: Some("openrouter/auto".to_string()),
@@ -2081,7 +2082,8 @@ mod tests {
     #[tokio::test]
     async fn test_setup_provider_client_cloud_requires_model() {
         let cfg = ProviderConfig {
-            provider: parish_config::Provider::openrouter(),
+            provider: parish_config::Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded"),
             base_url: "http://localhost:9999".to_string(),
             api_key: Some("test-key".to_string()),
             model: None,

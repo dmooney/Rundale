@@ -91,6 +91,16 @@ pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<V
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
+/// `GET /api/available-providers` — featured + other LLM provider lists,
+/// sourced from the runtime-loaded `ProviderRegistry` (builtins +
+/// `mods/<id>/providers/`). The same payload Tauri exposes via
+/// `list_available_providers`; the web UI consumes it for its picker.
+#[allow(clippy::unused_async)]
+pub async fn get_available_providers()
+-> Json<std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>> {
+    Json(parish_core::ipc::byok::handle_list_available_providers())
+}
+
 /// `GET /api/theme` — returns the current palette.
 ///
 /// Resolution order:

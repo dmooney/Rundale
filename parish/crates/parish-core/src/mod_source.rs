@@ -137,7 +137,19 @@ impl ModSource for LocalDiskModSource {
     fn list_mods(&self) -> ModFuture<Vec<ModSummary>> {
         let root = self.root.clone();
         Box::pin(async move {
-            let discovered = discover_mods_in(&root)?;
+            // discover_mods_in walks the filesystem and reads every
+            // mod.toml; register_provider_mods_once then reads every
+            // providers/*.toml under each provider mod. Both are blocking
+            // syscalls. Run them on the blocking pool so they don't stall
+            // the Tokio executor on slow disks / network mounts (gemini
+            // P0 #1).
+            let discovered = tokio::task::spawn_blocking(move || {
+                let d = discover_mods_in(&root)?;
+                crate::game_mod::register_provider_mods_once(&d)?;
+                Ok::<_, ParishError>(d)
+            })
+            .await
+            .map_err(|e| ParishError::Config(format!("mod discovery task panicked: {e}")))??;
 
             // Base mod is first in the list; auxiliary follow in lex order.
             let mut summaries = Vec::with_capacity(1 + discovered.auxiliary.len());
@@ -200,6 +212,9 @@ pub fn load_base_mod_sync() -> Option<ModBundle> {
     let source = LocalDiskModSource::new().ok()?;
     let root = source.root.clone();
     let discovered = discover_mods_in(&root).ok()?;
+    if let Err(e) = crate::game_mod::register_provider_mods_once(&discovered) {
+        tracing::warn!("Failed to register provider mods: {}", e);
+    }
     match GameMod::load(&discovered.base) {
         Ok(gm) => {
             tracing::info!(

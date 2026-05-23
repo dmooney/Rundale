@@ -1,0 +1,47 @@
+# Provider-mods-runtime acceptance fixture.
+#
+# Exercises the runtime-loaded provider registry end-to-end:
+#  - Builtins (simulator, ollama, vllm, vllm_mlx, custom) come from parish-config.
+#  - Cloud providers (anthropic, openai, openrouter, ..., lm_studio) come from
+#    mods/<id>/providers/<id>.toml via discover_mods() + ModKind::Providers.
+#  - A hand-rolled mods/test-provider/ proves no recompile is required to add one.
+#
+# No real API call is made; we only enumerate the merged registry, switch
+# between providers by id, and confirm presets parse.
+#
+# Required setup BEFORE running this fixture (one-time, mechanical):
+#   mkdir -p mods/test-provider/providers
+#   cat > mods/test-provider/mod.toml <<'TOML'
+#   [mod]
+#   name = "Test Provider"
+#   id = "test-provider"
+#   version = "0.0.1"
+#   kind = "providers"
+#   TOML
+#   cat > mods/test-provider/providers/test-provider.toml <<'TOML'
+#   id = "test-provider"
+#   display_name = "Test Provider"
+#   aliases = []
+#   kind = "openai-compat"
+#   default_base_url = "http://127.0.0.1:9999/v1"
+#   requires_api_key = false
+#   needs_base_url_from_user = true
+#   requires_model = true
+#   featured = false
+#   presets = []
+#   TOML
+#
+# Tear down after the run:
+#   rm -rf mods/test-provider/
+
+/status
+/preset
+/provider openai
+/status
+/provider
+/preset openai
+/provider test-provider
+/provider
+/provider simulator
+/status
+/provider

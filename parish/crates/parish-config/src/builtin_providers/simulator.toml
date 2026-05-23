@@ -1,0 +1,10 @@
+id = "simulator"
+display_name = "Simulator"
+aliases = ["sim", "mock"]
+kind = "simulator"
+default_base_url = ""
+requires_api_key = false
+requires_model = false
+blurb = "Built-in offline simulator — no network, no model download."
+featured = false
+keyless = true

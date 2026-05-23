@@ -72,9 +72,11 @@ pub struct ModMeta {
 /// Kinds of Parish mod, in the Factorio sense — declared via `kind = "..."`
 /// in a manifest's `[mod]` table.
 ///
-/// Only [`ModKind::Base`] and [`ModKind::Asset`] are implemented today; the
-/// other variants are reserved so manifests can be authored against the final
-/// schema before the resolver lands.
+/// Implemented today: [`ModKind::Base`] (the primary game world mod),
+/// [`ModKind::Asset`] (additive registries such as themes), and
+/// [`ModKind::Providers`] (LLM provider catalog mods loaded into
+/// `ProviderRegistry` at startup). The remaining variants are reserved so
+/// manifests can be authored against the final schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ModKind {
@@ -85,6 +87,11 @@ pub enum ModKind {
     Base,
     /// Pure additive registries (themes, sounds, fonts). No gameplay content.
     Asset,
+    /// LLM provider catalog. Carries one or more `providers/<id>.toml` files
+    /// that merge into `ProviderRegistry` at startup. Used to ship cloud
+    /// providers (anthropic, openai, openrouter, ...) as runtime-loadable
+    /// mods rather than compile-time-embedded data.
+    Providers,
     /// Adds new gameplay entries (extra NPCs, locations, festivals).
     Content,
     /// Mutates entries already in the active base mod.
@@ -1001,6 +1008,109 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
     Ok(DiscoveredMods { base, auxiliary })
 }
 
+/// Iterate every `ModKind::Providers` mod in `discovered.auxiliary`, load
+/// its `providers/*.toml` files, and merge them into
+/// `parish_config::registry()`. Idempotent — guarded by a process-wide
+/// `OnceLock` so repeated calls (e.g. from both the Tauri-sync path and a
+/// later server reload) do not double-register.
+///
+/// Returns `Ok(count)` of providers registered on the first call, or
+/// `Ok(0)` on subsequent calls. Failure to load any single provider mod
+/// is fatal — startup should refuse to continue rather than silently lose
+/// providers and confuse the user later.
+pub fn register_provider_mods_once(discovered: &DiscoveredMods) -> Result<usize, ParishError> {
+    use std::sync::OnceLock;
+    static GUARD: OnceLock<()> = OnceLock::new();
+    if GUARD.get().is_some() {
+        return Ok(0);
+    }
+
+    let mut all: Vec<parish_config::ProviderMod> = Vec::new();
+    for aux in &discovered.auxiliary {
+        if aux.kind == ModKind::Providers {
+            let providers = load_providers_from_mod(&aux.path)?;
+            tracing::info!(
+                mod_id = %aux.id,
+                count = providers.len(),
+                "registered provider mod"
+            );
+            all.extend(providers);
+        }
+    }
+    let count = all.len();
+    parish_config::registry().register_mod_providers(all)?;
+    let _ = GUARD.set(());
+    Ok(count)
+}
+
+/// Load every `<mod_dir>/providers/*.toml` and parse each into a
+/// [`parish_config::ProviderMod`]. Intended for mods declared with
+/// `kind = "providers"`.
+///
+/// Sorts entries lexicographically by filename so the registration order
+/// is deterministic across machines + filesystems.
+///
+/// Path safety: each provider TOML must live directly under
+/// `<mod_dir>/providers/` (no traversal, no symlinks escaping the mod
+/// directory). The check mirrors [`canonical_mod_asset_path`] without
+/// requiring the `assets/` prefix, since provider catalogs are their own
+/// directory layer.
+pub fn load_providers_from_mod(
+    mod_dir: &Path,
+) -> Result<Vec<parish_config::ProviderMod>, ParishError> {
+    let providers_dir = mod_dir.join("providers");
+    if !providers_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let canonical_mod_dir = mod_dir
+        .canonicalize()
+        .map_err(|e| ParishError::Config(format!("canonicalize({}): {e}", mod_dir.display())))?;
+
+    let mut entries: Vec<_> = std::fs::read_dir(&providers_dir)
+        .map_err(|e| ParishError::Config(format!("read_dir({}): {e}", providers_dir.display())))?
+        .filter_map(Result::ok)
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|x| x.eq_ignore_ascii_case("toml"))
+        })
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut out: Vec<parish_config::ProviderMod> = Vec::with_capacity(entries.len());
+    let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for entry in entries {
+        let path = entry.path();
+        let canonical = path
+            .canonicalize()
+            .map_err(|e| ParishError::Config(format!("canonicalize({}): {e}", path.display())))?;
+        if !canonical.starts_with(&canonical_mod_dir) {
+            return Err(ParishError::Config(format!(
+                "provider TOML {} escapes mod directory {}",
+                path.display(),
+                mod_dir.display()
+            )));
+        }
+
+        let raw = std::fs::read_to_string(&canonical)
+            .map_err(|e| ParishError::Config(format!("read {}: {e}", canonical.display())))?;
+        let provider: parish_config::ProviderMod = toml::from_str(&raw)
+            .map_err(|e| ParishError::Config(format!("parse {}: {e}", canonical.display())))?;
+        if !seen_ids.insert(provider.id.clone()) {
+            return Err(ParishError::Config(format!(
+                "mod at {} declares provider id '{}' more than once",
+                mod_dir.display(),
+                provider.id
+            )));
+        }
+        out.push(provider);
+    }
+
+    Ok(out)
+}
+
 /// Resolves the `mods/` directory.
 ///
 /// Resolution order:
@@ -1731,6 +1841,18 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
+    fn checked_in_mod_list_selects_rundale_by_default() {
+        let mods = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods");
+        if mods.exists() {
+            let discovered = discover_mods_in(&mods).expect("repo mod discovery succeeds");
+            assert!(
+                discovered.base.ends_with("rundale"),
+                "checked-in mods/mod-list.toml should select Rundale by default"
+            );
+        }
+    }
+
+    #[test]
     fn discover_mods_errors_when_active_base_missing() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
@@ -1753,6 +1875,111 @@ tier2_system = "prompts/tier2_system.txt"
         let err = discover_mods_in(&mods).expect_err("no base mod is fatal");
         let msg = format!("{err:?}");
         assert!(msg.contains("No base mod"));
+    }
+
+    #[test]
+    fn discover_mods_classifies_providers_kind() {
+        let tmp = TempDir::new().unwrap();
+        let mods = tmp.path().join("mods");
+        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("anthropic"), "anthropic", Some("providers"));
+        let discovered = discover_mods_in(&mods).expect("discovery succeeds");
+        assert_eq!(discovered.auxiliary.len(), 1);
+        assert_eq!(discovered.auxiliary[0].kind, ModKind::Providers);
+        assert_eq!(discovered.auxiliary[0].id, "anthropic");
+    }
+
+    fn write_provider_toml(dir: &Path, id: &str) {
+        let body = format!(
+            r#"
+id = "{id}"
+display_name = "{id} Provider"
+kind = "openai-compat"
+default_base_url = "https://api.{id}.example/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "{KEY}"
+featured = false
+"#,
+            id = id,
+            KEY = id.to_uppercase().replace('-', "_") + "_API_KEY",
+        );
+        fs::write(dir.join(format!("{id}.toml")), body).unwrap();
+    }
+
+    #[test]
+    fn load_providers_from_mod_parses_multiple_tomls_in_lex_order() {
+        let tmp = TempDir::new().unwrap();
+        let mod_dir = tmp.path().join("multi-providers");
+        fs::create_dir_all(mod_dir.join("providers")).unwrap();
+        // Write three files in an unsorted order. The loader must return them sorted.
+        write_provider_toml(&mod_dir.join("providers"), "zeta");
+        write_provider_toml(&mod_dir.join("providers"), "alpha");
+        write_provider_toml(&mod_dir.join("providers"), "mu");
+
+        let providers = load_providers_from_mod(&mod_dir).expect("load succeeds");
+        let ids: Vec<_> = providers.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, vec!["alpha", "mu", "zeta"]);
+    }
+
+    #[test]
+    fn load_providers_from_mod_empty_when_directory_missing() {
+        let tmp = TempDir::new().unwrap();
+        let mod_dir = tmp.path().join("no-providers");
+        fs::create_dir_all(&mod_dir).unwrap();
+        let providers = load_providers_from_mod(&mod_dir).expect("load succeeds");
+        assert!(providers.is_empty());
+    }
+
+    #[test]
+    fn load_providers_from_mod_rejects_symlink_traversal() {
+        // Skip on platforms without symlinks (Windows in CI). Unix-only.
+        #[cfg(unix)]
+        {
+            let tmp = TempDir::new().unwrap();
+            let outside = tmp.path().join("outside");
+            fs::create_dir_all(&outside).unwrap();
+            write_provider_toml(&outside, "evil");
+
+            let mod_dir = tmp.path().join("mod-with-symlink");
+            fs::create_dir_all(mod_dir.join("providers")).unwrap();
+            // Symlink the evil TOML into the mod's providers/ dir.
+            std::os::unix::fs::symlink(
+                outside.join("evil.toml"),
+                mod_dir.join("providers/evil.toml"),
+            )
+            .unwrap();
+
+            let err = load_providers_from_mod(&mod_dir).expect_err("traversal must be rejected");
+            let msg = format!("{err:?}");
+            assert!(
+                msg.contains("escapes mod directory"),
+                "expected traversal error, got: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn load_providers_from_mod_rejects_duplicate_ids_within_one_mod() {
+        let tmp = TempDir::new().unwrap();
+        let mod_dir = tmp.path().join("dup-providers");
+        fs::create_dir_all(mod_dir.join("providers")).unwrap();
+        // Write two files containing the *same* id.
+        let body = r#"
+id = "duplicate"
+display_name = "Duplicate"
+kind = "openai-compat"
+default_base_url = "https://api.example/v1"
+requires_api_key = false
+requires_model = true
+featured = false
+"#;
+        fs::write(mod_dir.join("providers/a.toml"), body).unwrap();
+        fs::write(mod_dir.join("providers/b.toml"), body).unwrap();
+        let err =
+            load_providers_from_mod(&mod_dir).expect_err("intra-mod duplicate must be rejected");
+        let msg = format!("{err:?}");
+        assert!(msg.contains("more than once"), "got: {msg}");
     }
 
     // ── SettingConfig language field deserialization tests ─────────────────────

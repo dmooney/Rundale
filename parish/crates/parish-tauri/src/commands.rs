@@ -328,6 +328,18 @@ pub async fn list_preset_models() -> Result<
     Ok(parish_core::ipc::byok::handle_list_preset_models())
 }
 
+/// Returns the registry split into `featured` + `other` lists. The BYOK
+/// wizard renders directly from this — the source of truth is now the
+/// provider registry (builtins + mod-loaded), not a hand-curated TS
+/// constant.
+#[tauri::command]
+pub async fn list_available_providers() -> Result<
+    std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>,
+    String,
+> {
+    Ok(parish_core::ipc::byok::handle_list_available_providers())
+}
+
 // ── #?: local-inference onboarding commands ────────────────────────────────
 
 /// Onboarding-choice payload returned to the SetupOverlay so it can render
@@ -2464,12 +2476,16 @@ Respond with a JSON object containing a single field \"action\" — the text the
 would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
 words or command directly.\n\
 \n\
+Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
+\"Recent events\" block of the user prompt, pick a different action — try a different \
+greeting, ask a different question, or travel somewhere new. The location description \
+is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
+\n\
 Examples:\n\
-  {{\"action\": \"Good mornin'. Might I look about the village a while?\"}}\n\
+  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
   {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
   {{\"action\": \"go to the mill\"}}\n\
-  {{\"action\": \"look\"}}\n\
 \n\
 Your entire response must be a single JSON object — nothing before or after it.",
         extra = extra_section,

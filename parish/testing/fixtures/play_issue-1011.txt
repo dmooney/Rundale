@@ -1,0 +1,33 @@
+# issue-1011 + #1034 play-test
+# =================================
+# Exercises: log subscribers rebind their directory when the active
+# branch changes (load_branch / fork_branch).
+#
+# Uses the default Rundale mod. PlayerMoved events fire on every
+# successful /go because these paths are short and unambiguous.
+
+# 1. Baseline on branch 1 — fire PlayerMoved events so journal entries
+#    land under logs/branch-1/.
+/status
+go to The Crossroads
+go to Kilteevan Village
+
+# 2. Fork to a new branch. `/fork demo-branch` mutates
+#    app.active_branch_id without firing an immediate log event.
+#    The fix's rebind-on-drain detects the mismatch on the next event.
+/fork demo-branch
+/status
+
+# 3. Move so a PlayerMoved event fires AFTER the fork. The drain pump
+#    must rebind the log manager to the new branch dir before writing.
+go to The Forge
+go to Kilteevan Village
+
+# 4. List branches so the transcript shows the active id explicitly.
+/branches
+
+# 5. Switch back to main and fire one more event; subsequent writes
+#    must land under logs/branch-1/ again.
+/load main
+go to The Holy Well
+/branches
