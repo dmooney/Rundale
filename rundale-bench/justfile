@@ -23,6 +23,11 @@ MID_TARGETS := "--target 'anthropic/claude-haiku-4.5@https://openrouter.ai/api/v
 # 1–2 s per call, and lands $0.50/$1.50 per M. Override per-recipe with `judge=...`.
 JUDGE := "mistralai/mistral-large-2512"
 
+# Python from the mlx-lm virtualenv. local_runner.py imports mlx_lm.server +
+# psutil, which live in this venv only. Override with a shell export if you
+# keep mlx-lm elsewhere.
+MLX_PY := "/Users/dmooney/Rundale/.venv-mlx/bin/python3"
+
 
 # Default — show the list.
 default:
@@ -274,3 +279,58 @@ sample-stats:
         ' "$f"
         echo "    $(basename "$f")"
     done
+
+
+# ----------------------------------------------------------------------------
+# local MLX sweep (mlx_lm.server spawn + RAM capture + leaderboard append)
+# ----------------------------------------------------------------------------
+
+# Dry-run the local MLX sweep — print the candidate plan, do not spawn servers.
+#
+#     just -f .../justfile local-plan
+#     just -f .../justfile local-plan slot=tiny
+local-plan slot="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    slot_flag=""
+    if [[ -n "{{ slot }}" ]]; then slot_flag="--slot {{ slot }}"; fi
+    {{ MLX_PY }} {{ BENCH }}/local_runner.py $slot_flag --dry-run
+
+
+# Sweep all local MLX candidates in `candidates_local_mlx.toml`. Spawns
+# `mlx_lm.server` per candidate, runs the bench against localhost, captures
+# peak RSS, kills the server, appends a row to artifacts/local_leaderboard.md.
+#
+# Args: slot (tiny|large|""), slice (intent|dialogue|reaction|tier2-sim|tier3-sim|all),
+# split (dev|holdout), limit (per-slice prompt cap).
+#
+#     just -f .../justfile local slot=tiny slice=intent limit=25
+#     just -f .../justfile local slot=large slice=dialogue limit=10
+local slot="" slice="dialogue" split="dev" limit="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    slot_flag=""
+    if [[ -n "{{ slot }}" ]]; then slot_flag="--slot {{ slot }}"; fi
+    {{ MLX_PY }} {{ BENCH }}/local_runner.py $slot_flag --slice {{ slice }} --split {{ split }} --limit {{ limit }}
+
+
+# Sweep specific named candidates (last segment of hf_repo). Multi-comma allowed.
+#
+#     just -f .../justfile local-pick Qwen3-1.7B-4bit,Phi-4-mini-instruct-4bit slice=intent
+local-pick names slice="dialogue" split="dev" limit="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    {{ MLX_PY }} {{ BENCH }}/local_runner.py --candidates '{{ names }}' --slice {{ slice }} --split {{ split }} --limit {{ limit }}
+
+
+# Print a one-row-per-(model, slice) summary of the latest local MLX runs.
+# Reads artifacts/run_<model>_<slice>_*.json + local_leaderboard.md and sorts by score per slice.
+#
+#     just -f .../justfile local-summary
+local-summary:
+    @python3 {{ BENCH }}/summarize_local.py

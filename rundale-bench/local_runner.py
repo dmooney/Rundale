@@ -1,0 +1,463 @@
+#!/usr/bin/env python3
+"""Local MLX candidate runner — spawns mlx_lm.server, runs the bench, kills it.
+
+For each candidate in candidates_local_mlx.toml:
+  1. Spawn `mlx_lm.server --model <hf_repo> --host 127.0.0.1 --port <port>`.
+  2. Wait until /v1/models responds 200 (model loaded).
+  3. Invoke `rundale_bench.py --target <model>@http://127.0.0.1:<port> --slice <slice>`
+     in a subprocess; pipe stdout into the captured log.
+  4. Sample RSS of the server pid (+ children) every 250 ms during the bench;
+     record the peak across the run.
+  5. SIGTERM the server, wait, then SIGKILL if still alive.
+  6. Append one row to `rundale-bench/artifacts/local_leaderboard.md` and write
+     a full result JSON under `rundale-bench/artifacts/local_<utc>.json`.
+
+The runner deliberately invokes the existing `rundale_bench.py` orchestrator
+instead of duplicating its grader logic — that keeps local + cloud sweeps
+running through one code path.
+
+Run::
+
+    .venv-mlx/bin/python3 rundale-bench/local_runner.py \\
+        --slot tiny --slice intent --limit 10
+
+    .venv-mlx/bin/python3 rundale-bench/local_runner.py \\
+        --candidates Qwen3-1.7B-4bit,Qwen3-4B-4bit --slice all
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import socket
+import subprocess
+import sys
+import threading
+import time
+import tomllib
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+try:
+    import psutil
+except ImportError:
+    print("psutil missing — run inside .venv-mlx (psutil is bundled there).", file=sys.stderr)
+    sys.exit(2)
+
+_HERE = Path(__file__).resolve().parent
+_REPO_ROOT = _HERE.parent
+_ARTIFACTS_DIR = _HERE / "artifacts"
+_LEADERBOARD = _ARTIFACTS_DIR / "local_leaderboard.md"
+_CANDIDATES_TOML = _HERE / "candidates_local_mlx.toml"
+_BENCH_PY = _HERE / "rundale_bench.py"
+
+# Resolve the mlx-lm server binary from the venv that bundles it.
+_VENV = Path("/Users/dmooney/Rundale/.venv-mlx")
+_MLX_SERVER = _VENV / "bin" / "mlx_lm.server"
+
+
+def _load_dotenv(path: Path) -> None:
+    """Minimal `.env` loader — KEY=VALUE per line, skip blanks/`#` comments.
+    Existing environment values win so an explicitly-set shell var is not clobbered.
+    """
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+_load_dotenv(Path("/Users/dmooney/Rundale/.env"))
+
+
+def utc_stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def pick_free_port(start: int = 8765) -> int:
+    """Return the first free TCP port at or above `start`."""
+    for port in range(start, start + 200):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"no free port in [{start}, {start + 200})")
+
+
+def wait_for_ready(base_url: str, timeout_s: float = 600.0) -> None:
+    """Poll <base_url>/models until 200; raise on timeout."""
+    deadline = time.time() + timeout_s
+    last_err = ""
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"{base_url}/models", timeout=3.0) as r:
+                if r.status == 200:
+                    return
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+            last_err = str(e)
+        time.sleep(1.0)
+    raise RuntimeError(f"server at {base_url} not ready in {timeout_s:.0f}s: {last_err}")
+
+
+class RamSampler:
+    """Threaded RSS sampler for a server pid + its descendants.
+
+    Returns peak RSS in bytes across the lifetime of the sampler. On macOS,
+    mlx_lm.server is a single Python process — child workers are uncommon —
+    but we follow children defensively in case the user runs a vllm-backed
+    spawn here later.
+    """
+
+    def __init__(self, pid: int, interval_s: float = 0.25):
+        self.pid = pid
+        self.interval_s = interval_s
+        self._stop = threading.Event()
+        self._peak_rss = 0
+        self._samples = 0
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    def _process_memory(self, p: "psutil.Process") -> int:
+        """Memory bytes for one process, preferring `phys_footprint` on macOS.
+
+        On Apple Silicon, Metal GPU allocations land in `phys_footprint`
+        (via `task_info(TASK_VM_INFO)`) but NOT in `rss`. Using rss alone
+        undercounts mlx_lm.server memory by ~80% — a 9 GB Qwen2.5-14B-4bit
+        reads as 2 GB. `memory_full_info().uss` on darwin maps to
+        phys_footprint when available; fall back to rss elsewhere.
+        """
+        try:
+            info = p.memory_full_info()
+            # uss = unique set size; on darwin psutil derives this from
+            # phys_footprint when running with the process owner's privs.
+            val = getattr(info, "uss", 0) or 0
+            if val:
+                return val
+        except (psutil.AccessDenied, AttributeError):
+            pass
+        return p.memory_info().rss
+
+    def _loop(self) -> None:
+        try:
+            proc = psutil.Process(self.pid)
+        except psutil.NoSuchProcess:
+            return
+        while not self._stop.is_set():
+            try:
+                family = [proc] + proc.children(recursive=True)
+                total = sum(self._process_memory(p) for p in family if p.is_running())
+                if total > self._peak_rss:
+                    self._peak_rss = total
+                self._samples += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                break
+            time.sleep(self.interval_s)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> tuple[int, int]:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+        return self._peak_rss, self._samples
+
+
+def spawn_server(hf_repo: str, port: int, log_path: Path) -> subprocess.Popen:
+    """Launch mlx_lm.server. Log to `log_path`. Returns the Popen handle."""
+    if not _MLX_SERVER.exists():
+        raise RuntimeError(f"mlx_lm.server missing at {_MLX_SERVER}; install mlx-lm in .venv-mlx")
+    log_fh = open(log_path, "wb")
+    cmd = [
+        str(_MLX_SERVER),
+        "--model", hf_repo,
+        "--host", "127.0.0.1",
+        "--port", str(port),
+    ]
+    proc = subprocess.Popen(
+        cmd,
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+    return proc
+
+
+def stop_server(proc: subprocess.Popen, grace_s: float = 5.0) -> None:
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=grace_s)
+
+
+def run_bench_subproc(
+    target_spec: str,
+    slice_name: str,
+    judge: str,
+    split: str,
+    limit: Optional[int],
+    log_path: Path,
+) -> tuple[int, dict]:
+    """Invoke rundale_bench.py and parse the JSON output it writes."""
+    args = [
+        sys.executable, str(_BENCH_PY),
+        "--target", target_spec,
+        "--slice", slice_name,
+        "--judge", judge,
+        "--split", split,
+    ]
+    if limit is not None:
+        args += ["--limit", str(limit)]
+    log_fh = open(log_path, "ab")
+    started = time.time()
+    rc = subprocess.call(args, stdout=log_fh, stderr=subprocess.STDOUT)
+    log_fh.close()
+    elapsed = time.time() - started
+    return rc, {"elapsed_s": elapsed, "rc": rc}
+
+
+def latest_bench_run(slice_name: str, model_slug: str, since_ts: float) -> Optional[Path]:
+    """Return the most-recent run_<model_slug>_<slice>_*.json mtime > since_ts."""
+    candidates = []
+    for p in _ARTIFACTS_DIR.glob(f"run_{model_slug}_{slice_name}_*.json"):
+        st = p.stat()
+        if st.st_mtime >= since_ts:
+            candidates.append((st.st_mtime, p))
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
+def slug(s: str) -> str:
+    import re
+    return re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_")[:80]
+
+
+def parse_candidates(path: Path) -> list[dict]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    return data.get("candidate", [])
+
+
+def fitness_check(cand: dict, available_gb: float, headroom_gb: float) -> Optional[str]:
+    est = float(cand.get("peak_ram_gb_est", 0.0))
+    if est > available_gb - headroom_gb:
+        return f"est {est:.1f} GB > available {available_gb:.1f} GB minus {headroom_gb} GB headroom"
+    return None
+
+
+def append_leaderboard_row(row: dict) -> None:
+    """Append a markdown row to leaderboard.md under the 'Local MLX sweeps' section."""
+    header = "## Local MLX sweeps"
+    columns = (
+        "| Date (UTC) | hf_repo | slot | quant | params_B | peak_RAM_GB | slice | split | metric | $/run | judge | harness_sha |"
+    )
+    sep = "|---|---|---|---|---|---|---|---|---|---|---|---|"
+
+    body = _LEADERBOARD.read_text(encoding="utf-8") if _LEADERBOARD.exists() else ""
+    if header not in body:
+        body += f"\n\n{header}\n\nLocal MLX runs via `local_runner.py`. `peak_RAM_GB` is the live-sampled RSS peak of the mlx_lm.server pid and children. `params_B` is total parameters in billions (with active count for MoE).\n\n{columns}\n{sep}\n"
+
+    # Find the table block and append the row at the end.
+    line = (
+        f"| {row['date']} | {row['hf_repo']} | {row['slot']} | {row['quant']} | {row['params_b']:.1f}"
+        f"{(' (' + str(row['moe_active_b']) + ' active)') if row.get('moe_active_b') else ''}"
+        f" | {row['peak_ram_gb']:.2f} | {row['slice']} | {row['split']} | {row['metric']} "
+        f"| ${row['cost_usd']:.4f} | {row['judge']} | {row['harness_sha']} |"
+    )
+    body = body.rstrip() + "\n" + line + "\n"
+    _LEADERBOARD.write_text(body, encoding="utf-8")
+
+
+def harness_sha() -> str:
+    try:
+        out = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=_REPO_ROOT).decode().strip()
+        return out
+    except Exception:
+        return "unknown"
+
+
+def available_memory_gb() -> float:
+    return psutil.virtual_memory().total / 1e9
+
+
+def metric_from_summary(summary: dict) -> str:
+    """Compact one-cell metric for the leaderboard row, per slice family."""
+    s = summary.get("slice")
+    if s == "intent":
+        return f"label_match={summary.get('label_match_rate', 0):.3f}"
+    if s == "dialogue":
+        return (
+            f"overall={summary.get('overall', 0):.2f} "
+            f"(c={summary.get('character',0):.1f}/"
+            f"a={summary.get('authenticity',0):.1f}/"
+            f"l={summary.get('language',0):.1f}/"
+            f"r={summary.get('responsiveness',0):.1f}/"
+            f"cr={summary.get('craft',0):.1f})"
+        )
+    if s == "reaction":
+        return f"mean_in_character={summary.get('mean_score', 0):.2f}"
+    if s in ("tier2-sim", "tier3-sim"):
+        return (
+            f"schema_valid={summary.get('schema_valid_rate', 0):.2f} "
+            f"plausibility={summary.get('mean_score', 0):.2f}"
+        )
+    return "n/a"
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--slot", default=None, choices=["tiny", "large"], help="filter to one slot")
+    ap.add_argument("--candidates", default=None,
+                    help="comma-separated short names (last segment of hf_repo) to include; default = all in slot")
+    ap.add_argument("--slice", default="dialogue",
+                    choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"])
+    ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
+    ap.add_argument("--limit", type=int, default=10, help="prompts per slice")
+    ap.add_argument("--judge", default="judge_v1")
+    ap.add_argument("--headroom-gb", type=float, default=4.0,
+                    help="GB of unified memory to leave free for OS/other apps")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print the plan without spawning servers")
+    args = ap.parse_args()
+
+    if not _MLX_SERVER.exists():
+        sys.exit(f"mlx_lm.server missing at {_MLX_SERVER}; install mlx-lm in {_VENV}")
+
+    all_cands = parse_candidates(_CANDIDATES_TOML)
+    if args.slot:
+        all_cands = [c for c in all_cands if c["slot"] == args.slot]
+    if args.candidates:
+        wanted = {n.strip() for n in args.candidates.split(",")}
+        all_cands = [c for c in all_cands if c["hf_repo"].split("/")[-1] in wanted]
+
+    avail_gb = available_memory_gb()
+    print(f"# total memory: {avail_gb:.1f} GB, headroom: {args.headroom_gb} GB")
+    print(f"# {len(all_cands)} candidate(s) selected:")
+    for c in all_cands:
+        msg = fitness_check(c, avail_gb, args.headroom_gb)
+        flag = f"  SKIP — {msg}" if msg else ""
+        print(f"  - {c['hf_repo']} ({c['quant']}, ~{c['peak_ram_gb_est']} GB){flag}")
+
+    if args.dry_run:
+        return
+
+    _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    sha = harness_sha()
+    slices = (
+        ["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim"]
+        if args.slice == "all"
+        else [args.slice]
+    )
+
+    summary_log: list[dict] = []
+    for c in all_cands:
+        msg = fitness_check(c, avail_gb, args.headroom_gb)
+        if msg:
+            print(f"[skip] {c['hf_repo']}: {msg}")
+            continue
+
+        stamp = utc_stamp()
+        log_dir = _ARTIFACTS_DIR / "local_logs"
+        log_dir.mkdir(exist_ok=True)
+        server_log = log_dir / f"{slug(c['hf_repo'])}_{stamp}_server.log"
+        bench_log = log_dir / f"{slug(c['hf_repo'])}_{stamp}_bench.log"
+
+        port = pick_free_port()
+        base_url = f"http://127.0.0.1:{port}/v1"
+        target_spec = f"{c['hf_repo']}@{base_url}"
+
+        print(f"\n=== {c['hf_repo']} on port {port} ===")
+        proc = spawn_server(c["hf_repo"], port, server_log)
+        try:
+            print(f"[server] pid={proc.pid}, waiting for model to load …")
+            wait_for_ready(base_url, timeout_s=900.0)
+            print("[server] ready")
+
+            sampler = RamSampler(proc.pid)
+            sampler.start()
+
+            t0 = time.time()
+            for s in slices:
+                print(f"[bench] running slice={s} split={args.split} limit={args.limit}")
+                rc, info = run_bench_subproc(
+                    target_spec=target_spec,
+                    slice_name=s,
+                    judge=args.judge,
+                    split=args.split,
+                    limit=args.limit,
+                    log_path=bench_log,
+                )
+                if rc != 0:
+                    print(f"[bench] slice={s} failed rc={rc}; see {bench_log}")
+                    continue
+
+                # Locate the JSON the orchestrator just wrote for this slice.
+                run_path = latest_bench_run(s, slug(c["hf_repo"]), t0 - 1.0)
+                if not run_path:
+                    print(f"[bench] no run JSON found for slice={s}")
+                    continue
+
+                data = json.loads(run_path.read_text(encoding="utf-8"))
+                slc = data.get("slices", {}).get(s, {})
+                summary = slc.get("summary", {})
+
+                # Current peak so the slice row reflects the load up to here.
+                peak_rss, samples = sampler._peak_rss, sampler._samples
+
+                row = {
+                    "date": stamp,
+                    "hf_repo": c["hf_repo"],
+                    "slot": c["slot"],
+                    "quant": c["quant"],
+                    "params_b": float(c.get("params_b", 0.0)),
+                    "moe_active_b": c.get("moe_active_b"),
+                    "peak_ram_gb": peak_rss / 1e9,
+                    "slice": s,
+                    "split": args.split,
+                    "metric": metric_from_summary(summary),
+                    "cost_usd": data.get("cost", {}).get("usd", 0.0),
+                    "judge": args.judge,
+                    "harness_sha": sha,
+                    "ram_samples": samples,
+                    "elapsed_s": data.get("elapsed_seconds", 0.0),
+                    "run_path": str(run_path.relative_to(_REPO_ROOT)),
+                }
+                append_leaderboard_row(row)
+                summary_log.append(row)
+                print(f"[done] {s}: {row['metric']}  peak_ram={row['peak_ram_gb']:.2f} GB  ${row['cost_usd']:.4f}")
+
+            sampler.stop()
+        finally:
+            stop_server(proc)
+            print(f"[server] stopped ({c['hf_repo']})")
+
+    out_path = _ARTIFACTS_DIR / f"local_{utc_stamp()}.json"
+    out_path.write_text(json.dumps({
+        "host": {
+            "platform": sys.platform,
+            "memory_gb": avail_gb,
+        },
+        "harness_sha": sha,
+        "split": args.split,
+        "limit": args.limit,
+        "judge": args.judge,
+        "rows": summary_log,
+    }, indent=2) + "\n", encoding="utf-8")
+    print(f"\nwrote {out_path.relative_to(_REPO_ROOT)}")
+
+
+if __name__ == "__main__":
+    main()
