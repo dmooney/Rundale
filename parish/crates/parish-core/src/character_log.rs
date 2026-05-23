@@ -281,12 +281,11 @@ impl CharacterLogManager {
                 let to_n = loc_of(*to);
                 let from_n = loc_of(*from);
                 let body = format!("*From {} to {}*\n", from_n, to_n);
-                append_journal_entry(
-                    &self.player_log_path(),
-                    ts,
-                    Some(&format!("Arrived at {}", to_n)),
-                    &body,
-                )?;
+                let heading = match world.player_name.as_deref() {
+                    Some(name) if !name.trim().is_empty() => format!("{} arrived", name),
+                    _ => "Arrived".to_string(),
+                };
+                append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
             }
             GameEvent::WeatherChanged { new_weather, .. } => {
                 let body = format!("*Weather: {}*\n", new_weather);
@@ -882,13 +881,69 @@ mod tests {
         mgr.process_event(&event, &world, &npcs).unwrap();
         let player = std::fs::read_to_string(mgr.player_log_path()).unwrap();
         assert!(
-            player.contains("Arrived at"),
+            player.contains("Arrived"),
             "player log missing arrival heading: {}",
             player,
         );
         assert!(
             player.contains("1820"),
             "player log missing game-time year: {}",
+            player,
+        );
+    }
+
+    #[test]
+    fn player_moved_uses_player_name_when_set() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        let mut world = WorldState::new();
+        world.player_name = Some("Aiden".to_string());
+        let npcs = NpcManager::new();
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::PlayerMoved {
+            from: LocationId(1),
+            to: LocationId(2),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let player = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        assert!(
+            player.contains("Aiden arrived"),
+            "player log should use player name in arrival heading: {}",
+            player,
+        );
+        assert!(
+            !player.contains("Arrived at"),
+            "player log should not contain 'Arrived at' location suffix: {}",
+            player,
+        );
+    }
+
+    #[test]
+    fn player_moved_fallback_when_name_unset() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        let world = WorldState::new();
+        let npcs = NpcManager::new();
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::PlayerMoved {
+            from: LocationId(1),
+            to: LocationId(2),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let player = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        // When player_name is None, heading should be plain "Arrived"
+        assert!(
+            player.contains("Arrived\n"),
+            "player log should contain plain 'Arrived' heading when name is unset: {}",
+            player,
+        );
+        assert!(
+            !player.contains("Arrived at"),
+            "player log should not contain 'Arrived at' location suffix: {}",
             player,
         );
     }
