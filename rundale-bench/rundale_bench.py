@@ -56,6 +56,7 @@ import subprocess  # noqa: E402
 
 import cache as judgment_cache  # noqa: E402
 import judge_bundle as jb  # noqa: E402
+import perf as perf_mod  # noqa: E402
 import promote as promo  # noqa: E402
 from catalog import load_catalog  # noqa: E402
 
@@ -967,11 +968,57 @@ def cmd_rejudge(argv: list[str]) -> None:
     print("[rejudge] run /rundale-bench drain-queue, then 'ingest --finalize'.")
 
 
+def _load_perf_prompts(slice_name: str, suite: str) -> tuple[str, list[str]]:
+    """(warmup_prompt, measure_prompts) from <suite>/perf.ids.json."""
+    spec = json.loads((_BENCH_DIR / suite / "perf.ids.json").read_text(encoding="utf-8"))
+    by_id = {r["id"]: r["prompt"] for r in load_slice(slice_name, version=suite, split="dev")}
+    warmup = by_id[spec["warmup"]]
+    measure = [by_id[i] for i in spec["measure"]]
+    return warmup, measure
+
+
+def cmd_perf(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py perf")
+    ap.add_argument("--model", required=True, help="catalog model id")
+    ap.add_argument("--providers", default="all", help="all | comma list of provider ids")
+    ap.add_argument("--slice", default="dialogue")
+    ap.add_argument("--suite", default="v1")
+    ap.add_argument("--warmup", type=int, default=5)
+    ap.add_argument("--measure", type=int, default=20)
+    args = ap.parse_args(argv)
+    catalog = load_catalog(version=args.suite)
+    model = catalog.by_id(args.model)
+    by_provider = {p.provider_id: p for p in model.providers}
+    if args.providers == "all":
+        providers = list(model.providers)
+    else:
+        want = [p.strip() for p in args.providers.split(",") if p.strip()]
+        unknown = [p for p in want if p not in by_provider]
+        if unknown:
+            raise SystemExit(f"model {model.id!r} has no provider(s): {unknown} (has {list(by_provider)})")
+        providers = [by_provider[p] for p in want]
+
+    warmup_prompt, measure_prompts = _load_perf_prompts(args.slice, args.suite)
+    print(f"[perf] model={model.id} providers={[p.provider_id for p in providers]} "
+          f"warmup={args.warmup} measure={args.measure}")
+    for provider in providers:
+        row = perf_mod.measure_provider(
+            model, provider, measure_prompts, warmup_prompt,
+            warmup=args.warmup, measure=args.measure, system=DIALOGUE_SYS,
+        )
+        path = perf_mod.write_perf(row)
+        print(f"[perf] {model.id}@{provider.provider_id}: "
+              f"p50={row['latency_p50_ms']:.0f}ms p95={row['latency_p95_ms']:.0f}ms "
+              f"{row['tokens_per_sec_mean']:.1f}tok/s ${row['usd_per_mtok_observed']}/Mtok "
+              f"err={row['error_rate']:.0%} -> {path.name}")
+
+
 def main() -> None:
     argv = sys.argv[1:]
     dispatch = {
         "catalog": cmd_catalog, "judge": cmd_judge, "ingest": cmd_ingest,
         "tiers": cmd_tiers, "run": cmd_run, "promote": cmd_promote, "rejudge": cmd_rejudge,
+        "perf": cmd_perf,
     }
     if argv and argv[0] in dispatch:
         dispatch[argv[0]](argv[1:])
