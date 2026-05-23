@@ -288,22 +288,38 @@ def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
     return by_model
 
 
+JUDGE_LABELS = {
+    "judge_sonnet_v1": ("dialogue", "Dialogue (Sonnet-judged)"),
+    "judge_v1": ("dialogue (legacy)", "Dialogue — legacy OpenRouter judge"),
+    "judge_gaeilge_v1": ("gaeilge", "Irish (Gaeilge) fluency"),
+    "judge_reaction_v1": ("reaction", "NPC reactions"),
+    "judge_sim_v1": ("tier2-sim / tier3-sim", "Structured world-tick simulation"),
+    "judge_pairwise_v1": ("dialogue (ELO)", "Pairwise dialogue (ELO mode)"),
+}
+
+
 def build_judge_prompts(suite: str = "v1") -> dict:
-    """Verbatim judge system prompts + rubric configs so the site can show
-    exactly what the subagent saw."""
+    """Verbatim judge prompts + rubric configs so the site shows exactly what
+    each subagent saw. A sibling `<judge_id>.system.md` (if present) is the
+    preamble + rubric envelope; otherwise the json's `rubric` field IS the
+    full prompt the judge received."""
     out: dict[str, dict] = {}
-    for judge_id, system_file in (("judge_sonnet_v1", "judge_sonnet_v1.system.md"),):
-        config_path = _BENCH_DIR / suite / f"{judge_id}.json"
-        sys_path = _BENCH_DIR / suite / system_file
-        if not config_path.exists():
-            continue
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    for cfg_path in sorted((_BENCH_DIR / suite).glob("judge_*.json")):
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        judge_id = cfg.get("judge_id") or cfg_path.stem
+        sys_path = _BENCH_DIR / suite / f"{judge_id}.system.md"
+        slice_for, label = JUDGE_LABELS.get(judge_id, ("(unknown)", judge_id))
         out[judge_id] = {
             "judge_id": judge_id,
+            "label": label,
+            "slice": slice_for,
             "model": cfg.get("model"),
+            "base_url": cfg.get("base_url"),
             "rubric_sha256": cfg.get("rubric_sha256"),
             "axes": cfg.get("axes"),
-            "system_prompt": sys_path.read_text(encoding="utf-8") if sys_path.exists() else "",
+            "system_prompt": sys_path.read_text(encoding="utf-8") if sys_path.exists() else cfg.get("rubric", ""),
+            "system_prompt_source": str(sys_path.relative_to(_REPO_ROOT)) if sys_path.exists()
+                else f"{cfg_path.relative_to(_REPO_ROOT)} (rubric field)",
             "rubric_text": cfg.get("rubric", ""),
         }
     return out

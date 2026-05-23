@@ -2,30 +2,22 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/bench.json';
 const base = import.meta.env.BASE_URL;
-const sonnet = data.judge_prompts?.judge_sonnet_v1;
+const judges = Object.values(data.judge_prompts ?? {}) as any[];
+// Bring dialogue (Sonnet) first, then gaeilge, then the rest in insertion order.
+const order = ['judge_sonnet_v1', 'judge_gaeilge_v1', 'judge_reaction_v1', 'judge_sim_v1', 'judge_v1', 'judge_pairwise_v1'];
+judges.sort((a, b) => order.indexOf(a.judge_id) - order.indexOf(b.judge_id));
 ---
 <Base title="Rundale Bench — Methodology">
   <h2>Methodology</h2>
 
-  <h3>Judge</h3>
+  <h3>Judges</h3>
   <p>
-    Dialogue is scored by <strong>{data.judge_model}</strong> subagents launched
-    from inside Claude Code. The judge config (<code>judge_sonnet_v1</code>) pins
-    a <code>rubric_sha256</code>; any rubric edit without a matching hash bump
-    aborts the run, so scores never drift silently. Existing leaderboard rows
-    tagged <code>judge_v1 (qwen3-235b)</code> come from earlier OpenRouter runs
-    and are <em>not</em> Sonnet judgments — re-run those candidates through the
-    funnel to see Sonnet's stricter calibration.
+    Each slice has its own judge config pinned by <code>rubric_sha256</code>;
+    edits without a matching hash bump abort the run. The dialogue slice is
+    the only one currently mid-swap — legacy rows tagged
+    <code>judge_v1 (qwen3-235b)</code> are pre-Sonnet; new funnel runs use
+    <code>judge_sonnet_v1</code>.
   </p>
-
-  <h3>Rubric — 5 axes (1–5)</h3>
-  <ul>
-    <li><strong>Character</strong> — reads as an 1820 rural Irish midwife?</li>
-    <li><strong>Authenticity</strong> — period vocabulary, no modern terms?</li>
-    <li><strong>Language</strong> — English (en-IE) + optional Irish (ga-IE); no non-Latin script.</li>
-    <li><strong>Responsiveness</strong> — actually addresses the prompt?</li>
-    <li><strong>Craft</strong> — concise, evocative, 2–4 sentences.</li>
-  </ul>
 
   <h3>Tier funnel</h3>
   <ul>
@@ -37,8 +29,8 @@ const sonnet = data.judge_prompts?.judge_sonnet_v1;
   <h3>Quality vs perf</h3>
   <p>
     Quality is judged once per model on its cheapest provider. Latency, price,
-    and throughput are measured separately for every provider serving the model
-    — see the <a href={`${base}/perf`}>perf matrix</a>.
+    and throughput are measured separately per provider — see the
+    <a href={`${base}/perf`}>perf matrix</a>.
   </p>
 
   <h3>Reproducibility</h3>
@@ -50,15 +42,29 @@ const sonnet = data.judge_prompts?.judge_sonnet_v1;
     only that model.
   </p>
 
-  {sonnet && (
-    <>
-      <h3>Sonnet judge system prompt</h3>
-      <p class="muted">
-        Loaded verbatim from <code>rundale-bench/v1/judge_sonnet_v1.system.md</code>.
-        Model: <strong>{sonnet.model}</strong> · rubric_sha256:
-        <code>{sonnet.rubric_sha256?.slice(0, 16)}…</code>
-      </p>
-      <pre style="background:var(--color-panel-bg);border:1px solid var(--color-border);border-radius:6px;padding:1rem;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:0.85rem">{sonnet.system_prompt}</pre>
-    </>
-  )}
+  <h3>Judge prompts (verbatim)</h3>
+  <p class="muted">
+    The exact system prompt each judge subagent received. Where a sibling
+    <code>.system.md</code> exists it carries the preamble (calibration,
+    output envelope) plus the rubric; otherwise the <code>rubric</code> field
+    of the judge config is the entire prompt.
+  </p>
+
+  {judges.map((j) => (
+    <details style="margin:0.9rem 0;border:1px solid var(--color-border);border-radius:6px;background:var(--color-panel-bg)" open={j.judge_id === 'judge_sonnet_v1' || j.judge_id === 'judge_gaeilge_v1'}>
+      <summary style="cursor:pointer;padding:0.6rem 0.9rem;font-weight:600">
+        {j.label}
+        <span class="badge" style="margin-left:0.5rem">{j.judge_id}</span>
+        <span class="badge" style="margin-left:0.3rem">model: {j.model}</span>
+        {j.rubric_sha256 && <span class="badge" style="margin-left:0.3rem" title={j.rubric_sha256}>sha {j.rubric_sha256.slice(0, 12)}…</span>}
+      </summary>
+      <div style="padding:0 0.9rem 0.9rem">
+        <p class="muted" style="margin:0 0 0.5rem">
+          slice: <code>{j.slice}</code> · source: <code>{j.system_prompt_source}</code>
+          {j.axes && <> · axes: <code>{j.axes.join(', ')}</code></>}
+        </p>
+        <pre style="background:var(--color-bg);border:1px solid var(--color-border);border-radius:4px;padding:0.8rem;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:0.82rem;max-height:32rem">{j.system_prompt}</pre>
+      </div>
+    </details>
+  ))}
 </Base>
