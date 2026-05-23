@@ -1,0 +1,48 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/bench.json';
+const base = import.meta.env.BASE_URL;
+---
+<Base title="Rundale Bench — Methodology">
+  <h2>Methodology</h2>
+
+  <h3>Judge</h3>
+  <p>
+    Dialogue is scored by <strong>{data.judge_model}</strong> subagents launched
+    from inside Claude Code. The judge config (<code>judge_sonnet_v1</code>) pins
+    a <code>rubric_sha256</code>; any rubric edit without a matching hash bump
+    aborts the run, so scores never drift silently.
+  </p>
+
+  <h3>Rubric — 5 axes (1–5)</h3>
+  <ul>
+    <li><strong>Character</strong> — reads as an 1820 rural Irish midwife?</li>
+    <li><strong>Authenticity</strong> — period vocabulary, no modern terms?</li>
+    <li><strong>Language</strong> — English (en-IE) + optional Irish (ga-IE); no non-Latin script.</li>
+    <li><strong>Responsiveness</strong> — actually addresses the prompt?</li>
+    <li><strong>Craft</strong> — concise, evocative, 2–4 sentences.</li>
+  </ul>
+
+  <h3>Tier funnel</h3>
+  <ul>
+    <li><strong>screen</strong> — ~5 prompts, every candidate.</li>
+    <li><strong>contender</strong> — ~25 prompts; promoted at overall ≥ 3.5 and every axis &gt; 2.0.</li>
+    <li><strong>finalist</strong> — full dev slice; promoted at overall ≥ 4.0 and every axis &gt; 3.0.</li>
+  </ul>
+
+  <h3>Quality vs perf</h3>
+  <p>
+    Quality is judged once per model on its cheapest provider. Latency, price,
+    and throughput are measured separately for every provider serving the model
+    — see the <a href={`${base}/perf`}>perf matrix</a>.
+  </p>
+
+  <h3>Reproducibility</h3>
+  <p>
+    Each judgment is content-addressed by
+    <code>sha256(prompt_id ‖ response_sha256 ‖ rubric_sha256 ‖ judge_model)</code>
+    and committed under <code>docs/proofs/rundale-bench/judgments/</code>.
+    Changing the rubric or judge re-judges everything; adding a model judges
+    only that model.
+  </p>
+</Base>

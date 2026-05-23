@@ -1,0 +1,49 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/bench.json';
+const base = import.meta.env.BASE_URL;
+
+export function getStaticPaths() {
+  const d = data;
+  return d.leaderboard.map((row) => ({ params: { slug: row.slug }, props: { row } }));
+}
+const { row } = Astro.props;
+const AXES = ['character', 'authenticity', 'language', 'responsiveness', 'craft'];
+const perf = (data.perf ?? []).filter((p) => p.model_id === row.model_id);
+---
+<Base title={`Rundale Bench — ${row.model_id}`}>
+  <p><a href={base}>← leaderboard</a></p>
+  <h2>{row.model_id}</h2>
+  <p class="muted">
+    family {row.family} · tier {row.tier ?? 'n/a'} · judged {row.judged ?? '—'} prompt(s)
+    {row.non_latin_rate ? ` · non-Latin rate ${(row.non_latin_rate * 100).toFixed(1)}%` : ''}
+  </p>
+
+  <h3>Dialogue axes</h3>
+  <table>
+    <thead><tr><th>Axis</th><th class="num">Score</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Overall</strong></td><td class="num"><strong>{row.overall?.toFixed(2) ?? '—'}</strong></td></tr>
+      {AXES.map((ax) => (
+        <tr><td>{ax}</td><td class="num">{typeof row[ax] === 'number' ? row[ax].toFixed(2) : '—'}</td></tr>
+      ))}
+    </tbody>
+  </table>
+
+  <h3>Perf by provider</h3>
+  {perf.length === 0 ? (
+    <div class="empty">No perf measured for this model yet.</div>
+  ) : (
+    <table>
+      <thead><tr><th>Provider</th><th class="num">p50 ms</th><th class="num">tok/s</th><th class="num">$/Mtok</th></tr></thead>
+      <tbody>
+        {perf.map((p) => (
+          <tr><td><span class="badge">{p.provider_id}</span></td>
+            <td class="num">{Math.round(p.latency_p50_ms)}</td>
+            <td class="num">{p.tokens_per_sec_mean.toFixed(1)}</td>
+            <td class="num">${p.usd_per_mtok_observed}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Base>

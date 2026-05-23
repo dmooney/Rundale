@@ -1,0 +1,39 @@
+---
+import '../styles/parchment.css';
+const { title = 'Rundale Bench' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const nav = [
+  { href: base, label: 'Leaderboard' },
+  { href: `${base}/perf`, label: 'Perf matrix' },
+  { href: `${base}/methodology`, label: 'Methodology' },
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <script is:inline>
+      // Restore theme before paint to avoid a flash of the wrong palette.
+      const saved = localStorage.getItem('bench-theme');
+      if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <h1>Rundale Bench</h1>
+      <nav>{nav.map((n) => <a href={n.href}>{n.label}</a>)}</nav>
+      <button class="theme-toggle" id="theme-toggle">parchment / dark</button>
+    </header>
+    <main><slot /></main>
+    <script is:inline>
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const root = document.documentElement;
+        const dark = root.dataset.theme === 'dark';
+        if (dark) { delete root.dataset.theme; localStorage.setItem('bench-theme', 'light'); }
+        else { root.dataset.theme = 'dark'; localStorage.setItem('bench-theme', 'dark'); }
+      });
+    </script>
+  </body>
+</html>

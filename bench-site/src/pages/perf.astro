@@ -1,0 +1,38 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/bench.json';
+const perf = data.perf ?? [];
+---
+<Base title="Rundale Bench — Perf matrix">
+  <h2>Per-provider performance</h2>
+  <p class="muted">
+    Latency, throughput, price, and reliability per (model, provider). Measured
+    independently of quality — the same model differs across providers.
+  </p>
+  {perf.length === 0 ? (
+    <div class="empty">No perf measurements yet. Run <code>perf --model &lt;id&gt; --providers all</code>.</div>
+  ) : (
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th><th>Provider</th>
+          <th class="num">p50 ms</th><th class="num">p95 ms</th>
+          <th class="num">tok/s</th><th class="num">$/Mtok</th><th class="num">err</th>
+        </tr>
+      </thead>
+      <tbody>
+        {perf.map((r) => (
+          <tr>
+            <td>{r.model_id}</td>
+            <td><span class="badge">{r.provider_id}</span></td>
+            <td class="num">{Math.round(r.latency_p50_ms)}</td>
+            <td class="num">{Math.round(r.latency_p95_ms)}</td>
+            <td class="num">{r.tokens_per_sec_mean.toFixed(1)}</td>
+            <td class="num">${r.usd_per_mtok_observed}</td>
+            <td class="num">{(r.error_rate * 100).toFixed(0)}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Base>

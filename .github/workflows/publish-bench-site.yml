@@ -1,0 +1,59 @@
+name: Publish bench site
+
+# Build the static rundale-bench results site and deploy it to GitHub Pages.
+# Triggers when the site or its data sources change on main. Uses no event
+# payload input in run: steps, so there is no workflow-injection surface.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bench-site/**'
+      - 'docs/proofs/rundale-bench/**'
+      - 'rundale-bench/**'
+      - '.github/workflows/publish-bench-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: bench-site/pnpm-lock.yaml
+      - name: Regenerate site data from committed artifacts
+        run: python3 rundale-bench/build_site_data.py
+      - name: Install
+        working-directory: bench-site
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        working-directory: bench-site
+        run: pnpm build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: bench-site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

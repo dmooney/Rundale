@@ -1,0 +1,24 @@
+{
+  "generated_utc": "2026-05-23T21:45:06.601898+00:00",
+  "judge_model": "claude-sonnet-4-6",
+  "suite": "v1",
+  "leaderboard": [
+    {
+      "model_id": "openai/gpt-oss-120b:free",
+      "slug": "openai-gpt-oss-120b-free",
+      "family": "unknown",
+      "tier": null,
+      "overall": 4.82,
+      "judged": 5,
+      "records": 5,
+      "non_latin_rate": 0.0,
+      "character": 4.8,
+      "authenticity": 5.0,
+      "language": 5.0,
+      "responsiveness": 4.8,
+      "craft": 4.6,
+      "measured_utc": "2026-05-13T20:59:06.320321+00:00"
+    }
+  ],
+  "perf": []
+}
