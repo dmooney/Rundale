@@ -987,6 +987,8 @@ pub mod tests {
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
         };
 
         super::handle_npc_conversation(
@@ -1083,6 +1085,8 @@ pub mod tests {
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
         };
 
         super::handle_npc_conversation(

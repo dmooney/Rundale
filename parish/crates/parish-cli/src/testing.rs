@@ -1258,16 +1258,127 @@ impl GameTestHarness {
         }
     }
 
+    /// Dispatches a "talk to <name>" / "speak to <name>" addressed turn
+    /// through the same name-resolution path the production code uses
+    /// (`parish_core::ipc::resolve_addressed_targets`).
+    ///
+    /// When the addressed NPC is co-located, this delegates to the
+    /// canned-response flow keyed on that NPC's name. When the addressed
+    /// NPC is not at the player's location, the harness emits the same
+    /// `"{name} is not here."` system message that the real backend emits
+    /// via `text-log` and returns `ActionResult::SystemCommand` so the
+    /// fixture baseline can diff it (#985).
+    fn handle_addressed_npc(&mut self, text: &str, name: &str) -> ActionResult {
+        let addressed = parish_core::ipc::resolve_addressed_targets(
+            &self.app.world,
+            &self.app.npc_manager,
+            &[name.to_string()],
+        );
+
+        if !addressed.absent.is_empty() {
+            let absent_name = &addressed.absent[0];
+            let msg = format!("{absent_name} is not here.");
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
+        }
+
+        // Resolved → dispatch to a canned-response NPC turn that is forced
+        // to the addressed speaker (rather than the first co-located NPC).
+        if let Some(speaker_id) = addressed.resolved.first().copied() {
+            return self.handle_npc_interaction_for(text, speaker_id);
+        }
+
+        // Defensive: should not be reached. Empty target should have been
+        // filtered by the caller.
+        self.handle_npc_interaction(text)
+    }
+
+    /// Variant of [`handle_npc_interaction`] that targets a specific
+    /// pre-resolved NPC (rather than scanning all co-located NPCs for the
+    /// first canned response).
+    fn handle_npc_interaction_for(
+        &mut self,
+        text: &str,
+        speaker_id: crate::npc::NpcId,
+    ) -> ActionResult {
+        // Detect anachronisms in player input — same pipeline as the
+        // first-NPC variant so behaviour stays in lock-step.
+        let detected = crate::npc::anachronism::check_input(text);
+        let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
+
+        let speaker_name = self.app.npc_manager.get(speaker_id).map(|n| n.name.clone());
+        let Some(name) = speaker_name else {
+            return ActionResult::NpcNotAvailable;
+        };
+
+        let key = name.to_lowercase();
+        if let Some(responses) = self.canned_responses.get_mut(&key)
+            && !responses.is_empty()
+        {
+            let dialogue = responses.remove(0);
+            self.app.world.log(format!("{}: {}", name, dialogue));
+
+            let response = crate::npc::NpcStreamResponse {
+                dialogue: dialogue.clone(),
+                metadata: Some(crate::npc::NpcMetadata {
+                    action: "responds".to_string(),
+                    mood: self
+                        .app
+                        .npc_manager
+                        .get(speaker_id)
+                        .map(|n| n.mood.clone())
+                        .unwrap_or_default(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                }),
+            };
+            let game_time = self.app.world.clock.now();
+            let player_name_for_mem = if self.app.npc_manager.knows_player_name(speaker_id) {
+                self.app.world.player_name.clone()
+            } else {
+                None
+            };
+            if let Some(npc_mut) = self.app.npc_manager.get_mut(speaker_id) {
+                let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
+                    npc_mut,
+                    &response,
+                    text,
+                    game_time,
+                    &Default::default(),
+                    player_name_for_mem.as_deref(),
+                );
+                for event in debug_events {
+                    self.app.debug_event(event);
+                }
+            }
+
+            return ActionResult::NpcResponse {
+                npc: name,
+                dialogue,
+                anachronisms: anachronism_terms,
+            };
+        }
+
+        // Fall back to the simulator if configured.
+        if let Some(ref sim) = self.simulator {
+            let dialogue = sim.generate_sync(text, None);
+            self.app.world.log(format!("{}: {}", name, dialogue));
+            return ActionResult::NpcResponse {
+                npc: name,
+                dialogue,
+                anachronisms: anachronism_terms,
+            };
+        }
+
+        ActionResult::NpcNotAvailable
+    }
+
     /// Checks NPCs at the current location for canned responses. Free-text
     /// names and `@mentions` use the shared routing resolver; generic
     /// untargeted dialogue keeps the historical first-canned-response fallback.
     /// Also runs anachronism detection on the player's input and includes any
     /// detected terms in the result.
-    ///
-    /// When a canned response is consumed, the interaction is processed
-    /// through the same memory pipeline as a real LLM response: the NPC's
-    /// mood is updated, a memory entry is recorded, and evicted memories
-    /// may be promoted to long-term storage.
     ///
     /// When a canned response is consumed, the interaction is processed
     /// through the same memory pipeline as a real LLM response: the NPC's
