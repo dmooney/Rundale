@@ -1,0 +1,30 @@
+{
+  "_doc": "Contender-tier dialogue prompt ids: all core + evenly-spaced extended (~25). Phase 2 promotes screen survivors to this larger set before the full finalist sweep.",
+  "dialogue": [
+    "dialogue-0001",
+    "dialogue-0002",
+    "dialogue-0003",
+    "dialogue-0004",
+    "dialogue-0005",
+    "dialogue-0006",
+    "dialogue-0013",
+    "dialogue-0020",
+    "dialogue-0027",
+    "dialogue-0036",
+    "dialogue-0043",
+    "dialogue-0050",
+    "dialogue-0057",
+    "dialogue-0066",
+    "dialogue-0074",
+    "dialogue-0081",
+    "dialogue-0091",
+    "dialogue-0100",
+    "dialogue-0108",
+    "dialogue-0115",
+    "dialogue-0122",
+    "dialogue-0132",
+    "dialogue-0139",
+    "dialogue-0146",
+    "dialogue-0158"
+  ]
+}

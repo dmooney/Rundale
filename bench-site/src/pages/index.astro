@@ -1,0 +1,20 @@
+---
+import Base from '../layouts/Base.astro';
+import Leaderboard from '../components/Leaderboard.svelte';
+import data from '../data/bench.json';
+const base = import.meta.env.BASE_URL;
+---
+<Base title="Rundale Bench — Leaderboard">
+  <h2>Dialogue quality leaderboard</h2>
+  <p class="muted">
+    Judged by <strong>{data.judge_model}</strong> · suite {data.suite} ·
+    generated {new Date(data.generated_utc).toISOString().slice(0, 10)}.
+    Scores are 1–5 means over the dialogue slice (Brigid O'Brien, 1820 rural Ireland).
+    Click a column to sort.
+  </p>
+  <Leaderboard client:load rows={data.leaderboard} base={base} />
+  <p class="muted">
+    Quality is judged once per model on its cheapest provider. Speed and price
+    vary by provider — see the <a href={`${base}/perf`}>perf matrix</a>.
+  </p>
+</Base>

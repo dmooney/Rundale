@@ -63,9 +63,12 @@ bash parish/scripts/render-proof-comment.sh "$task_id" > "$body_file"
 # Resolve the PR's base repository (where the PR lives), NOT the local
 # repo. Fork contributors clone their fork as origin, so `gh repo view`
 # returns the wrong nameWithOwner. Issue comments are posted to the base
-# repo, so always derive it from the PR metadata.
-repo_full="$(gh pr view "$pr_number" --json baseRepository --jq '.baseRepository.nameWithOwner // empty')"
-if [[ -z "$repo_full" ]]; then
+# repo, so always derive it from the PR metadata. The PR `url` field is the
+# base repo by construction (github.com/<owner>/<repo>/pull/<n>) and is
+# available across gh versions, unlike the `baseRepository` JSON field.
+pr_url="$(gh pr view "$pr_number" --json url --jq '.url // empty')"
+repo_full="$(printf '%s\n' "$pr_url" | sed -E 's#^https?://[^/]+/([^/]+/[^/]+)/pull/.*#\1#')"
+if [[ -z "$repo_full" || "$repo_full" == "$pr_url" ]]; then
     echo "attach-proof: could not resolve base repository for PR #$pr_number." >&2
     exit 1
 fi

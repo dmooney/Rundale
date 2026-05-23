@@ -192,7 +192,9 @@ if [ -z "$CHANGED" ]; then
   # No code changes — still block if a proof bundle written this session
   # is missing its acceptance-criteria.md.
   if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+
+Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
 acceptance-criteria.md (checked on disk — prior-session files count too).
 
@@ -313,7 +315,9 @@ if [ -n "$LIVE_PROOF" ]; then
   log "live proof found: $LIVE_PROOF"
   # Even with live proof, block if any proof bundle is missing its AC file.
   if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+
+Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
 acceptance-criteria.md (checked on disk — prior-session files count too).
 
@@ -334,7 +338,9 @@ fi
 if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
   log "test proof accepted (no runtime paths touched): $TEST_PROOF"
   if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "Stop blocked by .claude/hooks/Stop--proof-required.sh:
+    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+
+Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
 acceptance-criteria.md (checked on disk — prior-session files count too).
 
@@ -389,7 +395,9 @@ else
   - mcp__parish__* or mcp__claude-in-chrome__* (these also satisfy)"
 fi
 
-REASON="Stop blocked by .claude/hooks/Stop--proof-required.sh:
+REASON="ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+
+Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ${TIER_BANNER}
 
 Changed files:

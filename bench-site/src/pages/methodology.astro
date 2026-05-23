@@ -1,0 +1,70 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/bench.json';
+const base = import.meta.env.BASE_URL;
+const judges = Object.values(data.judge_prompts ?? {}) as any[];
+// Bring dialogue (Sonnet) first, then gaeilge, then the rest in insertion order.
+const order = ['judge_sonnet_v1', 'judge_gaeilge_v1', 'judge_reaction_v1', 'judge_sim_v1', 'judge_v1', 'judge_pairwise_v1'];
+judges.sort((a, b) => order.indexOf(a.judge_id) - order.indexOf(b.judge_id));
+---
+<Base title="Rundale Bench — Methodology">
+  <h2>Methodology</h2>
+
+  <h3>Judges</h3>
+  <p>
+    Each slice has its own judge config pinned by <code>rubric_sha256</code>;
+    edits without a matching hash bump abort the run. The dialogue slice is
+    the only one currently mid-swap — legacy rows tagged
+    <code>judge_v1 (qwen3-235b)</code> are pre-Sonnet; new funnel runs use
+    <code>judge_sonnet_v1</code>.
+  </p>
+
+  <h3>Tier funnel</h3>
+  <ul>
+    <li><strong>screen</strong> — 5 prompts, every candidate.</li>
+    <li><strong>contender</strong> — 25 prompts; promoted at overall ≥ 3.5 and every axis &gt; 2.0.</li>
+    <li><strong>finalist</strong> — full dev slice (159); promoted at overall ≥ 4.0 and every axis &gt; 3.0.</li>
+  </ul>
+
+  <h3>Quality vs perf</h3>
+  <p>
+    Quality is judged once per model on its cheapest provider. Latency, price,
+    and throughput are measured separately per provider — see the
+    <a href={`${base}/perf`}>perf matrix</a>.
+  </p>
+
+  <h3>Reproducibility</h3>
+  <p>
+    Each judgment is content-addressed by
+    <code>sha256(prompt_id ‖ response_sha256 ‖ rubric_sha256 ‖ judge_model)</code>
+    and committed under <code>docs/proofs/rundale-bench/judgments/</code>.
+    Changing the rubric or judge re-judges everything; adding a model judges
+    only that model.
+  </p>
+
+  <h3>Judge prompts (verbatim)</h3>
+  <p class="muted">
+    The exact system prompt each judge subagent received. Where a sibling
+    <code>.system.md</code> exists it carries the preamble (calibration,
+    output envelope) plus the rubric; otherwise the <code>rubric</code> field
+    of the judge config is the entire prompt.
+  </p>
+
+  {judges.map((j) => (
+    <details style="margin:0.9rem 0;border:1px solid var(--color-border);border-radius:6px;background:var(--color-panel-bg)" open={j.judge_id === 'judge_sonnet_v1' || j.judge_id === 'judge_gaeilge_v1'}>
+      <summary style="cursor:pointer;padding:0.6rem 0.9rem;font-weight:600">
+        {j.label}
+        <span class="badge" style="margin-left:0.5rem">{j.judge_id}</span>
+        <span class="badge" style="margin-left:0.3rem">model: {j.model}</span>
+        {j.rubric_sha256 && <span class="badge" style="margin-left:0.3rem" title={j.rubric_sha256}>sha {j.rubric_sha256.slice(0, 12)}…</span>}
+      </summary>
+      <div style="padding:0 0.9rem 0.9rem">
+        <p class="muted" style="margin:0 0 0.5rem">
+          slice: <code>{j.slice}</code> · source: <code>{j.system_prompt_source}</code>
+          {j.axes && <> · axes: <code>{j.axes.join(', ')}</code></>}
+        </p>
+        <pre style="background:var(--color-bg);border:1px solid var(--color-border);border-radius:4px;padding:0.8rem;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:0.82rem;max-height:32rem">{j.system_prompt}</pre>
+      </div>
+    </details>
+  ))}
+</Base>

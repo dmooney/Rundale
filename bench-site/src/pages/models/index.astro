@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/bench.json';
+const base = import.meta.env.BASE_URL;
+const rows = data.models_index ?? [];
+const fmt = (v, d = 2) => (typeof v === 'number' ? v.toFixed(d) : '—');
+const fmtInt = (v) => (typeof v === 'number' ? Math.round(v).toString() : '—');
+const localBadge = (b) => (b ? 'local' : 'cloud');
+---
+<Base title="Rundale Bench — Models">
+  <h2>All models</h2>
+  <p class="muted">
+    Every model that has been seen by the bench, with whichever signals are
+    present. <strong>—</strong> means not yet measured for that column. Click a
+    row to drill into per-prompt samples + per-provider perf.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Type</th>
+        <th class="num">Dialogue overall</th>
+        <th class="num">Gaeilge overall</th>
+        <th class="num">Best p50 ms</th>
+        <th class="num">Best $/Mtok</th>
+        <th class="num">Top tok/s</th>
+        <th class="num">Providers</th>
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((r) => (
+        <tr>
+          <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a></td>
+          <td><span class="badge" title={r.is_local ? 'local runtime (MLX/Ollama/etc.)' : 'cloud-hosted'}>{localBadge(r.is_local)}</span></td>
+          <td class="num">{fmt(r.dialogue_overall)}</td>
+          <td class="num">{fmt(r.gaeilge_overall)}</td>
+          <td class="num">{fmtInt(r.perf_best_p50_ms)}</td>
+          <td class="num">{typeof r.perf_best_usd_per_mtok === 'number' ? `$${r.perf_best_usd_per_mtok}` : '—'}</td>
+          <td class="num">{fmt(r.perf_mean_tok_s, 1)}</td>
+          <td class="num">{r.perf_providers.length || '—'}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  <p class="muted">
+    Quality rows ranked by dialogue overall (then gaeilge, then provider count).
+    Missing dialogue + gaeilge ⇒ model has only perf data so far — run the
+    funnel against it to fill the quality columns.
+  </p>
+</Base>

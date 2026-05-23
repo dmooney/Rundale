@@ -79,7 +79,9 @@ fi
 
 log "lazy phrase detected: '$MATCHED'"
 
-REASON="Stop blocked by .claude/hooks/Stop--no-excuses.sh
+REASON="ACTION REQUIRED — do not stop, do not summarize this back to the user. Replace the lazy-out phrase with concrete action (run the automated path below) and continue. The Stop gate will re-fire until it clears.
+
+Stop blocked by .claude/hooks/Stop--no-excuses.sh
 
 Lazy-out phrase detected in your response: \"$MATCHED\"
 
