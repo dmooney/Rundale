@@ -996,10 +996,21 @@ fn spawn_session_ticks(
                                     tracing::warn!(error = %e, "character-log profile write failed after branch switch");
                                 }
                             }
-                            let world = s.world.lock().await;
-                            let npc_mgr = s.npc_manager.lock().await;
-                            if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
-                                tracing::warn!(error = %e, "character-log write failed");
+                            // Clone the Arc<AppState> (cheap) and run the blocking
+                            // I/O task in a dedicated thread pool, avoiding lock
+                            // contention on the async side (#1012).
+                            let mgr_clone = manager.clone();
+                            let evt_clone = event.clone();
+                            let state_clone = Arc::clone(&s);
+                            let handle = tokio::task::spawn_blocking(move || {
+                                let world = state_clone.world.blocking_lock();
+                                let npc_mgr = state_clone.npc_manager.blocking_lock();
+                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                            });
+                            match handle.await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
+                                Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -1059,10 +1070,24 @@ fn spawn_session_ticks(
                                     tracing::warn!(error = %e, "location-log profile write failed after branch switch");
                                 }
                             }
-                            let world = s.world.lock().await;
-                            let npc_mgr = s.npc_manager.lock().await;
-                            if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
-                                tracing::warn!(error = %e, "location-log write failed");
+                            // Snapshot world and npc_manager state needed for name
+                            // resolution, then drop the locks before doing sync file I/O
+                            // to avoid blocking other tasks (#1012).
+                            // Clone the Arc<AppState> (cheap) and run the blocking
+                            // I/O task in a dedicated thread pool, avoiding lock
+                            // contention on the async side (#1012).
+                            let mgr_clone = manager.clone();
+                            let evt_clone = event.clone();
+                            let state_clone = Arc::clone(&s);
+                            let handle = tokio::task::spawn_blocking(move || {
+                                let world = state_clone.world.blocking_lock();
+                                let npc_mgr = state_clone.npc_manager.blocking_lock();
+                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                            });
+                            match handle.await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
+                                Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
