@@ -576,10 +576,20 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
 /// Provider preset commands.
 fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
     match cmd {
-        Command::ShowPreset => CommandResult::text(
-            "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
-             groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm-mlx",
-        ),
+        Command::ShowPreset => {
+            use parish_config::registry;
+            let mut ids: Vec<String> = registry()
+                .all()
+                .into_iter()
+                .filter(|p| p.has_preset())
+                .map(|p| p.id().to_string())
+                .collect();
+            ids.sort();
+            CommandResult::text(format!(
+                "Usage: /preset <provider>. Providers with presets: {}",
+                ids.join(", ")
+            ))
+        }
         Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 if !provider.has_preset() {

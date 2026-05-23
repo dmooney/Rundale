@@ -12,14 +12,16 @@
 		validateProviderConfig,
 		listByokEnvKeys,
 		listPresetModels,
+		listAvailableProviders,
+		type AvailableProviderInfo,
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
 		type ProviderPresetOption
 	} from '$lib/ipc';
 	import {
-		FEATURED_PROVIDERS,
-		OTHER_PROVIDERS,
+		toByokMeta,
 		findProvider,
+		FALLBACK_FEATURED,
 		type ByokProviderMeta
 	} from '$lib/byokProviders';
 
@@ -44,8 +46,17 @@
 	let validationError = $state<ValidationOutcome | null>(null);
 	let saveError = $state('');
 
+	// Provider lists fetched once on mount. Source of truth is the runtime
+	// provider registry (parish-config builtins + mods/<id>/providers/*.toml);
+	// the static byokProviders.ts arrays are no longer the picker's truth.
+	let featured = $state<ByokProviderMeta[]>([]);
+	let other = $state<ByokProviderMeta[]>([]);
+	// True when the backend fetch failed and `featured` is the static
+	// fallback set. The picker is still usable; the banner just tells
+	// the user the dynamic list is stale (codex P2 regression fix).
+	let providersFallback = $state(false);
 	let chosen = $derived<ByokProviderMeta | undefined>(
-		chosenId ? findProvider(chosenId) : undefined
+		chosenId ? findProvider(chosenId, featured, other) : undefined
 	);
 
 	// Map of {provider_id: has_env_key} fetched once on mount. The backend
@@ -56,6 +67,21 @@
 	let envKeys = $state<Record<string, boolean>>({});
 	let presetModels = $state<Record<string, ProviderPresetOption[]>>({});
 	onMount(() => {
+		listAvailableProviders()
+			.then((r) => {
+				featured = r.featured.map(toByokMeta);
+				other = r.other.map(toByokMeta);
+				providersFallback = false;
+			})
+			.catch(() => {
+				// Backend unreachable (transient web-mode network blip,
+				// server cold-start, ad-blocker, ...). Fall back to a
+				// minimal hand-picked set so onboarding is never blocked
+				// by a single failed fetch.
+				featured = FALLBACK_FEATURED;
+				other = [];
+				providersFallback = true;
+			});
 		listByokEnvKeys()
 			.then((m) => (envKeys = m))
 			.catch(() => (envKeys = {}));
@@ -169,8 +195,15 @@
 			<h2>Choose a provider</h2>
 			<p class="byok__sub">Pick the API you want Rundale to use for NPC dialogue.</p>
 
+			{#if providersFallback}
+				<p class="byok__fallback" role="status">
+					Provider list unavailable; showing a minimal fallback set. Refresh to
+					retry.
+				</p>
+			{/if}
+
 			<div class="byok__grid">
-				{#each FEATURED_PROVIDERS as p (p.id + p.label)}
+				{#each featured as p (p.id + p.label)}
 					<button class="byok__card" type="button" onclick={() => pick(p)}>
 						<h3>{p.label}</h3>
 						<p>{p.blurb}</p>
@@ -180,7 +213,7 @@
 
 			<div class="byok__other-label">Other providers</div>
 			<div class="byok__chips">
-				{#each OTHER_PROVIDERS as p (p.id + p.label)}
+				{#each other as p (p.id + p.label)}
 					<button class="byok__chip" type="button" onclick={() => pick(p)} title={p.blurb}>
 						{p.label}
 					</button>
@@ -309,6 +342,14 @@
 	}
 	.byok__sub a {
 		color: inherit;
+	}
+	.byok__fallback {
+		margin: 0.5rem 0 1rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 4px;
+		background: rgba(220, 180, 80, 0.15);
+		border: 1px solid rgba(220, 180, 80, 0.4);
+		font-size: 0.9rem;
 	}
 	.byok__grid {
 		display: grid;

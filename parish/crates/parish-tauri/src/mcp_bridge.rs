@@ -103,6 +103,7 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/submit-byok", post(submit_byok))
         .route("/api/byok-env-keys", get(byok_env_keys))
         .route("/api/preset-models", get(preset_models))
+        .route("/api/list-available-providers", get(available_providers))
         // ── Local-inference onboarding (vllm-mlx fork) ────────────────────
         // GET returns the same fork-variant + RAM data the Svelte
         // `LocalInferenceFork` reads on mount. POST drives the same
@@ -329,6 +330,12 @@ async fn byok_env_keys() -> Json<std::collections::BTreeMap<String, bool>> {
 async fn preset_models()
 -> Json<std::collections::BTreeMap<String, Vec<parish_core::ipc::byok::ProviderPresetOption>>> {
     Json(parish_core::ipc::byok::handle_list_preset_models())
+}
+
+#[allow(clippy::unused_async)]
+async fn available_providers()
+-> Json<std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>> {
+    Json(parish_core::ipc::byok::handle_list_available_providers())
 }
 
 async fn setup_status(State(b): State<BridgeState>) -> Json<serde_json::Value> {

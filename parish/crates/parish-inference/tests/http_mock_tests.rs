@@ -655,7 +655,7 @@ async fn openai_compatible_provider_smoke() {
     let cases: Vec<ProviderCase> = vec![
         ProviderCase {
             label: "LmStudio",
-            provider: Provider::lmstudio(),
+            provider: Provider::from_id("lmstudio").expect("lmstudio provider mod must be loaded"),
             api_key: None,
         },
         ProviderCase {
@@ -665,37 +665,38 @@ async fn openai_compatible_provider_smoke() {
         },
         ProviderCase {
             label: "OpenRouter",
-            provider: Provider::openrouter(),
+            provider: Provider::from_id("openrouter")
+                .expect("openrouter provider mod must be loaded"),
             api_key: Some("sk-or-test"),
         },
         ProviderCase {
             label: "Google (Gemini)",
-            provider: Provider::google(),
+            provider: Provider::from_id("google").expect("google provider mod must be loaded"),
             api_key: Some("goog-test"),
         },
         ProviderCase {
             label: "Groq",
-            provider: Provider::groq(),
+            provider: Provider::from_id("groq").expect("groq provider mod must be loaded"),
             api_key: Some("gsk-test"),
         },
         ProviderCase {
             label: "xAI",
-            provider: Provider::xai(),
+            provider: Provider::from_id("xai").expect("xai provider mod must be loaded"),
             api_key: Some("xai-test"),
         },
         ProviderCase {
             label: "Mistral",
-            provider: Provider::mistral(),
+            provider: Provider::from_id("mistral").expect("mistral provider mod must be loaded"),
             api_key: Some("ms-test"),
         },
         ProviderCase {
             label: "DeepSeek",
-            provider: Provider::deepseek(),
+            provider: Provider::from_id("deepseek").expect("deepseek provider mod must be loaded"),
             api_key: Some("ds-test"),
         },
         ProviderCase {
             label: "Together",
-            provider: Provider::together(),
+            provider: Provider::from_id("together").expect("together provider mod must be loaded"),
             api_key: Some("tgt-test"),
         },
         ProviderCase {

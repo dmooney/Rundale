@@ -1,0 +1,6 @@
+[mod]
+name = "SiliconFlow Provider"
+id = "siliconflow-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for SiliconFlow."
+kind = "providers"
