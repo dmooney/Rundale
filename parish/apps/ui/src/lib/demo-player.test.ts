@@ -217,4 +217,59 @@ describe('runDemoTurn', () => {
 			'go to the mill',
 		]);
 	});
+
+	// Regression for codex review on #1048: in long demo runs with heavy
+	// NPC/system output, the last 5 `[player]` entries can sit OUTSIDE the
+	// 40-entry recent_log window. recent_actions must therefore be derived
+	// from the full textLog, not from the pre-truncated 40-entry slice, or
+	// the anti-repetition signal silently stops working.
+	it('derives recent_actions from full textLog even past the 40-entry recent_log window', async () => {
+		demoEnabled.set(true);
+		const log = [
+			{ id: 'p1', source: 'player', content: 'first player utterance' },
+			{ id: 'p2', source: 'player', content: 'second player utterance' },
+		];
+		// Pad with 50 NPC entries so the player entries fall outside any
+		// 40-entry tail window.
+		for (let i = 0; i < 50; i += 1) {
+			log.push({ id: `n${i}`, source: 'Padraig', content: `npc line ${i}` });
+		}
+		textLog.set(log);
+
+		await runDemoTurn();
+
+		const ctxArg = vi.mocked(getLlmPlayerAction).mock.calls[0][0];
+		expect(ctxArg.recent_actions).toEqual([
+			'first player utterance',
+			'second player utterance',
+		]);
+		// recent_log still honours the 40-entry cap.
+		expect(ctxArg.recent_log.length).toBe(40);
+	});
+
+	// Regression for codex review on #1048: scene-echo filtering must happen
+	// BEFORE the 40-entry truncation, or a stretch of scene-blurb spam at
+	// the tail can consume the recent_log window and leave very little
+	// usable history after the filter.
+	it('filters scene echoes BEFORE truncating recent_log to 40 entries', async () => {
+		demoEnabled.set(true);
+		const log = [
+			{ id: 'useful-1', source: 'Padraig', content: 'A useful old line.' },
+			{ id: 'useful-2', source: 'player', content: 'A useful player line.' },
+		];
+		// Add 60 system scene echoes that should ALL be filtered.
+		for (let i = 0; i < 60; i += 1) {
+			log.push({ id: `echo-${i}`, source: 'system', content: KILTEEVAN_SCENE });
+		}
+		textLog.set(log);
+
+		await runDemoTurn();
+
+		const ctxArg = vi.mocked(getLlmPlayerAction).mock.calls[0][0];
+		// Scene echoes all stripped; the two useful older entries survive.
+		expect(ctxArg.recent_log).toEqual([
+			'[Padraig] A useful old line.',
+			'[player] A useful player line.',
+		]);
+	});
 });

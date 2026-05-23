@@ -72,30 +72,35 @@ export async function runDemoTurn(): Promise<void> {
 	demoStatus.set('thinking');
 	const ctx = await getDemoContext();
 
-	// Fill recent log from frontend text log store (last 40 lines).
+	// Fill recent log from frontend text log store.
 	//
 	// #999: drop `[system]` entries that echo the current location description.
 	// The static `location_description` field already conveys the scene to the
 	// LLM; without this filter, any future or LLM-triggered `look` flood
 	// dominates recent_log with copies of the same blurb and the auto-player
 	// gets anchored on repeating itself.
+	//
+	// Filter scene echoes from the FULL textLog BEFORE truncating to 40
+	// entries. If we truncated first, a stretch of `look` spam could fill the
+	// 40-entry window and leave very little usable history after the filter.
 	const sceneHead = ctx.location_description.slice(0, 60).trim();
-	const log = get(textLog).slice(-40);
-	ctx.recent_log = log
-		.filter(
-			(e) =>
-				!(
-					e.source === 'system' &&
-					sceneHead.length > 0 &&
-					e.content.startsWith(sceneHead)
-				)
-		)
-		.map((e) => `[${e.source}] ${e.content}`);
+	const fullLog = get(textLog);
+	const filtered = fullLog.filter(
+		(e) =>
+			!(
+				e.source === 'system' &&
+				sceneHead.length > 0 &&
+				e.content.startsWith(sceneHead)
+			)
+	);
+	ctx.recent_log = filtered.slice(-40).map((e) => `[${e.source}] ${e.content}`);
 
 	// #999: surface the auto-player's own recent actions as a separate field so
 	// the demo system prompt can call them out explicitly ("do not repeat your
-	// last action"). Take the last 5 `[player]` entries, oldest first.
-	ctx.recent_actions = log
+	// last action"). Take the last 5 `[player]` entries from the FULL log so
+	// the anti-repetition signal still works in long runs where the last 5
+	// player entries sit outside the 40-entry recent_log window.
+	ctx.recent_actions = fullLog
 		.filter((e) => e.source === 'player')
 		.slice(-5)
 		.map((e) => e.content);

@@ -15,11 +15,16 @@
 #
 #   2. A live demo transcript proving the loop is gone and the scene blurb
 #      no longer re-emits between every player line:
-#        just demo 2 8 2>&1 | tee docs/proofs/999-demo-look-loop/transcript.txt
+#        just demo 2 8 2>&1 | tee .proofs/999-demo-look-loop/transcript.txt
 #
 # This file exists so the task-start skill's directory layout is honoured and
 # so anyone grepping `parish/testing/fixtures/` for the task id finds this
 # note pointing at the real verification path.
 #
-# See docs/proofs/999-demo-look-loop/acceptance-criteria.md for the full
-# criteria and live-proof expectations.
+# Proof bundles live under `.proofs/<task-id>/` (gitignored) and attach to PRs
+# via `just attach-proof <task-id> <pr-num>`. Long-lived benchmark archives at
+# `docs/proofs/local-perf/` and `docs/proofs/rundale-bench/` are exempt from
+# this convention.
+#
+# See .proofs/999-demo-look-loop/acceptance-criteria.md for the full criteria
+# and live-proof expectations.
