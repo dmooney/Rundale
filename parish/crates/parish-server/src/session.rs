@@ -964,8 +964,8 @@ fn spawn_session_ticks(
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
-            let branch_id = s.current_branch_id.lock().await.unwrap_or(1);
-            let manager = CharacterLogManager::new(&app_name, branch_id, true);
+            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut manager = CharacterLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
                 world.event_bus.subscribe()
@@ -982,6 +982,20 @@ fn spawn_session_ticks(
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
                         Ok(event) => {
+                            // Rebind manager when the active branch has changed
+                            // (e.g. load_branch / create_branch). Without this the
+                            // writer keeps appending to the original branch's
+                            // log directory after a branch switch (#1011).
+                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            if bid != current_branch {
+                                current_branch = bid;
+                                manager = CharacterLogManager::new(&app_name, bid, true);
+                                let world = s.world.lock().await;
+                                let npc_mgr = s.npc_manager.lock().await;
+                                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                    tracing::warn!(error = %e, "character-log profile write failed after branch switch");
+                                }
+                            }
                             let world = s.world.lock().await;
                             let npc_mgr = s.npc_manager.lock().await;
                             if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
@@ -1014,8 +1028,8 @@ fn spawn_session_ticks(
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
-            let branch_id = s.current_branch_id.lock().await.unwrap_or(1);
-            let manager = LocationLogManager::new(&app_name, branch_id, true);
+            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut manager = LocationLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
                 world.event_bus.subscribe()
@@ -1032,6 +1046,19 @@ fn spawn_session_ticks(
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
                         Ok(event) => {
+                            // Rebind manager when the active branch has changed
+                            // (e.g. load_branch / create_branch). Mirrors the
+                            // character-log subscriber fix from #1011 (#1034).
+                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            if bid != current_branch {
+                                current_branch = bid;
+                                manager = LocationLogManager::new(&app_name, bid, true);
+                                let world = s.world.lock().await;
+                                let npc_mgr = s.npc_manager.lock().await;
+                                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                    tracing::warn!(error = %e, "location-log profile write failed after branch switch");
+                                }
+                            }
                             let world = s.world.lock().await;
                             let npc_mgr = s.npc_manager.lock().await;
                             if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {

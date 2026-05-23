@@ -204,14 +204,15 @@ impl GameTestHarness {
         // dump to the shared user-data dir. `new_with_character_logs`
         // (used by `run_script_mode`) sets `enable_character_logs=true`
         // so `parish --script ...` still produces log files.
+        let log_app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
+        app.log_app_name = log_app_name.clone();
         {
             let flag_on = !app
                 .flags
                 .is_disabled(parish_core::character_log::FEATURE_FLAG);
             let enabled = enable_character_logs && flag_on;
-            let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
             let manager = parish_core::character_log::CharacterLogManager::new(
-                &app_name,
+                &log_app_name,
                 app.active_branch_id,
                 enabled,
             );
@@ -230,9 +231,8 @@ impl GameTestHarness {
                 .flags
                 .is_disabled(parish_core::location_log::FEATURE_FLAG);
             let enabled = enable_character_logs && flag_on;
-            let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
             let manager = parish_core::location_log::LocationLogManager::new(
-                &app_name,
+                &log_app_name,
                 app.active_branch_id,
                 enabled,
             );
@@ -244,6 +244,7 @@ impl GameTestHarness {
             }
             app.location_log = Some(Arc::new(manager));
         }
+        app.log_managers_branch = Some(app.active_branch_id);
 
         Self {
             app,
@@ -388,6 +389,9 @@ impl GameTestHarness {
         // Drain any GameEvents queued on the character-log receiver since
         // the previous execute() and append them to the right log files.
         // Mirrors the synchronous drain pattern in the REPL loop.
+        // Rebind on branch switch (#1011, #1034) — must run BEFORE the
+        // clones below capture `self.app.character_log` for the drain.
+        self.app.rebind_log_managers_if_branch_changed();
         if let (Some(manager), Some(rx)) = (
             self.app.character_log.clone(),
             self.app.character_log_rx.as_mut(),
