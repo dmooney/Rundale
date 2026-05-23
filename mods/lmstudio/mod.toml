@@ -1,6 +1,0 @@
-[mod]
-name = "LM Studio Provider"
-id = "lmstudio"
-version = "1.0.0"
-description = "Runtime-loaded LLM provider mod for LM Studio."
-kind = "providers"

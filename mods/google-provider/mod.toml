@@ -1,0 +1,6 @@
+[mod]
+name = "Google (Gemini) Provider"
+id = "google-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Google (Gemini)."
+kind = "providers"

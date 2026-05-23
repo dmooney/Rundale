@@ -1,0 +1,6 @@
+[mod]
+name = "Mistral Provider"
+id = "mistral-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Mistral."
+kind = "providers"

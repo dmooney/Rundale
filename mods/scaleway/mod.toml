@@ -1,6 +1,0 @@
-[mod]
-name = "Scaleway Provider"
-id = "scaleway"
-version = "1.0.0"
-description = "Runtime-loaded LLM provider mod for Scaleway."
-kind = "providers"

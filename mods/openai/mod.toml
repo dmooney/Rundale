@@ -1,6 +1,0 @@
-[mod]
-name = "OpenAI Provider"
-id = "openai"
-version = "1.0.0"
-description = "Runtime-loaded LLM provider mod for OpenAI."
-kind = "providers"

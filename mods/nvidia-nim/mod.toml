@@ -1,6 +1,0 @@
-[mod]
-name = "NVIDIA NIM Provider"
-id = "nvidia-nim"
-version = "1.0.0"
-description = "Runtime-loaded LLM provider mod for NVIDIA NIM."
-kind = "providers"

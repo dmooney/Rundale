@@ -1,0 +1,6 @@
+[mod]
+name = "Vercel AI Gateway Provider"
+id = "vercel-ai-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Vercel AI Gateway."
+kind = "providers"
