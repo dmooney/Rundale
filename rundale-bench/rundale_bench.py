@@ -45,10 +45,15 @@ from grade import (  # noqa: E402
     grade_reaction,
     grade_schema,
     grade_simulation,
+    verify_judge_rubric,
 )
 
 import itertools
 import random
+
+import cache as judgment_cache  # noqa: E402
+import judge_bundle as jb  # noqa: E402
+from catalog import load_catalog  # noqa: E402
 
 _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
@@ -163,8 +168,113 @@ def run_intent(target: Target, records: list[dict], tracker: CostTracker, args) 
     return {"summary": summary, "results": results}
 
 
+def _judge_is_subagent(judge: dict) -> bool:
+    """A judge scored by a Claude Code subagent rather than an HTTP call."""
+    return judge.get("judge_via") == "claude-code-subagent"
+
+
+def run_dialogue_bundled(target: Target, records: list[dict], tracker: CostTracker, args, judge: dict) -> dict:
+    """Generate dialogue replies and queue them for subagent judging.
+
+    No judge call happens here: each (prompt, response) is hashed to a
+    content-addressed cache key. Already-judged pairs are folded in from the
+    cache; the rest are written into one pending bundle for the
+    `/rundale-bench` skill to score. Aggregates are completed by `ingest`
+    once the subagent results land in `.bench-queue/done/`.
+    """
+    verify_judge_rubric(judge)
+    rubric_sha = judge["rubric_sha256"]
+    judge_model = judge["model"]
+    candidate = {
+        "model_id": getattr(args, "model_id", None) or target.label(),
+        "provider_id": getattr(args, "provider_id", None),
+        "resolved_target": f"{target.model}@{target.base_url}",
+    }
+
+    results: list[dict] = []
+    pending_items: list[dict] = []
+    cache_hits = 0
+    for rec in records:
+        try:
+            reply, usage = call_chat(target, DIALOGUE_SYS, rec["prompt"], max_tokens=200)
+            tracker.record(target, usage)
+        except Exception as e:
+            results.append({"id": rec["id"], "error": str(e)})
+            continue
+        key = judgment_cache.cache_key(rec["id"], reply, rubric_sha, judge_model)
+        entry = {
+            "id": rec["id"],
+            "reply": reply,
+            "response_sha256": judgment_cache.response_sha256(reply),
+            "cache_key": key,
+        }
+        cached = judgment_cache.get(key)
+        if cached is not None:
+            entry["judged"] = True
+            entry["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
+            cache_hits += 1
+        else:
+            entry["judged"] = False
+            pending_items.append({"prompt_id": rec["id"], "prompt": rec["prompt"], "response": reply})
+        results.append(entry)
+
+    bundle_ids: list[str] = []
+    if pending_items:
+        bundle = jb.assemble_bundle(slice_name="dialogue", candidate=candidate, judge=judge, items=pending_items)
+        path = jb.write_pending(bundle)
+        bundle_ids.append(bundle["bundle_id"])
+        print(f"[dialogue] wrote bundle {bundle['bundle_id']} ({len(pending_items)} item(s)) -> {path}")
+    print(f"[dialogue] judge HTTP calls: 0; bundles queued: {len(bundle_ids)} ({cache_hits} cache hits)")
+
+    summary = _dialogue_aggregate(results)
+    summary["judge"] = judge["judge_id"]
+    summary["judge_model"] = judge_model
+    summary["rubric_sha256"] = rubric_sha
+    summary["bundles_queued"] = len(bundle_ids)
+    summary["cache_hits"] = cache_hits
+    return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
+
+
+def _dialogue_aggregate(results: list[dict]) -> dict:
+    """Aggregate dialogue axis means over results that carry a judgment.
+
+    Shared by the bundled runner (partial: only cache hits) and `ingest`
+    (complete: after subagent results are folded in). Unjudged or errored
+    rows are excluded and surfaced via `judge_failures`.
+    """
+    axes = ("character", "authenticity", "language", "responsiveness", "craft")
+    sums = {k: 0.0 for k in axes}
+    overall_sum = 0.0
+    judged = 0
+    nl_flags = 0
+    for r in results:
+        j = r.get("judgment")
+        if not r.get("judged") or not j or not j.get("axes"):
+            continue
+        judged += 1
+        for k in axes:
+            sums[k] += j["axes"].get(k, 0)
+        overall_sum += j.get("overall") or 0.0
+        if (j.get("flags") or {}).get("non_latin_detected"):
+            nl_flags += 1
+    n = max(1, judged)
+    summary = {
+        "slice": "dialogue",
+        "records": len(results),
+        "judged": judged,
+        "judge_failures": len([r for r in results if not r.get("error") and not r.get("judged")]),
+        "errors": len([r for r in results if r.get("error")]),
+        "non_latin_rate": nl_flags / n,
+        **{k: sums[k] / n for k in axes},
+        "overall": overall_sum / n,
+    }
+    return summary
+
+
 def run_dialogue(target: Target, records: list[dict], tracker: CostTracker, args) -> dict:
     judge = load_judge(args.judge, args.suite)
+    if _judge_is_subagent(judge):
+        return run_dialogue_bundled(target, records, tracker, args, judge)
     invoke = judge_invoker(judge, tracker)
     results = []
     axis_sums = {k: 0.0 for k in ("character", "authenticity", "language", "responsiveness", "craft", "overall")}
@@ -312,8 +422,28 @@ def run_gaeilge(target: Target, records: list[dict], tracker: CostTracker, args)
     return {"summary": summary, "results": results}
 
 
+def load_tier_ids(tier: str, slice_name: str, suite: str) -> Optional[list[str]]:
+    """Prompt ids for a tier/slice from `<suite>/<tier>.ids.json`, or None.
+
+    The file maps slice name -> list of ids. Missing file or missing slice
+    entry returns None (caller falls back to the full slice).
+    """
+    path = _BENCH_DIR / suite / f"{tier}.ids.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    ids = data.get(slice_name)
+    return list(ids) if ids else None
+
+
 def run_slice(slice_name: str, target: Target, tracker: CostTracker, args) -> dict:
     records = load_slice(slice_name, version=args.suite, split=args.split)
+    tier = getattr(args, "tier", None)
+    if tier:
+        ids = load_tier_ids(tier, slice_name, args.suite)
+        if ids is not None:
+            keep = set(ids)
+            records = [r for r in records if r["id"] in keep]
     if args.limit:
         records = records[: args.limit]
     if slice_name == "intent":
@@ -497,7 +627,123 @@ def run_elo(targets: list[Target], tracker: CostTracker, args) -> dict:
     }
 
 
+_JUDGE_ALIASES = {"sonnet": "judge_sonnet_v1", "qwen": "judge_v1"}
+
+
+def cmd_catalog(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py catalog")
+    ap.add_argument("--show", action="store_true", help="print catalog with resolved quality provider")
+    ap.add_argument("--suite", default="v1")
+    args = ap.parse_args(argv)
+    cat = load_catalog(version=args.suite)
+    print(f"catalog: {len(cat.models)} model(s), sha256={cat.sha256[:12]}…")
+    for m in cat.models:
+        cp = m.cheapest_provider()
+        local = " [local]" if m.local_only else ""
+        print(f"  {m.id:<20} {m.display_name}{local}")
+        print(f"      quality_provider={cp.provider_id}  (${cp.price_in_per_mtok}/{cp.price_out_per_mtok} per Mtok)  providers={[p.provider_id for p in m.providers]}")
+
+
+def cmd_judge(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py judge")
+    ap.add_argument("--verify", metavar="JUDGE_ID", help="verify a judge config's rubric_sha256")
+    ap.add_argument("--suite", default="v1")
+    args = ap.parse_args(argv)
+    if not args.verify:
+        ap.error("nothing to do; pass --verify <judge_id>")
+    judge_id = _JUDGE_ALIASES.get(args.verify, args.verify)
+    judge = load_judge(judge_id, args.suite)
+    verify_judge_rubric(judge)  # raises on drift
+    print(f"rubric_sha256 OK  ({judge_id}: model={judge['model']}, sha={judge['rubric_sha256'][:12]}…)")
+
+
+def cmd_ingest(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py ingest")
+    ap.add_argument("--finalize", action="store_true",
+                    help="error if any pending bundle has no done counterpart")
+    args = ap.parse_args(argv)
+
+    done = jb.list_done()
+    judgments_written = 0
+    failures = 0
+    for done_path in done:
+        result = jb.read_result(done_path)
+        pending_path = jb.PENDING_DIR / done_path.name
+        if not pending_path.exists():
+            print(f"[ingest] WARN: done/{done_path.name} has no pending bundle; skipping")
+            continue
+        bundle = jb.read_json(pending_path)
+        responses = {it["prompt_id"]: it["response"] for it in bundle["items"]}
+        valid, failed = jb.validate_result(result, bundle)
+        for item in valid:
+            response = responses.get(item["prompt_id"], "")
+            key = judgment_cache.cache_key(item["prompt_id"], response, bundle["rubric_sha256"], bundle["judge_model"])
+            judgment_cache.put(key, {
+                "slice": bundle["slice"],
+                "prompt_id": item["prompt_id"],
+                "response_sha256": judgment_cache.response_sha256(response),
+                "rubric_sha256": bundle["rubric_sha256"],
+                "judge_model": bundle["judge_model"],
+                "judge_id": bundle["judge_id"],
+                "axes": item["axes"],
+                "overall": item["overall"],
+                "rationales": item.get("rationales", {}),
+                "flags": item["flags"],
+            })
+            judgments_written += 1
+        for item in failed:
+            failures += 1
+            print(f"[ingest] judge failure: {item['prompt_id']} — {item.get('error', 'invalid')}")
+
+    unjudged = jb.unjudged_bundles()
+    if unjudged and args.finalize:
+        for p in unjudged:
+            print(f"[ingest] pending with no result: {p.name}", file=sys.stderr)
+        raise SystemExit(f"ingest --finalize: {len(unjudged)} pending bundle(s) not yet judged")
+
+    refreshed = _refresh_run_aggregates()
+    print(f"[ingest] judgments written: {judgments_written}; judge failures: {failures}; "
+          f"pending unjudged: {len(unjudged)}; run files refreshed: {refreshed}")
+
+
+def _refresh_run_aggregates() -> int:
+    """Re-read every artifacts/run_*.json dialogue slice and fold in any
+    judgments now present in the cache, recomputing the aggregate."""
+    refreshed = 0
+    for run_path in sorted(_ARTIFACTS_DIR.glob("run_*.json")):
+        out = json.loads(run_path.read_text(encoding="utf-8"))
+        dia = out.get("slices", {}).get("dialogue")
+        if not dia or "results" not in dia:
+            continue
+        changed = False
+        for r in dia["results"]:
+            key = r.get("cache_key")
+            if not key or r.get("judged"):
+                continue
+            cached = judgment_cache.get(key)
+            if cached is not None:
+                r["judged"] = True
+                r["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
+                changed = True
+        if changed:
+            new_summary = _dialogue_aggregate(dia["results"])
+            new_summary.update({k: dia["summary"][k] for k in ("judge", "judge_model", "rubric_sha256")
+                                if k in dia.get("summary", {})})
+            dia["summary"] = new_summary
+            run_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
+            refreshed += 1
+    return refreshed
+
+
 def main() -> None:
+    argv = sys.argv[1:]
+    if argv and argv[0] in ("catalog", "judge", "ingest"):
+        {"catalog": cmd_catalog, "judge": cmd_judge, "ingest": cmd_ingest}[argv[0]](argv[1:])
+        return
+    legacy_main(argv)
+
+
+def legacy_main(argv: list[str]) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--target", action="append", required=True,
                     help="model@base_url[#env:VAR]; pass multiple times in --mode elo")
@@ -508,10 +754,19 @@ def main() -> None:
     ap.add_argument("--mode", default="absolute", choices=["absolute", "elo"],
                     help="absolute: per-slice graders; elo: pairwise ELO over dialogue slice")
     ap.add_argument("--judge", default=None,
-                    help="judge config id (default judge_v1 in absolute mode, judge_pairwise_v1 in elo mode)")
+                    help="judge config id or alias (sonnet|qwen); default judge_v1 absolute, judge_pairwise_v1 elo")
+    ap.add_argument("--tier", default=None, choices=["screen", "contender", "finalist"],
+                    help="filter prompts to a tier id set (<suite>/<tier>.ids.json)")
+    ap.add_argument("--model-id", dest="model_id", default=None,
+                    help="catalog model id recorded on the candidate (subagent judging)")
+    ap.add_argument("--provider-id", dest="provider_id", default=None,
+                    help="provider id recorded on the candidate (subagent judging)")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
+
+    if args.judge in _JUDGE_ALIASES:
+        args.judge = _JUDGE_ALIASES[args.judge]
 
     if args.mode == "elo":
         if args.slice is not None and args.slice != "dialogue":

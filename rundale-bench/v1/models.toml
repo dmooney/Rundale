@@ -1,0 +1,78 @@
+# rundale-bench candidate catalog (v1)
+#
+# Each [[model]] binds a logical model id to one or more providers that serve
+# it. Quality judging runs once per model on the cheapest provider
+# (min of price_in + 3*price_out); perf benchmarking sweeps every provider.
+#
+# provider_id / base_url / api_key_env mirror the engine provider presets in
+# parish/crates/parish-config/providers/*.toml. Prices are USD per 1M tokens
+# and are point-in-time estimates — verify against the provider before a
+# leaderboard freeze. Local (MLX) targets are $0.
+schema_version = 1
+
+[[model]]
+id = "qwen2.5-7b-mlx"
+display_name = "Qwen2.5 7B Instruct (MLX 4-bit)"
+params_b = 7
+quant = "4bit"
+family = "qwen2.5"
+local_only = true
+providers = [
+  { provider_id = "vllmmlx", model_name_at_provider = "mlx-community/Qwen2.5-7B-Instruct-4bit", base_url = "http://localhost:8000/v1", price_in_per_mtok = 0.0, price_out_per_mtok = 0.0, max_context = 32768, notes = "vllm-mlx, spawn on demand (slot :8000)" },
+]
+
+[[model]]
+id = "qwen2.5-1.5b-mlx"
+display_name = "Qwen2.5 1.5B Instruct (MLX 4-bit)"
+params_b = 1.5
+quant = "4bit"
+family = "qwen2.5"
+local_only = true
+providers = [
+  { provider_id = "vllmmlx", model_name_at_provider = "mlx-community/Qwen2.5-1.5B-Instruct-4bit", base_url = "http://localhost:8001/v1", price_in_per_mtok = 0.0, price_out_per_mtok = 0.0, max_context = 32768, notes = "vllm-mlx small slot :8001" },
+]
+
+[[model]]
+id = "llama-3.3-70b"
+display_name = "Llama-3.3 70B Instruct"
+params_b = 70
+family = "llama-3.3"
+providers = [
+  { provider_id = "groq", model_name_at_provider = "llama-3.3-70b-versatile", base_url = "https://api.groq.com/openai/v1", api_key_env = "PARISH_GROQ_API_KEY", price_in_per_mtok = 0.59, price_out_per_mtok = 0.79, max_context = 131072 },
+  { provider_id = "together", model_name_at_provider = "meta-llama/Llama-3.3-70B-Instruct-Turbo", base_url = "https://api.together.xyz/v1", api_key_env = "PARISH_TOGETHER_API_KEY", price_in_per_mtok = 0.88, price_out_per_mtok = 0.88, max_context = 131072 },
+  { provider_id = "openrouter", model_name_at_provider = "meta-llama/llama-3.3-70b-instruct", base_url = "https://openrouter.ai/api/v1", api_key_env = "OPENROUTER_API_KEY", price_in_per_mtok = 0.13, price_out_per_mtok = 0.39, max_context = 131072 },
+]
+
+[[model]]
+id = "claude-haiku-4-5"
+display_name = "Claude Haiku 4.5"
+family = "claude"
+providers = [
+  { provider_id = "anthropic", model_name_at_provider = "claude-haiku-4-5", base_url = "https://api.anthropic.com/v1", api_key_env = "ANTHROPIC_API_KEY", price_in_per_mtok = 1.00, price_out_per_mtok = 5.00, max_context = 200000 },
+]
+
+[[model]]
+id = "deepseek-v3"
+display_name = "DeepSeek V3"
+family = "deepseek"
+providers = [
+  { provider_id = "deepseek", model_name_at_provider = "deepseek-chat", base_url = "https://api.deepseek.com/v1", api_key_env = "PARISH_DEEPSEEK_API_KEY", price_in_per_mtok = 0.27, price_out_per_mtok = 1.10, max_context = 64000 },
+  { provider_id = "openrouter", model_name_at_provider = "deepseek/deepseek-chat", base_url = "https://openrouter.ai/api/v1", api_key_env = "OPENROUTER_API_KEY", price_in_per_mtok = 0.28, price_out_per_mtok = 1.10, max_context = 64000 },
+]
+
+[[model]]
+id = "grok-4-fast"
+display_name = "Grok 4 Fast"
+family = "grok"
+providers = [
+  { provider_id = "xai", model_name_at_provider = "grok-4-fast", base_url = "https://api.x.ai/v1", api_key_env = "PARISH_XAI_API_KEY", price_in_per_mtok = 0.20, price_out_per_mtok = 0.50, max_context = 131072 },
+]
+
+# Reference target: the cheapest cloud "small" model, used as a sanity anchor.
+[[model]]
+id = "gpt-5-mini"
+display_name = "GPT-5 mini"
+family = "gpt"
+providers = [
+  { provider_id = "openai", model_name_at_provider = "gpt-5-mini", base_url = "https://api.openai.com/v1", api_key_env = "PARISH_OPENAI_API_KEY", price_in_per_mtok = 0.25, price_out_per_mtok = 2.00, max_context = 400000 },
+]
