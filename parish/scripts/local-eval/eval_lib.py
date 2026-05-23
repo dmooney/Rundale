@@ -286,6 +286,12 @@ def call_chat_streaming(
         body["max_tokens"] = max_tokens
     if schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
+    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
+    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
+    # score the model's internal monologue rather than its reply. Mirrors the
+    # same injection in call_chat above.
+    if _is_thinking_mlx_model(target.model):
+        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",

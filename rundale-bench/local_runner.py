@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -55,7 +56,9 @@ _CANDIDATES_TOML = _HERE / "candidates_local_mlx.toml"
 _BENCH_PY = _HERE / "rundale_bench.py"
 
 # Resolve the mlx-lm server binary from the venv that bundles it.
-_VENV = Path("/Users/dmooney/Rundale/.venv-mlx")
+# Resolve the mlx-lm server binary from a venv co-located with the repo.
+# Override with `MLX_VENV=/abs/path` if the venv lives elsewhere.
+_VENV = Path(os.environ.get("MLX_VENV") or (_REPO_ROOT / ".venv-mlx"))
 _MLX_SERVER = _VENV / "bin" / "mlx_lm.server"
 
 
@@ -76,7 +79,7 @@ def _load_dotenv(path: Path) -> None:
             os.environ[key] = val
 
 
-_load_dotenv(Path("/Users/dmooney/Rundale/.env"))
+_load_dotenv(_REPO_ROOT / ".env")
 
 
 def utc_stamp() -> str:
@@ -242,7 +245,6 @@ def latest_bench_run(slice_name: str, model_slug: str, since_ts: float) -> Optio
 
 
 def slug(s: str) -> str:
-    import re
     return re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_")[:80]
 
 

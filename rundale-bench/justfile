@@ -24,9 +24,9 @@ MID_TARGETS := "--target 'anthropic/claude-haiku-4.5@https://openrouter.ai/api/v
 JUDGE := "mistralai/mistral-large-2512"
 
 # Python from the mlx-lm virtualenv. local_runner.py imports mlx_lm.server +
-# psutil, which live in this venv only. Override with a shell export if you
-# keep mlx-lm elsewhere.
-MLX_PY := "/Users/dmooney/Rundale/.venv-mlx/bin/python3"
+# psutil, which live in this venv only. Defaults to a sibling `.venv-mlx/`
+# next to the repo; override with `MLX_PY=/abs/path` if it lives elsewhere.
+MLX_PY := env_var_or_default("MLX_PY", justfile_directory() / ".." / ".venv-mlx" / "bin" / "python3")
 
 
 # Default — show the list.
