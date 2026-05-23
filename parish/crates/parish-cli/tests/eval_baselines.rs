@@ -42,6 +42,7 @@ const BASELINED_FIXTURES: &[&str] = &[
     "test_movement_errors",
     "test_walkthrough",
     "test_all_locations",
+    "test_address_absent_npc",
 ];
 
 /// Cache of fixture results, populated once on first access.
@@ -164,6 +165,14 @@ fn baseline_test_walkthrough() {
 #[test]
 fn baseline_test_all_locations() {
     check_or_update_baseline("test_all_locations");
+}
+
+/// Regression coverage for #985 — addressing an absent NPC must surface a
+/// system "{name} is not here." message rather than letting a different
+/// co-located NPC speak as a silent fallback.
+#[test]
+fn baseline_test_address_absent_npc() {
+    check_or_update_baseline("test_address_absent_npc");
 }
 
 // ============================================================
