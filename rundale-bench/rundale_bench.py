@@ -51,8 +51,12 @@ from grade import (  # noqa: E402
 import itertools
 import random
 
+import glob  # noqa: E402
+import subprocess  # noqa: E402
+
 import cache as judgment_cache  # noqa: E402
 import judge_bundle as jb  # noqa: E402
+import promote as promo  # noqa: E402
 from catalog import load_catalog  # noqa: E402
 
 _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
@@ -735,10 +739,242 @@ def _refresh_run_aggregates() -> int:
     return refreshed
 
 
+# ---------------------------------------------------------------------------
+# Phase 2: tier funnel + differential re-judge
+# ---------------------------------------------------------------------------
+
+def tier_prompt_ids(tier: str, slice_name: str, suite: str) -> Optional[list[str]]:
+    """Prompt ids for a tier. `finalist` returns None (= full dev slice);
+    `screen`/`contender` read their id files; anything else falls through."""
+    if tier == "finalist":
+        return None
+    return load_tier_ids(tier, slice_name, suite)
+
+
+def resolve_models(catalog, models_arg: str, exclude: set[str]) -> list:
+    """Resolve a --models spec to catalog Model objects.
+
+    Forms: `all`; comma list `a,b`; additive `+id` (single new model). Unknown
+    ids are a hard error. `exclude` drops ids from the result.
+    """
+    if models_arg == "all":
+        ids = catalog.ids()
+    elif models_arg.startswith("+"):
+        ids = [models_arg[1:]]
+    else:
+        ids = [m.strip() for m in models_arg.split(",") if m.strip()]
+    unknown = [i for i in ids if i not in catalog.ids()]
+    if unknown:
+        raise SystemExit(f"unknown catalog model id(s): {unknown}")
+    return [catalog.by_id(i) for i in ids if i not in exclude]
+
+
+def cmd_tiers(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py tiers")
+    ap.add_argument("--show", action="store_true")
+    ap.add_argument("--slice", default="dialogue")
+    ap.add_argument("--suite", default="v1")
+    args = ap.parse_args(argv)
+    full = load_slice(args.slice, version=args.suite, split="dev")
+    full_ids = {r["id"] for r in full}
+    print(f"tiers for slice={args.slice} (dev):")
+    for tier in ("screen", "contender", "finalist"):
+        ids = tier_prompt_ids(tier, args.slice, args.suite)
+        if ids is None:
+            print(f"  {tier:<10} {len(full)}  (full dev slice)")
+        else:
+            missing = [i for i in ids if i not in full_ids]
+            tag = f"  WARNING {len(missing)} id(s) not in slice" if missing else ""
+            print(f"  {tier:<10} {len(ids)}{tag}")
+
+
+def _run_one_model(model, provider, args) -> dict:
+    target = parse_target(provider.resolved_target())
+    sub = argparse.Namespace(suite=args.suite, split=args.split, limit=args.limit,
+                             tier=args.tier, judge=args.judge,
+                             model_id=model.id, provider_id=provider.provider_id)
+    tracker = CostTracker()
+    data = run_slice(args.slice, target, tracker, sub)
+    out = {
+        "suite": args.suite, "split": args.split, "tier": args.tier,
+        "slice": args.slice, "skip_promotion": getattr(args, "skip_promotion", False),
+        "target": {"model": target.model, "base_url": target.base_url},
+        "candidate": {"model_id": model.id, "provider_id": provider.provider_id,
+                      "resolved_target": provider.resolved_target()},
+        "promoted_from": None,
+        "run_started_utc": datetime.now(timezone.utc).isoformat(),
+        "slices": {args.slice: data},
+        "cost": {"calls": tracker.calls, "prompt_tokens": tracker.prompt_tokens,
+                 "completion_tokens": tracker.completion_tokens, "usd": tracker.usd},
+    }
+    _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = _ARTIFACTS_DIR / f"run_{slug(model.id)}_{args.slice}_{args.tier}_{utc_stamp()}.json"
+    out_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
+    print(f"[run] {model.id} via {provider.provider_id}: {data['summary'].get('bundles_queued', 0)} bundle(s) queued -> {out_path.name}")
+    return out
+
+
+def cmd_run(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py run")
+    ap.add_argument("--tier", required=True, choices=["screen", "contender", "finalist"])
+    ap.add_argument("--models", required=True, help="all | id,id | +id (additive)")
+    ap.add_argument("--exclude-models", default="", help="comma list to drop")
+    ap.add_argument("--slice", default="dialogue")
+    ap.add_argument("--judge", default="sonnet")
+    ap.add_argument("--suite", default="v1")
+    ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
+    ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--skip-promotion", action="store_true",
+                    help="documentary flag recorded on the run; promotion is a separate step")
+    args = ap.parse_args(argv)
+    if args.slice != "dialogue":
+        raise SystemExit("Phase 2 wires the dialogue slice only; other slices land in Phase 5")
+    if args.judge in _JUDGE_ALIASES:
+        args.judge = _JUDGE_ALIASES[args.judge]
+    catalog = load_catalog(version=args.suite)
+    exclude = {m.strip() for m in args.exclude_models.split(",") if m.strip()}
+    models = resolve_models(catalog, args.models, exclude)
+    if not models:
+        raise SystemExit("no models selected after applying --exclude-models")
+    print(f"[run] tier={args.tier} slice={args.slice} models={[m.id for m in models]}")
+    for model in models:
+        _run_one_model(model, model.cheapest_provider(), args)
+    print(f"[run] done. Next: /rundale-bench drain-queue, then 'ingest --finalize', "
+          f"then 'promote --from {args.tier}'.")
+
+
+def _tier_aggregates(tier: str, slice_name: str) -> dict[str, dict]:
+    """model_id -> slice summary, from this tier's run JSONs (latest wins)."""
+    aggs: dict[str, dict] = {}
+    for path in sorted(glob.glob(str(_ARTIFACTS_DIR / "run_*.json"))):
+        out = json.loads(Path(path).read_text(encoding="utf-8"))
+        if out.get("tier") != tier:
+            continue
+        s = out.get("slices", {}).get(slice_name)
+        mid = out.get("candidate", {}).get("model_id")
+        if s and mid:
+            aggs[mid] = s["summary"]
+    return aggs
+
+
+def cmd_promote(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py promote")
+    ap.add_argument("--from", dest="from_tier", required=True, choices=["screen", "contender"])
+    ap.add_argument("--slice", default="dialogue")
+    ap.add_argument("--include-models", default="")
+    ap.add_argument("--exclude-models", default="")
+    args = ap.parse_args(argv)
+    include = {m.strip() for m in args.include_models.split(",") if m.strip()}
+    exclude = {m.strip() for m in args.exclude_models.split(",") if m.strip()}
+    aggs = _tier_aggregates(args.from_tier, args.slice)
+    decisions = promo.promote(aggs, args.from_tier, include=include, exclude=exclude)
+    nxt = promo.TIER_RULES[args.from_tier]["next"]
+    print(f"[promote] {args.from_tier} -> {nxt}:")
+    for d in decisions:
+        mark = "PROMOTE" if d.promoted else "hold   "
+        print(f"  {mark}  {d.model_id:<20} {d.reason}")
+    ids = promo.promoted_ids(decisions)
+    print(f"[promote] promoted: {','.join(ids) if ids else '(none)'}")
+
+
+# ── differential re-judge ────────────────────────────────────────────────────
+def collect_samples(slice_name: str = "dialogue") -> list[dict]:
+    """Every committed sample (model_id, prompt_id, response) from run JSONs."""
+    samples: list[dict] = []
+    for path in sorted(glob.glob(str(_ARTIFACTS_DIR / "run_*.json"))):
+        out = json.loads(Path(path).read_text(encoding="utf-8"))
+        s = out.get("slices", {}).get(slice_name)
+        mid = out.get("candidate", {}).get("model_id") or out.get("target", {}).get("model", "?")
+        if not s:
+            continue
+        for r in s.get("results", []):
+            if r.get("reply") is None or r.get("error"):
+                continue
+            samples.append({"model_id": mid, "prompt_id": r["id"], "response": r["reply"]})
+    return samples
+
+
+def stale_samples(samples: list[dict], judge: dict) -> list[dict]:
+    """Samples whose cache_key under the CURRENT judge is absent from cache."""
+    out = []
+    for s in samples:
+        key = judgment_cache.cache_key(s["prompt_id"], s["response"],
+                                       judge["rubric_sha256"], judge["model"])
+        if not judgment_cache.has(key):
+            out.append({**s, "cache_key": key})
+    return out
+
+
+def _git_show(ref: str, path: str) -> Optional[str]:
+    try:
+        return subprocess.check_output(["git", "show", f"{ref}:{path}"],
+                                       cwd=_REPO_ROOT, stderr=subprocess.DEVNULL).decode("utf-8")
+    except subprocess.CalledProcessError:
+        return None
+
+
+def classify_since(ref: str, judge_id: str, suite: str, *, show=_git_show) -> str:
+    """Why are judgments stale relative to `ref`? Compares the judge config
+    between ref and HEAD. `show` is injectable for tests."""
+    rel = f"rundale-bench/{suite}/{judge_id}.json"
+    old = show(ref, rel)
+    if old is None:
+        return "new judge config"
+    try:
+        old_cfg = json.loads(old)
+    except json.JSONDecodeError:
+        return "judge config unparseable at ref"
+    cur = load_judge(judge_id, suite)
+    if old_cfg.get("model") != cur.get("model"):
+        return "judge model swap"
+    if old_cfg.get("rubric_sha256") != cur.get("rubric_sha256"):
+        return "rubric drift"
+    return "new responses"
+
+
+def cmd_rejudge(argv: list[str]) -> None:
+    ap = argparse.ArgumentParser(prog="rundale_bench.py rejudge")
+    ap.add_argument("--dry-run", action="store_true", help="report stale count; make no changes")
+    ap.add_argument("--since", default=None, help="git ref to diff the judge config against")
+    ap.add_argument("--judge", default="sonnet")
+    ap.add_argument("--slice", default="dialogue")
+    ap.add_argument("--suite", default="v1")
+    args = ap.parse_args(argv)
+    judge_id = _JUDGE_ALIASES.get(args.judge, args.judge)
+    judge = load_judge(judge_id, args.suite)
+    samples = collect_samples(args.slice)
+    stale = stale_samples(samples, judge)
+    reason = classify_since(args.since, judge_id, args.suite) if args.since else "stale (rubric/judge/new)"
+    print(f"[rejudge] samples={len(samples)} stale={len(stale)} reason={reason}")
+    if args.dry_run:
+        return
+    if not stale:
+        print("[rejudge] nothing to re-queue.")
+        return
+    # Group stale samples into one bundle per model_id and queue them.
+    by_model: dict[str, list[dict]] = {}
+    for s in stale:
+        by_model.setdefault(s["model_id"], []).append(s)
+    for mid, items in by_model.items():
+        bundle = jb.assemble_bundle(
+            slice_name=args.slice,
+            candidate={"model_id": mid, "provider_id": None, "resolved_target": "rejudge"},
+            judge=judge,
+            items=[{"prompt_id": s["prompt_id"], "prompt": "", "response": s["response"]} for s in items],
+        )
+        jb.write_pending(bundle)
+        print(f"[rejudge] queued {len(items)} item(s) for {mid}")
+    print("[rejudge] run /rundale-bench drain-queue, then 'ingest --finalize'.")
+
+
 def main() -> None:
     argv = sys.argv[1:]
-    if argv and argv[0] in ("catalog", "judge", "ingest"):
-        {"catalog": cmd_catalog, "judge": cmd_judge, "ingest": cmd_ingest}[argv[0]](argv[1:])
+    dispatch = {
+        "catalog": cmd_catalog, "judge": cmd_judge, "ingest": cmd_ingest,
+        "tiers": cmd_tiers, "run": cmd_run, "promote": cmd_promote, "rejudge": cmd_rejudge,
+    }
+    if argv and argv[0] in dispatch:
+        dispatch[argv[0]](argv[1:])
         return
     legacy_main(argv)
 
