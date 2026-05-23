@@ -391,6 +391,7 @@ fn npc_mention_candidates(
 fn find_natural_npc_mentions(
     raw: &str,
     candidates: &[NpcMentionCandidate],
+    excluded_spans: &[(usize, usize, String)],
 ) -> Vec<(usize, usize, String)> {
     let raw_lower = raw.to_ascii_lowercase();
     let mut spans: Vec<(usize, usize, String)> = Vec::new();
@@ -408,6 +409,17 @@ fn find_natural_npc_mentions(
             };
             let start = cursor + rel_start;
             let end = start + candidate.text.len();
+            let overlaps_excluded =
+                excluded_spans
+                    .iter()
+                    .any(|(excluded_start, excluded_end, _)| {
+                        start < *excluded_end && end > *excluded_start
+                    });
+            if overlaps_excluded || raw.get(start..end).is_none() {
+                cursor = end;
+                continue;
+            }
+
             let before = if start == 0 {
                 None
             } else {
@@ -481,13 +493,18 @@ pub fn extract_npc_mentions(
             if rest.len() < candidate.text.len() {
                 continue;
             }
-            let text = &rest[..candidate.text.len()];
-            if text.eq_ignore_ascii_case(&candidate.text)
-                && mention_boundary(rest[candidate.text.len()..].chars().next())
+            let candidate_len = candidate.text.len();
+            let Some(text) = rest.get(..candidate_len) else {
+                continue;
+            };
+            let Some(after) = rest.get(candidate_len..) else {
+                continue;
+            };
+            if text.eq_ignore_ascii_case(&candidate.text) && mention_boundary(after.chars().next())
             {
                 match &matched {
-                    Some((len, _)) if *len >= candidate.text.len() => {}
-                    _ => matched = Some((candidate.text.len(), candidate.target.clone())),
+                    Some((len, _)) if *len >= candidate_len => {}
+                    _ => matched = Some((candidate_len, candidate.target.clone())),
                 }
             }
         }
@@ -500,36 +517,44 @@ pub fn extract_npc_mentions(
         }
     }
 
+    let natural_spans = find_natural_npc_mentions(raw, &candidates, &spans);
+
     if spans.is_empty() {
-        let spans = find_natural_npc_mentions(raw, &candidates);
-        if !spans.is_empty() {
-            let mut names = Vec::new();
-            let mut dedupe = HashSet::new();
-            for (_, _, name) in spans {
-                if dedupe.insert(name.to_lowercase()) {
-                    names.push(name);
-                }
-            }
+        if natural_spans.is_empty() {
             return MentionedNpcs {
-                names,
+                names: vec![],
                 remaining: raw.trim().to_string(),
             };
         }
 
+        let mut names = Vec::new();
+        let mut dedupe = HashSet::new();
+        for (_, _, name) in natural_spans {
+            if dedupe.insert(name.to_lowercase()) {
+                names.push(name);
+            }
+        }
         return MentionedNpcs {
-            names: vec![],
+            names,
             remaining: raw.trim().to_string(),
         };
     }
 
+    let mut name_spans = spans.clone();
+    name_spans.extend(natural_spans);
+    name_spans.sort_by_key(|(start, _, _)| *start);
+
     let mut names = Vec::new();
     let mut dedupe = HashSet::new();
-    let mut remaining = String::new();
-    let mut last = 0usize;
-    for (start, end, name) in spans {
+    for (_, _, name) in name_spans {
         if dedupe.insert(name.to_lowercase()) {
             names.push(name);
         }
+    }
+
+    let mut remaining = String::new();
+    let mut last = 0usize;
+    for (start, end, _) in spans {
         remaining.push_str(&raw[last..start]);
         remaining.push(' ');
         last = end;
@@ -1176,6 +1201,52 @@ mod tests {
             extracted.names,
             vec!["an older man behind the bar".to_string()]
         );
+        assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_merges_at_mentions_with_free_text_names() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc1 = Npc::new_test_npc();
+        npc1.id = NpcId(1);
+        npc1.name = "Padraig Darcy".to_string();
+        npc1.location = world.player_location;
+
+        let mut npc2 = Npc::new_test_npc();
+        npc2.id = NpcId(2);
+        npc2.name = "Niamh Darcy".to_string();
+        npc2.location = world.player_location;
+
+        npc_mgr.add_npc(npc1);
+        npc_mgr.add_npc(npc2);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let extracted = extract_npc_mentions("@Padraig Darcy hello Niamh", &world, &npc_mgr);
+
+        assert_eq!(
+            extracted.names,
+            vec!["Padraig Darcy".to_string(), "Niamh Darcy".to_string()]
+        );
+        assert_eq!(extracted.remaining, "hello Niamh");
+    }
+
+    #[test]
+    fn extract_npc_mentions_ignores_non_boundary_multibyte_prefix() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.name = "A".to_string();
+        npc.location = world.player_location;
+        npc_mgr.add_npc(npc);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let raw = "Áine says hello";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert!(extracted.names.is_empty());
         assert_eq!(extracted.remaining, raw);
     }
 
