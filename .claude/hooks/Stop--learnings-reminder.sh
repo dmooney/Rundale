@@ -9,6 +9,7 @@
 # Claude to ask "did I learn anything worth saving here?" before
 # closing out.
 set -euo pipefail
+trap 'rc=$?; printf "Stop hook %s failed (exit=%d) at line %d\n" "${BASH_SOURCE[0]##*/}" "$rc" "$LINENO" >&2' ERR
 exec >&2
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
@@ -23,8 +24,10 @@ UNSTAGED_RS=$(git diff --name-only 2>/dev/null | grep -E "$SRC_RE" || true)
 UNTRACKED_RS=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E "$SRC_RE" || true)
 
 # Count touched source files (deduped).
+# `grep -v '^$'` exits 1 when every input line is blank (all three vars empty);
+# under `pipefail` that would silently fail the script. Swallow with `|| true`.
 TOUCHED=$(printf '%s\n%s\n%s\n' "$CHANGED_RS" "$UNSTAGED_RS" "$UNTRACKED_RS" \
-    | grep -v '^$' | sort -u | wc -l | tr -d ' ')
+    | { grep -v '^$' || true; } | sort -u | wc -l | tr -d ' ')
 
 # Fire only when the session did real work (>= 3 source files
 # touched). One-or-two-file fixes rarely yield generalisable

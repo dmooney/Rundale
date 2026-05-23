@@ -13,6 +13,7 @@
 #     after one block-and-retry — matches Stop--proof-required.sh).
 
 set -euo pipefail
+trap 'rc=$?; printf "Stop hook %s failed (exit=%d) at line %d\n" "${BASH_SOURCE[0]##*/}" "$rc" "$LINENO" >&2' ERR
 
 INPUT="$(cat 2>/dev/null || true)"
 
