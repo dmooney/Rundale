@@ -2148,6 +2148,7 @@ pub mod tests {
             config.max_follow_up_turns = 1;
             config.idle_banter_after_secs = 1;
             config.auto_pause_after_secs = 60;
+            config.flags.enable("npc-idle-banter");
         }
 
         let (prompts, worker) = install_scripted_inference_queue(
