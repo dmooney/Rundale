@@ -19,3 +19,10 @@ bottom; don't lengthen items past 2-3 lines.
 
 - **Profile section is rewritten every session**, journal is append-only. HTML comment markers `<!-- PROFILE_START -->` / `<!-- PROFILE_END -->` bound the rewritable region.
 - **Dedup has three layers**: in-memory `bump_last_arrival` for in-session, disk-scan in `new()` for cross-session, and heading-level idempotence in `append_journal_entry` for replay safety.
+
+## rundale-bench local MLX sweep
+
+- **mlx-lm 4-bit RAM footprint is roughly `params_b × 0.55 GB` peak under inference.** 70B+ 4-bit and 70B 8-bit OOM a 48 GB M5 Pro mid-generation (system reboot required). `magnum-v4-72b-4bit` and `Midnight-Miqu-70B-v1.5-MLX-8Bit` are marked `peak_ram_gb_est >= 52` in `rundale-bench/candidates_local_mlx.toml` so `local_runner.py`'s headroom check skips them. Don't lower without measuring on a bigger box.
+- **`local_runner.py`'s "ready" signal is `/v1/models` returning 200, not actual model load.** Big-Tiger-Gemma-27B passed the readiness probe ~10 s before weights finished mmapping, so the first POSTs got HTTP 404 and the sweep recorded `overall=0.00` despite the model being viable later. On re-run it produced only `<pad>` tokens anyway — Gemma 4-bit quant is broken for in-character prose (same failure mode as `gemma-4-e4b-it-4bit`).
+- **Qwen3 thinking-mode leaks unless `chat_template_kwargs={"enable_thinking": False}` is injected on mlx_lm.server requests.** `parish/scripts/local-eval/eval_lib.py::THINKING_MLX_PREFIXES` lists the affected repos. Without the flag, reasoning fills `max_tokens` and the assistant content is empty → near-zero rubric scores. Cloud reasoning models (kimi-k2.5/6, deepseek-r1, claude, openai-o*, glm-4.6/7, gemini-2.5+) are already handled centrally by `_is_reasoning_model` → `_default_reasoning_for` in `eval_lib.py::call_chat`.
+- **opencode.ai is fronted by Cloudflare which 403s the default Python-urllib UA** (firewall rule 1010). `call_chat` sets `User-Agent: rundale-bench/1.0 (+...)` so the request gets through.

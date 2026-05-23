@@ -132,6 +132,47 @@ After `frozen=true`, edits require a new version directory (`v1.1/`, `v2/`).
 - One record per line, no embedded newlines (use `\n` in JSON strings).
 - Run `python3 -c 'import json; [json.loads(l) for l in open(<path>)]'` on the slice before committing — a malformed line poisons every downstream grader.
 
+## Local MLX sweep (`local_runner.py`)
+
+`local_runner.py` spawns `mlx_lm.server` for each candidate in
+`candidates_local_mlx.toml`, waits for the model to load, runs the bench
+against `http://127.0.0.1:<port>`, samples peak RAM at 4 Hz during
+inference (Metal-aware via `psutil.Process.memory_full_info().uss`),
+appends a row under `artifacts/local_leaderboard.md`, then SIGTERMs the
+server. The mlx-lm package lives in a dedicated venv at
+`/Users/dmooney/Rundale/.venv-mlx/`; the runner reads it via the
+hard-coded `_VENV` constant and otherwise has no project dependencies.
+
+```sh
+# Dry-run — list the candidates and their estimated RAM footprint:
+just -f rundale-bench/justfile local-plan
+
+# Sweep the tiny slot (intent / reaction) on the intent slice:
+just -f rundale-bench/justfile local slot=tiny slice=intent limit=25
+
+# Sweep the large slot (dialogue / sim) on the dialogue slice:
+just -f rundale-bench/justfile local slot=large slice=dialogue limit=10
+
+# Pick specific candidates by short name (last segment of hf_repo):
+just -f rundale-bench/justfile local-pick \
+    Qwen3-1.7B-4bit,Phi-4-mini-instruct-4bit slice=intent
+
+# Summarize the latest local runs across (model, slice):
+just -f rundale-bench/justfile local-summary
+```
+
+`candidates_local_mlx.toml` is the source of truth for the fleet — append
+a `[[candidate]]` block to add new models. The runner enforces a 4 GB
+headroom check and skips any candidate whose `peak_ram_gb_est` exceeds
+available unified memory. The empirical 4-bit RAM rule is
+`peak_ram_gb_est >= params_b × 0.55 + 4` (see `../LEARNINGS.md`).
+
+Outputs land in `rundale-bench/artifacts/run_<target>_<slice>_<UTC>.json`
+(per-slice grader output) and `rundale-bench/artifacts/local_<UTC>.json`
+(per-sweep aggregate). A row is appended to
+`rundale-bench/artifacts/local_leaderboard.md` for each
+`(candidate, slice)` pair.
+
 ## Still pending
 
 - Corpus growth to the planned v1.0 size.

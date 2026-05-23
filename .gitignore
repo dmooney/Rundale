@@ -60,3 +60,8 @@ parish/.parish-mcp-backend.pid
 # Optional bundled tile directory consumed by TileCache.bundled_dir fallback.
 # Empty in tree — populate locally if/when a tile bundle becomes available.
 mods/rundale/tiles/
+
+# mlx_lm.server stdout/stderr captured by rundale-bench/local_runner.py per
+# sweep. Verbose, regenerated on every run, and not useful long-term — the
+# scored run JSONs alongside it are the durable artifact.
+rundale-bench/artifacts/local_logs/
