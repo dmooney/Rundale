@@ -6,7 +6,7 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 
 [![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
 
-**Model leaderboard:** [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md) tracks dialogue, performance, JSON-compliance, and Gaeilge fluency scores from the reproducible [`rundale-bench`](rundale-bench/) harness.
+**Model leaderboard:** browse the live results at **[dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/)** — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts. The reproducible harness is in [`rundale-bench/`](rundale-bench/); a static markdown snapshot lives at [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md).
 
 <table>
   <tr>

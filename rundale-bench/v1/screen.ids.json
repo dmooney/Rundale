@@ -1,0 +1,10 @@
+{
+  "_doc": "Screen-tier prompt ids per slice. Phase 1 wires the dialogue slice only; later phases add reaction/tier2-sim/gaeilge/intent ids (2 each) for the full ~10-prompt cross-slice screen.",
+  "dialogue": [
+    "dialogue-0001",
+    "dialogue-0002",
+    "dialogue-0003",
+    "dialogue-0004",
+    "dialogue-0005"
+  ]
+}

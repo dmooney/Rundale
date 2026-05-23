@@ -1,0 +1,77 @@
+/* Rundale parchment palette — swatches verbatim from
+   parish/apps/ui/src/lib/theme.ts (DEFAULT_THEME_PALETTE light, Solarized
+   Dark for the dark toggle). Same CSS-variable contract as the game UI. */
+:root {
+  --color-bg: #fafad8;
+  --color-fg: #31240f;
+  --color-accent: #b08531;
+  --color-panel-bg: #f5f5d3;
+  --color-input-bg: #f0f0ce;
+  --color-border: #cec293;
+  --color-muted: #76663b;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #002b36;
+  --color-fg: #839496;
+  --color-accent: #268bd2;
+  --color-panel-bg: #073642;
+  --color-input-bg: #0d3f4f;
+  --color-border: #586e75;
+  --color-muted: #586e75;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  line-height: 1.5;
+}
+
+a { color: var(--color-accent); }
+
+.site-header {
+  background: var(--color-panel-bg);
+  border-bottom: 2px solid var(--color-border);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.site-header h1 { font-size: 1.15rem; margin: 0; letter-spacing: 0.02em; }
+.site-header nav { display: flex; gap: 1rem; flex: 1; }
+.site-header nav a { text-decoration: none; font-size: 0.95rem; }
+.site-header nav a:hover { text-decoration: underline; }
+
+.theme-toggle {
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+h2 { border-bottom: 1px solid var(--color-border); padding-bottom: 0.3rem; }
+.muted { color: var(--color-muted); }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--color-border); }
+thead th { background: var(--color-panel-bg); cursor: pointer; user-select: none; white-space: nowrap; }
+thead th:hover { color: var(--color-accent); }
+tbody tr:nth-child(even) { background: var(--color-input-bg); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.empty {
+  padding: 2rem; text-align: center; color: var(--color-muted);
+  background: var(--color-panel-bg); border: 1px dashed var(--color-border); border-radius: 6px;
+}
+.badge {
+  display: inline-block; padding: 0.05rem 0.5rem; border-radius: 10px;
+  background: var(--color-input-bg); border: 1px solid var(--color-border); font-size: 0.8rem;
+}
