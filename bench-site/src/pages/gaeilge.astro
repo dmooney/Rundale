@@ -13,6 +13,12 @@ const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
     Irish, 1 = fell back to English. NPC dialogue in Rundale code-switches
     en-IE / ga-IE, so a model with strong dialogue scores can still fail here.
   </p>
+  <p class="muted">
+    Judged by <span class="badge">⚖ judge_gaeilge_v1 (claude-sonnet-4-6)</span>.
+    Rubric: knows Standard Irish + Connacht dialect; rejects English
+    explanations, Scots Gaelic, Welsh, or pseudo-Irish word-strings; tolerates
+    dialect variation, missing fadas, and proper names.
+  </p>
   {rows.length === 0 ? (
     <div class="empty">No gaeilge runs yet. Run the gaeilge slice and ingest.</div>
   ) : (
