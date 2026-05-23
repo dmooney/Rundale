@@ -918,7 +918,7 @@ struct ModMetaOnly {
 #[derive(serde::Deserialize, Default)]
 struct ModList {
     #[serde(default)]
-    active_base: Option<String>,
+    active_setting: Option<String>,
 }
 
 /// Walk up from the current working directory looking for a `mods/`
@@ -965,12 +965,12 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
         let meta = parsed.meta;
         match meta.kind {
             ModKind::Base => {
-                if mod_list.active_base.is_some() {
+                if mod_list.active_setting.is_some() {
                     base_candidates.push((dir, meta.id));
                 } else if let Some(prev) = &base_id {
                     return Err(ParishError::Config(format!(
                         "Multiple base mods found: '{prev}' and '{}'. \
-                        Add mods/mod-list.toml with active_base = \"<id>\" to select one.",
+                        Add mods/mod-list.toml with active_setting = \"<id>\" to select one.",
                         meta.id
                     )));
                 } else {
@@ -986,13 +986,13 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
         }
     }
 
-    if let Some(ref target) = mod_list.active_base {
+    if let Some(ref target) = mod_list.active_setting {
         let chosen = base_candidates
             .into_iter()
             .find(|(_, id)| id == target)
             .ok_or_else(|| {
                 ParishError::Config(format!(
-                    "mod-list.toml specifies active_base = \"{target}\" \
+                    "mod-list.toml specifies active_setting = \"{target}\" \
                     but no base mod with that id was found in {}.",
                     mods_root.display()
                 ))
@@ -1832,7 +1832,7 @@ tier2_system = "prompts/tier2_system.txt"
         let mods = tmp.path().join("mods");
         write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         write_manifest(&mods.join("testbed"), "testbed", Some("base"));
-        fs::write(mods.join("mod-list.toml"), "active_base = \"testbed\"\n").unwrap();
+        fs::write(mods.join("mod-list.toml"), "active_setting = \"testbed\"\n").unwrap();
         let discovered = discover_mods_in(&mods).expect("mod-list.toml selection succeeds");
         assert!(
             discovered.base.ends_with("testbed"),
@@ -1841,28 +1841,28 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
-    fn checked_in_mod_list_selects_rundale_by_default() {
+    fn checked_in_mod_list_selects_testbed_by_default() {
         let mods = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods");
         if mods.exists() {
             let discovered = discover_mods_in(&mods).expect("repo mod discovery succeeds");
             assert!(
-                discovered.base.ends_with("rundale"),
-                "checked-in mods/mod-list.toml should select Rundale by default"
+                discovered.base.ends_with("testbed"),
+                "checked-in mods/mod-list.toml should select testbed for blueprint testing"
             );
         }
     }
 
     #[test]
-    fn discover_mods_errors_when_active_base_missing() {
+    fn discover_mods_errors_when_active_setting_missing() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
         write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         fs::write(
             mods.join("mod-list.toml"),
-            "active_base = \"nonexistent\"\n",
+            "active_setting = \"nonexistent\"\n",
         )
         .unwrap();
-        let err = discover_mods_in(&mods).expect_err("unknown active_base is a hard error");
+        let err = discover_mods_in(&mods).expect_err("unknown active_setting is a hard error");
         let msg = format!("{err:?}");
         assert!(msg.contains("nonexistent"));
     }
@@ -1881,7 +1881,7 @@ tier2_system = "prompts/tier2_system.txt"
     fn discover_mods_classifies_providers_kind() {
         let tmp = TempDir::new().unwrap();
         let mods = tmp.path().join("mods");
-        write_manifest(&mods.join("rundale"), "rundale", Some("setting"));
+        write_manifest(&mods.join("rundale"), "rundale", Some("base"));
         write_manifest(&mods.join("anthropic"), "anthropic", Some("providers"));
         let discovered = discover_mods_in(&mods).expect("discovery succeeds");
         assert_eq!(discovered.auxiliary.len(), 1);
