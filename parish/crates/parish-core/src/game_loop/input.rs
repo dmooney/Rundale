@@ -242,6 +242,8 @@ mod tests {
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
         };
 
         let transport = make_transport();
@@ -280,6 +282,8 @@ mod tests {
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
         };
 
         let transport = make_transport();

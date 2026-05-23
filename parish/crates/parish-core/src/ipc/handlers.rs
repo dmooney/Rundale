@@ -505,29 +505,17 @@ fn append_transcript_context(
     // No CTA here — the caller appends the triggering "just said" line and CTA after.
 }
 
-/// Irish-themed canned messages shown when NPC inference fails.
+/// Neutral fallback shown when NPC inference fails and the active base mod
+/// provides no `inference_failure_messages` of its own. Themed flavour
+/// (e.g. Rundale's Hiberno-English atmosphere) belongs in the mod.
 ///
 /// Indexed by `request_id % len` so different attempts get different messages.
-pub const INFERENCE_FAILURE_MESSAGES: &[&str] = &[
-    "A sudden fog rolls in and swallows the conversation whole.",
-    "A crow lands between you, caws loudly, and the moment is lost.",
-    "The wind picks up and carries their words clean away.",
-    "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
-    "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
-    "They stare at you blankly, as if the thought simply left their head.",
-    "A strange silence falls over the parish. Even the birds have stopped.",
-];
+pub const INFERENCE_FAILURE_MESSAGES: &[&str] = &["…"];
 
-/// Atmospheric messages displayed when no NPC is present at the current location.
-pub const IDLE_MESSAGES: &[&str] = &[
-    "The wind stirs, but nothing else.",
-    "Only the sound of a distant crow.",
-    "A dog barks somewhere beyond the hill.",
-    "The clouds shift. The parish carries on.",
-    "Somewhere nearby, a door creaks shut.",
-    "A wren hops along the stone wall and vanishes.",
-    "The smell of turf smoke drifts from a cottage chimney.",
-];
+/// Neutral fallback shown when no NPC is present and the active base mod
+/// provides no `idle_messages` of its own. Themed flavour belongs in the
+/// mod.
+pub const IDLE_MESSAGES: &[&str] = &[""];
 
 /// Helper to mask an API key for display (shows first 4 and last 4 chars).
 pub fn mask_key(key: &str) -> String {

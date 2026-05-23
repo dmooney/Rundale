@@ -89,7 +89,7 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
         "/log" => Some(Command::Log),
         "/status" | "/where" => Some(Command::Status),
         "/help" => Some(Command::Help),
-        "/irish" => Some(Command::ToggleSidebar),
+        "/hints" => Some(Command::ToggleSidebar),
         "/improv" => Some(Command::ToggleImprov),
         "/about" => Some(Command::About),
         "/designer" => Some(Command::Designer),
@@ -421,7 +421,7 @@ mod tests {
         assert_eq!(parse_system_command("/status detailed"), None);
         assert_eq!(parse_system_command("/where am I"), None);
         assert_eq!(parse_system_command("/help me"), None);
-        assert_eq!(parse_system_command("/irish on"), None);
+        assert_eq!(parse_system_command("/hints on"), None);
         assert_eq!(parse_system_command("/improv mode"), None);
         assert_eq!(parse_system_command("/about us"), None);
         assert_eq!(parse_system_command("/designer mode"), None);
@@ -486,18 +486,18 @@ mod tests {
         );
     }
     #[test]
-    fn test_parse_irish_command() {
-        let cmd = parse_system_command("/irish");
+    fn test_parse_hints_command() {
+        let cmd = parse_system_command("/hints");
         assert_eq!(cmd, Some(Command::ToggleSidebar));
     }
     #[test]
-    fn test_parse_irish_command_case_insensitive() {
-        let cmd = parse_system_command("/IRISH");
+    fn test_parse_hints_command_case_insensitive() {
+        let cmd = parse_system_command("/HINTS");
         assert_eq!(cmd, Some(Command::ToggleSidebar));
     }
     #[test]
-    fn test_classify_irish_command() {
-        let result = classify_input("/irish");
+    fn test_classify_hints_command() {
+        let result = classify_input("/hints");
         assert_eq!(result, InputResult::SystemCommand(Command::ToggleSidebar));
     }
     #[test]

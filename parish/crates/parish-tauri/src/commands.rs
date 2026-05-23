@@ -1253,6 +1253,8 @@ async fn handle_npc_conversation(
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     let app_for_loading = app.clone();
@@ -1284,6 +1286,8 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     };
 
     emit_world_update(state, app).await;
@@ -2829,6 +2833,8 @@ mod cmd_tests {
             theme_palette,
             theme_keyframes: Vec::new(),
             static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations,
             reaction_templates,
             save_path: Mutex::new(None),

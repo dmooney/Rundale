@@ -213,6 +213,15 @@ pub struct LoadingConfig {
     pub spinner_colors: Vec<[u8; 3]>,
     /// Random phrases shown while loading.
     pub phrases: Vec<String>,
+    /// Atmospheric flavour messages shown when NPC inference fails. Empty
+    /// when the mod ships none — engine falls back to a single ellipsis.
+    #[serde(default)]
+    pub inference_failure_messages: Vec<String>,
+    /// Atmospheric messages shown when no NPC is present and the player
+    /// addresses no-one. Empty when the mod ships none — engine falls
+    /// back to a blank line.
+    #[serde(default)]
+    pub idle_messages: Vec<String>,
 }
 
 /// Sidebar section of the UI configuration.

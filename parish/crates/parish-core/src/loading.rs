@@ -8,8 +8,9 @@
 
 use std::time::{Duration, Instant};
 
-/// Celtic cross geometric variants — thin → hollow → bold → back.
-const SPINNER_FRAMES: &[&str] = &["✢", "✙", "✛", "✜", "✚", "✜", "✛", "✙"];
+/// Generic ASCII spinner frames used when no mod supplies its own. Mods
+/// override via `loading.toml`'s `spinner_frames` array.
+const SPINNER_FRAMES: &[&str] = &["|", "/", "-", "\\"];
 
 /// How long each spinner frame is displayed before advancing.
 const SPINNER_FRAME_DURATION: Duration = Duration::from_millis(300);
@@ -17,43 +18,13 @@ const SPINNER_FRAME_DURATION: Duration = Duration::from_millis(300);
 /// How long each loading phrase is displayed before cycling.
 const PHRASE_DURATION: Duration = Duration::from_millis(3000);
 
-/// Humorous Irish-themed phrases shown while waiting for inference.
-const LOADING_PHRASES: &[&str] = &[
-    "Pondering the craic...",
-    "Consulting the sheep...",
-    "Brewing a thought...",
-    "Asking the wind...",
-    "Checking with the crows...",
-    "Reading the tea leaves...",
-    "Warming up by the fire...",
-    "Rummaging through the thatch...",
-    "Having a think...",
-    "Debating with the rain...",
-    "Summoning the storyteller...",
-    "Tuning the fiddle...",
-    "Waiting on the kettle...",
-    "Counting the stones...",
-    "Muttering in Irish...",
-    "Conferring with the bog...",
-    "Herding stray notions...",
-    "Stirring the porridge...",
-    "Listening to the river...",
-    "Polishing the words...",
-    "Untangling the yarn...",
-    "Feeding the donkey...",
-    "Sweeping the hearth...",
-    "Searching for the right word...",
-];
+/// Neutral fallback phrases used when no mod is loaded. Themed phrases
+/// (e.g. Rundale's Hiberno-English flavour) belong in the mod's
+/// `loading.toml` `phrases` array.
+const LOADING_PHRASES: &[&str] = &["Loading..."];
 
-/// Cycling colors in an Irish palette (greens, golds, blues) as `(R, G, B)` tuples.
-const SPINNER_COLORS: &[(u8, u8, u8)] = &[
-    (72, 199, 142),  // soft green
-    (255, 200, 87),  // warm gold
-    (100, 149, 237), // cornflower blue
-    (255, 160, 100), // soft orange
-    (180, 130, 255), // lavender
-    (120, 220, 180), // mint
-];
+/// Monochrome fallback color when no mod supplies its own palette.
+const SPINNER_COLORS: &[(u8, u8, u8)] = &[(200, 200, 200)];
 
 /// Animated loading indicator for LLM inference waits.
 ///
@@ -193,7 +164,7 @@ impl LoadingAnimation {
     /// should convert this tuple themselves.
     pub fn current_color_rgb(&self) -> (u8, u8, u8) {
         if self.colors.is_empty() {
-            return (72, 199, 142); // default soft green
+            return (200, 200, 200); // neutral monochrome
         }
         self.colors[self.color_index % self.colors.len()]
     }
@@ -266,7 +237,15 @@ mod tests {
 
     #[test]
     fn test_color_changes_with_phrase() {
-        let mut anim = LoadingAnimation::new();
+        // Create an animation with multiple colors so we can verify cycling.
+        let config = crate::game_mod::LoadingConfig {
+            spinner_frames: vec!["X".to_string()],
+            phrases: vec!["A".to_string(), "B".to_string()],
+            spinner_colors: vec![[255, 0, 0], [0, 255, 0]],
+            inference_failure_messages: vec![],
+            idle_messages: vec![],
+        };
+        let mut anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.color_index, 0);
         anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
         anim.tick();
@@ -319,7 +298,7 @@ mod tests {
     fn test_current_color_rgb_returns_tuple() {
         let anim = LoadingAnimation::new();
         let (r, g, b) = anim.current_color_rgb();
-        assert_eq!((r, g, b), (72, 199, 142));
+        assert_eq!((r, g, b), (200, 200, 200));
     }
 
     #[test]
@@ -345,6 +324,8 @@ mod tests {
             spinner_frames: vec!["A".to_string(), "B".to_string()],
             spinner_colors: vec![[255, 0, 0], [0, 255, 0]],
             phrases: vec!["Testing...".to_string(), "Waiting...".to_string()],
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
         };
         let anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.spinner_frames.len(), 2);
@@ -361,6 +342,8 @@ mod tests {
             spinner_frames: vec!["X".to_string()],
             spinner_colors: vec![[100, 200, 50]],
             phrases: vec!["Go...".to_string()],
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
         };
         let anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.current_color_rgb(), (100, 200, 50));

@@ -554,6 +554,8 @@ mod tests {
             theme_palette,
             theme_keyframes: Vec::new(),
             static_raw_palette: None,
+            inference_failure_messages: Vec::new(),
+            idle_messages: Vec::new(),
             pronunciations: Vec::new(),
             reaction_templates: parish_core::npc::reactions::ReactionTemplates::default(),
             save_path: Mutex::new(None),

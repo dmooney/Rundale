@@ -545,6 +545,8 @@ fn make_game_loop_ctx<'a>(
         client: &state.client,
         cloud_client: &state.cloud_client,
         language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
     }
 }
 
