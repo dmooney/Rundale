@@ -161,7 +161,7 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None) -> list[dict]:
             continue
         ts = row.get("measured_utc", "")
         if key not in latest or ts > latest[key][0]:
-            latest[key] = (ts, {**row, "source": "phase3"})
+            latest[key] = (ts, {**row, "slug": slugify(row["model_id"]), "source": "phase3"})
 
     # Legacy multi-target perf JSONs (one file holds many per_target entries)
     if legacy_dir and legacy_dir.exists():
@@ -178,6 +178,7 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None) -> list[dict]:
                 n_ok = stats.get("n_ok", 0) or 0
                 row = {
                     "model_id": cand,
+                    "slug": slugify(cand),
                     "provider_id": pid,
                     "model_name_at_provider": cand,
                     "n_ok": n_ok,

@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-23T22:45:01.162014+00:00",
+  "generated_utc": "2026-05-23T23:00:56.123776+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -42,6 +42,7 @@
   "perf": [
     {
       "model_id": "amazon/nova-pro-v1",
+      "slug": "amazon-nova-pro-v1",
       "provider_id": "openrouter",
       "model_name_at_provider": "amazon/nova-pro-v1",
       "n_ok": 10,
@@ -58,6 +59,7 @@
     },
     {
       "model_id": "anthropic/claude-haiku-4.5",
+      "slug": "anthropic-claude-haiku-4-5",
       "provider_id": "openrouter",
       "model_name_at_provider": "anthropic/claude-haiku-4.5",
       "n_ok": 10,
@@ -74,6 +76,7 @@
     },
     {
       "model_id": "anthropic/claude-opus-4.7",
+      "slug": "anthropic-claude-opus-4-7",
       "provider_id": "openrouter",
       "model_name_at_provider": "anthropic/claude-opus-4.7",
       "n_ok": 10,
@@ -90,6 +93,7 @@
     },
     {
       "model_id": "anthropic/claude-sonnet-4.6",
+      "slug": "anthropic-claude-sonnet-4-6",
       "provider_id": "openrouter",
       "model_name_at_provider": "anthropic/claude-sonnet-4.6",
       "n_ok": 10,
@@ -106,6 +110,7 @@
     },
     {
       "model_id": "deepseek/deepseek-v3.2",
+      "slug": "deepseek-deepseek-v3-2",
       "provider_id": "openrouter",
       "model_name_at_provider": "deepseek/deepseek-v3.2",
       "n_ok": 10,
@@ -122,6 +127,7 @@
     },
     {
       "model_id": "deepseek/deepseek-v4-pro",
+      "slug": "deepseek-deepseek-v4-pro",
       "provider_id": "openrouter",
       "model_name_at_provider": "deepseek/deepseek-v4-pro",
       "n_ok": 10,
@@ -138,6 +144,7 @@
     },
     {
       "model_id": "google/gemini-2.5-flash",
+      "slug": "google-gemini-2-5-flash",
       "provider_id": "openrouter",
       "model_name_at_provider": "google/gemini-2.5-flash",
       "n_ok": 10,
@@ -154,6 +161,7 @@
     },
     {
       "model_id": "google/gemini-2.5-pro",
+      "slug": "google-gemini-2-5-pro",
       "provider_id": "openrouter",
       "model_name_at_provider": "google/gemini-2.5-pro",
       "n_ok": 10,
@@ -170,6 +178,7 @@
     },
     {
       "model_id": "google/gemma-3-27b-it",
+      "slug": "google-gemma-3-27b-it",
       "provider_id": "openrouter",
       "model_name_at_provider": "google/gemma-3-27b-it",
       "n_ok": 10,
@@ -186,6 +195,7 @@
     },
     {
       "model_id": "google/gemma-4-31b-it",
+      "slug": "google-gemma-4-31b-it",
       "provider_id": "openrouter",
       "model_name_at_provider": "google/gemma-4-31b-it",
       "n_ok": 10,
@@ -202,6 +212,7 @@
     },
     {
       "model_id": "meta-llama/llama-3.3-70b-instruct",
+      "slug": "meta-llama-llama-3-3-70b-instruct",
       "provider_id": "openrouter",
       "model_name_at_provider": "meta-llama/llama-3.3-70b-instruct",
       "n_ok": 10,
@@ -218,6 +229,7 @@
     },
     {
       "model_id": "meta-llama/llama-4-maverick",
+      "slug": "meta-llama-llama-4-maverick",
       "provider_id": "openrouter",
       "model_name_at_provider": "meta-llama/llama-4-maverick",
       "n_ok": 10,
@@ -234,6 +246,7 @@
     },
     {
       "model_id": "meta-llama/llama-4-scout",
+      "slug": "meta-llama-llama-4-scout",
       "provider_id": "openrouter",
       "model_name_at_provider": "meta-llama/llama-4-scout",
       "n_ok": 10,
@@ -250,6 +263,7 @@
     },
     {
       "model_id": "microsoft/phi-4",
+      "slug": "microsoft-phi-4",
       "provider_id": "openrouter",
       "model_name_at_provider": "microsoft/phi-4",
       "n_ok": 10,
@@ -266,6 +280,7 @@
     },
     {
       "model_id": "mistralai/mistral-large-2512",
+      "slug": "mistralai-mistral-large-2512",
       "provider_id": "openrouter",
       "model_name_at_provider": "mistralai/mistral-large-2512",
       "n_ok": 10,
@@ -282,6 +297,7 @@
     },
     {
       "model_id": "mistralai/mistral-medium-3.1",
+      "slug": "mistralai-mistral-medium-3-1",
       "provider_id": "openrouter",
       "model_name_at_provider": "mistralai/mistral-medium-3.1",
       "n_ok": 10,
@@ -298,6 +314,7 @@
     },
     {
       "model_id": "mistralai/mistral-small-24b-instruct-2501",
+      "slug": "mistralai-mistral-small-24b-instruct-2501",
       "provider_id": "openrouter",
       "model_name_at_provider": "mistralai/mistral-small-24b-instruct-2501",
       "n_ok": 10,
@@ -314,6 +331,7 @@
     },
     {
       "model_id": "moonshotai/kimi-k2.5",
+      "slug": "moonshotai-kimi-k2-5",
       "provider_id": "openrouter",
       "model_name_at_provider": "moonshotai/kimi-k2.5",
       "n_ok": 10,
@@ -330,6 +348,7 @@
     },
     {
       "model_id": "nousresearch/hermes-4-405b",
+      "slug": "nousresearch-hermes-4-405b",
       "provider_id": "openrouter",
       "model_name_at_provider": "nousresearch/hermes-4-405b",
       "n_ok": 10,
@@ -346,6 +365,7 @@
     },
     {
       "model_id": "openai/gpt-4o-mini",
+      "slug": "openai-gpt-4o-mini",
       "provider_id": "openrouter",
       "model_name_at_provider": "openai/gpt-4o-mini",
       "n_ok": 10,
@@ -362,6 +382,7 @@
     },
     {
       "model_id": "openai/gpt-5.4",
+      "slug": "openai-gpt-5-4",
       "provider_id": "openrouter",
       "model_name_at_provider": "openai/gpt-5.4",
       "n_ok": 10,
@@ -378,6 +399,7 @@
     },
     {
       "model_id": "openai/gpt-5.4-mini",
+      "slug": "openai-gpt-5-4-mini",
       "provider_id": "openrouter",
       "model_name_at_provider": "openai/gpt-5.4-mini",
       "n_ok": 10,
@@ -394,6 +416,7 @@
     },
     {
       "model_id": "openai/gpt-5.5",
+      "slug": "openai-gpt-5-5",
       "provider_id": "openrouter",
       "model_name_at_provider": "openai/gpt-5.5",
       "n_ok": 10,
@@ -410,6 +433,7 @@
     },
     {
       "model_id": "openai/gpt-oss-120b",
+      "slug": "openai-gpt-oss-120b",
       "provider_id": "openrouter",
       "model_name_at_provider": "openai/gpt-oss-120b",
       "n_ok": 10,
@@ -426,6 +450,7 @@
     },
     {
       "model_id": "qwen/qwen-2.5-72b-instruct",
+      "slug": "qwen-qwen-2-5-72b-instruct",
       "provider_id": "openrouter",
       "model_name_at_provider": "qwen/qwen-2.5-72b-instruct",
       "n_ok": 1,
@@ -442,6 +467,7 @@
     },
     {
       "model_id": "qwen/qwen3-235b-a22b-2507",
+      "slug": "qwen-qwen3-235b-a22b-2507",
       "provider_id": "openrouter",
       "model_name_at_provider": "qwen/qwen3-235b-a22b-2507",
       "n_ok": 10,
@@ -458,6 +484,7 @@
     },
     {
       "model_id": "qwen/qwen3-max",
+      "slug": "qwen-qwen3-max",
       "provider_id": "openrouter",
       "model_name_at_provider": "qwen/qwen3-max",
       "n_ok": 10,
@@ -474,6 +501,7 @@
     },
     {
       "model_id": "x-ai/grok-3-mini",
+      "slug": "x-ai-grok-3-mini",
       "provider_id": "openrouter",
       "model_name_at_provider": "x-ai/grok-3-mini",
       "n_ok": 0,
@@ -490,6 +518,7 @@
     },
     {
       "model_id": "x-ai/grok-4.3",
+      "slug": "x-ai-grok-4-3",
       "provider_id": "openrouter",
       "model_name_at_provider": "x-ai/grok-4.3",
       "n_ok": 10,
@@ -506,6 +535,7 @@
     },
     {
       "model_id": "z-ai/glm-4.6",
+      "slug": "z-ai-glm-4-6",
       "provider_id": "openrouter",
       "model_name_at_provider": "z-ai/glm-4.6",
       "n_ok": 10,
