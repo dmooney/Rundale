@@ -109,6 +109,11 @@ MAX_BYTES=12000
 LOG_TAIL="$(tail -c "$MAX_BYTES" "$LOG_FILE" 2>/dev/null || cat "$LOG_FILE")"
 
 REASON="$(printf '%s\n' \
+  "ACTION REQUIRED — do not stop, do not summarize this back to the user." \
+  "Read the log tail below, fix the underlying issue (or apply the" \
+  "documented bypass with an explicit reason), then continue. The Stop" \
+  "gate will re-fire until it clears." \
+  "" \
   "Parish quality gates failed (cargo fmt / clippy / test). Address the" \
   "failure(s) below before stopping. Re-run \`cd parish && cargo fmt &&" \
   "cargo clippy -- -D warnings && cargo test\` after fixing." \
