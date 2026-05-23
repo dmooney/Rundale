@@ -65,7 +65,7 @@ pub const FEATURE_FLAG: &str = "character-logs";
 /// (published from `schedule::tick_schedules`, `ticks::apply_tier3_updates`,
 /// and `game_session::apply_movement`), so the writer has nothing to
 /// dedup.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CharacterLogManager {
     log_dir: PathBuf,
     enabled: bool,
