@@ -1743,6 +1743,7 @@ pub mod tests {
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: false,
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");

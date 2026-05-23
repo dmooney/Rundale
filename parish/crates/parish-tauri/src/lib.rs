@@ -1147,6 +1147,7 @@ pub fn run() {
             app_icon_url: mod_asset_data_url(gm.app_icon_path()),
             favicon_url: mod_asset_data_url(gm.favicon_path()),
             map_overlay: gm.ui.theme.map_overlay.clone(),
+            base_mod_required: false,
         }
     } else {
         UiConfigSnapshot {
@@ -1159,6 +1160,7 @@ pub fn run() {
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: true,
         }
     };
 

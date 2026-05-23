@@ -233,6 +233,7 @@ async fn second_ws_upgrade_same_account_is_409() {
         app_icon_url: None,
         favicon_url: None,
         map_overlay: None,
+        base_mod_required: false,
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
@@ -351,6 +352,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         app_icon_url: None,
         favicon_url: None,
         map_overlay: None,
+        base_mod_required: false,
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");

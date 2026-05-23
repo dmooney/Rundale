@@ -797,6 +797,7 @@ fn resolve_engine_and_ui_config(
             app_icon_url: gm.app_icon_path().map(|_| "/api/app-icon.png".to_string()),
             favicon_url: gm.favicon_path().map(|_| "/api/favicon.png".to_string()),
             map_overlay: gm.ui.theme.map_overlay.clone(),
+            base_mod_required: false,
         }
     } else {
         UiConfigSnapshot {
@@ -809,6 +810,7 @@ fn resolve_engine_and_ui_config(
             app_icon_url: None,
             favicon_url: None,
             map_overlay: None,
+            base_mod_required: true,
         }
     };
 
