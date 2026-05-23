@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-23T21:57:57.931508+00:00",
+  "generated_utc": "2026-05-23T22:33:35.809138+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -12,6 +12,8 @@
       "judged": 5,
       "records": 5,
       "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
       "character": 4.8,
       "authenticity": 5.0,
       "language": 5.0,
@@ -1477,7 +1479,8 @@
           "persona": "brigid-midwife",
           "prompt": "The thatch on the byre roof is rotted through in three places. Will it hold the winter or no?"
         }
-      ]
+      ],
+      "purpose": "First-person NPC dialogue in the voice of Brigid O'Brien \u2014 a 42-year-old midwife in 1820 rural Ireland. Probes period-accurate vocabulary, in-character voice, en-IE / ga-IE code-switching, and refusal of non-Latin script. The headline quality slice \u2014 drives the main leaderboard."
     },
     "reaction": {
       "count": 27,
@@ -1698,7 +1701,8 @@
           "prompt": "A familiar has just arrived at the church porch. It is Sunday noon, Mist.\nYou have met this person before. You are working here as the seancha\u00ed. Greet them by name.",
           "max_tokens": 100
         }
-      ]
+      ],
+      "purpose": "Short in-character one-liners NPCs emit in response to nearby game events (weather shifts, arrivals, gossip). Tests whether the model can stay in voice under tight token budgets without drifting into narration."
     },
     "tier2-sim": {
       "count": 27,
@@ -3566,7 +3570,8 @@
             30
           ]
         }
-      ]
+      ],
+      "purpose": "Structured world-tick outputs. The model emits JSON describing NPC state updates (mood, goal, current action) given a scene. Tests schema compliance and plausible micro-simulation \u2014 the engine runs hundreds of these per game day."
     },
     "tier3-sim": {
       "count": 13,
@@ -4520,7 +4525,8 @@
           },
           "min_updates": 4
         }
-      ]
+      ],
+      "purpose": "Deeper structured sim: multi-step NPC plans, conditional triggers, longer JSON. Same schema-validation + plausibility bar as tier2, but the model must compose several intents coherently."
     },
     "gaeilge": {
       "count": 11,
@@ -4832,7 +4838,8 @@
             "no English leakage"
           ]
         }
-      ]
+      ],
+      "purpose": "Irish-language (Gaeilge) fluency. Eleven prompts in Irish probe natural syntax, idiom, grammar, task-fulfilment, and resistance to falling back to English. Decoupled from the dialogue slice so models that fake en-IE can't fake ga-IE."
     },
     "intent": {
       "count": 33,
@@ -5200,7 +5207,105 @@
             "dialogue": null
           }
         }
+      ],
+      "purpose": "Deterministic player-input parser. Maps natural-language input (\"go to the pub\", \"tell Mary I saw her cow\") to {intent: move|talk|look|interact|examine|unknown, target, dialogue}. Exact-match graded \u2014 no LLM judge, no axes; the only slice driven entirely by deterministic scoring."
+    }
+  },
+  "samples": {
+    "openai-gpt-oss-120b-free": {
+      "model_id": "openai/gpt-oss-120b:free",
+      "slug": "openai-gpt-oss-120b-free",
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "measured_utc": "2026-05-13T20:59:06.320321+00:00",
+      "items": [
+        {
+          "id": "dialogue-0001",
+          "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+          "reply": "Ah, lass, steep a cup of mugwort tea and place a sprig beneath thy pillow, whilst a pinch of dried lavender is scattered \u2019round the bed; a warm bath of rosemary leaves ere you retire may quiet the restless spirit. If the dreams still haunt, a gentle poultice of comfrey on the chest before sleep oft steadies the mind. May the night bring you peace.",
+          "axes": {
+            "character": 5,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 4
+          },
+          "overall": 4.8,
+          "non_latin_chars": {}
+        },
+        {
+          "id": "dialogue-0002",
+          "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+          "reply": "Ah, the Cailleach o\u2019 the hill\u2011top cairn\u2014she\u2019s the ancient hag of stone and snow, said to shape the winter and turn the hills to barren. Folk say she dwells by the old fairy fort, where the wind howls through the standing stones, and she watches over the cold months, granting shelter to those who leave a loaf and milk upon her stone altar. Keep respect, and she may spare your cattle from the harsh frost.",
+          "axes": {
+            "character": 4,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 4,
+            "craft": 4
+          },
+          "overall": 4.3,
+          "non_latin_chars": {}
+        },
+        {
+          "id": "dialogue-0003",
+          "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+          "reply": "Ah, a harsh cough can be eased with a draught of warm water steeped with fresh thyme and a spoon\u2011ful of honey, taken thrice a day; a slice of raw onion placed upon the chest at night may also draw out the phlegm. If she can bear it, a poultice of crushed nettles and a pinch of salt, moistened with milk, pressed to the throat will bring comfort. Should the cough persist beyond a week, send word and we\u2019ll seek a stronger herb.",
+          "axes": {
+            "character": 5,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 5
+          },
+          "overall": 5.0,
+          "non_latin_chars": {}
+        },
+        {
+          "id": "dialogue-0004",
+          "prompt": "They say a stranger arrived in the village. Have you heard?",
+          "reply": "Aye, a tall man with a soot\u2011black coat came in by the road last eve, askin\u2019 for a place to set his horse. He kept to himself, but the lads at the inn say he\u2019s a merchant from Dublin.",
+          "axes": {
+            "character": 5,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 5
+          },
+          "overall": 5.0,
+          "non_latin_chars": {}
+        },
+        {
+          "id": "dialogue-0005",
+          "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+          "reply": "Aye, wolves do roam the hills, but a lone sheep can also fall victim to a stray dog, a hungry fox, or even a sudden bout of lameness that sends it wandering off. Look for fresh tracks by the hedge and any signs of a bite; the shape of the prints will tell ye which beast took it. If the sheep\u2019s hide bears no claw marks, perhaps it simply strayed and met a cruel fall.",
+          "axes": {
+            "character": 5,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 5
+          },
+          "overall": 5.0,
+          "non_latin_chars": {}
+        }
       ]
+    }
+  },
+  "judge_prompts": {
+    "judge_sonnet_v1": {
+      "judge_id": "judge_sonnet_v1",
+      "model": "claude-sonnet-4-6",
+      "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+      "axes": [
+        "character",
+        "authenticity",
+        "language",
+        "responsiveness",
+        "craft"
+      ],
+      "system_prompt": "You are an impartial judge for the Rundale dialogue eval suite. You score\nfictional dialogue from rural Ireland in 1820, where the model plays Brigid\nO'Brien, a 42-year-old midwife.\n\n# Calibration \u2014 be strict\n\nScore conservatively. Most replies should land between 2 and 4; reserve the\nextremes for clear cases. Use this anchor on every axis:\n\n- **5** \u2014 exceptional. The reply is something a careful historian-novelist\n  would publish: voice, register, period diction, idiom, and craft all\n  excellent, with at least one specific, evocative detail. Rare.\n- **4** \u2014 strong but flawed. Clearly competent and in-character, but with one\n  noticeable miss \u2014 a generic remedy, a slightly modern phrase, an awkward\n  rhythm.\n- **3** \u2014 adequate baseline. Plausibly in voice, addresses the prompt, no\n  flagrant errors. **This is the default for a typical reply.**\n- **2** \u2014 clearly weak. Wooden, generic, register slips, or shallow\n  acknowledgement of the prompt. Modern vocabulary creeping in.\n- **1** \u2014 broken or off-task. Refusal, anachronism, non-Latin script, wrong\n  character, or didn't address the prompt at all.\n\nInflation is the failure mode to avoid. If you find yourself scoring most\nitems 4-5, recheck: are they really publication-grade, or merely fluent? A\nfluent modern-sounding reply should not exceed 3 on character/authenticity.\n\"In 2-4 sentences\" is the brief \u2014 a reply much longer than that is a craft\nmiss, not a craft strength.\n\n# Input\n\nYou receive ONE JSON bundle:\n\n```json\n{\n  \"slice\": \"dialogue\",\n  \"rubric_sha256\": \"<hex>\",\n  \"items\": [\n    { \"prompt_id\": \"...\", \"prompt\": \"...\", \"response\": \"...\" }\n  ]\n}\n```\n\nScore every item independently against the rubric below.\n\n# Output\n\nRespond with ONLY a single JSON object \u2014 no prose, no markdown, no code\nfences:\n\n```json\n{\n  \"version\": 1,\n  \"slice\": \"dialogue\",\n  \"rubric_sha256\": \"<echo the bundle's rubric_sha256>\",\n  \"items\": [\n    {\n      \"prompt_id\": \"<echo>\",\n      \"axes\": {\n        \"character\": 1-5,\n        \"authenticity\": 1-5,\n        \"language\": 1-5,\n        \"responsiveness\": 1-5,\n        \"craft\": 1-5\n      },\n      \"overall\": 1.0-5.0,\n      \"rationales\": {\n        \"character\": \"one sentence\",\n        \"authenticity\": \"one sentence\",\n        \"language\": \"one sentence\",\n        \"responsiveness\": \"one sentence\",\n        \"craft\": \"one sentence\"\n      },\n      \"flags\": { \"non_latin_detected\": false, \"refused\": false }\n    }\n  ]\n}\n```\n\nRules:\n- Every axis is an integer 1-5 (5 = best). `overall` is a one-decimal float,\n  the weighted mean.\n- `rationales` are one terse sentence each \u2014 what drove the score.\n- `flags.non_latin_detected` is true if the response contains Cyrillic, Han,\n  Hangul, Arabic, Hebrew, Greek, Devanagari, or other non-Latin script.\n- `flags.refused` is true if the model declined to answer or broke character\n  to refuse.\n- This batched envelope REPLACES any single-object output instruction in the\n  rubric text below.\n\n# Rubric\n\nScore the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic,\n     Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n",
+      "rubric_text": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown."
     }
   }
 }

@@ -5,16 +5,17 @@ import data from '../../data/bench.json';
 const base = import.meta.env.BASE_URL;
 
 export function getStaticPaths() {
-  return Object.keys(data.datasets ?? {}).map((slice) => ({
+  return Object.entries(data.datasets ?? {}).map(([slice, info]) => ({
     params: { slice },
-    props: { records: data.datasets[slice].records },
+    props: { records: info.records, purpose: info.purpose },
   }));
 }
-const { records } = Astro.props;
+const { records, purpose } = Astro.props;
 const slice = Astro.params.slice;
 ---
 <Base title={`Rundale Bench — ${slice} dataset`}>
   <p><a href={`${base}/datasets`}>← all datasets</a></p>
-  <h2>{slice} ({records.length} records, dev split)</h2>
+  <h2>{slice} <span class="badge">{records.length} records, dev split</span></h2>
+  {purpose && <p>{purpose}</p>}
   <DatasetBrowser client:load records={records} slice={slice} />
 </Base>

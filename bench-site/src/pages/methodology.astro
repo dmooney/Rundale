@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/bench.json';
 const base = import.meta.env.BASE_URL;
+const sonnet = data.judge_prompts?.judge_sonnet_v1;
 ---
 <Base title="Rundale Bench — Methodology">
   <h2>Methodology</h2>
@@ -11,7 +12,10 @@ const base = import.meta.env.BASE_URL;
     Dialogue is scored by <strong>{data.judge_model}</strong> subagents launched
     from inside Claude Code. The judge config (<code>judge_sonnet_v1</code>) pins
     a <code>rubric_sha256</code>; any rubric edit without a matching hash bump
-    aborts the run, so scores never drift silently.
+    aborts the run, so scores never drift silently. Existing leaderboard rows
+    tagged <code>judge_v1 (qwen3-235b)</code> come from earlier OpenRouter runs
+    and are <em>not</em> Sonnet judgments — re-run those candidates through the
+    funnel to see Sonnet's stricter calibration.
   </p>
 
   <h3>Rubric — 5 axes (1–5)</h3>
@@ -25,9 +29,9 @@ const base = import.meta.env.BASE_URL;
 
   <h3>Tier funnel</h3>
   <ul>
-    <li><strong>screen</strong> — ~5 prompts, every candidate.</li>
-    <li><strong>contender</strong> — ~25 prompts; promoted at overall ≥ 3.5 and every axis &gt; 2.0.</li>
-    <li><strong>finalist</strong> — full dev slice; promoted at overall ≥ 4.0 and every axis &gt; 3.0.</li>
+    <li><strong>screen</strong> — 5 prompts, every candidate.</li>
+    <li><strong>contender</strong> — 25 prompts; promoted at overall ≥ 3.5 and every axis &gt; 2.0.</li>
+    <li><strong>finalist</strong> — full dev slice (159); promoted at overall ≥ 4.0 and every axis &gt; 3.0.</li>
   </ul>
 
   <h3>Quality vs perf</h3>
@@ -45,4 +49,16 @@ const base = import.meta.env.BASE_URL;
     Changing the rubric or judge re-judges everything; adding a model judges
     only that model.
   </p>
+
+  {sonnet && (
+    <>
+      <h3>Sonnet judge system prompt</h3>
+      <p class="muted">
+        Loaded verbatim from <code>rundale-bench/v1/judge_sonnet_v1.system.md</code>.
+        Model: <strong>{sonnet.model}</strong> · rubric_sha256:
+        <code>{sonnet.rubric_sha256?.slice(0, 16)}…</code>
+      </p>
+      <pre style="background:var(--color-panel-bg);border:1px solid var(--color-border);border-radius:6px;padding:1rem;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:0.85rem">{sonnet.system_prompt}</pre>
+    </>
+  )}
 </Base>

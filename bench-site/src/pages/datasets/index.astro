@@ -9,27 +9,17 @@ const total = slices.reduce((n, [, v]) => n + (v?.count ?? 0), 0);
 <Base title="Rundale Bench — Datasets">
   <h2>Datasets (suite {data.suite}, dev split)</h2>
   <p class="muted">
-    The frozen rundale-bench prompt set. Six slices, {total} records on the
+    The frozen rundale-bench prompt set. {slices.length} slices, {total} records on the
     dev split. The 20% holdout is sealed and never shown — model picks must be
     defensible without it.
   </p>
-  <table>
-    <thead><tr><th>Slice</th><th class="num">Records</th><th>Browse</th></tr></thead>
-    <tbody>
-      {slices.map(([name, info]) => (
-        <tr>
-          <td><strong>{name}</strong></td>
-          <td class="num">{info.count}</td>
-          <td><a href={`${base}/datasets/${name}`}>open →</a></td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-  <p class="muted">
-    Slices: <strong>dialogue</strong> (Brigid persona), <strong>reaction</strong>
-    (in-character one-liners), <strong>tier2-sim</strong> /
-    <strong>tier3-sim</strong> (structured world ticks),
-    <strong>gaeilge</strong> (Irish fluency), <strong>intent</strong>
-    (deterministic input parsing).
-  </p>
+  {slices.map(([name, info]) => (
+    <div style="margin:1.2rem 0;padding:0.8rem 1rem;background:var(--color-panel-bg);border:1px solid var(--color-border);border-radius:6px">
+      <div style="display:flex;align-items:baseline;gap:0.7rem">
+        <h3 style="margin:0"><a href={`${base}/datasets/${name}`}>{name}</a></h3>
+        <span class="badge">{info.count} records</span>
+      </div>
+      <p style="margin:0.5rem 0 0">{info.purpose}</p>
+    </div>
+  ))}
 </Base>
