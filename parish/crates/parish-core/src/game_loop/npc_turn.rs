@@ -47,6 +47,11 @@ use crate::npc::autonomous;
 use crate::npc::parse_npc_stream_response;
 use crate::npc::ticks::apply_tier1_response_with_config;
 
+/// Feature-flag name that gates the autonomous bystander chain in
+/// [`handle_npc_conversation`]. Off by default — `FeatureFlags::is_enabled`
+/// returns `false` for an unset flag, which matches the desired "opt in" shape.
+pub const AUTONOMOUS_NPC_CHAIN_FLAG: &str = "autonomous-npc-chain";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
@@ -437,7 +442,16 @@ pub async fn handle_npc_conversation(
 ) {
     let trimmed = raw.trim().to_string();
 
-    let (npc_present, player_location, queue, model, max_follow_up_turns, targets, absent) = {
+    let (
+        npc_present,
+        player_location,
+        queue,
+        model,
+        max_follow_up_turns,
+        autonomous_chain_enabled,
+        targets,
+        absent,
+    ) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let queue = ctx.inference_queue.lock().await;
@@ -464,6 +478,7 @@ pub async fn handle_npc_conversation(
             queue.clone(),
             config.model_name.clone(),
             config.max_follow_up_turns,
+            config.flags.is_enabled(AUTONOMOUS_NPC_CHAIN_FLAG),
             targets,
             absent,
         )
@@ -590,7 +605,14 @@ pub async fn handle_npc_conversation(
     }
 
     // Phase 2: autonomous chain via bystander-aware heuristic.
-    let chain_cap = max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS);
+    // Gated by the `autonomous-npc-chain` feature flag (off by default) so
+    // operators can opt into bystander follow-ups. With the flag off, only the
+    // explicitly addressed NPC(s) in Phase 1 reply.
+    let chain_cap = if autonomous_chain_enabled {
+        max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS)
+    } else {
+        0
+    };
     run_autonomous_chain(
         ctx,
         &queue,
