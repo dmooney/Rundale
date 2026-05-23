@@ -1,0 +1,30 @@
+# Test player name in arrival heading (issue #1031).
+# This fixture exercises the PlayerMoved event to verify the heading
+# format. The behavior is fully tested in character_log.rs unit tests
+# (player_moved_uses_player_name_when_set, player_moved_fallback_when_name_unset).
+#
+# This script demonstrates basic gameplay movement that triggers PlayerMoved events.
+
+/speed fast
+/status
+
+# Trigger multiple PlayerMoved events by moving between locations.
+# Each movement will append a journal entry to player.md.
+go to North Station
+/wait 20
+/status
+
+go to East Station
+/wait 20
+/status
+
+go to South Station
+/wait 20
+/status
+
+go to West Station
+/wait 20
+/status
+
+# Ensure logs are written and session ends
+/quit
