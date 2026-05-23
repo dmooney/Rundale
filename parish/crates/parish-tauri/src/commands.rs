@@ -310,6 +310,18 @@ pub async fn list_preset_models() -> Result<
     Ok(parish_core::ipc::byok::handle_list_preset_models())
 }
 
+/// Returns the registry split into `featured` + `other` lists. The BYOK
+/// wizard renders directly from this — the source of truth is now the
+/// provider registry (builtins + mod-loaded), not a hand-curated TS
+/// constant.
+#[tauri::command]
+pub async fn list_available_providers() -> Result<
+    std::collections::HashMap<&'static str, Vec<parish_core::ipc::byok::ProviderInfo>>,
+    String,
+> {
+    Ok(parish_core::ipc::byok::handle_list_available_providers())
+}
+
 // ── #?: local-inference onboarding commands ────────────────────────────────
 
 /// Onboarding-choice payload returned to the SetupOverlay so it can render

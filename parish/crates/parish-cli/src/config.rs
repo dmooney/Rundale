@@ -378,6 +378,10 @@ mod tests {
     /// `std::env::remove_var` and `set_var` unsafe precisely because
     /// concurrent access is UB.
     fn clear_parish_env() {
+        // Provider mods now live under mods/<id>/. parish-cli tests reference
+        // cloud providers (openrouter, anthropic, ...) that the registry only
+        // knows about after this helper walks them in from the workspace.
+        parish_core::config::ensure_mods_loaded();
         // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
         // which serialises every test that touches env vars across this
         // module and the sibling `parish-config` tests.
@@ -472,7 +476,10 @@ model = "qwen3:1.5b"
 
         // Dialogue should be overridden to OpenRouter
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::openrouter());
+        assert_eq!(
+            dialogue.provider,
+            Provider::from_id("openrouter").expect("openrouter provider mod must be loaded")
+        );
         assert_eq!(dialogue.base_url, "https://openrouter.ai/api");
         assert_eq!(dialogue.api_key.as_deref(), Some("sk-cat-test"));
         assert_eq!(
@@ -513,7 +520,10 @@ model = "qwen3:1.5b"
                 .unwrap();
 
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::openrouter());
+        assert_eq!(
+            dialogue.provider,
+            Provider::from_id("openrouter").expect("openrouter provider mod must be loaded")
+        );
         assert_eq!(dialogue.api_key.as_deref(), Some("sk-legacy"));
         assert_eq!(dialogue.model.as_deref(), Some("gpt-4"));
     }
@@ -591,7 +601,10 @@ model = "new-model"
                 .unwrap();
 
         let sim = configs.get(&InferenceCategory::Simulation).unwrap();
-        assert_eq!(sim.provider, Provider::openrouter());
+        assert_eq!(
+            sim.provider,
+            Provider::from_id("openrouter").expect("openrouter provider mod must be loaded")
+        );
         assert_eq!(sim.base_url, "https://openrouter.ai/api");
         assert_eq!(sim.api_key.as_deref(), Some("sk-sim"));
         assert_eq!(sim.model.as_deref(), Some("sim-model"));
@@ -755,7 +768,8 @@ name = "anthropic"
             std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
         }
         let base = ProviderConfig {
-            provider: Provider::anthropic(),
+            provider: Provider::from_id("anthropic")
+                .expect("anthropic provider mod must be loaded"),
             base_url: "https://api.anthropic.com".to_string(),
             api_key: Some("sk-ant-test".to_string()),
             model: None,
@@ -765,7 +779,10 @@ name = "anthropic"
         let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
 
         let intent = configs.get(&InferenceCategory::Intent).unwrap();
-        assert_eq!(intent.provider, Provider::anthropic());
+        assert_eq!(
+            intent.provider,
+            Provider::from_id("anthropic").expect("anthropic provider mod must be loaded")
+        );
         assert_eq!(intent.model.as_deref(), Some("claude-haiku-4-5"));
     }
 }

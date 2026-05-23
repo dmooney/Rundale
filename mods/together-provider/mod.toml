@@ -1,0 +1,6 @@
+[mod]
+name = "Together AI Provider"
+id = "together-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Together AI."
+kind = "providers"

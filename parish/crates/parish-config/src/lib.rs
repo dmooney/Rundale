@@ -1,5 +1,6 @@
 //! Configuration types for the Parish game engine.
 
+pub mod builtin_providers;
 pub mod engine;
 pub mod flags;
 pub mod provider;

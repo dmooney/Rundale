@@ -1,0 +1,6 @@
+[mod]
+name = "Anthropic Provider"
+id = "anthropic-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for Anthropic."
+kind = "providers"

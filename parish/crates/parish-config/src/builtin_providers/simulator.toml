@@ -7,3 +7,4 @@ requires_api_key = false
 requires_model = false
 blurb = "Built-in offline simulator — no network, no model download."
 featured = false
+keyless = true

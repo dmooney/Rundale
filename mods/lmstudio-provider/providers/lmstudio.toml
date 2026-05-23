@@ -16,3 +16,4 @@ dialogue = "qwen3:32b"
 simulation = "qwen3:14b"
 intent = "qwen3:4b"
 reaction = "qwen3:14b"
+keyless = true

@@ -1,0 +1,6 @@
+[mod]
+name = "xAI (Grok) Provider"
+id = "xai-provider"
+version = "1.0.0"
+description = "Runtime-loaded LLM provider mod for xAI (Grok)."
+kind = "providers"
