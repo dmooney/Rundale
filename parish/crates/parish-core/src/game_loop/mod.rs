@@ -62,7 +62,9 @@ pub use context::GameLoopContext;
 pub use inference::{InferenceSlots, rebuild_inference_worker};
 pub use input::{handle_game_input, handle_look};
 pub use movement::handle_movement;
-pub use npc_turn::{TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn};
+pub use npc_turn::{
+    AUTONOMOUS_NPC_CHAIN_FLAG, TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn,
+};
 pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
 pub use save::{NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs};
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};

@@ -1,0 +1,21 @@
+# Autonomous NPC chain feature flag — UI surface check.
+#
+# Verifies that the new `autonomous-npc-chain` flag is toggleable via the
+# standard /flag command and appears in /flag list. The behavioural proof
+# (chain on vs. chain off) lives in scripted-inference unit tests in
+# parish-core, because the live chain needs an LLM and the harness runs
+# headless.
+
+# 1. Baseline — show no flag set yet.
+/flag list
+
+# 2. Enable the new flag.
+/flag enable autonomous-npc-chain
+/flag list
+
+# 3. Disable it again — round-trip the toggle.
+/flag disable autonomous-npc-chain
+/flag list
+
+# 4. Confirm /help still mentions the /flag commands (no regression).
+/help
