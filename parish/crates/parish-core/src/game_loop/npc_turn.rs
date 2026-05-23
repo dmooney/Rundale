@@ -264,8 +264,7 @@ pub async fn run_npc_turn(
             };
             ctx.emitter.emit_event(
                 "text-log",
-                serde_json::to_value(text_log("system", &msg))
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
             );
         }
         if let Some(cancel) = loading_cancel {
@@ -460,14 +459,12 @@ pub async fn handle_npc_conversation(
             let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
             IDLE_MESSAGES[idx].to_string()
         } else {
-            let idx =
-                REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % ctx.idle_messages.len();
+            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % ctx.idle_messages.len();
             ctx.idle_messages[idx].clone()
         };
         ctx.emitter.emit_event(
             "text-log",
-            serde_json::to_value(text_log("system", &msg))
-                .unwrap_or(serde_json::Value::Null),
+            serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
         );
         return;
     }
