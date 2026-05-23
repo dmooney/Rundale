@@ -1,0 +1,9 @@
+# Verification fixture for default-base-mod-rundale.
+#
+# With the checked-in mods/mod-list.toml, a fresh CLI script run should load
+# Rundale as the active setting mod. The transcript should show Kilteevan
+# Village and Rundale prose, not the testbed Origin/grid world.
+
+/status
+look
+/npcs
