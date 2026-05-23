@@ -531,8 +531,8 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
     if !enabled {
         return;
     }
-    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
-    let manager = Arc::new(CharacterLogManager::new(&app_name, branch_id, true));
+    let initial_branch = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = CharacterLogManager::new(&app_name, initial_branch, true);
 
     // Subscribe BEFORE writing profiles so the rx doesn't miss any events
     // fired between the profile write and the subscriber task starting.
@@ -552,17 +552,32 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
 
     let state_sub = Arc::clone(state);
     let token = state.shutdown_token.clone();
-    let manager_sub = Arc::clone(&manager);
     tokio::spawn(async move {
         let mut rx = rx;
+        let mut current_branch = initial_branch;
+        let mut manager = manager;
         loop {
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
                     Ok(event) => {
+                        // Rebind manager when the active branch has changed
+                        // (e.g. load_branch / create_branch). Without this the
+                        // writer keeps appending to the original branch's
+                        // log directory after a branch switch (#1011).
+                        let bid = state_sub.current_branch_id.lock().await.unwrap_or(1);
+                        if bid != current_branch {
+                            current_branch = bid;
+                            manager = CharacterLogManager::new(&app_name, bid, true);
+                            let world = state_sub.world.lock().await;
+                            let npc_mgr = state_sub.npc_manager.lock().await;
+                            if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                tracing::warn!(error = %e, "character-log profile write failed after branch switch");
+                            }
+                        }
                         let world = state_sub.world.lock().await;
                         let npc_mgr = state_sub.npc_manager.lock().await;
-                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
+                        if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
                             tracing::warn!(error = %e, "character-log write failed");
                         }
                     }
@@ -587,8 +602,8 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
     if !enabled {
         return;
     }
-    let branch_id = state.current_branch_id.lock().await.unwrap_or(1);
-    let manager = Arc::new(LocationLogManager::new(&app_name, branch_id, true));
+    let initial_branch = state.current_branch_id.lock().await.unwrap_or(1);
+    let manager = LocationLogManager::new(&app_name, initial_branch, true);
 
     let rx = {
         let world = state.world.lock().await;
@@ -605,17 +620,31 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
 
     let state_sub = Arc::clone(state);
     let token = state.shutdown_token.clone();
-    let manager_sub = Arc::clone(&manager);
     tokio::spawn(async move {
         let mut rx = rx;
+        let mut current_branch = initial_branch;
+        let mut manager = manager;
         loop {
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
                     Ok(event) => {
+                        // Rebind manager when the active branch has changed
+                        // (e.g. load_branch / create_branch). Mirrors the
+                        // character-log subscriber fix from #1011 (#1034).
+                        let bid = state_sub.current_branch_id.lock().await.unwrap_or(1);
+                        if bid != current_branch {
+                            current_branch = bid;
+                            manager = LocationLogManager::new(&app_name, bid, true);
+                            let world = state_sub.world.lock().await;
+                            let npc_mgr = state_sub.npc_manager.lock().await;
+                            if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                tracing::warn!(error = %e, "location-log profile write failed after branch switch");
+                            }
+                        }
                         let world = state_sub.world.lock().await;
                         let npc_mgr = state_sub.npc_manager.lock().await;
-                        if let Err(e) = manager_sub.process_event(&event, &world, &npc_mgr) {
+                        if let Err(e) = manager.process_event(&event, &world, &npc_mgr) {
                             tracing::warn!(error = %e, "location-log write failed");
                         }
                     }

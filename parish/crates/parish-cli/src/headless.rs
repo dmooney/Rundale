@@ -352,6 +352,7 @@ pub async fn run_headless(
     // Character logs — gated by `character-logs` flag (default on).
     // Subscribe BEFORE writing profiles so the rx doesn't miss any
     // events that fire during/just after profile generation.
+    app.log_app_name = app_name.clone();
     {
         let enabled = !app
             .flags
@@ -388,6 +389,7 @@ pub async fn run_headless(
         }
         app.location_log = Some(std::sync::Arc::new(manager));
     }
+    app.log_managers_branch = Some(app.active_branch_id);
 
     // Show initial location
     print_location_arrival(&app);
@@ -457,6 +459,7 @@ static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
 /// background task, but a synchronous drain catches everything since the
 /// REPL is the only producer between drains.
 fn drain_character_log_events(app: &mut App) {
+    app.rebind_log_managers_if_branch_changed();
     let (Some(manager), Some(rx)) = (app.character_log.as_ref(), app.character_log_rx.as_mut())
     else {
         return;
@@ -481,6 +484,7 @@ fn drain_character_log_events(app: &mut App) {
 /// Same shape as [`drain_character_log_events`] but for the per-location
 /// markdown log writer. Both run at the tail of each REPL iteration.
 fn drain_location_log_events(app: &mut App) {
+    app.rebind_log_managers_if_branch_changed();
     let (Some(manager), Some(rx)) = (app.location_log.as_ref(), app.location_log_rx.as_mut())
     else {
         return;
@@ -2242,5 +2246,63 @@ mod tests {
             !error_would_be_triggered,
             "interactive mode must not hard-error on a locked save file during /load save-switch"
         );
+    }
+
+    /// #1011 / #1034: after the active branch changes, `drain_*` must rebuild
+    /// the log managers so subsequent events land under the new branch's dir.
+    #[test]
+    fn rebind_log_managers_follows_branch_switch() {
+        use parish_core::character_log::CharacterLogManager;
+        use parish_core::location_log::LocationLogManager;
+        use tempfile::tempdir;
+
+        let tmp = tempdir().expect("tempdir");
+        // Both managers resolve their log dirs from PARISH_USER_DATA_DIR.
+        // SAFETY: env-var mutation in a test — single-threaded by test
+        // construction (no parallel test touches log_app_name "rebind-test").
+        // safety: env-mutation in test
+        unsafe {
+            std::env::set_var("PARISH_USER_DATA_DIR", tmp.path());
+        }
+
+        let mut app = App::new();
+        app.log_app_name = "rebind-test".to_string();
+        app.active_branch_id = 1;
+        app.character_log = Some(std::sync::Arc::new(CharacterLogManager::new(
+            "rebind-test",
+            1,
+            true,
+        )));
+        app.location_log = Some(std::sync::Arc::new(LocationLogManager::new(
+            "rebind-test",
+            1,
+            true,
+        )));
+        app.log_managers_branch = Some(1);
+
+        // Simulate /fork or /load mutating the active branch.
+        app.active_branch_id = 2;
+        app.rebind_log_managers_if_branch_changed();
+
+        assert_eq!(
+            app.log_managers_branch,
+            Some(2),
+            "rebind should record the new branch id"
+        );
+        // Both managers should now write under logs/branch-2/.
+        // `PARISH_USER_DATA_DIR` overrides the entire user-data root (the
+        // app_name is ignored when the env var is set — see
+        // resolve_user_data_dir in parish-persistence::paths).
+        let branch2 = tmp.path().join("logs").join("branch-2");
+        assert!(
+            branch2.exists(),
+            "expected logs/branch-2/ to exist after rebind, but missing at {}",
+            branch2.display()
+        );
+
+        // safety: env-cleanup in test
+        unsafe {
+            std::env::remove_var("PARISH_USER_DATA_DIR");
+        }
     }
 }

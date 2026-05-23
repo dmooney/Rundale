@@ -151,6 +151,15 @@ pub struct App {
     /// `character_log_rx`. Independent receiver so both writers see every
     /// event without contention.
     pub location_log_rx: Option<broadcast::Receiver<GameEvent>>,
+    /// App-name slug used to resolve the user-data dir for log writers.
+    /// Set at startup from the active mod; needed to rebuild log managers
+    /// when the active branch changes (#1011).
+    pub log_app_name: String,
+    /// Branch id the current `character_log` / `location_log` managers
+    /// were built against. When `active_branch_id` diverges (e.g. after
+    /// `/load <branch>` or `/fork <branch>`), the drain pumps rebuild
+    /// the managers so events land under the new branch's log dir.
+    pub log_managers_branch: Option<i64>,
 }
 
 impl App {
@@ -207,7 +216,60 @@ impl App {
             character_log_rx: None,
             location_log: None,
             location_log_rx: None,
+            log_app_name: String::new(),
+            log_managers_branch: None,
         }
+    }
+
+    /// Rebuilds `self.character_log` / `self.location_log` when the active
+    /// branch has changed since the managers were last constructed (#1011,
+    /// #1034). Without this the writers keep appending to the original
+    /// branch's log directory after `/load <branch>` or `/fork <branch>`.
+    ///
+    /// Called at the tail of each REPL drain (headless and script harness),
+    /// so the next event in the new branch lands under `logs/branch-<new>/`.
+    pub fn rebind_log_managers_if_branch_changed(&mut self) {
+        let current = self.active_branch_id;
+        if self.log_managers_branch == Some(current) {
+            return;
+        }
+        if self.log_app_name.is_empty() {
+            return;
+        }
+        let app_name = self.log_app_name.clone();
+        if self.character_log.is_some() {
+            let enabled = !self
+                .flags
+                .is_disabled(parish_core::character_log::FEATURE_FLAG);
+            let manager =
+                parish_core::character_log::CharacterLogManager::new(&app_name, current, enabled);
+            if manager.enabled()
+                && let Err(e) = manager.write_all_profiles(&self.world, &self.npc_manager)
+            {
+                tracing::warn!(
+                    error = %e,
+                    "character-log profile write failed after branch switch"
+                );
+            }
+            self.character_log = Some(Arc::new(manager));
+        }
+        if self.location_log.is_some() {
+            let enabled = !self
+                .flags
+                .is_disabled(parish_core::location_log::FEATURE_FLAG);
+            let manager =
+                parish_core::location_log::LocationLogManager::new(&app_name, current, enabled);
+            if manager.enabled()
+                && let Err(e) = manager.write_all_profiles(&self.world, &self.npc_manager)
+            {
+                tracing::warn!(
+                    error = %e,
+                    "location-log profile write failed after branch switch"
+                );
+            }
+            self.location_log = Some(Arc::new(manager));
+        }
+        self.log_managers_branch = Some(current);
     }
 
     /// Returns the language settings derived from the active game mod.
