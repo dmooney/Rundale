@@ -4,6 +4,7 @@ const { title = 'Rundale Bench' } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const nav = [
   { href: base, label: 'Leaderboard' },
+  { href: `${base}/models`, label: 'Models' },
   { href: `${base}/gaeilge`, label: 'Gaeilge' },
   { href: `${base}/perf`, label: 'Perf' },
   { href: `${base}/datasets`, label: 'Datasets' },

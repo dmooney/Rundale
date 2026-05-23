@@ -5,17 +5,25 @@ import data from '../../data/bench.json';
 const base = import.meta.env.BASE_URL;
 
 export function getStaticPaths() {
-  // Union of leaderboard models, gaeilge models, and any model with samples —
-  // so a model with a gaeilge run but no dialogue row still gets a page.
+  // One page per observed model — drives links from /perf and /models so
+  // they never 404. Union of every data source (leaderboard, gaeilge,
+  // samples, perf, models_index).
   const slugs = new Map();
-  for (const row of data.leaderboard ?? []) slugs.set(row.slug, { dialogue: row, model_id: row.model_id });
+  for (const row of data.models_index ?? []) slugs.set(row.slug, { model_id: row.model_id, is_local: row.is_local });
+  for (const row of data.leaderboard ?? []) {
+    const e = slugs.get(row.slug) ?? { model_id: row.model_id };
+    e.dialogue = row; slugs.set(row.slug, e);
+  }
   for (const row of data.gaeilge ?? []) {
     const e = slugs.get(row.slug) ?? { model_id: row.model_id };
     e.gaeilge_row = row; slugs.set(row.slug, e);
   }
   for (const [slug, s] of Object.entries(data.samples ?? {})) {
     const e = slugs.get(slug) ?? { model_id: s.model_id };
-    e.samples = s; slugs.set(slug, e);
+    slugs.set(slug, e);
+  }
+  for (const row of data.perf ?? []) {
+    if (!slugs.has(row.slug)) slugs.set(row.slug, { model_id: row.model_id, is_local: row.is_local });
   }
   return [...slugs.entries()].map(([slug, view]) => ({ params: { slug }, props: { slug, view } }));
 }
@@ -25,13 +33,17 @@ const samples = (data.samples ?? {})[slug] ?? {};
 const dialogueRow = view.dialogue;
 const gaeilgeRow = view.gaeilge_row;
 const perf = (data.perf ?? []).filter((p) => p.model_id === view.model_id);
+const typeBadge = view.is_local ? 'local' : 'cloud';
 const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
 const DIALOGUE_AXES = ['character', 'authenticity', 'language', 'responsiveness', 'craft'];
 const GAEILGE_AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'english_leakage'];
 ---
 <Base title={`Rundale Bench — ${view.model_id}`}>
-  <p><a href={base}>← leaderboard</a></p>
-  <h2>{view.model_id}</h2>
+  <p><a href={`${base}/models`}>← all models</a> · <a href={base}>leaderboard</a></p>
+  <h2>{view.model_id} <span class="badge" title={view.is_local ? 'local runtime' : 'cloud-hosted'}>{typeBadge}</span></h2>
+  {!dialogueRow && !gaeilgeRow && (
+    <p class="muted">No quality runs yet — only perf data below.</p>
+  )}
 
   {dialogueRow && (
     <>

@@ -1,8 +1,27 @@
 {
-  "generated_utc": "2026-05-23T23:00:56.123776+00:00",
+  "generated_utc": "2026-05-23T23:28:41.414617+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
+    {
+      "model_id": "x-ai/grok-4.3",
+      "slug": "x-ai-grok-4-3",
+      "family": "unknown",
+      "tier": null,
+      "overall": 5.0,
+      "judged": 15,
+      "records": 15,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 5.0,
+      "authenticity": 5.0,
+      "language": 5.0,
+      "responsiveness": 5.0,
+      "craft": 5.0,
+      "measured_utc": "2026-05-17T21:41:47.647919+00:00",
+      "is_local": false
+    },
     {
       "model_id": "openai/gpt-oss-120b:free",
       "slug": "openai-gpt-oss-120b-free",
@@ -19,7 +38,8 @@
       "language": 5.0,
       "responsiveness": 4.8,
       "craft": 4.6,
-      "measured_utc": "2026-05-13T20:59:06.320321+00:00"
+      "measured_utc": "2026-05-13T20:59:06.320321+00:00",
+      "is_local": false
     }
   ],
   "gaeilge": [
@@ -36,7 +56,8 @@
       "idiom": 2.090909090909091,
       "task_fulfillment": 1.9090909090909092,
       "english_leakage": 4.818181818181818,
-      "measured_utc": "2026-05-18T17:48:11.349071+00:00"
+      "measured_utc": "2026-05-18T17:48:11.349071+00:00",
+      "is_local": true
     }
   ],
   "perf": [
@@ -55,7 +76,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 478,
       "ttft_p90_ms": 643,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "anthropic/claude-haiku-4.5",
@@ -72,7 +94,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 980,
       "ttft_p90_ms": 1399,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "anthropic/claude-opus-4.7",
@@ -89,7 +112,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 1421,
       "ttft_p90_ms": 1557,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "anthropic/claude-sonnet-4.6",
@@ -106,7 +130,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 1328,
       "ttft_p90_ms": 5300,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "deepseek/deepseek-v3.2",
@@ -123,7 +148,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 691,
       "ttft_p90_ms": 1554,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "deepseek/deepseek-v4-pro",
@@ -140,7 +166,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 1317,
       "ttft_p90_ms": 2125,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "google/gemini-2.5-flash",
@@ -157,7 +184,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 595,
       "ttft_p90_ms": 790,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "google/gemini-2.5-pro",
@@ -174,7 +202,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 1925,
       "ttft_p90_ms": 2073,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "google/gemma-3-27b-it",
@@ -191,7 +220,8 @@
       "measured_utc": "2026-05-14T20:24:05.119077+00:00",
       "ttft_p50_ms": 380,
       "ttft_p90_ms": 766,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "google/gemma-4-31b-it",
@@ -208,7 +238,8 @@
       "measured_utc": "2026-05-14T20:24:05.119077+00:00",
       "ttft_p50_ms": 1160,
       "ttft_p90_ms": 2111,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "meta-llama/llama-3.3-70b-instruct",
@@ -225,7 +256,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 516,
       "ttft_p90_ms": 1452,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "meta-llama/llama-4-maverick",
@@ -242,7 +274,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 412,
       "ttft_p90_ms": 521,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "meta-llama/llama-4-scout",
@@ -259,7 +292,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 279,
       "ttft_p90_ms": 389,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "microsoft/phi-4",
@@ -276,7 +310,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 364,
       "ttft_p90_ms": 727,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "mistralai/mistral-large-2512",
@@ -293,7 +328,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 482,
       "ttft_p90_ms": 667,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "mistralai/mistral-medium-3.1",
@@ -310,7 +346,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 390,
       "ttft_p90_ms": 521,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "mistralai/mistral-small-24b-instruct-2501",
@@ -327,7 +364,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 250,
       "ttft_p90_ms": 290,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "moonshotai/kimi-k2.5",
@@ -344,7 +382,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 942,
       "ttft_p90_ms": 2073,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "nousresearch/hermes-4-405b",
@@ -361,7 +400,8 @@
       "measured_utc": "2026-05-15T19:32:31.003307+00:00",
       "ttft_p50_ms": 333,
       "ttft_p90_ms": 641,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "openai/gpt-4o-mini",
@@ -378,7 +418,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 816,
       "ttft_p90_ms": 1280,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "openai/gpt-5.4",
@@ -395,7 +436,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 715,
       "ttft_p90_ms": 843,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "openai/gpt-5.4-mini",
@@ -412,7 +454,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 561,
       "ttft_p90_ms": 702,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "openai/gpt-5.5",
@@ -429,7 +472,8 @@
       "measured_utc": "2026-05-15T19:35:49.867655+00:00",
       "ttft_p50_ms": 2242,
       "ttft_p90_ms": 4549,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "openai/gpt-oss-120b",
@@ -446,7 +490,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 427,
       "ttft_p90_ms": 816,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "qwen/qwen-2.5-72b-instruct",
@@ -463,7 +508,8 @@
       "measured_utc": "2026-05-14T20:24:05.119077+00:00",
       "ttft_p50_ms": null,
       "ttft_p90_ms": null,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "qwen/qwen3-235b-a22b-2507",
@@ -480,7 +526,8 @@
       "measured_utc": "2026-05-14T20:24:05.119077+00:00",
       "ttft_p50_ms": 363,
       "ttft_p90_ms": 666,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "qwen/qwen3-max",
@@ -497,7 +544,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 1173,
       "ttft_p90_ms": 1410,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "x-ai/grok-3-mini",
@@ -514,7 +562,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": null,
       "ttft_p90_ms": null,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "x-ai/grok-4.3",
@@ -531,7 +580,8 @@
       "measured_utc": "2026-05-15T19:33:29.004240+00:00",
       "ttft_p50_ms": 704,
       "ttft_p90_ms": 1561,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     },
     {
       "model_id": "z-ai/glm-4.6",
@@ -548,7 +598,8 @@
       "measured_utc": "2026-05-15T19:39:39.605471+00:00",
       "ttft_p50_ms": 1442,
       "ttft_p90_ms": 2844,
-      "source": "legacy"
+      "source": "legacy",
+      "is_local": false
     }
   ],
   "datasets": {
@@ -5499,6 +5550,219 @@
           }
         ]
       }
+    },
+    "x-ai-grok-4-3": {
+      "model_id": "x-ai/grok-4.3",
+      "slug": "x-ai-grok-4-3",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-17T21:41:47.647919+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah now, those dreams returning must leave you worn out by morning. I've known your family long enough to recall similar troubles, and a simple brew of valerian from the hedgerow often brings quieter nights. \n---\n{\"action\": \"reaches for a small bundle of dried roots on the shelf\", \"mood\": \"content\", \"internal_thought\": \"Best to start gentle before suggesting more\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Mhuise, the old Cailleach by the fairy fort knows her herbs well and has a steady hand for easing troubles in the body. I've called on her knowledge more than once when the plants were scarce, and she's always been straight with me about what works. \n---\n{\"action\": \"nods thoughtfully while folding a bundle of dried leaves\", \"mood\": \"content\", \"internal_thought\": \"Curious why they're asking after her today, but best not to pry\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"Moo-ish-uh\", \"meaning\": \"well, indeed\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "A bad cough calls for careful looking after. I'll give ye a mix of thyme and honey to brew into a tea for her. Le c\u00fanamh D\u00e9 it will ease her breathing soon.\n---\n{\"action\": \"reaches for a small bundle of dried herbs from the shelf\", \"mood\": \"content\", \"internal_thought\": \"This family has always been sensible about these things\", \"language_hints\": [{\"word\": \"Le c\\u00fanamh D\\u00e9\", \"pronunciation\": \"Leh coo-nuv day\", \"meaning\": \"With God's help\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Aye, I've heard the talk of a stranger come into the village. He seems a quiet sort from what little word has reached me so far. Mhuise, we'll know more in time I suppose.\n---\n{\"action\": \"nods thoughtfully while mixing a herbal remedy\", \"mood\": \"content\", \"internal_thought\": \"Strangers are not uncommon but best to stay aware in these times\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"well, indeed\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Mhuise, it could be a fox or a stray dog as well as any wolf. Best to look for tracks or signs around the field before jumping to other notions. Those animals know the land well enough.\n---\n{\"action\": \"leans on the gatepost listening closely\", \"mood\": \"content\", \"internal_thought\": \"Practical advice first, no need to alarm\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"well, indeed\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, I remember it well enough, your father taking that fall in the south field. I was there with the herbs to ease the pain and help set the bone right. Le c\u00fanamh D\u00e9 he was walking again before the season turned.\n---\n{\"action\": \"nods slowly while folding hands in lap\", \"mood\": \"content\", \"internal_thought\": \"Glad to recall helping the family through that hard time\", \"language_hints\": [{\"word\": \"Le c\u00fanamh D\u00e9\", \"pronunciation\": \"luh coo-niv day\", \"meaning\": \"with God's help\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Those lights on the hill last night, they could well be from folk making their way home late or even lads out after rabbits with a lantern or two. Though the old ones do speak of the s\u00eddhe moving about at times like that, so mind your step if you go near the bogs. \n---\n{\"action\": \"pauses while folding linens by the hearth\", \"mood\": \"content\", \"internal_thought\": \"Hope the poor soul isn't too worried over nothing\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Faith, a strange taste in the well water this week could mean something's stirred up nearby. Boil it well before drinking and add a sprig of mint from the garden to settle the flavour. Fetch from the stream if it worries you much. \n---\n{\"action\": \"sets down the herbs she was sorting\", \"mood\": \"content\", \"internal_thought\": \"Hope it's nothing serious, these things happen in wet weather.\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "When the pains come on strong and regular, or if her waters break, that's the time to fetch me without delay. I've known your family these years and will have all ready by the hearth. Le c\u00fanamh D\u00e9, she'll do well.\n---\n{\"action\": \"sets down basket of herbs and turns to face the man\", \"mood\": \"content\", \"internal_thought\": \"They've waited a good while for this child\", \"language_hints\": [{\"word\": \"Le c\\u00fanamh D\\u00e9\", \"pronunciation\": \"Le coon-uv Day\", \"meaning\": \"With God's help\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Ah, Father Cathal has the right of it in some things, for the Church must guide us all. Yet the old ways with plants and such have eased many a birth in my time, Le c\u00fanamh D\u00e9. What brings this to mind for you now?\n---\n{\"action\": \"pauses while folding a clean linen cloth\", \"mood\": \"content\", \"internal_thought\": \"Best not to argue with the priest openly but folk knowledge still helps\", \"language_hints\": [{\"word\": \"Le c\\u00fanamh D\\u00e9\", \"pronunciation\": \"leh KOON-uv deh\", \"meaning\": \"with God's help\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0011",
+            "prompt": "Have you any cure for a toothache that will not let me rest?",
+            "reply": "Ah, a toothache is a cruel thing to keep the night long. Chewing gently on a clove or two from my basket should draw the pain away and let you rest easier. Le c\u00fanamh D\u00e9, it has worked for many here.\n---\n{\"action\": \"reaches into her basket for cloves\", \"mood\": \"content\", \"internal_thought\": \"This family has had their share of ailments lately\", \"language_hints\": [{\"word\": \"Le c\\u00fanamh D\\u00e9\", \"pronunciation\": \"Leh COO-nuv day\", \"meaning\": \"With God's help\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0012",
+            "prompt": "I cut my hand on a scythe and the wound runs hot. What should I do?",
+            "reply": "Mhuise, that cut from the scythe with the heat running through it needs tending right away before it takes hold. Wash it clean with cool water and bind it with a poultice of yarrow leaves from the hedge to draw out the fever. Rest the hand and come back to me if it grows worse.\n---\n{\"action\": \"reaches for a bundle of dried yarrow\", \"mood\": \"content\", \"internal_thought\": \"Known this family for years, hope the old remedies hold\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"well, indeed\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0013",
+            "prompt": "Is it true that you delivered the Maguire twins?",
+            "reply": "Aye, it's true that I delivered the Maguire twins myself, and a fine healthy pair they were too. Their poor mother laboured long into the night but we got through it all right in the end. \n---\n{\"action\": \"nods while folding a clean cloth\", \"mood\": \"content\", \"internal_thought\": \"Those twins have grown into strong lads since then\", \"language_hints\": [{\"word\": \"Bu\\u00edochas le Dia\", \"pronunciation\": \"bwee-ock le dee-ah\", \"meaning\": \"thank God\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0014",
+            "prompt": "The crows have been gathering at the crossroads. Is it an omen?",
+            "reply": "Mhuise, those crows at the crossroads are nothing but birds looking for scraps on the road. I've seen them gather like that many a time without any ill following after. Best not to fret over every gathering of wings.\n---\n{\"action\": \"pauses while sorting herbs on the table\", \"mood\": \"content\", \"internal_thought\": \"Folk do worry over signs but life goes on as usual here\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"indeed or well\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0015",
+            "prompt": "I dreamt of my dead grandmother three nights running. What does it mean?",
+            "reply": "Mhuise, dreaming of your dead granny three nights running often means she's watching over the family still. Perhaps there's some word or task she's reminding you of from her time. Say a prayer and keep her in your thoughts.\n---\n{\"action\": \"nods gently while stirring the pot over the fire\", \"mood\": \"content\", \"internal_thought\": \"These dreams often bring comfort if folk let them\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"well, indeed\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          }
+        ]
+      }
     }
   },
   "judge_prompts": {
@@ -5599,5 +5863,421 @@
       "system_prompt_source": "rundale-bench/v1/judge_v1.json (rubric field)",
       "rubric_text": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown."
     }
-  }
+  },
+  "models_index": [
+    {
+      "slug": "x-ai-grok-4-3",
+      "model_id": "x-ai/grok-4.3",
+      "is_local": false,
+      "dialogue_overall": 5.0,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3183,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 207.5,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
+    },
+    {
+      "slug": "openai-gpt-oss-120b-free",
+      "model_id": "openai/gpt-oss-120b:free",
+      "is_local": false,
+      "dialogue_overall": 4.82,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
+    },
+    {
+      "slug": "mlx-community-qwen2-5-14b-instruct-4bit",
+      "model_id": "mlx-community/Qwen2.5-14B-Instruct-4bit",
+      "is_local": true,
+      "dialogue_overall": null,
+      "gaeilge_overall": 2.109090909090909,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": null
+    },
+    {
+      "slug": "amazon-nova-pro-v1",
+      "model_id": "amazon/nova-pro-v1",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 855,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 65.9
+    },
+    {
+      "slug": "anthropic-claude-haiku-4-5",
+      "model_id": "anthropic/claude-haiku-4.5",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1989,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 81.6
+    },
+    {
+      "slug": "anthropic-claude-opus-4-7",
+      "model_id": "anthropic/claude-opus-4.7",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3861,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 39.0
+    },
+    {
+      "slug": "anthropic-claude-sonnet-4-6",
+      "model_id": "anthropic/claude-sonnet-4.6",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3221,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 44.1
+    },
+    {
+      "slug": "deepseek-deepseek-v3-2",
+      "model_id": "deepseek/deepseek-v3.2",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2704,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 22.2
+    },
+    {
+      "slug": "deepseek-deepseek-v4-pro",
+      "model_id": "deepseek/deepseek-v4-pro",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 6170,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 39.2
+    },
+    {
+      "slug": "google-gemini-2-5-flash",
+      "model_id": "google/gemini-2.5-flash",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1032,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 99.5
+    },
+    {
+      "slug": "google-gemini-2-5-pro",
+      "model_id": "google/gemini-2.5-pro",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3331,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 143.3
+    },
+    {
+      "slug": "google-gemma-3-27b-it",
+      "model_id": "google/gemma-3-27b-it",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2328,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 37.9
+    },
+    {
+      "slug": "google-gemma-4-31b-it",
+      "model_id": "google/gemma-4-31b-it",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3214,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 21.9
+    },
+    {
+      "slug": "meta-llama-llama-3-3-70b-instruct",
+      "model_id": "meta-llama/llama-3.3-70b-instruct",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2339,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 43.2
+    },
+    {
+      "slug": "meta-llama-llama-4-maverick",
+      "model_id": "meta-llama/llama-4-maverick",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1601,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 51.1
+    },
+    {
+      "slug": "meta-llama-llama-4-scout",
+      "model_id": "meta-llama/llama-4-scout",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1419,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 54.2
+    },
+    {
+      "slug": "microsoft-phi-4",
+      "model_id": "microsoft/phi-4",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1674,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 67.8
+    },
+    {
+      "slug": "mistralai-mistral-large-2512",
+      "model_id": "mistralai/mistral-large-2512",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1714,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 44.1
+    },
+    {
+      "slug": "mistralai-mistral-medium-3-1",
+      "model_id": "mistralai/mistral-medium-3.1",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2089,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 50.4
+    },
+    {
+      "slug": "mistralai-mistral-small-24b-instruct-2501",
+      "model_id": "mistralai/mistral-small-24b-instruct-2501",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 838,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 77.4
+    },
+    {
+      "slug": "moonshotai-kimi-k2-5",
+      "model_id": "moonshotai/kimi-k2.5",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 7220,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 37.6
+    },
+    {
+      "slug": "nousresearch-hermes-4-405b",
+      "model_id": "nousresearch/hermes-4-405b",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 5623,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 39.4
+    },
+    {
+      "slug": "openai-gpt-4o-mini",
+      "model_id": "openai/gpt-4o-mini",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1243,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 192.7
+    },
+    {
+      "slug": "openai-gpt-5-4",
+      "model_id": "openai/gpt-5.4",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2677,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 34.7
+    },
+    {
+      "slug": "openai-gpt-5-4-mini",
+      "model_id": "openai/gpt-5.4-mini",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1389,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 75.5
+    },
+    {
+      "slug": "openai-gpt-5-5",
+      "model_id": "openai/gpt-5.5",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 4067,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 60.0
+    },
+    {
+      "slug": "openai-gpt-oss-120b",
+      "model_id": "openai/gpt-oss-120b",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3072,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 62.7
+    },
+    {
+      "slug": "qwen-qwen-2-5-72b-instruct",
+      "model_id": "qwen/qwen-2.5-72b-instruct",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 5242,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": null
+    },
+    {
+      "slug": "qwen-qwen3-235b-a22b-2507",
+      "model_id": "qwen/qwen3-235b-a22b-2507",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1696,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 54.2
+    },
+    {
+      "slug": "qwen-qwen3-max",
+      "model_id": "qwen/qwen3-max",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2904,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 32.6
+    },
+    {
+      "slug": "x-ai-grok-3-mini",
+      "model_id": "x-ai/grok-3-mini",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": null
+    },
+    {
+      "slug": "z-ai-glm-4-6",
+      "model_id": "z-ai/glm-4.6",
+      "is_local": false,
+      "dialogue_overall": null,
+      "gaeilge_overall": null,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 16883,
+      "perf_best_usd_per_mtok": null,
+      "perf_mean_tok_s": 34.7
+    }
+  ]
 }

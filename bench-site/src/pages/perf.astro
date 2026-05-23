@@ -4,12 +4,8 @@ import data from '../data/bench.json';
 const base = import.meta.env.BASE_URL;
 const perf = data.perf ?? [];
 const fmt = (v, d = 0) => (typeof v === 'number' ? v.toFixed(d) : '—');
-// Only link perf rows whose model has a /models/<slug> page (would 404 otherwise).
-const pageSlugs = new Set([
-  ...(data.leaderboard ?? []).map((r) => r.slug),
-  ...(data.gaeilge ?? []).map((r) => r.slug),
-  ...Object.keys(data.samples ?? {}),
-]);
+// Every perf row's model gets a /models/<slug> page via models_index, so
+// linking is unconditional now.
 ---
 <Base title="Rundale Bench — Perf matrix">
   <h2>Per-provider performance</h2>
@@ -35,7 +31,8 @@ const pageSlugs = new Set([
       <tbody>
         {perf.map((r) => (
           <tr>
-            <td>{pageSlugs.has(r.slug) ? <a href={`${base}/models/${r.slug}`}>{r.model_id}</a> : r.model_id}</td>
+            <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a>
+              {r.is_local && <span class="badge" title="local runtime">local</span>}</td>
             <td><span class="badge">{r.provider_id}</span></td>
             <td class="num">{fmt(r.latency_p50_ms)}</td>
             <td class="num">{fmt(r.latency_p95_ms)}</td>

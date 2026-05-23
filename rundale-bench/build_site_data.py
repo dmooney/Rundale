@@ -22,8 +22,36 @@ from typing import Optional
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
 ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
+PROOFS_RUNS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 PERF_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench" / "perf"
 SITE_DATA = _REPO_ROOT / "bench-site" / "src" / "data" / "bench.json"
+
+
+def _run_paths(artifacts_dir: Path) -> list[str]:
+    """Every `run_*.json` we know about — artifacts + the proofs mirror dir
+    (some early runs were committed there, not under artifacts)."""
+    paths = sorted(glob.glob(str(artifacts_dir / "run_*.json")))
+    if PROOFS_RUNS_DIR.exists():
+        paths.extend(sorted(glob.glob(str(PROOFS_RUNS_DIR / "run_*.json"))))
+    return paths
+
+
+_LOCAL_PREFIXES = ("mlx-community/", "ollama/", "lmstudio/", "local/")
+
+
+def model_is_local(model_id: str, families: Optional[dict] = None) -> bool:
+    """True for MLX/Ollama/LM Studio targets. Catalog `local_only` wins when
+    the id is in the catalog; otherwise guess from common prefixes."""
+    families = families or {}
+    try:
+        from catalog import load_catalog
+        cat = load_catalog()
+        for m in cat.models:
+            if m.id == model_id or any(p.model_name_at_provider == model_id for p in m.providers):
+                return m.local_only
+    except Exception:
+        pass
+    return model_id.startswith(_LOCAL_PREFIXES)
 
 AXES = ("character", "authenticity", "language", "responsiveness", "craft")
 GAEILGE_AXES = ("fluency", "grammar", "idiom", "task_fulfillment", "english_leakage")
@@ -107,7 +135,7 @@ def _run_ts(out: dict, path: Path) -> str:
 def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
     families = families or {}
     latest: dict[str, tuple[str, dict]] = {}  # model_id -> (ts, row)
-    for p in sorted(glob.glob(str(artifacts_dir / "run_*.json"))):
+    for p in _run_paths(artifacts_dir):
         path = Path(p)
         try:
             out = json.loads(path.read_text(encoding="utf-8"))
@@ -203,7 +231,7 @@ def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[
     """Gaeilge leaderboard: per model, axes + leakage. Latest wins."""
     families = families or {}
     latest: dict[str, tuple[str, dict]] = {}
-    for p in sorted(glob.glob(str(artifacts_dir / "run_*.json"))):
+    for p in _run_paths(artifacts_dir):
         path = Path(p)
         try:
             out = json.loads(path.read_text(encoding="utf-8"))
@@ -263,7 +291,7 @@ def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
     by_model: dict[str, dict] = {}
     latest_ts: dict[tuple[str, str], str] = {}
 
-    for p in sorted(glob.glob(str(artifacts_dir / "run_*.json"))):
+    for p in _run_paths(artifacts_dir):
         path = Path(p)
         try:
             out = json.loads(path.read_text(encoding="utf-8"))
@@ -384,6 +412,61 @@ def build_datasets(suite: str = "v1") -> dict:
     return out
 
 
+def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[dict],
+                       samples: dict) -> list[dict]:
+    """One row per observed model: cloud/local + best dialogue + best gaeilge
+    + perf summary (best p50 latency, mean tok/s, cheapest $/Mtok). Drives
+    /models and lets /perf rows link to a page that always exists."""
+    by_slug: dict[str, dict] = {}
+
+    def _ensure(slug: str, model_id: str) -> dict:
+        if slug not in by_slug:
+            by_slug[slug] = {
+                "slug": slug, "model_id": model_id,
+                "is_local": model_is_local(model_id),
+                "dialogue_overall": None, "gaeilge_overall": None,
+                "perf_providers": [], "perf_best_p50_ms": None,
+                "perf_best_usd_per_mtok": None, "perf_mean_tok_s": None,
+            }
+        return by_slug[slug]
+
+    for r in leaderboard:
+        e = _ensure(r["slug"], r["model_id"])
+        e["dialogue_overall"] = r.get("overall")
+        e["dialogue_judge"] = r.get("judge_id")
+    for r in gaeilge:
+        e = _ensure(r["slug"], r["model_id"])
+        e["gaeilge_overall"] = r.get("overall")
+    for s in samples.values():
+        _ensure(s["slug"], s["model_id"])
+    for r in perf:
+        e = _ensure(r["slug"], r["model_id"])
+        e["perf_providers"].append(r["provider_id"])
+        p50 = r.get("latency_p50_ms")
+        if isinstance(p50, (int, float)):
+            cur = e["perf_best_p50_ms"]
+            e["perf_best_p50_ms"] = p50 if cur is None else min(cur, p50)
+        usd = r.get("usd_per_mtok_observed")
+        if isinstance(usd, (int, float)):
+            cur = e["perf_best_usd_per_mtok"]
+            e["perf_best_usd_per_mtok"] = usd if cur is None else min(cur, usd)
+        ts = r.get("tokens_per_sec_mean")
+        if isinstance(ts, (int, float)):
+            cur = e["perf_mean_tok_s"]
+            e["perf_mean_tok_s"] = ts if cur is None else max(cur, ts)
+    # Score rows so models with more data float to the top.
+    def _score(e):
+        return (
+            -(1 if e["dialogue_overall"] is not None else 0),
+            -(e["dialogue_overall"] or 0),
+            -(1 if e["gaeilge_overall"] is not None else 0),
+            -(e["gaeilge_overall"] or 0),
+            -len(e["perf_providers"]),
+            e["model_id"],
+        )
+    return sorted(by_slug.values(), key=_score)
+
+
 def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
                *, suite: str = "v1", judge_model: str = "claude-sonnet-4-6") -> dict:
     families = _family_lookup(suite)
@@ -391,16 +474,25 @@ def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
     datasets_with_purpose = {
         name: {**info, "purpose": SLICE_PURPOSE.get(name, "")} for name, info in datasets.items()
     }
+    leaderboard = build_leaderboard(artifacts_dir, families)
+    gaeilge = build_gaeilge(artifacts_dir, families)
+    perf = build_perf(perf_dir, legacy_dir=artifacts_dir)
+    samples = build_samples(artifacts_dir, datasets)
+    # Stamp is_local on every row so the site doesn't have to recompute it.
+    for r in leaderboard: r["is_local"] = model_is_local(r["model_id"])
+    for r in gaeilge: r["is_local"] = model_is_local(r["model_id"])
+    for r in perf: r["is_local"] = model_is_local(r["model_id"])
     return {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "judge_model": judge_model,
         "suite": suite,
-        "leaderboard": build_leaderboard(artifacts_dir, families),
-        "gaeilge": build_gaeilge(artifacts_dir, families),
-        "perf": build_perf(perf_dir, legacy_dir=artifacts_dir),
+        "leaderboard": leaderboard,
+        "gaeilge": gaeilge,
+        "perf": perf,
         "datasets": datasets_with_purpose,
-        "samples": build_samples(artifacts_dir, datasets),
+        "samples": samples,
         "judge_prompts": build_judge_prompts(suite),
+        "models_index": build_models_index(leaderboard, gaeilge, perf, samples),
     }
 
 
