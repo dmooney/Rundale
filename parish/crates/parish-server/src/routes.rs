@@ -91,13 +91,30 @@ pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<V
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// `GET /api/theme` — returns the current time-of-day palette.
+/// `GET /api/theme` — returns the current palette.
+///
+/// Resolution order:
+/// 1. Mod-provided time-of-day keyframes → interpolated for the current game hour.
+/// 2. Mod-provided static `[theme.palette]` (no keyframes) → returned as-is.
+/// 3. No mod loaded → `neutral_grey_palette()` so the prompt overlay renders.
 pub async fn get_theme(Extension(state): Extension<Arc<AppState>>) -> Json<ThemePalette> {
     use chrono::Timelike;
-    use parish_palette::compute_palette;
-    let world = state.world.lock().await;
-    let now = world.clock.now();
-    let raw = compute_palette(now.hour(), now.minute());
+    use parish_core::config::PaletteConfig;
+    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+    let raw = if !state.theme_keyframes.is_empty() {
+        let world = state.world.lock().await;
+        let now = world.clock.now();
+        compute_palette_with_keyframes(
+            now.hour(),
+            now.minute(),
+            &state.theme_keyframes,
+            &PaletteConfig::default(),
+        )
+    } else if let Some(p) = state.static_raw_palette {
+        p
+    } else {
+        neutral_grey_palette()
+    };
     Json(ThemePalette::from(raw))
 }
 

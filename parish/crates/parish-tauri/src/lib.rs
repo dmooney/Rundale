@@ -469,6 +469,13 @@ pub struct AppState {
     pub ui_config: UiConfigSnapshot,
     /// Fixed theme palette from the loaded game mod.
     pub theme_palette: ThemePalette,
+    /// Time-of-day palette keyframes from the loaded game mod. Empty when the
+    /// mod ships only a static palette (or no mod is loaded).
+    pub theme_keyframes: Vec<parish_palette::Keyframe>,
+    /// Static palette in RawPalette form, used by `get_theme` when the mod
+    /// declares no keyframes. `None` when no mod is loaded (engine falls back
+    /// to `neutral_grey_palette`).
+    pub static_raw_palette: Option<parish_palette::RawPalette>,
     /// Name pronunciation entries from the loaded game mod.
     pub pronunciations: Vec<PronunciationEntry>,
     /// NPC arrival reaction templates from the loaded game mod.
@@ -1081,6 +1088,13 @@ pub fn run() {
         env!("PARISH_BUILD_TIME"),
     );
 
+    // Build runtime palette state from the loaded mod.
+    let theme_keyframes = game_mod
+        .as_ref()
+        .map(|gm| gm.ui.theme.resolved_keyframes())
+        .unwrap_or_default();
+    let static_raw_palette = game_mod.as_ref().map(|gm| gm.ui.theme.static_raw_palette());
+
     // Build transport config from mod or defaults
     let transport = game_mod
         .as_ref()
@@ -1260,6 +1274,8 @@ pub fn run() {
         inference_log: new_inference_log(),
         ui_config,
         theme_palette,
+        theme_keyframes,
+        static_raw_palette,
         pronunciations,
         reaction_templates,
         save_path: Mutex::new(None),

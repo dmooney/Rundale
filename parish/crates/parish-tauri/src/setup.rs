@@ -690,12 +690,25 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                     &state.pronunciations,
                 );
                 let _ = handle.emit(events::EVENT_WORLD_UPDATE, snapshot);
-                // Emit current time-of-day palette
+                // Emit current palette (mod-keyframed when present, static
+                // mod palette otherwise, neutral grey when no mod loaded).
                 {
                     use chrono::Timelike;
-                    use parish_palette::compute_palette;
-                    let now = world.clock.now();
-                    let raw = compute_palette(now.hour(), now.minute());
+                    use parish_core::config::PaletteConfig;
+                    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+                    let raw = if !state.theme_keyframes.is_empty() {
+                        let now = world.clock.now();
+                        compute_palette_with_keyframes(
+                            now.hour(),
+                            now.minute(),
+                            &state.theme_keyframes,
+                            &PaletteConfig::default(),
+                        )
+                    } else if let Some(p) = state.static_raw_palette {
+                        p
+                    } else {
+                        neutral_grey_palette()
+                    };
                     if last_palette != Some(raw) {
                         let _ = handle.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
                         last_palette = Some(raw);

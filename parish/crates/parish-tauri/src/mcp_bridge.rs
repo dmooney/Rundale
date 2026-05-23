@@ -552,6 +552,8 @@ mod tests {
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
+            theme_keyframes: Vec::new(),
+            static_raw_palette: None,
             pronunciations: Vec::new(),
             reaction_templates: parish_core::npc::reactions::ReactionTemplates::default(),
             save_path: Mutex::new(None),

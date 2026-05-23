@@ -286,9 +286,24 @@ pub struct ThemeConfig {
     /// Fixed theme palette used by the frontend.
     #[serde(default)]
     pub palette: ThemePaletteConfig,
+    /// Optional time-of-day keyframes. When present, the engine smoothly
+    /// interpolates between them to compute the live palette; when empty,
+    /// the static [`Self::palette`] is used directly.
+    #[serde(default)]
+    pub keyframes: Vec<ThemeKeyframeConfig>,
     /// Optional map overlay style (e.g. `"grid"` for blueprint graph-paper).
     #[serde(default)]
     pub map_overlay: Option<String>,
+}
+
+/// A single time-of-day palette anchor loaded from `ui.toml`'s
+/// `[[theme.keyframes]]` array.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ThemeKeyframeConfig {
+    /// Anchor hour in [0.0, 24.0) — e.g. `8.5` for morning midpoint.
+    pub hour: f32,
+    /// Palette at this anchor.
+    pub palette: ThemePaletteConfig,
 }
 
 /// UI configuration loaded from `ui.toml`.
@@ -320,32 +335,34 @@ fn default_hints_label() -> String {
     "Language Hints".to_string()
 }
 
+// Neutral charcoal-grey defaults used only when no base mod is loaded — the
+// engine itself ships no aesthetic. Mods always override these via `ui.toml`.
 fn default_theme_bg() -> String {
-    "#fafad8".to_string()
+    "#18181a".to_string()
 }
 
 fn default_theme_fg() -> String {
-    "#31240f".to_string()
+    "#dcdce0".to_string()
 }
 
 fn default_theme_accent() -> String {
-    "#b08531".to_string()
+    "#8c8c96".to_string()
 }
 
 fn default_theme_panel_bg() -> String {
-    "#f5f5d3".to_string()
+    "#202024".to_string()
 }
 
 fn default_theme_input_bg() -> String {
-    "#f0f0ce".to_string()
+    "#28282c".to_string()
 }
 
 fn default_theme_border() -> String {
-    "#cec293".to_string()
+    "#484850".to_string()
 }
 
 fn default_theme_muted() -> String {
-    "#76663b".to_string()
+    "#96969e".to_string()
 }
 
 /// Returns the built-in fixed theme palette used when a mod does not provide one.
@@ -369,6 +386,45 @@ impl ThemeConfig {
             palette.accent = accent.clone();
         }
         palette
+    }
+
+    /// Converts the mod-provided keyframes into the runtime [`parish_palette::Keyframe`]
+    /// form consumed by `compute_palette_with_keyframes`. Returns an empty vec
+    /// when the mod ships only a static palette.
+    pub fn resolved_keyframes(&self) -> Vec<parish_palette::Keyframe> {
+        self.keyframes
+            .iter()
+            .map(|kf| parish_palette::Keyframe {
+                hour: kf.hour,
+                palette: theme_palette_config_to_raw(&kf.palette),
+            })
+            .collect()
+    }
+
+    /// Returns the static palette as a [`parish_palette::RawPalette`] for use
+    /// when no keyframes are provided.
+    pub fn static_raw_palette(&self) -> parish_palette::RawPalette {
+        theme_palette_config_to_raw(&self.palette)
+    }
+}
+
+/// Converts a hex-string [`ThemePaletteConfig`] into the byte-RGB
+/// [`parish_palette::RawPalette`] form used by interpolation. Malformed hex
+/// values silently fall back to black so a typo in a single channel can't
+/// crash startup; the loader logs a warning when this is wrong enough to
+/// notice.
+fn theme_palette_config_to_raw(p: &ThemePaletteConfig) -> parish_palette::RawPalette {
+    let parse = |s: &str| {
+        parish_palette::parse_hex_color(s).unwrap_or(parish_palette::RawColor::new(0, 0, 0))
+    };
+    parish_palette::RawPalette {
+        bg: parse(&p.bg),
+        fg: parse(&p.fg),
+        accent: parse(&p.accent),
+        panel_bg: parse(&p.panel_bg),
+        input_bg: parse(&p.input_bg),
+        border: parse(&p.border),
+        muted: parse(&p.muted),
     }
 }
 
@@ -1381,8 +1437,10 @@ phrases = ["Loading"]
         let toml_str = "";
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.sidebar.hints_label, "Language Hints");
-        assert_eq!(ui.theme.palette.bg, "#fafad8");
-        assert_eq!(ui.theme.palette.accent, "#b08531");
+        // Defaults are now neutral grey — the engine ships no aesthetic of
+        // its own. Mods supply colours via `ui.toml`.
+        assert_eq!(ui.theme.palette.bg, "#18181a");
+        assert_eq!(ui.theme.palette.accent, "#8c8c96");
     }
 
     #[test]
@@ -1399,7 +1457,7 @@ bg = "#010203"
         assert_eq!(ui.sidebar.hints_label, "Custom");
         assert_eq!(ui.theme.palette.bg, "#010203");
         assert_eq!(ui.theme.palette.accent, "#ff0000");
-        assert_eq!(ui.theme.palette.fg, "#31240f");
+        assert_eq!(ui.theme.palette.fg, "#dcdce0");
     }
 
     #[test]
@@ -1410,7 +1468,7 @@ default_accent = "#112233"
 "##;
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.theme.resolved_palette().accent, "#112233");
-        assert_eq!(ui.theme.resolved_palette().bg, "#fafad8");
+        assert_eq!(ui.theme.resolved_palette().bg, "#18181a");
     }
 
     #[test]
