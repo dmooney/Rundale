@@ -996,9 +996,9 @@ pub fn run() {
     };
 
     // Try to load game mod (auto-detect from workspace root) via the
-    // ModSource abstraction.  load_setting_mod_sync is used here because
+    // ModSource abstraction. load_base_mod_sync is used here because
     // Tauri's run() is synchronous and no tokio runtime exists yet.
-    let game_mod = parish_core::mod_source::load_setting_mod_sync();
+    let game_mod = parish_core::mod_source::load_base_mod_sync();
 
     // Load world — prefer mod data, fall back to legacy data/ directory
     let world = if let Some(ref gm) = game_mod {

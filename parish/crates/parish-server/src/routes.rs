@@ -1551,7 +1551,7 @@ fn mods_root_path(state: &AppState) -> std::path::PathBuf {
 }
 
 /// Scans `root` for setting mods and returns them with an `active` flag.
-fn collect_setting_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry> {
+fn collect_base_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry> {
     use parish_core::game_mod::{ModKind, ModManifest};
 
     let Ok(entries) = std::fs::read_dir(root) else {
@@ -1564,7 +1564,7 @@ fn collect_setting_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry
             let manifest_path = e.path().join("mod.toml");
             let text = std::fs::read_to_string(&manifest_path).ok()?;
             let manifest: ModManifest = toml::from_str(&text).ok()?;
-            if manifest.meta.kind != ModKind::Setting {
+            if manifest.meta.kind != ModKind::Base {
                 return None;
             }
             Some(ModEntry {
@@ -1581,7 +1581,7 @@ fn collect_setting_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry
     mods
 }
 
-/// `GET /api/mods` — lists all discoverable setting mods with an `active` flag.
+/// `GET /api/mods` — lists all discoverable base mods with an `active` flag.
 pub async fn list_mods(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<ModEntry>> {
     let root = mods_root_path(&state);
     let active_id = state
@@ -1589,7 +1589,7 @@ pub async fn list_mods(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<M
         .as_ref()
         .map(|gm| gm.manifest.meta.id.clone())
         .unwrap_or_default();
-    let mods = tokio::task::spawn_blocking(move || collect_setting_mods(&root, &active_id))
+    let mods = tokio::task::spawn_blocking(move || collect_base_mods(&root, &active_id))
         .await
         .unwrap_or_default();
     Json(mods)
@@ -1601,7 +1601,7 @@ pub struct SwitchModBody {
 }
 
 /// `POST /api/mods/switch` — updates `mods/mod-list.toml` to select a new
-/// active setting mod.
+/// active base mod.
 ///
 /// The running server continues with the currently-loaded mod until it is
 /// restarted; the client should reload after a server restart to see the new
@@ -1621,7 +1621,7 @@ pub async fn switch_mod(
     let available = tokio::task::spawn_blocking({
         let root = root.clone();
         let active_id = active_id.clone();
-        move || collect_setting_mods(&root, &active_id)
+        move || collect_base_mods(&root, &active_id)
     })
     .await
     .unwrap_or_default();
@@ -1634,7 +1634,7 @@ pub async fn switch_mod(
     }
 
     let mod_list_path = root.join("mod-list.toml");
-    let content = format!("active_setting = {:?}\n", body.mod_id);
+    let content = format!("active_base = {:?}\n", body.mod_id);
     if let Err(e) = std::fs::write(&mod_list_path, &content) {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
