@@ -3,7 +3,7 @@
 //! These are consumed by both the Tauri desktop backend and the axum web
 //! server, keeping game-logic → IPC-type mapping in a single place.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{Datelike, Timelike};
@@ -347,24 +347,40 @@ struct NpcMentionCandidate {
     target: String,
 }
 
-fn add_npc_mention_candidate(
-    candidates: &mut Vec<NpcMentionCandidate>,
-    seen: &mut HashSet<String>,
-    text: &str,
-    target: &str,
-) {
+fn add_npc_mention_candidate(candidates: &mut Vec<(String, String)>, text: &str, target: &str) {
     let text = text.trim();
     if text.is_empty() {
         return;
     }
 
-    let key = text.to_lowercase();
-    if seen.insert(key) {
-        candidates.push(NpcMentionCandidate {
-            text: text.to_string(),
-            target: target.to_string(),
-        });
+    candidates.push((text.to_string(), target.to_string()));
+}
+
+fn unambiguous_npc_mention_candidates(
+    candidates: Vec<(String, String)>,
+) -> Vec<NpcMentionCandidate> {
+    let mut targets_by_text: HashMap<String, HashSet<String>> = HashMap::new();
+    for (text, target) in &candidates {
+        targets_by_text
+            .entry(text.to_lowercase())
+            .or_default()
+            .insert(target.to_lowercase());
     }
+
+    let mut seen = HashSet::new();
+    let mut filtered = Vec::new();
+    for (text, target) in candidates {
+        let key = text.to_lowercase();
+        if targets_by_text
+            .get(&key)
+            .is_some_and(|targets| targets.len() == 1)
+            && seen.insert(key)
+        {
+            filtered.push(NpcMentionCandidate { text, target });
+        }
+    }
+
+    filtered
 }
 
 fn npc_mention_candidates(
@@ -372,20 +388,21 @@ fn npc_mention_candidates(
     npc_manager: &NpcManager,
 ) -> Vec<NpcMentionCandidate> {
     let mut candidates = Vec::new();
-    let mut seen = HashSet::new();
 
     for npc in npc_manager.npcs_at(world.player_location) {
-        add_npc_mention_candidate(&mut candidates, &mut seen, &npc.name, &npc.name);
-
-        if let Some(first_name) = npc.name.split_whitespace().next() {
-            add_npc_mention_candidate(&mut candidates, &mut seen, first_name, &npc.name);
-        }
-
         let display = npc_manager.display_name(npc);
-        add_npc_mention_candidate(&mut candidates, &mut seen, display, display);
+        add_npc_mention_candidate(&mut candidates, display, display);
+
+        if npc_manager.is_introduced(npc.id) {
+            add_npc_mention_candidate(&mut candidates, &npc.name, &npc.name);
+
+            if let Some(first_name) = npc.name.split_whitespace().next() {
+                add_npc_mention_candidate(&mut candidates, first_name, &npc.name);
+            }
+        }
     }
 
-    candidates
+    unambiguous_npc_mention_candidates(candidates)
 }
 
 fn find_natural_npc_mentions(
@@ -456,9 +473,10 @@ fn find_natural_npc_mentions(
 /// Extracts all valid `@mentions` that match NPCs at the player's location.
 ///
 /// Matching is done against the NPCs currently present. Explicit `@mentions`
-/// and natural free-text names match full names, first names, and visible
+/// and natural free-text names match introduced full/first names and visible
 /// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
-/// descriptions like `an older man behind the bar` remain parseable.
+/// descriptions like `an older man behind the bar` remain parseable. Ambiguous
+/// mention text is ignored rather than routed to an arbitrary co-located NPC.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
@@ -1135,6 +1153,50 @@ mod tests {
             vec!["an older man behind the bar".to_string()]
         );
         assert_eq!(extracted.remaining, "what have you heard?");
+    }
+
+    #[test]
+    fn extract_npc_mentions_does_not_match_unintroduced_real_name() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc.name = "Padraig O'Brien".to_string();
+        npc.brief_description = "an older man behind the bar".to_string();
+        npc_mgr.add_npc(npc);
+
+        let raw = "@Padraig O'Brien what have you heard?";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert!(extracted.names.is_empty());
+        assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_ignores_ambiguous_first_names() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc1 = Npc::new_test_npc();
+        npc1.id = NpcId(1);
+        npc1.name = "Mary Byrne".to_string();
+        npc1.location = world.player_location;
+
+        let mut npc2 = Npc::new_test_npc();
+        npc2.id = NpcId(2);
+        npc2.name = "Mary Kelly".to_string();
+        npc2.location = world.player_location;
+
+        npc_mgr.add_npc(npc1);
+        npc_mgr.add_npc(npc2);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let raw = "@Mary could I ask ye both something?";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert!(extracted.names.is_empty());
+        assert_eq!(extracted.remaining, raw);
     }
 
     #[test]
