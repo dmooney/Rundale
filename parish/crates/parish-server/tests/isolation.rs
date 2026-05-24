@@ -164,6 +164,8 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
         max_tokens: None,
         ttft_ms: Some(45),
         output_tokens: Some(12),
+        temperature: None,
+        priority: parish_core::inference::InferencePriority::Interactive,
     };
 
     // Call the production redaction function — the same path `get_debug_snapshot`
@@ -281,6 +283,8 @@ async fn second_ws_upgrade_same_account_is_409() {
         data_dir.join("parish-flags.json"),
         parish_core::config::InferenceConfig::default(),
         session_store,
+        parish_core::inference::file_log::InferenceFileLog::disabled(),
+        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     ));
 
     // Simulate first connection inserting the account_id (#618).
@@ -400,6 +404,8 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         data_dir.join("parish-flags.json"),
         parish_core::config::InferenceConfig::default(),
         session_store2,
+        parish_core::inference::file_log::InferenceFileLog::disabled(),
+        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     ));
 
     // Pre-populate debug_events so the snapshot has something to copy.

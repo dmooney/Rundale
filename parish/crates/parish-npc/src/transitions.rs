@@ -211,6 +211,7 @@ mod tests {
                 summary: "discussed the weather".to_string(),
                 player_said: None,
                 npc_said: None,
+                request_id: None,
                 timestamp: test_time(),
             },
         ];
@@ -307,6 +308,7 @@ mod tests {
             summary: "test".to_string(),
             player_said: None,
             npc_said: None,
+            request_id: None,
             timestamp: test_time(),
         };
         assert!(event_involves_npc(NpcId(3), &event));

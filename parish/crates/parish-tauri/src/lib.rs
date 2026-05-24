@@ -578,6 +578,10 @@ pub struct AppState {
     /// Resolved once at startup and injected into all dialogue prompt builders
     /// to enforce locale-correct spelling and code-switching behaviour.
     pub language_settings: parish_core::npc::LanguageSettings,
+    /// Persistent on-disk inference call log.
+    pub inference_file_log: parish_core::inference::file_log::InferenceFileLog,
+    /// Persistent on-disk chat transcript (paired with `inference_file_log`).
+    pub chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -1274,6 +1278,22 @@ pub fn run() {
         }
     }
 
+    // Persistent on-disk inference + chat transcript logs (#xxx).
+    let log_to_disk = parish_core::inference::file_log::resolve_enabled(
+        false, // Tauri does not (yet) expose a --no-inference-log flag; env wins
+        engine_config.inference.log_to_disk,
+    );
+    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+        &saves_dir,
+        log_to_disk,
+        Some(&game_config.base_url),
+    );
+    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+        &saves_dir,
+        inference_file_log.session_id().to_string(),
+        inference_file_log.enabled_flag(),
+    );
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -1319,6 +1339,8 @@ pub fn run() {
         session_store,
         user_config_dir,
         secret_store,
+        inference_file_log,
+        chat_transcript_log,
     });
 
     tauri::Builder::default()
@@ -1413,6 +1435,7 @@ pub fn run() {
                 setup::init_persistence(&handle, &state_setup).await;
                 setup::spawn_character_log_subscriber(&state_setup, app_name.clone()).await;
                 setup::spawn_location_log_subscriber(&state_setup, app_name.clone()).await;
+                setup::spawn_chat_transcript_subscriber(&state_setup).await;
                 setup::spawn_event_bus_fanin(&state_setup).await;
                 setup::spawn_world_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_inactivity_tick(handle.clone(), Arc::clone(&state_setup));

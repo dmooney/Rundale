@@ -26,6 +26,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::config::InferenceConfig;
+use crate::inference::file_log::InferenceFileLog;
 use crate::inference::{
     AnyClient, InferenceLog, InferenceQueue, build_client, spawn_inference_worker,
 };
@@ -76,6 +77,7 @@ pub async fn rebuild_inference_worker(
     api_key: Option<&str>,
     inference_config: &InferenceConfig,
     inference_log: InferenceLog,
+    inference_file_log: InferenceFileLog,
     slots: InferenceSlots<'_>,
 ) -> (AnyClient, Option<String>) {
     // Check URL validity; callers will surface the warning.
@@ -90,12 +92,12 @@ pub async fn rebuild_inference_worker(
         None
     };
 
+    let provider_enum = crate::config::Provider::from_str_loose(provider_name).unwrap_or_default();
+
     // Build the new AnyClient and update the raw client slot.
     let any_client = if provider_name == "simulator" {
         AnyClient::simulator()
     } else {
-        let provider_enum =
-            crate::config::Provider::from_str_loose(provider_name).unwrap_or_default();
         let built = build_client(&provider_enum, base_url, api_key, inference_config);
         {
             let mut guard = slots.client.lock().await;
@@ -123,6 +125,8 @@ pub async fn rebuild_inference_worker(
         background_rx,
         batch_rx,
         inference_log,
+        inference_file_log,
+        provider_enum,
         inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);

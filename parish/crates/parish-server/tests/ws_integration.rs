@@ -159,6 +159,8 @@ async fn ws_message_forwarding() {
         data_dir.join("parish-flags.json"),
         parish_core::config::InferenceConfig::default(),
         session_store,
+        parish_core::inference::file_log::InferenceFileLog::disabled(),
+        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     );
 
     let app = Router::new()

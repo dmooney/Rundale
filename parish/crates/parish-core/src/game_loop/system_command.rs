@@ -19,7 +19,7 @@
 
 use std::pin::Pin;
 
-use crate::input::Command;
+use crate::input::{Command, InferenceLogSub};
 use crate::ipc::{CommandEffect, TextPresentation};
 
 /// A heap-allocated, Send async future — used as the return type for all
@@ -113,6 +113,18 @@ pub trait SystemCommandHost: Send + Sync {
         Box::pin(async {})
     }
 
+    /// Handle [`CommandEffect::InferenceLog`] — toggle or report on the
+    /// on-disk inference log. Each runtime owns the `InferenceFileLog` /
+    /// `ChatTranscriptLog` handles and should flip their shared enable flag
+    /// here, then return a human-readable status reply for the player.
+    ///
+    /// Default implementation is a stub for hosts that haven't been
+    /// updated yet; once each entry point overrides it, the default can
+    /// be removed.
+    fn inference_log_toggle(&self, _sub: InferenceLogSub) -> BoxFuture<'_, String> {
+        Box::pin(async { "Inference log control is not available in this runtime.".to_string() })
+    }
+
     /// Emit a text-log message with the given presentation hint.
     ///
     /// This is synchronous (no await) because all three backends emit text-log
@@ -121,6 +133,26 @@ pub trait SystemCommandHost: Send + Sync {
 
     /// Emit an updated world snapshot.
     fn emit_world_update(&self) -> BoxFuture<'_, ()>;
+}
+
+/// Translates a parser-level `InferenceLogSub` to the inference-crate's
+/// runtime-level toggle and runs it against the supplied writer handle.
+/// Returns the player-visible reply.
+///
+/// Used by every runtime's `SystemCommandHost::inference_log_toggle` so the
+/// wording stays consistent across CLI / server / Tauri.
+pub fn apply_inference_log_sub(
+    log: &crate::inference::file_log::InferenceFileLog,
+    sub: InferenceLogSub,
+) -> String {
+    use crate::inference::file_log::{LogToggleAction, apply_toggle};
+    let action = match sub {
+        InferenceLogSub::On => LogToggleAction::On,
+        InferenceLogSub::Off => LogToggleAction::Off,
+        InferenceLogSub::Status => LogToggleAction::Status,
+        InferenceLogSub::Path => LogToggleAction::Path,
+    };
+    apply_toggle(log, action)
 }
 
 /// Shared system-command dispatcher for all three backends.
@@ -212,6 +244,12 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command) {
             }
             CommandEffect::ResetByok => {
                 host.reset_byok().await;
+            }
+            CommandEffect::InferenceLog(sub) => {
+                let msg = host.inference_log_toggle(sub.clone()).await;
+                if !msg.is_empty() {
+                    host.emit_text_log(msg, TextPresentation::Prose);
+                }
             }
         }
     }

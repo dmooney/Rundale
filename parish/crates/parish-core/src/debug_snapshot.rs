@@ -1348,6 +1348,8 @@ mod tests {
             max_tokens: Some(300),
             ttft_ms: Some(120),
             output_tokens: Some(40),
+            temperature: Some(0.7),
+            priority: parish_inference::InferencePriority::Interactive,
         };
         let json = serde_json::to_string(&entry).unwrap();
         assert!(json.contains("qwen3:14b"));
@@ -1372,6 +1374,8 @@ mod tests {
             max_tokens: None,
             ttft_ms: None,
             output_tokens: None,
+            temperature: None,
+            priority: parish_inference::InferencePriority::Interactive,
         };
         let json = serde_json::to_string(&entry).unwrap();
         assert!(json.contains("timeout"));
@@ -1399,6 +1403,8 @@ mod tests {
             max_tokens: None,
             ttft_ms: None,
             output_tokens: None,
+            temperature: None,
+            priority: parish_inference::InferencePriority::Interactive,
         };
         let mut inference = test_inference();
         inference.call_log = vec![entry];

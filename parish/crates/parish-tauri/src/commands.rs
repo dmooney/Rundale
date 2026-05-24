@@ -240,6 +240,7 @@ fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext
         config: &state.config,
         inference_config: &state.inference_config,
         inference_log: state.inference_log.clone(),
+        inference_file_log: state.inference_file_log.clone(),
         slots: parish_core::game_loop::inference::InferenceSlots {
             client: &state.client,
             worker_handle: &state.worker_handle,
@@ -794,6 +795,7 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>, app: &tauri::AppHand
         api_key.as_deref(),
         &state.inference_config,
         state.inference_log.clone(),
+        state.inference_file_log.clone(),
         parish_core::game_loop::inference::InferenceSlots {
             client: &state.client,
             worker_handle: &state.worker_handle,
@@ -2857,6 +2859,8 @@ mod cmd_tests {
             session_store,
             user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
         })
     }
 

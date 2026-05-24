@@ -393,12 +393,16 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
+    let provider =
+        parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
     let worker = spawn_inference_worker(
         ac,
         interactive_rx,
         background_rx,
         batch_rx,
         state.inference_log.clone(),
+        state.inference_file_log.clone(),
+        provider,
         state.inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
@@ -669,6 +673,44 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
                             Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
                             Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
                         }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                },
+            }
+        }
+    });
+}
+
+/// Long-running subscriber that forwards `GameEvent`s to the on-disk chat
+/// transcript (paired with the inference log for zippable bug reports).
+///
+/// The writer task + enable flag were created at startup on
+/// `AppState.chat_transcript_log`; this just pumps bus events into it. The
+/// transcript is per-process (not per-branch), so unlike the markdown log
+/// managers it never rebinds on branch switch.
+pub(crate) async fn spawn_chat_transcript_subscriber(state: &Arc<AppState>) {
+    // Always subscribe — even if logging starts disabled — so a mid-session
+    // `/inference-log on` is captured. `process_event` no-ops internally
+    // while the shared flag is off.
+    let rx = {
+        let world = state.world.lock().await;
+        world.event_bus.subscribe()
+    };
+    let state_sub = Arc::clone(state);
+    let token = state.shutdown_token.clone();
+    tokio::spawn(async move {
+        let mut rx = rx;
+        loop {
+            tokio::select! {
+                _ = token.cancelled() => break,
+                result = rx.recv() => match result {
+                    Ok(event) => {
+                        let world = state_sub.world.lock().await;
+                        let npc_mgr = state_sub.npc_manager.lock().await;
+                        state_sub
+                            .chat_transcript_log
+                            .process_event(&event, &world, &npc_mgr);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
