@@ -791,6 +791,10 @@ impl GameTestHarness {
                 CommandEffect::ResetByok => {
                     // No BYOK overlay in the test harness; response text is returned below.
                 }
+                CommandEffect::InferenceLog(_) => {
+                    // No-op in the test harness; the response text from the
+                    // shared dispatcher is what makes it to the player.
+                }
             }
         }
 
@@ -1550,6 +1554,7 @@ impl GameTestHarness {
                 summary: dialogue.clone(),
                 player_said: Some(player_line),
                 npc_said: Some(dialogue.clone()),
+                request_id: None,
                 timestamp: game_time,
             });
 

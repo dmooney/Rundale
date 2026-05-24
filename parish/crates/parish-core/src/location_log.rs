@@ -653,6 +653,7 @@ mod tests {
             summary: "discussed weather".into(),
             player_said: Some("Good afternoon, Padraig.".into()),
             npc_said: Some("Ah, God bless ye.".into()),
+            request_id: None,
             timestamp: ts(),
         };
         mgr.process_event(&event, &world, &npcs).unwrap();

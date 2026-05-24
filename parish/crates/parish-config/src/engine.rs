@@ -172,6 +172,16 @@ pub struct InferenceConfig {
     /// Maximum entries in the debug inference log ring buffer.
     #[serde(default = "default_log_capacity")]
     pub log_capacity: usize,
+    /// Whether to also write every inference call to disk as JSONL.
+    ///
+    /// When `true` (default), each backend process writes
+    /// `{saves_dir}/inference_logs/{session}.jsonl` so users can zip the
+    /// folder and send it with a bug report. The `PARISH_INFERENCE_LOG`
+    /// env var or the `--no-inference-log` CLI flag overrides this; the
+    /// `/inference-log on|off` slash command toggles it at runtime.
+    /// API-key shapes are scrubbed before writing.
+    #[serde(default = "default_log_to_disk")]
+    pub log_to_disk: bool,
     /// Per-category outbound request rate limits.
     ///
     /// Defaults to no limit. Useful when targeting paid providers
@@ -191,6 +201,7 @@ impl Default for InferenceConfig {
             force_model_redownload: false,
             model_loading_timeout_secs: default_model_loading_timeout_secs(),
             log_capacity: default_log_capacity(),
+            log_to_disk: default_log_to_disk(),
             rate_limits: RateLimitConfig::default(),
         }
     }
@@ -217,6 +228,9 @@ fn default_model_loading_timeout_secs() -> u64 {
 }
 fn default_log_capacity() -> usize {
     50
+}
+fn default_log_to_disk() -> bool {
+    true
 }
 
 // ---------------------------------------------------------------------------

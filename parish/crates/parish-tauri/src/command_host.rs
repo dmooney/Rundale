@@ -11,7 +11,9 @@ use std::sync::Arc;
 
 use tauri::Emitter;
 
-use parish_core::game_loop::system_command::{BoxFuture, SystemCommandHost};
+use parish_core::game_loop::system_command::{
+    BoxFuture, SystemCommandHost, apply_inference_log_sub,
+};
 use parish_core::input::Command;
 use parish_core::ipc::{CommandResult, TextPresentation, handle_command, text_log, text_log_typed};
 
@@ -198,6 +200,14 @@ impl SystemCommandHost for TauriCommandHost {
         Box::pin(async move { "Debug commands are not available in the GUI.".to_string() })
     }
 
+    fn inference_log_toggle(
+        &self,
+        sub: parish_core::input::InferenceLogSub,
+    ) -> BoxFuture<'_, String> {
+        let file_log = self.state.inference_file_log.clone();
+        Box::pin(async move { apply_inference_log_sub(&file_log, sub) })
+    }
+
     fn reset_byok(&self) -> BoxFuture<'_, ()> {
         let state = Arc::clone(&self.state);
         let app = self.app.clone();
@@ -207,6 +217,7 @@ impl SystemCommandHost for TauriCommandHost {
                 config: &state.config,
                 inference_config: &state.inference_config,
                 inference_log: state.inference_log.clone(),
+                inference_file_log: state.inference_file_log.clone(),
                 slots: parish_core::game_loop::inference::InferenceSlots {
                     client: &state.client,
                     worker_handle: &state.worker_handle,

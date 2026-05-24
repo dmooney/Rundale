@@ -12,7 +12,7 @@
 use chrono::Timelike;
 
 use crate::config::{InferenceCategory, Provider};
-use crate::input::{Command, FlagSubcommand};
+use crate::input::{Command, FlagSubcommand, InferenceLogSub};
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
@@ -61,6 +61,10 @@ pub enum CommandEffect {
     /// GameConfig.api_key) and signal the frontend to re-open the fork
     /// screen via `EVENT_SETUP_NEEDS_ONBOARDING`.
     ResetByok,
+    /// Toggle or inspect the on-disk inference log. The runtime is
+    /// responsible for flipping the `InferenceFileLog` /
+    /// `ChatTranscriptLog` enable flag and replying with a status string.
+    InferenceLog(InferenceLogSub),
 }
 
 /// How a command's response text should be presented by the frontend.
@@ -140,6 +144,11 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/help", "Show this help"),
     ("/hints", "Toggle language-hints sidebar"),
     ("/improv", "Toggle improv craft mode"),
+    (
+        "/inference-log [on|off|status|path]",
+        "Toggle or inspect the on-disk LLM log",
+    ),
+    ("/irish", "Toggle Irish pronunciation sidebar"),
     ("/load <name>", "Load a named branch"),
     ("/log", "Show branch history"),
     ("/map [id]", "List or switch map tile sources"),
@@ -259,6 +268,7 @@ pub fn handle_command(
         Command::ResetByok => {
             CommandResult::with_effect("Re-opening provider picker...", CommandEffect::ResetByok)
         }
+        Command::InferenceLog(sub) => CommandResult::effect_only(CommandEffect::InferenceLog(sub)),
     }
 }
 

@@ -339,11 +339,16 @@ pub async fn run_npc_turn(
                     summary: parsed.dialogue.clone(),
                     player_said: Some(prompt_input.to_string()),
                     npc_said: Some(parsed.dialogue.clone()),
+                    request_id: Some(req_id),
                     timestamp: game_time,
                 });
         }
     }
 
+    // Note: the on-disk chat transcript is fed from the `GameEvent` bus
+    // (see `chat_transcript::ChatTranscriptLog::process_event`), not from a
+    // direct hook here — the `DialogueOccurred` event published above carries
+    // `request_id` for the inference-log correlation.
     let line = if parsed.dialogue.trim().is_empty() {
         None
     } else {

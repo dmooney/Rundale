@@ -218,6 +218,14 @@ pub struct AppState {
     /// creation.  Stored here so runtime rebuilds (e.g. after `/provider`) use
     /// the operator-configured values instead of the compiled-in defaults. (#417)
     pub inference_config: InferenceConfig,
+    /// Persistent on-disk inference call log.  Cheap to clone (`Arc` internals);
+    /// shared with the inference worker so every call is captured. Toggled by
+    /// the `/inference-log` slash command at runtime.
+    pub inference_file_log: parish_core::inference::file_log::InferenceFileLog,
+    /// Persistent on-disk chat transcript log. Same enable flag as
+    /// `inference_file_log`; correlation between the two is via the shared
+    /// `parish.request_id` field.
+    pub chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
     /// Cached async database handle for the currently active save file.
     ///
     /// Opened lazily by the autosave tick and reused across ticks to avoid
@@ -300,6 +308,8 @@ pub fn build_app_state(
     flags_path: PathBuf,
     inference_config: InferenceConfig,
     session_store: Arc<dyn SessionStore>,
+    inference_file_log: parish_core::inference::file_log::InferenceFileLog,
+    chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
 ) -> Arc<AppState> {
     // Extract pronunciations from game mod before moving it.
     let pronunciations = game_mod
@@ -383,6 +393,8 @@ pub fn build_app_state(
         session_store,
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         language_settings,
+        inference_file_log,
+        chat_transcript_log,
     })
 }
 

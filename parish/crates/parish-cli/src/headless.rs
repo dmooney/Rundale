@@ -46,6 +46,8 @@ fn setup_inference_queue(
     dial_client: AnyClient,
     inference_config: &InferenceConfig,
     inference_log: &inference::InferenceLog,
+    inference_file_log: &inference::file_log::InferenceFileLog,
+    provider: parish_core::config::Provider,
 ) -> InferenceQueue {
     let (interactive_tx, interactive_rx) = mpsc::channel(16);
     let (background_tx, background_rx) = mpsc::channel(32);
@@ -56,6 +58,8 @@ fn setup_inference_queue(
         background_rx,
         batch_rx,
         inference_log.clone(),
+        inference_file_log.clone(),
+        provider,
         inference_config.clone(),
     );
     InferenceQueue::new(interactive_tx, background_tx, batch_tx)
@@ -95,10 +99,15 @@ async fn run_headless_repl_loop(
                         app.cloud_client.clone().or_else(|| app.client.clone())
                     };
                     if let Some(new_client) = any {
+                        let provider =
+                            parish_core::config::Provider::from_str_loose(&app.provider_name)
+                                .unwrap_or_default();
                         let queue = setup_inference_queue(
                             new_client,
                             &app.inference_config,
                             &inference_log,
+                            &app.inference_file_log,
+                            provider,
                         );
                         app.inference_queue = Some(queue);
                     }
@@ -147,6 +156,7 @@ async fn run_headless_repl_loop(
 
         drain_character_log_events(app);
         drain_location_log_events(app);
+        drain_chat_transcript_events(app);
 
         if app.should_quit {
             break;
@@ -188,8 +198,40 @@ pub async fn run_headless(
     data_dir: Option<std::path::PathBuf>,
     inference_config: InferenceConfig, // (#417) TOML-configured timeouts
     script_mode: bool,
+    no_inference_log: bool,
 ) -> Result<()> {
     print_startup_header(&clients, provider_config);
+
+    // Resolve the per-user saves directory early so the on-disk inference log
+    // can write alongside save files. App-name drives the per-user data folder
+    // (Rundale → `Rundale`; engine fallback `Parish`); the shared helper keeps
+    // the three entry points in lockstep (rule #12). Resolved from the
+    // `game_mod` parameter so it's available before the inference worker spawns.
+    let app_name = parish_core::game_mod::app_name_from_mod(&game_mod);
+    let saves_dir = crate::persistence::picker::resolve_project_saves_dir(&app_name);
+
+    // Inference log effective on/off: CLI flag > env > config default.
+    let log_to_disk = parish_core::inference::file_log::resolve_enabled(
+        no_inference_log,
+        inference_config.log_to_disk,
+    );
+    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+        &saves_dir,
+        log_to_disk,
+        Some(&provider_config.base_url),
+    );
+    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+        &saves_dir,
+        inference_file_log.session_id().to_string(),
+        inference_file_log.enabled_flag(),
+    );
+    if log_to_disk {
+        println!(
+            "Inference log: {}\nChat transcript: {}",
+            inference_file_log.path().display(),
+            chat_transcript_log.path().display(),
+        );
+    }
 
     // Initialize dialogue inference pipeline (cloud if configured, else local)
     let (dial_client, dial_model) = clients.dialogue_client();
@@ -200,7 +242,13 @@ pub async fn run_headless(
     } else {
         dial_client.clone()
     };
-    let queue = setup_inference_queue(worker_client, &inference_config, &inference_log);
+    let queue = setup_inference_queue(
+        worker_client,
+        &inference_config,
+        &inference_log,
+        &inference_file_log,
+        provider_config.provider.clone(),
+    );
 
     // Initialize app state — load world from active mod
     let mut app = App::new();
@@ -221,6 +269,8 @@ pub async fn run_headless(
     app.improv_enabled = improv;
     app.inference_config = inference_config; // (#417) store TOML-configured timeouts
     app.script_mode = script_mode;
+    app.inference_file_log = inference_file_log.clone();
+    app.chat_transcript_log = chat_transcript_log.clone();
 
     // Load feature flags from disk
     let flags_path = data_dir.map(|d| d.join("parish-flags.json"));
@@ -292,12 +342,8 @@ pub async fn run_headless(
     // Initial tier assignment
     app.npc_manager.assign_tiers(&app.world, &[]);
 
-    // Initialize persistence — Papers Please-style save picker.
-    // App-name drives the per-user data folder (Rundale → `Rundale`); engine
-    // fallback when no mod is loaded is `Parish`. Shared helper in parish-core
-    // keeps the three entry points in lockstep (rule #12).
-    let app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
-    let saves_dir = crate::persistence::picker::resolve_project_saves_dir(&app_name);
+    // Saves dir + app-name were resolved at the top of `run_headless` (needed
+    // early for the inference-log writer); record the dir on `App` here.
     app.saves_dir = Some(saves_dir.clone());
     // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).
     app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
@@ -390,6 +436,14 @@ pub async fn run_headless(
         app.location_log = Some(std::sync::Arc::new(manager));
     }
     app.log_managers_branch = Some(app.active_branch_id);
+
+    // Chat transcript — JSONL paired with the inference log (shares its enable
+    // flag). Subscribe a receiver the REPL drains synchronously, mirroring the
+    // character/location-log pumps. The writer task itself was spawned at the
+    // top of `run_headless` on `app.chat_transcript_log`. Always subscribe —
+    // even if logging starts disabled — so a mid-session `/inference-log on`
+    // is captured; `process_event` no-ops internally while the flag is off.
+    app.chat_transcript_rx = Some(app.world.event_bus.subscribe());
 
     // Show initial location
     print_location_arrival(&app);
@@ -499,6 +553,29 @@ fn drain_location_log_events(app: &mut App) {
             Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
             Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
                 tracing::warn!(skipped, "location-log subscriber lagged; events lost");
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+        }
+    }
+}
+
+/// Same shape as [`drain_character_log_events`] but for the on-disk chat
+/// transcript (JSONL, paired with the inference log). Per-process, so it does
+/// not rebind on branch switch.
+fn drain_chat_transcript_events(app: &mut App) {
+    let Some(rx) = app.chat_transcript_rx.as_mut() else {
+        return;
+    };
+    loop {
+        match rx.try_recv() {
+            Ok(event) => {
+                app.chat_transcript_log
+                    .process_event(&event, &app.world, &app.npc_manager);
+            }
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "chat-transcript subscriber lagged; events lost");
                 continue;
             }
             Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,

@@ -4,10 +4,12 @@
 pub mod anthropic_client;
 pub mod client;
 pub(crate) mod client_base;
+pub mod file_log;
 pub mod hf_downloader;
 pub mod inference_client;
 pub mod openai_client;
 pub mod rate_limit;
+pub mod secret_scrub;
 pub mod setup;
 pub mod simulator;
 pub(crate) mod utf8_stream;
@@ -156,10 +158,16 @@ pub struct InferenceLogEntry {
     /// counts a non-empty `delta.content` chunk; reasoning chunks are
     /// not surfaced through this channel and are excluded.
     pub output_tokens: Option<u64>,
+    /// Temperature sent to provider (if any). Plumbed through so the on-disk
+    /// inference log can record it in OpenTelemetry GenAI form.
+    pub temperature: Option<f32>,
+    /// Priority lane the request travelled through.
+    pub priority: InferencePriority,
 }
 
 /// Priority lane for inference requests. Higher priority lanes are drained first.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InferencePriority {
     /// Player-facing dialogue (Tier 1). Highest priority.
     Interactive = 0,
@@ -982,12 +990,17 @@ where
 ///
 /// On timeout the worker sends an error response and moves on to the next
 /// request rather than blocking the queue indefinitely. (#343)
+#[allow(clippy::too_many_arguments)]
+// All parameters are semantically distinct and grouping them into a struct
+// would obscure the queue lifecycle without removing any coupling.
 pub fn spawn_inference_worker(
     client: AnyClient,
     mut interactive_rx: mpsc::Receiver<InferenceRequest>,
     mut background_rx: mpsc::Receiver<InferenceRequest>,
     mut batch_rx: mpsc::Receiver<InferenceRequest>,
     log: InferenceLog,
+    file_log: file_log::InferenceFileLog,
+    provider: parish_config::Provider,
     timeout_config: InferenceConfig,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
@@ -1006,6 +1019,8 @@ pub fn spawn_inference_worker(
             let system_prompt = request.system.clone();
             let prompt_text = request.prompt.clone();
             let max_tokens = request.max_tokens;
+            let temperature = request.temperature;
+            let priority = request.priority;
             let req_id = request.id;
             let start = Instant::now();
 
@@ -1136,7 +1151,10 @@ pub fn spawn_inference_worker(
                     max_tokens,
                     ttft_ms,
                     output_tokens,
+                    temperature,
+                    priority,
                 };
+                file_log.record(&entry, &provider, priority);
                 let mut log = log.lock().await;
                 log.push(entry);
             }
@@ -1167,6 +1185,8 @@ mod tests {
             max_tokens: None,
             ttft_ms: None,
             output_tokens: None,
+            temperature: None,
+            priority: InferencePriority::Interactive,
         }
     }
 
@@ -1657,6 +1677,8 @@ mod tests {
             background_rx,
             batch_rx,
             log,
+            file_log::InferenceFileLog::disabled(),
+            parish_config::Provider::simulator(),
             InferenceConfig::default(),
         );
 
@@ -1710,6 +1732,8 @@ mod tests {
             background_rx,
             batch_rx,
             log.clone(),
+            file_log::InferenceFileLog::disabled(),
+            parish_config::Provider::simulator(),
             InferenceConfig::default(),
         );
 
@@ -1764,6 +1788,8 @@ mod tests {
             background_rx,
             batch_rx,
             log,
+            file_log::InferenceFileLog::disabled(),
+            parish_config::Provider::simulator(),
             InferenceConfig::default(),
         );
 
@@ -1850,6 +1876,8 @@ mod tests {
             background_rx,
             batch_rx,
             log,
+            file_log::InferenceFileLog::disabled(),
+            parish_config::Provider::simulator(),
             cfg,
         );
 

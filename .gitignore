@@ -76,3 +76,6 @@ rundale-bench/artifacts/local_logs/
 # regenerated per run; only the committed judgment cache under
 # docs/proofs/rundale-bench/judgments/ is durable.
 rundale-bench/.bench-queue/
+
+# cargo-tarpaulin coverage artifacts
+*.profraw
