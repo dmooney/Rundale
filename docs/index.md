@@ -183,11 +183,11 @@ Custom slash commands for common development workflows. Run these from any suppo
 
 | Skill | Description |
 |-------|-------------|
-| `/check` | Run the full cargo quality gate — fmt, clippy, and tests |
-| `/game-test [script]` | Run the GameTestHarness to verify game behavior |
-| `/verify` | Full pre-push checklist (fmt + clippy + tests + harness) |
-| `/screenshot` | Regenerate GUI screenshots after UI changes |
-| `/fix-issue <number>` | Work through a GitHub issue end-to-end |
+| `/check` | Quality gates — `just check` (pre-commit) and `just verify` (pre-push, adds harness walkthrough) |
+| `/parish-engine [mode]` | Run the engine to observe behaviour — script harness, `prove`, `play`, `rubric`, `demo`, `browser`, `screenshot` |
+| `/task-start <task-id>` | Acceptance criteria + verification fixture before any code (mandatory first step) |
+| `/backlog <mode>` | GitHub issue lifecycle — `triage`, `fix-one <issue#>`, or `drain` |
+| `/techdebt [path]` | Technical-debt loop; `crate-audit` mode for crate-layout refactors |
 
 Skill definitions live in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink.
 

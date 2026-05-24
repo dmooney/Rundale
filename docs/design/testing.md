@@ -123,7 +123,7 @@ Tick,          // /tick
 
 ## Agent Play-Testing Skill
 
-The `/play` skill (`.agents/skills/play/SKILL.md`) enables an AI coding assistant to
+The `/parish-engine play` skill (`.agents/skills/parish-engine/SKILL.md`) enables an AI coding assistant to
 autonomously play-test the game via `--script` mode:
 
 1. Build the project with `cargo build`
