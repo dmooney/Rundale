@@ -20,8 +20,7 @@ name: Release
 #
 # Platform matrix:
 #   - Linux x86_64       (CLI tarball + .deb + .AppImage)
-#   - macOS x86_64       (CLI tarball + .app.tar.gz + .dmg)
-#   - macOS aarch64      (CLI tarball + .app.tar.gz + .dmg)
+#   - macOS universal    (CLI tarball + .app.tar.gz + .dmg, Intel + Apple Silicon)
 #   - Windows x86_64     (CLI zip + .msi + .exe NSIS installer)
 #
 # All bundles are unsigned for 0.1.0 — users will see Gatekeeper / SmartScreen
@@ -119,21 +118,22 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
             cli_archive: tar.gz
             cli_ext: ""
-          - name: macos-x86_64
-            os: macos-13
-            target: x86_64-apple-darwin
-            cli_archive: tar.gz
-            cli_ext: ""
-          - name: macos-aarch64
+          # Single universal macOS bundle (Intel + Apple Silicon fused via
+          # lipo). `universal-apple-darwin` is a Tauri pseudo-target, so the
+          # CLI binary is built for both arches and lipo'd separately below.
+          - name: macos-universal
             os: macos-14
-            target: aarch64-apple-darwin
+            target: universal-apple-darwin
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
             cli_archive: tar.gz
             cli_ext: ""
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
             cli_archive: zip
             cli_ext: ".exe"
     runs-on: ${{ matrix.os }}
@@ -145,7 +145,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -177,12 +177,29 @@ jobs:
         working-directory: parish/apps/ui
         run: npm ci
 
-      - name: Build parish CLI (release)
+      # No --locked anywhere below: a freshly-bumped workspace member version
+      # would race ahead of Cargo.lock until the next regular CI run picks up
+      # the refreshed lockfile. release.sh refreshes it best-effort locally.
+      - name: Build parish CLI (single target)
+        if: runner.os != 'macOS'
         working-directory: parish
-        # No --locked: a freshly-bumped workspace member version would race
-        # ahead of Cargo.lock until the next regular CI run picks up the
-        # refreshed lockfile. release.sh refreshes it best-effort locally.
         run: cargo build -p parish --release --target ${{ matrix.target }}
+
+      # universal-apple-darwin is not a real rustc target — build both arches
+      # and fuse them into a single universal binary at the path the packaging
+      # step expects (parish/target/universal-apple-darwin/release/parish).
+      - name: Build parish CLI (universal macOS)
+        if: runner.os == 'macOS'
+        working-directory: parish
+        run: |
+          set -euo pipefail
+          cargo build -p parish --release --target x86_64-apple-darwin
+          cargo build -p parish --release --target aarch64-apple-darwin
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create -output target/universal-apple-darwin/release/parish \
+            target/x86_64-apple-darwin/release/parish \
+            target/aarch64-apple-darwin/release/parish
+          lipo -info target/universal-apple-darwin/release/parish
 
       - name: Package CLI archive (Unix)
         if: runner.os != 'Windows'
@@ -316,7 +333,6 @@ jobs:
             echo "- No GitHub Release was published."
             echo "- Per-platform artifacts are downloadable from this run:"
             echo "  - \`parish-linux-x86_64\`"
-            echo "  - \`parish-macos-x86_64\`"
-            echo "  - \`parish-macos-aarch64\`"
+            echo "  - \`parish-macos-universal\` (Intel + Apple Silicon)"
             echo "  - \`parish-windows-x86_64\`"
           } >> "$GITHUB_STEP_SUMMARY"

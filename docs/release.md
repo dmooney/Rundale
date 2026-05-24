@@ -2,9 +2,9 @@
 
 Rundale ships from a single source of truth — a `vMAJOR.MINOR.PATCH` git tag.
 Pushing the tag triggers `.github/workflows/release.yml`, which builds CLI
-binaries plus Tauri desktop bundles for Linux x86_64, macOS (x86_64 and
-aarch64), and Windows x86_64, then publishes them as a GitHub Release with
-auto-generated notes.
+binaries plus Tauri desktop bundles for Linux x86_64, macOS (a single
+universal Intel + Apple Silicon bundle), and Windows x86_64, then publishes
+them as a GitHub Release with auto-generated notes.
 
 For each platform the release attaches:
 
