@@ -25,12 +25,11 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 
 Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlink). Full table in [skills.md](skills.md); the gameplay-feature ones, in the order they get used:
 
-1. **`/feature-scaffold <name>`** — start here for a non-trivial feature. Generates a design note, a failing fixture, and a plan; stops for review. Scaffold once, redirect cheap.
-2. **`/prove <feature>`** — after implementing, drive the feature through the script harness and read the JSON critically. Required for any gameplay change.
-3. **`/rubric`** — sister to `/prove`: deterministic snapshot-diff + structural rubrics over baselined fixtures. Cheaper than reading JSON; runs on every `cargo test`.
-4. **`/play [scenario]`** — autonomous play-test, exploration-style.
-5. **`/check`** — `agent-check + fmt + clippy + test + witness-scan + check-doc-paths`. The pre-commit gate.
-6. **`/verify`** — `/check` plus the full `game-test` walkthrough. The pre-push gate.
+1. **`/task-start <task-id>`** — start here for any task. Writes acceptance criteria + a verification fixture (and, for a non-trivial feature, a design note + plan); stops for review. Scaffold once, redirect cheap.
+2. **`/parish-engine prove <feature>`** — after implementing, drive the feature through the script harness and read the JSON critically. Required for any gameplay change.
+3. **`/parish-engine rubric`** — sister to `prove`: deterministic snapshot-diff + structural rubrics over baselined fixtures. Cheaper than reading JSON; runs on every `cargo test`.
+4. **`/parish-engine play [scenario]`** — autonomous play-test, exploration-style. (`/parish-engine` also covers `harness`, `demo`, `browser`, and `screenshot` modes.)
+5. **`/check`** — both gate levels: `just check` (`agent-check + fmt + clippy + test + witness-scan + check-doc-paths`, pre-commit) and `just verify` (adds the full harness walkthrough, pre-push).
 
 ## Quality gates in order
 

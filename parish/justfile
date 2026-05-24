@@ -324,7 +324,7 @@ baselines:
 
 # Read-only audit: cross-references fixtures, eval baselines, and the roadmap
 # to surface gameplay subsystems that ship without a play_*.txt fixture.
-# Descriptive — exits 0 even when gaps exist. See `.agents/skills/feature-scaffold/`.
+# Descriptive — exits 0 even when gaps exist. See `.agents/skills/task-start/`.
 harness-audit:
     ./scripts/harness-audit.sh
 

@@ -4,17 +4,13 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 
 | Skill | Description |
 |---|---|
-| `/check` | Run proof gate + fmt + clippy + tests (quality gate) |
-| `/game-test [script]` | Run GameTestHarness to verify game behavior |
-| `/verify` | Full pre-push checklist (proof gate + quality gate + harness) |
-| `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
-| `/fix-issue` | End-to-end GitHub issue workflow |
-| `/chrome-test` | Live browser testing session via browser MCP tools |
-| `/play [scenario]` | Play-test the game via script harness |
-| `/prove <feature>` | Prove a gameplay feature works at runtime (required after implementing features) |
-| `/rubric` | Run snapshot-baseline + structural-rubric eval sensors over gameplay fixtures (sister to `/prove`) |
-| `/feature-scaffold <name>` | Depth-first decomposition: design note + failing fixture + plan, before any code |
-| `/triage-backlog` | Apply theme + priority labels to open issues lacking them. Vocabulary in [`triage-vocabulary.md`](triage-vocabulary.md). Paired with the `triage-audit` weekly workflow. |
-| `/crate-audit` | Audit workspace crate layout (naming, manifests, big-file splits, extraction candidates, README freshness). Produces a phased pure-relocation refactor PR. |
-| `/techdebt [path]` | Continuous debt loop: process `TODO.md`, dispatch fix agents, discover new debt when empty, and repeat until no actionable debt remains in scope. |
-| `/demo [turns] [pause]` | Run the LLM auto-player in the live Tauri app to verify Tauri IPC changes, surface streaming/frontend bugs, and generate NPC dialogue samples. Use after changes that the script harness cannot exercise. |
+| `/check` | Quality gates: `just check` (pre-commit) and `just verify` (pre-push, adds harness walkthrough), plus the known CI false-positives reference. |
+| `/parish-engine [mode] [arg]` | Run the engine to observe behaviour — script harness, feature `prove`, autonomous `play`, eval rubrics/baselines, live `demo` auto-player, `browser` UI session, and GUI `screenshot`s. Required after implementing gameplay features. |
+| `/task-start <task-id>` | Mandatory first step for any coding task: write acceptance criteria + verification fixture (and, for features, a design note + plan) before code, then stop for review. |
+| `/backlog <mode>` | GitHub issue lifecycle: `triage` (label by theme + P0–P3, vocabulary in [`triage-vocabulary.md`](triage-vocabulary.md)), `fix-one <issue#>` (single issue end-to-end), `drain` (multi-wave parallel fix-agent sweep that merges bug-fix PRs). |
+| `/techdebt [path] \| crate-audit` | Debt loop: process `TODO.md`, dispatch fix agents, discover new debt when empty. `crate-audit` mode produces a phased pure-relocation crate-layout refactor PR. |
+| `/rundale-bench [mode]` | Model-quality evals: queued (Python orchestrator + Sonnet judge subagents) or `eval-dialogue` (in-chat Opus blind A/B/N with USD cost). |
+| `/rundale-bench-judge` | Score one rundale-bench judging bundle as a Sonnet subagent. Invoked by the `/rundale-bench` drain-queue loop. |
+| `/land` | Land a single PR end-to-end — resolve conflicts, address review-bot comments, fix CI, squash-merge once green. |
+| `/five-whys` | Root-cause analysis via iterative "why?" questioning before proposing a fix. |
+| `/rundale-geo-tool` | World-geography tooling: coordinate resolver, historical map pinning, village-cluster subordination. |
