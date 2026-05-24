@@ -103,12 +103,13 @@ silently — don't pad the PR.
 Confirm the tree is clean and tests pass before touching anything. If `cargo test --workspace` is red on
 `main`, stop and tell the user — refactoring on a broken baseline buries the cause.
 ```sh
-git status              # must be clean
-cargo build --workspace
-cargo test --workspace --lib
+git status                          # must be clean
+cd parish && cargo build --workspace
+cd parish && cargo test --workspace --lib
 ```
-If there's a Tauri crate, exclude it from local verification (`--exclude parish-tauri`) — it needs system
-libs CI handles. Note this in the PR description.
+The Cargo workspace lives in `parish/` — run cargo from there (or via `just`). If there's a Tauri crate,
+exclude it from local verification (`--exclude parish-tauri`) — it needs system libs CI handles. Note this in
+the PR description.
 
 ### Step 2 — Phase 1: naming hygiene
 Enumerate `crates/*` and look for:

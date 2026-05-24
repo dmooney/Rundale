@@ -160,8 +160,8 @@ just demo 3      # unlimited turns
 Capture logs to read the transcript:
 
 ```sh
-just demo 2 5 > /tmp/demo.log 2>&1
-grep -E "chat \[|demo turn|WARN" /tmp/demo.log
+DEMO_LOG=$(mktemp) && just demo 2 5 > "$DEMO_LOG" 2>&1
+grep -E "chat \[|demo turn|WARN" "$DEMO_LOG"
 ```
 
 `chat [player]` / `chat [npc]` lines show the conversation; `demo turn: LLM chose action` shows the

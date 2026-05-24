@@ -112,7 +112,7 @@ them. Optional argument scopes the work (e.g. `"P0/P1 only"`, `"frontend bugs"`,
    PRS=$(gh pr list --state open --search "author:@me" --limit 30 --json number,title --jq '.[] | "\(.number)\t\(.title[:55])"')
    while IFS=$'\t' read -r pr title; do
      ci=$(gh pr view $pr --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.name | test("Rust|UI|Full"))] | map(.conclusion // "PEND") | group_by(.) | map("\(.[0])=\(length)") | join(",")')
-     unr=$(gh api graphql -f query="query { repository(owner: \"dmooney\", name: \"Parish\") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved isOutdated comments(first: 1) { nodes { author { login } } } } } } } }" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | select(.comments.nodes[0].author.login | endswith("[bot]"))] | length')
+     unr=$(gh api graphql -F owner="$(gh repo view --json owner --jq .owner.login)" -F name="$(gh repo view --json name --jq .name)" -F pr=$pr -f query='query($owner:String!,$name:String!,$pr:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$pr){ reviewThreads(first:50){ nodes{ isResolved isOutdated comments(first:1){ nodes{ author{ login } } } } } } } }' --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | select(.comments.nodes[0].author.login | endswith("[bot]"))] | length')
      echo "PR $pr | ci:$ci | unr:$unr | $title"
    done <<< "$PRS"
    gh issue list --state open --limit 100 --json number --jq '"open issues: \(length)"'
