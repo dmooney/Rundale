@@ -156,6 +156,12 @@ pub struct ThemePalette {
     /// When true, the status bar inverts fg/bg against the chat (Infocom look).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_invert: Option<bool>,
+    /// Decorative overlay applied behind every panel. `"parchment"` (default
+    /// when unset) layers the rundale paper-grain + vignette atop the palette;
+    /// `"none"` strips them so asset-mod themes render their colors cleanly
+    /// without bleed from the base look.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decoration: Option<String>,
 }
 
 impl From<RawPalette> for ThemePalette {
@@ -174,6 +180,7 @@ impl From<RawPalette> for ThemePalette {
             chat_align: None,
             bubble_style: None,
             status_invert: None,
+            decoration: None,
         }
     }
 }

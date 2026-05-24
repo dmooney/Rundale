@@ -390,8 +390,9 @@
 
 	.player .label {
 		color: var(--color-muted);
-		text-align: right;
-		padding-right: 0.5rem;
+		text-align: var(--label-player-text-align, right);
+		padding-right: var(--label-player-padding-right, 0.5rem);
+		padding-left: var(--label-player-padding-left, 0);
 	}
 
 	/* NPC message: dialogue leaf — left accent border, no rounded top-left */

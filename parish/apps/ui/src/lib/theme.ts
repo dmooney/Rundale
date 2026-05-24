@@ -95,6 +95,24 @@ export function applyThemePalette(palette: ThemePalette): void {
 		'--bubble-player-justify',
 		palette.chat_align === 'left' ? 'flex-start' : null
 	);
+	// When the chat is left-aligned (Zork layout), the "You" label needs to
+	// move to the left of its bubble so it doesn't float in the gutter on the
+	// right where there's no longer a player bubble anchored to that side.
+	setOrClear(
+		root,
+		'--label-player-text-align',
+		palette.chat_align === 'left' ? 'left' : null
+	);
+	setOrClear(
+		root,
+		'--label-player-padding-right',
+		palette.chat_align === 'left' ? '0' : null
+	);
+	setOrClear(
+		root,
+		'--label-player-padding-left',
+		palette.chat_align === 'left' ? '0.75rem' : null
+	);
 
 	if (palette.bubble_style === 'flat') {
 		root.style.setProperty('--bubble-npc-bg', 'transparent');
@@ -105,6 +123,13 @@ export function applyThemePalette(palette: ThemePalette): void {
 		root.style.setProperty('--bubble-player-fg', palette.fg);
 		root.style.setProperty('--bubble-player-radius', '0');
 		root.style.setProperty('--bubble-font-style', 'normal');
+		// Retro-flat themes (Zork-style): collapse semantic term colors onto
+		// the palette so Irish vocabulary / names / locations don't read as
+		// off-theme green or yellow inside an otherwise monochrome console.
+		root.style.setProperty('--color-irish', palette.fg);
+		root.style.setProperty('--color-name', palette.accent);
+		root.style.setProperty('--color-location', palette.accent);
+		root.style.setProperty('--npc-chips-bg', palette.panel_bg);
 	} else {
 		root.style.removeProperty('--bubble-npc-bg');
 		root.style.removeProperty('--bubble-npc-fg');
@@ -114,7 +139,17 @@ export function applyThemePalette(palette: ThemePalette): void {
 		root.style.removeProperty('--bubble-player-fg');
 		root.style.removeProperty('--bubble-player-radius');
 		root.style.removeProperty('--bubble-font-style');
+		root.style.removeProperty('--color-irish');
+		root.style.removeProperty('--color-name');
+		root.style.removeProperty('--color-location');
+		root.style.removeProperty('--npc-chips-bg');
 	}
+
+	// Decoration layer: parchment paper-grain + vignette overlays are baked
+	// into the rundale base look. Asset-mod themes (Solarized, Zork) opt out
+	// via `decoration = "none"` in their `themes.toml` so the palette renders
+	// cleanly. Default (unset) preserves the historical parchment overlay.
+	setOrClear(root, '--decoration-display', palette.decoration === 'none' ? 'none' : null);
 
 	if (palette.status_invert) {
 		// Status bar swaps fg/bg against the chat — all status text becomes palette.bg on palette.fg.

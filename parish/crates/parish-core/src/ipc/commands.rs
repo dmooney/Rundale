@@ -1106,6 +1106,7 @@ mod tests {
             chat_align: None,
             bubble_style: None,
             status_invert: None,
+            decoration: None,
         };
         let manifest = ThemeManifest {
             themes: vec![
