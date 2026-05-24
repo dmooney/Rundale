@@ -816,3 +816,127 @@ Forward reference for whoever picks this up:
 | `mods/rundale/prompts/tier2_system.txt`                           | Same                                                            |
 | `apps/ui/src/app.css`                                             | `env(safe-area-inset-*)` rules                                  |
 | `.github/workflows/ios-build.yml` *(new)*                         | macOS runner, path-filtered triggers (`crates/parish-tauri/**`, `crates/parish-inference/**`, `apps/ui/**`, self); `fastlane match` for signing |
+
+## Headless Execution Addendum
+
+> Added after a fresh codebase sweep (May 2026). This section is the
+> implementation companion to the design above: it splits the 16-step Migration
+> Order into what a Linux-only agent can land versus what must wait for a Mac,
+> records the points where the live code has drifted from the design's
+> assumptions, and gives the exact verification commands. Read it alongside
+> §"Migration Order" and §"Files That Would Be Modified".
+
+### Scope split: Linux-doable vs Mac-deferred
+
+**Landable headless on Linux (design steps 1–10, 11-equivalent `--screenshot`
+gating, 12-partial, 13, 16-first-pass):**
+
+- Inference trait refactor (`AnyClient` → `Arc<dyn InferenceBackend>`) across all
+  five consumers (`parish-inference`, `parish-tauri`, `parish-cli`,
+  `parish-server`, `parish-input` tests).
+- `ios-inference` Cargo feature with `async-trait`, `bindgen`, `cc` wired.
+- LiteRT-LM C-shim header + Rust wrapper skeleton + `build.rs` that compiles to a
+  **stub** when upstream sources are absent (so `cargo check --features
+  ios-inference` passes on Linux) and links the real static lib once the Mac
+  vendoring lands.
+- `cfg`-gating Ollama bootstrap, `OllamaProcess`, and the `--screenshot` flag for
+  `target_os = "ios"`.
+- `ensure_saves_dir(base: &Path)` + all three call sites.
+- `tauri.conf.json` `bundle.targets` array + `bundle.resources` + mod
+  `BaseDirectory::Resource` resolution + iOS `LiteRtLmClient` override.
+- `apps/ui/src/app.css` safe-area insets (code only; visual check is Mac-side).
+- First-pass prompt slim for Gemma4-E2B (real tuning is measurement-driven,
+  Mac-side).
+
+**Deferred to a Mac session (steps 11 init, 12 icons, 14, 15, on-device 4–6):**
+
+- `cargo tauri ios init` → `gen/apple/` Xcode project (cannot run on Linux).
+- iOS icon assets at all required sizes.
+- `git submodule add` LiteRT-LM + replacing the stub `.cc` with real C++ calls +
+  `cargo build --target aarch64-apple-ios --features ios-inference` producing a
+  linked artifact.
+- ODR Swift bootstrapper + Xcode tag entries (`model-e2b`, `model-e4b`).
+- `.github/workflows/ios-build.yml` (drafted, but only exercisable on
+  `macos-latest`).
+- All §"Performance SLOs and fail criteria" measurements and the prompt-tuning
+  done-definition.
+
+### Where the live code has drifted from this design
+
+A code sweep found six points where the implementation differs from the
+assumptions baked into the sections above. Whoever executes the refactor should
+account for these:
+
+1. **`AnyClient` has three variants, not two.** `crates/parish-inference/src/lib.rs:452-460`
+   defines `OpenAi`, **`Anthropic`**, and `Simulator`. The design's trait section
+   only names `OpenAi`/`Simulator`. → also `impl InferenceBackend for AnthropicClient`
+   (`crates/parish-inference/src/anthropic_client.rs`).
+2. **A fourth method exists: `generate_stream_json`** (`lib.rs:534-557`), used for
+   streaming Tier-1 NPC dialogue embedded in JSON. The design's trait lists only
+   `generate` / `generate_stream` / `generate_json_raw`. → add `generate_stream_json`
+   to the trait with a default that delegates to `generate_stream`; `OpenAiClient`
+   and `AnthropicClient` override it for native JSON-mode streaming.
+3. **Three accessor methods exist** (`lib.rs:585-616`): `as_open_ai`,
+   `as_anthropic`, `is_simulator`, plus `has_rate_limiter`. → replace the
+   downcasting trio with one `fn provider_kind(&self) -> ProviderKind` trait
+   method (`enum ProviderKind { OpenAi, Anthropic, Simulator, LiteRtLm }`) and
+   keep `has_rate_limiter()` as a trait method with a `false` default. Audit and
+   rewrite the few sites that branch on the accessors. If the audit shows they're
+   unused, drop `ProviderKind` entirely.
+4. **`build_client_from_env` does not exist.** The design names it, but the real
+   factory is the free `build_client()` (`lib.rs:54-73`) plus
+   `build_cloud_client_from_env` in `crates/parish-tauri/src/lib.rs:1709-1747`.
+   The iOS override belongs in a unified Tauri setup helper that both
+   `src/lib.rs` and `src/commands.rs` call.
+5. **`token_tx` is `mpsc::Sender<String>` (bounded), not `UnboundedSender`.**
+   The trait signature must use the bounded form (capacity `TOKEN_CHANNEL_CAPACITY
+   = 1024`, `lib.rs:40`) to avoid touching every call site.
+6. **Use `Arc<dyn InferenceBackend>`, not `Box<dyn …>`,** for the
+   `InferenceClients` slots and `spawn_inference_worker` parameter.
+   `InferenceClients` is `#[derive(Clone)]` and the worker spawns clones into
+   tasks; `Arc` keeps it cheaply cloneable. This is a strict superset of the
+   design's `Box` intent. Note `InferenceClients.overrides` is
+   `HashMap<InferenceCategory, (AnyClient, String)>` today and already supports
+   heterogeneous per-category backends, so dynamic dispatch is a natural fit.
+
+`AnyClient` removal is a breaking change to `parish-inference`'s public API,
+which is fine: it is an unpublished path-dependency crate.
+
+### Headless verification commands
+
+After each migration step, keep the desktop/CLI/web tree green:
+
+```sh
+just check                                   # fmt + clippy + tests (desktop)
+cargo test -p parish-core -p parish-inference -p parish-persistence -p parish-input
+cd apps/ui && npx vitest run                 # frontend unit tests
+cargo build -p parish-cli -p parish-server -p parish-tauri
+```
+
+Then confirm the iOS target type-checks (no Apple SDK / linker required — pure
+`cargo check`):
+
+```sh
+rustup target add aarch64-apple-ios
+cargo check --target aarch64-apple-ios -p parish-core
+cargo check --target aarch64-apple-ios -p parish-persistence
+cargo check --target aarch64-apple-ios -p parish-inference
+cargo check --target aarch64-apple-ios -p parish-inference --features ios-inference
+```
+
+The last line passing against the stub shim proves the trait, `bindgen`
+bindings, and `LiteRtLmClient` wrapper are wired correctly; only real LiteRT-LM
+vendoring then remains for the inference path. Consider a `just verify-ios-headless`
+recipe wrapping the four `cargo check` lines. (A full `cargo build
+--target aarch64-apple-ios` will *not* link on Linux — that needs the Mac
+toolchain, so headless validation stops at `cargo check`.)
+
+### Stub-shim caveat
+
+The `vendor/bridge/litert_lm_bridge.cc` stub returns `PARISH_LITERT_INTERNAL`
+with a "not vendored" error for every call. It exists solely so the
+`ios-inference` feature compiles and links on Linux for type-checking. It is not
+a working backend — the `build.rs` should emit a `cargo:warning` when the stub
+is in use, and any PR landing the headless scope must say so explicitly so a
+green `cargo check --features ios-inference` is not mistaken for a runnable iOS
+build.
