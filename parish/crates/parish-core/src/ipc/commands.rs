@@ -714,10 +714,8 @@ fn handle_theme_command(arg: Option<String>, config: &GameConfig) -> CommandResu
 
     let raw = arg.as_deref().map(str::trim).unwrap_or("");
     if raw.is_empty() {
-        let mut names: Vec<String> = std::iter::once("default".to_string())
-            .chain(registry.names())
-            .collect();
-        names.dedup();
+        let mut names = vec!["default".to_string()];
+        names.extend(registry.names().into_iter().filter(|n| n != "default"));
         return CommandResult::text(format!(
             "Available themes: {}\nUsage: /theme <name> [mode]",
             names.join(", ")
@@ -742,12 +740,24 @@ fn handle_theme_command(arg: Option<String>, config: &GameConfig) -> CommandResu
         mode_arg
     };
 
-    // Synthetic alias (e.g. solarized auto) — accepted; frontend resolves day/night.
-    if registry.alias(&name, &mode).is_some() {
-        return CommandResult::with_effect(
-            format!("Theme set to {name} {mode}."),
-            CommandEffect::ApplyTheme(name, mode),
-        );
+    // Synthetic alias (e.g. solarized auto) — only accept when both its
+    // day/night targets resolve to real entries, so a mod with a typo'd alias
+    // gets a clear error instead of a silent no-op (the frontend resolves the
+    // concrete palette from these same targets).
+    if let Some(alias) = registry.alias(&name, &mode) {
+        let targets_ok = registry.get(&name, &alias.day_mode).is_some()
+            && registry.get(&name, &alias.night_mode).is_some();
+        if targets_ok {
+            return CommandResult::with_effect(
+                format!("Theme set to {name} {mode}."),
+                CommandEffect::ApplyTheme(name, mode),
+            );
+        }
+        return CommandResult::text(format!(
+            "Theme '{name}' mode '{mode}' is misconfigured: its day/night targets \
+             ('{}', '{}') are not both defined.",
+            alias.day_mode, alias.night_mode
+        ));
     }
 
     // Direct registry hit.
@@ -768,10 +778,8 @@ fn handle_theme_command(arg: Option<String>, config: &GameConfig) -> CommandResu
     // Diagnose: unknown name vs known name with bad mode.
     let known_modes = registry.modes_for(&name);
     if known_modes.is_empty() {
-        let mut available: Vec<String> = std::iter::once("default".to_string())
-            .chain(registry.names())
-            .collect();
-        available.dedup();
+        let mut available = vec!["default".to_string()];
+        available.extend(registry.names().into_iter().filter(|n| n != "default"));
         CommandResult::text(format!(
             "Unknown theme '{name}'. Available: {}",
             available.join(", ")
@@ -2187,6 +2195,72 @@ mod tests {
         assert!(result.response.contains("solarized"));
         assert!(result.response.contains("zork"));
         assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_solarized_auto_applies_alias() {
+        // The valid `solarized auto` alias (targets light + dark both exist).
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(
+            Command::Theme(Some("solarized auto".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "solarized" && mode == "auto"
+        )));
+    }
+
+    #[test]
+    fn theme_misconfigured_alias_errors_instead_of_silent_noop() {
+        use crate::themes::{ModeAlias, ThemeEntry, ThemeManifest, ThemeRegistry};
+        let palette = crate::ipc::ThemePalette {
+            bg: "#000000".to_string(),
+            fg: "#ffffff".to_string(),
+            accent: "#ffffff".to_string(),
+            panel_bg: "#000000".to_string(),
+            input_bg: "#000000".to_string(),
+            border: "#ffffff".to_string(),
+            muted: "#ffffff".to_string(),
+            ..Default::default()
+        };
+        let manifest = ThemeManifest {
+            themes: vec![ThemeEntry {
+                name: "broken".to_string(),
+                mode: "light".to_string(),
+                label: "Broken Light".to_string(),
+                message: None,
+                palette,
+            }],
+            mode_defaults: vec![],
+            // `auto` points at a `night` mode that was never defined.
+            mode_aliases: vec![ModeAlias {
+                name: "broken".to_string(),
+                mode: "auto".to_string(),
+                day_mode: "light".to_string(),
+                night_mode: "dark".to_string(),
+            }],
+        };
+        let mut reg = ThemeRegistry::default();
+        reg.extend_from(manifest);
+        let mut config = GameConfig {
+            theme_registry: reg,
+            ..GameConfig::default()
+        };
+        let mut world = WorldState::new();
+        let mut npc = NpcManager::new();
+        let result = handle_command(
+            Command::Theme(Some("broken auto".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        // No ApplyTheme effect — and a clear "misconfigured" message instead.
+        assert!(result.effects.is_empty());
+        assert!(result.response.contains("misconfigured"));
+        assert!(result.response.contains("dark"));
     }
 
     // ── NpcsHere with population ─────────────────────────────────────────────

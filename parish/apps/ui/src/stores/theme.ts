@@ -116,10 +116,19 @@ function createPaletteStore() {
 	function hydrateFromUiConfig(snapshot: ThemeRegistrySnapshot, defaultPalette: ThemePalette) {
 		registry = snapshot;
 		modPalette = defaultPalette;
-		// Re-resolve the active preference now that the registry is loaded —
-		// fixes the case where the user had `/theme zork` saved but the
-		// hardcoded fallback applied at boot.
-		resolveAndApply(preference);
+		// Re-resolve only a user-selected (non-default) theme now that the
+		// registry is loaded — fixes the case where the user had `/theme zork`
+		// saved but the fallback applied at boot.
+		//
+		// For the default preference we deliberately do NOT re-apply
+		// `defaultPalette`: the server pushes a live time-of-day palette
+		// (interpolated from the mod's keyframes) via `theme-update`, and the
+		// static `[theme.palette]` snapshot would overwrite it — causing a colour
+		// jump at boot and, on the web runtime (which sends no `theme-update`),
+		// stranding the UI on the wrong palette.
+		if (preference.name !== 'default' && preference.name !== '') {
+			resolveAndApply(preference);
+		}
 	}
 
 	// ── Initialise from localStorage ─────────────────────────────────────────
