@@ -255,7 +255,7 @@ pub fn handle_command(
         Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
         Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
         Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
-        Command::Theme(arg) => handle_theme_command(arg),
+        Command::Theme(arg) => handle_theme_command(arg, config),
         Command::ResetByok => {
             CommandResult::with_effect("Re-opening provider picker...", CommandEffect::ResetByok)
         }
@@ -704,53 +704,86 @@ fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
     }
 }
 
-/// Theme selection command.
-fn handle_theme_command(arg: Option<String>) -> CommandResult {
-    match arg.as_deref().map(str::trim) {
-        None | Some("") => CommandResult::text(
-            "Available themes: default, solarized\n\
-             Usage: /theme <name> [light|dark|auto]\n\
-             Solarized auto switches with real-world sunrise and sunset.",
-        ),
-        Some("default") => CommandResult::with_effect(
+/// Handles the `/theme` command by consulting the registry on `GameConfig`
+/// (populated at startup from `kind = "asset"` mods under `mods/`).
+///
+/// `default` is special — it always reverts to the active base mod's
+/// `[theme.palette]`. Every other theme name must be registered.
+fn handle_theme_command(arg: Option<String>, config: &GameConfig) -> CommandResult {
+    let registry = &config.theme_registry;
+
+    let raw = arg.as_deref().map(str::trim).unwrap_or("");
+    if raw.is_empty() {
+        let mut names: Vec<String> = std::iter::once("default".to_string())
+            .chain(registry.names())
+            .collect();
+        names.dedup();
+        return CommandResult::text(format!(
+            "Available themes: {}\nUsage: /theme <name> [mode]",
+            names.join(", ")
+        ));
+    }
+
+    if raw.eq_ignore_ascii_case("default") {
+        return CommandResult::with_effect(
             "Reverting to the parish's natural colours.",
             CommandEffect::ApplyTheme("default".to_string(), String::new()),
-        ),
-        Some(rest) => {
-            let mut parts = rest.splitn(2, ' ');
-            let name = parts.next().unwrap_or("").to_lowercase();
-            let mode = parts.next().map(str::trim).unwrap_or("").to_lowercase();
-            match name.as_str() {
-                "solarized" => {
-                    let mode = if mode.is_empty() {
-                        "auto".to_string()
-                    } else {
-                        mode
-                    };
-                    let msg = match mode.as_str() {
-                        "light" => "Solarized light applied.",
-                        "dark" => "Solarized dark applied.",
-                        "auto" => "Solarized auto — follows the game's time of day.",
-                        other => {
-                            return CommandResult::text(format!(
-                                "Unknown mode '{}'. Try: light, dark, auto",
-                                other
-                            ));
-                        }
-                    };
-                    CommandResult::with_effect(
-                        msg,
-                        CommandEffect::ApplyTheme("solarized".to_string(), mode),
-                    )
-                }
-                other => CommandResult::text(format!(
-                    "Unknown theme '{}'. Available: default, solarized",
-                    other
-                )),
+        );
+    }
+
+    let mut parts = raw.splitn(2, char::is_whitespace);
+    let name = parts.next().unwrap_or("").to_lowercase();
+    let mode_arg = parts.next().map(str::trim).unwrap_or("").to_lowercase();
+
+    // Resolve the mode: explicit > registry default > "" (mode-less).
+    let mode = if mode_arg.is_empty() {
+        registry.default_mode_for(&name).unwrap_or("").to_string()
+    } else {
+        mode_arg
+    };
+
+    // Synthetic alias (e.g. solarized auto) — accepted; frontend resolves day/night.
+    if registry.alias(&name, &mode).is_some() {
+        return CommandResult::with_effect(
+            format!("Theme set to {name} {mode}."),
+            CommandEffect::ApplyTheme(name, mode),
+        );
+    }
+
+    // Direct registry hit.
+    if let Some(entry) = registry.get(&name, &mode) {
+        let msg = entry.message.clone().unwrap_or_else(|| {
+            if mode.is_empty() {
+                format!("Theme set to {name}.")
+            } else {
+                format!("Theme set to {name} {mode}.")
             }
-        }
+        });
+        return CommandResult::with_effect(
+            msg,
+            CommandEffect::ApplyTheme(entry.name.clone(), entry.mode.clone()),
+        );
+    }
+
+    // Diagnose: unknown name vs known name with bad mode.
+    let known_modes = registry.modes_for(&name);
+    if known_modes.is_empty() {
+        let mut available: Vec<String> = std::iter::once("default".to_string())
+            .chain(registry.names())
+            .collect();
+        available.dedup();
+        CommandResult::text(format!(
+            "Unknown theme '{name}'. Available: {}",
+            available.join(", ")
+        ))
+    } else {
+        CommandResult::text(format!(
+            "Unknown mode '{mode}' for theme '{name}'. Try: {}",
+            known_modes.join(", ")
+        ))
     }
 }
+
 /// Handles the `/weather` command.
 ///
 /// With no argument, reports the current weather and how long it has been
@@ -1043,6 +1076,84 @@ mod tests {
 
     fn default_state() -> (WorldState, NpcManager, GameConfig) {
         (WorldState::new(), NpcManager::new(), GameConfig::default())
+    }
+
+    /// Builds a `GameConfig` whose theme registry mirrors having the
+    /// `solarized-theme` and `zork-theme` asset mods installed. Used by the
+    /// `/theme` tests so they exercise the registry path without spinning up
+    /// a real `mods/` directory tree.
+    fn state_with_themes() -> (WorldState, NpcManager, GameConfig) {
+        use crate::ipc::ThemePalette;
+        use crate::themes::{ModeAlias, ModeDefault, ThemeEntry, ThemeManifest, ThemeRegistry};
+        let palette = |bg: &str| ThemePalette {
+            bg: bg.to_string(),
+            fg: "#000000".to_string(),
+            accent: "#000000".to_string(),
+            panel_bg: bg.to_string(),
+            input_bg: bg.to_string(),
+            border: "#000000".to_string(),
+            muted: "#000000".to_string(),
+            font_body: None,
+            font_display: None,
+            chat_align: None,
+            bubble_style: None,
+            status_invert: None,
+        };
+        let manifest = ThemeManifest {
+            themes: vec![
+                ThemeEntry {
+                    name: "solarized".to_string(),
+                    mode: "light".to_string(),
+                    label: "Solarized Light".to_string(),
+                    message: Some("Solarized light applied.".to_string()),
+                    palette: palette("#fdf6e3"),
+                },
+                ThemeEntry {
+                    name: "solarized".to_string(),
+                    mode: "dark".to_string(),
+                    label: "Solarized Dark".to_string(),
+                    message: Some("Solarized dark applied.".to_string()),
+                    palette: palette("#002b36"),
+                },
+                ThemeEntry {
+                    name: "zork".to_string(),
+                    mode: "c64".to_string(),
+                    label: "Zork (C64)".to_string(),
+                    message: Some("Zork C64 applied.".to_string()),
+                    palette: palette("#1f1b96"),
+                },
+                ThemeEntry {
+                    name: "zork".to_string(),
+                    mode: "dos".to_string(),
+                    label: "Zork (DOS)".to_string(),
+                    message: Some("Zork DOS applied.".to_string()),
+                    palette: palette("#000000"),
+                },
+            ],
+            mode_defaults: vec![
+                ModeDefault {
+                    name: "solarized".to_string(),
+                    default_mode: "auto".to_string(),
+                },
+                ModeDefault {
+                    name: "zork".to_string(),
+                    default_mode: "c64".to_string(),
+                },
+            ],
+            mode_aliases: vec![ModeAlias {
+                name: "solarized".to_string(),
+                mode: "auto".to_string(),
+                day_mode: "light".to_string(),
+                night_mode: "dark".to_string(),
+            }],
+        };
+        let mut reg = ThemeRegistry::default();
+        reg.extend_from(manifest);
+        let config = GameConfig {
+            theme_registry: reg,
+            ..GameConfig::default()
+        };
+        (WorldState::new(), NpcManager::new(), config)
     }
 
     #[test]
@@ -1940,11 +2051,22 @@ mod tests {
     // ── Theme ────────────────────────────────────────────────────────────────
 
     #[test]
-    fn theme_no_arg_lists_available() {
+    fn theme_no_arg_with_empty_registry_lists_only_default() {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(Command::Theme(None), &mut world, &mut npc, &mut config);
         assert!(result.response.contains("default"));
+        assert!(!result.response.contains("solarized"));
+        assert!(!result.response.contains("zork"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_no_arg_with_populated_registry_lists_all_names() {
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(Command::Theme(None), &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("default"));
         assert!(result.response.contains("solarized"));
+        assert!(result.response.contains("zork"));
         assert!(result.effects.is_empty());
     }
 
@@ -1964,7 +2086,7 @@ mod tests {
     }
 
     #[test]
-    fn theme_solarized_defaults_to_auto() {
+    fn theme_unknown_name_with_empty_registry_returns_error() {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(
             Command::Theme(Some("solarized".to_string())),
@@ -1972,6 +2094,20 @@ mod tests {
             &mut npc,
             &mut config,
         );
+        assert!(result.response.contains("solarized"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_resolves_via_registry_default_mode() {
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(
+            Command::Theme(Some("solarized".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        // solarized's default mode is `auto` (a synthetic alias).
         assert!(result.effects.iter().any(|e| matches!(
             e,
             CommandEffect::ApplyTheme(name, mode) if name == "solarized" && mode == "auto"
@@ -1979,8 +2115,8 @@ mod tests {
     }
 
     #[test]
-    fn theme_solarized_with_explicit_mode() {
-        let (mut world, mut npc, mut config) = default_state();
+    fn theme_explicit_mode_overrides_default() {
+        let (mut world, mut npc, mut config) = state_with_themes();
         let result = handle_command(
             Command::Theme(Some("solarized dark".to_string())),
             &mut world,
@@ -1994,8 +2130,53 @@ mod tests {
     }
 
     #[test]
-    fn theme_unknown_name_returns_error() {
-        let (mut world, mut npc, mut config) = default_state();
+    fn theme_zork_default_mode_is_c64() {
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(
+            Command::Theme(Some("zork".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "zork" && mode == "c64"
+        )));
+    }
+
+    #[test]
+    fn theme_zork_dos_explicit() {
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(
+            Command::Theme(Some("zork dos".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "zork" && mode == "dos"
+        )));
+    }
+
+    #[test]
+    fn theme_unknown_mode_for_known_name_lists_modes() {
+        let (mut world, mut npc, mut config) = state_with_themes();
+        let result = handle_command(
+            Command::Theme(Some("zork amiga".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("amiga"));
+        assert!(result.response.contains("c64"));
+        assert!(result.response.contains("dos"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_unknown_name_lists_available() {
+        let (mut world, mut npc, mut config) = state_with_themes();
         let result = handle_command(
             Command::Theme(Some("neon".to_string())),
             &mut world,
@@ -2003,19 +2184,8 @@ mod tests {
             &mut config,
         );
         assert!(result.response.contains("neon"));
-        assert!(result.effects.is_empty());
-    }
-
-    #[test]
-    fn theme_solarized_invalid_mode() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(
-            Command::Theme(Some("solarized taupe".to_string())),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.response.contains("taupe"));
+        assert!(result.response.contains("solarized"));
+        assert!(result.response.contains("zork"));
         assert!(result.effects.is_empty());
     }
 

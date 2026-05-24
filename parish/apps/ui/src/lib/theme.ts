@@ -1,5 +1,10 @@
 import type { ThemePalette } from './types';
 
+/**
+ * Fallback palette used before the backend's `/api/ui-config` response lands
+ * (or in tests). Real-life palettes are loaded from the active setting mod's
+ * `[theme.palette]` plus any `kind = "asset"` mods under `mods/`.
+ */
 export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	bg: '#fafad8',
 	fg: '#31240f',
@@ -10,31 +15,35 @@ export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	muted: '#76663b'
 };
 
-/** Solarized Light — Ethan Schoonover's palette mapped to Parish color slots. */
-export const SOLARIZED_LIGHT: ThemePalette = {
-	bg: '#fdf6e3', // base3
-	fg: '#586e75', // base00
-	accent: '#268bd2', // blue
-	panel_bg: '#eee8d5', // base2
-	input_bg: '#e6dfc5', // between base2 and base3
-	border: '#93a1a1', // base1
-	muted: '#93a1a1' // base1
-};
+/** Wire shape of one theme entry from the backend's registry snapshot. */
+export interface ThemeRegistryEntry {
+	name: string;
+	mode: string;
+	label: string;
+	palette: ThemePalette;
+}
 
-/** Solarized Dark — Ethan Schoonover's palette mapped to Parish color slots. */
-export const SOLARIZED_DARK: ThemePalette = {
-	bg: '#002b36', // base03
-	fg: '#839496', // base0
-	accent: '#268bd2', // blue
-	panel_bg: '#073642', // base02
-	input_bg: '#0d3f4f', // slightly lighter than base02
-	border: '#586e75', // base01
-	muted: '#586e75' // base01
-};
+/** Synthetic mode that resolves to another mode based on game time. */
+export interface ModeAlias {
+	name: string;
+	mode: string;
+	day_mode: string;
+	night_mode: string;
+}
 
+/** Wire shape of the full theme registry. */
+export interface ThemeRegistrySnapshot {
+	themes: ThemeRegistryEntry[];
+	mode_aliases: ModeAlias[];
+	mode_defaults: Record<string, string>;
+}
+
+/** User's persisted theme selection. The set of valid `name`s is dynamic — it
+ *  depends on which asset mods are installed. We type it as `string` and let
+ *  the registry validate at apply time. */
 export interface ThemePreference {
-	name: 'default' | 'solarized';
-	mode: 'light' | 'dark' | 'auto' | '';
+	name: string;
+	mode: string;
 }
 
 export const DEFAULT_PREFERENCE: ThemePreference = { name: 'default', mode: '' };
@@ -61,6 +70,11 @@ export function saveThemePreference(pref: ThemePreference): void {
 	}
 }
 
+function setOrClear(root: HTMLElement, name: string, value: string | null | undefined): void {
+	if (value) root.style.setProperty(name, value);
+	else root.style.removeProperty(name);
+}
+
 export function applyThemePalette(palette: ThemePalette): void {
 	if (typeof document === 'undefined') return;
 
@@ -72,4 +86,56 @@ export function applyThemePalette(palette: ThemePalette): void {
 	root.style.setProperty('--color-input-bg', palette.input_bg);
 	root.style.setProperty('--color-border', palette.border);
 	root.style.setProperty('--color-muted', palette.muted);
+
+	setOrClear(root, '--font-body', palette.font_body);
+	setOrClear(root, '--font-display', palette.font_display);
+
+	setOrClear(
+		root,
+		'--bubble-player-justify',
+		palette.chat_align === 'left' ? 'flex-start' : null
+	);
+
+	if (palette.bubble_style === 'flat') {
+		root.style.setProperty('--bubble-npc-bg', 'transparent');
+		root.style.setProperty('--bubble-npc-fg', palette.fg);
+		root.style.setProperty('--bubble-npc-border-left', 'none');
+		root.style.setProperty('--bubble-npc-radius', '0');
+		root.style.setProperty('--bubble-player-bg', 'transparent');
+		root.style.setProperty('--bubble-player-fg', palette.fg);
+		root.style.setProperty('--bubble-player-radius', '0');
+		root.style.setProperty('--bubble-font-style', 'normal');
+	} else {
+		root.style.removeProperty('--bubble-npc-bg');
+		root.style.removeProperty('--bubble-npc-fg');
+		root.style.removeProperty('--bubble-npc-border-left');
+		root.style.removeProperty('--bubble-npc-radius');
+		root.style.removeProperty('--bubble-player-bg');
+		root.style.removeProperty('--bubble-player-fg');
+		root.style.removeProperty('--bubble-player-radius');
+		root.style.removeProperty('--bubble-font-style');
+	}
+
+	if (palette.status_invert) {
+		// Status bar swaps fg/bg against the chat — all status text becomes palette.bg on palette.fg.
+		root.style.setProperty('--status-bg', palette.fg);
+		root.style.setProperty('--status-fg', palette.bg);
+		root.style.setProperty('--status-accent-fg', palette.bg);
+		root.style.setProperty('--status-muted-fg', palette.bg);
+		root.style.setProperty('--status-border', palette.bg);
+		root.style.setProperty('--status-sep-fg', palette.bg);
+		root.style.setProperty('--status-clock-bg', palette.fg);
+		root.style.setProperty('--status-clock-fg', palette.bg);
+		root.style.setProperty('--status-border-bottom', `2px solid ${palette.fg}`);
+	} else {
+		root.style.removeProperty('--status-bg');
+		root.style.removeProperty('--status-fg');
+		root.style.removeProperty('--status-accent-fg');
+		root.style.removeProperty('--status-muted-fg');
+		root.style.removeProperty('--status-border');
+		root.style.removeProperty('--status-sep-fg');
+		root.style.removeProperty('--status-clock-bg');
+		root.style.removeProperty('--status-clock-fg');
+		root.style.removeProperty('--status-border-bottom');
+	}
 }

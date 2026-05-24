@@ -1,0 +1,8 @@
+# Solarized UI theme — an asset mod (palettes only, no gameplay content).
+[mod]
+name = "Solarized Theme"
+title = "Solarized Theme"
+id = "solarized-theme"
+version = "1.0.0"
+description = "Ethan Schoonover's Solarized palette in light, dark, and time-of-day-auto modes."
+kind = "asset"

@@ -81,6 +81,10 @@ pub struct GameConfig {
     /// with the model that was actually downloaded — the static qwen3
     /// preset list assumes models the user has not pulled.
     pub auto_setup_model: Option<String>,
+    /// Registry of UI themes loaded from `kind = "asset"` mods at startup.
+    /// Empty when no theme mods are installed — the `/theme` command then
+    /// only knows `default` (the active base mod's palette).
+    pub theme_registry: crate::themes::ThemeRegistry,
 }
 
 impl GameConfig {
@@ -485,6 +489,7 @@ impl Default for GameConfig {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            theme_registry: crate::themes::ThemeRegistry::default(),
         }
     }
 }

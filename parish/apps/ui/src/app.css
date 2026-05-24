@@ -27,6 +27,26 @@
 	/* Typography */
 	--font-body: 'IM Fell English', Georgia, serif;
 	--font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+
+	/* Structural tokens — palettes may override via applyThemePalette() */
+	--bubble-player-justify: flex-end;
+	--bubble-npc-bg: var(--color-panel-bg);
+	--bubble-npc-fg: var(--color-fg);
+	--bubble-npc-border-left: 3px solid var(--color-accent);
+	--bubble-npc-radius: 0 0.85rem 0.85rem 0.15rem;
+	--bubble-player-bg: var(--color-accent);
+	--bubble-player-fg: var(--color-bg);
+	--bubble-player-radius: 0.85rem 0 0.15rem 0.85rem;
+	--bubble-font-style: italic;
+	--status-bg: var(--color-panel-bg);
+	--status-fg: var(--color-muted);
+	--status-accent-fg: var(--color-accent);
+	--status-muted-fg: var(--color-muted);
+	--status-border: var(--color-border);
+	--status-clock-bg: var(--color-input-bg);
+	--status-clock-fg: var(--color-fg);
+	--status-sep-fg: var(--color-border);
+	--status-border-bottom: 1px solid var(--color-border);
 }
 
 *,

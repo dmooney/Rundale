@@ -24,6 +24,7 @@ pub mod mod_source;
 pub mod prompts;
 pub mod secret_store;
 pub mod session_store;
+pub mod themes;
 pub mod tile_cache;
 
 /// How often autosave tasks should snapshot active sessions (seconds).

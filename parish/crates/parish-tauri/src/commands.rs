@@ -2777,6 +2777,8 @@ mod cmd_tests {
             favicon_url: None,
             map_overlay: None,
             base_mod_required: false,
+            default_palette: parish_core::game_mod::default_theme_palette(),
+            themes: parish_core::themes::ThemeRegistrySnapshot::default(),
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let pronunciations = Vec::new();

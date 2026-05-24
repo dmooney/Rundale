@@ -46,6 +46,7 @@ fn default_game_config() -> GameConfig {
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        theme_registry: parish_core::themes::ThemeRegistry::default(),
     }
 }
 
@@ -61,6 +62,8 @@ fn default_ui_config() -> UiConfigSnapshot {
         favicon_url: None,
         map_overlay: None,
         base_mod_required: false,
+        default_palette: parish_core::game_mod::default_theme_palette(),
+        themes: parish_core::themes::ThemeRegistrySnapshot::default(),
     }
 }
 

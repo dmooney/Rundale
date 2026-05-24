@@ -296,6 +296,11 @@
 			if (cfg.base_mod_required) {
 				modSelectorVisible.set(true);
 			}
+			// Hydrate the theme palette store with the active mod's default
+			// palette + the registry of themes loaded from `kind = "asset"` mods.
+			// Re-resolves the saved preference (e.g. `/theme zork c64`) now that
+			// the registry is known.
+			palette.hydrateFromUiConfig(cfg.themes, cfg.default_palette);
 			if (cfg.splash_text) {
 				textLog.update((log) => [
 					{ source: 'system', content: cfg.splash_text },
@@ -418,10 +423,7 @@
 			}));
 
 			listeners.push(await onThemeSwitch((p) => {
-				palette.setPreference({
-					name: p.name as 'default' | 'solarized',
-					mode: p.mode as 'light' | 'dark' | 'auto' | ''
-				});
+				palette.setPreference({ name: p.name, mode: p.mode }, p.palette);
 			}));
 
 			listeners.push(await onTilesSwitch((p) => {

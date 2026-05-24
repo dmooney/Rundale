@@ -123,8 +123,9 @@ pub struct NpcInfo {
 
 // ── Theme palette ───────────────────────────────────────────────────────────
 
-/// CSS hex-string theme palette derived from [`RawPalette`].
-#[derive(Serialize, Deserialize, Clone, Debug)]
+/// CSS hex-string theme palette derived from [`RawPalette`] or loaded from
+/// an asset mod's `themes.toml`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ThemePalette {
     /// Main background colour (`"#rrggbb"`).
     pub bg: String,
@@ -140,6 +141,21 @@ pub struct ThemePalette {
     pub border: String,
     /// Muted colour for secondary text.
     pub muted: String,
+    /// Optional CSS font-family for prose / chat text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_body: Option<String>,
+    /// Optional CSS font-family for display / header text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_display: Option<String>,
+    /// Chat layout: `"standard"` (player right, NPC left) or `"left"` (everything left).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_align: Option<String>,
+    /// Bubble visual style: `"card"` (default) or `"flat"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bubble_style: Option<String>,
+    /// When true, the status bar inverts fg/bg against the chat (Infocom look).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_invert: Option<bool>,
 }
 
 impl From<RawPalette> for ThemePalette {
@@ -153,6 +169,11 @@ impl From<RawPalette> for ThemePalette {
             input_bg: hex(raw.input_bg),
             border: hex(raw.border),
             muted: hex(raw.muted),
+            font_body: None,
+            font_display: None,
+            chat_align: None,
+            bubble_style: None,
+            status_invert: None,
         }
     }
 }

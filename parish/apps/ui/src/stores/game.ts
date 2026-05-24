@@ -45,12 +45,22 @@ export const nameHints = writable<LanguageHint[]>([]);
 export const uiConfig = writable<UiConfig>({
 	hints_label: 'Language Hints',
 	default_accent: '#b08531',
+	default_palette: {
+		bg: '#fafad8',
+		fg: '#31240f',
+		accent: '#b08531',
+		panel_bg: '#f5f5d3',
+		input_bg: '#f0f0ce',
+		border: '#cec293',
+		muted: '#76663b'
+	},
 	splash_text: '',
 	active_tile_source: '',
 	tile_sources: [],
 	auto_pause_timeout_seconds: 300,
 	app_icon_url: null,
-	favicon_url: null
+	favicon_url: null,
+	themes: { themes: [], mode_aliases: [], mode_defaults: {} }
 });
 
 export const fullMapOpen = writable<boolean>(false);

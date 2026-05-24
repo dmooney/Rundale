@@ -124,6 +124,14 @@ pub struct UiConfigSnapshot {
     /// should display a non-dismissable mod selector overlay to the user.
     #[serde(default)]
     pub base_mod_required: bool,
+    /// Default palette (from the active base mod's `[theme.palette]`). The
+    /// frontend uses this for `/theme default` and the initial render.
+    #[serde(default)]
+    pub default_palette: crate::ipc::ThemePalette,
+    /// All themes loaded from `kind = "asset"` mods, so the frontend can
+    /// resolve `/theme <name> [mode]` palettes locally.
+    #[serde(default)]
+    pub themes: crate::themes::ThemeRegistrySnapshot,
 }
 
 #[cfg(test)]

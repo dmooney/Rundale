@@ -2,10 +2,9 @@ import { writable } from 'svelte/store';
 import type { ThemePalette } from '$lib/types';
 import {
 	DEFAULT_THEME_PALETTE,
-	SOLARIZED_LIGHT,
-	SOLARIZED_DARK,
 	applyThemePalette,
 	type ThemePreference,
+	type ThemeRegistrySnapshot,
 	DEFAULT_PREFERENCE,
 	loadThemePreference,
 	saveThemePreference
@@ -20,29 +19,49 @@ function createPaletteStore() {
 	const { subscribe, set } = writable<ThemePalette>(DEFAULT_THEME_PALETTE);
 	let preference: ThemePreference = DEFAULT_PREFERENCE;
 	let lastGameHour: number | null = null;
+	// Registry hydrated from `GET /api/ui-config`. Empty until then.
+	let registry: ThemeRegistrySnapshot = { themes: [], mode_aliases: [], mode_defaults: {} };
+	let modPalette: ThemePalette = DEFAULT_THEME_PALETTE;
 
 	function apply(p: ThemePalette) {
 		set(p);
 		applyThemePalette(p);
 	}
 
-	function resolveAndApply(pref: ThemePreference) {
-		if (pref.name === 'solarized') {
-			if (pref.mode === 'auto') {
-				// Use the last known game hour if available; default to light
-				if (lastGameHour !== null) {
-					apply(isGameNight(lastGameHour) ? SOLARIZED_DARK : SOLARIZED_LIGHT);
-				} else {
-					apply(SOLARIZED_LIGHT);
-				}
-			} else if (pref.mode === 'dark') {
-				apply(SOLARIZED_DARK);
-			} else {
-				// 'light' or unspecified — default to light
-				apply(SOLARIZED_LIGHT);
-			}
+	/** Look up `(name, mode)` in the registry, resolving aliases via game hour. */
+	function resolvePalette(name: string, mode: string): ThemePalette | null {
+		if (name === 'default' || name === '') return modPalette;
+
+		// Synthetic mode? (e.g. solarized auto)
+		const alias = registry.mode_aliases.find((a) => a.name === name && a.mode === mode);
+		if (alias) {
+			const isNight = lastGameHour !== null ? isGameNight(lastGameHour) : false;
+			const resolvedMode = isNight ? alias.night_mode : alias.day_mode;
+			const entry = registry.themes.find((t) => t.name === name && t.mode === resolvedMode);
+			return entry?.palette ?? null;
 		}
-		// 'default': no-op — server palette is applied via applyServerPalette
+
+		// Direct hit
+		const entry = registry.themes.find((t) => t.name === name && t.mode === mode);
+		if (entry) return entry.palette;
+
+		// Name with no explicit mode → consult mode_defaults
+		if (mode === '') {
+			const defaultMode = registry.mode_defaults[name];
+			if (defaultMode) return resolvePalette(name, defaultMode);
+		}
+
+		return null;
+	}
+
+	function resolveAndApply(pref: ThemePreference) {
+		const palette = resolvePalette(pref.name, pref.mode);
+		if (palette) {
+			apply(palette);
+		}
+		// Unknown theme: leave current palette in place. The backend's
+		// `theme-switch` event will deliver a palette next time the user
+		// types `/theme <name>`.
 	}
 
 	/**
@@ -51,38 +70,74 @@ function createPaletteStore() {
 	 * doesn't overwrite the user's choice.
 	 */
 	function applyServerPalette(p: ThemePalette) {
-		if (preference.name === 'default') apply(p);
+		if (preference.name === 'default' || preference.name === '') apply(p);
 	}
 
 	/**
 	 * Called on every world-update with the current game hour (0–23).
-	 * When solarized auto is active, switches light/dark based on game time.
+	 * When a synthetic-alias mode is active (e.g. solarized auto), switches
+	 * the resolved palette as we cross day/night.
 	 */
 	function applyGameHour(hour: number) {
+		const previousHour = lastGameHour;
 		lastGameHour = hour;
-		if (preference.name === 'solarized' && preference.mode === 'auto') {
-			apply(isGameNight(hour) ? SOLARIZED_DARK : SOLARIZED_LIGHT);
+		const alias = registry.mode_aliases.find(
+			(a) => a.name === preference.name && a.mode === preference.mode
+		);
+		if (!alias) return;
+		const wasNight = previousHour !== null ? isGameNight(previousHour) : false;
+		const isNight = isGameNight(hour);
+		if (wasNight !== isNight) {
+			const resolved = isNight ? alias.night_mode : alias.day_mode;
+			const entry = registry.themes.find((t) => t.name === alias.name && t.mode === resolved);
+			if (entry) apply(entry.palette);
 		}
 	}
 
 	/**
 	 * Called when a `"theme-switch"` event arrives from the backend
-	 * (i.e. the player typed a `/theme` command).
+	 * (i.e. the player typed a `/theme` command). The event carries the
+	 * resolved palette directly so we don't have to look it up.
 	 */
-	function setPreference(pref: ThemePreference) {
+	function setPreference(pref: ThemePreference, palette?: ThemePalette | null) {
 		preference = pref;
 		saveThemePreference(pref);
-		resolveAndApply(pref);
+		if (palette) {
+			apply(palette);
+		} else {
+			resolveAndApply(pref);
+		}
+	}
+
+	/**
+	 * Hydrate the registry and the setting-mod's default palette from
+	 * `GET /api/ui-config`. Called once at startup.
+	 */
+	function hydrateFromUiConfig(snapshot: ThemeRegistrySnapshot, defaultPalette: ThemePalette) {
+		registry = snapshot;
+		modPalette = defaultPalette;
+		// Re-resolve the active preference now that the registry is loaded —
+		// fixes the case where the user had `/theme zork` saved but the
+		// hardcoded fallback applied at boot.
+		resolveAndApply(preference);
 	}
 
 	// ── Initialise from localStorage ─────────────────────────────────────────
-	// Restore saved preference immediately so Solarized users never see a flash
-	// of the default parchment palette before the server responds.
+	// Restore saved preference immediately so users never see a flash of the
+	// default palette before the registry hydrates. Resolution against the
+	// (still-empty) registry is a no-op for any non-default name; once
+	// hydrateFromUiConfig() runs, the real palette is applied.
 	const saved = loadThemePreference();
 	preference = saved;
 	resolveAndApply(saved);
 
-	return { subscribe, applyServerPalette, applyGameHour, setPreference };
+	return {
+		subscribe,
+		applyServerPalette,
+		applyGameHour,
+		setPreference,
+		hydrateFromUiConfig
+	};
 }
 
 export const palette = createPaletteStore();

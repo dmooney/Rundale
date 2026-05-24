@@ -22,7 +22,17 @@ function resetStores() {
 		splash_text: '',
 		active_tile_source: '',
 		tile_sources: [],
-		auto_pause_timeout_seconds: 300
+		auto_pause_timeout_seconds: 300,
+		default_palette: {
+			bg: '',
+			fg: '',
+			accent: '',
+			panel_bg: '',
+			input_bg: '',
+			border: '',
+			muted: ''
+		},
+		themes: { themes: [], mode_aliases: [], mode_defaults: {} }
 	});
 }
 
