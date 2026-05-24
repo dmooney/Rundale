@@ -790,6 +790,16 @@ fn resolve_engine_and_ui_config(
     config.idle_banter_after_secs = engine_config.session.idle_banter_after_secs;
     config.auto_pause_after_secs = engine_config.session.auto_pause_after_secs;
 
+    // Asset-mod themes: walk every `kind = "asset"` mod and merge its
+    // `themes.toml`. The `/theme` handler consults this registry; the snapshot
+    // is shipped to the frontend so it can resolve palettes client-side.
+    let theme_registry = parish_core::game_mod::discover_mods()
+        .ok()
+        .map(|d| parish_core::themes::load_asset_themes(&d.auxiliary))
+        .unwrap_or_default();
+    config.theme_registry = theme_registry.clone();
+    let theme_snapshot = theme_registry.snapshot();
+
     let ui_config = if let Some(gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
@@ -802,6 +812,8 @@ fn resolve_engine_and_ui_config(
             favicon_url: gm.favicon_path().map(|_| "/api/favicon.png".to_string()),
             map_overlay: gm.ui.theme.map_overlay.clone(),
             base_mod_required: false,
+            default_palette: theme_palette.clone(),
+            themes: theme_snapshot,
         }
     } else {
         UiConfigSnapshot {
@@ -815,6 +827,8 @@ fn resolve_engine_and_ui_config(
             favicon_url: None,
             map_overlay: None,
             base_mod_required: true,
+            default_palette: theme_palette.clone(),
+            themes: theme_snapshot,
         }
     };
 
@@ -1180,6 +1194,8 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        // Theme registry populated by resolve_engine_and_ui_config once mods are discovered.
+        theme_registry: parish_core::themes::ThemeRegistry::default(),
     };
 
     (provider_cfg, config)

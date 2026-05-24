@@ -179,10 +179,23 @@ impl SystemCommandHost for TauriCommandHost {
 
     fn apply_theme(&self, name: String, mode: String) -> BoxFuture<'_, ()> {
         let app = self.app.clone();
+        let state = Arc::clone(&self.state);
         Box::pin(async move {
+            // Resolve the palette so the frontend can apply any theme without
+            // hardcoded knowledge of names. `default` reverts to the active
+            // base mod's palette; everything else comes from the asset-mod
+            // registry on `GameConfig`.
+            let palette = if name == "default" {
+                Some(state.theme_palette.clone())
+            } else {
+                let cfg = state.config.lock().await;
+                cfg.theme_registry
+                    .get(name.as_str(), mode.as_str())
+                    .map(|e| e.palette.clone())
+            };
             let _ = app.emit(
                 EVENT_THEME_SWITCH,
-                serde_json::json!({ "name": name, "mode": mode }),
+                serde_json::json!({ "name": name, "mode": mode, "palette": palette }),
             );
         })
     }

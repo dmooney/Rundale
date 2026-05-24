@@ -226,6 +226,7 @@ async fn second_ws_upgrade_same_account_is_409() {
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),
         default_accent: "#000".to_string(),
+        default_palette: parish_core::game_mod::default_theme_palette(),
         splash_text: String::new(),
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
@@ -234,6 +235,7 @@ async fn second_ws_upgrade_same_account_is_409() {
         favicon_url: None,
         map_overlay: None,
         base_mod_required: false,
+        themes: parish_core::themes::ThemeRegistrySnapshot::default(),
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
@@ -270,6 +272,7 @@ async fn second_ws_upgrade_same_account_is_409() {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            theme_registry: parish_core::themes::ThemeRegistry::default(),
         },
         None,
         TransportConfig::default(),
@@ -345,6 +348,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),
         default_accent: "#000".to_string(),
+        default_palette: parish_core::game_mod::default_theme_palette(),
         splash_text: String::new(),
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
@@ -353,6 +357,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         favicon_url: None,
         map_overlay: None,
         base_mod_required: false,
+        themes: parish_core::themes::ThemeRegistrySnapshot::default(),
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
@@ -389,6 +394,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            theme_registry: parish_core::themes::ThemeRegistry::default(),
         },
         None,
         TransportConfig::default(),

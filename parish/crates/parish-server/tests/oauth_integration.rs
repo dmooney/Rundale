@@ -56,6 +56,8 @@ fn make_global_state(tmp: &tempfile::TempDir, with_oauth: bool) -> Arc<GlobalSta
             favicon_url: None,
             map_overlay: None,
             base_mod_required: false,
+            default_palette: parish_core::game_mod::default_theme_palette(),
+            themes: parish_core::themes::ThemeRegistrySnapshot::default(),
         },
         theme_palette: parish_core::game_mod::default_theme_palette(),
         transport: parish_core::world::transport::TransportConfig::default(),
@@ -101,6 +103,7 @@ fn default_game_config() -> parish_server::state::GameConfig {
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        theme_registry: parish_core::themes::ThemeRegistry::default(),
     }
 }
 

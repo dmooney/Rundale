@@ -275,6 +275,11 @@ impl From<ThemePaletteConfig> for ThemePalette {
             input_bg: config.input_bg,
             border: config.border,
             muted: config.muted,
+            font_body: None,
+            font_display: None,
+            chat_align: None,
+            bubble_style: None,
+            status_invert: None,
         }
     }
 }

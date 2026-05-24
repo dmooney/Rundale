@@ -1,0 +1,8 @@
+# Zork retro UI theme — an asset mod (palettes only, no gameplay content).
+[mod]
+name = "Zork Retro Theme"
+title = "Zork Retro Theme"
+id = "zork-theme"
+version = "1.0.0"
+description = "Infocom Zork I look: blue-on-blue (C64) and white-on-black (DOS)."
+kind = "asset"

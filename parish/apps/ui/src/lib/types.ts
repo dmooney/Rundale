@@ -85,6 +85,13 @@ export interface ThemePalette {
 	input_bg: string;
 	border: string;
 	muted: string;
+	// Structural overrides — optional so existing palettes and the
+	// server-pushed time-of-day palette stay valid. When unset, CSS defaults apply.
+	font_body?: string;
+	font_display?: string;
+	chat_align?: 'standard' | 'left';
+	bubble_style?: 'card' | 'flat';
+	status_invert?: boolean;
 }
 
 export interface LanguageHint {
@@ -106,6 +113,7 @@ export interface ModEntry {
 export interface UiConfig {
 	hints_label: string;
 	default_accent: string;
+	default_palette: ThemePalette;
 	splash_text: string;
 	active_tile_source: string;
 	tile_sources: TileSource[];
@@ -114,6 +122,30 @@ export interface UiConfig {
 	favicon_url?: string | null;
 	map_overlay?: string | null;
 	base_mod_required?: boolean;
+	themes: ThemeRegistrySnapshot;
+}
+
+/** Wire shape of a single theme entry from the backend's registry. */
+export interface ThemeRegistryEntry {
+	name: string;
+	mode: string;
+	label: string;
+	palette: ThemePalette;
+}
+
+/** Synthetic mode that resolves to another mode based on game time. */
+export interface ThemeModeAlias {
+	name: string;
+	mode: string;
+	day_mode: string;
+	night_mode: string;
+}
+
+/** Wire shape of the theme registry sent over `GET /api/ui-config`. */
+export interface ThemeRegistrySnapshot {
+	themes: ThemeRegistryEntry[];
+	mode_aliases: ThemeModeAlias[];
+	mode_defaults: Record<string, string>;
 }
 
 /** A single map tile source sent from the backend. Mirrors

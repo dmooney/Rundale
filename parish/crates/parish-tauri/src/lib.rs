@@ -1135,6 +1135,15 @@ pub fn run() {
         parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map, false);
     let active_tile_source = engine_config.map.default_tile_source.clone();
 
+    // Asset-mod themes: walk every `kind = "asset"` mod and merge its
+    // `themes.toml`. The `/theme` handler consults this registry; the snapshot
+    // ships to the frontend for client-side palette resolution.
+    let theme_registry = parish_core::game_mod::discover_mods()
+        .ok()
+        .map(|d| parish_core::themes::load_asset_themes(&d.auxiliary))
+        .unwrap_or_default();
+    let theme_snapshot = theme_registry.snapshot();
+
     // Build UI config from mod or defaults
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
@@ -1148,6 +1157,8 @@ pub fn run() {
             favicon_url: mod_asset_data_url(gm.favicon_path()),
             map_overlay: gm.ui.theme.map_overlay.clone(),
             base_mod_required: false,
+            default_palette: theme_palette.clone(),
+            themes: theme_snapshot.clone(),
         }
     } else {
         UiConfigSnapshot {
@@ -1161,6 +1172,8 @@ pub fn run() {
             favicon_url: None,
             map_overlay: None,
             base_mod_required: true,
+            default_palette: theme_palette.clone(),
+            themes: theme_snapshot.clone(),
         }
     };
 
@@ -1213,6 +1226,7 @@ pub fn run() {
         tile_sources: engine_config.map.id_label_pairs(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        theme_registry: theme_registry.clone(),
     };
     // Enable demo-mode flag when --demo was passed so the demo commands work.
     if demo_config.auto_start {

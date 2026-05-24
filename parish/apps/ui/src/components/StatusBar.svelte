@@ -116,8 +116,8 @@
 
 <style>
 	.status-bar {
-		background: var(--color-panel-bg);
-		border-bottom: 1px solid var(--color-border);
+		background: var(--status-bg);
+		border-bottom: var(--status-border-bottom);
 		padding: 0.32rem 1rem;
 		font-family: var(--font-display);
 		font-size: 0.7rem;
@@ -125,7 +125,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.55rem;
-		color: var(--color-muted);
+		color: var(--status-fg);
 		white-space: nowrap;
 		overflow: hidden;
 	}
@@ -137,12 +137,12 @@
 	.clock {
 		display: inline-flex;
 		align-items: baseline;
-		background: var(--color-input-bg);
-		border: 1px solid var(--color-border);
+		background: var(--status-clock-bg);
+		border: 1px solid var(--status-border);
 		padding: 0.1rem 0.5rem;
 		letter-spacing: 0.1em;
 		font-size: 0.78rem;
-		color: var(--color-fg);
+		color: var(--status-clock-fg);
 	}
 
 	.digit {
@@ -158,7 +158,7 @@
 	}
 
 	.sep {
-		color: var(--color-border);
+		color: var(--status-sep-fg);
 		font-size: 0.7rem;
 		letter-spacing: 0;
 		opacity: 0.8;
@@ -169,7 +169,7 @@
 		font-style: italic;
 		font-size: 1.05rem;
 		font-weight: normal;
-		color: var(--color-accent);
+		color: var(--status-accent-fg);
 		letter-spacing: 0.02em;
 	}
 
@@ -177,28 +177,28 @@
 	.weather,
 	.season,
 	.day-of-week {
-		color: var(--color-muted);
+		color: var(--status-muted-fg);
 	}
 
 	.festival {
-		color: var(--color-accent);
+		color: var(--status-accent-fg);
 	}
 
 	.paused {
-		color: var(--color-muted);
+		color: var(--status-muted-fg);
 		font-style: italic;
 	}
 
 	.muted {
-		color: var(--color-muted);
+		color: var(--status-muted-fg);
 		font-style: italic;
 	}
 
 	.mod-toggle,
 	.save-toggle {
 		background: none;
-		border: 1px solid var(--color-border);
-		color: var(--color-muted);
+		border: 1px solid var(--status-border);
+		color: var(--status-muted-fg);
 		font-size: 0.6rem;
 		padding: 0.1rem 0.45rem;
 		cursor: pointer;
@@ -211,20 +211,20 @@
 	.mod-toggle:focus-visible,
 	.save-toggle:hover,
 	.save-toggle:focus-visible {
-		color: var(--color-fg);
-		border-color: var(--color-accent);
+		color: var(--status-fg);
+		border-color: var(--status-accent-fg);
 	}
 
 	.save-toggle.save-active {
-		color: var(--color-accent);
-		border-color: var(--color-accent);
+		color: var(--status-accent-fg);
+		border-color: var(--status-accent-fg);
 	}
 
 	.debug-toggle,
 	.designer-link {
 		background: none;
-		border: 1px solid var(--color-border);
-		color: var(--color-muted);
+		border: 1px solid var(--status-border);
+		color: var(--status-muted-fg);
 		font-size: 0.6rem;
 		padding: 0.1rem 0.45rem;
 		cursor: pointer;
@@ -240,13 +240,13 @@
 	.debug-toggle:focus-visible,
 	.designer-link:hover,
 	.designer-link:focus-visible {
-		color: var(--color-fg);
-		border-color: var(--color-accent);
+		color: var(--status-fg);
+		border-color: var(--status-accent-fg);
 	}
 
 	.debug-toggle.debug-active {
-		color: var(--color-accent);
-		border-color: var(--color-accent);
+		color: var(--status-accent-fg);
+		border-color: var(--status-accent-fg);
 	}
 
 	/* ── Mobile: compact status bar ── */

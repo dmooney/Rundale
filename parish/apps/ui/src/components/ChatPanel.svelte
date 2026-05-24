@@ -363,7 +363,7 @@
 	}
 
 	.bubble-row.player {
-		justify-content: flex-end;
+		justify-content: var(--bubble-player-justify);
 	}
 
 	/* Wrapper keeps label + bubble aligned together */
@@ -396,11 +396,11 @@
 
 	/* NPC message: dialogue leaf — left accent border, no rounded top-left */
 	.npc .bubble {
-		background: var(--color-panel-bg);
-		color: var(--color-fg);
-		border-radius: 0 0.85rem 0.85rem 0.15rem;
-		border-left: 3px solid var(--color-accent);
-		font-style: italic;
+		background: var(--bubble-npc-bg);
+		color: var(--bubble-npc-fg);
+		border-radius: var(--bubble-npc-radius);
+		border-left: var(--bubble-npc-border-left);
+		font-style: var(--bubble-font-style);
 		padding: 0.6rem 0.9rem 0.6rem 0.85rem;
 		font-size: 1.1rem;
 		line-height: 1.6;
@@ -410,10 +410,10 @@
 
 	/* Player message: italic, no rounded top-right */
 	.player .bubble {
-		background: var(--color-accent);
-		color: var(--color-bg);
-		border-radius: 0.85rem 0 0.15rem 0.85rem;
-		font-style: italic;
+		background: var(--bubble-player-bg);
+		color: var(--bubble-player-fg);
+		border-radius: var(--bubble-player-radius);
+		font-style: var(--bubble-font-style);
 		padding: 0.6rem 0.9rem;
 		font-size: 1.05rem;
 		line-height: 1.5;

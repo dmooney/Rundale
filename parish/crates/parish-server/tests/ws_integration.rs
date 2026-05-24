@@ -114,6 +114,8 @@ async fn ws_message_forwarding() {
         favicon_url: None,
         map_overlay: None,
         base_mod_required: false,
+        default_palette: parish_core::game_mod::default_theme_palette(),
+        themes: parish_core::themes::ThemeRegistrySnapshot::default(),
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
@@ -148,6 +150,7 @@ async fn ws_message_forwarding() {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            theme_registry: parish_core::themes::ThemeRegistry::default(),
         },
         None,
         transport,
