@@ -135,7 +135,7 @@ jobs:
         # No --locked: a freshly-bumped workspace member version would race
         # ahead of Cargo.lock until the next regular CI run picks up the
         # refreshed lockfile. release.sh refreshes it best-effort locally.
-        run: cargo build -p parish --release
+        run: cargo build -p parish-repl --release
 
       - name: Package tarball
         id: package
@@ -146,7 +146,7 @@ jobs:
           stage="$(mktemp -d)"
           name="parish-v${version}-x86_64-linux-gnu"
           mkdir -p "$stage/$name"
-          cp parish/target/release/parish "$stage/$name/"
+          cp parish/target/release/parish-repl "$stage/$name/parish"
           cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md "$stage/$name/"
           ( cd "$stage" && tar czf "$name.tar.gz" "$name" )
           mkdir -p dist

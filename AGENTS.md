@@ -54,12 +54,13 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
     **Live-proof tier (enforced).** When the diff touches a runtime-shipping path — `parish-tauri/**`, `parish-server/**`, `parish-cli/**`, `parish-core/src/{game_loop,game_session,ipc}/**`, `parish-inference/src/{setup,client}.rs`, `parish-npc/src/{ticks,manager,reactions,autonomous}/**`, `parish-world/**`, `parish-input/**`, `parish/apps/ui/src/**`, `mods/**` — unit tests alone are not sufficient. The change must be exercised in a real process (Tauri, server, CLI, or browser) and the bundle's `evidence.md` header must declare `Evidence type: live gameplay transcript`, **or** the bundle must include a screenshot (`.png` / `.jpg` / `.jpeg`) or gif (`.gif`). The word "live" is the author affirmation that the run actually happened; analysis-only writeups failing this header are rejected by `just agent-check`. Accepted live signals: `mcp__parish__*`, `mcp__claude-in-chrome__*`, `/prove`, `/play`, `/demo`, `/chrome-test`, or a Bash invocation of `just demo` / `just play` / `just run` / `just run-headless` / `just web` / `cargo tauri dev` / `cargo run -p parish-{cli,tauri,server}`. The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with the same matrix.
 11. **Scaling guardrails:** Any PR that touches `AppState`, session persistence, real-time push, inference calls, identity lookups, mod loading, or request-ID tracing must be reviewed against the seam checklist in [docs/agent/scaling-rules.md](docs/agent/scaling-rules.md). Each rule names the seam file it protects.
 12. **Cross-runtime orchestration belongs in `parish-core`:** Any game-loop, IPC, or session handler shared by the server, Tauri, and CLI entry points — including its supporting constants, payload structs, and helper functions — must be defined once in a backend-agnostic crate and parameterized over runtime-specific concerns via traits (e.g. `EventEmitter`), with each entry-point crate (`parish-server`, `parish-tauri`, `parish-cli`) limited to thin wiring that adapts its emitter and I/O to the shared core. Copy-pasting an orchestration body, constant, or IPC payload struct into a second entry-point crate is forbidden, because the divergence is invisible at review time and silently produces security drift (#687, #696).
-13. **Acceptance-criteria-first (partially enforced):** Every implementation task that changes code must begin by writing `.proofs/<task-id>/acceptance-criteria.md` listing observable criteria **before** writing any code. Use `/task-start <task-id>` to generate this artifact and the companion verification fixture at `parish/testing/fixtures/play_<task-id>.txt`. The proof evidence must include a live game log (from `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script ...`, `just run-headless`, `mcp__parish__*`, or equivalent) with a section that maps each criterion to the output line(s) that prove it. The `judge.md` must explicitly verify every criterion and include the line `Acceptance criteria: met`. `just agent-check` and the Stop hook enforce that an `acceptance-criteria.md` was written whenever a proof bundle is produced. The bundle itself stays in `.proofs/<task-id>/` (gitignored); use `just attach-proof <task-id>` to post it to the PR. The sequential order is non-negotiable: write AC → get approval → implement → run game → capture log → write evidence → judge against AC → attach to PR.
+13. **Acceptance-criteria-first (partially enforced):** Every implementation task that changes code must begin by writing `.proofs/<task-id>/acceptance-criteria.md` listing observable criteria **before** writing any code. Use `/task-start <task-id>` to generate this artifact and the companion verification fixture at `parish/testing/fixtures/play_<task-id>.txt`. The proof evidence must include a live game log (from `cargo run --manifest-path parish/Cargo.toml -p parish-repl -- --script ...`, `parish --script ...` (live server), `just run-headless`, `mcp__parish__*`, or equivalent) with a section that maps each criterion to the output line(s) that prove it. The `judge.md` must explicitly verify every criterion and include the line `Acceptance criteria: met`. `just agent-check` and the Stop hook enforce that an `acceptance-criteria.md` was written whenever a proof bundle is produced. The bundle itself stays in `.proofs/<task-id>/` (gitignored); use `just attach-proof <task-id>` to post it to the PR. The sequential order is non-negotiable: write AC → get approval → implement → run game → capture log → write evidence → judge against AC → attach to PR.
 
 ## Standard commands
 
 ```sh
-just build         # cargo build (default member parish-cli)
+just build         # cargo build (default member parish-repl)
+just run-client    # cargo run -p parish-client (thin HTTP client → running server)
 just run           # cargo tauri dev
 just run-headless
 just check         # fmt + clippy + tests
@@ -112,6 +113,30 @@ the backend isn't running — call `parish-mcp-backend.sh start` first.
 For deeper context on the bridge implementation see
 [parish/crates/parish-mcp/README.md](parish/crates/parish-mcp/README.md)
 and [parish/crates/parish-tauri/src/mcp_bridge.rs](parish/crates/parish-tauri/src/mcp_bridge.rs).
+
+## Driving Parish via the `parish` CLI client
+
+The `parish` binary (`parish-client` crate) is a thin synchronous HTTP client for a
+**running** Parish server. Calls `POST /api/command` and returns the full response in one
+round-trip — no WebSocket, no polling.
+
+```sh
+# Start the server first:
+bash parish/scripts/parish-mcp-backend.sh start     # port 3030
+# or: just web 3001                                  # port 3001
+
+# Drive it:
+parish [--server http://localhost:3001] "look"       # single-shot
+parish --script testing/fixtures/test_walkthrough.txt  # batch
+parish                                               # interactive REPL
+parish --json "go to the church" | jq .kind         # raw JSON
+
+# PARISH_SERVER env var sets the default URL:
+PARISH_SERVER=http://localhost:3001 parish "look"
+```
+
+Use `parish --script` for proof transcripts requiring real NPC inference.
+Use `just run-headless --script` for deterministic, fast harness-level testing.
 
 ## Commit and PR expectations
 

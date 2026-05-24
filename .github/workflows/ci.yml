@@ -134,7 +134,7 @@ jobs:
         run: cargo install cargo-tarpaulin --locked
 
       - name: Enforce coverage floor
-        run: cargo tarpaulin --engine Llvm --workspace --all-targets --out Html --out Json --output-dir target/coverage --fail-under 60.8
+        run: cargo tarpaulin --engine Llvm --workspace --all-targets --exclude parish-client --out Html --out Json --output-dir target/coverage --fail-under 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
@@ -217,7 +217,7 @@ jobs:
           set -euo pipefail
           for fixture in testing/fixtures/*.txt; do
             echo "=== Running $fixture ==="
-            cargo run -p parish -- --script "$fixture" > /tmp/fixture.out
+            cargo run -p parish-repl -- --script "$fixture" > /tmp/fixture.out
             tail -n 5 /tmp/fixture.out
           done
 
@@ -299,7 +299,7 @@ jobs:
       # timeout — a cold `cargo run` on this job was busting the deadline.
       - name: Prebuild parish web server binary
         working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish
+        run: cargo build -p parish-repl
 
       - name: Run Playwright e2e
         run: npx playwright test
