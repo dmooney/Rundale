@@ -35,6 +35,8 @@ const gaeilgeRow = view.gaeilge_row;
 const perf = (data.perf ?? []).filter((p) => p.model_id === view.model_id);
 const typeBadge = view.is_local ? 'local' : 'cloud';
 const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
+const fmtMoney = (v, d = 4) => (typeof v === 'number' ? `$${v.toFixed(d)}` : '—');
+const fmtMoneyHour = (v) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '—');
 const DIALOGUE_AXES = ['character', 'authenticity', 'language', 'responsiveness', 'craft'];
 const GAEILGE_AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'english_leakage'];
 ---
@@ -105,16 +107,20 @@ const GAEILGE_AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'englis
   {perf.length === 0 ? (
     <div class="empty">No perf measured for this model yet.</div>
   ) : (
-    <table>
-      <thead><tr><th>Provider</th><th class="num">p50 ms</th><th class="num">tok/s</th><th class="num">$/Mtok</th></tr></thead>
-      <tbody>
-        {perf.map((p) => (
-          <tr><td><span class="badge">{p.provider_id}</span></td>
-            <td class="num">{typeof p.latency_p50_ms === 'number' ? Math.round(p.latency_p50_ms) : '—'}</td>
-            <td class="num">{typeof p.tokens_per_sec_mean === 'number' ? p.tokens_per_sec_mean.toFixed(1) : '—'}</td>
-            <td class="num">{p.usd_per_mtok_observed != null ? `$${p.usd_per_mtok_observed}` : '—'}</td></tr>
-        ))}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Provider</th><th class="num">p50 ms</th><th class="num">tok/s</th><th class="num">$/Mtok</th><th class="num">game $/min</th><th class="num">game $/hr</th></tr></thead>
+        <tbody>
+          {perf.map((p) => (
+            <tr><td><span class="badge">{p.provider_id}</span></td>
+              <td class="num">{typeof p.latency_p50_ms === 'number' ? Math.round(p.latency_p50_ms) : '—'}</td>
+              <td class="num">{typeof p.tokens_per_sec_mean === 'number' ? p.tokens_per_sec_mean.toFixed(1) : '—'}</td>
+              <td class="num">{p.usd_per_mtok_observed != null ? `$${p.usd_per_mtok_observed}` : '—'}</td>
+              <td class="num">{fmtMoney(p.gameplay_cost_usd_per_minute)}</td>
+              <td class="num">{fmtMoneyHour(p.gameplay_cost_usd_per_hour)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )}
 </Base>

@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-23T23:28:41.414617+00:00",
+  "generated_utc": "2026-05-24T02:35:33.381516+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -77,6 +77,12 @@
       "ttft_p50_ms": 478,
       "ttft_p90_ms": 643,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -95,6 +101,12 @@
       "ttft_p50_ms": 980,
       "ttft_p90_ms": 1399,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -113,6 +125,12 @@
       "ttft_p50_ms": 1421,
       "ttft_p90_ms": 1557,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -131,6 +149,12 @@
       "ttft_p50_ms": 1328,
       "ttft_p90_ms": 5300,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -149,6 +173,12 @@
       "ttft_p50_ms": 691,
       "ttft_p90_ms": 1554,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -167,6 +197,12 @@
       "ttft_p50_ms": 1317,
       "ttft_p90_ms": 2125,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -185,6 +221,12 @@
       "ttft_p50_ms": 595,
       "ttft_p90_ms": 790,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -203,6 +245,12 @@
       "ttft_p50_ms": 1925,
       "ttft_p90_ms": 2073,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -221,6 +269,12 @@
       "ttft_p50_ms": 380,
       "ttft_p90_ms": 766,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -239,6 +293,12 @@
       "ttft_p50_ms": 1160,
       "ttft_p90_ms": 2111,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -257,6 +317,18 @@
       "ttft_p50_ms": 516,
       "ttft_p90_ms": 1452,
       "source": "legacy",
+      "price_input_usd_per_mtok": 0.13,
+      "price_output_usd_per_mtok": 0.39,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.0017875970029037676,
+      "gameplay_cost_usd_per_hour": 0.10725582017422605,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0005023592088685524,
+        "intent": 0.00018689175033263593,
+        "reaction": 0.00028688065426858776,
+        "simulation": 0.0007919920895243671,
+        "travel": 1.9473299909624473e-05
+      },
       "is_local": false
     },
     {
@@ -275,6 +347,12 @@
       "ttft_p50_ms": 412,
       "ttft_p90_ms": 521,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -293,6 +371,12 @@
       "ttft_p50_ms": 279,
       "ttft_p90_ms": 389,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -311,6 +395,12 @@
       "ttft_p50_ms": 364,
       "ttft_p90_ms": 727,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -329,6 +419,12 @@
       "ttft_p50_ms": 482,
       "ttft_p90_ms": 667,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -347,6 +443,12 @@
       "ttft_p50_ms": 390,
       "ttft_p90_ms": 521,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -365,6 +467,12 @@
       "ttft_p50_ms": 250,
       "ttft_p90_ms": 290,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -383,6 +491,12 @@
       "ttft_p50_ms": 942,
       "ttft_p90_ms": 2073,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -401,6 +515,12 @@
       "ttft_p50_ms": 333,
       "ttft_p90_ms": 641,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -419,6 +539,12 @@
       "ttft_p50_ms": 816,
       "ttft_p90_ms": 1280,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -437,6 +563,12 @@
       "ttft_p50_ms": 715,
       "ttft_p90_ms": 843,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -455,6 +587,12 @@
       "ttft_p50_ms": 561,
       "ttft_p90_ms": 702,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -473,6 +611,12 @@
       "ttft_p50_ms": 2242,
       "ttft_p90_ms": 4549,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -491,6 +635,12 @@
       "ttft_p50_ms": 427,
       "ttft_p90_ms": 816,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -509,6 +659,12 @@
       "ttft_p50_ms": null,
       "ttft_p90_ms": null,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -527,6 +683,12 @@
       "ttft_p50_ms": 363,
       "ttft_p90_ms": 666,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -545,6 +707,12 @@
       "ttft_p50_ms": 1173,
       "ttft_p90_ms": 1410,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -563,6 +731,12 @@
       "ttft_p50_ms": null,
       "ttft_p90_ms": null,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -581,6 +755,12 @@
       "ttft_p50_ms": 704,
       "ttft_p90_ms": 1561,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
     },
     {
@@ -599,7 +779,321 @@
       "ttft_p50_ms": 1442,
       "ttft_p90_ms": 2844,
       "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
       "is_local": false
+    }
+  ],
+  "normal_play_profile": {
+    "source": "docs/proofs/demo-api-profile/20260524T021229Z/summary.json",
+    "label": "Five-minute vLLM-MLX demo run with human-readable turn delay",
+    "scope": "gameplay_excluding_demo_player",
+    "observed_seconds": 300.4113338340103,
+    "observed_minutes": 5.006855563900172,
+    "categories": {
+      "demo-player": {
+        "category": "demo-player",
+        "errors": 0,
+        "input_tokens_estimated": 20809,
+        "output_tokens_estimated": 373,
+        "p50_ms": 2089,
+        "p95_ms": 4107,
+        "prompt_chars": 83219,
+        "requests": 14,
+        "requests_per_minute": 2.796166140869155,
+        "response_chars": 1188,
+        "included_in_gameplay_cost": false,
+        "input_tokens_per_request_estimated": 1486.357142857143,
+        "output_tokens_per_request_estimated": 26.642857142857142,
+        "input_tokens_per_minute_estimated": 4156.101516096161,
+        "output_tokens_per_minute_estimated": 74.49785503887105
+      },
+      "dialogue": {
+        "category": "dialogue",
+        "errors": 0,
+        "input_tokens_estimated": 16027,
+        "output_tokens_estimated": 1107,
+        "p50_ms": 6555,
+        "p95_ms": 26290,
+        "prompt_chars": 64096,
+        "requests": 7,
+        "requests_per_minute": 1.3980830704345775,
+        "response_chars": 4041,
+        "included_in_gameplay_cost": true,
+        "input_tokens_per_request_estimated": 2289.5714285714284,
+        "output_tokens_per_request_estimated": 158.14285714285714,
+        "input_tokens_per_minute_estimated": 3201.011052836425,
+        "output_tokens_per_minute_estimated": 221.09685128158247
+      },
+      "intent": {
+        "category": "intent",
+        "errors": 0,
+        "input_tokens_estimated": 5962,
+        "output_tokens_estimated": 412,
+        "p50_ms": 1081,
+        "p95_ms": 1574,
+        "prompt_chars": 23827,
+        "requests": 12,
+        "requests_per_minute": 2.3967138350307042,
+        "response_chars": 1254,
+        "included_in_gameplay_cost": true,
+        "input_tokens_per_request_estimated": 496.8333333333333,
+        "output_tokens_per_request_estimated": 34.333333333333336,
+        "input_tokens_per_minute_estimated": 1190.7673237044216,
+        "output_tokens_per_minute_estimated": 82.28717500272084
+      },
+      "reaction": {
+        "category": "reaction",
+        "errors": 0,
+        "input_tokens_estimated": 10467,
+        "output_tokens_estimated": 194,
+        "p50_ms": 332,
+        "p95_ms": 549,
+        "prompt_chars": 41844,
+        "requests": 19,
+        "requests_per_minute": 3.7947969054652817,
+        "response_chars": 618,
+        "included_in_gameplay_cost": true,
+        "input_tokens_per_request_estimated": 550.8947368421053,
+        "output_tokens_per_request_estimated": 10.210526315789474,
+        "input_tokens_per_minute_estimated": 2090.533642605532,
+        "output_tokens_per_minute_estimated": 38.74687366632972
+      },
+      "simulation": {
+        "category": "simulation",
+        "errors": 1,
+        "input_tokens_estimated": 25787,
+        "output_tokens_estimated": 1572,
+        "p50_ms": 2272,
+        "p95_ms": 6240,
+        "prompt_chars": 103092,
+        "requests": 27,
+        "requests_per_minute": 5.392606128819085,
+        "response_chars": 6032,
+        "included_in_gameplay_cost": true,
+        "input_tokens_per_request_estimated": 955.074074074074,
+        "output_tokens_per_request_estimated": 58.22222222222222,
+        "input_tokens_per_minute_estimated": 5150.338305328064,
+        "output_tokens_per_minute_estimated": 313.96951238902227
+      },
+      "travel": {
+        "category": "travel",
+        "errors": 0,
+        "input_tokens_estimated": 558,
+        "output_tokens_estimated": 64,
+        "p50_ms": 281,
+        "p95_ms": 590,
+        "prompt_chars": 2229,
+        "requests": 2,
+        "requests_per_minute": 0.3994523058384507,
+        "response_chars": 284,
+        "included_in_gameplay_cost": true,
+        "input_tokens_per_request_estimated": 279.0,
+        "output_tokens_per_request_estimated": 32.0,
+        "input_tokens_per_minute_estimated": 111.44719332892775,
+        "output_tokens_per_minute_estimated": 12.782473786830423
+      },
+      "unknown": {
+        "category": "unknown",
+        "errors": 0,
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 0,
+        "p50_ms": 0,
+        "p95_ms": 0,
+        "prompt_chars": 0,
+        "requests": 0,
+        "requests_per_minute": 0.0,
+        "response_chars": 0,
+        "included_in_gameplay_cost": false,
+        "input_tokens_per_request_estimated": 0.0,
+        "output_tokens_per_request_estimated": 0.0,
+        "input_tokens_per_minute_estimated": 0.0,
+        "output_tokens_per_minute_estimated": 0.0
+      }
+    },
+    "total_gameplay": {
+      "category": "total_gameplay",
+      "errors": 1,
+      "input_tokens_estimated": 58801,
+      "output_tokens_estimated": 3349,
+      "p50_ms": 1437,
+      "p95_ms": 7032,
+      "prompt_chars": 235088,
+      "requests": 67,
+      "requests_per_minute": 13.381652245588098,
+      "response_chars": 12229,
+      "included_in_gameplay_cost": true,
+      "input_tokens_per_request_estimated": 877.6268656716418,
+      "output_tokens_per_request_estimated": 49.985074626865675,
+      "input_tokens_per_minute_estimated": 11744.09751780337,
+      "output_tokens_per_minute_estimated": 668.8828861264857
+    },
+    "total_observed": {
+      "category": "total_observed",
+      "errors": 1,
+      "input_tokens_estimated": 79610,
+      "output_tokens_estimated": 3722,
+      "p50_ms": 1674,
+      "p95_ms": 6555,
+      "prompt_chars": 318307,
+      "requests": 81,
+      "requests_per_minute": 16.177818386457254,
+      "response_chars": 13417,
+      "included_in_gameplay_cost": false,
+      "input_tokens_per_request_estimated": 982.8395061728395,
+      "output_tokens_per_request_estimated": 45.95061728395062,
+      "input_tokens_per_minute_estimated": 15900.199033899531,
+      "output_tokens_per_minute_estimated": 743.3807411653568
+    }
+  },
+  "cloud_cost_examples": [
+    {
+      "model_id": "llama-3.3-70b",
+      "display_name": "Llama-3.3 70B Instruct",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "meta-llama/llama-3.3-70b-instruct",
+      "price_input_usd_per_mtok": 0.13,
+      "price_output_usd_per_mtok": 0.39,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.0017875970029037676,
+      "gameplay_cost_usd_per_hour": 0.10725582017422605,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0005023592088685524,
+        "intent": 0.00018689175033263593,
+        "reaction": 0.00028688065426858776,
+        "simulation": 0.0007919920895243671,
+        "travel": 1.9473299909624473e-05
+      }
+    },
+    {
+      "model_id": "grok-4-fast",
+      "display_name": "Grok 4 Fast",
+      "provider_id": "xai",
+      "model_name_at_provider": "grok-4-fast",
+      "price_input_usd_per_mtok": 0.2,
+      "price_output_usd_per_mtok": 0.5,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.002683260946623917,
+      "gameplay_cost_usd_per_hour": 0.16099565679743502,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0007507506362080762,
+        "intent": 0.0002792970522422448,
+        "reaction": 0.00043748016535427126,
+        "simulation": 0.001187052417260124,
+        "travel": 2.8680675559200763e-05
+      }
+    },
+    {
+      "model_id": "deepseek-v3",
+      "display_name": "DeepSeek V3",
+      "provider_id": "deepseek",
+      "model_name_at_provider": "deepseek-chat",
+      "price_input_usd_per_mtok": 0.27,
+      "price_output_usd_per_mtok": 1.1,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.003906677504546045,
+      "gameplay_cost_usd_per_hour": 0.2344006502727627,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0011074795206755755,
+        "intent": 0.00041202306990318683,
+        "reaction": 0.0006070656445364564,
+        "simulation": 0.001735957806066502,
+        "travel": 4.415146336432396e-05
+      }
+    },
+    {
+      "model_id": "deepseek-v3",
+      "display_name": "DeepSeek V3",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "deepseek/deepseek-chat",
+      "price_input_usd_per_mtok": 0.28,
+      "price_output_usd_per_mtok": 1.1,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.004024118479724078,
+      "gameplay_cost_usd_per_hour": 0.2414471087834447,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0011394896312039399,
+        "intent": 0.00042393074314023104,
+        "reaction": 0.0006279709809625117,
+        "simulation": 0.0017874611891197825,
+        "travel": 4.526593529761324e-05
+      }
+    },
+    {
+      "model_id": "gpt-5-mini",
+      "display_name": "GPT-5 mini",
+      "provider_id": "openai",
+      "model_name_at_provider": "gpt-5-mini",
+      "price_input_usd_per_mtok": 0.25,
+      "price_output_usd_per_mtok": 2.0,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.004273790151703813,
+      "gameplay_cost_usd_per_hour": 0.2564274091022288,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0012424464657722711,
+        "intent": 0.00046226618093154706,
+        "reaction": 0.0006001271579840425,
+        "simulation": 0.0019155236011100605,
+        "travel": 5.342674590589279e-05
+      }
+    },
+    {
+      "model_id": "llama-3.3-70b",
+      "display_name": "Llama-3.3 70B Instruct",
+      "provider_id": "groq",
+      "model_name_at_provider": "llama-3.3-70b-versatile",
+      "price_input_usd_per_mtok": 0.59,
+      "price_output_usd_per_mtok": 0.79,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.007457435015543912,
+      "gameplay_cost_usd_per_hour": 0.4474461009326347,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.002063263033685941,
+        "intent": 0.0007675595892377582,
+        "reaction": 0.0012640248793336641,
+        "simulation": 0.0032867355149308855,
+        "travel": 7.58519983556634e-05
+      }
+    },
+    {
+      "model_id": "llama-3.3-70b",
+      "display_name": "Llama-3.3 70B Instruct",
+      "provider_id": "together",
+      "model_name_at_provider": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "price_input_usd_per_mtok": 0.88,
+      "price_output_usd_per_mtok": 0.88,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.010923422755458273,
+      "gameplay_cost_usd_per_hour": 0.6554053653274964,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.0030114549556238463,
+        "intent": 0.0011202879588622856,
+        "reaction": 0.0018737668543192382,
+        "simulation": 0.004808590879591036,
+        "travel": 0.0001093221070618672
+      }
+    },
+    {
+      "model_id": "claude-haiku-4-5",
+      "display_name": "Claude Haiku 4.5",
+      "provider_id": "anthropic",
+      "model_name_at_provider": "claude-haiku-4-5",
+      "price_input_usd_per_mtok": 1.0,
+      "price_output_usd_per_mtok": 5.0,
+      "price_source": "rundale-bench/v1/models.toml",
+      "gameplay_cost_usd_per_minute": 0.015088511948435798,
+      "gameplay_cost_usd_per_hour": 0.9053107169061478,
+      "gameplay_cost_by_category_usd_per_minute": {
+        "dialogue": 0.004306495309244337,
+        "intent": 0.0016022031987180257,
+        "reaction": 0.0022842680109371803,
+        "simulation": 0.006720185867273176,
+        "travel": 0.00017535956226307986
+      }
     }
   ],
   "datasets": {
@@ -5876,6 +6370,8 @@
       ],
       "perf_best_p50_ms": 3183,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 207.5,
       "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
@@ -5888,6 +6384,8 @@
       "perf_providers": [],
       "perf_best_p50_ms": null,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": null,
       "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
@@ -5900,6 +6398,8 @@
       "perf_providers": [],
       "perf_best_p50_ms": null,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": null
     },
     {
@@ -5913,6 +6413,8 @@
       ],
       "perf_best_p50_ms": 855,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 65.9
     },
     {
@@ -5926,6 +6428,8 @@
       ],
       "perf_best_p50_ms": 1989,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 81.6
     },
     {
@@ -5939,6 +6443,8 @@
       ],
       "perf_best_p50_ms": 3861,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 39.0
     },
     {
@@ -5952,6 +6458,8 @@
       ],
       "perf_best_p50_ms": 3221,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 44.1
     },
     {
@@ -5965,6 +6473,8 @@
       ],
       "perf_best_p50_ms": 2704,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 22.2
     },
     {
@@ -5978,6 +6488,8 @@
       ],
       "perf_best_p50_ms": 6170,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 39.2
     },
     {
@@ -5991,6 +6503,8 @@
       ],
       "perf_best_p50_ms": 1032,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 99.5
     },
     {
@@ -6004,6 +6518,8 @@
       ],
       "perf_best_p50_ms": 3331,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 143.3
     },
     {
@@ -6017,6 +6533,8 @@
       ],
       "perf_best_p50_ms": 2328,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 37.9
     },
     {
@@ -6030,6 +6548,8 @@
       ],
       "perf_best_p50_ms": 3214,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 21.9
     },
     {
@@ -6043,6 +6563,8 @@
       ],
       "perf_best_p50_ms": 2339,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": 0.0017875970029037676,
+      "perf_best_gameplay_usd_per_hour": 0.10725582017422605,
       "perf_mean_tok_s": 43.2
     },
     {
@@ -6056,6 +6578,8 @@
       ],
       "perf_best_p50_ms": 1601,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 51.1
     },
     {
@@ -6069,6 +6593,8 @@
       ],
       "perf_best_p50_ms": 1419,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 54.2
     },
     {
@@ -6082,6 +6608,8 @@
       ],
       "perf_best_p50_ms": 1674,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 67.8
     },
     {
@@ -6095,6 +6623,8 @@
       ],
       "perf_best_p50_ms": 1714,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 44.1
     },
     {
@@ -6108,6 +6638,8 @@
       ],
       "perf_best_p50_ms": 2089,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 50.4
     },
     {
@@ -6121,6 +6653,8 @@
       ],
       "perf_best_p50_ms": 838,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 77.4
     },
     {
@@ -6134,6 +6668,8 @@
       ],
       "perf_best_p50_ms": 7220,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 37.6
     },
     {
@@ -6147,6 +6683,8 @@
       ],
       "perf_best_p50_ms": 5623,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 39.4
     },
     {
@@ -6160,6 +6698,8 @@
       ],
       "perf_best_p50_ms": 1243,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 192.7
     },
     {
@@ -6173,6 +6713,8 @@
       ],
       "perf_best_p50_ms": 2677,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 34.7
     },
     {
@@ -6186,6 +6728,8 @@
       ],
       "perf_best_p50_ms": 1389,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 75.5
     },
     {
@@ -6199,6 +6743,8 @@
       ],
       "perf_best_p50_ms": 4067,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 60.0
     },
     {
@@ -6212,6 +6758,8 @@
       ],
       "perf_best_p50_ms": 3072,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 62.7
     },
     {
@@ -6225,6 +6773,8 @@
       ],
       "perf_best_p50_ms": 5242,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": null
     },
     {
@@ -6238,6 +6788,8 @@
       ],
       "perf_best_p50_ms": 1696,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 54.2
     },
     {
@@ -6251,6 +6803,8 @@
       ],
       "perf_best_p50_ms": 2904,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 32.6
     },
     {
@@ -6264,6 +6818,8 @@
       ],
       "perf_best_p50_ms": null,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": null
     },
     {
@@ -6277,6 +6833,8 @@
       ],
       "perf_best_p50_ms": 16883,
       "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 34.7
     }
   ]
