@@ -92,6 +92,13 @@ export interface ThemePalette {
 	chat_align?: 'standard' | 'left';
 	bubble_style?: 'card' | 'flat';
 	status_invert?: boolean;
+	/**
+	 * Decorative overlay applied behind every panel. `parchment` (the default
+	 * when unset) layers the rundale paper-grain noise + corner vignette atop
+	 * the palette; `none` strips them so asset-mod themes (Solarized, Zork)
+	 * render their colors cleanly without bleed from the base look.
+	 */
+	decoration?: 'parchment' | 'none';
 }
 
 export interface LanguageHint {

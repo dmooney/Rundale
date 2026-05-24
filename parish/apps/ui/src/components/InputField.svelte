@@ -1094,8 +1094,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 		align-items: center;
 		gap: 0.45rem;
 		padding: 0.45rem 0.75rem;
-		background:
-			linear-gradient(180deg, color-mix(in srgb, var(--color-panel-bg) 88%, var(--color-accent) 12%), var(--color-panel-bg));
+		background: var(
+			--npc-chips-bg,
+			linear-gradient(180deg, color-mix(in srgb, var(--color-panel-bg) 88%, var(--color-accent) 12%), var(--color-panel-bg))
+		);
 		border-top: 1px solid var(--color-border);
 	}
 

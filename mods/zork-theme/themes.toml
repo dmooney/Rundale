@@ -9,14 +9,14 @@ name = "zork"
 mode = "c64"
 label = "Zork (C64)"
 message = "Theme set to Zork (C64). It is pitch black. You are likely to be eaten by a grue."
-palette = { bg = "#1f1b96", fg = "#a8a8ff", accent = "#ffffff", panel_bg = "#1f1b96", input_bg = "#15116b", border = "#7878ff", muted = "#6c5eb5", font_body = "'Courier New', Consolas, ui-monospace, monospace", font_display = "'Courier New', Consolas, ui-monospace, monospace", chat_align = "left", bubble_style = "flat", status_invert = true }
+palette = { bg = "#1f1b96", fg = "#a8a8ff", accent = "#ffffff", panel_bg = "#1f1b96", input_bg = "#15116b", border = "#7878ff", muted = "#6c5eb5", font_body = "'Courier New', Consolas, ui-monospace, monospace", font_display = "'Courier New', Consolas, ui-monospace, monospace", chat_align = "left", bubble_style = "flat", status_invert = true, decoration = "none" }
 
 [[themes]]
 name = "zork"
 mode = "dos"
 label = "Zork (DOS)"
 message = "Theme set to Zork (DOS). West of House. You are standing in an open field."
-palette = { bg = "#000000", fg = "#c0c0c0", accent = "#ffff55", panel_bg = "#000000", input_bg = "#0a0a0a", border = "#808080", muted = "#808080", font_body = "'Courier New', Consolas, ui-monospace, monospace", font_display = "'Courier New', Consolas, ui-monospace, monospace", chat_align = "left", bubble_style = "flat", status_invert = true }
+palette = { bg = "#000000", fg = "#c0c0c0", accent = "#ffff55", panel_bg = "#000000", input_bg = "#0a0a0a", border = "#808080", muted = "#808080", font_body = "'Courier New', Consolas, ui-monospace, monospace", font_display = "'Courier New', Consolas, ui-monospace, monospace", chat_align = "left", bubble_style = "flat", status_invert = true, decoration = "none" }
 
 [[mode_defaults]]
 name = "zork"

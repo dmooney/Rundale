@@ -280,6 +280,7 @@ impl From<ThemePaletteConfig> for ThemePalette {
             chat_align: None,
             bubble_style: None,
             status_invert: None,
+            decoration: None,
         }
     }
 }

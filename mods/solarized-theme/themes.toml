@@ -8,14 +8,14 @@ name = "solarized"
 mode = "light"
 label = "Solarized Light"
 message = "Solarized light applied."
-palette = { bg = "#fdf6e3", fg = "#586e75", accent = "#268bd2", panel_bg = "#eee8d5", input_bg = "#e6dfc5", border = "#93a1a1", muted = "#93a1a1" }
+palette = { bg = "#fdf6e3", fg = "#586e75", accent = "#268bd2", panel_bg = "#eee8d5", input_bg = "#e6dfc5", border = "#93a1a1", muted = "#93a1a1", decoration = "none" }
 
 [[themes]]
 name = "solarized"
 mode = "dark"
 label = "Solarized Dark"
 message = "Solarized dark applied."
-palette = { bg = "#002b36", fg = "#839496", accent = "#268bd2", panel_bg = "#073642", input_bg = "#0d3f4f", border = "#586e75", muted = "#586e75" }
+palette = { bg = "#002b36", fg = "#839496", accent = "#268bd2", panel_bg = "#073642", input_bg = "#0d3f4f", border = "#586e75", muted = "#586e75", decoration = "none" }
 
 [[mode_aliases]]
 name = "solarized"

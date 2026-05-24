@@ -81,6 +81,7 @@ body::after {
 	pointer-events: none;
 	z-index: 500;
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+	display: var(--decoration-display, block);
 }
 
 /* Vignette — focuses the eye on centre content */
@@ -91,6 +92,7 @@ body::before {
 	pointer-events: none;
 	z-index: 499;
 	background: radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(0, 0, 0, 0.28) 100%);
+	display: var(--decoration-display, block);
 }
 
 #svelte {
