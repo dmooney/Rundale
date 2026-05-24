@@ -29,6 +29,24 @@ just game-test-one test_movement_errors
 just game-test-all
 ```
 
+## Demo API Profiling
+
+Profile request volume during a human-paced local-inference demo run:
+
+```sh
+just demo-profile                  # 5 minutes, 10s reading pause, macOS vLLM-MLX slots
+just demo-profile 300 10 mlx-community/Qwen2.5-14B-Instruct-4bit http://localhost:8000/v1
+```
+
+The profiler runs `just demo` through a local OpenAI-compatible proxy, writes
+request JSONL plus a Markdown report under `docs/proofs/demo-api-profile/`,
+routes intent/reaction to the small vLLM-MLX slot on `localhost:8001` by
+default, and can compare against a saved baseline:
+
+```sh
+python3 parish/scripts/profile-demo-requests.py --baseline docs/proofs/demo-api-profile/baseline.json
+```
+
 ## Frontend
 
 ```sh

@@ -36,6 +36,10 @@ run-headless:
 demo PAUSE="2" MAX_TURNS="":
     cd parish && just demo {{PAUSE}} {{MAX_TURNS}}
 
+# Profile inference request volume during a human-paced local-inference demo run
+demo-profile DURATION="300" PAUSE="10" MODEL="mlx-community/Qwen2.5-14B-Instruct-4bit" UPSTREAM="http://localhost:8000/v1":
+    cd parish && just demo-profile {{DURATION}} {{PAUSE}} {{MODEL}} {{UPSTREAM}}
+
 # Run the axum web server
 web PORT="3001":
     cd parish && just web {{PORT}}
