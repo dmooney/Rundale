@@ -1,16 +1,17 @@
 //! Persistent JSONL chat-transcript log.
 //!
-//! Sibling of `parish_inference::file_log::InferenceFileLog`. Captures the
-//! user-visible chat stream (NPC dialogue, narrator, arrival reactions,
-//! system messages, slash command responses, …) so a "this NPC line was
-//! weird" report can be followed back to the inference call that produced
-//! it via the shared `parish.request_id`.
+//! Sibling of `parish_inference::file_log::InferenceFileLog`. A
+//! [`GameEvent`]-bus subscriber (alongside `CharacterLogManager` /
+//! `LocationLogManager`) that captures the player-visible chat stream — NPC
+//! dialogue, player travel, off-screen NPC interactions, weather shifts and
+//! festivals — so a "this NPC line was weird" report can be followed back to
+//! the inference call that produced it via the shared `parish.request_id`.
 //!
 //! ## Correlation
 //!
-//! Events that originate from an LLM call carry `parish.request_id`
-//! matching the corresponding inference-log line. Canned / non-LLM events
-//! leave that field absent.
+//! `npc_dialogue` records carry `parish.request_id` (plumbed through
+//! `GameEvent::DialogueOccurred`) matching the corresponding inference-log
+//! line. Non-LLM events (travel, weather, …) leave that field absent.
 //!
 //! ## Lifecycle
 //!
@@ -24,10 +25,10 @@
 //! ## Why this lives in `parish-core`
 //!
 //! Chat events are a core orchestration concern shared across all three
-//! entry points (rule #12). The module references no inference internals
-//! beyond `u64` request ids, so it has no dependency on
-//! `parish-inference` and the backend-agnostic architecture fitness test
-//! is satisfied.
+//! entry points (rule #12). It depends only on `parish-inference` (for the
+//! shared `secret_scrub` redaction) plus `tokio` / `serde_json` / `chrono`
+//! — none of the backend crates (`tauri` / `axum` / `tower*`) the
+//! architecture-fitness test forbids, so the gate is satisfied.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -36,7 +37,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use chrono::Utc;
 use parish_inference::secret_scrub::scrub;
 use serde_json::{Map, Value};
-use tokio::fs::{OpenOptions, create_dir_all};
+use tokio::fs::{File, OpenOptions, create_dir_all};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 
@@ -121,20 +122,14 @@ impl ChatTranscriptLog {
 
     /// Spawn a writer task sharing an existing `Arc<AtomicBool>` enable flag
     /// (so the same `/inference-log off` toggle silences both writers).
+    ///
+    /// The writer task is spawned even when the flag starts `false`, so a
+    /// later `/inference-log on` begins writing without a restart. The file
+    /// is opened lazily on the first accepted record, so a session that
+    /// stays opted-out never creates an empty transcript on disk.
     pub fn spawn_with_flag(saves_dir: &Path, session_id: String, enabled: Arc<AtomicBool>) -> Self {
         let dir = saves_dir.join("inference_logs");
         let path = dir.join(format!("{session_id}.transcript.jsonl"));
-
-        if !enabled.load(Ordering::Relaxed) {
-            return Self {
-                tx: None,
-                enabled,
-                path,
-                session_id,
-                event_counter: Arc::new(AtomicU64::new(0)),
-                dropped: Arc::new(AtomicU64::new(0)),
-            };
-        }
 
         let (tx, rx) = mpsc::channel::<JsonlRecord>(CHANNEL_CAPACITY);
         let writer_enabled = enabled.clone();
@@ -143,11 +138,13 @@ impl ChatTranscriptLog {
             run_writer(dir, writer_path, rx, writer_enabled).await;
         });
 
-        tracing::info!(
-            target: "parish_core::chat_transcript",
-            "Chat transcript logging enabled. File: {}",
-            path.display()
-        );
+        if enabled.load(Ordering::Relaxed) {
+            tracing::info!(
+                target: "parish_core::chat_transcript",
+                "Chat transcript logging enabled. File: {}",
+                path.display()
+            );
+        }
 
         Self {
             tx: Some(tx),
@@ -378,41 +375,34 @@ async fn run_writer(
     mut rx: mpsc::Receiver<JsonlRecord>,
     enabled: Arc<AtomicBool>,
 ) {
-    if let Err(err) = create_dir_all(&dir).await {
-        tracing::warn!(
-            target: "parish_core::chat_transcript",
-            "could not create inference_logs dir {}: {err}; disabling transcript",
-            dir.display()
-        );
-        enabled.store(false, Ordering::Relaxed);
-        return;
-    }
-    let file = match OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .await
-    {
-        Ok(f) => f,
-        Err(err) => {
-            tracing::warn!(
-                target: "parish_core::chat_transcript",
-                "could not open transcript file {}: {err}; disabling transcript",
-                path.display()
-            );
-            enabled.store(false, Ordering::Relaxed);
-            return;
-        }
-    };
-    let mut writer = BufWriter::new(file);
+    // Open lazily on the first accepted record. The task is spawned even
+    // when logging starts disabled (so `/inference-log on` can enable it
+    // mid-session); deferring the open keeps an opted-out session that is
+    // never toggled on from leaving an empty transcript on disk.
+    let mut writer: Option<BufWriter<File>> = None;
 
-    // Note: the `enabled` flag is checked at the send site (`record`) so by
-    // the time a record is on the channel, it was admitted under
+    // Note: the `enabled` flag is checked at the send site (`process_event`)
+    // so by the time a record is on the channel it was admitted under
     // `enabled=true`. The writer task itself does not re-check the flag —
     // doing so would race with a runtime toggle and silently drop accepted
     // records. The flag is still flipped on disk failure below to stop
     // further writes.
     while let Some(JsonlRecord(line)) = rx.recv().await {
+        if writer.is_none() {
+            match open_transcript_file(&dir, &path).await {
+                Ok(file) => writer = Some(BufWriter::new(file)),
+                Err(err) => {
+                    tracing::warn!(
+                        target: "parish_core::chat_transcript",
+                        "could not open transcript file {}: {err}; disabling transcript",
+                        path.display()
+                    );
+                    enabled.store(false, Ordering::Relaxed);
+                    return;
+                }
+            }
+        }
+        let writer = writer.as_mut().expect("writer opened above");
         if let Err(err) = writer.write_all(line.as_bytes()).await {
             tracing::warn!(
                 target: "parish_core::chat_transcript",
@@ -430,7 +420,20 @@ async fn run_writer(
             return;
         }
     }
-    let _ = writer.flush().await;
+    if let Some(mut writer) = writer {
+        let _ = writer.flush().await;
+    }
+}
+
+/// Creates the log directory (if needed) and opens the transcript file for
+/// append. Called lazily by [`run_writer`] on the first record.
+async fn open_transcript_file(dir: &Path, path: &Path) -> std::io::Result<File> {
+    create_dir_all(dir).await?;
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .await
 }
 
 #[cfg(test)]
@@ -667,5 +670,27 @@ mod tests {
         let npcs = NpcManager::new();
         log.process_event(&dialogue_event(), &world, &npcs);
         assert!(log.path().as_os_str().is_empty());
+    }
+
+    /// Regression: starting with the shared flag OFF must still allow a later
+    /// `/inference-log on` to begin capturing the transcript. The writer is
+    /// spawned eagerly; the file opens lazily on the first admitted record.
+    #[tokio::test]
+    async fn start_disabled_then_enable_begins_writing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let flag = Arc::new(AtomicBool::new(false));
+        let log = ChatTranscriptLog::spawn_with_flag(tmp.path(), "sess".to_string(), flag.clone());
+        let path = log.path().to_path_buf();
+        let world = WorldState::new();
+        let npcs = NpcManager::new();
+        // While off: dropped, no file created.
+        log.process_event(&dialogue_event(), &world, &npcs);
+        assert!(!path.exists(), "no file should exist while logging is off");
+        // Flip on at runtime — must now write.
+        flag.store(true, Ordering::Relaxed);
+        log.process_event(&dialogue_event(), &world, &npcs);
+        drop(log);
+        let lines = read_lines(&path, 1000).await;
+        assert_eq!(lines.len(), 1, "record after enable must be written");
     }
 }

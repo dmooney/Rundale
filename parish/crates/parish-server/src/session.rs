@@ -1153,9 +1153,9 @@ fn spawn_session_ticks(
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
-            if !s.chat_transcript_log.is_enabled() {
-                return;
-            }
+            // Always subscribe — even if logging starts disabled — so a
+            // mid-session `/inference-log on` is captured. `process_event`
+            // no-ops internally while the shared flag is off.
             let mut rx = {
                 let world = s.world.lock().await;
                 world.event_bus.subscribe()

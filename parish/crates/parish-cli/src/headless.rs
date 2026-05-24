@@ -440,10 +440,10 @@ pub async fn run_headless(
     // Chat transcript — JSONL paired with the inference log (shares its enable
     // flag). Subscribe a receiver the REPL drains synchronously, mirroring the
     // character/location-log pumps. The writer task itself was spawned at the
-    // top of `run_headless` on `app.chat_transcript_log`.
-    if app.chat_transcript_log.is_enabled() {
-        app.chat_transcript_rx = Some(app.world.event_bus.subscribe());
-    }
+    // top of `run_headless` on `app.chat_transcript_log`. Always subscribe —
+    // even if logging starts disabled — so a mid-session `/inference-log on`
+    // is captured; `process_event` no-ops internally while the flag is off.
+    app.chat_transcript_rx = Some(app.world.event_bus.subscribe());
 
     // Show initial location
     print_location_arrival(&app);

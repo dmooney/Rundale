@@ -35,7 +35,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use chrono::Utc;
 use parish_config::Provider;
 use serde_json::{Map, Value};
-use tokio::fs::{OpenOptions, create_dir_all};
+use tokio::fs::{File, OpenOptions, create_dir_all};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 
@@ -167,6 +167,11 @@ impl InferenceFileLog {
     /// `base_url` (when supplied) is parsed for its host and embedded in
     /// every record as `parish.base_url_host` so OpenAI-compatible
     /// providers (Ollama, Groq, OpenRouter, …) are disambiguated.
+    ///
+    /// The writer task is spawned even when `enabled` is `false` so that a
+    /// later `/inference-log on` can begin writing without a restart. The
+    /// file itself is opened lazily on the first accepted record, so a
+    /// session that stays opted-out never touches the disk.
     pub fn spawn(saves_dir: &Path, enabled: bool, base_url: Option<&str>) -> Self {
         let session_id = format!("{}-{}", Utc::now().format("%Y%m%dT%H%M%SZ"), process::id());
         let dir = saves_dir.join("inference_logs");
@@ -176,17 +181,6 @@ impl InferenceFileLog {
         let enabled_flag = Arc::new(AtomicBool::new(enabled));
         let dropped = Arc::new(AtomicU64::new(0));
 
-        if !enabled {
-            return Self {
-                tx: None,
-                enabled: enabled_flag,
-                path,
-                session_id,
-                base_url_host,
-                dropped,
-            };
-        }
-
         let (tx, rx) = mpsc::channel::<JsonlRecord>(CHANNEL_CAPACITY);
         let writer_enabled = enabled_flag.clone();
         let writer_path = path.clone();
@@ -194,11 +188,13 @@ impl InferenceFileLog {
             run_writer(dir, writer_path, rx, writer_enabled).await;
         });
 
-        tracing::info!(
-            target: "parish_inference::file_log",
-            "Inference logging enabled. File: {}",
-            path.display()
-        );
+        if enabled {
+            tracing::info!(
+                target: "parish_inference::file_log",
+                "Inference logging enabled. File: {}",
+                path.display()
+            );
+        }
 
         Self {
             tx: Some(tx),
@@ -302,14 +298,24 @@ impl InferenceFileLog {
 
 fn extract_host(url: &str) -> Option<String> {
     let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
-    let host = after_scheme
+    // authority = host[:port], up to the first '/', stripping any userinfo.
+    let authority = after_scheme
         .split('/')
         .next()
         .unwrap_or(after_scheme)
         .split('@')
         .next_back()
         .unwrap_or(after_scheme);
-    let host = host.split(':').next().unwrap_or(host);
+    // IPv6 literals are bracketed (`[::1]:8080`) — keep the bracketed host and
+    // drop only the trailing `:port`. Naive `split(':')` would mangle them.
+    let host = if let Some(rest) = authority.strip_prefix('[') {
+        match rest.split_once(']') {
+            Some((inner, _port)) => inner,
+            None => rest,
+        }
+    } else {
+        authority.split(':').next().unwrap_or(authority)
+    };
     if host.is_empty() {
         None
     } else {
@@ -456,39 +462,32 @@ async fn run_writer(
     mut rx: mpsc::Receiver<JsonlRecord>,
     enabled: Arc<AtomicBool>,
 ) {
-    if let Err(err) = create_dir_all(&dir).await {
-        tracing::warn!(
-            target: "parish_inference::file_log",
-            "could not create inference_logs dir {}: {err}; disabling disk log",
-            dir.display()
-        );
-        enabled.store(false, Ordering::Relaxed);
-        return;
-    }
-    let file = match OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .await
-    {
-        Ok(f) => f,
-        Err(err) => {
-            tracing::warn!(
-                target: "parish_inference::file_log",
-                "could not open inference log file {}: {err}; disabling disk log",
-                path.display()
-            );
-            enabled.store(false, Ordering::Relaxed);
-            return;
-        }
-    };
-    let mut writer = BufWriter::new(file);
+    // Open lazily on the first accepted record. The task is spawned even
+    // when logging starts disabled (so `/inference-log on` can enable it
+    // mid-session); deferring the open means an opted-out session that is
+    // never toggled on leaves no empty file on disk.
+    let mut writer: Option<BufWriter<File>> = None;
 
     // Note: the `enabled` flag is checked at the send site (`record`); the
     // writer does not re-check it to avoid racing a runtime toggle that
     // would silently drop already-accepted records. The flag is still
     // flipped on disk failure below to stop further writes.
     while let Some(JsonlRecord(line)) = rx.recv().await {
+        if writer.is_none() {
+            match open_log_file(&dir, &path).await {
+                Ok(file) => writer = Some(BufWriter::new(file)),
+                Err(err) => {
+                    tracing::warn!(
+                        target: "parish_inference::file_log",
+                        "could not open inference log file {}: {err}; disabling disk log",
+                        path.display()
+                    );
+                    enabled.store(false, Ordering::Relaxed);
+                    return;
+                }
+            }
+        }
+        let writer = writer.as_mut().expect("writer opened above");
         if let Err(err) = writer.write_all(line.as_bytes()).await {
             tracing::warn!(
                 target: "parish_inference::file_log",
@@ -508,7 +507,20 @@ async fn run_writer(
             return;
         }
     }
-    let _ = writer.flush().await;
+    if let Some(mut writer) = writer {
+        let _ = writer.flush().await;
+    }
+}
+
+/// Creates the log directory (if needed) and opens the session file for
+/// append. Called lazily by [`run_writer`] on the first record.
+async fn open_log_file(dir: &Path, path: &Path) -> std::io::Result<File> {
+    create_dir_all(dir).await?;
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .await
 }
 
 /// Provided so `parish-core` can wire its chat transcript writer with the
@@ -685,6 +697,42 @@ mod tests {
         assert!(!log.is_enabled());
         log.record(&sample_entry(1), &openai(), InferencePriority::Interactive);
         assert!(log.path().as_os_str().is_empty());
+    }
+
+    /// Regression: a session that starts with logging OFF must still be able
+    /// to begin writing after a runtime `/inference-log on`. The writer task
+    /// is spawned eagerly; the file is opened lazily on the first record, so
+    /// nothing hits disk until the toggle flips and a real call arrives.
+    #[tokio::test]
+    async fn start_disabled_then_enable_begins_writing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = InferenceFileLog::spawn(tmp.path(), false, None);
+        let path = log.path().to_path_buf();
+        assert!(!log.is_enabled());
+        // While off: nothing recorded, no file created.
+        log.record(&sample_entry(1), &openai(), InferencePriority::Interactive);
+        assert!(!path.exists(), "no file should exist while logging is off");
+        // Flip on at runtime — must now write.
+        log.set_enabled(true);
+        log.record(&sample_entry(2), &openai(), InferencePriority::Interactive);
+        drop(log);
+        let lines = read_log_lines(&path, 1000).await;
+        assert_eq!(lines.len(), 1, "record after enable must be written");
+        let v: Value = serde_json::from_str(&lines[0]).unwrap();
+        assert_eq!(v["parish.request_id"], 2);
+    }
+
+    #[test]
+    fn extract_host_handles_ipv6_and_userinfo() {
+        assert_eq!(extract_host("http://[::1]:8080/v1"), Some("::1".into()));
+        assert_eq!(
+            extract_host("https://[2001:db8::1]:443"),
+            Some("2001:db8::1".into())
+        );
+        assert_eq!(
+            extract_host("https://user:pass@api.example.com/v1"),
+            Some("api.example.com".into())
+        );
     }
 
     #[test]

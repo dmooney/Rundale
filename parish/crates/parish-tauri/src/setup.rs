@@ -690,9 +690,9 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
 /// transcript is per-process (not per-branch), so unlike the markdown log
 /// managers it never rebinds on branch switch.
 pub(crate) async fn spawn_chat_transcript_subscriber(state: &Arc<AppState>) {
-    if !state.chat_transcript_log.is_enabled() {
-        return;
-    }
+    // Always subscribe — even if logging starts disabled — so a mid-session
+    // `/inference-log on` is captured. `process_event` no-ops internally
+    // while the shared flag is off.
     let rx = {
         let world = state.world.lock().await;
         world.event_bus.subscribe()
