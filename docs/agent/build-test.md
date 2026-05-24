@@ -84,13 +84,12 @@ System packages on Linux: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindica
 
 ## Quality gates
 
-- `/check` — fmt + clippy + tests + doc-consistency
-- `/verify` — full pre-push checklist (gates + harness walkthrough)
-- `/prove <feature>` — required after implementing any gameplay feature
-- `/rubric` — snapshot baselines + structural rubrics (sister to `/prove`)
+- `/check` — both gate levels: `just check` (fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/parish-engine prove <feature>` — required after implementing any gameplay feature
+- `/parish-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
+- `/parish-engine harness [script]` — fixture-script harness run
 - `just agent-check` — requires proof evidence and a judge verdict for proof-relevant PRs
-- `/feature-scaffold <name>` — depth-first decomposition before coding
-- `/game-test [script]` — harness run
+- `/task-start <task-id>` — acceptance criteria + fixture (and, for features, a design note + plan) before coding
 
 ## Eval baselines
 
