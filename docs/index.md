@@ -35,6 +35,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Weather System](design/weather-system.md) | Weather states and simulation effects | — |
 | [GUI Design](design/gui-design.md) | Tauri 2 + Svelte 5 desktop GUI with map, chat, and sidebars | — |
 | [Map Evolution](design/map-evolution.md) | Brainstorm: minimap, OSM tiles, fog of war, label fixes | RFC |
+| [Graphical World View](design/graphical-world-view.md) | RFC: procedural pixel scene panel — deterministic NPC/location sprites, palette-tinted, alongside chat | RFC |
 | [Player Input](design/player-input.md) | Natural language input, system commands, @mention targeting | [ADR-006](adr/006-natural-language-input.md) |
 | [Input Enrichment Ideas](design/input-enrichment-ideas.md) | Brainstorm: slash autocomplete, emotes, history, whispers, reactions | RFC |
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
