@@ -21,14 +21,16 @@ pub struct CommandOpts {
 // ── Wire types (subset of server's CommandResponse / StateResponse) ──────────
 
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CommandResponse {
     pub outcome: String,
     pub kind: String,
     pub echo: String,
     pub lines: Vec<OutputLine>,
+    #[serde(default)]
     pub kind_detail: serde_json::Value,
+    #[serde(default)]
     pub travel: Option<TravelDetail>,
+    #[serde(default)]
     pub state: Option<StateBundle>,
     pub elapsed_ms: u64,
 }
@@ -39,31 +41,25 @@ pub struct OutputLine {
     pub role: String,
     pub speaker: String,
     pub text: String,
-    pub timestamp: String,
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TravelDetail {
-    pub from_id: String,
-    pub to_id: String,
-    pub from_name: String,
-    pub to_name: String,
+    pub from: String,
+    pub to: String,
     pub duration_minutes: u64,
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StateBundle {
     pub world: WorldSnapshot,
     pub npcs_here: Vec<NpcInfo>,
+    #[serde(default)]
     pub map: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorldSnapshot {
-    pub location_id: String,
     pub location_name: String,
     pub time_label: String,
     pub season: String,

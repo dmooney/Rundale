@@ -47,7 +47,7 @@ pub fn render_response(resp: &CommandResponse) -> String {
     {
         out.push_str(&format!(
             "You travel from {} to {} ({} minutes).\n",
-            travel.from_name, travel.to_name, travel.duration_minutes
+            travel.from, travel.to, travel.duration_minutes
         ));
     }
 
