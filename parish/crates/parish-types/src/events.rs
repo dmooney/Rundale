@@ -43,6 +43,12 @@ pub enum GameEvent {
         /// `player_said` — `None` for non-live event sources.
         #[serde(default)]
         npc_said: Option<String>,
+        /// The inference request id that produced this reply, if it came from
+        /// a live LLM turn. Lets the on-disk chat transcript correlate a
+        /// dialogue line with the matching inference-log entry via
+        /// `parish.request_id`. `None` for synthetic / replay events.
+        #[serde(default)]
+        request_id: Option<u64>,
         /// When the dialogue happened.
         timestamp: DateTime<Utc>,
     },
@@ -319,6 +325,7 @@ mod tests {
                 summary: "hi".into(),
                 player_said: None,
                 npc_said: None,
+                request_id: None,
                 timestamp: ts,
             }
             .event_type(),

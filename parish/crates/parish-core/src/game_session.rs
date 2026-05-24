@@ -642,6 +642,8 @@ pub async fn stream_reaction_texts(
                 max_tokens: Some(100),
                 ttft_ms: None,
                 output_tokens: None,
+                temperature: None,
+                priority: crate::inference::InferencePriority::Interactive,
             };
             let mut log_guard = log.lock().await;
             log_guard.push(entry);

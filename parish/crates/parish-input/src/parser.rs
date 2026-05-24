@@ -6,7 +6,9 @@
 use parish_config::InferenceCategory;
 use parish_types::GameSpeed;
 
-use crate::commands::{Command, FlagSubcommand, validate_branch_name, validate_flag_name};
+use crate::commands::{
+    Command, FlagSubcommand, InferenceLogSub, validate_branch_name, validate_flag_name,
+};
 use crate::intent_types::InputResult;
 
 const SPINNER_DEFAULT_SECS: u64 = 30;
@@ -56,6 +58,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         ("/cloud", parse_cloud_command),
         ("/weather", parse_weather_command),
         ("/flag", parse_flag_command),
+        ("/inference-log", parse_inference_log_command),
     ];
 
     for (prefix, handler) in handlers {
@@ -76,6 +79,18 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     }
 
     None
+}
+
+/// Parses `/inference-log [on|off|status|path]`.
+fn parse_inference_log_command(_trimmed: &str, rest: &str) -> Option<Command> {
+    let sub = match rest.to_lowercase().as_str() {
+        "on" | "enable" | "start" => InferenceLogSub::On,
+        "off" | "disable" | "stop" => InferenceLogSub::Off,
+        "path" | "where" => InferenceLogSub::Path,
+        // bare command and "status" both report status
+        _ => InferenceLogSub::Status,
+    };
+    Some(Command::InferenceLog(sub))
 }
 
 /// Returns `Some(Command)` if `keyword` is a recognised zero-argument command.

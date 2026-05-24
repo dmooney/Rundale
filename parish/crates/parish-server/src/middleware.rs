@@ -671,6 +671,8 @@ mod tests {
             data_dir.join("parish-flags.json"),
             parish_core::config::InferenceConfig::default(),
             session_store,
+            parish_core::inference::file_log::InferenceFileLog::disabled(),
+            parish_core::chat_transcript::ChatTranscriptLog::disabled(),
         );
 
         let tile_cache = parish_core::tile_cache::TileCache::new(

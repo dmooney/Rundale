@@ -108,6 +108,8 @@ async fn new_game_with_missing_world_file_returns_500() {
         data_dir.join("parish-flags.json"),
         InferenceConfig::default(),
         session_store,
+        parish_core::inference::file_log::InferenceFileLog::disabled(),
+        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     );
 
     let req = Request::builder()

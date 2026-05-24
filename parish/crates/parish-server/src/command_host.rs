@@ -9,7 +9,9 @@
 use std::sync::Arc;
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
-use parish_core::game_loop::system_command::{BoxFuture, SystemCommandHost};
+use parish_core::game_loop::system_command::{
+    BoxFuture, SystemCommandHost, apply_inference_log_sub,
+};
 use parish_core::input::Command;
 use parish_core::ipc::{
     CommandResult, TextPresentation, compute_name_hints, handle_command, snapshot_from_world,
@@ -208,6 +210,14 @@ impl SystemCommandHost for AppStateCommandHost {
 
     fn handle_debug(&self, _sub: Option<String>) -> BoxFuture<'_, String> {
         Box::pin(async move { "Debug commands are not available in web mode.".to_string() })
+    }
+
+    fn inference_log_toggle(
+        &self,
+        sub: parish_core::input::InferenceLogSub,
+    ) -> BoxFuture<'_, String> {
+        let file_log = self.state.inference_file_log.clone();
+        Box::pin(async move { apply_inference_log_sub(&file_log, sub) })
     }
 
     fn emit_text_log(&self, msg: String, presentation: TextPresentation) {

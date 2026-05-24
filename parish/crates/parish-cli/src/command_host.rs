@@ -27,7 +27,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use parish_core::game_loop::system_command::{BoxFuture, SystemCommandHost};
+use parish_core::game_loop::system_command::{
+    BoxFuture, SystemCommandHost, apply_inference_log_sub,
+};
 use parish_core::input::Command;
 use parish_core::ipc::{CommandResult, TextPresentation, handle_command};
 use parish_core::persistence::snapshot::GameSnapshot;
@@ -367,6 +369,17 @@ impl SystemCommandHost for CliCommandHost {
             let app = self.app.lock().await;
             let lines = crate::debug::handle_debug(sub.as_deref(), &app);
             lines.join("\n")
+        })
+    }
+
+    fn inference_log_toggle(
+        &self,
+        sub: parish_core::input::InferenceLogSub,
+    ) -> BoxFuture<'_, String> {
+        let app = Arc::clone(&self.app);
+        Box::pin(async move {
+            let app = app.lock().await;
+            apply_inference_log_sub(&app.inference_file_log, sub)
         })
     }
 

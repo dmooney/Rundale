@@ -108,6 +108,7 @@ mod tests {
             summary: "discussed farming".to_string(),
             player_said: None,
             npc_said: None,
+            request_id: None,
             timestamp: test_time(),
         };
         let journal = to_journal_event(&event).unwrap();
