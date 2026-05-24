@@ -317,7 +317,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def parse_json(raw: bytes) -> dict[str, Any]:
@@ -958,7 +958,7 @@ def write_baseline(summary: dict[str, Any], baseline_path: Path | None) -> None:
 
 
 def make_run_dir(report_dir: Path) -> Path:
-    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = report_dir / stamp
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
@@ -1079,6 +1079,9 @@ def self_test() -> int:
         )
     with tempfile.TemporaryDirectory() as tmp:
         args = parse_args(["--report-dir", tmp, "--duration-secs", "60"])
+        if not args.quiet or parse_args(["--verbose-proxy"]).quiet:
+            print("proxy quiet flag parsing failed", file=sys.stderr)
+            return 1
         args.report_dir.mkdir(parents=True, exist_ok=True)
         run_dir = make_run_dir(args.report_dir)
         events = recorder.events()
@@ -1128,8 +1131,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--regression-threshold", type=float, default=0.25)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--quiet", action="store_true", default=True)
+    parser.add_argument("--quiet", action="store_true", dest="quiet", help="Suppress proxy request logging")
+    parser.add_argument("--verbose-proxy", action="store_false", dest="quiet", help="Print proxy request logging")
     parser.add_argument("--verbose", action="store_true")
+    parser.set_defaults(quiet=True)
     args = parser.parse_args(argv)
     args.report_dir = args.report_dir.resolve()
     if args.duration_secs <= 0:
