@@ -31,10 +31,10 @@ cargo run --manifest-path parish/Cargo.toml -p parish -- --script parish/testing
 
 ## Measured Result
 
-- Observed window: 300.4 seconds.
-- Gameplay requests: 67 total, 13.38 requests/minute.
-- Observed requests including demo auto-player: 81 total, 16.18 requests/minute.
-- Category rates: `demo-player` 2.80/minute, `intent` 2.40/minute, `dialogue` 1.40/minute, `simulation` 5.39/minute, `reaction` 3.79/minute, `travel` 0.40/minute, `unknown` 0.00/minute.
+- Observed API activity window: 285.0 seconds, measured from first proxied request start through last request end.
+- Gameplay requests: 67 total, 14.10 requests/minute.
+- Observed requests including demo auto-player: 81 total, 17.05 requests/minute.
+- Category rates: `demo-player` 2.95/minute, `intent` 2.53/minute, `dialogue` 1.47/minute, `simulation` 5.68/minute, `reaction` 4.00/minute, `travel` 0.42/minute, `unknown` 0.00/minute.
 - HTTP failures: 0. The profiler recorded 1 cancelled simulation stream as a client-disconnect warning.
 
 ## Notes

@@ -1,12 +1,12 @@
 # Demo API Request Profile
 
-Generated: 2026-05-24T02:17:29Z
+Generated: 2026-05-24T13:28:33Z
 
 ## Configuration
 
 - Command: `just demo 10 30`
 - Duration target: 300s
-- Observed window: 300.4s
+- Observed API activity window: 285.0s
 - Human reading pause: 10s between demo turns
 - Provider forced for run: `custom`
 - Parish base URL: `http://127.0.0.1:53496`
@@ -24,15 +24,15 @@ Generated: 2026-05-24T02:17:29Z
 
 | Category | Requests | Req/min | p50 ms | p95 ms | Errors | Est. input tok | Est. output tok | Prompt chars | Response chars |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| demo-player | 14 | 2.80 | 2089 | 4107 | 0 | 20809 | 373 | 83219 | 1188 |
-| intent | 12 | 2.40 | 1081 | 1574 | 0 | 5962 | 412 | 23827 | 1254 |
-| dialogue | 7 | 1.40 | 6555 | 26290 | 0 | 16027 | 1107 | 64096 | 4041 |
-| simulation | 27 | 5.39 | 2272 | 6240 | 1 | 25787 | 1572 | 103092 | 6032 |
-| reaction | 19 | 3.79 | 332 | 549 | 0 | 10467 | 194 | 41844 | 618 |
-| travel | 2 | 0.40 | 281 | 590 | 0 | 558 | 64 | 2229 | 284 |
+| demo-player | 14 | 2.95 | 2089 | 4107 | 0 | 20809 | 373 | 83219 | 1188 |
+| intent | 12 | 2.53 | 1081 | 1574 | 0 | 5962 | 412 | 23827 | 1254 |
+| dialogue | 7 | 1.47 | 6555 | 26290 | 0 | 16027 | 1107 | 64096 | 4041 |
+| simulation | 27 | 5.68 | 2272 | 6240 | 1 | 25787 | 1572 | 103092 | 6032 |
+| reaction | 19 | 4.00 | 332 | 549 | 0 | 10467 | 194 | 41844 | 618 |
+| travel | 2 | 0.42 | 281 | 590 | 0 | 558 | 64 | 2229 | 284 |
 | unknown | 0 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| total_gameplay (excludes demo-player) | 67 | 13.38 | 1437 | 7032 | 1 | 58801 | 3349 | 235088 | 12229 |
-| total_observed (includes demo-player) | 81 | 16.18 | 1674 | 6555 | 1 | 79610 | 3722 | 318307 | 13417 |
+| total_gameplay (excludes demo-player) | 67 | 14.10 | 1437 | 7032 | 1 | 58801 | 3349 | 235088 | 12229 |
+| total_observed (includes demo-player) | 81 | 17.05 | 1674 | 6555 | 1 | 79610 | 3722 | 318307 | 13417 |
 
 ## Cost Examples
 
@@ -41,14 +41,14 @@ Static price table last checked: 2026-05-20. Verify provider pages before budget
 
 | Example model | Input $/1M | Output $/1M | Estimated run cost | Estimated per hour |
 |---|---:|---:|---:|---:|
-| OpenAI GPT-5.4 mini | $0.75 | $4.50 | $0.059171 | $0.7091 |
-| OpenAI GPT-5.4 | $2.50 | $15.00 | $0.197238 | $2.3636 |
-| Anthropic Claude Sonnet 4.6 | $3.00 | $15.00 | $0.226638 | $2.7159 |
-| Anthropic Claude Haiku 4.5 | $1.00 | $5.00 | $0.075546 | $0.9053 |
-| Google Gemini 2.5 Flash | $0.30 | $2.50 | $0.026013 | $0.3117 |
-| Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | $0.007220 | $0.0865 |
-| xAI Grok 4.3 | $1.25 | $2.50 | $0.081874 | $0.9811 |
-| Mistral Large 3 | $0.50 | $1.50 | $0.034424 | $0.4125 |
+| OpenAI GPT-5.4 mini | $0.75 | $4.50 | $0.059171 | $0.7474 |
+| OpenAI GPT-5.4 | $2.50 | $15.00 | $0.197238 | $2.4913 |
+| Anthropic Claude Sonnet 4.6 | $3.00 | $15.00 | $0.226638 | $2.8626 |
+| Anthropic Claude Haiku 4.5 | $1.00 | $5.00 | $0.075546 | $0.9542 |
+| Google Gemini 2.5 Flash | $0.30 | $2.50 | $0.026013 | $0.3286 |
+| Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | $0.007220 | $0.0912 |
+| xAI Grok 4.3 | $1.25 | $2.50 | $0.081874 | $1.0341 |
+| Mistral Large 3 | $0.50 | $1.50 | $0.034424 | $0.4348 |
 
 Price source URLs checked:
 - OpenAI: https://openai.com/api/pricing/

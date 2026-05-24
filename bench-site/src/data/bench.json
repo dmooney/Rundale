@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-24T02:35:33.381516+00:00",
+  "generated_utc": "2026-05-24T13:28:41.312456+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -320,14 +320,14 @@
       "price_input_usd_per_mtok": 0.13,
       "price_output_usd_per_mtok": 0.39,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.0017875970029037676,
-      "gameplay_cost_usd_per_hour": 0.10725582017422605,
+      "gameplay_cost_usd_per_minute": 0.0018841552754933057,
+      "gameplay_cost_usd_per_hour": 0.11304931652959833,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0005023592088685524,
-        "intent": 0.00018689175033263593,
-        "reaction": 0.00028688065426858776,
-        "simulation": 0.0007919920895243671,
-        "travel": 1.9473299909624473e-05
+        "dialogue": 0.0005294944845201674,
+        "intent": 0.00019698683582676063,
+        "reaction": 0.00030237670867600414,
+        "simulation": 0.0008347720829707805,
+        "travel": 2.0525163499593005e-05
       },
       "is_local": false
     },
@@ -792,8 +792,8 @@
     "source": "docs/proofs/demo-api-profile/20260524T021229Z/summary.json",
     "label": "Five-minute vLLM-MLX demo run with human-readable turn delay",
     "scope": "gameplay_excluding_demo_player",
-    "observed_seconds": 300.4113338340103,
-    "observed_minutes": 5.006855563900172,
+    "observed_seconds": 285.016,
+    "observed_minutes": 4.750266666666667,
     "categories": {
       "demo-player": {
         "category": "demo-player",
@@ -804,13 +804,13 @@
         "p95_ms": 4107,
         "prompt_chars": 83219,
         "requests": 14,
-        "requests_per_minute": 2.796166140869155,
+        "requests_per_minute": 2.947202964044124,
         "response_chars": 1188,
         "included_in_gameplay_cost": false,
         "input_tokens_per_request_estimated": 1486.357142857143,
         "output_tokens_per_request_estimated": 26.642857142857142,
-        "input_tokens_per_minute_estimated": 4156.101516096161,
-        "output_tokens_per_minute_estimated": 74.49785503887105
+        "input_tokens_per_minute_estimated": 4380.596177056726,
+        "output_tokens_per_minute_estimated": 78.52190754203272
       },
       "dialogue": {
         "category": "dialogue",
@@ -821,13 +821,13 @@
         "p95_ms": 26290,
         "prompt_chars": 64096,
         "requests": 7,
-        "requests_per_minute": 1.3980830704345775,
+        "requests_per_minute": 1.473601482022062,
         "response_chars": 4041,
         "included_in_gameplay_cost": true,
         "input_tokens_per_request_estimated": 2289.5714285714284,
         "output_tokens_per_request_estimated": 158.14285714285714,
-        "input_tokens_per_minute_estimated": 3201.011052836425,
-        "output_tokens_per_minute_estimated": 221.09685128158247
+        "input_tokens_per_minute_estimated": 3373.915850338227,
+        "output_tokens_per_minute_estimated": 233.0395486569175
       },
       "intent": {
         "category": "intent",
@@ -838,13 +838,13 @@
         "p95_ms": 1574,
         "prompt_chars": 23827,
         "requests": 12,
-        "requests_per_minute": 2.3967138350307042,
+        "requests_per_minute": 2.5261739691806775,
         "response_chars": 1254,
         "included_in_gameplay_cost": true,
         "input_tokens_per_request_estimated": 496.8333333333333,
         "output_tokens_per_request_estimated": 34.333333333333336,
-        "input_tokens_per_minute_estimated": 1190.7673237044216,
-        "output_tokens_per_minute_estimated": 82.28717500272084
+        "input_tokens_per_minute_estimated": 1255.0874336879333,
+        "output_tokens_per_minute_estimated": 86.73197294186993
       },
       "reaction": {
         "category": "reaction",
@@ -855,13 +855,13 @@
         "p95_ms": 549,
         "prompt_chars": 41844,
         "requests": 19,
-        "requests_per_minute": 3.7947969054652817,
+        "requests_per_minute": 3.9997754512027397,
         "response_chars": 618,
         "included_in_gameplay_cost": true,
         "input_tokens_per_request_estimated": 550.8947368421053,
         "output_tokens_per_request_estimated": 10.210526315789474,
-        "input_tokens_per_minute_estimated": 2090.533642605532,
-        "output_tokens_per_minute_estimated": 38.74687366632972
+        "input_tokens_per_minute_estimated": 2203.455244617846,
+        "output_tokens_per_minute_estimated": 40.83981250175429
       },
       "simulation": {
         "category": "simulation",
@@ -872,13 +872,13 @@
         "p95_ms": 6240,
         "prompt_chars": 103092,
         "requests": 27,
-        "requests_per_minute": 5.392606128819085,
+        "requests_per_minute": 5.683891430656525,
         "response_chars": 6032,
         "included_in_gameplay_cost": true,
         "input_tokens_per_request_estimated": 955.074074074074,
         "output_tokens_per_request_estimated": 58.22222222222222,
-        "input_tokens_per_minute_estimated": 5150.338305328064,
-        "output_tokens_per_minute_estimated": 313.96951238902227
+        "input_tokens_per_minute_estimated": 5428.537345271844,
+        "output_tokens_per_minute_estimated": 330.92878996266876
       },
       "travel": {
         "category": "travel",
@@ -889,13 +889,13 @@
         "p95_ms": 590,
         "prompt_chars": 2229,
         "requests": 2,
-        "requests_per_minute": 0.3994523058384507,
+        "requests_per_minute": 0.42102899486344625,
         "response_chars": 284,
         "included_in_gameplay_cost": true,
         "input_tokens_per_request_estimated": 279.0,
         "output_tokens_per_request_estimated": 32.0,
-        "input_tokens_per_minute_estimated": 111.44719332892775,
-        "output_tokens_per_minute_estimated": 12.782473786830423
+        "input_tokens_per_minute_estimated": 117.4670895669015,
+        "output_tokens_per_minute_estimated": 13.47292783563028
       },
       "unknown": {
         "category": "unknown",
@@ -924,13 +924,13 @@
       "p95_ms": 7032,
       "prompt_chars": 235088,
       "requests": 67,
-      "requests_per_minute": 13.381652245588098,
+      "requests_per_minute": 14.10447132792545,
       "response_chars": 12229,
       "included_in_gameplay_cost": true,
       "input_tokens_per_request_estimated": 877.6268656716418,
       "output_tokens_per_request_estimated": 49.985074626865675,
-      "input_tokens_per_minute_estimated": 11744.09751780337,
-      "output_tokens_per_minute_estimated": 668.8828861264857
+      "input_tokens_per_minute_estimated": 12378.462963482752,
+      "output_tokens_per_minute_estimated": 705.0130518988408
     },
     "total_observed": {
       "category": "total_observed",
@@ -941,13 +941,13 @@
       "p95_ms": 6555,
       "prompt_chars": 318307,
       "requests": 81,
-      "requests_per_minute": 16.177818386457254,
+      "requests_per_minute": 17.051674291969572,
       "response_chars": 13417,
       "included_in_gameplay_cost": false,
       "input_tokens_per_request_estimated": 982.8395061728395,
       "output_tokens_per_request_estimated": 45.95061728395062,
-      "input_tokens_per_minute_estimated": 15900.199033899531,
-      "output_tokens_per_minute_estimated": 743.3807411653568
+      "input_tokens_per_minute_estimated": 16759.059140539477,
+      "output_tokens_per_minute_estimated": 783.5349594408735
     }
   },
   "cloud_cost_examples": [
@@ -959,14 +959,14 @@
       "price_input_usd_per_mtok": 0.13,
       "price_output_usd_per_mtok": 0.39,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.0017875970029037676,
-      "gameplay_cost_usd_per_hour": 0.10725582017422605,
+      "gameplay_cost_usd_per_minute": 0.0018841552754933057,
+      "gameplay_cost_usd_per_hour": 0.11304931652959833,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0005023592088685524,
-        "intent": 0.00018689175033263593,
-        "reaction": 0.00028688065426858776,
-        "simulation": 0.0007919920895243671,
-        "travel": 1.9473299909624473e-05
+        "dialogue": 0.0005294944845201674,
+        "intent": 0.00019698683582676063,
+        "reaction": 0.00030237670867600414,
+        "simulation": 0.0008347720829707805,
+        "travel": 2.0525163499593005e-05
       }
     },
     {
@@ -977,14 +977,14 @@
       "price_input_usd_per_mtok": 0.2,
       "price_output_usd_per_mtok": 0.5,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.002683260946623917,
-      "gameplay_cost_usd_per_hour": 0.16099565679743502,
+      "gameplay_cost_usd_per_minute": 0.002828199118645971,
+      "gameplay_cost_usd_per_hour": 0.16969194711875826,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0007507506362080762,
-        "intent": 0.0002792970522422448,
-        "reaction": 0.00043748016535427126,
-        "simulation": 0.001187052417260124,
-        "travel": 2.8680675559200763e-05
+        "dialogue": 0.0007913029443961042,
+        "intent": 0.00029438347320852163,
+        "reaction": 0.00046111095517444635,
+        "simulation": 0.0012511718640357034,
+        "travel": 3.0229881831195442e-05
       }
     },
     {
@@ -995,14 +995,14 @@
       "price_input_usd_per_mtok": 0.27,
       "price_output_usd_per_mtok": 1.1,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.003906677504546045,
-      "gameplay_cost_usd_per_hour": 0.2344006502727627,
+      "gameplay_cost_usd_per_minute": 0.004117699357229068,
+      "gameplay_cost_usd_per_hour": 0.2470619614337441,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0011074795206755755,
-        "intent": 0.00041202306990318683,
-        "reaction": 0.0006070656445364564,
-        "simulation": 0.001735957806066502,
-        "travel": 4.415146336432396e-05
+        "dialogue": 0.0011673007831139305,
+        "intent": 0.0004342787773317989,
+        "reaction": 0.000639856709798748,
+        "simulation": 0.0018297267521823336,
+        "travel": 4.6536334802256715e-05
       }
     },
     {
@@ -1013,14 +1013,14 @@
       "price_input_usd_per_mtok": 0.28,
       "price_output_usd_per_mtok": 1.1,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.004024118479724078,
-      "gameplay_cost_usd_per_hour": 0.2414471087834447,
+      "gameplay_cost_usd_per_minute": 0.004241483986863896,
+      "gameplay_cost_usd_per_hour": 0.25448903921183375,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0011394896312039399,
-        "intent": 0.00042393074314023104,
-        "reaction": 0.0006279709809625117,
-        "simulation": 0.0017874611891197825,
-        "travel": 4.526593529761324e-05
+        "dialogue": 0.0012010399416173129,
+        "intent": 0.00044682965166867826,
+        "reaction": 0.0006618912622449266,
+        "simulation": 0.001884012125635052,
+        "travel": 4.771100569792574e-05
       }
     },
     {
@@ -1031,14 +1031,14 @@
       "price_input_usd_per_mtok": 0.25,
       "price_output_usd_per_mtok": 2.0,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.004273790151703813,
-      "gameplay_cost_usd_per_hour": 0.2564274091022288,
+      "gameplay_cost_usd_per_minute": 0.004504641844668369,
+      "gameplay_cost_usd_per_hour": 0.27027851068010217,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0012424464657722711,
-        "intent": 0.00046226618093154706,
-        "reaction": 0.0006001271579840425,
-        "simulation": 0.0019155236011100605,
-        "travel": 5.342674590589279e-05
+        "dialogue": 0.0013095580598983917,
+        "intent": 0.00048723580430572313,
+        "reaction": 0.00063254343615797,
+        "simulation": 0.0020189919162432986,
+        "travel": 5.6312628062985936e-05
       }
     },
     {
@@ -1049,14 +1049,14 @@
       "price_input_usd_per_mtok": 0.59,
       "price_output_usd_per_mtok": 0.79,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.007457435015543912,
-      "gameplay_cost_usd_per_hour": 0.4474461009326347,
+      "gameplay_cost_usd_per_minute": 0.007860253459454907,
+      "gameplay_cost_usd_per_hour": 0.47161520756729447,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.002063263033685941,
-        "intent": 0.0007675595892377582,
-        "reaction": 0.0012640248793336641,
-        "simulation": 0.0032867355149308855,
-        "travel": 7.58519983556634e-05
+        "dialogue": 0.0021747115951385185,
+        "intent": 0.0008090198444999578,
+        "reaction": 0.0013323020462009149,
+        "simulation": 0.0034642707777808963,
+        "travel": 7.994919583461982e-05
       }
     },
     {
@@ -1067,14 +1067,14 @@
       "price_input_usd_per_mtok": 0.88,
       "price_output_usd_per_mtok": 0.88,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.010923422755458273,
-      "gameplay_cost_usd_per_hour": 0.6554053653274964,
+      "gameplay_cost_usd_per_minute": 0.011513458893535802,
+      "gameplay_cost_usd_per_hour": 0.6908075336121481,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.0030114549556238463,
-        "intent": 0.0011202879588622856,
-        "reaction": 0.0018737668543192382,
-        "simulation": 0.004808590879591036,
-        "travel": 0.0001093221070618672
+        "dialogue": 0.0031741207511157272,
+        "intent": 0.001180801077834227,
+        "reaction": 0.0019749796502652483,
+        "simulation": 0.005068330199006371,
+        "travel": 0.00011522721531422798
       }
     },
     {
@@ -1085,14 +1085,14 @@
       "price_input_usd_per_mtok": 1.0,
       "price_output_usd_per_mtok": 5.0,
       "price_source": "rundale-bench/v1/models.toml",
-      "gameplay_cost_usd_per_minute": 0.015088511948435798,
-      "gameplay_cost_usd_per_hour": 0.9053107169061478,
+      "gameplay_cost_usd_per_minute": 0.015903528222976956,
+      "gameplay_cost_usd_per_hour": 0.9542116933786173,
       "gameplay_cost_by_category_usd_per_minute": {
-        "dialogue": 0.004306495309244337,
-        "intent": 0.0016022031987180257,
-        "reaction": 0.0022842680109371803,
-        "simulation": 0.006720185867273176,
-        "travel": 0.00017535956226307986
+        "dialogue": 0.004539113593622815,
+        "intent": 0.001688747298397283,
+        "reaction": 0.0024076543071266175,
+        "simulation": 0.007083181295085188,
+        "travel": 0.0001848317287450529
       }
     }
   ],
@@ -6563,8 +6563,8 @@
       ],
       "perf_best_p50_ms": 2339,
       "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": 0.0017875970029037676,
-      "perf_best_gameplay_usd_per_hour": 0.10725582017422605,
+      "perf_best_gameplay_usd_per_minute": 0.0018841552754933057,
+      "perf_best_gameplay_usd_per_hour": 0.11304931652959833,
       "perf_mean_tok_s": 43.2
     },
     {

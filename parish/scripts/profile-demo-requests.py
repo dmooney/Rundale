@@ -725,10 +725,23 @@ def summarize(events: list[ApiEvent], observed_seconds: float) -> dict[str, Any]
     gameplay_events = [e for e in events if e.category in GAMEPLAY_CATEGORIES]
     return {
         "observed_seconds": observed_seconds,
+        "observed_window_basis": "api_activity_first_request_start_to_last_request_end",
         "categories": rows,
         "total_gameplay": summarize_events("total_gameplay", gameplay_events, observed_seconds),
         "total_observed": summarize_events("total_observed", events, observed_seconds),
     }
+
+
+def observed_api_activity_seconds(events: list[ApiEvent], fallback_seconds: float) -> float:
+    if not events:
+        return max(fallback_seconds, 1.0)
+
+    starts = [max(0.0, event.elapsed_since_run_start_secs) for event in events]
+    ends = [
+        max(0.0, event.elapsed_since_run_start_secs) + max(0, event.duration_ms) / 1000.0
+        for event in events
+    ]
+    return max(max(ends) - min(starts), 1.0)
 
 
 def summarize_events(category: str, events: list[ApiEvent], observed_seconds: float) -> dict[str, Any]:
@@ -826,7 +839,7 @@ def render_report(
         "",
         f"- Command: `{' '.join(command)}`",
         f"- Duration target: {args.duration_secs:.0f}s",
-        f"- Observed window: {observed_seconds:.1f}s",
+        f"- Observed API activity window: {observed_seconds:.1f}s",
         f"- Human reading pause: {args.pause:g}s between demo turns",
         f"- Provider forced for run: `custom`",
         f"- Parish base URL: `{proxy_url}`",
@@ -1085,7 +1098,11 @@ def self_test() -> int:
         args.report_dir.mkdir(parents=True, exist_ok=True)
         run_dir = make_run_dir(args.report_dir)
         events = recorder.events()
-        summary = summarize(events, 60.0)
+        observed_seconds = observed_api_activity_seconds(events, 60.0)
+        if round(observed_seconds, 3) != 5.106:
+            print(f"activity window failed: {observed_seconds}", file=sys.stderr)
+            return 1
+        summary = summarize(events, observed_seconds)
         report, jsonl, summary_json = write_outputs(
             args,
             run_dir,
@@ -1176,8 +1193,9 @@ def main(argv: list[str] | None = None) -> int:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-    observed_seconds = max(time.monotonic() - started, 1.0)
+    elapsed_seconds = max(time.monotonic() - started, 1.0)
     events = recorder.events()
+    observed_seconds = observed_api_activity_seconds(events, elapsed_seconds)
     summary = summarize(events, observed_seconds)
     regressions = check_regressions(summary, args.baseline, args.regression_threshold)
     write_baseline(summary, args.write_baseline)
