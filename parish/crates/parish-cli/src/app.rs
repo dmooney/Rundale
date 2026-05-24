@@ -392,6 +392,10 @@ impl App {
     ///
     /// Used to pass config state to the shared [`parish_core::ipc::handle_command`]
     /// function without migrating all App fields to a nested GameConfig struct.
+    ///
+    /// The theme registry is loaded once from the asset mods so `/theme
+    /// <name> [mode]` behaves identically to the server/Tauri runtimes — without
+    /// it the headless CLI would treat every named theme as unknown (#1064 review).
     pub fn snapshot_config(&self) -> parish_core::ipc::GameConfig {
         use parish_core::ipc::GameConfig;
 
@@ -407,6 +411,7 @@ impl App {
             improv_enabled: self.improv_enabled,
             reveal_unexplored_locations: self.reveal_unexplored_locations,
             flags: self.flags.clone(),
+            theme_registry: cli_theme_registry().clone(),
             ..GameConfig::default()
         };
 
@@ -468,6 +473,23 @@ impl Default for App {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Process-wide cache of the asset-mod theme registry for headless CLI sessions.
+///
+/// Loaded once (the asset mods don't change mid-process) so every
+/// `snapshot_config` call sees the same `/theme` registry the server and Tauri
+/// runtimes use. On discovery failure (e.g. no `mods/` dir) this is empty,
+/// matching the prior behaviour where only `default` was known.
+fn cli_theme_registry() -> &'static parish_core::themes::ThemeRegistry {
+    use std::sync::OnceLock;
+    static REGISTRY: OnceLock<parish_core::themes::ThemeRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        parish_core::game_mod::discover_mods()
+            .ok()
+            .map(|d| parish_core::themes::load_asset_themes(&d.auxiliary))
+            .unwrap_or_default()
+    })
 }
 
 #[cfg(test)]
