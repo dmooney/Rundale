@@ -1,0 +1,863 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "qwen3.6-plus",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T12:11:09.877033+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.9,
+        "mean_score": 0.9
+      },
+      "results": [
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0001",
+          "pred": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0002",
+          "pred": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0003",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0004",
+          "pred": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0005",
+          "pred": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0006",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "agus mar sin"
+          },
+          "gold": {
+            "intent": "unknown",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0007",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0008",
+          "pred": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0009",
+          "pred": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0010",
+          "pred": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          }
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.2,
+        "authenticity": 4.5,
+        "language": 4.9,
+        "responsiveness": 4.5,
+        "craft": 4.0,
+        "overall": 4.42,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "'Tis a heavy burden, carrying those shadows into the night. I'll brew ye a tea of valerian and lemon balm to quiet the mind; it works better than any prayer for a restless head. Come back to me if the visions don't fade with the dawn.\n---\n{\"action\": \"reaches for dried herbs in the cupboard\", \"mood\": \"concerned\", \"internal_thought\": \"Troubled sleep often means a troubled heart, or perhaps something she won't speak of yet.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAR-uh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "f542070d8130ab95de26166b54f620efc2d41f69b7d83e4344832568812776d1",
+          "cache_key": "42582611702f0d7421434a516f59e0a45ea981f2802f0ae5a72542128387f869",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.2,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Mhuise, old Maura is no witch, just a woman with stiff joints and a sharp tongue who prefers her own company. I bring her comfrey salve for the rheumatism now and then, for she has no kin to tend to her. Leave the talk of the *s\u00eddhe* to the children; she is merely an elder who has seen too many winters.\n---\n{\"action\": \"stirs a pot of simmering herbs, shaking head slightly\", \"mood\": \"pragmatic\", \"internal_thought\": \"Folk love a mystery where there is only loneliness\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"wish-eh\", \"meaning\": \"Well indeed / an expression of mild surprise or resignation\"}, {\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairy folk or mounds\"}]}",
+          "response_sha256": "83dfd96a86cb355f08f4ed7dffe51155a95dbab9e2c0e1f4b223c9a18c4e2a2c",
+          "cache_key": "0229dede09307fd9b9e1cd531b4043d2cda0e1c5ba8e1714f4209dec1f317377",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.4,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Dia dhuit, mo chara. Bring her in by the fire and I\u2019ll brew a strong tea of thyme and honey to soothe her chest; 'tis the best remedy for a cough that rattles the bones. If she\u2019s feverish as well, we may need to add a touch of elderflower, but let us see how she fares with the warmth first.\n---\n{\"action\": \"wipes hands on apron and moves toward the herb drying rack\", \"mood\": \"concerned but capable\", \"internal_thought\": \"Hope it's just a winter chill and not the consumption taking hold\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gwit\", \"meaning\": \"Hello (God be with you)\"}, {\"word\": \"mo chara\", \"pronunciation\": \"muh khah-ruh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "4f74e6eb4ac773e8b418085cfd9bc4bc89c1f0c699c588f903187de37f5215fc",
+          "cache_key": "50fff880bb31923f13fa26da6846332f274ecc81c03629f18710c7db40a29d66",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "I hear the wind carry many tales, but I keep my ear to the mothers, not the market square. Unless this stranger is with child or in need of a poultice, his business is none of mine. *Dia dhuit* to him, if he crosses my path, but I\u2019ve no time for idle gossip when there\u2019s linens to boil.\n---\n{\"action\": \"folds a clean sheet with sharp, practiced movements\", \"mood\": \"indifferent\", \"internal_thought\": \"Let the priest worry about new souls; I worry about new births.\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gwit\", \"meaning\": \"God be with you (hello)\"}]}",
+          "response_sha256": "878f2b9d54a2aadb4c2d0e321c8b9faa15a2b87e6dc9ec2073891b9de401994e",
+          "cache_key": "d62afee12682441f2de55ff252889c3f76ec8618590487bb5d9d807626689de4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ye'd best ask the right person hereabouts, for I tend to mothers and babes, not beasts in the field. A wolf is a rare sight indeed, so mayhap 'twas a thief or a stray dog that took yer ewe. I can brew a tea for the shock of it, if ye're feeling unsettled by the loss.\n---\n{\"action\": \"shakes head gently while wiping hands on apron\", \"mood\": \"practical\", \"internal_thought\": \"He looks pale, but I cannot help with livestock matters\", \"language_hints\": []}",
+          "response_sha256": "39d2d6a1be8931b7a8cbca6d9d236a78c8e5ba7878c22ee0231504486ba24a31",
+          "cache_key": "6814d5f1a0c69bb40559d169bdfd940b111363f23a2d4c27540540f6ac04ec94",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "I remember it well, for I had to set the bone myself before the doctor could be fetched from town. 'Twas a nasty break, but he bore the pain with the stubbornness of a mule, God bless him. I poulticed it with comfrey and yarrow, and sure enough, he was walking on it within the fortnight.\n---\n{\"action\": \"nods slowly while wiping hands on apron\", \"mood\": \"nostalgic\", \"internal_thought\": \"He was always too proud to stay in bed, even with a shattered tib\", \"language_hints\": []}",
+          "response_sha256": "a03c768b7046482bc63e080fa5e547c9b64d16b78cac0cce1647ea1a00d69114",
+          "cache_key": "9e5b42dbe297671bb1b77c28b532611950582ea44b41a7f073d0363861caf6cf",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Mhuise, 'twas likely just the will-o'-the-wisp or some trick of the mist on the bog, for the *s\u00eddhe* do keep to their own business mostly. I wouldn't lose sleep over it, mo chara, unless ye've a fever coming on that's clouding yer sight. A tea of feverfew might steady ye if ye're feeling unsettled by the dark.\n---\n{\"action\": \"stirs a pot of simmering herbs, glancing up with a calm, reassuring smile\", \"mood\": \"calm\", \"internal_thought\": \"Folk see what they fear in the dark, but 'tis usually just damp air and imagination\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-uh\", \"meaning\": \"well, indeed\"}, {\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairies\"},",
+          "response_sha256": "20298a5f583b8ecadc9fb608240e28db3216d5748686061d8bb2d0b12a7db582",
+          "cache_key": "4e0498d1eb32c8c2fba88f8a07114dbf969978ee26bac06a65bc8b72134b3b48",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.4,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Taste it first, mo chara, for 'tis often the iron in the clay that gives a sharp tang after the rains. If it smells of rot or makes the belly turn, boil it well with a sprig of mint before ye drink another drop. I've no skill for the digging of wells, so if the taste lingers, ye'd best ask the right person hereabouts to check the source.\n---\n{\"action\": \"wipes hands on apron and looks concerned\", \"mood\": \"cautious\", \"internal_thought\": \"Bad water brings fever, and I've enough sick babes to tend without new ailments.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KAR-uh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "aba1d6d520766bf5aea989f18248ed6a94e6a87c0de6ff0cafb51bd111b0311a",
+          "cache_key": "fbce7b23078e4eb3ceca3ae45d8adf764520c57cb7aaadd4f4e77a07b49649c3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 3,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Fetch me the moment her waters break or the pains come regular and strong, like the tide coming in. Do not wait until she is screaming, for I will need time to boil the water and prepare my herbs. *Dia dhuit* to the little one, and may the birth be easy on her.\n---\n{\"action\": \"wipes hands on apron and looks the husband in the eye\", \"mood\": \"professional\", \"internal_thought\": \"Hope he has the sense to run fast when the time comes\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gwit\", \"meaning\": \"God be with you (hello)\"}]}",
+          "response_sha256": "83682f7929193b62ced63fcd49ffef29646279aacb91f78cf49552baabea8f80",
+          "cache_key": "fdcf3e9a31941e312bb4287f716b0447e70af9734033ab856029d00deb6afb0c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "The priest has his duties to the soul, and I have mine to the body, so let him speak as he must. I\u2019ve seen a tea of nettle root bring down a fever when prayers alone would not, and I\u2019ll not apologize for using the gifts God put in the earth. *Dia dhuit* to any who seek help, regardless of what is said from the pulpit.\n---\n{\"action\": \"smooths her apron and looks steadily at you\", \"mood\": \"calmly defiant\", \"internal_thought\": \"He can preach all he likes, but a woman in labour cares little for sermons and much for relief\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"jee-ah gwit\", \"meaning\": \"God to you (hello)\"}]}",
+          "response_sha256": "7d1dbf7c4c3fd8ef2af2d2b296dcd853ae6c2ae9982c62f8ee1705840c95d5e3",
+          "cache_key": "98cf5b0ca4aaf0bbfb038e1793fdf92950a1b1c62ea077b7d72d1a60dfdb6c80",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__qwen3_6_plus"
+      ],
+      "candidate": {
+        "model_id": "qwen3.6-plus",
+        "provider_id": null,
+        "resolved_target": "qwen3.6-plus@https://opencode.ai/zen/go/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "mean_score": 0.82
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0001",
+          "reply": "\"Shut the door on the chill, stranger, and name your poison. I\u2019m Padraig Darcy, and if you\u2019ve coin in your pocket, you\u2019re welcome here.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 4,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.8,
+          "id": "reaction-0002",
+          "reply": "\"Back again, are ye? Come in out of the drizzle before ye drown on me doorstep.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 4,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.8,
+          "id": "reaction-0003",
+          "reply": "\"Ah, Seamus, ye\u2019ve a nose for the hour as sharp as yer wit. Come in out o\u2019 that mist before the chill steals into yer bones.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 4,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.8,
+          "id": "reaction-0004",
+          "reply": "I am Brigid O'Brien, the midwife. Mind your step, stranger; the floor is slick with spilled ale."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0005",
+          "reply": "\"Come in out of the drizzle, Siobhan; I\u2019ve just set the kettle to boil.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 3,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.6,
+          "id": "reaction-0006",
+          "reply": "\"Mary, you\u2019re early; the babe has no mind to come before vespers, so dry your eyes and step out of the damp.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0007",
+          "reply": "I am Father Cathal Donnellan; mind your tongue and your drink, stranger, for I have little patience for the heathen murmurs that often fester in such dens."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0008",
+          "reply": "\"Seamus. I see the Devil\u2019s shadow still clings to you, despite the holy water I blessed this very threshold.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 3,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.6,
+          "id": "reaction-0009",
+          "reply": "\"Seamus. Do not think the mist will cloak your pagan sins from my gaze this Sabbath.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 3,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.6,
+          "id": "reaction-0010",
+          "reply": "I\u2019m Sean Murphy, from the bog lands. Keep your distance if you\u2019ve no coin for a pint, for I\u2019ve none to spare and my belly\u2019s empty."
+        }
+      ]
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "schema_valid_rate": 1.0,
+        "mean_score": 0.9400000000000001
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0001",
+          "reply": "{\n  \"summary\": \"Padraig wipes the bar while Niamh serves a hungry Sean his evening meal.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0002",
+          "reply": "{\n\"summary\": \"Padraig wipes the bar while Niamh serves a silent, hungry Sean.\",\n\"mood_changes\": [],\n\"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 4,
+          "score": 0.8,
+          "id": "tier2-0003",
+          "reply": "{\n\"summary\": \"Niamh serves a weary Sean while Padraig watches with quiet irritation.\",\n\"mood_changes\": [],\n\"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 4,
+          "score": 0.8,
+          "id": "tier2-0004",
+          "reply": "{\n\"summary\": \"Tommy gestures wildly while Donal leans wearily against his anvil, listening to the wind.\",\n\"mood_changes\": [],\n\"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0005",
+          "reply": "{\n  \"summary\": \"Tommy and Donal stand silently at the windy crossroads, avoiding eye contact after their earlier misunderstanding.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0006",
+          "reply": "{\n  \"summary\": \"Tommy grumbles about the wind while Donal leans wearily against his forge tools.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0007",
+          "reply": "{\n  \"summary\": \"Brigid calmly prepares herbal tea while Mary watches anxiously, wringing her hands in the dim cottage light.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0008",
+          "reply": "{\n  \"summary\": \"Brigid gently corrects Mary's misconception about morning tea, soothing the young farmwife's anxiety.\",\n  \"mood_changes\": [\n    {\n      \"npc_id\": 2,\n      \"new_mood\": \"relieved\"\n    }\n  ],\n  \"relationship_changes\": [\n    {\n      \"from\": 1,\n      \"to\": 2,\n      \"delta\": 0.1\n    }\n  ]\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 4,
+          "score": 0.8,
+          "id": "tier2-0009",
+          "reply": "{\n\"summary\": \"Brigid sternly instructs anxious Mary to sit still and breathe deeply amidst the morning rain.\",\n\"mood_changes\": [],\n\"relationship_changes\": []\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier2-0010",
+          "reply": "{\n  \"summary\": \"Father Cathal watches silently as Old Tommy bows his head and Widow Kelleher wipes her eyes in the mist.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}"
+        }
+      ]
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "schema_valid_rate": 0.3,
+        "mean_score": 0.3
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0001",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Padraig spent the afternoon polishing glassware and listening to the few patrons. He maintained a calm demeanor, offering a quiet word of advice to a young laborer worried about the harvest prices.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Niamh rushed between tables, her wit sharp but her movements sluggish from fatigue. She snapped back at a patron who complained about the ale's temperature, though she did so with a charm that diffused the tension.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 1,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hungry\",\n      \"activity_summary\": \"Sean cut turf in the bog under the relentless sun. His stomach growled loudly, distracting him from his work. He paused frequently to wipe sweat from his brow, muttering about the lack of midday meal.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Tommy paced the crossroads, leaning on his stick. He attempted to recount the story of the 'Great Frost of '98' to a passing cart driver, but the driver was in too much of a hurry to listen, leaving Tommy frustrated and unheard.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Brigid prepared herbal remedies in her cottage, grinding dried yarrow and chamomile. She worked with precise, direct movements, ignoring the heat outside as she focused on a poultice for a neighbor's infected knee.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Father Cathal sat in the sacristy, reviewing parish records. He reflected on the moral decay he perceived in the younger generation's lax attendance at vespers, his expression severe as he drafted a stern sermon for Sunday.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Unterminated string starting at: line 49 column 7 (char 2368)"
+          ],
+          "id": "tier3-0002",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"weary but composed\",\n      \"activity_summary\": \"Spent the afternoon scrubbing the bar top and airing out the taproom to remove the stale smell of tobacco and anger from the previous night's quarrel. Politely declined to discuss the incident with early patrons, maintaining a neutral facade.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"irritated\",\n      \"activity_summary\": \"Served weak tea and bread to a few locals while nursing a headache. Overheard gossip about the fight and sharply shut down two customers who tried to provoke her into taking sides, displaying her quick wit to deflect tension.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hangry\",\n      \"activity_summary\": \"Cut turf in the bog under the hot sun. The physical labor exacerbated his hunger, leading him to mutter curses under his breath about the price of grain and the idle rich. He paused only once to drink from a stagnant pool.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"anxious\",\n      \"activity_summary\": \"Paced the crossroads, watching the lanes for any sign of trouble spreading from last night's dispute. Attempted to entertain a passing cart driver with a tale about a ghost horse, but his restlessness made the story disjointed and unconvincing.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"determined\",\n      \"activity_summary\": \"Prepared herbal remedies and boiled water in anticipation of potential injuries from the parish's ongoing tensions. Visited an elderly woman nearby to check her blood pressure, offering direct, no-nonsense advice on staying calm.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"solemn\",\n      \"activity_summary\": \"Sat in the confessional booth, not hearing confessions but reflecting on the fragility of peace in the parish. Drafted a stern sermon on forgiveness and the sin of wrath, intending to address the congregation directly this Sunday.\",\n      \"new_location\": null,\n      \"relationship_changes"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Unterminated string starting at: line 57 column 7 (char 2290)"
+          ],
+          "id": "tier3-0003",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Padraig spent the afternoon polishing glasses and listening to the patrons' celebratory chatter. He offered a complimentary measure of whiskey to regulars to mark the good news, maintaining a warm but dignified atmosphere in the pub.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Niamh managed the influx of customers with sharp efficiency, though her feet ache from standing. She exchanged witty banter with the farmers to keep spirits high, secretly appreciating her father's subtle gesture of letting her sit for ten minutes during the lull.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 1,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hungry\",\n      \"activity_summary\": \"Sean continued cutting turf in the bog despite the heat, driven by the need to stockpile before winter. His hunger gnawed at him, but the good news lifted his spirits enough that he hummed an old reel while working, planning to head to Darcy's for stew once the light fades.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Tommy held court at the crossroads, retelling the story of how the news arrived with exaggerated flair to any passerby. His restlessness manifested as constant pacing and gesturing, eager to ensure everyone understood the magnitude of the event.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 6,\n          \"delta\": 0.02\n        }\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Brigid organized her herbal supplies and cleaned her instruments, preparing for potential evening calls. The good news brought a rare moment of calm to her day, allowing her to reflect on the resilience of the parish women she serves.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \""
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0004",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Exhausted and stoic\",\n      \"activity_summary\": \"Donal spent the six hours rhythmically hammering iron for a local farmer's plow repair. The cold air in the forge bit at his lungs, exacerbating his fatigue. He spoke only three words to a customer who dropped off a broken hinge, nodding silently as he worked the bellows to keep the fire alive against the winter chill.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient but concerned\",\n      \"activity_summary\": \"Mister Lyons conducted morning lessons on arithmetic and catechism. Noticing Eamon's inability to focus, he gently guided the boy through simple sums without reprimand, using a soft Galway accent to soothe the restless class. He spent the latter hour grading slates by the weak light of the window, worrying about the boy's home situation.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Melancholic and withdrawn\",\n      \"activity_summary\": \"Widow Kelleher remained seated by the dying turf fire, staring at her son's empty chair. She brewed a pot of thin tea but lacked the appetite to drink it. The silence of the cottage was heavy; she occasionally touched the small wooden cross on the mantelpiece, weeping silently as the frost patterned the inside of the windowpane.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted and anxious\",\n      \"activity_summary\": \"Eamon sat at his desk, his slate untouched for long periods. His mind drifted to his mother's silence at home and the cold hearth. He stared out the window at the frost-covered fields instead of his numbers. When Mister Lyons approached him kindly, Eamon flinched slightly before accepting the help, feeling a mix of shame and relief.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 2,\n          \"delta\": 0.1\n        }\n      ]\n    }\n  ]\n}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0005",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Grim and exhausted\",\n      \"activity_summary\": \"Donal spent the morning stoking the forge fire in silence, the rhythmic clang of the hammer serving as his only speech. He avoided eye contact with passersby, still nursing the bruised pride and physical fatigue from last night's altercation at the pub. He repaired a broken plowshare for a neighbor but refused to engage in gossip.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": -0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient but wary\",\n      \"activity_summary\": \"Mister Lyons conducted the morning lessons with deliberate calm, focusing on rote memorization of catechism to maintain order. He noticed the tension in the village air and kept his voice low, avoiding any political or local topics. He gently corrected Eamon's distracted scribbling without raising his voice, aware of the boy's recent trauma.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Desolate and withdrawn\",\n      \"activity_summary\": \"Widow Kelleher remained inside her cottage, staring into the dying embers of the turf fire. She did not venture out into the frost, finding the cold too reminiscent of the night her son passed. She spent the hours mending a shirt that no longer has an owner, weeping silently during the quiet intervals between the wind's howls.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted and melancholic\",\n      \"activity_summary\": \"Eamon sat at his desk in the schoolhouse, staring out the frost-rimed window rather than at his slate. His mind wandered to his father and the empty chair at home. He barely responded when Mister Lyons called his name, flinching slightly at the sound, lost in thoughts of the previous winter's loss.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 2,\n          \"delta\": 0.05\n        }\n      ]\n    }\n  ]\n}"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting property name enclosed in double quotes: line 49 column 10 (char 2337)"
+          ],
+          "id": "tier3-0006",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Stoic but quietly uplifted\",\n      \"activity_summary\": \"Donal spent the morning shoeing horses for neighbors who arrived with unusually light steps and bright eyes due to the news. Though exhausted from the night before, the rhythmic hammering felt less like a burden and more like a celebration. He shared a rare, brief smile with a farmer, acknowledging the good fortune without wasting breath on long speeches.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient and hopeful\",\n      \"activity_summary\": \"Mister Lyons leveraged the high spirits in the parish to maintain order in the classroom. He used the 'good news' as a lesson in resilience and community spirit, speaking with his characteristic Galway lilt. He gently redirected Eamon\u2019s attention back to his slate multiple times, showing extra forbearance given the boy's recent trauma.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Bittersweet and reflective\",\n      \"activity_summary\": \"Widow Kelleher remained in her cottage, the frost patterning her windowpane. The good news brought a pang of acute grief, wondering if her son would have lived to see it, but also a strange comfort that his memory is part of this parish's history. She lit a small fire, not for warmth alone, but as a quiet ritual of remembrance.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted but softening\",\n      \"activity_summary\": \"Eamon struggled to focus on his arithmetic, his mind drifting to his father and the sudden change in the village's atmosphere. However, Mister Lyons\u2019 gentle patience and the visible joy of the other children created a safe space. He managed to complete one page of sums, feeling a fleeting sense of normalcy amidst the chaos of his emotions.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 2,\n          \"delta\": 0.1\n        },\n        {\n          \"from\": 4,\n         "
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting property name enclosed in double quotes: line 59 column 6 (char 2200)"
+          ],
+          "id": "tier3-0007",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Resigned\",\n      \"activity_summary\": \"Conor spent the hours hauling in empty nets as the rain intensified. His hands are numb and raw from the cold lake water. He accepted the poor catch with a stoic silence, knowing the family needs the income regardless of the weather.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": -0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Determined\",\n      \"activity_summary\": \"Padraig refused to let the rain deter him, actively repairing a tear in the net while Conor rested. He tried to keep morale high with stories of a large pike he spotted earlier, though his optimism was met with little response.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 1,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Relieved\",\n      \"activity_summary\": \"Maire sat by the peat fire, knitting a small bootie. The rhythmic sound of the rain outside contrasted with the warm, reassuring presence of Brigid. Her anxiety eased as Brigid confirmed the baby's position is normal.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Professional\",\n      \"activity_summary\": \"Brigid conducted her weekly examination, checking Maire's pulse and discussing diet. She stayed late to share a pot of tea, offering gentle advice on preparing for labor, reinforcing her role as a pillar of support in the parish.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 3,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"Boastful\",\n      \"activity_summary\": \"Tommy held court at the corner table, his voice rising above the hum of the pub. He recounted an exaggerated tale of a boundary dispute with a neighbor, slapping the table for emphasis and drawing amused glances from regulars.\",\n     "
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting property name enclosed in double quotes: line 51 column 1 (char 2324)"
+          ],
+          "id": "tier3-0009",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Relieved exhaustion\",\n      \"activity_summary\": \"Conor spent the first two hours mending nets in the drizzle, his hands stiff from the cold. Upon hearing the news of the subsidy relief from a passing cart driver, he finally ceased work. He walked slowly back toward the village, the weight of potential starvation lifting slightly from his shoulders, allowing him to breathe easier for the first time in months.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 2,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Buoyant optimism\",\n      \"activity_summary\": \"Padraig ignored the rain, viewing it as a blessing for the crops rather than a nuisance for fishing. He spent the evening organizing the catch and polishing the boat, talking animatedly to anyone who passed about how this good news means they can afford new rope. His energy seemed to infect the otherwise gloomy lakeshore atmosphere.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 1,\n          \"delta\": 0.05\n        },\n        {\n          \"from\": 2,\n          \"to\": 5,\n          \"delta\": 0.02\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Tentative peace\",\n      \"activity_summary\": \"Maire sat by the peat fire, her anxiety dampened by Brigid's calming presence. The news of the parish's improved fortunes reached them via a neighbor; Maire allowed herself to imagine a future where her child would not go hungry. She knit a small cap, her hands steadier than they had been all week, finding comfort in the domestic rhythm.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Professional satisfaction\",\n      \"activity_summary\": \"Brigid completed her examination of Maire, noting the baby's strong heartbeat. She used the good news as a therapeutic tool, reassuring Maire that stress is the enemy of birth. Before leaving, she shared a small stash of dried herbs with Maire for tea, solidifying her role not just as a medical attendant, but as a pillar of community support.\",\n"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Unterminated string starting at: line 59 column 27 (char 2087)"
+          ],
+          "id": "tier3-0010",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"irritated\",\n      \"activity_summary\": \"Spent the afternoon aggressively tallying ledger entries and shouting at late tenants. The wind rattled the office windows, adding to his frustration as few coins clinked onto the desk.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 3,\n          \"delta\": -0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"anxious\",\n      \"activity_summary\": \"Wiped down tables repeatedly while keeping one eye on the door for the Land Agent's clerk. Served weak ale to Sergeant Whitcombe to avoid trouble, hoping a tip might offset his debt.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 7,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"despondent\",\n      \"activity_summary\": \"Stood by his sack of oats in the biting wind for hours. Buyers haggled mercilessly due to the damp harvest. He eventually sold half the stock at a loss to pay the agent, leaving him with little profit.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 1,\n          \"delta\": -0.2\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Successfully purchased dried yarrow and nettle from a traveling peddler. She exchanged brief, polite nods with Father Cathal as he passed through the square, maintaining professional respect.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"solemn\",\n      \"activity_summary\": \"Prepared the altar for evening vespers. Observed the marketplace from the church steps, noting the tension between the farmers and the agent. He remained stationary, offering silent prayers for the parish's stability.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"cheerful\",\n      \"activity_summary\": \"Huddled under the market awning with three other locals, telling exaggerated stories about the 'big frost' of 1"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting property name enclosed in double quotes: line 57 column 19 (char 2271)"
+          ],
+          "id": "tier3-0012",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"frustrated\",\n      \"activity_summary\": \"Spencer paced the floor of his office, tapping his ledger. The 'good news' of a potential rent subsidy from the landlord reached him via courier, but he remained skeptical, fearing it was a trick to lower immediate collections. He shouted at a late tenant through the window.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 1,\n          \"to\": 3,\n          \"delta\": -0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"cautiously optimistic\",\n      \"activity_summary\": \"Padraig heard the rumors of the landlord's mercy while serving ale. He calculated that if rents were forgiven, his own debts might be overlooked. He polished glasses with unusual vigor, trying to look prosperous for any passing agents.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 1,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"relieved\",\n      \"activity_summary\": \"Sean sold his oats quickly as the market buzzed with positive energy. Buyers were more willing to pay fair prices, hoping to curry favor before potential policy changes. He tucked the coins away securely, his anxiety replaced by tentative hope.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 1,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Brigid purchased dried lavender and yarrow from a traveling peddler. She paused to listen to the news, nodding approvingly. Peace in the parish meant fewer emergencies and safer travels for her night calls.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"serene\",\n      \"activity_summary\": \"Father Cathal prepared the altar for afternoon Mass. He interpreted the 'good news' as a divine blessing on his flock. He rang the bell early, inviting the populace to give thanks, watching the square from the church steps.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 5,\n          \"to\": 6,"
+        }
+      ]
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.0,
+        "fluency_mean": 5.0,
+        "grammar_mean": 5.0,
+        "idiom_mean": 5.0,
+        "task_fulfillment_mean": 5.0,
+        "english_leakage_mean": 5.0,
+        "overall_mean": 5.0
+      },
+      "results": [
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, with correct past tense, idiomatic phrasing, and all required meaning preserved.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0001",
+          "reply": "Bh\u00ed an f\u00f3mhar go maith i mbliana."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, perfectly expressing obligation, movement, and first-person singular in natural Irish.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0002",
+          "reply": "Caithfidh m\u00e9 dul go dt\u00ed an banc."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is a perfectly natural, grammatically correct Irish sentence using 'Ba mhaith liom' (a common alternative to 'Is mian liom') to express desire, with correct lenition of 'fh\u00edrinne', correct verbal noun construction, and correct second-person recipient 'duit'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0003",
+          "reply": "Ba mhaith liom an fh\u00edrinne a insint duit."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the past tense of 'ith', first-person singular, and the definite form 'an t-ar\u00e1n'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0004",
+          "reply": "D'ith m\u00e9 an t-ar\u00e1n."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the future tense of 'ceannaigh', second-person singular pronoun, and the correct nouns for 'book' and 'today'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0005",
+          "reply": "Ceann\u00f3idh t\u00fa an leabhar inniu."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The response is a natural, grammatically correct Irish sentence using the idiomatic 'ag s\u00fail leis' construction with 'go m\u00f3r' adding emphasis, fully preserving the meaning of looking forward to the snow.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0006",
+          "reply": "T\u00e1 m\u00e9 ag s\u00fail go m\u00f3r leis an sneachta."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' to express possession.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0007",
+          "reply": "An bhfuil airgead aici?"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the progressive movement construction with first-person singular and the shop destination.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly identifying the man as the walker and the woman as the companion in perfect Irish.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly converting the negative interrogative to a positive declarative past-tense statement.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0010",
+          "reply": "Labhair Se\u00e1n."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 281.0198640823364,
+  "cost": {
+    "calls": 93,
+    "prompt_tokens": 44757,
+    "completion_tokens": 9779,
+    "usd": 0.0452688
+  }
+}

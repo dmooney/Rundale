@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "e8af5946e2bf03c8c8781e92bb6ef69e48e90f79a704ae1e850e4f3d64b12491",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "Discusses 1820 folklore and avoiding superstitious portrayal but generates no dialogue.",
+    "character": "No dialogue provided; only explanation of how Brigid might approach fairy lights.",
+    "craft": "Incomplete fragment trailing off.",
+    "language": "Analytical text only; no character voice or dialogue.",
+    "responsiveness": "Explores the prompt conceptually but does not answer with dialogue."
+  },
+  "response_sha256": "167db5531f1cdb38e9be2a92f2d5e8281fa42eb52756b1b68c1440305942f61d",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

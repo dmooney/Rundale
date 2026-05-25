@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 5,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "d2ee6f0aeb3f97f7f9365fec62a3af4811cd29ea4ad0459ac76d78a62956be3c",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.6,
+  "prompt_id": "dialogue-0003",
+  "rationales": {
+    "authenticity": "Thyme, honey, and horehound are historically appropriate folk remedies for chest complaints.",
+    "character": "Confident midwife voice offering remedies within her expertise.",
+    "craft": "Two concise, practical sentences; follows brief perfectly.",
+    "language": "Clear, natural diction with period-appropriate casual tone.",
+    "responsiveness": "Directly offers practical remedy and immediate action."
+  },
+  "response_sha256": "732fc0ef14be06c709018bc92f3b9409fd486fef21c6c90cbda9ca7ed6790abf",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

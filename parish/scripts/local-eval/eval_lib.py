@@ -182,7 +182,35 @@ def call_chat(
         body["max_tokens"] = max_tokens
     if schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
-    if reasoning is not None:
+    # Reasoning-suppression syntax is not standardised across OpenAI-compat
+    # gateways. Pick the form each target accepts:
+    # - opencode.ai/zen — strict OpenAI schema; rejects `reasoning: {...}`
+    #   ("Extra inputs are not permitted"). Some downstream providers behind
+    #   the gateway accept `reasoning_effort` but with mutually incompatible
+    #   enum sets: kimi/qwen/glm accept "none", DeepSeek/Xiaomi reject
+    #   "none" (only low|medium|high|max), and Minimax forbids disabling at
+    #   all. Sending NOTHING is the only universally-safe choice; chain-of-
+    #   thought is handled at parse time via the `reasoning_content`
+    #   fallback and the `<think>` regex strip below.
+    # - OpenRouter / direct vendor APIs — `reasoning: {enabled|effort|...}`.
+    is_opencode_go = "opencode.ai" in target.base_url
+    if is_opencode_go:
+        # The opencode-go gateway exposes models from many vendors, each
+        # with mutually incompatible reasoning controls. Probed 2026-05-25:
+        #   kimi-k2.5/k2.6, qwen3.5/3.6-plus, glm-5/5.1 → "none" works
+        #     (without it, kimi dumps pure chain-of-thought into content).
+        #   deepseek-v4-flash/pro, mimo-v2.5/v2.5-pro → only low|medium|high|max;
+        #     "low" is the only level that consistently emits non-empty
+        #     content at dialogue's max_tokens=200 (others bleed reasoning).
+        #   minimax-m2.5/m2.7 → reasoning cannot be disabled; "low" empties
+        #     content; omitting the field yields clean replies.
+        mid = target.model.lower()
+        if mid.startswith(("kimi-", "qwen3.", "glm-")):
+            body["reasoning_effort"] = "none"
+        elif mid.startswith(("deepseek-v4-", "mimo-v2")):
+            body["reasoning_effort"] = "low"
+        # minimax: deliberately omit reasoning_effort.
+    elif reasoning is not None:
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
         body["reasoning"] = _default_reasoning_for(target.model)

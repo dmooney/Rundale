@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 2,
+    "language": 3,
+    "responsiveness": 3
+  },
+  "cache_key": "6dec49b859f391a53205bc54c2eb48ad9b9596d9744f1365bb19ca530f582150",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 2.8,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "No anachronisms, but the tone is generic village chat; 'so it does' is correct but doesn't compensate for surface-level observation.",
+    "character": "Village gossip fits the role, but Brigid's voice is thin here\u2014mostly idle speculation rather than her particular expertise.",
+    "craft": "Rambles a bit for 3 sentences; the content is mostly filler ('word travels fast', 'truth comes out')\u2014lacks specificity or evocation.",
+    "language": "Grammatically sound, idiomatic ('so it does', 'sets tongues wagging'), but slightly uneven in register.",
+    "responsiveness": "Acknowledges the stranger and conveys village reaction; doesn't go deeper."
+  },
+  "response_sha256": "8131e157907c70ba049b7fb8e3d0343dce911bbd9d81d7db5b97e712eecdb41a",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

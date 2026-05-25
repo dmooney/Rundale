@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "ad22b42f003d7739d0ef657d919407cdc8d774f2014a1712f8a8a04d1bc051c3",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "Discusses period context but produces no actual dialogue or period vocabulary.",
+    "character": "No dialogue; only meta-analysis of what Brigid might know about Cailleach and fairy lore.",
+    "craft": "Verbose planning fragment, incomplete and rambling.",
+    "language": "Analytical planning text with no dialogue voice or Hiberno-English.",
+    "responsiveness": "Explains the prompt but does not answer it with character dialogue."
+  },
+  "response_sha256": "b396e80c8ead2967eef5a778e76713a97008e7b325211a20481dd283206b33bc",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

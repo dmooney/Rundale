@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 2,
+    "language": 3,
+    "responsiveness": 3
+  },
+  "cache_key": "5016762754651ef1e1be866c9f9738a8c8f3cc27b08edf1e5ad673896ecedbd1",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 2.8,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "C\u00e9il\u00ed and fox-fire are period-appropriate, but the reply feels formulaic; little evocative detail.",
+    "character": "Brigid's practical boundary-setting is in-character, but the response lacks her distinctive warmth or specificity.",
+    "craft": "Listy construction; the internal thought about fox-fire suggests curiosity but isn't reflected in the spoken dialogue.",
+    "language": "Clear and correct, but lacks the distinctive voice and rhythm that strengthens other responses.",
+    "responsiveness": "Addresses the prompt with plausible explanations but deflects to someone else; somewhat evasive rather than engaged."
+  },
+  "response_sha256": "6ea1d3ef237855013a3ff0320f37230c1bc7cdfc14365dde88e7fc3d00906f78",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

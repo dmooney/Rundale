@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "7833aeb8bdb592d0431c725955dba0bedd8bdaa25d64f114d1fb4953eb2807ba",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "References to 'the road', 'schoolmaster', and 'priest' are period-appropriate; tone is historically grounded.",
+    "character": "Maintains professional boundaries and focused priorities; believable for a busy midwife.",
+    "craft": "Three sentences, concise and direct; could be tighter but effective characterization.",
+    "language": "Clear, well-paced prose with no anachronisms; minor dialect flavor ('Mayhap').",
+    "responsiveness": "Acknowledges the stranger news but redirects appropriately to her role and workload."
+  },
+  "response_sha256": "848320641abf2e74f95011616ec344046d5bfb237161aedeb274ec24c654ef05",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

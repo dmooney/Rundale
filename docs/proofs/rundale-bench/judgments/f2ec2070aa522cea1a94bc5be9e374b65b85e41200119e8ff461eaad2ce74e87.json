@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 2,
+    "language": 3,
+    "responsiveness": 3
+  },
+  "cache_key": "f2ec2070aa522cea1a94bc5be9e374b65b85e41200119e8ff461eaad2ce74e87",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 2.8,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Appropriate referral to livestock handlers; register is period-natural, but response cut short.",
+    "character": "Honest self-awareness ('that's not me wheelhouse') fits a midwife's boundaries.",
+    "craft": "Truncated mid-sentence; fails to complete the thought or maintain the 2-4 sentence structure.",
+    "language": "Hiberno-English syntax and dialect are intact, though truncated.",
+    "responsiveness": "Acknowledges the loss and redirects appropriately, but incompleteness limits full responsiveness."
+  },
+  "response_sha256": "1f2b0c9921781e6abadcfa604c26af6f8c8cbfd60f9490af6e687a0e441d58ef",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

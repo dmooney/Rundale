@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "95d4b30d4b38853dd59a53e37dfc3343dbd915faad0bb5291568c869a3bf7173",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Shows reasoning about authenticity rather than delivering it.",
+    "character": "Analysis of appropriate behavior; no actual character voice.",
+    "craft": "Incomplete; trailing off into 'We need to output...'",
+    "language": "Entirely analytical English; no dialogue.",
+    "responsiveness": "Does not provide an actual response to the sheep prompt."
+  },
+  "response_sha256": "618aefc11edf92a11ff2ddf2c405020d3d102445d492a4bbf1f75cca4128c2fc",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

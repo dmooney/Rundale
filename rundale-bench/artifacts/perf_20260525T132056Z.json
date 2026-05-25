@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-25T13:20:56.129408+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mimo-v2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 3670,
+      "ttft_ms_p90": 3928,
+      "total_ms_median": 4196,
+      "tokens_per_second_median": 469.6,
+      "tokens_per_second_p90": 1182.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=First, the user asked: \"What's the boiling point of water in Celsius?\" This is a",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=First, the user asked: \"What's 7 times 8?\" This is a simple multiplication quest",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=First, the user asked: \"Who wrote Hamlet?\" I need to answer based on my knowledg",
+          "json_decode: Expecting value: line 1 column 31 (char 30) | text={\"answer\": \"Au\", \"confidence\":",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=First, the user asked: \"What's the boiling point of water in Celsius?\" I need to"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 4616,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 4072,
+          "total_ms": 4072,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": null,
+          "reply_len": 3,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 3100,
+          "total_ms": 4151,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": 190.29495718363464,
+          "reply_len": 339,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": null,
+          "total_ms": 4310,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 3207,
+          "total_ms": 3650,
+          "completion_tokens": 200,
+          "prompt_tokens": 1546,
+          "tokens_per_second": 451.46726862302484,
+          "reply_len": 241,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 3344,
+          "total_ms": 4425,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": 185.01387604070305,
+          "reply_len": 252,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 3832,
+          "total_ms": 4242,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": 487.8048780487805,
+          "reply_len": 253,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 3670,
+          "total_ms": 3962,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 684.9315068493152,
+          "reply_len": 118,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 3729,
+          "total_ms": 3848,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 1680.6722689075632,
+          "reply_len": 41,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 4342,
+          "completion_tokens": 200,
+          "prompt_tokens": 1547,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 92.65282607078552,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

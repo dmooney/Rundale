@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "9f78bbab5560a2ba24b228597541f74d35866f0ad80ba82dfe57f6ef76d7d2ae",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "Analysis of what is authentic, not authentic dialogue.",
+    "character": "Shows metacognitive reasoning about character; no actual voice.",
+    "craft": "Response is unfinished analysis ending with trailing period.",
+    "language": "Entirely in English analytical prose, not Brigid's voice.",
+    "responsiveness": "Incomplete; never delivers a response to the prompt."
+  },
+  "response_sha256": "f0714dfd90b4b482bc30e79819ca329235ce7ab68f30cd086540f579894853b4",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

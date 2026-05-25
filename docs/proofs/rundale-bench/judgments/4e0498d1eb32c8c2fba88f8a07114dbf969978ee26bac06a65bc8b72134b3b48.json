@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "4e0498d1eb32c8c2fba88f8a07114dbf969978ee26bac06a65bc8b72134b3b48",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "Will-o'-the-wisp, s\u00eddhe, and 'mist on the bog' are deeply period-appropriate.",
+    "character": "Grounded skepticism of folklore fits; offers practical alternative.",
+    "craft": "Exceeds 4-sentence target; cultural density justifies but still a minor miss.",
+    "language": "Irish insertions natural; 'Mhuise' and 'mo chara' well-placed; no errors.",
+    "responsiveness": "Addresses lights question with folklore explanation and physical reality check."
+  },
+  "response_sha256": "20298a5f583b8ecadc9fb608240e28db3216d5748686061d8bb2d0b12a7db582",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

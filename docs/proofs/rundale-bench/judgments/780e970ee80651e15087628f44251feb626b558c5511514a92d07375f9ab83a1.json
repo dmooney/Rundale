@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 2,
+    "language": 4,
+    "responsiveness": 4
+  },
+  "cache_key": "780e970ee80651e15087628f44251feb626b558c5511514a92d07375f9ab83a1",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.6,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Period-appropriate explanations (iron in water, surface water contamination) and dialect usage.",
+    "character": "Practical midwife applying health knowledge to water quality; appropriate expertise boundary.",
+    "craft": "Response is significantly incomplete\u2014cuts off mid-sentence breaking the instruction to provide a complete reply.",
+    "language": "Well-formed prose with natural Irish phrasing; no errors detected.",
+    "responsiveness": "Addresses the well-water concern and provides relevant diagnostic questions."
+  },
+  "response_sha256": "4b8ad4691a3c64541e0a9f5c6e0aac95f9ddfa3b95653c23d7c40a4397112295",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

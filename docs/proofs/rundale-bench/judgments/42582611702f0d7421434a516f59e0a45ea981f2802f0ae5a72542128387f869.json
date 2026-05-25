@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "42582611702f0d7421434a516f59e0a45ea981f2802f0ae5a72542128387f869",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.2,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Valerian and lemon balm are period-accurate, 'Tis and ye establish Irish voice.",
+    "character": "Midwife's concern and herbal knowledge shine, though somewhat formulaic in structure.",
+    "craft": "Evocative opening ('heavy burden, carrying those shadows') but slightly longer than ideal.",
+    "language": "Clean en-IE dialect with natural Irish phrases; well-formed prose.",
+    "responsiveness": "Directly addresses sleep trouble and offers remedy; internal note adds depth."
+  },
+  "response_sha256": "f542070d8130ab95de26166b54f620efc2d41f69b7d83e4344832568812776d1",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

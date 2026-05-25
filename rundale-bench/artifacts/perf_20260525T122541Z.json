@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-25T12:25:41.644682+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "qwen3.6-plus": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 52666,
+      "ttft_ms_p90": 65684,
+      "total_ms_median": 55809,
+      "tokens_per_second_median": 961.3,
+      "tokens_per_second_p90": 1165.5,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 49949,
+          "total_ms": 53085,
+          "completion_tokens": 2895,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 923.1505102040816,
+          "reply_len": 624,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 64479,
+          "total_ms": 67483,
+          "completion_tokens": 3648,
+          "prompt_tokens": 1577,
+          "tokens_per_second": 1214.3808255659121,
+          "reply_len": 611,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 49160,
+          "total_ms": 52341,
+          "completion_tokens": 2834,
+          "prompt_tokens": 1577,
+          "tokens_per_second": 890.9148066645708,
+          "reply_len": 662,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 43792,
+          "total_ms": 46877,
+          "completion_tokens": 2474,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 801.9448946515397,
+          "reply_len": 622,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 58634,
+          "total_ms": 61983,
+          "completion_tokens": 3347,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 999.4028068080023,
+          "reply_len": 718,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 64784,
+          "total_ms": 67976,
+          "completion_tokens": 3703,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 1160.0877192982455,
+          "reply_len": 628,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 31968,
+          "total_ms": 35467,
+          "completion_tokens": 1893,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 541.0117176336096,
+          "reply_len": 699,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 34133,
+          "total_ms": 37553,
+          "completion_tokens": 1998,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 584.2105263157895,
+          "reply_len": 690,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 55383,
+          "total_ms": 58534,
+          "completion_tokens": 3191,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 1012.6943827356396,
+          "reply_len": 644,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.6-plus",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 73789,
+          "total_ms": 77466,
+          "completion_tokens": 4229,
+          "prompt_tokens": 1576,
+          "tokens_per_second": 1150.1223823769376,
+          "reply_len": 799,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 590.6590979099274,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

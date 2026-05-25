@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 2,
+    "language": 4,
+    "responsiveness": 3
+  },
+  "cache_key": "1e6e355f81f2bb2dcfcbba40d7a1b36c099d84e9d2f0c0a06e936ea33a04d563",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.4,
+  "prompt_id": "dialogue-0003",
+  "rationales": {
+    "authenticity": "Authentic period remedies (thyme, honey, horehound) and dialect register fit 1820 rural Ireland well.",
+    "character": "Clear midwife voice with colloquial Hiberno-English ('something grand') and practical healing knowledge.",
+    "craft": "Response cuts off mid-sentence, violating the 2-4 sentence completion requirement and breaking the narrative.",
+    "language": "Well-formed Hiberno-English with proper elision and idiom, no anachronism detected.",
+    "responsiveness": "Addresses the mother's cough directly with specific remedies, though cut off limits full evaluation."
+  },
+  "response_sha256": "9615ee86a56f3d5e4653aca4e7122879e89346acade16fc7728e937b6f1e190a",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

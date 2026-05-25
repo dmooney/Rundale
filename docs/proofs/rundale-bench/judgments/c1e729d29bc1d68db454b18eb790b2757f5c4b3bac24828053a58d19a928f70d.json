@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 5,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "c1e729d29bc1d68db454b18eb790b2757f5c4b3bac24828053a58d19a928f70d",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 5.0,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "Authentic use of seancha\u00ed and s\u00eddhe; historically grounded in Irish oral tradition.",
+    "character": "Excellent deferential tone, knows her boundaries and role within community knowledge hierarchy.",
+    "craft": "Two concise sentences; direct, evocative, and publication-grade.",
+    "language": "Flawless English-Irish bilingual prose with natural idiom and no anachronism.",
+    "responsiveness": "Gracefully redirects to appropriate sources without dismissing the question."
+  },
+  "response_sha256": "e73d2ed964fdf65c66cf1b5ed59fc4a7d48c3bed0e107de481f2695ef1c7e5a1",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

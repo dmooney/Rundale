@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 2,
+    "character": 2,
+    "craft": 1,
+    "language": 2,
+    "responsiveness": 1
+  },
+  "cache_key": "e35c46bd05c32181c4e41db0c23b8908507e5305ff3314da05473a6e1ff92111",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.6,
+  "prompt_id": "dialogue-0010",
+  "rationales": {
+    "authenticity": "No substantive content to evaluate period-appropriateness; opens generically.",
+    "character": "Incomplete fragment 'Ah, Father Cathal means well' offers minimal character voice.",
+    "craft": "Provides only an opening fragment; fails to deliver dialogue or perspective on the prompt.",
+    "language": "A partial sentence with minimal prose to assess; cut off immediately.",
+    "responsiveness": "Does not engage with the query about old ways versus the priest's position."
+  },
+  "response_sha256": "eec87f3db42bbdeece2bd6ee053abfc0f26cd9edba28aaee9cf9705d131155c9",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

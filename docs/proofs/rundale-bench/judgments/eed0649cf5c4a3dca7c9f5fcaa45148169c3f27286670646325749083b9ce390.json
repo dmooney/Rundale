@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "eed0649cf5c4a3dca7c9f5fcaa45148169c3f27286670646325749083b9ce390",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": true
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0006",
+  "rationales": {
+    "authenticity": "No dialogue provided, only analysis about the father's broken leg and midwife knowledge.",
+    "character": "Response is entirely meta-commentary and reasoning, not actual dialogue.",
+    "craft": "Completely absent; submission contains no narrative or dialogue content.",
+    "language": "No prose dialogue to evaluate; all text is instructional planning.",
+    "responsiveness": "Failed to address the prompt; provided reasoning instead of character speech."
+  },
+  "response_sha256": "f931b293085fabc163f9ebf3a364d5e30afb8acc31003d24882e82bdad12e350",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

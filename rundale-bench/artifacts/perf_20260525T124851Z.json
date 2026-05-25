@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-25T12:48:51.645133+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "minimax-m2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1696,
+      "ttft_ms_p90": 2881,
+      "total_ms_median": 5420,
+      "tokens_per_second_median": 50.3,
+      "tokens_per_second_p90": 489.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1730,
+          "total_ms": 5994,
+          "completion_tokens": 192,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 45.0281425891182,
+          "reply_len": 910,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 2732,
+          "total_ms": 8645,
+          "completion_tokens": 200,
+          "prompt_tokens": 1512,
+          "tokens_per_second": 33.82377811601556,
+          "reply_len": 884,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 2876,
+          "total_ms": 9004,
+          "completion_tokens": 200,
+          "prompt_tokens": 1512,
+          "tokens_per_second": 32.637075718015666,
+          "reply_len": 908,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 2933,
+          "total_ms": 6719,
+          "completion_tokens": 153,
+          "prompt_tokens": 1508,
+          "tokens_per_second": 40.41204437400951,
+          "reply_len": 645,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1332,
+          "total_ms": 1818,
+          "completion_tokens": 200,
+          "prompt_tokens": 1510,
+          "tokens_per_second": 411.52263374485597,
+          "reply_len": 886,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1663,
+          "total_ms": 2052,
+          "completion_tokens": 200,
+          "prompt_tokens": 1509,
+          "tokens_per_second": 514.1388174807198,
+          "reply_len": 947,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 2784,
+          "total_ms": 5961,
+          "completion_tokens": 200,
+          "prompt_tokens": 1508,
+          "tokens_per_second": 62.95247088448222,
+          "reply_len": 890,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1021,
+          "total_ms": 1432,
+          "completion_tokens": 200,
+          "prompt_tokens": 1508,
+          "tokens_per_second": 486.61800486618006,
+          "reply_len": 980,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 698,
+          "total_ms": 4504,
+          "completion_tokens": 200,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 52.54860746190226,
+          "reply_len": 919,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 718,
+          "total_ms": 4880,
+          "completion_tokens": 200,
+          "prompt_tokens": 1509,
+          "tokens_per_second": 48.05382027871216,
+          "reply_len": 945,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 55.307811975479126,
+  "cost": {
+    "usd": 0.0,
+    "calls": 10
+  }
+}

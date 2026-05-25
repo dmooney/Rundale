@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 3,
+    "craft": 2,
+    "language": 4,
+    "responsiveness": 3
+  },
+  "cache_key": "f50060326c3436ec181f6b29a895f22cd0bc90fc2836d557dec1d741b0c194d1",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.2,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Good period diction ('sad business entirely') and proper deference to farmer expertise.",
+    "character": "Appropriate humility about expertise outside midwifery, but 'laddo' feels slightly modern colloquial.",
+    "craft": "Incomplete sentence breaks the craft requirement; response trails off without resolution.",
+    "language": "Well-formed except the em-dash creates an abrupt, incomplete thought.",
+    "responsiveness": "Acknowledges the sheep loss but refuses to advise on wolves, redirecting to farmer."
+  },
+  "response_sha256": "d08c712f70aa8ee8746ca937b45b026b782991f6b18c3fd4c163842b5a443ec5",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

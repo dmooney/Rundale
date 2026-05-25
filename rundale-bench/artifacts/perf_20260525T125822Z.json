@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-25T12:58:22.581031+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mimo-v2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 3354,
+      "ttft_ms_p90": 4660,
+      "total_ms_median": 4342,
+      "tokens_per_second_median": 355.3,
+      "tokens_per_second_p90": 641.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 3264,
+          "total_ms": 3668,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 495.049504950495,
+          "reply_len": 184,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 3166,
+          "total_ms": 3725,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": 357.7817531305903,
+          "reply_len": 168,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 2764,
+          "total_ms": 3331,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": 352.73368606701945,
+          "reply_len": 166,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 3445,
+          "total_ms": 4280,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 239.52095808383234,
+          "reply_len": 225,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 2514,
+          "total_ms": 3656,
+          "completion_tokens": 200,
+          "prompt_tokens": 1546,
+          "tokens_per_second": 175.13134851138355,
+          "reply_len": 340,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 3814,
+          "total_ms": 4427,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": 326.2642740619902,
+          "reply_len": 172,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 4338,
+          "total_ms": 4443,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": 1904.7619047619048,
+          "reply_len": 41,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 2499,
+          "total_ms": 4404,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 104.98687664041995,
+          "reply_len": 428,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 4636,
+          "total_ms": 5054,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 478.4688995215311,
+          "reply_len": 156,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 4879,
+          "total_ms": 5278,
+          "completion_tokens": 200,
+          "prompt_tokens": 1547,
+          "tokens_per_second": 501.25313283208015,
+          "reply_len": 85,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 55.09895920753479,
+  "cost": {
+    "usd": 0.0,
+    "calls": 10
+  }
+}

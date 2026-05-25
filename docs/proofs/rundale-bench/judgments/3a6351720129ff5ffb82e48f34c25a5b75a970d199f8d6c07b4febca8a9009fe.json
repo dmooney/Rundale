@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 5,
+    "craft": 5,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "3a6351720129ff5ffb82e48f34c25a5b75a970d199f8d6c07b4febca8a9009fe",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.8,
+  "prompt_id": "dialogue-0010",
+  "rationales": {
+    "authenticity": "The conflict between folk practice and formal religion is period-accurate; 'God's own medicine' echoes real historical sentiment, though slightly eloquent.",
+    "character": "Brigid's steadfast independence, respect for empirical healing, and principled tension with clerical authority are powerfully rendered.",
+    "craft": "Three sentences with strong action; the internal thought ('he's never delivered a breech birth') is evocative and character-defining; craft is publication-grade.",
+    "language": "Excellent diction and rhythm; Irish phrase ('Le c\u00fanamh D\u00e9') integrates naturally; no errors.",
+    "responsiveness": "Directly engages with the priest's sermon, articulates her counter-position, and explains her practice."
+  },
+  "response_sha256": "5eb3027ade0778d6c0d713712350547d99dd98cb1f98056c107926ae1aa4ac2e",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

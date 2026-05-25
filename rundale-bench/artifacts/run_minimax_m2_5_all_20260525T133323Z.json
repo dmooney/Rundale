@@ -1,0 +1,757 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "minimax-m2.5",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T13:30:03.646494+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 2.7,
+        "authenticity": 2.7,
+        "language": 2.8,
+        "responsiveness": 2.4,
+        "craft": 2.0,
+        "overall": 2.5200000000000005,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Dreams can be a heavy thing to carry, sure they can. What manner of dreams are they troubling ye? Some find ease with a tea of valerian root before bed, or",
+          "response_sha256": "18e59371518755e14372cdfd44b9f3aca5a2867045697177d53377517b76d015",
+          "cache_key": "284e3aaaabfc42c550ae0e147559696222d4ed71d1dc92e163ba66512cea4b1c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "The user is asking about an old woman (Cailleach) who lives near a fairy fort (s\u00eddhe). This is a question about local folklore and a person in the community. As a midwife who has lived in the parish for years and knows the local people, I would know about such a person. The Cailleach in Irish folklore is often a wise woman or a figure connected to the land and supernatural. In a 1820s Irish context, this could be a real older woman in the community who might be known for folk knowledge, or there could be folklore attached to her.\n\nI should respond in character as Brigid O'Brien - kind, direct, knowledgeable about local matters. I should speak in Hiberno-English with perhaps a sprinkle of Irish. I should be conversational and give what a local midwife would know about this person.\n\nI should be careful not to speak as a farmer about livestock, or as a priest about souls. A midwife would know about women's matters,",
+          "response_sha256": "b8abd4afc841184ec32109f59a2f3320bdc7e3e9ce2176499a16369e2f7af31a",
+          "cache_key": "2e485fa044117c4574b11adefd9a253025093331ad4bc9752fc80d5c229d5cba",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 3,
+              "responsiveness": 1
+            },
+            "overall": 1.4,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": true
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ah, the both of ye, God help her. A bad cough this time of year, sure 'tis common enough. I'd need to know a bit more \u2014 is it a",
+          "response_sha256": "4d3348841446c3b64c3c0d2b7bc481cc8e7d4af3f0ec9e98fb94409b78a69629",
+          "cache_key": "a2a03aa400d802fa27195e88b03b7e29202210c3f47481bf24cf21ff8bca67a0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I've heard tell of it, so I have. One of the lads from the public house mentioned a man asking after lodgings near the chapel road. Haven't set eyes on him m'self yet, but sure the whole parish will know his business soon enough. 'Tis a small place \u2014 nothing stays secret long here.\n\n---\n{\"action\": \"stirs a pot over the hearth",
+          "response_sha256": "df3974eca64bb6f5f87903752f1f2d5fd4c9e4d1cfddf71a8188a58ebaa275e9",
+          "cache_key": "19fec36045187b87a3477283e2ccdaed24001e422737f454deb7095704aa65ac",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Aye, losing a beast in the night is a sore thing, so it is. But that's not me wheelhouse, I'm afraid \u2014 the like of wolves and predators, ye'd best speak wi' Patrick Brennan at the next farm, or perhaps young Dermot who keeps the hounds. 'Tis the",
+          "response_sha256": "1f2b0c9921781e6abadcfa604c26af6f8c8cbfd60f9490af6e687a0e441d58ef",
+          "cache_key": "f2ec2070aa522cea1a94bc5be9e374b65b85e41200119e8ff461eaad2ce74e87",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Ah, that was a bad turn, so it was. I remember well \u2014 I came by the cottage three times that fortnight, bringing compress",
+          "response_sha256": "b18bea9872d7fdb0b71db39d808f73e50832b9f8f8289a2e8e67c664852eb933",
+          "cache_key": "d4280128df5b7fee1985a82752de74b2603c7656928b94f61fded58c542f6eb3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Ah,",
+          "response_sha256": "214ed1adc2c406613f30affee38b175ce13d2a8b276dafe5e7b581802e123a3a",
+          "cache_key": "c0e19ae83a4e9ae7a4a246eb61ff5c153b9f88eb81bca70085d93abcd7b1ddec",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 1
+            },
+            "overall": 1.2,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Ah, strange how, is it? Metallic-like or is it more of a green taste to it? Sometimes after heavy rains, the water can carry more from the soil. If it's only been a week, 'tis likely nothing serious \u2014 but keep an eye on it all the same. Has anyone else in the household taken ill, or",
+          "response_sha256": "1dd787de24eaba310876cf18094f8e01343608b006a36a69e849296109e2d424",
+          "cache_key": "5bc0c23ec5190daa9a2e89873008a9af0134ac4315d862a1f152a225a6b9c696",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Ah, well now, 'tis good ye're thinkin' ahead. When the pains come regular-like, maybe half an hour apart and not passin' with walkin' or restin', that's the time. But if her waters break, don't ye be waitin' at all \u2014 send the young one runnin' for",
+          "response_sha256": "67c7fe6cc6064b4a4a900b9775bf288b633938d079fc71968e38ffdc7b217cf8",
+          "cache_key": "3e6e28b4a41833cc08066bd093141b21a925ec61c27ca65fb1a285fc1364eadf",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Ah, Father Cathal means well",
+          "response_sha256": "eec87f3db42bbdeece2bd6ee053abfc0f26cd9edba28aaee9cf9705d131155c9",
+          "cache_key": "e35c46bd05c32181c4e41db0c23b8908507e5305ff3314da05473a6e1ff92111",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 1
+            },
+            "overall": 1.6,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__minimax_m2_5"
+      ],
+      "candidate": {
+        "model_id": "minimax-m2.5",
+        "provider_id": null,
+        "resolved_target": "minimax-m2.5@https://opencode.ai/zen/go/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "mean_score": 0.08
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0001",
+          "reply": "The user wants me to roleplay as Padraig Darcy, a 58-year-old Irish publican in 1820. I need to write a brief greeting (1-2 sentences max) as dialogue only, no narration or action descriptions. No modern language. The setting is evening, clear weather, and a newcomer has arrived at the pub.\n\nLet me think of a fitting greeting that fits Padraig's character - gruff but warm-hearted, dry wit, Irish vernacular appropriate to 182"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0002",
+          "reply": "The user wants me to roleplay as Padraig Darcy, a 58-year-old publican in rural Ireland in 1820. I need to greet a familiar person who has arrived at Brigid's cottage on a morning with light rain.\n\nThis is a greeting, so I should keep it brief (1-2 sentences), use dialogue only, no narration or action descriptions, and use period-appropriate language (no modern slang).\n\nLet me think of a name for this familiar person - perhaps an"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0003",
+          "reply": "The user wants me to roleplay as Padraig Darcy, a 58-year-old publican in rural Ireland in 1820. They want me to give a brief greeting (1-2 sentences max), dialogue only, no narration or action descriptions.\n\nThe scene: A familiar face has arrived at the church porch on Sunday noon. Mist. It's someone I've met before. I should greet them by name.\n\nWait, there's a contradiction here - the system prompt says I'm a publican, but the"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0004",
+          "reply": "The user wants me to play as Brigid O'Brien, a 42-year-old midwife in rural Ireland in 1820. I need to give a brief greeting (1-2 sentences max), dialogue only, no narration or action descriptions. I should speak as a midwife who works in the community, and use appropriate 1820s Irish vernacular without being too over-the-top with \"olde English.\"\n\nLet me craft something simple and direct that fits the character and setting."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0005",
+          "reply": "The user wants me to greet a familiar person who has arrived at my cottage. I'm Brigid, a midwife in rural Ireland in 1820. I should use period-appropriate language - no modern phrases. I should greet them by name (though no specific name was given, so I might use a general Irish name or just acknowledge them as a familiar person).\n\nLet me keep it brief and natural - 1-2 sentences, dialogue only, warm but direct as befits my character.\n"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0006",
+          "reply": "The user wants me to greet someone as Brigid O'Brien, a midwife in rural Ireland in 1820. The greeting should be brief (1-2 sentences), dialogue only, no narration, and I should use period-appropriate language from that time and place. I need to use an Irish name since this is rural Ireland.\n\nLet me think of appropriate Irish names from that era. A common Irish woman's name would work well. I'll greet them by name since the user specified that.\n\nThe setting is"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0007",
+          "reply": "The user wants me to play Father Cathal Donnellan, a 51-year-old Irish priest from rural Ireland in 1820. He's eloquent, severe, and preaches against old ways. I need to greet a newcomer at a pub briefly (1-2 sentences), dialogue only, no narration, no modern language.\n\nLet me think about how a stern Irish priest in 1820 would speak:\n- Use Hiberno-English or formal archaic language\n- Reference faith, God, or"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0008",
+          "reply": "The user wants me to roleplay as Father Cathal Donnellan, a 51-year-old Irish priest from 1820. They're asking me to greet a familiar person who has arrived at Brigid's cottage in the morning with light rain.\n\nI need to:\n- Be in character as Father Cathal Donnellan\n- Greet a familiar person by name\n- Keep it brief (1-2 sentences)\n- Dialogue only, no narration or action descriptions\n- Use appropriate 182"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 4,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.8,
+          "id": "reaction-0009",
+          "reply": "The user wants me to play Father Cathal Donnellan, a 51-year-old Irish priest in 1820, who is eloquent, severe, and preaches against the old ways. I need to greet a familiar person who has come to the church on Sunday.\n\nSince it's set in rural Ireland in 1820, I should use period-appropriate speech. \"Mist\" might be short for a name like \"Mistress\" used as a title for a woman, or it could be a"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0010",
+          "reply": "The user wants me to act as Sean Murphy, a 41-year-old farmer in rural Ireland in 1820. I'm at Darcy's Pub in the evening. A newcomer has arrived and I haven't met them before. I should introduce myself briefly in character.\n\nKey characteristics:\n- 41-year-old farmer\n- Rural Ireland, 1820\n- Plain-spoken and stubborn\n- Works the bog\n- Current mood: hungry\n\nI should write dialogue only, no narration or action descriptions."
+        }
+      ]
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0001",
+          "reply": "The user wants a JSON describing a scene: \"simulating background interactions between characters in a small Irish parish in 1820. Location: Darcy's Pub. Time: Evening. Weather: Clear.\" The characters: Padraig Darcy, publican, content; Niamh Darcy, barmaid, tired; Sean Murphy, farmer, hungry. The user asks: Write one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a character's mood has clearly shifted or a relationship has meaningfully strengthened or strained.\n\nRespond with a JSON object using the bracketed ids. Default shape: {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []} Only when something actually changes, include entries: mood_changes: {\"npc_id\": <id>, \"new_mood\": \"<mood>\"}, relationship_changes: {\"from\": <id>, \"to\": "
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0002",
+          "reply": "The user wants a simulation of background interactions between characters in a small Irish parish in 1820. Location: Darcy's Pub. Time: Evening. Weather: Clear.\n\nWe have three characters with IDs [1], [2], [3] and their description. They have current moods and relationships (unknown). The user asks: \"Write one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a character's mood has clearly shifted or a relationship has meaningfully strengthened or strained.\"\n\nThey ask to respond with a JSON object using the bracketed ids. Default shape: {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}.\n\nSo we need to output a JSON object with \"summary\" containing a short sentence (max 20 words). No changes needed in mood_changes or relationship_changes unless something changes.\n\nWe must not output anything else besides the JSON object.\n\nThe summary"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0003",
+          "reply": "The user asks: \"You are simulating background interactions between characters in a small Irish parish in 1820. ... Write one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a character's mood has clearly shifted or a relationship has meaningfully strengthened or strained. Respond with a JSON object using the bracketed ids. Default shape: {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}. Only when something actually changes, include entries...\"\n\nThus we must produce a JSON object with the keys \"summary\", \"mood_changes\", and \"relationship_changes\". The summary should be one short sentence (max 20 words). The characters currently: Padraig Darcy is irritable, even-tempered, well-spoken; known Niamh his whole life. Niamh Darcy is tired, quick-witted, observant; Padraig's daughter. Sean Murphy is hungry,"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0004",
+          "reply": "The user wants me to simulate background interactions between characters in an Irish parish in 1820. The location is a crossroads at dusk with windy weather. There are two characters: Tommy Maguire (farmer, restless, storyteller) and Donal MacNamara (blacksmith, tired, broad-shouldered, soot-streaked). I need to write one short sentence (max 20 words) describing what these characters are doing right now. The default shape for the JSON object includes summary, mood_changes, and relationship_changes. I should only include mood_changes or relationship_changes if there is an actual change in mood or relationship. Since this is an uneventful exchange, likely both arrays will be empty. The sentence should be concise and depict the scene.\n\nGiven the description: it's dusk, windy, at a crossroads. Tommy is restless and a storyteller. Donal is tired. Perhaps they're just passing each other or standing around. Since it's a small Irish parish in 1820, they might be"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0005",
+          "reply": "The user asks: \"You are simulating background interactions between characters in a small Irish parish in 1820.\n\nLocation: the crossroads\nTime: Dusk\nWeather: Wind.\n\nDramatis personae (id in brackets \u2014 reuse these in your JSON):\n- [1] Tommy Maguire, Farmer. Currently restless. storyteller (a small misunderstanding occurred).\n- [2] Donal MacNamara, Blacksmith. Currently tired. broad-shouldered, soot-streaked (a small misunderstanding occurred).\n\nWrite one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a character's mood has clearly shifted or a relationship has meaningfully strengthened or strained.\n\nRespond with a JSON object using the bracketed ids. Default shape:\n{\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}\n\nOnly when something actually changes, include entries:\n  mood_changes:        {\"npc"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0006",
+          "reply": "The user wants us to simulate background interactions between characters in a small Irish parish in 1820. We have location \"crossroads\", time \"Dusk\", weather \"Wind\". There are two characters: Tommy Maguire, a farmer, currently irritable, storyteller; and Donal MacNamara, blacksmith, currently tired, broad-shouldered, soot-streaked.\n\nWe need to write one short sentence (max 20 words) describing what these characters are doing right now. This is basically an interaction at the crossroads at dusk, maybe they are discussing something or just passing by. It should be short.\n\nWe also need to output a JSON object with fields summary, mood_changes, relationship_changes. The summary should be a short sentence (max 20 words) describing what these characters are doing right now.\n\nWe need to keep mood_changes and relationship_changes arrays empty unless something has changed. In this scenario, there's no clear shift in mood or relationship, so they remain empty.\n\nBut we have to consider"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0007",
+          "reply": "The user wants: \"You are simulating background interactions between characters in a small Irish parish in 1820.\"\n\nWe have location: Brigid's cottage, time morning, weather light rain.\n\nCharacters: Brigid O'Brien (midwife, focused, kind, direct, knowledgeable). Mary Geraghty (farmwife, anxious, newly with child, first pregnancy).\n\nWe need to write one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a mood shift or relationship change.\n\nRespond with a JSON object using the bracketed ids.\n\nDefault shape: {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}\n\nOnly when something actually changes include entries.\n\nGoal: Provide a short sentence describing the current activity. The scene: Brigid's cottage in the morning, light rain. Brigid is a midwife, likely examining Mary, perhaps giving advice,"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0008",
+          "reply": "The user asks: \"You are simulating background interactions between characters in a small Irish parish in 1820.\n\nLocation: Brigid's cottage\nTime: Morning\nWeather: Light Rain.\n\nDramatis personae (id in brackets \u2014 reuse these in your JSON):\n- [1] Brigid O'Brien, Midwife. Currently focused. kind, direct, knowledgeable (a small misunderstanding occurred).\n- [2] Mary Geraghty, Farmwife. Currently anxious. newly with child, first pregnancy (a small misunderstanding occurred).\n\nWrite one short sentence (max 20 words) describing what these characters are doing right now. Most exchanges are uneventful \u2014 leave mood_changes and relationship_changes as empty arrays unless a character's mood has clearly shifted or a relationship has meaningfully strengthened or strained.\n\nRespond with a JSON object using the bracketed ids. Default shape:\n{\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}\n\nOnly when something actually changes, include entries"
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0009",
+          "reply": "We need to write a JSON object. The scenario: Brigid O'Brien, Midwife, irritable; Mary Geraghty, farmwife, anxious, newly pregnant. Location: Brigid's cottage. Time: Morning. Weather: Light rain. Write a short sentence (max 20 words) describing what these characters are doing right now. Then mood_changes and relationship_changes: default empty arrays unless mood has shifted or relationship changed meaningfully. So just a simple description. No mood changes? Possibly Brigid is \"preparing tea for Mary while asking about her symptoms\". Mary is \"sipping tea, looking worried\". That wouldn't be a mood change. But perhaps Brigid's mood is irritable - but we are describing the present, so we could keep it as is. No mood changes.\n\nThus JSON:\n\n{\n  \"summary\": \"Brigid O'Brien brews tea while Mary Geraghty sits close, nervously touching her belly.\",\n  \"mood_changes\": [],\n "
+        },
+        {
+          "schema_valid": false,
+          "plausibility": 0,
+          "score": 0.0,
+          "errors": [
+            "JSON parse: Expecting value: line 1 column 1 (char 0)"
+          ],
+          "id": "tier2-0010",
+          "reply": "The user asks: \"You are simulating background interactions between characters... Write one short sentence (max 20 words) describing what these characters are doing right now... Respond with a JSON object using the bracketed ids. Default shape: {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}.\"\n\nWe need to produce a JSON object with summary up to 20 words describing what they are doing right now. The location is the church porch, Sunday noon, mist. Characters: Father Cathal, watchful, eloquent, severe. Old Tommy, farmer, contrite, regular at Sunday Mass. Widow Kelleher, widow, tearful, lost her son to consumption last winter.\n\nWe need to give a short sentence (max 20 words) describing what these characters are doing right now. Probably: \"Father Cathal stands stern at the porch, Old Tommy bows his head, and Widow Kelleher weeps quietly in the mist.\" Count words: \"Father"
+        }
+      ]
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0012",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        }
+      ]
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.1,
+        "fluency_mean": 3.7,
+        "grammar_mean": 3.7,
+        "idiom_mean": 3.8,
+        "task_fulfillment_mean": 4.0,
+        "english_leakage_mean": 4.6,
+        "overall_mean": 3.7299999999999995
+      },
+      "results": [
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 4,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 4.8,
+          "reason": "The translation is correct and natural Irish; omitting 'go' before 'maith' (predicative adjective after 'bh\u00ed') is a minor grammatical deviation from the standard copula-like construction, but the sentence is otherwise fluent and fully conveys the meaning.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0001",
+          "reply": "Bh\u00ed an f\u00f3mhar maith i mbliana."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is entirely in English with extensive meta-commentary and reasoning; no Irish-only sentence was produced as required by the constraints.",
+          "english_leakage_examples": [
+            "The user wants me to translate",
+            "In Irish, 'I have to' can be expressed as",
+            "Let me think about which is more natural",
+            "Actually, let me reconsider"
+          ],
+          "id": "gaeilge-0002",
+          "reply": "The user wants me to translate \"I have to go to the bank.\" into Irish Gaeilge.\n\nIn Irish, \"I have to\" can be expressed as \"caithfidh m\u00e9\" (I must) or \"t\u00e1 orm\" (I have to). The phrase \"caithfidh m\u00e9 dul\" is the most natural way to say \"I have to go.\"\n\n\"I have to go to the bank\" = \"Caithfidh m\u00e9 dul go dt\u00ed an banc\"\n\nOr alternatively: \"T\u00e1 orm dul go dt\u00ed an banc\"\n\nLet me think about which is more natural. \"Caithfidh m\u00e9 dul go dt\u00ed an banc\" is very natural Irish.\n\nActually, let me reconsider. The construction with \"t\u00e1\" would be \"t\u00e1 orm dul\" (lit. \"there is on me to go\"). This is also very common.\n\nBut \"caithfidh m\u00e9\" + infinitive is also correct and natural.\n\nI think both work, but \"Caithfidh m\u00e9 dul go dt\u00ed an banc\" is a straightforward, natural translation.\n\nWait, I should check the word order. In Irish, \"go dt\u00ed an banc\" is correct for \"to the bank.\"\n\nLet me provide: Caithfidh m\u00e9 dul go dt\u00ed an banc.\n\nActually, thinking about it more naturally - in everyday Irish, people might say \"t\u00e1 m\u00e9 a chur ort\" but no, that's different.\n\n\""
+        },
+        {
+          "fluency": 1,
+          "grammar": 2,
+          "idiom": 2,
+          "task_fulfillment": 1,
+          "english_leakage": 5,
+          "overall": 1.5,
+          "reason": "The response is incomplete, cutting off mid-word ('an fh\u00edrin' instead of 'an fh\u00edrinne a insint duit'), making it an unfinished sentence that fails to fulfill the task.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0003",
+          "reply": "Ba mhaith liom an fh\u00edrin"
+        },
+        {
+          "fluency": 3,
+          "grammar": 3,
+          "idiom": 3,
+          "task_fulfillment": 4,
+          "english_leakage": 5,
+          "overall": 3.0,
+          "reason": "The sentence is mostly correct but missing the past tense particle 'd'' before 'ith' \u2014 it should be 'D'ith m\u00e9 an t-ar\u00e1n' to properly form the past tense in Irish; 'Ith' without the lenition/particle reads as an imperative rather than past tense.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0004",
+          "reply": "Ith m\u00e9 an t-ar\u00e1n."
+        },
+        {
+          "fluency": 4,
+          "grammar": 3,
+          "idiom": 4,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 3.5,
+          "reason": "The sentence is almost correct but uses 'Cheann\u00f3idh' (lenited form, which would be used after certain particles or in dependent clauses) instead of the correct independent future tense 'Ceann\u00f3idh'; the lenition is a grammatical error in this context.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0005",
+          "reply": "Cheann\u00f3idh t\u00fa an leabhar inniu."
+        },
+        {
+          "fluency": 3,
+          "grammar": 3,
+          "idiom": 4,
+          "task_fulfillment": 4,
+          "english_leakage": 5,
+          "overall": 3.5,
+          "reason": "The response uses the idiomatic 'ag tn\u00fath leis' which is a valid and natural Irish expression for looking forward to something, but 'an t sneachta' is incorrectly written with a space before the t-prefix; it should be 'an tsneachta' (sneachta is masculine, so actually no t-prefix is needed after 'an",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0006",
+          "reply": "T\u00e1 m\u00e9 ag tn\u00fath leis an t sneachta."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' for possession.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0007",
+          "reply": "An bhfuil airgead aici?"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, using correct progressive movement construction, first-person singular, and the correct destination phrase.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly identifying the man as the walker and the woman as his companion in perfect Irish.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "Perfect match with the reference answer: negative interrogative correctly converted to positive declarative with past-tense verb and subject retained.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0010",
+          "reply": "Labhair Se\u00e1n."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 200.01707482337952,
+  "cost": {
+    "calls": 51,
+    "prompt_tokens": 31345,
+    "completion_tokens": 7847,
+    "usd": 0.04801572
+  }
+}

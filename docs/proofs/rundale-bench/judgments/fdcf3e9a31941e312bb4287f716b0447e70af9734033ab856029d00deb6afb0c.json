@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 5,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "fdcf3e9a31941e312bb4287f716b0447e70af9734033ab856029d00deb6afb0c",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 5.0,
+  "prompt_id": "dialogue-0009",
+  "rationales": {
+    "authenticity": "'Waters break,' 'pains regular and strong' are period-accurate obstetric language.",
+    "character": "Professional authority and confidence unmistakable; no flourish needed.",
+    "craft": "Concise (3 sentences), evocative simile, blessing for child; publication-grade.",
+    "language": "Clean, efficient en-IE; 'like the tide coming in' is a period-apt simile.",
+    "responsiveness": "Precisely addresses husband's question with clear actionable guidance."
+  },
+  "response_sha256": "83682f7929193b62ced63fcd49ffef29646279aacb91f78cf49552baabea8f80",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

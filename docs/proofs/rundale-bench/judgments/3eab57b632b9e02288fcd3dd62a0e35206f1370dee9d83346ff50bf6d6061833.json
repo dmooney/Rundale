@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 5
+  },
+  "cache_key": "3eab57b632b9e02288fcd3dd62a0e35206f1370dee9d83346ff50bf6d6061833",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.0,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Mineral content from rain runoff is plausible; the suggestion to boil is period-safe; P\u00e1draic Byrne reference adds local flavor.",
+    "character": "Brigid's observant, practical approach to communal health is solid; she notices what others do and coordinates community care.",
+    "craft": "The response is substantive but overlong and the truncated Irish phrase ('Go raibh maith agat for mentionin' it' trailing off) suggests formatting issues; craft is weakened by structure.",
+    "language": "Mostly clear, though the fragment about P\u00e1draic feels slightly rushed; the incomplete Irish phrase at the end disrupts flow.",
+    "responsiveness": "Fully addresses the water concern, offers mitigation, and proposes further investigation."
+  },
+  "response_sha256": "d19a12ebdd5f4e2c557a130425f02be29284add5f29f9f7e91a82d7134ee4046",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

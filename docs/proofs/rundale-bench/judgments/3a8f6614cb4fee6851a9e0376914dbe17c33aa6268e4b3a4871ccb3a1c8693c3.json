@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "3a8f6614cb4fee6851a9e0376914dbe17c33aa6268e4b3a4871ccb3a1c8693c3",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.8,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Historical fact (no wolves in Ireland by 1820) woven naturally into character; 'mo chara' adds warmth; the deflection is entirely period-appropriate.",
+    "character": "Brigid's firm, boundary-setting expertise is perfectly realized; she knows her domain and politely redirects without condescension.",
+    "craft": "Two substantive sentences plus a clarifying line; punchy and effective, though slightly tighter than the ideal 2\u20134.",
+    "language": "Crisp and idiomatic; Irish term well-integrated; rhythm and diction are excellent.",
+    "responsiveness": "Directly addresses the sheep concern, explains why it's outside her scope, and points the questioner elsewhere."
+  },
+  "response_sha256": "07fbd1d5d70f3b9e7397a05d5490fbb34ee9cbc1d20a13e046136dc98e47f88d",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

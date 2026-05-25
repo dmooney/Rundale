@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 4,
+    "craft": 3,
+    "language": 3,
+    "responsiveness": 3
+  },
+  "cache_key": "e86735fe33ac33d6bbc61f9c41c50c8157f5fe869b21bb00be0e2ffdbfc00845",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.4,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "M\u00e1ire N\u00ed Chuinn and s\u00ed are authentic Irish references, but 'same as meself' is slightly colloquial-modern.",
+    "character": "Brigid's cautious respect and practical knowledge of herbs shine; the boundary-drawing around old ways is in-character.",
+    "craft": "Clear and brief but somewhat informational rather than evocative; lacks the specific detail that elevates dialogue.",
+    "language": "Sound prose with Irish words well-integrated, though the reference to M\u00e1ire as herbalist slightly undercut by deflection.",
+    "responsiveness": "Addresses the Cailleach inquiry and provides context, though slightly cautious rather than fully engaged."
+  },
+  "response_sha256": "dac48f1415e73277494ad881b28b02966106562630229b1158b84a2bd1a874a8",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

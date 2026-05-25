@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 4
+  },
+  "cache_key": "c33cdb92fb770a05a8ef9c16e908b899ae349237d3ae4992503e0fa36f38879c",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.8,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Period-appropriate acknowledgement of role boundaries; 'hard thing, surely' has Irish cadence.",
+    "character": "Brigid knows her lane\u2014births and herbs, not wild creatures. The deference shows self-awareness and grounds her expertise; suggesting Paddy Brennan is a nice touch.",
+    "craft": "2 sentences but slightly repetitive ('I know... I would')\u2014functional but not evocative.",
+    "language": "Clean prose, natural 'so it is' closing, 'surely' fits voice.",
+    "responsiveness": "Directly addresses the prompt; redirects the questioner appropriately without dismissing their loss."
+  },
+  "response_sha256": "12a21328ac705af924a204a669be8b2e22ef58c4a0541ebd72a38c30764929c7",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

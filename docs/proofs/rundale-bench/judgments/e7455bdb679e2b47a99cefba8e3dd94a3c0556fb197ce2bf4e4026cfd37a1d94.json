@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "e7455bdb679e2b47a99cefba8e3dd94a3c0556fb197ce2bf4e4026cfd37a1d94",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "No dialogue to evaluate; only analytical framing.",
+    "character": "Instruction parsing and draft fragments; no voice.",
+    "craft": "Ends mid-draft; no finished response.",
+    "language": "English analysis instead of Hiberno-English.",
+    "responsiveness": "Incomplete; never delivers actual reply to stranger prompt."
+  },
+  "response_sha256": "06feb436f30d00643819f34a00e3795515e077050e275d223e85eeddc8d025b9",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

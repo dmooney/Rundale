@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 4
+  },
+  "cache_key": "0d26259d40f00b40ad402e0379a07e27dd49ac15caed94f311e1fe0ddabad134",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.4,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "Plausible 1820 Ireland setting, but the response is conventional; no detail specific to her expertise or role.",
+    "character": "The gossip-aware, curious tone is present but generic; lacks the specific voice or detail that would make Brigid distinct here.",
+    "craft": "Three sentences, well-paced, but formulaic; the herb-setting action beats other replies, leaving this one deflated.",
+    "language": "Correct and clear, with natural colloquialism; no errors.",
+    "responsiveness": "Acknowledges the news and signals openness to learning more, though doesn't add particular insight."
+  },
+  "response_sha256": "199e08978e50fc0434aa95b22b6734b19c3e56e1dcfc8fd4b44c7713ae2850ee",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "6f62c1f68cf103bbdb99c5e3c31886666911d4b89609e4f19e49b0233f7f50f9",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "No actual dialogue delivered; only planning.",
+    "character": "Response is incomplete metacognitive analysis, not dialogue.",
+    "craft": "Missing finished response; trailing off mid-thought.",
+    "language": "Breaks to English prose analysis instead of Hiberno-English voice.",
+    "responsiveness": "Does not address the prompt with an actual reply."
+  },
+  "response_sha256": "004018b29ac6480fc7687d034309f4a7b2c4cc116b069a55ff8aefd23e970273",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

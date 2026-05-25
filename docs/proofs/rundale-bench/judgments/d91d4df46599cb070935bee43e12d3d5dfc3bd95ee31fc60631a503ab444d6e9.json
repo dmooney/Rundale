@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "d91d4df46599cb070935bee43e12d3d5dfc3bd95ee31fc60631a503ab444d6e9",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Boiling water and peat water knowledge are authentic; reference to 'bairn' is period-correct.",
+    "character": "Cautious health authority with practical guidance; shows both confidence and appropriate concern.",
+    "craft": "Four sentences with practical detail ('boil it well'); slightly didactic but medically sound and period-voiced.",
+    "language": "Clean prose with good Irish phrase ('Go raibh maith agat'); no anachronisms.",
+    "responsiveness": "Addresses the water quality concern with both reassurance and actionable steps."
+  },
+  "response_sha256": "ace36030eff8e0d9885cb7a902389f3e673dcb779fc4a59d299760a3b53413f5",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

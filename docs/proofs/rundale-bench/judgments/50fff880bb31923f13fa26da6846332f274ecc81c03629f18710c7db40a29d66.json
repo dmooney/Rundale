@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "50fff880bb31923f13fa26da6846332f274ecc81c03629f18710c7db40a29d66",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.6,
+  "prompt_id": "dialogue-0003",
+  "rationales": {
+    "authenticity": "Thyme, honey, elderflower, and 'Dia dhuit' all period-standard remedies and greetings.",
+    "character": "Professional concern and medical authority balanced; slightly formulaic structure.",
+    "craft": "Slightly wordy but justified by clinical gravity; 'rattles the bones' is evocative.",
+    "language": "Period diction clear ('Dia dhuit,' 'mo chara,' 'rattles the bones'); no modern slips.",
+    "responsiveness": "Fully addresses mother's cough with diagnosis and treatment path."
+  },
+  "response_sha256": "4f74e6eb4ac773e8b418085cfd9bc4bc89c1f0c699c588f903187de37f5215fc",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}
