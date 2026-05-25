@@ -2420,6 +2420,18 @@ fn strip_thinking_block(text: &str) -> &str {
     trimmed
 }
 
+/// Truncate `s` to at most `max_chars` characters, suffixing `...` when
+/// truncation occurs. Used to keep tracing previews bounded for the
+/// `raw_preview` field on the empty-action retry path (TODO #18).
+fn truncate_for_log(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max_chars).collect();
+    out.push_str("...");
+    out
+}
+
 /// Builds the demo-turn system prompt for the LLM-as-player.
 ///
 /// Extracted from `get_llm_player_action` so the role anchor (TODO #51)
@@ -2538,13 +2550,57 @@ pub async fn get_llm_player_action(
     // Primary: extract the "action" field from JSON output.
     // The system prompt asks for {"action": "..."}, which is robust against
     // any amount of preamble or reasoning text the model emits before it.
-    let action_text = extract_action_from_response(&raw);
+    let mut action_text = extract_action_from_response(&raw);
     tracing::info!(
         location = %ctx.location_name,
         raw_len = raw.len(),
         action = %action_text,
         "demo turn: LLM chose action"
     );
+
+    // TODO #18 — bounded single retry on empty action. Cycle 3 of the
+    // demo audit logged two consecutive turns where the LLM returned
+    // 137/139 chars but the parser surfaced an empty action; the
+    // player input was recorded as nothing and no NPC turn fired.
+    // Common cause: model emitted {"action": ""} or completion lacking
+    // the `action` key. Retry once at temperature 1.0 with the same
+    // prompt — most retries succeed on the bump. Bounded to one extra
+    // call so a wedged model can't pin the slot.
+    if action_text.is_empty() && !raw.trim().is_empty() {
+        tracing::warn!(
+            location = %ctx.location_name,
+            raw_len = raw.len(),
+            raw_preview = %truncate_for_log(&raw, 200),
+            "demo turn: parsed action empty despite non-empty completion; retrying once"
+        );
+        let retry_raw = client
+            .generate(
+                &model,
+                &user_prompt,
+                Some(&system_prompt),
+                Some(200),
+                Some(1.0),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let retry_action = extract_action_from_response(&retry_raw);
+        if !retry_action.is_empty() {
+            tracing::info!(
+                location = %ctx.location_name,
+                raw_len = retry_raw.len(),
+                action = %retry_action,
+                "demo turn: retry produced non-empty action"
+            );
+            action_text = retry_action;
+        } else {
+            tracing::warn!(
+                location = %ctx.location_name,
+                raw_len = retry_raw.len(),
+                raw_preview = %truncate_for_log(&retry_raw, 200),
+                "demo turn: retry also produced empty action; skipping turn"
+            );
+        }
+    }
 
     // Quality sensors — emit WARN on any structural issue in the parsed
     // player action. These don't gate execution; they surface bugs in the
@@ -2563,7 +2619,40 @@ pub async fn get_llm_player_action(
 
 #[cfg(test)]
 mod demo_tests {
-    use super::{build_demo_system_prompt, extract_action_from_response, strip_thinking_block};
+    use super::{
+        build_demo_system_prompt, extract_action_from_response, strip_thinking_block,
+        truncate_for_log,
+    };
+
+    /// TODO #18 — pin the failure shapes where the parser returns
+    /// empty so the retry path's gate (`action_text.is_empty()`) is
+    /// well-defined.
+    #[test]
+    fn extract_action_returns_empty_on_action_field_set_to_empty_string() {
+        // {"action": ""} — model emitted the envelope but with an
+        // empty action. Parser returns "" → retry fires.
+        assert_eq!(extract_action_from_response(r#"{"action": ""}"#), "");
+    }
+
+    #[test]
+    fn extract_action_returns_empty_on_bare_empty_input() {
+        // Bare empty string — nothing to recover. Retry would still
+        // fire on a non-empty raw completion in the actual loop.
+        assert_eq!(extract_action_from_response(""), "");
+    }
+
+    #[test]
+    fn truncate_for_log_short_string_passes_through() {
+        assert_eq!(truncate_for_log("hello", 200), "hello");
+    }
+
+    #[test]
+    fn truncate_for_log_long_string_is_clipped_with_ellipsis() {
+        let long: String = "x".repeat(500);
+        let truncated = truncate_for_log(&long, 200);
+        assert_eq!(truncated.chars().filter(|&c| c == 'x').count(), 200);
+        assert!(truncated.ends_with("..."));
+    }
 
     #[test]
     fn demo_system_prompt_names_aiden_carney() {
