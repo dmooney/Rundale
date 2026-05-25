@@ -2,122 +2,188 @@
 
 > Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) (agent quick reference)
 
-This is the documentation hub for **Rundale**, an Irish Living World Text Adventure set in 1820, built on the **Parish** engine. Start here to find any document.
+This is the documentation hub for **Rundale**, an Irish Living World Text
+Adventure set in 1820, built on the **Parish** engine. Start here to find any
+document. Every file under `docs/design/`, `docs/design/ideas/`, `docs/plans/`,
+`docs/plans/archive/`, and `docs/adr/` is linked below.
 
-## Project Status
+## Project status
 
-**Phases 1–3 complete.** Next up: **Phase 4 — Persistence.**
+Rundale ships features across many subsystems in parallel rather than along a
+single linear phase. The authoritative status view is the **feature-status
+matrix** in the [Roadmap](requirements/roadmap.md).
 
-See [Roadmap](requirements/roadmap.md) for detailed per-item status tracking.
+Quick orientation: the core simulation (world graph, time/weather, cognitive
+LOD tiers 1–4, NPC memory/gossip, branching persistence, natural-language
+input), the Tauri + Svelte desktop GUI, the web server, per-category + cloud +
+MLX inference, the Parish Designer editor, and the rundale-bench harness are all
+shipped. Active design work centres on world expansion, the save/load UI,
+mythology hooks, and dialogue-quality evals.
 
-| Phase | Name | Status | Key Design Docs |
-|-------|------|--------|-----------------|
-| 1 | [Core Loop](plans/phase-1-core-loop.md) | **Complete** | [Architecture](design/overview.md) |
-| 2 | [World Graph](plans/phase-2-world-graph.md) | **Complete** | [Geography](design/world-geography.md), [Time](design/time-system.md) |
-| 3 | [NPCs & Simulation](plans/phase-3-npcs-simulation.md) | **Complete** | [NPC System](design/npc-system.md), [Cognitive LOD](design/cognitive-lod.md) |
-| 4 | [Persistence](plans/phase-4-persistence.md) | **Next** | [Persistence](design/persistence.md) |
-| 5 | [Full LOD & Scale](plans/phase-5-full-lod-scale.md) | Planned | [Cognitive LOD](design/cognitive-lod.md), [Weather](design/weather-system.md) |
-| 6 | [Polish & Mythology](plans/phase-6-polish-mythology.md) | Planned | [Mythology Hooks](design/mythology-hooks.md) |
-| 7 | [Web & Mobile Apps](plans/phase-7-web-mobile.md) | Planned | [ADR-014](adr/014-web-mobile-architecture.md) |
+## How docs are organised
+
+| Folder | Contains | Status vocabulary |
+|---|---|---|
+| `design/` | Durable subsystem reference — how a shipped/extant system works | Implemented · Partial |
+| `design/ideas/` | Brainstorms, RFCs, speculative proposals | Brainstorm · Proposed |
+| `plans/` | Active implementation plans | In progress · Proposed · Planned |
+| `plans/archive/` | Completed or historical plans (incl. linear phases) | Complete |
+| `adr/` | Architecture Decision Records | Accepted · Proposed |
+
+Every design/plan doc carries a `> Status: …` header. See
+[ADR-024](adr/024-documentation-reorg-v2.md) for the organising rules.
 
 ---
 
-## Design Documents
+## Design — durable subsystem reference
 
-High-level architecture and detailed subsystem designs. Start with [Architecture Overview](design/overview.md) and follow links to subsystems.
+| Document | Status | Related ADRs |
+|----------|--------|-------------|
+| [Architecture Overview](design/overview.md) | Implemented | — |
+| [Cognitive LOD](design/cognitive-lod.md) | Implemented | [002](adr/002-cognitive-lod-tiers.md) |
+| [World & Geography](design/world-geography.md) | Implemented | [001](adr/001-graph-based-world.md), [009](adr/009-real-geography-fictional-people.md) |
+| [Time System](design/time-system.md) | Implemented | [007](adr/007-time-scale-20min-day.md) |
+| [Weather System](design/weather-system.md) | Implemented | — |
+| [NPC System](design/npc-system.md) | Implemented | [008](adr/008-structured-json-llm-output.md), [018](adr/018-npc-intelligence-dimensions.md) |
+| [Inference Pipeline](design/inference-pipeline.md) | Implemented | [005](adr/005-ollama-local-inference.md), [010](adr/010-prompt-injection-defenses.md), [013](adr/013-cloud-llm-dialogue.md), [017](adr/017-per-category-inference-providers.md) |
+| [Player Input](design/player-input.md) | Implemented | [006](adr/006-natural-language-input.md) |
+| [Persistence & Save System](design/persistence.md) | Implemented | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md) |
+| [GUI Design](design/gui-design.md) | Implemented | [016](adr/016-tauri-svelte-gui.md) |
+| [Parish Designer (GUI editor)](design/designer-editor.md) | Implemented | — |
+| [Debug System](design/debug-system.md) | Implemented | — |
+| [Debug UI](design/debug-ui.md) | Implemented | — |
+| [Ambient Sound](design/ambient-sound.md) | Implemented | [015](adr/015-ambient-sound-system.md) |
+| [Geo-Tool](design/geo-tool.md) | Implemented | [011](adr/011-geo-tool-osm-pipeline.md) |
+| [Testing Harness](design/testing.md) | Implemented | — |
+| [Scalable NPC Data Design](design/scalable-npc-data-design.md) | Partial | — |
 
-| Document | Description | Related ADRs |
-|----------|-------------|-------------|
-| [Architecture Overview](design/overview.md) | Tech stack, core loop, module tree, LLM provider support | — |
-| [Cognitive LOD](design/cognitive-lod.md) | 4-tier NPC simulation fidelity system | [ADR-002](adr/002-cognitive-lod-tiers.md) |
-| [World & Geography](design/world-geography.md) | Location graph, real Irish geography, map data | [ADR-001](adr/001-graph-based-world.md), [ADR-009](adr/009-real-geography-fictional-people.md) |
-| [Time System](design/time-system.md) | Day/night cycle, seasons, Irish festivals | [ADR-007](adr/007-time-scale-20min-day.md) |
-| [Weather System](design/weather-system.md) | Weather states and simulation effects | — |
-| [GUI Design](design/gui-design.md) | Tauri 2 + Svelte 5 desktop GUI with map, chat, and sidebars | — |
-| [Map Evolution](design/map-evolution.md) | Brainstorm: minimap, OSM tiles, fog of war, label fixes | RFC |
-| [Graphical World View](design/graphical-world-view.md) | RFC: procedural pixel scene panel — deterministic NPC/location sprites, palette-tinted, alongside chat | RFC |
-| [Player Input](design/player-input.md) | Natural language input, system commands, @mention targeting | [ADR-006](adr/006-natural-language-input.md) |
-| [Input Enrichment Ideas](design/input-enrichment-ideas.md) | Brainstorm: slash autocomplete, emotes, history, whispers, reactions | RFC |
-| [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
-| [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
-| [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |
-| [RAG Lore Recall](design/rag-lore-recall.md) | Retrieval-augmented Tier 1 dialogue grounded in parish JSON lore | Proposed |
-| [Emotion-Driven Dialogue & Simulation](design/emotion-driven-dialogue-and-simulation.md) | Brainstorm: emotional state model, dialogue policies, simulation hooks, safety monitoring | RFC |
-| [Gemma 4 Rundale Training Plan](design/gemma4-rundale-training-plan.md) | QLoRA post-training plan for 1820s Hiberno-English NPC dialogue | [Irish English Resources](research/Irish-English-1820s-resources.md) |
-| [Debug System](design/debug-system.md) | Debug commands, metrics (feature-gated) | — |
-| [Debug UI](design/debug-ui.md) | Tabbed debug panel for Tauri GUI (state inspector) | — |
-| [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
-| [parish-geo-tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
-| [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer | — |
-| [Game Ideas Brainstorm](design/game-ideas-brainstorm.md) | 20 gameplay ideas across social, economic, mythology, and political themes | — |
-| [Ambient Sound](design/ambient-sound.md) | Location-aware audio playback via rodio | [ADR-015](adr/015-ambient-sound-system.md) |
+**Design sub-collections** (each has its own index):
+
+- [AI Techniques](design/ai-techniques/README.md) — 12 technique surveys (semantic memory/RAG, structured generation, drama manager, social simulation, …)
+- [Input Enrichment](design/input-enrichment/01-slash-autocomplete.md) — per-feature designs feeding the (completed) [implementation plan](plans/archive/input-enrichment-implementation.md)
+
+## Design ideas / RFCs
+
+Speculative and forward-looking — not (yet) committed work.
+
+| Document | Status |
+|----------|--------|
+| [RAG Lore Recall](design/ideas/rag-lore-recall.md) | Proposed |
+| [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md) | Proposed |
+| [Mythology Layer (Future Hooks)](design/ideas/mythology-hooks.md) | Proposed |
+| [Visual Effects System](design/ideas/visual-effects-system.md) | Proposed |
+| [Debt Shield](design/ideas/debt-shield.md) | Proposed |
+| [iOS Port (on-device)](design/ideas/ios-port.md) | Proposed |
+| [Cloud Run Hosting](design/ideas/cloud-run-hosting.md) | Proposed |
+| [Emotion-Driven Dialogue & Simulation](design/ideas/emotion-driven-dialogue-and-simulation.md) | Brainstorm |
+| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md) | Brainstorm |
+| [Map Panel Evolution](design/ideas/map-evolution.md) | Brainstorm |
+| [Input Line Enrichment Ideas](design/ideas/input-enrichment-ideas.md) | Brainstorm |
+| [NPC Prompt Immersion Ideas](design/ideas/npc-prompt-immersion-ideas.md) | Brainstorm |
+| [Game Ideas Brainstorm](design/ideas/game-ideas-brainstorm.md) | Brainstorm |
+| [Game Mechanics Brainstorm](design/ideas/game-mechanics-brainstorm.md) | Brainstorm |
+| [Music & Sound: Creative Vision](design/ideas/music-sound-brainstorm.md) | Brainstorm |
+| [Night Visions](design/ideas/night-visions.md) | Parked |
+
+## Plans — active
+
+| Plan | Status |
+|------|--------|
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md) | Planned |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md) | Planned |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md) | Partial |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md) | Planned |
+| [Rundale-Bench](plans/rundale-bench.md) | In progress |
+| [LLM Quality Evals](plans/llm-quality-evals.md) | Proposed |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md) | Proposed |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md) | Proposed |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md) | Proposed |
+
+## Plans — archived (complete / historical)
+
+| Plan | |
+|------|--|
+| [Phase 1 — Core Loop](plans/archive/phase-1-core-loop.md) | Complete |
+| [Phase 2 — World Graph](plans/archive/phase-2-world-graph.md) | Complete |
+| [Phase 3 — NPCs & Simulation](plans/archive/phase-3-npcs-simulation.md) | Complete |
+| [Phase 4 — Persistence](plans/archive/phase-4-persistence.md) | Complete |
+| [Phase 5 — Full LOD & Scale](plans/archive/phase-5-full-lod-scale.md) | 5A–5E complete |
+| [Phase 5A — Event Bus & Tier Transitions](plans/archive/phase-5a-event-bus-tier-transitions.md) | Complete |
+| [Phase 5B — Weather State Machine](plans/archive/phase-5b-weather-state-machine.md) | Complete |
+| [Phase 5C — Memory & Gossip](plans/archive/phase-5c-memory-gossip.md) | Complete |
+| [Phase 5D — Tier 3 Batch Inference](plans/archive/phase-5d-tier3-batch-inference.md) | Complete |
+| [Phase 5E — Tier 4 Seasonal Effects](plans/archive/phase-5e-tier4-seasonal-effects.md) | Complete |
+| [Phase 8 — Tauri GUI Rewrite](plans/archive/phase-8-tauri-gui.md) | Complete |
+| [Engine / Game Data Separation](plans/archive/engine-game-data-separation.md) | Complete |
+| [Input Enrichment Implementation](plans/archive/input-enrichment-implementation.md) | Complete |
+| [LLM Demo / Auto-Player Mode](plans/archive/demo-mode.md) | Complete |
+| [Automated Chrome Test Plan](plans/archive/chrome-test-plan.md) | Complete |
+| [Open Questions](plans/archive/open-questions.md) | All resolved |
 
 ## Architecture Decision Records (ADRs)
 
-Key decisions with rationale and alternatives considered. See [ADR Index](adr/README.md) for the full list and template.
+See the [ADR Index](adr/README.md) for the full table and template.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [001](adr/001-graph-based-world.md) | Graph-based world (not coordinate grid) | Accepted |
-| [002](adr/002-cognitive-lod-tiers.md) | 4-tier cognitive level-of-detail system | Accepted |
-| [003](adr/003-sqlite-wal-persistence.md) | SQLite WAL for persistence | Accepted |
-| [004](adr/004-git-like-branching-saves.md) | Git-like branching save system | Accepted |
-| [005](adr/005-ollama-local-inference.md) | Ollama for local LLM inference | Accepted |
-| [006](adr/006-natural-language-input.md) | Natural language input via LLM | Accepted |
+| [001](adr/001-graph-based-world.md) | Graph-based world | Accepted |
+| [002](adr/002-cognitive-lod-tiers.md) | 4-tier cognitive level-of-detail | Accepted |
+| [003](adr/003-sqlite-wal-persistence.md) | SQLite WAL persistence | Accepted |
+| [004](adr/004-git-like-branching-saves.md) | Git-like branching saves | Accepted |
+| [005](adr/005-ollama-local-inference.md) | Ollama local inference | Accepted |
+| [006](adr/006-natural-language-input.md) | Natural-language input | Accepted |
 | [007](adr/007-time-scale-20min-day.md) | 20 real minutes = 1 game day | Accepted |
-| [008](adr/008-structured-json-llm-output.md) | Structured JSON output from LLM | Accepted |
-| [009](adr/009-real-geography-fictional-people.md) | Real Irish geography, fictional people | Accepted |
-| [010](adr/010-prompt-injection-defenses.md) | 5-layer prompt injection defense strategy | Accepted |
-| [011](adr/011-geo-tool-osm-pipeline.md) | parish-geo-tool OSM pipeline for automated world generation | Accepted |
-| [012](adr/012-documentation-hierarchy.md) | Hierarchical documentation organization | Accepted |
+| [008](adr/008-structured-json-llm-output.md) | Structured JSON LLM output | Accepted |
+| [009](adr/009-real-geography-fictional-people.md) | Real geography, fictional people | Accepted |
+| [010](adr/010-prompt-injection-defenses.md) | Prompt-injection defenses | Accepted |
+| [011](adr/011-geo-tool-osm-pipeline.md) | parish-geo-tool OSM pipeline | Accepted |
+| [012](adr/012-documentation-hierarchy.md) | Hierarchical documentation organization | Accepted (amended by 024) |
 | [013](adr/013-cloud-llm-dialogue.md) | Cloud LLM for player dialogue | Accepted |
 | [014](adr/014-web-mobile-architecture.md) | Web & mobile thin-client architecture | Accepted |
-| [015](adr/015-ambient-sound-system.md) | Ambient sound system via rodio (GUI-only) | Accepted |
+| [015](adr/015-ambient-sound-system.md) | Ambient sound system (rodio, GUI-only) | Accepted |
 | [016](adr/016-tauri-svelte-gui.md) | Replace egui with Tauri 2 + Svelte GUI | Accepted |
 | [017](adr/017-per-category-inference-providers.md) | Per-category inference providers | Accepted |
+| [018](adr/018-npc-intelligence-dimensions.md) | NPC multidimensional intelligence | Accepted |
+| [019](adr/019-json-structured-output-for-npc-dialogue.md) | JSON structured output for NPC dialogue | Accepted |
+| [020](adr/020-npc-tool-use.md) | NPC function-calling / tool-use output | Proposed |
+| [021](adr/021-npc-memory-retrieval.md) | Embedding-based NPC memory retrieval | Proposed |
+| [022](adr/022-engine-config-extraction.md) | Extract engine tuning into configuration | Accepted |
+| [023](adr/023-web-testing-server.md) | Web server mode for Chrome GUI testing | Accepted |
+| [024](adr/024-documentation-reorg-v2.md) | Documentation reorganization v2 | Accepted |
 
-## Requirements & Status
+## Requirements & status
 
 | Document | Description |
 |----------|-------------|
-| [Roadmap](requirements/roadmap.md) | All 6 phases with per-item status checkboxes |
-| [Open Questions](plans/open-questions.md) | 7 deferred design decisions — all resolved |
+| [Roadmap](requirements/roadmap.md) | Feature-status matrix + historical phases (authoritative) |
+| [Open Questions](plans/archive/open-questions.md) | Deferred design decisions — all resolved |
 
-## Implementation Plans
-
-Detailed, implementation-ready plans for each development phase.
-
-| Plan | Phase | Status |
-|------|-------|--------|
-| [Phase 1: Core Loop](plans/phase-1-core-loop.md) | Core game loop, single NPC | **Complete** |
-| [Phase 2: World Graph](plans/phase-2-world-graph.md) | Location graph, movement, encounters | **Complete** |
-| [Phase 3: NPCs & Simulation](plans/phase-3-npcs-simulation.md) | Multiple NPCs, schedules, tiers 1-2 | **Complete** |
-| [Phase 4: Persistence](plans/phase-4-persistence.md) | SQLite, journal, snapshots, branching | **Next** |
-| [Phase 5: Full LOD & Scale](plans/phase-5-full-lod-scale.md) | Tiers 3-4, weather, gossip, memory | Planned |
-| [Phase 6: Polish & Mythology](plans/phase-6-polish-mythology.md) | Commands UI, mythology data hooks | Planned |
-| [Phase 7: Web & Mobile Apps](plans/phase-7-web-mobile.md) | Web (WASM) + Tauri mobile clients, game server | Planned |
-
-## Getting Started
+## Getting started
 
 | Document | Description |
 |----------|-------------|
 | [macOS Setup](macos-setup.md) | Native macOS setup, Apple Silicon GPU, terminal tips |
 | [Linux Setup](linux-setup.md) | Native Linux setup, NVIDIA/AMD GPU, headless screenshots |
 | [Windows Setup](windows-setup.md) | Native Windows setup, terminal tips, troubleshooting |
-| [Google OAuth Setup](oauth-setup.md) | Obtaining Google credentials for the web server's sign-in flow |
+| [Google OAuth Setup](oauth-setup.md) | Google credentials for the web server's sign-in flow |
 
 ## Development
 
 | Document | Description |
 |----------|-------------|
+| [Feature List](features.md) | Player-facing and engine feature inventory |
 | [Development Journal](journal.md) | Cross-session notes, observations, recommendations |
 | [Known Issues](known-issues.md) | Active bugs and UX issues |
-| [First Contribution Guide](development/first-contribution-guide.md) | Newcomer-oriented architecture map and where to implement common changes |
+| [First Contribution Guide](development/first-contribution-guide.md) | Newcomer architecture map and where to implement common changes |
+| [Test Coverage Analysis](test-coverage-analysis.md) | Coverage snapshot and gaps |
+| [Releasing Rundale](release.md) | Tag-driven release process |
 | [Maybe Bad Ideas](maybe-bad-ideas.md) | Ideas under consideration — may or may not be worth pursuing |
 
 ## Research
 
-Background research on 1820s Ireland informing world-building, NPC design, and game mechanics. See [Research Overview](research/README.md) for the full hub, cross-reference matrix, and suggested reading order.
+Background research on 1820s Ireland informing world-building, NPC design, and
+game mechanics. See [Research Overview](research/README.md) for the full hub,
+cross-reference matrix, and suggested reading order.
 
 ### Core Society & People
 
@@ -176,25 +242,28 @@ Background research on 1820s Ireland informing world-building, NPC design, and g
 |----------|-------------|
 | [Recent History (Pre-1820)](research/recent-history-pre1820.md) | 1798 Rebellion, Act of Union, Napoleonic Wars, population explosion |
 | [Forthcoming Decades](research/forthcoming-decades.md) | Catholic Emancipation, Great Famine, mass emigration — for foreshadowing |
+| [Irish-English 1820s Resources](research/Irish-English-1820s-resources.md) | Primary-source corpus for the Hiberno-English dialogue fine-tune |
+| [Ambient Sound Sources](research/ambient-sound-sources.md) | Source list for the ambient audio system |
 
-## Agent Skills
+## Agent & contributor reference
 
-Custom slash commands for common development workflows. Run these from any supported agent session.
+| Document | Description |
+|----------|-------------|
+| [Agent Docs Hub](agent/README.md) | Build, architecture, code style, gotchas, harness, scaling, skills |
+| [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) | Top-level agent quick reference |
+| [README.md](../README.md) | Project overview, quick start |
+| [DESIGN.md](archive/DESIGN.md) | Original monolithic design document (archival — superseded by `docs/design/`) |
+
+### Agent skills
+
+Custom slash commands for common development workflows.
 
 | Skill | Description |
 |-------|-------------|
-| `/check` | Quality gates — `just check` (pre-commit) and `just verify` (pre-push, adds harness walkthrough) |
+| `/check` | Quality gates — `just check` (pre-commit) and `just verify` (pre-push) |
 | `/parish-engine [mode]` | Run the engine to observe behaviour — script harness, `prove`, `play`, `rubric`, `demo`, `browser`, `screenshot` |
 | `/task-start <task-id>` | Acceptance criteria + verification fixture before any code (mandatory first step) |
 | `/backlog <mode>` | GitHub issue lifecycle — `triage`, `fix-one <issue#>`, or `drain` |
 | `/techdebt [path]` | Technical-debt loop; `crate-audit` mode for crate-layout refactors |
 
 Skill definitions live in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink.
-
-## Reference
-
-| Document | Description |
-|----------|-------------|
-| [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) | Build commands, code style, gotchas, dependencies |
-| [DESIGN.md](archive/DESIGN.md) | Original monolithic design document (archival — superseded by `docs/design/`) |
-| [README.md](../README.md) | Project overview, quick start |

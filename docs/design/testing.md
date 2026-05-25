@@ -1,5 +1,7 @@
 # Testing Harness Design
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 ## Overview
 
 The `GameTestHarness` (`crates/parish-cli/src/testing.rs`) provides a programmatic, synchronous

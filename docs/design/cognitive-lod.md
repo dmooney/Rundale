@@ -1,5 +1,7 @@
 # Cognitive Level-of-Detail System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [002](../adr/002-cognitive-lod-tiers.md)
 
 The simulation runs at four fidelity levels based on distance from the player. This is the core innovation of Rundale: hundreds of NPCs maintain ongoing lives at varying levels of detail, creating a living world that continues whether or not the player is watching.

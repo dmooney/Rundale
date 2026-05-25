@@ -1,5 +1,7 @@
 # Time System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [007](../adr/007-time-scale-20min-day.md)
 
 ## Day/Night Cycle
@@ -46,7 +48,7 @@ These are potential moments where the mythological layer surfaces. Not scripted 
 ## Related
 
 - [Weather System](weather-system.md) — Weather varies by season and affects simulation
-- [Mythology Hooks](mythology-hooks.md) — Festival dates as mythological event triggers
+- [Mythology Hooks](ideas/mythology-hooks.md) — Festival dates as mythological event triggers
 - [World & Geography](world-geography.md) — Traversal time advances the clock
 - [ADR 007: 20 Real Minutes = 1 Game Day](../adr/007-time-scale-20min-day.md)
 

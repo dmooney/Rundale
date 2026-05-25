@@ -155,8 +155,8 @@ Known engine flags (all **default-on**; disable to opt out):
   Disable to skip the wizard entirely and force startup to use
   whatever `PARISH_*` env vars / `parish.toml` already configure.
 - `inference-rejection-sampler` / `rundale-dialect-model` — see
-  `docs/design/gemma4-rundale-training-plan.md`.
-- `night-visions` — see `docs/design/night-visions.md`.
+  `docs/plans/gemma4-rundale-training-plan.md`.
+- `night-visions` — see `docs/design/ideas/night-visions.md`.
 
 Opt-in engine flags (**default-off**; `/flag enable <name>` to turn on):
 - `npc-idle-banter` — spontaneous NPC chatter triggered after

@@ -106,7 +106,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 
 ## Design References
 
-- [TUI Design](../design/tui-design.md)
+- [TUI Design](../design/gui-design.md)
 - [Time System](../design/time-system.md)
 - [Weather System](../design/weather-system.md)
 

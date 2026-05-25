@@ -102,7 +102,7 @@ Replace the egui/eframe GUI with **Tauri 2 + Svelte**:
 
 ## Related
 
-- [Plan: Tauri GUI Rewrite](../plans/phase-8-tauri-gui.md)
+- [Plan: Tauri GUI Rewrite](../plans/archive/phase-8-tauri-gui.md)
 - [ADR-014: Web & Mobile Architecture](014-web-mobile-architecture.md) — Phase 7 mobile plans that
   this decision accelerates
 - [docs/design/overview.md](../design/overview.md) — architecture overview, to be updated post-migration

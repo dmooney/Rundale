@@ -69,7 +69,7 @@ per turn. That log is a free preference signal:
 
 End state: Tier 1 runs local-first for the common case at near-cloud
 quality, cloud is reserved for genuinely hard turns or players who opt in.
-Shares tooling with `docs/design/gemma4-rundale-training-plan.md`.
+Shares tooling with `docs/plans/gemma4-rundale-training-plan.md`.
 
 Effort: ~3 engineer-weeks + GPU time. Only worth starting after doc 02
 grammar and doc 04 tool-call schemas have stabilised — otherwise the

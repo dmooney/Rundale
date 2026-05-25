@@ -184,7 +184,7 @@ assert. It does not replace `just check`, the prove flow, or Playwright.
 ## Browser UI session
 
 Interactive Chrome test against the web server via browser MCP tools. Follow the plan in
-`docs/plans/chrome-test-plan.md`.
+`docs/plans/archive/chrome-test-plan.md`.
 
 Setup:
 1. **Build frontend**: `cd apps/ui && npm run build`.
