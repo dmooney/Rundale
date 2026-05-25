@@ -6,8 +6,6 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 
 [![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
 
-**Model leaderboard:** browse the live results at **[dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/)** — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts. The reproducible harness is in [`rundale-bench/`](rundale-bench/); a static markdown snapshot lives at [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md).
-
 <table>
   <tr>
     <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" width="160"/><br/><b>Map</b></a></td>
@@ -16,6 +14,52 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
     <td align="center"><a href="docs/screenshots/location-designer.png"><img src="docs/screenshots/thumbnails/location-designer-thumbnail.png" width="160"/><br/><b>Locations</b></a></td>
   </tr>
 </table>
+
+## Quick Start
+
+The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
+
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
+
+```sh
+# One-time: install system deps, Rust, Node, and frontend packages
+just setup
+```
+
+### GUI Mode (Tauri Desktop App)
+
+The default experience is a desktop app.
+
+```sh
+just run          # launches cargo tauri dev
+```
+
+### Packaged macOS build with bundled local inference
+
+For a shippable `.app` that ends users can double-click — no Python or
+`vllm-mlx` install required — build the inference bundle first, then
+the app:
+
+```sh
+just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
+cd parish && cargo tauri build --target aarch64-apple-darwin
+```
+
+The first command materialises a relocatable Python runtime with
+vllm-mlx pip-installed straight into its site-packages at
+`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
+`install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
+would break when the bundle moves into `Rundale.app/Contents/Resources/`).
+`cargo tauri build` then includes that tree under
+`Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
+launch the app detects the bundle, recommends local inference for Macs
+with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
+live progress bar.
+
+CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
+trigger, uploads the bundle as an artifact). For dev iteration on
+`cargo tauri dev`, you can skip the bundle build — the runtime falls
+through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ## Features
 
@@ -151,6 +195,14 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 - **Historical research archive** — religion, family, education, crafts, food, transportation, and Hiberno-English dialect notes informing NPC dialogue.
 - **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), linked from `CLAUDE.md` and `AGENTS.md`.
 
+## Model leaderboard
+
+Rundale ships with its own reproducible LLM benchmark — **rundale-bench** — that scores models on dialogue quality, Gaeilge (Irish-language) fluency, and per-provider latency under load.
+
+- **Live results:** [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts.
+- **Reproducible harness:** [`rundale-bench/`](rundale-bench/)
+- **Static snapshot:** [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md)
+
 ## AI disclosure
 
 Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs (or more) at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions. I wanted to build something using AI that would be impossible any other way, at least for a solo dev.
@@ -161,106 +213,15 @@ Static game content for the Ireland in 1820 setting in `mods/rundale/` — NPC p
 
 Character dialogue, mood, and behaviour are generated **in real time** by whichever LLM provider you've configured. Every NPC line, gossip rumour, and Tier 2/3 simulation tick comes from a live model call at play time; nothing is pre-baked. Each playthrough is genuinely different, and the dialogue's quality depends on the model you point the engine at.
 
-## Quick Start
-
-The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
-
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
-
-```sh
-# One-time: install system deps, Rust, Node, and frontend packages
-just setup
-```
-
-### GUI Mode (Tauri Desktop App)
-
-The default experience is a desktop app.
-
-```sh
-just run          # launches cargo tauri dev
-```
-
-### Packaged macOS build with bundled local inference
-
-For a shippable `.app` that ends users can double-click — no Python or
-`vllm-mlx` install required — build the inference bundle first, then
-the app:
-
-```sh
-just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
-cd parish && cargo tauri build --target aarch64-apple-darwin
-```
-
-The first command materialises a relocatable Python runtime with
-vllm-mlx pip-installed straight into its site-packages at
-`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
-`install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
-would break when the bundle moves into `Rundale.app/Contents/Resources/`).
-`cargo tauri build` then includes that tree under
-`Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
-launch the app detects the bundle, recommends local inference for Macs
-with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
-live progress bar.
-
-CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
-trigger, uploads the bundle as an artifact). For dev iteration on
-`cargo tauri dev`, you can skip the bundle build — the runtime falls
-through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
-
-## Repository Layout
-
-```
-parish/
-  crates/              14 workspace members (types, config, world, npc, etc.)
-  apps/ui/             Svelte 5 + TypeScript frontend
-  testing/fixtures/    scripted gameplay fixtures
-  scripts/             Maintenance and quality gate scripts
-mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
-deploy/                Dockerfile
-docs/                  design, ADRs, plans, research, agent guides
-justfile               Top-level proxies for common tasks
-```
-
-## Troubleshooting — reporting a bug
-
-When something looks off — a strange NPC reply, a stuck turn, a mysterious
-failure — there is now a reproducible artefact to attach to the report.
-Every backend process writes two paired JSONL files to
-`{your saves directory}/inference_logs/`:
-
-```
-{timestamp-pid}.jsonl            ← every LLM call (prompt, response, model, timing)
-{timestamp-pid}.transcript.jsonl ← user-visible chat events (dialogue, travel, off-screen beats)
-```
-
-The transcript is fed from the same `GameEvent` bus that drives the
-per-character and per-location journals, so it captures NPC dialogue,
-player travel, off-screen NPC interactions, weather shifts and festivals.
-Every `npc_dialogue` line carries a `parish.request_id` matching the
-corresponding inference-log line, so a weird NPC reply can be grepped
-straight back to the full prompt + response that produced it.
-
-**To file a bug report**: reproduce the issue, then zip the
-`inference_logs/` folder (or just the matched pair from the relevant
-session) and attach it to the GitHub issue along with a description of
-what you saw versus what you expected.
-
-**Privacy**: known API-key shapes (OpenAI `sk-…`, Anthropic `sk-ant-…`,
-Groq, AWS, Google, GitHub PATs, `Bearer …` headers) are scrubbed before
-they hit disk and replaced with `[REDACTED:*]` markers. Other user-typed
-content (player input, NPC names, places) is kept verbatim so the bug
-remains reproducible — review the files before sharing.
-
-**Opt-out**: pass `--no-inference-log` on the CLI, set the env var
-`PARISH_INFERENCE_LOG=off`, or set `[engine.inference] log_to_disk = false`
-in your `parish.toml`. The in-game slash command `/inference-log on|off|
-status|path` toggles writes at runtime.
+The game icon was generated with **ChatGPT** (OpenAI image generation) from a hand-written prompt and is shipped as-is.
 
 ## Documentation
 
 | Start here | What you'll find |
 |------------|------------------|
 | [docs/index.md](docs/index.md) | Master hub — phase status, links to everything |
+| [docs/repository-layout.md](docs/repository-layout.md) | Top-level directory tree and crate index |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Bug reporting + inference-log artefact guide |
 | [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
 | [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases |
 | [docs/research/README.md](docs/research/README.md) | Research documents covering life in 1820's Ireland |
