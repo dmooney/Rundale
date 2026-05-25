@@ -290,6 +290,28 @@ fn dialogue_context_no_register_alert_on_clean_input() {
     );
 }
 
+/// TODO #14: the assembled context must instruct the NPC to address
+/// only one person per reply. Brendan was mixing multiple Slán*
+/// farewells in a single message because the prompt tail invited
+/// "may answer the player or another nearby NPC" with no upper limit.
+#[test]
+fn dialogue_context_carries_single_addressee_anchor() {
+    let context = build_dialogue_context_with_first_npc(Some("Aiden Carney"), true);
+
+    assert!(
+        context.contains("Address ONLY ONE person"),
+        "missing single-addressee directive:\n{context}"
+    );
+    assert!(
+        context.contains("do NOT mix farewells with ongoing chat"),
+        "missing mixed-farewell guard:\n{context}"
+    );
+    assert!(
+        context.contains("Do NOT say goodbye to one person"),
+        "missing goodbye-then-continue guard:\n{context}"
+    );
+}
+
 /// TODO #21: the assembled context must pin the NPC to the player's
 /// current location with a directive forbidding substitution of any
 /// nearby canonical settlement. The bug surfaced at The Mill near
