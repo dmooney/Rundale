@@ -191,7 +191,7 @@
     "command": "look",
     "result": {
       "result": "looked",
-      "description": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is evening. The sky is clear."
+      "description": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is night. The sky is clear."
     },
     "location": "Murphy's Farm",
     "time": "Night",
@@ -213,7 +213,7 @@
     "command": "look",
     "result": {
       "result": "looked",
-      "description": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is evening. Weather: clear."
+      "description": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is night. Weather: clear."
     },
     "location": "O'Brien's Farm",
     "time": "Night",
@@ -235,7 +235,7 @@
     "command": "look",
     "result": {
       "result": "looked",
-      "description": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is evening. The weather is clear."
+      "description": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is night. The weather is clear."
     },
     "location": "The Lime Kiln",
     "time": "Night",
