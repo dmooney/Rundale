@@ -1568,9 +1568,12 @@ mod tests {
 
         // Follow-up turn: anchor must render with NPC name + occupation
         // and forbid mid-reply self-recitation.
-        let block = introduced_anchor_block(&npc, true)
-            .expect("anchor must render on subsequent turns");
-        assert!(block.contains("Padraig"), "anchor missing NPC name:\n{block}");
+        let block =
+            introduced_anchor_block(&npc, true).expect("anchor must render on subsequent turns");
+        assert!(
+            block.contains("Padraig"),
+            "anchor missing NPC name:\n{block}"
+        );
         assert!(
             block.contains("Do not recite your full name and occupation"),
             "anchor missing recitation guard:\n{block}"

@@ -152,7 +152,9 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
     )
     .expect("turn 1 setup");
     assert!(
-        !setup1.context.contains("You have already introduced yourself"),
+        !setup1
+            .context
+            .contains("You have already introduced yourself"),
         "anchor must not render on first contact:\n{}",
         setup1.context
     );
@@ -170,7 +172,9 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
     )
     .expect("turn 2 setup");
     assert!(
-        setup2.context.contains("You have already introduced yourself"),
+        setup2
+            .context
+            .contains("You have already introduced yourself"),
         "anchor must render on follow-up turns:\n{}",
         setup2.context
     );
