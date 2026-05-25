@@ -1,4 +1,4 @@
-# parish-cli — Technical Debt
+# parish-engine — Technical Debt
 
 ## Open
 
@@ -27,7 +27,7 @@
 | TD-001 | Config/Cargo | Removed unused `thiserror` from `Cargo.toml:20`. |
 | TD-013 | Dead Code | Removed `ScrollState` struct, its methods, and all associated tests from `src/app.rs`. |
 | TD-014 | Dead Code | Added `#[deprecated]` to `find_data_dir` and `find_ui_dist_dir` in `src/main.rs` with `#[allow(deprecated)]` at call sites. |
-| TD-016 | Stale Docs | Fixed doc comment in `src/emitter.rs:15`: `parish_cli` → `parish`. |
+| TD-016 | Stale Docs | Fixed doc comment in `src/emitter.rs:15`: `parish_engine` → `parish`. |
 | TD-017 | Stale Docs | Fixed `strength_bar` doc comment in `src/debug.rs:497` to match implementation. |
 | TD-018 | Weak Tests | Refactored `StdoutEmitter` to expose `format_event()` for direct testing of content-extraction logic; added 5 new assertions. |
 | TD-019 | Stale Docs | Updated `too_many_arguments` comment in `src/headless.rs` to reference TODO.md; removed stale `#future` reference. |

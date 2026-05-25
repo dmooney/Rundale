@@ -9,7 +9,7 @@ cat <<'CONTEXT'
 PROJECT: Parish -- An Irish Living World Text Adventure (Rust, Cargo workspace)
 
 WORKSPACE MEMBERS:
-- crates/parish-cli/: CLI entry point, headless mode, test harness
+- crates/parish-engine/: CLI entry point, headless mode, test harness
 - crates/parish-core/: Pure game logic library
 - crates/parish-npc/: NPC AI and memory system
 - crates/parish-world/: World state, locations, descriptions

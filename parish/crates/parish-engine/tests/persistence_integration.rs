@@ -3,7 +3,7 @@
 //! Tests save/load round-trips, branching, and journal replay
 //! through the GameTestHarness.
 
-use parish::testing::{ActionResult, GameTestHarness};
+use parish_engine::testing::{ActionResult, GameTestHarness};
 
 #[test]
 fn test_save_and_load_roundtrip() {
@@ -126,15 +126,15 @@ fn test_save_preserves_weather() {
     let mut h = GameTestHarness::new();
 
     // Change weather (directly, since we don't have a weather command)
-    h.app.world.weather = parish::world::Weather::Storm;
+    h.app.world.weather = parish_engine::world::Weather::Storm;
     h.execute("/save");
 
     // Change it again
-    h.app.world.weather = parish::world::Weather::Clear;
+    h.app.world.weather = parish_engine::world::Weather::Clear;
 
     // Load — should restore Storm
     h.execute("/load main");
-    assert_eq!(*h.weather(), parish::world::Weather::Storm);
+    assert_eq!(*h.weather(), parish_engine::world::Weather::Storm);
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn test_save_preserves_text_log() {
 /// them again, loads, and asserts the reloaded values match the saved ones.
 #[test]
 fn test_full_world_state_roundtrip() {
-    use parish::world::time::GameSpeed;
+    use parish_engine::world::time::GameSpeed;
     use parish_types::{ConversationExchange, LocationId, NpcId};
 
     let mut h = GameTestHarness::new();
@@ -200,7 +200,7 @@ fn test_full_world_state_roundtrip() {
     // inside `advance_time` can't transition weather away from Storm before
     // we save. (The stochastic weather engine otherwise made this test
     // geometry-sensitive.)
-    h.app.world.weather = parish::world::Weather::Storm;
+    h.app.world.weather = parish_engine::world::Weather::Storm;
     let expected_game_time = h.app.world.clock.now();
     let expected_speed = h.app.world.clock.speed_factor();
     let expected_paused = h.app.world.clock.is_paused();
@@ -242,7 +242,7 @@ fn test_full_world_state_roundtrip() {
     assert!(matches!(save_result, ActionResult::SystemCommand { .. }));
 
     // ----- 3. Mutate every field again so a failed restore is visible -----
-    h.app.world.weather = parish::world::Weather::Clear;
+    h.app.world.weather = parish_engine::world::Weather::Clear;
     h.app.world.text_log.clear();
     h.app.world.player_location = LocationId(1);
     h.app.world.visited_locations.clear();
@@ -264,7 +264,7 @@ fn test_full_world_state_roundtrip() {
     assert_eq!(h.app.world.player_location, expected_location);
 
     // weather
-    assert_eq!(h.app.world.weather, parish::world::Weather::Storm);
+    assert_eq!(h.app.world.weather, parish_engine::world::Weather::Storm);
 
     // text_log (load appends its own confirmation line, so we assert the
     // saved prefix survives — not strict equality)

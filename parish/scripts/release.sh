@@ -9,7 +9,7 @@
 # --no-tag     — write the version bumps and commit, but skip the `vX.Y.Z` tag
 #
 # Files touched:
-#   parish/crates/parish-cli/Cargo.toml         [package].version
+#   parish/crates/parish-engine/Cargo.toml         [package].version
 #   parish/crates/parish-tauri/tauri.conf.json  .version
 #   parish/apps/ui/package.json                 .version
 #   parish/Cargo.lock                           refreshed via `cargo update -p parish`
@@ -57,7 +57,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 cd "$REPO_ROOT"
 
-CARGO_TOML="parish/crates/parish-cli/Cargo.toml"
+CARGO_TOML="parish/crates/parish-engine/Cargo.toml"
 TAURI_JSON="parish/crates/parish-tauri/tauri.conf.json"
 UI_PKG="parish/apps/ui/package.json"
 
@@ -90,7 +90,7 @@ cp "$CARGO_TOML"  "$WORK_DIR/Cargo.toml.new"
 cp "$TAURI_JSON"  "$WORK_DIR/tauri.conf.json.new"
 cp "$UI_PKG"      "$WORK_DIR/package.json.new"
 
-# parish-cli Cargo.toml: replace the `[package]` table's `version = "..."`.
+# parish-engine Cargo.toml: replace the `[package]` table's `version = "..."`.
 # We only touch the first `version =` line, which sits in `[package]` per the
 # convention used across the workspace.
 awk -v new="$VERSION" '

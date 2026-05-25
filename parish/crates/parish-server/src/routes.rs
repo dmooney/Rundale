@@ -466,7 +466,7 @@ async fn emit_world_update(state: &Arc<AppState>) {
 ///
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
 /// [`AppStateCommandHost`] adapter (#696 slice 7).
-async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
+pub(crate) async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
     use crate::command_host::AppStateCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
 
@@ -480,7 +480,11 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
 /// logic (#696 slice 4).  Emits a world-update snapshot before and after
 /// NPC-conversation paths so the frontend inference-pause indicator stays
 /// accurate during long inference calls.
-async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<AppState>) {
+pub(crate) async fn handle_game_input(
+    raw: String,
+    addressed_to: Vec<String>,
+    state: &Arc<AppState>,
+) {
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
     let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
@@ -1418,7 +1422,7 @@ fn parse_admin_emails(list: &str) -> std::collections::HashSet<String> {
 /// removes per-request env-var parsing overhead and prevents surprise
 /// mid-flight authorization changes from a stray `std::env::set_var` — a
 /// property we rely on for the security guarantee of `check_admin`.
-fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
+pub(crate) fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
     use std::collections::HashSet;
     static CACHE: std::sync::OnceLock<Option<HashSet<String>>> = std::sync::OnceLock::new();
     CACHE
@@ -1441,7 +1445,7 @@ fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
 ///
 /// If `emails` is `None` the env var was unset: **allowed** in debug builds
 /// (local dev), **denied** in release builds (fail-closed, #480).
-fn check_admin(
+pub(crate) fn check_admin(
     email: &str,
     cmd: &str,
     emails: Option<&std::collections::HashSet<String>>,

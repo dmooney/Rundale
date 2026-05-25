@@ -15,7 +15,7 @@ name: Release
 #   git push origin <branch>                 # land the bump
 #   git push origin v<version>               # this workflow takes over
 #
-# The tag version is the source of truth and must match parish-cli's
+# The tag version is the source of truth and must match parish-engine's
 # Cargo.toml `[package].version` — the validate-tag job enforces this.
 
 on:
@@ -87,16 +87,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Compare tag version with parish-cli Cargo.toml
+      - name: Compare tag version with parish-engine Cargo.toml
         shell: bash
         run: |
           set -euo pipefail
           expected="${{ needs.resolve.outputs.version }}"
-          actual="$(awk '/^\[package\]/{p=1; next} p && /^version = "/{gsub(/^version = "|"$/, ""); print; exit}' parish/crates/parish-cli/Cargo.toml)"
+          actual="$(awk '/^\[package\]/{p=1; next} p && /^version = "/{gsub(/^version = "|"$/, ""); print; exit}' parish/crates/parish-engine/Cargo.toml)"
           echo "tag version:        $expected"
           echo "Cargo.toml version: $actual"
           if [[ "$expected" != "$actual" ]]; then
-            echo "::error::Tag $expected does not match parish-cli Cargo.toml ($actual). Run parish/scripts/release.sh $expected."
+            echo "::error::Tag $expected does not match parish-engine Cargo.toml ($actual). Run parish/scripts/release.sh $expected."
             exit 1
           fi
 
@@ -135,7 +135,7 @@ jobs:
         # No --locked: a freshly-bumped workspace member version would race
         # ahead of Cargo.lock until the next regular CI run picks up the
         # refreshed lockfile. release.sh refreshes it best-effort locally.
-        run: cargo build -p parish --release
+        run: cargo build -p parish-engine --release
 
       - name: Package tarball
         id: package
@@ -146,7 +146,7 @@ jobs:
           stage="$(mktemp -d)"
           name="parish-v${version}-x86_64-linux-gnu"
           mkdir -p "$stage/$name"
-          cp parish/target/release/parish "$stage/$name/"
+          cp parish/target/release/parish-engine "$stage/$name/parish"
           cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md "$stage/$name/"
           ( cd "$stage" && tar czf "$name.tar.gz" "$name" )
           mkdir -p dist

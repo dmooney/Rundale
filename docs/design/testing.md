@@ -4,7 +4,7 @@
 
 ## Overview
 
-The `GameTestHarness` (`crates/parish-cli/src/testing.rs`) provides a programmatic, synchronous
+The `GameTestHarness` (`crates/parish-engine/src/testing.rs`) provides a programmatic, synchronous
 API for driving the game without a TUI or LLM. It enables:
 
 - **Automated regression testing** via `cargo test`
@@ -80,7 +80,7 @@ Lines starting with `#` are comments. Empty lines are skipped.
 
 ## CLI-GUI Parity Commands
 
-The headless CLI (`crates/parish-cli/src/headless.rs`) and test harness (`crates/parish-cli/src/testing.rs`) support
+The headless CLI (`crates/parish-engine/src/headless.rs`) and test harness (`crates/parish-engine/src/testing.rs`) support
 commands that mirror GUI-only features, enabling full play-testing without Tauri:
 
 | Command | Description | Handler Source |
@@ -240,7 +240,7 @@ time progression, NPC data, debug output, error handling, and more.
 
 ## Eval baselines
 
-`crates/parish-cli/tests/eval_baselines.rs` is an inferential sensor for
+`crates/parish-engine/tests/eval_baselines.rs` is an inferential sensor for
 gameplay behavior — it runs each baselined fixture through `run_script_captured`,
 serializes the captured `Vec<ScriptResult>` to JSON, and diffs against a stored
 baseline at `testing/evals/baselines/<fixture>.json`. Any drift fails the

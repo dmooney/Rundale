@@ -5,11 +5,13 @@ Axum HTTP/WebSocket entry point. One of three modes (Tauri, CLI, server) — mus
 ## Scoped commands
 
 ```sh
-cargo test -p parish-server                    # unit + integration
-cargo run  -p parish-server -- --port 3030     # local web server
-bash parish/scripts/parish-mcp-backend.sh start # boot for mcp__parish__* tools
+cargo test -p parish-server                     # unit + integration
+cargo run  -p parish-server -- --port 3001      # local web server (also: just web)
+bash parish/scripts/parish-mcp-backend.sh start # boot for mcp__parish__* tools (port 3030)
 just check                                      # full fmt+clippy+tests (workspace)
 ```
+
+The crate ships **both** a library (`parish_server::run_server`) and a binary (`parish-server`). The binary is `src/main.rs`; everything else lives under the library surface so embedders (tests, future Tauri "embed the HTTP API" flows, etc.) can keep using `run_server` directly.
 
 ## Local gotchas
 
@@ -20,4 +22,8 @@ just check                                      # full fmt+clippy+tests (workspa
 
 ## Module map
 
-`routes/` HTTP, `ws/` real-time channel, `editor_routes/` mod editor surface, `session/`+`state/` lifecycle, `auth/`+`cf_auth/`+`middleware/` policy.
+`routes/` HTTP, `ws/` real-time channel, `sync_routes/` + `sync_types/` + `drain/` synchronous `POST /api/command` + `GET /api/state` endpoints for thin clients, `editor_routes/` mod editor surface, `session/`+`state/` lifecycle, `auth/`+`cf_auth/`+`middleware/` policy.
+
+## Thin-client surface (`sync_routes.rs`)
+
+`POST /api/command` and `GET /api/state` are the synchronous public API used by `parish-client`, the MCP bridge, and CI harnesses. They are part of the mode-parity contract — every gameplay action available over Tauri IPC or WebSocket must also be reachable via `POST /api/command`. The request body is `{ text, addressedTo?, timeoutMs?, includeState?, includeMap? }`; the response shape is defined in `sync_types::CommandResponse`. Treat any change to those types as a breaking API change for downstream consumers and update `parish-client`'s wire types (`parish/crates/parish-client/src/client.rs`) in the same PR.

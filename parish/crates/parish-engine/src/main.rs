@@ -2,14 +2,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
-use parish::config::{
+use parish_engine::config::{
     CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, ProviderConfig,
     resolve_category_configs, resolve_cloud_config, resolve_config,
 };
-use parish::headless;
-use parish::inference::InferenceClients;
-use parish::inference::setup::{self, StdoutProgress};
-use tracing_opentelemetry::OpenTelemetryLayer;
+use parish_engine::headless;
+use parish_engine::inference::InferenceClients;
+use parish_engine::inference::setup::{self, StdoutProgress};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -95,14 +94,6 @@ struct Cli {
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
     game_mod: Option<String>,
 
-    /// Run as a web server (serves UI in browser for testing)
-    ///
-    /// Starts an axum HTTP server on the specified port (default: 3001)
-    /// that serves the Svelte frontend and exposes REST + WebSocket
-    /// endpoints. Use this for automated Chrome testing via Playwright.
-    #[arg(long, value_name = "PORT", default_missing_value = "3001", num_args = 0..=1)]
-    web: Option<u16>,
-
     /// Disable the on-disk inference call log.
     ///
     /// By default Parish writes every inference call (and the user-visible
@@ -115,47 +106,42 @@ struct Cli {
     no_inference_log: bool,
 }
 
-/// Sets up tracing and optional OpenTelemetry.
-fn setup_tracing_and_otel() {
+/// Sets up tracing (file appender + env filter).
+///
+/// The engine binary is process-local; OpenTelemetry export lives in the
+/// `parish-server` binary alongside the request-scoped span machinery that
+/// actually populates the spans.
+fn setup_tracing() {
     std::fs::create_dir_all("logs").ok();
-    let file_appender = tracing_appender::rolling::daily("logs", "parish.log");
+    let file_appender = tracing_appender::rolling::daily("logs", "parish-engine.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let otel_provider = parish_server::tracing_setup::try_build_otel_provider("parish-server");
-    let otel_tracer = otel_provider.as_ref().map(|p| {
-        use opentelemetry::trace::TracerProvider as _;
-        p.tracer("parish-server")
-    });
-
-    let registry = tracing_subscriber::registry()
+    tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(non_blocking)
                 .with_ansi(false),
-        );
-
-    if let Some(tracer) = otel_tracer {
-        registry.with(Some(OpenTelemetryLayer::new(tracer))).init();
-    } else {
-        registry
-            .with(Option::<OpenTelemetryLayer<_, opentelemetry::trace::noop::NoopTracer>>::None)
-            .init();
-    }
+        )
+        .init();
 }
 
 /// Resolves provider config, cloud config, and per-category configs from CLI.
 struct ResolvedConfigs {
     provider_config: ProviderConfig,
-    cloud_config: Option<parish::config::CloudConfig>,
-    category_configs: std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
+    cloud_config: Option<parish_engine::config::CloudConfig>,
+    category_configs:
+        std::collections::HashMap<InferenceCategory, parish_engine::config::CategoryConfig>,
     clients: InferenceClients,
-    engine_inference: parish::config::InferenceConfig,
+    engine_inference: parish_engine::config::InferenceConfig,
 }
 
 async fn resolve_configs(
     cli: &Cli,
-) -> Result<(ResolvedConfigs, parish::inference::client::RuntimeProcesses)> {
+) -> Result<(
+    ResolvedConfigs,
+    parish_engine::inference::client::RuntimeProcesses,
+)> {
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
@@ -246,24 +232,12 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    setup_tracing_and_otel();
+    setup_tracing();
     tracing::info!("Starting Parish...");
     let cli = Cli::parse();
 
     if let Some(script_path) = &cli.script {
-        return parish::testing::run_script_mode(Path::new(script_path));
-    }
-
-    if let Some(port) = cli.web {
-        #[allow(deprecated)]
-        let (data_dir, static_dir) = (find_data_dir(), find_ui_dist_dir());
-        tracing::info!(
-            "Starting web server on port {} (data={}, static={})",
-            port,
-            data_dir.display(),
-            static_dir.display()
-        );
-        return parish_server::run_server(port, data_dir, static_dir).await;
+        return parish_engine::testing::run_script_mode(Path::new(script_path));
     }
 
     let (cfg, mut runtime_processes) = resolve_configs(&cli).await?;
@@ -299,16 +273,16 @@ async fn setup_provider(
     _cli: &Cli,
     config: &ProviderConfig,
 ) -> Result<(
-    parish::inference::AnyClient,
+    parish_engine::inference::AnyClient,
     String,
-    parish::inference::client::RuntimeProcesses,
+    parish_engine::inference::client::RuntimeProcesses,
 )> {
     let progress = StdoutProgress;
     let (client, model, process) = setup::setup_provider_client(
         config,
         &[],
         &[],
-        &parish::config::InferenceConfig::default(),
+        &parish_engine::config::InferenceConfig::default(),
         &progress,
     )
     .await?;
@@ -329,15 +303,18 @@ async fn setup_provider(
 /// per-category env vars) routes Dialogue → Opus, Simulation/Reaction →
 /// Sonnet, Intent → Haiku — even though `category_configs` is empty.
 fn build_inference_clients(
-    base_provider_config: &parish::config::ProviderConfig,
-    base_client: &parish::inference::AnyClient,
+    base_provider_config: &parish_engine::config::ProviderConfig,
+    base_client: &parish_engine::inference::AnyClient,
     base_model: &str,
-    category_configs: &std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
+    category_configs: &std::collections::HashMap<
+        InferenceCategory,
+        parish_engine::config::CategoryConfig,
+    >,
 ) -> InferenceClients {
     let mut overrides = std::collections::HashMap::new();
-    let inference_cfg = parish::config::InferenceConfig::default();
+    let inference_cfg = parish_engine::config::InferenceConfig::default();
     for (category, cfg) in category_configs {
-        let client = parish::inference::build_client(
+        let client = parish_engine::inference::build_client(
             &cfg.provider,
             &cfg.base_url,
             cfg.api_key.as_deref(),
@@ -404,33 +381,6 @@ fn find_data_dir() -> PathBuf {
         }
     }
     PathBuf::from(MOD_REL)
-}
-
-/// Finds the Svelte frontend build directory (`apps/ui/dist/`).
-///
-/// # Deprecated
-///
-/// Uses `std::env::current_dir()` which breaks in daemonised or `/tmp`
-/// working-directory deployments. Replace callers with path resolution from
-/// explicit `AppState` config per AGENTS.md rule #9.
-#[deprecated(
-    note = "cwd-relative path resolution breaks in non-CWD deployments; use explicit config"
-)]
-fn find_ui_dist_dir() -> PathBuf {
-    let candidates = ["apps/ui/dist", "parish/apps/ui/dist", "ui/dist"];
-    let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    for _ in 0..4 {
-        for c in &candidates {
-            if p.join(c).join("index.html").exists() {
-                return p.join(c);
-            }
-        }
-        match p.parent() {
-            Some(parent) => p = parent.to_path_buf(),
-            None => break,
-        }
-    }
-    PathBuf::from("apps/ui/dist")
 }
 
 /// Builds per-category CLI overrides from the parsed CLI arguments.

@@ -4,9 +4,9 @@
 //! verifying movement, time advancement, descriptions, commands, and
 //! NPC canned responses all work end-to-end.
 
-use parish::testing::{ActionResult, GameTestHarness};
-use parish::world::DEFAULT_START_LOCATION;
-use parish::world::time::{Season, TimeOfDay};
+use parish_engine::testing::{ActionResult, GameTestHarness};
+use parish_engine::world::DEFAULT_START_LOCATION;
+use parish_engine::world::time::{Season, TimeOfDay};
 
 #[test]
 fn test_full_walkthrough_crossroads_to_pub_and_back() {
@@ -382,21 +382,21 @@ fn test_script_fixture_walkthrough() {
     // owned by `parish --script`.
     let path = std::path::Path::new("../../testing/fixtures/test_walkthrough.txt");
     assert!(path.exists(), "test_walkthrough.txt fixture must exist");
-    parish::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
+    parish_engine::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
 }
 
 #[test]
 fn test_script_fixture_movement_errors() {
     let path = std::path::Path::new("../../testing/fixtures/test_movement_errors.txt");
     assert!(path.exists(), "test_movement_errors.txt fixture must exist");
-    parish::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
+    parish_engine::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
 }
 
 #[test]
 fn test_script_fixture_commands() {
     let path = std::path::Path::new("../../testing/fixtures/test_commands.txt");
     assert!(path.exists(), "test_commands.txt fixture must exist");
-    parish::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
+    parish_engine::testing::run_script_mode_with(path, GameTestHarness::new()).unwrap();
 }
 
 #[test]
@@ -420,7 +420,7 @@ fn test_moved_result_contains_narration() {
 #[test]
 fn test_weather_accessible() {
     let h = GameTestHarness::new();
-    assert_eq!(*h.weather(), parish::world::Weather::Clear);
+    assert_eq!(*h.weather(), parish_engine::world::Weather::Clear);
 }
 
 #[test]
@@ -458,7 +458,7 @@ fn test_long_journey_fairy_fort() {
 
 #[test]
 fn test_fog_of_war_frontier_at_pub() {
-    use parish::ipc::handlers::build_map_data;
+    use parish_engine::ipc::handlers::build_map_data;
 
     let mut h = GameTestHarness::new();
     // Start at Kilteevan Village

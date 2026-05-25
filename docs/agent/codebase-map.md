@@ -6,8 +6,9 @@ One-page index of every top-level directory. Use this when navigating an unfamil
 
 | Path | Purpose | Entry / key file | Scope doc |
 |---|---|---|---|
-| `parish/crates/parish-cli/` | Headless `parish` CLI binary | `src/main.rs` | — |
-| `parish/crates/parish-server/` | Axum HTTP/WebSocket web backend | `src/main.rs` | [CLAUDE.md](../../parish/crates/parish-server/CLAUDE.md) |
+| `parish/crates/parish-engine/` | Binary `parish-engine` — `--headless` / `--script FILE` / Tauri-default (engine in-process) | `src/main.rs` | — |
+| `parish/crates/parish-client/` | Binary `parish` — thin HTTP client (no engine). Talks to `parish-server` over `POST /api/command` / `GET /api/state` | `src/main.rs`, `src/client.rs` | — |
+| `parish/crates/parish-server/` | Axum HTTP/WebSocket web backend. Library (`run_server`) + binary (`cargo run -p parish-server -- --port 3001`) | `src/main.rs`, `src/lib.rs` | [CLAUDE.md](../../parish/crates/parish-server/CLAUDE.md) |
 | `parish/crates/parish-tauri/` | Desktop app + MCP bridge | `src/lib.rs`, `src/mcp_bridge.rs` | [CLAUDE.md](../../parish/crates/parish-tauri/CLAUDE.md) |
 | `parish/crates/parish-core/` | Backend-agnostic composition crate | `src/lib.rs` | [CLAUDE.md](../../parish/crates/parish-core/CLAUDE.md) |
 | `parish/crates/parish-config/` | Game + provider config | `src/lib.rs` | — |
@@ -39,8 +40,14 @@ One-page index of every top-level directory. Use this when navigating an unfamil
 
 ## Entry points (binaries)
 
-- `parish` — headless CLI (`parish-cli`)
-- `parish web` / `parish-server` — Axum web server
+See [README §Ways to run Parish](../../README.md#ways-to-run-parish) for the full diagram + table.
+
+- `parish-engine` — in-process engine binary:
+  - `parish-engine --headless` — stdin/stdout REPL
+  - `parish-engine --script FILE` — deterministic batch driver
+  - `parish-engine` (no flag) — Tauri-launch (when a display is available)
+- `parish-server --port PORT` — Axum HTTP/WS server (separate binary, also exported as library)
+- `parish` (crate `parish-client`) — thin HTTP shell against a running `parish-server`. Modes: single-shot `"cmd"`, `--script FILE`, `--json`, no-arg REPL.
 - `parish-tauri` (desktop) — `cargo run -p parish-tauri -- --mcp-port 3030`
 - `parish-mcp` — MCP bridge for Claude Code (auto-built by `SessionStart--build-mcp.sh`)
 - `parish-geo-tool`, `parish-npc-tool` — content-authoring CLIs

@@ -6,13 +6,14 @@ See [docs/design/overview.md](../design/overview.md) for the full architecture a
 
 ## Workspace crates
 
-The workspace has **14 member crates** (see `parish/Cargo.toml`). Shared game logic is split across focused leaf crates; `parish-core` is a thin composition layer that re-exports them under stable names used by the binaries and frontends.
+The workspace has **16 member crates** (see `parish/Cargo.toml`). Shared game logic is split across focused leaf crates; `parish-core` is a thin composition layer that re-exports them under stable names used by the binaries and frontends.
 
 | Crate | Role |
 |---|---|
 | `parish-core` | Composition crate: re-exports `parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, and `parish-types` under `crate::{config, inference, input, npc, palette, persistence, world, error, dice}`. Also owns the IPC layer (`ipc/`), mod loader (`game_mod`), game session wiring (`game_session`), editor subsystem (`editor/`), and the shared `prompts/` + `debug_snapshot` modules. |
-| `parish-cli` | Headless / web / CLI entry point (binary `parish`). Owns `main.rs` (clap CLI + mode routing), `headless.rs` (stdin/stdout REPL), `testing.rs` (`GameTestHarness` + `--script` mode), `app.rs`, `debug.rs`, and a CLI-override `config.rs`. Re-exports `parish_core` modules via `pub use parish_core::*`. |
-| `parish-server` | Axum web backend (no Tauri dep). `lib.rs` (`run_server`, tick loops), `state.rs`, `routes.rs`, `ws.rs`, `auth.rs`, `cf_auth.rs`, `middleware.rs`, `session.rs`, `editor_routes.rs`. |
+| `parish-engine` | In-process engine entry point (`cargo run -p parish-engine`). Modes: `--headless` (stdin/stdout REPL), `--script FILE` (batch fixture driver), no flag (Tauri-launch). Owns `main.rs` (clap CLI + mode routing), `headless.rs`, `testing.rs` (`GameTestHarness` + `--script` mode), `app.rs`, `debug.rs`, and a CLI-override `config.rs`. Re-exports `parish_core` modules via `pub use parish_core::*`. |
+| `parish-server` | Axum web backend (no Tauri dep). Library export `run_server` plus its own `main.rs` so the server boots directly via `cargo run -p parish-server -- --port 3001`. Modules: `lib.rs` (`run_server`, tick loops), `main.rs` (clap + tracing), `state.rs`, `routes.rs`, `ws.rs`, `sync_routes.rs` (synchronous `POST /api/command` + `GET /api/state` for thin clients), `sync_types.rs`, `drain.rs`, `auth.rs`, `cf_auth.rs`, `middleware.rs`, `session.rs`, `editor_routes.rs`. |
+| `parish-client` | Thin HTTP client (binary `parish`). No engine in-process — calls `POST /api/command` / `GET /api/state` on a running `parish-server`. Modes: `parish "<cmd>"` single-shot, `--script FILE`, `--json`, no-arg REPL. Persists the `parish_sid` cookie between runs. See [README §Ways to run Parish](../../README.md#ways-to-run-parish). |
 | `parish-tauri` | Tauri 2 desktop backend. `tauri.conf.json` → `frontendDist: ../../parish/apps/ui/dist`. Sources: `lib.rs` (AppState + run), `main.rs`, `commands.rs`, `editor_commands.rs`, `events.rs`. |
 | `parish-config` | Engine configuration: TOML + env + CLI overrides, feature flags, provider selection. `engine.rs`, `flags.rs`, `provider.rs`. |
 | `parish-inference` | LLM client + queue: `client.rs`, provider impls (`openai_client.rs`, `anthropic_client.rs`), `rate_limit.rs`, `setup.rs` (Ollama bootstrap), `simulator.rs` (Markov fallback for tests), `utf8_stream.rs`. |
@@ -30,7 +31,7 @@ The workspace has **14 member crates** (see `parish/Cargo.toml`). Shared game lo
 ```
 Rundale (on Parish engine)/
 ├── parish/                 # Engine code (Rust workspace + frontends)
-│   ├── crates/                 # 14 workspace members (see table above)
+│   ├── crates/                 # 16 workspace members (see table above)
 │   │
 │   ├── apps/
 │   │   └── ui/                 # Svelte 5 + TypeScript frontend (SvelteKit static adapter)
@@ -88,13 +89,15 @@ Rundale (on Parish engine)/
 
 All **shared game logic** lives in the workspace's leaf crates (`parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`). `parish-core` composes them into stable namespaces used by every binary: `crate::config::…`, `crate::inference::…`, `crate::npc::…`, `crate::palette::…`, `crate::world::…`, `crate::persistence::…`, `crate::input::…`, `crate::error::…`, `crate::dice::…`.
 
-`parish-cli` re-exports `parish_core` via `pub use parish_core::*` in `parish/crates/parish-cli/src/lib.rs` and only adds binary-specific modules: `main.rs`, `headless.rs`, `testing.rs`, `app.rs`, `config.rs` (CLI overrides on top of `parish_config`), `debug.rs`.
+`parish-engine` re-exports `parish_core` via `pub use parish_core::*` in `parish/crates/parish-engine/src/lib.rs` and only adds binary-specific modules: `main.rs`, `headless.rs`, `testing.rs`, `app.rs`, `config.rs` (CLI overrides on top of `parish_config`), `debug.rs`.
 
-**Never create modules in `parish/crates/parish-cli/src/` that duplicate logic living in a leaf crate** — extend the leaf crate and re-export if needed.
+**Never create modules in `parish/crates/parish-engine/src/` that duplicate logic living in a leaf crate** — extend the leaf crate and re-export if needed.
 
 ## Mode parity
 
-All modes (Tauri, CLI/headless, Axum web server, future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in a leaf crate + re-export from `parish-core`, then wire it from every entry point (`parish/crates/parish-tauri/src/commands.rs`, `parish/crates/parish-server/src/routes.rs`, `parish/crates/parish-cli/src/headless.rs`, `parish/crates/parish-cli/src/testing.rs`).
+All modes (Tauri, CLI/headless, Axum web server, future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in a leaf crate + re-export from `parish-core`, then wire it from every entry point (`parish/crates/parish-tauri/src/commands.rs`, `parish/crates/parish-server/src/routes.rs`, `parish/crates/parish-engine/src/headless.rs`, `parish/crates/parish-engine/src/testing.rs`).
+
+`parish-client` is **not** an entry point — it's a downstream consumer of the HTTP API. Any new gameplay command exposed on `POST /api/command` automatically reaches `parish-client`, MCP, and the Svelte UI; no separate wiring required. Conversely, do not put gameplay logic in `parish-client` itself — it owns rendering and HTTP transport only.
 
 ## Idempotency
 

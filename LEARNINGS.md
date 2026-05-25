@@ -5,7 +5,8 @@ bottom; don't lengthen items past 2-3 lines.
 
 ## Engine + runtime
 
-- **`parish-cli` package is named `parish` in Cargo.toml.** `cargo run -p parish-cli` errors; use `cargo run -p parish`.
+- **`parish-cli` package is now named `parish-repl`** (binary `parish-repl`). Use `cargo run -p parish-repl`. The lib inside keeps the name `parish` so internal `use parish::` paths still work.
+- **New `parish-client` crate builds the `parish` binary** — thin HTTP client calling `POST /api/command` on a running server. Use `cargo run -p parish-client` or `just run-client`.
 - **`--script` runs `run_script_mode` → `GameTestHarness`**, NOT `run_headless`. Different code path. Wire features in both.
 - **`apply_movement` (in `parish-core/src/game_session.rs`) is the lowest-shared movement seam.** Tauri/server reach it via `game_loop::movement::handle_movement`; the script harness calls `apply_movement` directly. Publish movement-related events there for parity.
 - **`snapshot.restore` wipes `tier_assignments`** — fixed by calling `npc_manager.seed_tier_state(world)` at the end of `restore`. The seed function is in `parish-npc/src/tier_assign.rs` and shares its BFS distance compute with `assign_tiers` but publishes no events. Tier is derivable from `(player_location, npc.location, npc.state)` so the snapshot file itself doesn't need to carry it.

@@ -32,7 +32,7 @@ fn workspace_root() -> PathBuf {
 /// Crates that must remain backend-agnostic — they may not directly
 /// depend on any web/desktop/UI runtime crate. Adding a runtime dep
 /// here breaks `mode parity`: parish-server (web), parish-tauri
-/// (desktop), and parish-cli (headless) must all consume the same
+/// (desktop), and parish-engine (headless) must all consume the same
 /// game logic.
 const BACKEND_AGNOSTIC: &[&str] = &[
     "parish-types",
@@ -109,17 +109,17 @@ fn backend_agnostic_crates_do_not_pull_runtime_deps() {
 }
 
 #[test]
-fn parish_cli_does_not_duplicate_parish_core_modules() {
+fn parish_engine_does_not_duplicate_parish_core_modules() {
     let ws = workspace_root();
 
-    // Top-level modules `parish-cli/src/` is allowed to define — these
+    // Top-level modules `parish-engine/src/` is allowed to define — these
     // are binary-specific glue, not shared logic.
     const CLI_ONLY: &[&str] = &[
         "main", "lib", "app", "config", "debug", "headless", "testing",
     ];
 
     let core_mods = list_top_level_modules(&ws.join("crates/parish-core/src"));
-    let cli_mods = list_top_level_modules(&ws.join("crates/parish-cli/src"));
+    let cli_mods = list_top_level_modules(&ws.join("crates/parish-engine/src"));
 
     let mut violations: Vec<String> = Vec::new();
     for m in &cli_mods {
@@ -133,12 +133,12 @@ fn parish_cli_does_not_duplicate_parish_core_modules() {
 
     assert!(
         violations.is_empty(),
-        "Module ownership violation — parish-cli/src/{{{}}} duplicate(s) of \
+        "Module ownership violation — parish-engine/src/{{{}}} duplicate(s) of \
          module(s) under parish-core/src/.\n\n\
          FIX: extend the leaf crate (parish-config / parish-inference / \
          parish-input / parish-npc / parish-persistence / parish-world / \
          parish-types) or parish-core itself, then rely on \
-         `pub use parish_core::*` in parish-cli/src/lib.rs. See CLAUDE.md \
+         `pub use parish_core::*` in parish-engine/src/lib.rs. See CLAUDE.md \
          §Module ownership and docs/agent/architecture.md.",
         violations.join(", "),
     );

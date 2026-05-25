@@ -88,7 +88,7 @@ CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb
 # suffix). A single trailing `/` outside the group would force every
 # alternative to be a directory, mis-matching the `.rs` file leaves
 # (`setup.rs`, `client.rs`, `ticks.rs`, `manager.rs`).
-RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|cli/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
+RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|engine/|client/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
 
 # ── Code-change detection ──────────────────────────────────────────────
 # Source 1: tracked diff vs HEAD + untracked code files.
@@ -226,7 +226,7 @@ RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || t
 #     - mcp__claude-in-chrome__* (drives a live browser)
 #     - Skill parish-engine (live harness: prove/play/demo/rubric/browser)
 #     - Bash matching LIVE_BASH_PATTERN (just demo|play|run|run-headless
-#       |web; cargo tauri dev; cargo run -p parish-cli|parish-tauri
+#       |web; cargo tauri dev; cargo run -p parish-engine|parish-tauri
 #       |parish-server)
 #
 #   TEST proof  = static / unit / integration tests passed.
@@ -270,7 +270,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 
   # LIVE-3: Bash calls that boot a real process against the workspace.
   if [ -z "$LIVE_PROOF" ]; then
-    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(cli|tauri|server)\b|parish-mcp-backend\.sh[[:space:]]+start'
+    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(engine|tauri|server|client)\b|parish-mcp-backend\.sh[[:space:]]+start'
     LIVE_PROOF="$(
       jq -rc '
         (.message.content // [])[]?
@@ -377,7 +377,7 @@ done."
   EXAMPLES="  Backend (Rust, gameplay, Tauri)
     - bash parish/scripts/parish-mcp-backend.sh start  (then mcp__parish__*)
     - cargo run -p parish-tauri  (live desktop window)
-    - cargo run -p parish-cli -- --headless  (REPL)
+    - cargo run -p parish-engine -- --headless  (REPL)
     - just demo  /  just play  /  just run
     - /parish-engine prove <feature>  /  /parish-engine play
 

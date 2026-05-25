@@ -15,51 +15,41 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
   </tr>
 </table>
 
-## Quick Start
+## Ways to run Parish
 
-The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
+Four binaries built from this workspace, each with a single job:
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
+```mermaid
+flowchart LR
+    subgraph Engine["Parish engine (parish-core composes 8 leaf crates)"]
+        Core[("game loop · world · NPCs · inference · save store")]
+    end
 
-```sh
-# One-time: install system deps, Rust, Node, and frontend packages
-just setup
+    Repl["**parish-engine --headless**<br/>stdin/stdout REPL<br/>(also `--script` batch)"]
+    Tauri["**parish-tauri**<br/>desktop app<br/>(Svelte 5 UI + Tauri IPC)"]
+    Server["**parish-server --port PORT**<br/>Axum HTTP/WS server<br/>(library + binary)"]
+
+    Browser["Browser<br/>(serves the same Svelte UI)"]
+    Client["**parish-client**<br/>thin HTTP shell<br/>(single-shot · script · REPL · JSON)"]
+    MCP["**parish-mcp**<br/>MCP bridge for AI agents"]
+
+    Repl --> Core
+    Tauri --> Core
+    Server --> Core
+    Browser -. HTTP/WS .-> Server
+    Client -. POST /api/command .-> Server
+    MCP -. HTTP .-> Server
 ```
 
-### GUI Mode (Tauri Desktop App)
+| Binary | Mode | Has engine in-process? | When to use |
+|---|---|---|---|
+| `parish-tauri` | `just run` | yes | Default desktop experience — full GUI. |
+| `parish-engine` | `--headless` (`just run-headless`), `--script FILE` | yes | Single-process terminal play; deterministic `--script` runs drive the test harness. |
+| `parish-server` | `--port PORT` (`just web`) | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions. |
+| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell** | Drive a running `parish-server` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
+| `parish-mcp` | MCP server (`bash parish/scripts/parish-mcp-backend.sh start`) | no — bridge | Expose `mcp__parish__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend. |
 
-The default experience is a desktop app.
-
-```sh
-just run          # launches cargo tauri dev
-```
-
-### Packaged macOS build with bundled local inference
-
-For a shippable `.app` that ends users can double-click — no Python or
-`vllm-mlx` install required — build the inference bundle first, then
-the app:
-
-```sh
-just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
-cd parish && cargo tauri build --target aarch64-apple-darwin
-```
-
-The first command materialises a relocatable Python runtime with
-vllm-mlx pip-installed straight into its site-packages at
-`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
-`install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
-would break when the bundle moves into `Rundale.app/Contents/Resources/`).
-`cargo tauri build` then includes that tree under
-`Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
-launch the app detects the bundle, recommends local inference for Macs
-with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
-live progress bar.
-
-CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
-trigger, uploads the bundle as an artifact). For dev iteration on
-`cargo tauri dev`, you can skip the bundle build — the runtime falls
-through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
+Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
 
 ## Features
 
@@ -147,11 +137,19 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### Headless / CLI
 
+- **`parish-engine`** — single-process binary with two modes: `--headless` (stdin/stdout REPL), `--script FILE` (deterministic batch driver), no flag (Tauri-launch). HTTP serving is no longer muxed in — `parish-server` is now a runnable binary in its own right.
 - **Plain stdin/stdout REPL** for scripting, fixtures, and headless servers.
 - **Interactive save picker** with the same branch model as the GUI.
 - **ANSI-coloured output** matching the GUI palette (NPC names, system messages, errors).
 - **`--script <file>`** mode for deterministic JSON-in/JSON-out execution — the backbone of the test harness.
 - **The full slash-command surface** works identically to the GUI.
+
+### Thin HTTP client (`parish-client`)
+
+- **Separate `parish` binary** that talks to a running `parish-server` over HTTP — no engine in-process, no game state owned locally.
+- **Four modes:** `parish "<cmd>"` single-shot, `parish --script <file>` for batch fixtures, `parish` no-arg REPL, `parish --json "<cmd>"` for raw `CommandResponse` JSON suitable for piping into `jq` / automation.
+- **Cookie persistence** — the server's `parish_sid` cookie is saved between runs so subsequent invocations resume the same save branch.
+- **Use cases:** CI scripts, agent harnesses, lightweight terminal play against a remote or local server, anything that doesn't want to boot the full engine just to issue a command.
 
 ### Modding & content
 
@@ -212,6 +210,84 @@ To that end, the project is developed entirely by AI coding agents — mostly **
 Static game content for the Ireland in 1820 setting in `mods/rundale/` — NPC personalities, schedules, relationships; location descriptions, lore, pronunciations — is also AI-generated, but human-reviewed before it lands.
 
 Character dialogue, mood, and behaviour are generated **in real time** by whichever LLM provider you've configured. Every NPC line, gossip rumour, and Tier 2/3 simulation tick comes from a live model call at play time; nothing is pre-baked. Each playthrough is genuinely different, and the dialogue's quality depends on the model you point the engine at.
+
+## Quick Start
+
+The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
+
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
+
+```sh
+# One-time: install system deps, Rust, Node, and frontend packages
+just setup
+```
+
+### GUI Mode (Tauri Desktop App)
+
+The default experience is a desktop app.
+
+```sh
+just run          # launches cargo tauri dev
+```
+
+### Other ways to run
+
+```sh
+just run-headless                     # stdin/stdout REPL, engine in-process
+just web                              # Axum web server on :3001 (Svelte UI in browser)
+cd parish && just run-client          # thin HTTP REPL against just-web
+```
+
+Single-shot / scripted / JSON modes for `parish-client`:
+
+```sh
+cargo run -p parish-client -- "look"                                # one command, formatted output
+cargo run -p parish-client -- --script testing/fixtures/play_X.txt  # batch fixture
+cargo run -p parish-client -- --json "look" | jq .outcome           # raw CommandResponse JSON
+```
+
+See the [Ways to run Parish](#ways-to-run-parish) diagram for how these binaries fit together.
+
+### Packaged macOS build with bundled local inference
+
+For a shippable `.app` that ends users can double-click — no Python or
+`vllm-mlx` install required — build the inference bundle first, then
+the app:
+
+```sh
+just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
+cd parish && cargo tauri build --target aarch64-apple-darwin
+```
+
+The first command materialises a relocatable Python runtime with
+vllm-mlx pip-installed straight into its site-packages at
+`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
+`install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
+would break when the bundle moves into `Rundale.app/Contents/Resources/`).
+`cargo tauri build` then includes that tree under
+`Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
+launch the app detects the bundle, recommends local inference for Macs
+with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
+live progress bar.
+
+CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
+trigger, uploads the bundle as an artifact). For dev iteration on
+`cargo tauri dev`, you can skip the bundle build — the runtime falls
+through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
+
+## Repository Layout
+
+```
+parish/
+  crates/              16 workspace members (types, config, world, npc, etc.)
+  apps/ui/             Svelte 5 + TypeScript frontend
+  testing/fixtures/    scripted gameplay fixtures
+  scripts/             Maintenance and quality gate scripts
+mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
+deploy/                Dockerfile
+docs/                  design, ADRs, plans, research, agent guides
+justfile               Top-level proxies for common tasks
+```
 
 The game icon was generated with **ChatGPT** (OpenAI image generation) from a hand-written prompt and is shipped as-is.
 

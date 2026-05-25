@@ -254,6 +254,11 @@ pub struct AppState {
     /// Resolved once at startup and injected into all dialogue prompt builders
     /// to enforce locale-correct spelling and code-switching behaviour.
     pub language_settings: parish_core::npc::LanguageSettings,
+    /// Serialises concurrent `/api/command` calls on this session.
+    ///
+    /// A second call while one is in flight gets HTTP 409 rather than racing
+    /// on the event-bus drain.  `try_lock` is used so the handler never blocks.
+    pub command_lock: tokio::sync::Mutex<()>,
 }
 
 /// Server-side counterpart of the Tauri `SetupStatusSnapshot`.
@@ -393,6 +398,7 @@ pub fn build_app_state(
         session_store,
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         language_settings,
+        command_lock: tokio::sync::Mutex::new(()),
         inference_file_log,
         chat_transcript_log,
     })
