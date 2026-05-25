@@ -129,41 +129,64 @@ def _is_thinking_mlx_model(model_id: str) -> bool:
 
 # Markers a model writes when it leaks its own planning prose into the
 # visible `content` field instead of emitting the in-character reply.
-# Match case-insensitively at the start of the response (or after a
-# leading blank line, to catch responses that begin with a quoted thought
-# block). Tuned against the 11 bench-bugs surfaced in the opencode-go
-# 2026-05-25 sweep — mostly mimo-v2.5-pro / minimax-m2.*.
+# Tuned against the 11 bench-bugs surfaced in the opencode-go 2026-05-25
+# sweep — mostly mimo-v2.5-pro / minimax-m2.*. Tracked for a principled
+# replacement in #1085 — these heuristics are brittle by design.
+#
+# Each entry is a regex anchored at the start of the response. Use full
+# verb phrases ("hmm, the user is...", "okay, so...") rather than bare
+# interjections like "Hmm," — Brigid legitimately opens dialogue with
+# those, so matching them in isolation is a false-positive risk.
 _COT_OPENERS = (
     r"the user is (asking|telling|requesting)",
     r"the player is (asking|telling|requesting|wondering)",
     r"the person is (asking|telling)",
     r"we (need|are|have) to respond",
     r"i (need|have|should) to respond",
-    r"let me (think|draft|craft|consider|plan)",
-    r"hmm,",
-    r"okay,",
-    r"alright,",
+    r"let me (think|draft|craft|consider|plan)\b",
+    r"hmm,?\s+(the|so|let me|i (need|should)|we)\b",
+    r"okay,?\s+(the|so|let me|i (need|should)|we)\b",
+    r"alright,?\s+(the|so|let me|i (need|should)|we)\b",
     r"key (elements|constraints|considerations):",
     r"constraints to (remember|consider):",
     r"steps:",
     r"plan:",
     r"approach:",
 )
+# Drop the trailing `\b` from the alternation: many openers end in `,`
+# or `:` which are non-word characters, and `\b` after a non-word char
+# requires a following word char — that never matches when the opener is
+# followed by whitespace (the common case). Anchor with `^\s*` only.
 _COT_PREFIX_RE = re.compile(
-    r"^\s*(" + "|".join(_COT_OPENERS) + r")\b",
+    r"^\s*(?:" + "|".join(_COT_OPENERS) + r")",
     re.IGNORECASE,
 )
 # In-character dialogue markers — when CoT is detected, scan forward for
-# the first occurrence of one of these as the start of a line and return
-# from there. Covers the Hiberno-English idioms the Brigid prompt seeds.
-_DIALOGUE_RESUMERS = (
-    r"^\s*(Ah[,!]|Aye[,.]|Sure[,!]|Mhuise|'Tis|Tis |Mayhap|Well now|Now,)",
-    r"^\s*\"",                    # quoted dialogue
-    r"^\s*Brigid[:\s]",           # rare but seen
-    r"^\s*Dia dhuit|^\s*Mo chara|^\s*A leanbh|^\s*A chroí",
+# the first one. Reachable from either a line start, a sentence boundary
+# on the same line (`. Ah,` / `? Aye,`), or a paragraph break — so
+# planning prose ending in "...respond as Brigid. Ah, sure now..." on a
+# single line is still recovered. Persona-specific (rundale midwife);
+# see #1085 for a persona-agnostic replacement.
+_RESUMER_BOUNDARY = r"(?:^|[.!?]\s+|\n\s*)"
+_RESUMER_TOKENS = (
+    r"Ah[,!]",
+    r"Aye[,.]",
+    r"Sure[,!]",
+    r"Mhuise",
+    r"'Tis",
+    r"Tis\s",
+    r"Mayhap",
+    r"Well now",
+    r"Now,",
+    r"\"",                  # quoted dialogue
+    r"Brigid[:\s]",
+    r"Dia dhuit",
+    r"Mo chara",
+    r"A leanbh",
+    r"A chroí",
 )
 _DIALOGUE_RESUMER_RE = re.compile(
-    "|".join(_DIALOGUE_RESUMERS),
+    _RESUMER_BOUNDARY + r"(" + "|".join(_RESUMER_TOKENS) + r")",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -175,20 +198,31 @@ def _scrub_chain_of_thought(text: str) -> str:
     in-character reply if planning prose is followed by actual dialogue,
     or an empty string if the whole response is planning prose (judge
     will then flag the empty reply as a bench-bug).
+
+    Same-line dialogue (planning then `... Ah, sure I'll fetch ye some`
+    on the same line, no newline) is also recovered — search starts at
+    the end of the matched CoT prefix, not the first newline.
     """
-    if not text or not _COT_PREFIX_RE.match(text):
+    if not text:
         return text
-    # Skip past the planning prose. Find first dialogue-resumer marker
-    # ANYWHERE after the leading CoT block. Search from the first newline
-    # so we don't immediately match characters inside the planning prose.
-    nl = text.find("\n")
-    if nl == -1:
-        return ""  # single line of planning prose → no reply present
-    tail = text[nl:]
+    m_cot = _COT_PREFIX_RE.match(text)
+    if not m_cot:
+        return text
+    # Scan for a resumer marker anywhere after the CoT prefix. Cover both
+    # newline-separated planning blocks AND same-line planning preambles
+    # ("Hmm, the user is asking. Ah, sure now, here's some chamomile…").
+    # MULTILINE makes the resumers' leading `^` also match after `\n`,
+    # but we still need to inject one synthetic line start so a same-line
+    # resumer that doesn't appear after a real newline is reachable —
+    # do that by anchoring the search at the end of the CoT prefix.
+    tail = text[m_cot.end():]
     m = _DIALOGUE_RESUMER_RE.search(tail)
     if not m:
         return ""  # never resumed in-character → bench-bug
-    return tail[m.start():].lstrip()
+    # group 1 is the marker itself; m.start(1) skips the boundary chars
+    # (newline / sentence-end punctuation) so the returned text begins
+    # at the in-character marker.
+    return tail[m.start(1):].lstrip()
 
 
 def _default_reasoning_for(model_id: str) -> dict:

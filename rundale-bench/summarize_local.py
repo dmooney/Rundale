@@ -28,19 +28,32 @@ def _is_local(model: str) -> bool:
     return model.startswith("mlx-community/") or "@http://127.0.0.1" in model or "@http://localhost" in model
 
 
+def _fnum(value, digits: int = 2) -> str:
+    """Format a numeric metric, rendering `—` for missing values.
+
+    Summaries returned by `_dialogue_aggregate` set axes to `None` (not
+    `0`) when every record was excluded as a bench-bug or judge failure —
+    `0` would be a real score and misleading. Format-spec on `None`
+    raises `TypeError`, so render explicitly.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value:.{digits}f}"
+    return "—"
+
+
 def _format_metric(slice_name: str, summary: dict) -> str:
     if slice_name == "intent":
-        return f"label={summary.get('label_match_rate', 0):.3f} score={summary.get('mean_score', 0):.3f}"
+        return f"label={_fnum(summary.get('label_match_rate'), 3)} score={_fnum(summary.get('mean_score'), 3)}"
     if slice_name == "dialogue":
         ax = " ".join(
-            f"{k[:2]}={summary.get(k, 0):.1f}"
+            f"{k[:2]}={_fnum(summary.get(k), 1)}"
             for k in ("character", "authenticity", "language", "responsiveness", "craft")
         )
-        return f"overall={summary.get('overall', 0):.2f} ({ax})"
+        return f"overall={_fnum(summary.get('overall'))} ({ax})"
     if slice_name == "reaction":
-        return f"in_char={summary.get('mean_score', 0):.2f}"
+        return f"in_char={_fnum(summary.get('mean_score'))}"
     if slice_name in ("tier2-sim", "tier3-sim"):
-        return f"schema={summary.get('schema_valid_rate', 0):.2f} plaus={summary.get('mean_score', 0):.2f}"
+        return f"schema={_fnum(summary.get('schema_valid_rate'))} plaus={_fnum(summary.get('mean_score'))}"
     return "?"
 
 
