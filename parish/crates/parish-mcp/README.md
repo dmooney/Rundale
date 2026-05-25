@@ -119,11 +119,43 @@ cargo run -p parish-tauri -- --mcp-port 3030
 ```
 
 The desktop window comes up as usual; in parallel, an in-process Axum
-listener binds `127.0.0.1:3030` and exposes the same `/api/*` routes as
-`parish-server`, sharing the live `AppState` and `tauri::AppHandle`. Every
-write the MCP client sends — `submit_input`, `new_game`, `save_game` —
-mutates the running window's world and triggers the same UI events the user
-would see if they typed in the input box.
+listener binds `127.0.0.1:3030` and exposes a curated subset of the
+`/api/*` routes (see [Bridge route subset](#bridge-route-subset) below),
+sharing the live `AppState` and `tauri::AppHandle`. Every write the MCP
+client sends — `submit_input`, `new_game`, `save_game` — mutates the
+running window's world and triggers the same UI events the user would
+see if they typed in the input box.
+
+#### Bridge route subset
+
+The Tauri MCP bridge exposes the routes the agent tools actually need
+to drive a live session — it is intentionally narrower than the
+`parish-server` route table to keep the desktop attack surface small.
+The full list lives in
+[`parish-tauri/src/mcp_bridge.rs::build_router`](../parish-tauri/src/mcp_bridge.rs);
+in summary:
+
+| Category | Exposed by bridge | Reads / writes |
+| --- | --- | --- |
+| Health & snapshots | `/api/health`, `/api/world-snapshot`, `/api/map`, `/api/npcs-here`, `/api/save-state`, `/api/transcript`, `/api/setup-snapshot` | reads |
+| Player commands | `/api/submit-input`, `/api/new-game`, `/api/save-game`, `/api/load-branch` | writes |
+| Screenshots | `/api/latest-screenshot`, `/api/take-screenshot` | read / write |
+| BYOK + onboarding | `/api/setup-status`, `/api/submit-byok`, `/api/byok-env-keys`, `/api/preset-models`, `/api/list-available-providers`, `/api/onboarding-options`, `/api/start-local-inference` | read / write |
+
+Routes that `parish-server` ships but the bridge intentionally **does
+NOT** expose include `/api/debug-snapshot`, `/api/theme`,
+`/api/ui-config`, `/api/app-icon.png`, `/api/favicon.png`,
+`/api/react-to-message`, `/api/discover-save-files`,
+`/api/create-branch`, `/api/new-save-file`, `/api/mods`,
+`/api/mods/switch`, `/api/demo-config`, `/api/demo-context`,
+`/api/save-screenshot`, `/api/command`, `/api/state`, `/api/ws`, the
+`/api/editor-*` family, `/api/session-init`, and `/api/auth/*`. A
+request to one of these against the bridge returns
+`HTTP/1.1 404 Not Found` — use Setup B (a separate `parish-server`)
+when an agent needs the wider surface (TODO #16). The bridge layer's
+goal is to drive the live desktop session for gameplay-shaped MCP
+tools; deeper introspection and editor-mode mutation are out of scope
+by design.
 
 Then run parish-mcp pointed at the same port:
 
