@@ -5,11 +5,13 @@ Axum HTTP/WebSocket entry point. One of three modes (Tauri, CLI, server) — mus
 ## Scoped commands
 
 ```sh
-cargo test -p parish-server                    # unit + integration
-cargo run  -p parish-server -- --port 3030     # local web server
-bash parish/scripts/parish-mcp-backend.sh start # boot for mcp__parish__* tools
+cargo test -p parish-server                     # unit + integration
+cargo run  -p parish-server -- --port 3001      # local web server (also: just web)
+bash parish/scripts/parish-mcp-backend.sh start # boot for mcp__parish__* tools (port 3030)
 just check                                      # full fmt+clippy+tests (workspace)
 ```
+
+The crate ships **both** a library (`parish_server::run_server`) and a binary (`parish-server`). The binary is `src/main.rs`; everything else lives under the library surface so embedders (tests, future Tauri "embed the HTTP API" flows, etc.) can keep using `run_server` directly.
 
 ## Local gotchas
 

@@ -55,8 +55,8 @@ just ui-e2e-update
 
 ```sh
 cd parish/apps/ui && npm run build && cd ../../..
-cargo run -p parish-engine -- --web            # default port 3001
-cargo run -p parish-engine -- --web 8080
+cargo run -p parish-server -- --port            # default port 3001
+cargo run -p parish-server -- --port 8080
 ```
 
 Then open `http://localhost:3001`.

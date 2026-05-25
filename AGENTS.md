@@ -26,7 +26,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 ## Current project state (quick map)
 
 - Rust workspace: **16 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
-  - Binaries: `parish-engine` (CLI / web / Tauri entry point — `--headless` / `--web PORT` / no flag), `parish-server` (Axum web), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
+  - Binaries: `parish-engine` (in-process engine — `--headless` / `--script FILE` / Tauri-launch), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
   - Composition: `parish-core` re-exports the leaf crates under stable namespaces.
   - Leaf logic crates: `parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`.
   - These crates make up the **Parish** game engine.

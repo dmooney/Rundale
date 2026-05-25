@@ -9,7 +9,6 @@ use parish_engine::config::{
 use parish_engine::headless;
 use parish_engine::inference::InferenceClients;
 use parish_engine::inference::setup::{self, StdoutProgress};
-use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -94,43 +93,26 @@ struct Cli {
     /// Path to a game mod directory (default: auto-detect mods/rundale/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
     game_mod: Option<String>,
-
-    /// Run as a web server (serves UI in browser for testing)
-    ///
-    /// Starts an axum HTTP server on the specified port (default: 3001)
-    /// that serves the Svelte frontend and exposes REST + WebSocket
-    /// endpoints. Use this for automated Chrome testing via Playwright.
-    #[arg(long, value_name = "PORT", default_missing_value = "3001", num_args = 0..=1)]
-    web: Option<u16>,
 }
 
-/// Sets up tracing and optional OpenTelemetry.
-fn setup_tracing_and_otel() {
+/// Sets up tracing (file appender + env filter).
+///
+/// The engine binary is process-local; OpenTelemetry export lives in the
+/// `parish-server` binary alongside the request-scoped span machinery that
+/// actually populates the spans.
+fn setup_tracing() {
     std::fs::create_dir_all("logs").ok();
-    let file_appender = tracing_appender::rolling::daily("logs", "parish.log");
+    let file_appender = tracing_appender::rolling::daily("logs", "parish-engine.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let otel_provider = parish_server::tracing_setup::try_build_otel_provider("parish-server");
-    let otel_tracer = otel_provider.as_ref().map(|p| {
-        use opentelemetry::trace::TracerProvider as _;
-        p.tracer("parish-server")
-    });
-
-    let registry = tracing_subscriber::registry()
+    tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(non_blocking)
                 .with_ansi(false),
-        );
-
-    if let Some(tracer) = otel_tracer {
-        registry.with(Some(OpenTelemetryLayer::new(tracer))).init();
-    } else {
-        registry
-            .with(Option::<OpenTelemetryLayer<_, opentelemetry::trace::noop::NoopTracer>>::None)
-            .init();
-    }
+        )
+        .init();
 }
 
 /// Resolves provider config, cloud config, and per-category configs from CLI.
@@ -239,24 +221,12 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    setup_tracing_and_otel();
+    setup_tracing();
     tracing::info!("Starting Parish...");
     let cli = Cli::parse();
 
     if let Some(script_path) = &cli.script {
         return parish_engine::testing::run_script_mode(Path::new(script_path));
-    }
-
-    if let Some(port) = cli.web {
-        #[allow(deprecated)]
-        let (data_dir, static_dir) = (find_data_dir(), find_ui_dist_dir());
-        tracing::info!(
-            "Starting web server on port {} (data={}, static={})",
-            port,
-            data_dir.display(),
-            static_dir.display()
-        );
-        return parish_server::run_server(port, data_dir, static_dir).await;
     }
 
     let (cfg, mut runtime_processes) = resolve_configs(&cli).await?;
@@ -399,33 +369,6 @@ fn find_data_dir() -> PathBuf {
         }
     }
     PathBuf::from(MOD_REL)
-}
-
-/// Finds the Svelte frontend build directory (`apps/ui/dist/`).
-///
-/// # Deprecated
-///
-/// Uses `std::env::current_dir()` which breaks in daemonised or `/tmp`
-/// working-directory deployments. Replace callers with path resolution from
-/// explicit `AppState` config per AGENTS.md rule #9.
-#[deprecated(
-    note = "cwd-relative path resolution breaks in non-CWD deployments; use explicit config"
-)]
-fn find_ui_dist_dir() -> PathBuf {
-    let candidates = ["apps/ui/dist", "parish/apps/ui/dist", "ui/dist"];
-    let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    for _ in 0..4 {
-        for c in &candidates {
-            if p.join(c).join("index.html").exists() {
-                return p.join(c);
-            }
-        }
-        match p.parent() {
-            Some(parent) => p = parent.to_path_buf(),
-            None => break,
-        }
-    }
-    PathBuf::from("apps/ui/dist")
 }
 
 /// Builds per-category CLI overrides from the parsed CLI arguments.

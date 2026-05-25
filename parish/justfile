@@ -155,7 +155,7 @@ run-client SERVER="http://localhost:3001":
 # (rebase/checkout/merge), making source edits appear invisible in the served
 # UI and spuriously re-emitting already-fixed build warnings.
 web PORT="3001": ui-build
-    cargo run -p parish-engine -- --web {{PORT}}
+    cargo run -p parish-server -- --port {{PORT}}
 
 # ─── Tauri & Frontend ────────────────────────────────────────────────────────
 

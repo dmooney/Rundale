@@ -43,15 +43,15 @@ jobs:
 
       - name: Build
         working-directory: parish
-        # Build parish-engine (headless/web entry point). parish-server is a library
+        # Build parish-server (HTTP/WS server binary)
         
-        run: cargo build -p parish-engine --release
+        run: cargo build -p parish-server --release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: parish-bin
-          path: parish/target/release/parish-engine
+          path: parish/target/release/parish-server
           retention-days: 1
 
   # ── Per-scenario eval matrix ──────────────────────────────────────────────
@@ -95,7 +95,7 @@ jobs:
           path: parish/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-engine
+        run: chmod +x parish/target/release/parish-server
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -105,7 +105,7 @@ jobs:
       - name: Start parish web server
         working-directory: parish
         run: |
-          ./target/release/parish-engine --web $PARISH_PORT &
+          ./target/release/parish-server --port $PARISH_PORT &
           echo $! > .parish-pid
           for i in $(seq 1 60); do
             curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
@@ -254,7 +254,7 @@ jobs:
           path: parish/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-engine
+        run: chmod +x parish/target/release/parish-server
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -264,7 +264,7 @@ jobs:
       - name: Start parish web server
         working-directory: parish
         run: |
-          ./target/release/parish-engine --web $PARISH_PORT &
+          ./target/release/parish-server --port $PARISH_PORT &
           echo $! > .parish-pid
           for i in $(seq 1 60); do
             curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
