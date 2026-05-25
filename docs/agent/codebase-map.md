@@ -69,10 +69,10 @@ The Parish workspace currently has 16 crates under `parish/crates/`.
 | Path | Purpose | Commit policy |
 |---|---|---|
 | `.proofs/` | Per-task proof bundles for rule #10, posted with `just attach-proof` | gitignored; never commit |
-| `.worktrees/`, `.claude/worktrees/` | Local agent worktrees and temporary branches | local/generated |
-| `logs/`, `saves/` | Root-level runtime output from local runs | local/generated |
-| `parish/logs/`, `parish/saves/` | Parish workspace runtime output and local save branches | local/generated |
-| `parish/target/` | Cargo build artifacts, coverage, and temp output | local/generated |
+| .worktrees/, .claude/worktrees/ | Local agent worktrees and temporary branches | local/generated |
+| logs/, saves/ | Root-level runtime output from local runs | local/generated |
+| parish/logs/, parish/saves/ | Parish workspace runtime output and local save branches | local/generated |
+| parish/target/ | Cargo build artifacts, coverage, and temp output | local/generated |
 
 ## Entry points (binaries)
 
