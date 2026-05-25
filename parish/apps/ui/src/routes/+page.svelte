@@ -57,7 +57,9 @@
 		onTravelStart,
 		submitInput,
 		saveScreenshot,
-		disposeTransport
+		disposeTransport,
+		toggleFullscreen,
+		isTauri
 	} from '$lib/ipc';
 	import { captureScreen } from '$lib/screenshot';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
@@ -89,8 +91,8 @@
 
 	const MOUSEMOVE_THROTTLE_MS = 1000;
 
-	// F2 = capture screenshot, F5 toggle for save picker, F11 toggle for demo panel,
-	// F12 toggle for debug panel, M toggle for map
+	// F2 = capture screenshot, F5 toggle for save picker, F10 toggle for demo panel,
+	// F11 toggle fullscreen (desktop), F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && get(demoEnabled)) {
 			e.preventDefault();
@@ -105,9 +107,17 @@
 			e.preventDefault();
 			savePickerVisible.update((v) => !v);
 		}
-		if (e.key === 'F11') {
+		if (e.key === 'F10') {
 			e.preventDefault();
 			demoVisible.update((v) => !v);
+		}
+		if (e.key === 'F11') {
+			// Desktop: toggle the Tauri window's fullscreen. In the browser,
+			// let the native F11 fullscreen behaviour stand.
+			if (isTauri()) {
+				e.preventDefault();
+				void toggleFullscreen();
+			}
 		}
 		if (e.key === 'F12') {
 			e.preventDefault();
