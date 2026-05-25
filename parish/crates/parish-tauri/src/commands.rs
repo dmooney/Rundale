@@ -233,6 +233,17 @@ pub async fn get_setup_snapshot(
         .clone())
 }
 
+/// Toggles the desktop window between fullscreen and windowed mode.
+///
+/// Bound to F11 in the frontend (desktop only — the web build lets the
+/// browser handle native F11). Returns the resulting fullscreen state.
+#[tauri::command]
+pub async fn toggle_fullscreen(window: tauri::WebviewWindow) -> Result<bool, String> {
+    let target = !window.is_fullscreen().map_err(|e| e.to_string())?;
+    window.set_fullscreen(target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
 // ── BYOK onboarding commands ─────────────────────────────────────────────────
 
 fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext<'a> {

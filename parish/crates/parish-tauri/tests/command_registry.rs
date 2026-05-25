@@ -37,6 +37,11 @@ use parish_tauri_lib::commands::{
 // the MCP screenshot round-trip at runtime.
 #[allow(unused_imports)]
 use parish_tauri_lib::commands::{notify_screenshot_captured, notify_screenshot_error};
+// Desktop-window command (F11 fullscreen toggle). Not in EXPECTED_COMMANDS —
+// the web build has no HTTP equivalent (the browser handles native F11) — but
+// imported so a rename or deletion fails the build.
+#[allow(unused_imports)]
+use parish_tauri_lib::commands::toggle_fullscreen;
 #[allow(unused_imports)]
 use parish_tauri_lib::editor_commands::{
     editor_close, editor_get_snapshot, editor_list_branches, editor_list_mods, editor_list_saves,
