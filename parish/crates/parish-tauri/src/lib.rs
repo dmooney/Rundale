@@ -1279,20 +1279,31 @@ pub fn run() {
     }
 
     // Persistent on-disk inference + chat transcript logs (#xxx).
+    //
+    // Both `spawn` constructors internally call `tokio::spawn` to start their
+    // writer tasks. `pub fn run()` is sync and has no Tokio reactor in scope
+    // here, so we route the construction through `tauri::async_runtime::block_on`
+    // which enters the Tauri-managed tokio runtime that the writer tasks will
+    // actually live on. Without this wrap, both calls panic with
+    // "there is no reactor running, must be called from the context of a
+    // Tokio 1.x runtime" before the Tauri builder even starts.
     let log_to_disk = parish_core::inference::file_log::resolve_enabled(
         false, // Tauri does not (yet) expose a --no-inference-log flag; env wins
         engine_config.inference.log_to_disk,
     );
-    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
-        &saves_dir,
-        log_to_disk,
-        Some(&game_config.base_url),
-    );
-    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
-        &saves_dir,
-        inference_file_log.session_id().to_string(),
-        inference_file_log.enabled_flag(),
-    );
+    let (inference_file_log, chat_transcript_log) = tauri::async_runtime::block_on(async {
+        let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+            &saves_dir,
+            log_to_disk,
+            Some(&game_config.base_url),
+        );
+        let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+            &saves_dir,
+            inference_file_log.session_id().to_string(),
+            inference_file_log.enabled_flag(),
+        );
+        (inference_file_log, chat_transcript_log)
+    });
 
     let state = Arc::new(AppState {
         world: Mutex::new(world),
