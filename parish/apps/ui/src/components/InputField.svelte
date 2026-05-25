@@ -914,7 +914,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 					disabled={$streamingActive}
 					onclick={() => insertNpcMention(npc.name)}
 				>
-					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
+					<span class="npc-chip-mood"
+						><MoodIcon mood={npc.mood} emoji={npc.mood_emoji} /></span
+					>
 					<span class="npc-chip-copy">
 						<span class="npc-chip-name">{npc.name}</span>
 						{#if npc.introduced}

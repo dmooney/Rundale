@@ -3,7 +3,19 @@ import { render } from '@testing-library/svelte';
 import MoodIcon from './MoodIcon.svelte';
 
 describe('MoodIcon', () => {
-	it('renders an emoji for a known mood', () => {
+	it('renders the backend-provided emoji verbatim when supplied', () => {
+		// TODO #20 — the backend computes `mood_emoji` via
+		// parish-npc::mood::mood_emoji; when the consumer passes that
+		// value through, MoodIcon must render it directly instead of
+		// re-deriving from the mood string.
+		const { container } = render(MoodIcon, {
+			props: { mood: 'angry', emoji: '🦊' }
+		});
+		const span = container.querySelector('.mood-emoji');
+		expect(span?.textContent).toBe('🦊');
+	});
+
+	it('falls back to the local map when emoji prop is omitted', () => {
 		const { container } = render(MoodIcon, { props: { mood: 'cheerful' } });
 		const span = container.querySelector('.mood-emoji');
 		expect(span).toBeTruthy();
@@ -28,13 +40,13 @@ describe('MoodIcon', () => {
 		const { container: c2 } = render(MoodIcon, { props: { mood: 'joyful' } });
 		const e1 = c1.querySelector('.mood-emoji')?.textContent;
 		const e2 = c2.querySelector('.mood-emoji')?.textContent;
-		expect(e1).toBe('😠');
+		// Values match the canonical Rust map (parish-npc/src/mood.rs).
+		expect(e1).toBe('😡');
 		expect(e2).toBe('😄');
 		expect(e1).not.toBe(e2);
 	});
 
 	it('matches mood keywords as substrings', () => {
-		// "contemplative" should match the "contemplat" keyword
 		const { container } = render(MoodIcon, { props: { mood: 'contemplative' } });
 		const span = container.querySelector('.mood-emoji');
 		expect(span?.textContent).toBe('🤔');
@@ -43,8 +55,29 @@ describe('MoodIcon', () => {
 	it('matches moods case-insensitively', () => {
 		const { container: lower } = render(MoodIcon, { props: { mood: 'angry' } });
 		const { container: upper } = render(MoodIcon, { props: { mood: 'ANGRY' } });
-		expect(lower.querySelector('.mood-emoji')?.textContent).toBe('😠');
-		expect(upper.querySelector('.mood-emoji')?.textContent).toBe('😠');
+		expect(lower.querySelector('.mood-emoji')?.textContent).toBe('😡');
+		expect(upper.querySelector('.mood-emoji')?.textContent).toBe('😡');
+	});
+
+	it('fallback map mirrors the canonical Rust map (parish-npc/src/mood.rs)', () => {
+		// TODO #20 — these specific moods previously diverged between
+		// Rust and Svelte; lock them down here so the two maps don't
+		// drift again. Values copied verbatim from parish-npc/src/mood.rs.
+		const cases: Array<[string, string]> = [
+			['angry', '😡'],
+			['passionate', '🔥'],
+			['restless', '😟'],
+			['surprised', '😮'],
+			['warm', '🤗'],
+			['friendly', '🤗'],
+			['cheerful', '😊'],
+			['joyful', '😄']
+		];
+		for (const [mood, expected] of cases) {
+			const { container } = render(MoodIcon, { props: { mood } });
+			const emoji = container.querySelector('.mood-emoji')?.textContent;
+			expect(emoji, `mood "${mood}" should map to ${expected}`).toBe(expected);
+		}
 	});
 
 	it('renders all mood categories to an emoji', () => {
