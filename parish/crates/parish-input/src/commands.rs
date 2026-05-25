@@ -18,6 +18,22 @@ pub enum FlagSubcommand {
     List,
 }
 
+/// Sub-command for the `/inference-log` disk-log toggle.
+///
+/// Controls the same writer used by the on-disk inference + chat
+/// transcript logs that ship in user-zippable bug reports.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InferenceLogSub {
+    /// Re-enable writes after a previous off.
+    On,
+    /// Stop writing future records (writer task stays alive).
+    Off,
+    /// Show on/off status and the file path.
+    Status,
+    /// Show the inference-log file path.
+    Path,
+}
+
 /// A system command entered by the player.
 ///
 /// System commands use a `/` prefix and control game meta-operations
@@ -145,6 +161,12 @@ pub enum Command {
     /// Location-gated (the pub) and time-gated (dusk through midnight).
     /// Produces a short evocative vignette generated from the game clock.
     Session,
+    /// Toggle or inspect the on-disk inference log.
+    ///
+    /// `On`/`Off` flip the shared enable flag at runtime.
+    /// `Status` reports whether logging is active and the file path.
+    /// `Path` prints the file path only.
+    InferenceLog(InferenceLogSub),
 }
 
 /// Maximum allowed length for save branch names.

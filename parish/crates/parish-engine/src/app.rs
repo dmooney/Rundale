@@ -160,6 +160,15 @@ pub struct App {
     /// `/load <branch>` or `/fork <branch>`), the drain pumps rebuild
     /// the managers so events land under the new branch's log dir.
     pub log_managers_branch: Option<i64>,
+    /// Persistent on-disk inference log handle. Defaults to `disabled()`
+    /// until `run_headless` constructs a real writer.
+    pub inference_file_log: parish_core::inference::file_log::InferenceFileLog,
+    /// Persistent on-disk chat transcript log handle. Defaults to `disabled()`
+    /// until `run_headless` constructs a real writer.
+    pub chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
+    /// Drains [`GameEvent`]s into `chat_transcript_log` on the same cadence as
+    /// `character_log_rx`. `None` when transcript logging is disabled.
+    pub chat_transcript_rx: Option<broadcast::Receiver<GameEvent>>,
 }
 
 impl App {
@@ -218,6 +227,11 @@ impl App {
             location_log_rx: None,
             log_app_name: String::new(),
             log_managers_branch: None,
+            // Default to disabled; `run_headless` constructs a real writer
+            // once the saves directory and `--no-inference-log` flag are known.
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+            chat_transcript_rx: None,
         }
     }
 

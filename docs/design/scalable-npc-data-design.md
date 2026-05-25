@@ -1,5 +1,7 @@
 # Scalable NPC Data Design
 
+> Status: Partial · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > [Docs Index](../index.md) · [Architecture Overview](overview.md)
 
 ## Context

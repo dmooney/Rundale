@@ -84,7 +84,7 @@ flags, a *correction* bubble replaces the turn before the player can respond.
 ### 8. Inference-time rejection sampler (Stage 3 of the Rundale dialect model)
 
 Implements §7's Background-lane critic pattern with the **three-axis
-local-only** judge stack from the [Gemma 4 Rundale training plan](../gemma4-rundale-training-plan.md#stage-3-—-inference-time-rejection-sampler):
+local-only** judge stack from the [Gemma 4 Rundale training plan](../../plans/gemma4-rundale-training-plan.md#stage-3-—-inference-time-rejection-sampler):
 deterministic anachronism wordlist (Webster 1828 ∪ Joyce 1910 ∪ Wright EDD
 1898–1905), Talkie-1930-13B-IT (q4) log-likelihood under a fixed
 Roscommon-1820s system prompt, and the ~250M Rundale dialect-oracle

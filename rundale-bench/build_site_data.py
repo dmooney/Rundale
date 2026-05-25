@@ -24,6 +24,7 @@ _REPO_ROOT = _BENCH_DIR.parent
 ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 PROOFS_RUNS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 PERF_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench" / "perf"
+DEMO_PROFILE_DIR = _REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
 SITE_DATA = _REPO_ROOT / "bench-site" / "src" / "data" / "bench.json"
 
 
@@ -126,6 +127,193 @@ def _family_lookup(suite: str) -> dict[str, str]:
         return out
     except Exception:
         return {}
+
+
+def _price_lookup(suite: str) -> dict[tuple[str, str], dict]:
+    """Catalog input/output token prices keyed by logical and provider model id."""
+    try:
+        from catalog import load_catalog
+        cat = load_catalog(version=suite)
+    except Exception:
+        return {}
+
+    out: dict[tuple[str, str], dict] = {}
+    for m in cat.models:
+        for p in m.providers:
+            price = {
+                "price_input_usd_per_mtok": p.price_in_per_mtok,
+                "price_output_usd_per_mtok": p.price_out_per_mtok,
+                "price_source": f"rundale-bench/{suite}/models.toml",
+            }
+            out[(m.id, p.provider_id)] = price
+            out[(p.model_name_at_provider, p.provider_id)] = price
+    return out
+
+
+def _latest_demo_profile_summary(profile_dir: Path) -> Optional[Path]:
+    if not profile_dir.exists():
+        return None
+    paths = sorted(p for p in profile_dir.glob("*/summary.json") if p.is_file())
+    return paths[-1] if paths else None
+
+
+def _enrich_profile_bucket(bucket: dict, observed_minutes: float, *, included: bool) -> dict:
+    requests = int(bucket.get("requests") or 0)
+    input_tokens = int(bucket.get("input_tokens_estimated") or 0)
+    output_tokens = int(bucket.get("output_tokens_estimated") or 0)
+    return {
+        **bucket,
+        "included_in_gameplay_cost": included,
+        "input_tokens_per_request_estimated": (input_tokens / requests) if requests else 0.0,
+        "output_tokens_per_request_estimated": (output_tokens / requests) if requests else 0.0,
+        "input_tokens_per_minute_estimated": (input_tokens / observed_minutes) if observed_minutes else 0.0,
+        "output_tokens_per_minute_estimated": (output_tokens / observed_minutes) if observed_minutes else 0.0,
+    }
+
+
+def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> Optional[dict]:
+    """Normal-play request profile from the latest committed demo profiling run.
+
+    The profile intentionally uses total_gameplay, excluding the synthetic
+    demo-player category, because cloud cost estimates should describe normal
+    game inference calls rather than the local bot that supplied demo input.
+    """
+    summary_path = _latest_demo_profile_summary(profile_dir)
+    if summary_path is None:
+        return None
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+    observed_seconds = float(summary.get("observed_seconds") or 0.0)
+    observed_minutes = observed_seconds / 60.0 if observed_seconds else 0.0
+    gameplay_categories = {"intent", "dialogue", "simulation", "reaction", "travel"}
+    categories = {
+        name: _enrich_profile_bucket(bucket, observed_minutes, included=name in gameplay_categories)
+        for name, bucket in sorted((summary.get("categories") or {}).items())
+    }
+    total_gameplay = _enrich_profile_bucket(
+        summary.get("total_gameplay") or {},
+        observed_minutes,
+        included=True,
+    )
+    total_observed = _enrich_profile_bucket(
+        summary.get("total_observed") or {},
+        observed_minutes,
+        included=False,
+    )
+    try:
+        source = str(summary_path.relative_to(_REPO_ROOT))
+    except ValueError:
+        source = str(summary_path)
+    return {
+        "source": source,
+        "label": "Five-minute vLLM-MLX demo run with human-readable turn delay",
+        "scope": "gameplay_excluding_demo_player",
+        "observed_seconds": observed_seconds,
+        "observed_minutes": observed_minutes,
+        "categories": categories,
+        "total_gameplay": total_gameplay,
+        "total_observed": total_observed,
+    }
+
+
+def _estimate_gameplay_cost(profile: Optional[dict], input_price: float, output_price: float) -> Optional[dict]:
+    if profile is None:
+        return None
+    total = profile.get("total_gameplay") or {}
+    input_per_min = total.get("input_tokens_per_minute_estimated")
+    output_per_min = total.get("output_tokens_per_minute_estimated")
+    if not isinstance(input_per_min, (int, float)) or not isinstance(output_per_min, (int, float)):
+        return None
+
+    per_category: dict[str, float] = {}
+    for name, cat in (profile.get("categories") or {}).items():
+        if not cat.get("included_in_gameplay_cost"):
+            continue
+        cat_input = cat.get("input_tokens_per_minute_estimated")
+        cat_output = cat.get("output_tokens_per_minute_estimated")
+        if not isinstance(cat_input, (int, float)) or not isinstance(cat_output, (int, float)):
+            continue
+        per_category[name] = (cat_input * input_price + cat_output * output_price) / 1_000_000
+
+    per_minute = (input_per_min * input_price + output_per_min * output_price) / 1_000_000
+    return {
+        "gameplay_cost_usd_per_minute": per_minute,
+        "gameplay_cost_usd_per_hour": per_minute * 60.0,
+        "gameplay_cost_by_category_usd_per_minute": per_category,
+    }
+
+
+def attach_gameplay_costs(perf: list[dict], profile: Optional[dict], prices: dict[tuple[str, str], dict]) -> None:
+    """Mutate perf rows with catalog prices and normal-play cost estimates."""
+    for row in perf:
+        model_id = row.get("model_id")
+        provider_id = row.get("provider_id")
+        provider_model = row.get("model_name_at_provider")
+        price = (
+            prices.get((model_id, provider_id))
+            or prices.get((provider_model, provider_id))
+        )
+        row["price_input_usd_per_mtok"] = None
+        row["price_output_usd_per_mtok"] = None
+        row["price_source"] = None
+        row["gameplay_cost_usd_per_minute"] = None
+        row["gameplay_cost_usd_per_hour"] = None
+        row["gameplay_cost_by_category_usd_per_minute"] = None
+        if price is None:
+            continue
+        row.update(price)
+        cost = _estimate_gameplay_cost(
+            profile,
+            price["price_input_usd_per_mtok"],
+            price["price_output_usd_per_mtok"],
+        )
+        if cost is not None:
+            row.update(cost)
+
+
+def build_cloud_cost_examples(profile: Optional[dict], suite: str = "v1") -> list[dict]:
+    """Cost/min examples for all non-local catalog providers, independent of perf rows."""
+    try:
+        from catalog import load_catalog
+        cat = load_catalog(version=suite)
+    except Exception:
+        return []
+
+    rows: list[dict] = []
+    for m in cat.models:
+        if m.local_only:
+            continue
+        for p in m.providers:
+            row = {
+                "model_id": m.id,
+                "display_name": m.display_name,
+                "provider_id": p.provider_id,
+                "model_name_at_provider": p.model_name_at_provider,
+                "price_input_usd_per_mtok": p.price_in_per_mtok,
+                "price_output_usd_per_mtok": p.price_out_per_mtok,
+                "price_source": f"rundale-bench/{suite}/models.toml",
+            }
+            cost = _estimate_gameplay_cost(profile, p.price_in_per_mtok, p.price_out_per_mtok)
+            if cost is not None:
+                row.update(cost)
+            else:
+                row["gameplay_cost_usd_per_minute"] = None
+                row["gameplay_cost_usd_per_hour"] = None
+                row["gameplay_cost_by_category_usd_per_minute"] = None
+            rows.append(row)
+
+    def _sort_key(row: dict) -> tuple[float, str, str]:
+        cost = row.get("gameplay_cost_usd_per_minute")
+        return (
+            cost if isinstance(cost, (int, float)) else float("inf"),
+            row["model_id"],
+            row["provider_id"],
+        )
+
+    return sorted(rows, key=_sort_key)
 
 
 def _run_ts(out: dict, path: Path) -> str:
@@ -426,7 +614,8 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
                 "is_local": model_is_local(model_id),
                 "dialogue_overall": None, "gaeilge_overall": None,
                 "perf_providers": [], "perf_best_p50_ms": None,
-                "perf_best_usd_per_mtok": None, "perf_mean_tok_s": None,
+                "perf_best_usd_per_mtok": None, "perf_best_gameplay_usd_per_minute": None,
+                "perf_best_gameplay_usd_per_hour": None, "perf_mean_tok_s": None,
             }
         return by_slug[slug]
 
@@ -450,6 +639,12 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
         if isinstance(usd, (int, float)):
             cur = e["perf_best_usd_per_mtok"]
             e["perf_best_usd_per_mtok"] = usd if cur is None else min(cur, usd)
+        gameplay_per_minute = r.get("gameplay_cost_usd_per_minute")
+        if isinstance(gameplay_per_minute, (int, float)):
+            cur = e["perf_best_gameplay_usd_per_minute"]
+            best = gameplay_per_minute if cur is None else min(cur, gameplay_per_minute)
+            e["perf_best_gameplay_usd_per_minute"] = best
+            e["perf_best_gameplay_usd_per_hour"] = best * 60.0
         ts = r.get("tokens_per_sec_mean")
         if isinstance(ts, (int, float)):
             cur = e["perf_mean_tok_s"]
@@ -468,6 +663,7 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
 
 
 def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
+               profile_dir: Path = DEMO_PROFILE_DIR,
                *, suite: str = "v1", judge_model: str = "claude-sonnet-4-6") -> dict:
     families = _family_lookup(suite)
     datasets = build_datasets(suite)
@@ -478,6 +674,9 @@ def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
     gaeilge = build_gaeilge(artifacts_dir, families)
     perf = build_perf(perf_dir, legacy_dir=artifacts_dir)
     samples = build_samples(artifacts_dir, datasets)
+    normal_play_profile = build_normal_play_profile(profile_dir)
+    attach_gameplay_costs(perf, normal_play_profile, _price_lookup(suite))
+    cloud_cost_examples = build_cloud_cost_examples(normal_play_profile, suite)
     # Stamp is_local on every row so the site doesn't have to recompute it.
     for r in leaderboard: r["is_local"] = model_is_local(r["model_id"])
     for r in gaeilge: r["is_local"] = model_is_local(r["model_id"])
@@ -489,6 +688,8 @@ def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
         "leaderboard": leaderboard,
         "gaeilge": gaeilge,
         "perf": perf,
+        "normal_play_profile": normal_play_profile,
+        "cloud_cost_examples": cloud_cost_examples,
         "datasets": datasets_with_purpose,
         "samples": samples,
         "judge_prompts": build_judge_prompts(suite),

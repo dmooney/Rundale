@@ -635,6 +635,22 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
 
     let flags_path = global.data_dir.join("parish-flags.json");
     let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
+
+    let log_to_disk = parish_core::inference::file_log::resolve_enabled(
+        false,
+        global.inference_config.log_to_disk,
+    );
+    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+        &session_saves,
+        log_to_disk,
+        Some(&config.base_url),
+    );
+    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+        &session_saves,
+        inference_file_log.session_id().to_string(),
+        inference_file_log.enabled_flag(),
+    );
+
     let app_state = build_app_state(
         session_id.to_string(),
         world,
@@ -651,6 +667,8 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         flags_path,
         global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
+        inference_file_log,
+        chat_transcript_log,
     );
 
     if let Err(e) = init_session_save(&app_state, &session_saves).await {
@@ -760,6 +778,24 @@ async fn restore_session(
 
     let flags_path = global.data_dir.join("parish-flags.json");
     let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
+
+    // Persistent inference + transcript logs for this session. Same
+    // session_id is embedded in both filenames so they pair on disk.
+    let log_to_disk = parish_core::inference::file_log::resolve_enabled(
+        false, // server has no --no-inference-log flag; env var wins
+        global.inference_config.log_to_disk,
+    );
+    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+        &session_saves,
+        log_to_disk,
+        Some(&config.base_url),
+    );
+    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+        &session_saves,
+        inference_file_log.session_id().to_string(),
+        inference_file_log.enabled_flag(),
+    );
+
     let app_state = build_app_state(
         session_id.to_string(),
         world,
@@ -776,6 +812,8 @@ async fn restore_session(
         flags_path,
         global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
+        inference_file_log,
+        chat_transcript_log,
     );
 
     if let Some(ref c) = client {
@@ -811,12 +849,17 @@ async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyClient) {
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
+    let provider =
+        parish_core::config::Provider::from_str_loose(&app_state.config.lock().await.provider_name)
+            .unwrap_or_default();
     let worker = spawn_inference_worker(
         client,
         interactive_rx,
         background_rx,
         batch_rx,
         app_state.inference_log.clone(),
+        app_state.inference_file_log.clone(),
+        provider,
         app_state.inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
@@ -1089,6 +1132,42 @@ fn spawn_session_ticks(
                                 Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
                                 Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
                             }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
+    // ── Chat-transcript subscriber ─────────────────────────────────────────
+    //
+    // Writes the user-visible chat stream as JSONL paired with the inference
+    // log (for zippable bug reports), correlating NPC dialogue to the
+    // inference call via `parish.request_id`. The writer task + enable flag
+    // were created at session start on `AppState.chat_transcript_log`; this
+    // subscriber just forwards bus events to it. Per-session (not per-branch),
+    // so unlike the markdown log managers it never rebinds.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            // Always subscribe — even if logging starts disabled — so a
+            // mid-session `/inference-log on` is captured. `process_event`
+            // no-ops internally while the shared flag is off.
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            let world = s.world.lock().await;
+                            let npc_mgr = s.npc_manager.lock().await;
+                            s.chat_transcript_log.process_event(&event, &world, &npc_mgr);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

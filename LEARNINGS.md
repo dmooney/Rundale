@@ -16,6 +16,8 @@ bottom; don't lengthen items past 2-3 lines.
 - **`DayType` has three variants** (`Weekday`, `Sunday`, `MarketDay`). No `Holiday`. See `parish-types/src/time.rs`.
 - **`parish --script` uses the active mod from `mods/mod-list.toml`.** `GameTestHarness::new()` loads Rundale, but live script mode currently follows `active_setting`; use a Rundale-only `PARISH_MODS_DIR` for Rundale-specific proof runs when the active setting is `testbed`.
 - **`mods/mod-list.toml` selects the default setting mod when both Rundale and testbed exist.** Keep the checked-in value at `active_setting = "rundale"` unless a test explicitly switches it.
+- **Demo profiling must isolate `PARISH_USER_CONFIG_DIR`.** Tauri reapplies saved wizard/category overrides from the user config dir after base env resolution, which can bypass a proxy unless the profiling run points config/data/saves at a temp directory.
+- **Tauri demo reads per-category routing from user config, not category env vars.** `PARISH_INTENT_MODEL` works for the CLI config path, but Tauri startup hydrates category overrides from `PARISH_USER_CONFIG_DIR/parish.toml`.
 
 ## Character logs (`parish-core/src/character_log.rs`)
 
@@ -38,3 +40,4 @@ bottom; don't lengthen items past 2-3 lines.
 - **Stop hooks under `set -euo pipefail` need `|| true` at the END of every command-substitution pipeline.** `grep` no-match exits 1 → pipefail propagates → silent exit. Visible only as "Stop hook error: Failed with non-blocking status code: No stderr output". All Stop hooks now have an ERR trap that surfaces future silent failures.
 - **`PARISH_USER_DATA_DIR` only honors the FULL path** (no app_name appended). Tests setting `PARISH_USER_DATA_DIR=$tmp` should expect `$tmp/logs/branch-N/`, not `$tmp/<app>/logs/branch-N/`. See line 13 above; restated here because the rebind test (`headless.rs::rebind_log_managers_follows_branch_switch`) tripped on it.
 - **CLI flag is `--game-mod <DIR>`, not `--mod`.** `parish --script ... --mod mods/rundale` errors with "unexpected argument". Use `--game-mod` (env: `PARISH_MOD`).
+- **`build_site_data.py` reads committed proof-run mirrors by default.** Hermetic tests that pass temp artifact dirs must also point `PROOFS_RUNS_DIR` at an empty temp dir, or real `docs/proofs/rundale-bench/run_*.json` files leak into assertions.

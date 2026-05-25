@@ -405,6 +405,7 @@ pub(crate) async fn do_submit_byok(
         config: &state.config,
         inference_config: &state.inference_config,
         inference_log: state.inference_log.clone(),
+        inference_file_log: state.inference_file_log.clone(),
         slots: parish_core::game_loop::inference::InferenceSlots {
             client: &state.client,
             worker_handle: &state.worker_handle,
@@ -591,6 +592,8 @@ mod tests {
             secret_store: Arc::new(InMemorySecretStore::new()),
             latest_screenshot_path: Mutex::new(None),
             pending_screenshots: Mutex::new(std::collections::HashMap::new()),
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
         })
     }
 

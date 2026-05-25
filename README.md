@@ -6,8 +6,6 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 
 [![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
 
-**Model leaderboard:** browse the live results at **[dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/)** — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts. The reproducible harness is in [`rundale-bench/`](rundale-bench/); a static markdown snapshot lives at [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md).
-
 <table>
   <tr>
     <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" width="160"/><br/><b>Map</b></a></td>
@@ -195,6 +193,14 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 - **Historical research archive** — religion, family, education, crafts, food, transportation, and Hiberno-English dialect notes informing NPC dialogue.
 - **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), linked from `CLAUDE.md` and `AGENTS.md`.
 
+## Model leaderboard
+
+Rundale ships with its own reproducible LLM benchmark — **rundale-bench** — that scores models on dialogue quality, Gaeilge (Irish-language) fluency, and per-provider latency under load.
+
+- **Live results:** [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts.
+- **Reproducible harness:** [`rundale-bench/`](rundale-bench/)
+- **Static snapshot:** [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md)
+
 ## AI disclosure
 
 Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs (or more) at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions. I wanted to build something using AI that would be impossible any other way, at least for a solo dev.
@@ -273,7 +279,7 @@ through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ```
 parish/
-  crates/              14 workspace members (types, config, world, npc, etc.)
+  crates/              16 workspace members (types, config, world, npc, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
@@ -283,11 +289,15 @@ docs/                  design, ADRs, plans, research, agent guides
 justfile               Top-level proxies for common tasks
 ```
 
+The game icon was generated with **ChatGPT** (OpenAI image generation) from a hand-written prompt and is shipped as-is.
+
 ## Documentation
 
 | Start here | What you'll find |
 |------------|------------------|
 | [docs/index.md](docs/index.md) | Master hub — phase status, links to everything |
+| [docs/repository-layout.md](docs/repository-layout.md) | Top-level directory tree and crate index |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Bug reporting + inference-log artefact guide |
 | [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
 | [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases |
 | [docs/research/README.md](docs/research/README.md) | Research documents covering life in 1820's Ireland |

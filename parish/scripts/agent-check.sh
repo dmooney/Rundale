@@ -523,7 +523,7 @@ while IFS= read -r file; do
     [[ "$file" == "parish/justfile" ]] && continue
     [[ "$file" == "docs/agent/witness.md" ]] && continue
     [[ "$file" == "docs/agent/agent-check.md" ]] && continue
-    [[ "$file" == ".agents/skills/rundale-ci-pitfalls/SKILL.md" ]] && continue
+    [[ "$file" == ".agents/skills/check/SKILL.md" ]] && continue
     [[ "$file" == ".agents/skills/task-start/SKILL.md" ]] && continue
     if scan_for_debt_markers "$file"; then
         debt_found=1

@@ -1,6 +1,6 @@
 # Plan: Phase 5F — World Graph Expansion
 
-> Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+> Parent: [Phase 5](archive/phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
 > **Status: Planned**
 >

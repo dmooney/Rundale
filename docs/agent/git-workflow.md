@@ -22,7 +22,7 @@ just verify    # check + harness walkthrough
 
 ## Play-test verification
 
-After implementing any gameplay feature, run `/prove <feature description>` to verify it works at runtime. Unit tests passing is **not** sufficient — you must see the feature working in actual game output.
+After implementing any gameplay feature, run `/parish-engine prove <feature description>` to verify it works at runtime. Unit tests passing is **not** sufficient — you must see the feature working in actual game output.
 
 ## Pull requests
 

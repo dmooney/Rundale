@@ -1,5 +1,7 @@
 # Inference Pipeline
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [008](../adr/008-structured-json-llm-output.md), [010](../adr/010-prompt-injection-defenses.md)
 >
 > Measurement record: [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.

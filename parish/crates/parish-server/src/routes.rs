@@ -200,6 +200,8 @@ pub fn redact_call_log(
             max_tokens: e.max_tokens,
             ttft_ms: e.ttft_ms,
             output_tokens: e.output_tokens,
+            temperature: e.temperature,
+            priority: e.priority,
             // Redacted fields:
             system_prompt: None,
             prompt_text: String::new(),
@@ -416,6 +418,7 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>) {
         api_key.as_deref(),
         &state.inference_config,
         state.inference_log.clone(),
+        state.inference_file_log.clone(),
         parish_core::game_loop::inference::InferenceSlots {
             client: &state.client,
             worker_handle: &state.worker_handle,
@@ -1804,6 +1807,8 @@ pub mod tests {
             data_dir.join("parish-flags.json"),
             parish_core::config::InferenceConfig::default(),
             session_store,
+            parish_core::inference::file_log::InferenceFileLog::disabled(),
+            parish_core::chat_transcript::ChatTranscriptLog::disabled(),
         )
     }
 

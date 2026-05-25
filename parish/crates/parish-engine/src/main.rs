@@ -93,6 +93,17 @@ struct Cli {
     /// Path to a game mod directory (default: auto-detect mods/rundale/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
     game_mod: Option<String>,
+
+    /// Disable the on-disk inference call log.
+    ///
+    /// By default Parish writes every inference call (and the user-visible
+    /// chat transcript) as JSONL to `{saves_dir}/inference_logs/` so users
+    /// can zip the folder for bug reports. Pass this flag to opt out for
+    /// the duration of the run; the `/inference-log on|off` slash command
+    /// toggles the same setting at runtime. Overrides
+    /// `PARISH_INFERENCE_LOG`.
+    #[arg(long)]
+    no_inference_log: bool,
 }
 
 /// Sets up tracing (file appender + env filter).
@@ -246,6 +257,7 @@ async fn main() -> Result<()> {
         Some(headless_data_dir),
         cfg.engine_inference,
         script_mode,
+        cli.no_inference_log,
     )
     .await;
     runtime_processes.stop();

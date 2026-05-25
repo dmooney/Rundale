@@ -1,5 +1,7 @@
 # Parish Designer — GUI Editor for Game Data
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 ## Context
 
 Parish (Rundale) is a text adventure set in 1820s rural Ireland with a rich body

@@ -5,6 +5,7 @@ const base = import.meta.env.BASE_URL;
 const rows = data.models_index ?? [];
 const fmt = (v, d = 2) => (typeof v === 'number' ? v.toFixed(d) : '—');
 const fmtInt = (v) => (typeof v === 'number' ? Math.round(v).toString() : '—');
+const fmtMoney = (v, d = 4) => (typeof v === 'number' ? `$${v.toFixed(d)}` : '—');
 const localBadge = (b) => (b ? 'local' : 'cloud');
 ---
 <Base title="Rundale Bench — Models">
@@ -23,6 +24,7 @@ const localBadge = (b) => (b ? 'local' : 'cloud');
         <th class="num">Gaeilge overall</th>
         <th class="num">Best p50 ms</th>
         <th class="num">Best $/Mtok</th>
+        <th class="num">Best game $/min</th>
         <th class="num">Top tok/s</th>
         <th class="num">Providers</th>
       </tr>
@@ -36,6 +38,7 @@ const localBadge = (b) => (b ? 'local' : 'cloud');
           <td class="num">{fmt(r.gaeilge_overall)}</td>
           <td class="num">{fmtInt(r.perf_best_p50_ms)}</td>
           <td class="num">{typeof r.perf_best_usd_per_mtok === 'number' ? `$${r.perf_best_usd_per_mtok}` : '—'}</td>
+          <td class="num">{fmtMoney(r.perf_best_gameplay_usd_per_minute)}</td>
           <td class="num">{fmt(r.perf_mean_tok_s, 1)}</td>
           <td class="num">{r.perf_providers.length || '—'}</td>
         </tr>

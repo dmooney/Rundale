@@ -1,5 +1,7 @@
 # Testing Harness Design
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 ## Overview
 
 The `GameTestHarness` (`crates/parish-engine/src/testing.rs`) provides a programmatic, synchronous
@@ -123,7 +125,7 @@ Tick,          // /tick
 
 ## Agent Play-Testing Skill
 
-The `/play` skill (`.agents/skills/play/SKILL.md`) enables an AI coding assistant to
+The `/parish-engine play` skill (`.agents/skills/parish-engine/SKILL.md`) enables an AI coding assistant to
 autonomously play-test the game via `--script` mode:
 
 1. Build the project with `cargo build`

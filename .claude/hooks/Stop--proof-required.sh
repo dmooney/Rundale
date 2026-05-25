@@ -10,7 +10,7 @@
 #       cargo test, cargo nextest, npm test, npm run (test|check|e2e),
 #       npx playwright, just (check|verify|agent-check|ui-test|ui-e2e)
 #   - Tool name `Skill` with input.skill in
-#       {prove, check, verify, play, rubric, chrome-test, demo}
+#       {parish-engine (live harness), check (test gate)}
 #
 # Code-change detection (covers the "agent committed before stopping"
 # bypass — bot review feedback #973):
@@ -79,8 +79,8 @@ CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb
 # file is under one of these prefixes, unit-test signals (cargo test /
 # just check / npm run check) are no longer sufficient on their own —
 # the agent must additionally exercise the change at runtime
-# (mcp__parish__*, mcp__claude-in-chrome__*, Skill prove/play/demo/
-# chrome-test, or a Bash invocation of just demo / just play / just run
+# (mcp__parish__*, mcp__claude-in-chrome__*, the parish-engine Skill,
+# or a Bash invocation of just demo / just play / just run
 # / cargo tauri dev / cargo run -p parish-*). This closes the gap where
 # unit tests are green but the runtime-only seam is never touched
 # (e.g. Tauri startup paths that only fire in `just demo`).
@@ -224,13 +224,13 @@ RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || t
 #   LIVE proof  = the change actually ran in a real process.
 #     - mcp__parish__* (drives a live backend)
 #     - mcp__claude-in-chrome__* (drives a live browser)
-#     - Skill prove / play / demo / rubric / chrome-test (live harness)
+#     - Skill parish-engine (live harness: prove/play/demo/rubric/browser)
 #     - Bash matching LIVE_BASH_PATTERN (just demo|play|run|run-headless
 #       |web; cargo tauri dev; cargo run -p parish-engine|parish-tauri
 #       |parish-server)
 #
 #   TEST proof  = static / unit / integration tests passed.
-#     - Skill check / verify
+#     - Skill check (just check / just verify gates)
 #     - Bash matching TEST_BASH_PATTERN (cargo test|nextest; npm test|
 #       run check|run e2e; npx playwright; just check|verify|
 #       agent-check|ui-test|ui-e2e)
@@ -262,7 +262,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Skill")
-        | select(.input.skill | IN("prove","play","demo","rubric","chrome-test"))
+        | select(.input.skill == "parish-engine")
         | "skill: \(.input.skill)"
       ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
     )"
@@ -289,7 +289,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
       (.message.content // [])[]?
       | select(.type == "tool_use")
       | select(.name == "Skill")
-      | select(.input.skill | IN("check","verify"))
+      | select(.input.skill == "check")
       | "skill: \(.input.skill)"
     ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
   )"
@@ -379,11 +379,11 @@ done."
     - cargo run -p parish-tauri  (live desktop window)
     - cargo run -p parish-engine -- --headless  (REPL)
     - just demo  /  just play  /  just run
-    - /prove <feature>  /  /play
+    - /parish-engine prove <feature>  /  /parish-engine play
 
   Frontend (parish/apps/ui)
     - mcp__claude-in-chrome__* against vite dev server
-    - /chrome-test
+    - /parish-engine browser
     - npx playwright e2e/<spec>.spec.ts  (real browser, not just type-check)"
 else
   TIER_BANNER="TEST proof required: code changed this session."
@@ -391,7 +391,7 @@ else
   EXAMPLES="  - cargo test / cargo nextest
   - npm run check / npm run e2e / npx playwright
   - just check / just verify / just agent-check
-  - /check or /verify
+  - /check
   - mcp__parish__* or mcp__claude-in-chrome__* (these also satisfy)"
 fi
 

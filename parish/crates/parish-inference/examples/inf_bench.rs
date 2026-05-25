@@ -395,7 +395,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (_btx, brx) = mpsc::channel::<InferenceRequest>(8);
     let (_xtx, xrx) = mpsc::channel::<InferenceRequest>(8);
     let log = new_inference_log();
-    let _h = spawn_inference_worker(client, irx, brx, xrx, log.clone(), cfg);
+    let _h = spawn_inference_worker(
+        client,
+        irx,
+        brx,
+        xrx,
+        log.clone(),
+        parish_inference::file_log::InferenceFileLog::disabled(),
+        parish_config::Provider::from_str_loose("openai").unwrap_or_default(),
+        cfg,
+    );
 
     let samples = samples();
 
