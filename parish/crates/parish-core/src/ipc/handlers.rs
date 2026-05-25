@@ -852,6 +852,14 @@ pub fn prepare_npc_conversation_turn(
         context.push_str(&alert);
     }
 
+    // Modern-register echo guard (TODO #55) — separate from the
+    // technology/slang anachronism path. Fires when the player uses a
+    // 21st-century phrase from MODERN_REGISTER_TERMS so the NPC doesn't
+    // echo it back and trip the post-reply validator.
+    if let Some(alert) = crate::npc::quality::format_player_register_alert(player_input) {
+        context.push_str(&alert);
+    }
+
     // Current player input — comes after conversation history as the triggering line.
     context.push_str("\n\n");
     context.push_str(&parish_npc::build_named_action_line(
