@@ -227,6 +227,16 @@ pub fn tick_schedules(
                         location: destination,
                         timestamp: now,
                     });
+                    if let Some(entry) = npc.schedule_entry(current_hour, season, day_type)
+                        && !entry.activity.trim().is_empty()
+                    {
+                        event_bus.publish(GameEvent::NpcActivity {
+                            npc_id: id,
+                            location: destination,
+                            activity: entry.activity.clone(),
+                            timestamp: now,
+                        });
+                    }
                     tracing::debug!(npc = %npc.name, location = destination.0, "NPC arrived");
                     let Some(npc_mut) = npcs.get_mut(&id) else {
                         continue;
