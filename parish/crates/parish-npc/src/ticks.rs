@@ -200,6 +200,34 @@ pub fn build_enhanced_system_prompt_with_config(
     prompt
 }
 
+/// "Already introduced" anchor — fires only on the second and later
+/// turns with a given NPC (when the NPC's name has already been
+/// surfaced to the player). TODO #39 captured this failure mode:
+/// Roisin Connolly's reply on turn 7 included "...ye share yer
+/// plans with me, Roisin Connolly, of Connolly's Shop, and a keen
+/// eye for opportunity?" — mid-reply self-introduction that
+/// breaks immersion long after the NPC has been met.
+///
+/// The caller must pass `was_introduced` as captured *before*
+/// `NpcManager::mark_introduced` is called for this turn, otherwise
+/// the value is always true after entry and the anchor fires on
+/// turn 1 too (which would suppress legitimate first-contact
+/// introductions).
+fn introduced_anchor_block(npc: &Npc, was_introduced: bool) -> Option<String> {
+    if !was_introduced {
+        return None;
+    }
+    let name = &npc.name;
+    let occupation = &npc.occupation;
+    Some(format!(
+        "\n\nYou have already introduced yourself to this person — \
+         they know you are {name}, the {occupation}. Do not recite \
+         your full name and occupation again in this reply, and do \
+         not say things like \"{name}, of <place>\" mid-reply. Speak \
+         in first person as a continuing voice in the conversation."
+    ))
+}
+
 /// "Where you are right now" anchor — pins the NPC to the player's
 /// current location so they don't substitute a nearby canonical
 /// settlement from their backstory or short-term memory.
@@ -379,12 +407,17 @@ pub fn build_enhanced_context_with_config(
     config: &NpcConfig,
     _npc_names: &std::collections::HashMap<NpcId, String>,
     player_name_for_npc: Option<&str>,
+    was_introduced: bool,
 ) -> String {
     let mut context = build_tier1_context(world);
 
     context.push_str(&location_anchor_block(world));
 
     context.push_str(&interlocutor_block(player_name_for_npc));
+
+    if let Some(block) = introduced_anchor_block(npc, was_introduced) {
+        context.push_str(&block);
+    }
 
     if let Some(block) = other_npcs_block(npc, other_npcs, config) {
         context.push_str(&block);
@@ -439,6 +472,7 @@ pub(crate) fn build_enhanced_context(
         &NpcConfig::default(),
         npc_names,
         None,
+        false,
     );
     // Player's current input last — everything above is context for this moment
     context.push_str("\n\n");
@@ -1519,6 +1553,34 @@ mod tests {
         assert!(
             block.contains("do not borrow a name"),
             "missing borrow-from-history guard:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_introduced_anchor_block_fires_only_when_previously_introduced() {
+        // TODO #39 — first contact: anchor must NOT render so the NPC
+        // can introduce themselves on turn 1.
+        let npc = make_test_npc(1, "Padraig", 1);
+        assert!(
+            introduced_anchor_block(&npc, false).is_none(),
+            "anchor must not render on first contact"
+        );
+
+        // Follow-up turn: anchor must render with NPC name + occupation
+        // and forbid mid-reply self-recitation.
+        let block =
+            introduced_anchor_block(&npc, true).expect("anchor must render on subsequent turns");
+        assert!(
+            block.contains("Padraig"),
+            "anchor missing NPC name:\n{block}"
+        );
+        assert!(
+            block.contains("Do not recite your full name and occupation"),
+            "anchor missing recitation guard:\n{block}"
+        );
+        assert!(
+            block.contains("Padraig, of <place>"),
+            "anchor missing the specific 'Name, of place' pattern guard:\n{block}"
         );
     }
 
