@@ -1227,6 +1227,15 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let game_time = world.clock.now();
 
                                 for event in &events {
+                                    // #1027: a summary naming an absent NPC is
+                                    // untrusted — don't let it spread through
+                                    // gossip either (the in-function guard already
+                                    // suppresses the interaction + memory).
+                                    let summary_clean =
+                                        !parish_core::npc::ticks::tier2_summary_mentions_absent_npc(
+                                            event,
+                                            npc_mgr.npcs(),
+                                        );
                                     let _dbg =
                                         parish_core::npc::ticks::apply_tier2_event_with_config(
                                             event,
@@ -1236,11 +1245,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                             &world.event_bus,
                                         );
                                     // Push gossip so it can propagate to other NPCs.
-                                    parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                        event,
-                                        &mut world.gossip_network,
-                                        game_time,
-                                    );
+                                    if summary_clean {
+                                        parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                            event,
+                                            &mut world.gossip_network,
+                                            game_time,
+                                        );
+                                    }
                                 }
                                 npc_mgr.record_tier2_tick(game_time);
                                 npc_mgr.set_tier2_in_flight(false);

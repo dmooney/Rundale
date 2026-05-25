@@ -32,6 +32,9 @@ pub struct NpcSnapshot {
     pub occupation: String,
     /// Personality summary.
     pub personality: String,
+    /// Narration pronouns (e.g. `he/him`, `she/her`, `they/them`) so Tier 2
+    /// narration doesn't mis-gender authored NPCs (#1026).
+    pub pronouns: String,
     /// Natural-language description of how this NPC thinks and speaks
     /// (from `Intelligence::prompt_guidance`). Empty for an all-3s profile.
     pub intelligence_prose: String,
@@ -538,9 +541,10 @@ pub fn build_tier2_prompt(
         .iter()
         .map(|snap| {
             let mut line = format!(
-                "- [{id}] {name}, {occupation}. Currently {mood}.",
+                "- [{id}] {name} ({pronouns}), {occupation}. Currently {mood}.",
                 id = snap.id.0,
                 name = snap.name,
+                pronouns = snap.pronouns,
                 occupation = snap.occupation,
                 mood = snap.mood,
             );
@@ -571,9 +575,13 @@ pub fn build_tier2_prompt(
         Dramatis personae (id in brackets — reuse these in your JSON):\n\
         {characters}\n\n\
         Write one short sentence (max 20 words) describing what these characters are \
-        doing right now. Most exchanges are uneventful — leave mood_changes and \
-        relationship_changes as empty arrays unless a character's mood has clearly \
-        shifted or a relationship has meaningfully strengthened or strained.\n\n\
+        doing right now. Refer to each character with the pronouns shown in \
+        parentheses. Only name characters listed in the dramatis personae above — to \
+        refer to anyone absent, use a generic descriptor (\"the smith\", \"a \
+        neighbour\"), never a proper name. Most exchanges are uneventful — leave \
+        mood_changes and relationship_changes as empty arrays unless a character's \
+        mood has clearly shifted or a relationship has meaningfully strengthened or \
+        strained.\n\n\
         Respond with a JSON object, using the bracketed ids. Default shape (use this \
         when nothing notable changes):\n\
         {{\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}}\n\n\
@@ -627,6 +635,7 @@ pub fn npc_snapshot_from_npc(
         name: npc.name.clone(),
         occupation: npc.occupation.clone(),
         personality: npc.personality.clone(),
+        pronouns: npc.pronouns.clone(),
         intelligence_prose: npc.intelligence.prompt_guidance(),
         mood: npc.mood.clone(),
         relationship_summary: format_relationships_natural(
@@ -733,6 +742,51 @@ pub async fn run_tier2_for_group(
     }
 }
 
+/// Returns the name of an NPC mentioned in `summary` who is not one of the
+/// scene `participants`, if any. Used to drop Tier 2 narrative beats that
+/// hallucinate absent characters into a location (#1027).
+///
+/// Matches on the full authored name (case-insensitive substring). Full
+/// names are distinctive enough to avoid the first-name collisions that a
+/// shorter token match would hit. The result is deterministic — when several
+/// absent NPCs are named, the lexicographically first is returned — so the
+/// warning and any test assertion are stable across HashMap iteration order.
+/// Whether a Tier 2 event's summary names an NPC outside its participant list.
+///
+/// Callers use this to gate side effects that propagate the summary text —
+/// e.g. skipping `create_gossip_from_tier2_event` so a hallucinated name can't
+/// spread through the gossip network (#1027), mirroring the in-function guard
+/// that suppresses the `NpcInteraction` publish and the memory write.
+pub fn tier2_summary_mentions_absent_npc(
+    event: &Tier2Event,
+    npcs: &std::collections::HashMap<NpcId, Npc>,
+) -> bool {
+    summary_mentions_absent_npc(&event.summary, &event.participants, npcs).is_some()
+}
+
+fn summary_mentions_absent_npc(
+    summary: &str,
+    participants: &[NpcId],
+    npcs: &std::collections::HashMap<NpcId, Npc>,
+) -> Option<String> {
+    let haystack = summary.to_lowercase();
+    let mut absent: Vec<String> = npcs
+        .iter()
+        .filter(|(id, _)| !participants.contains(id))
+        .filter_map(|(_, npc)| {
+            let name = npc.name.trim();
+            if name.is_empty() {
+                return None;
+            }
+            haystack
+                .contains(&name.to_lowercase())
+                .then(|| name.to_string())
+        })
+        .collect();
+    absent.sort();
+    absent.into_iter().next()
+}
+
 /// Applies a Tier 2 event's effects to the relevant NPCs using the given config.
 ///
 /// Updates moods, adjusts relationship strengths, and records memories
@@ -748,19 +802,45 @@ pub fn apply_tier2_event_with_config(
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
+    // #1027: the Tier 2 LLM sometimes pulls absent characters into a scene
+    // (from gossip / relationship context / its training prior). If the
+    // summary names an NPC who isn't a participant, treat the whole narrative
+    // beat as untrusted — don't publish it, don't commit it to memory, and
+    // (via `tier2_summary_mentions_absent_npc`) don't let the caller gossip it.
+    // The mechanical deltas below are still applied, but only for actual
+    // participants, since Tier 2 cognition requires co-location.
+    let absent_npc = summary_mentions_absent_npc(&event.summary, &event.participants, npcs);
+
     // Publish the narrative beat before mutating state so the bus carries
     // the story before downstream subscribers see deltas.
     if !event.summary.trim().is_empty() {
-        event_bus.publish(parish_types::events::GameEvent::NpcInteraction {
-            participants: event.participants.clone(),
-            location: event.location,
-            summary: event.summary.clone(),
-            timestamp: game_time,
-        });
+        if let Some(absent) = &absent_npc {
+            tracing::warn!(
+                location = event.location.0,
+                absent_npc = %absent,
+                "Tier 2 summary named an NPC absent from the scene; dropping interaction beat"
+            );
+            debug_events.push(format!(
+                "Tier 2 interaction dropped: summary named absent NPC '{absent}'"
+            ));
+        } else {
+            event_bus.publish(parish_types::events::GameEvent::NpcInteraction {
+                participants: event.participants.clone(),
+                location: event.location,
+                summary: event.summary.clone(),
+                timestamp: game_time,
+            });
+        }
     }
 
-    // Apply mood changes
+    // Apply mood changes — only for scene participants. Tier 2 cognition is a
+    // co-located group activity, so a delta for a non-participant id is an LLM
+    // hallucination; applying it would also mis-file the mood entry under the
+    // scene's `event.location` rather than that NPC's real location (#1027).
     for mc in &event.mood_changes {
+        if !event.participants.contains(&mc.npc_id) {
+            continue;
+        }
         if let Some(npc) = npcs.get_mut(&mc.npc_id)
             && npc.mood != mc.new_mood
         {
@@ -772,14 +852,19 @@ pub fn apply_tier2_event_with_config(
             event_bus.publish(parish_types::events::GameEvent::MoodChanged {
                 npc_id: mc.npc_id,
                 new_mood: mc.new_mood.clone(),
+                location: event.location,
                 timestamp: game_time,
             });
         }
     }
 
-    // Apply relationship changes
+    // Apply relationship changes — only between two scene participants, for the
+    // same co-location reason as mood changes above (#1027).
     for rc in &event.relationship_changes {
         if rc.delta == 0.0 {
+            continue;
+        }
+        if !event.participants.contains(&rc.from) || !event.participants.contains(&rc.to) {
             continue;
         }
         if let Some(npc) = npcs.get_mut(&rc.from)
@@ -795,38 +880,42 @@ pub fn apply_tier2_event_with_config(
         }
     }
 
-    // Record memory for all participants
-    let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
-    // Log the memory commit for all participants
-    for &pid in &event.participants {
-        if let Some(npc) = npcs.get(&pid) {
-            debug_events.push(format!(
-                "{} remembers: {}",
-                npc.name,
-                truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
-            ));
+    // Record memory for all participants — but skip a hallucinated summary so
+    // the absent NPC's name can't re-enter model context via memory prompts
+    // (#1027). Mechanical deltas above already landed.
+    if absent_npc.is_none() {
+        let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
+        // Log the memory commit for all participants
+        for &pid in &event.participants {
+            if let Some(npc) = npcs.get(&pid) {
+                debug_events.push(format!(
+                    "{} remembers: {}",
+                    npc.name,
+                    truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
+                ));
+            }
         }
-    }
-    for &participant_id in &event.participants {
-        if let Some(npc) = npcs.get_mut(&participant_id) {
-            // Record the first *other* participant as the conversation partner.
-            // For two-NPC conversations this is unambiguous; for larger groups
-            // we store the first other participant as a representative.
-            let partner = event
-                .participants
-                .iter()
-                .copied()
-                .find(|&p| p != participant_id);
-            let mem_entry = MemoryEntry {
-                timestamp: game_time,
-                content: memory_content.clone(),
-                participants: event.participants.clone(),
-                location: event.location,
-                kind: partner.map(crate::memory::MemoryKind::SpokeWithNpc),
-            };
-            if let Some(evicted) = npc.memory.add(mem_entry) {
-                let npc_name = npc.name.clone();
-                try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+        for &participant_id in &event.participants {
+            if let Some(npc) = npcs.get_mut(&participant_id) {
+                // Record the first *other* participant as the conversation partner.
+                // For two-NPC conversations this is unambiguous; for larger groups
+                // we store the first other participant as a representative.
+                let partner = event
+                    .participants
+                    .iter()
+                    .copied()
+                    .find(|&p| p != participant_id);
+                let mem_entry = MemoryEntry {
+                    timestamp: game_time,
+                    content: memory_content.clone(),
+                    participants: event.participants.clone(),
+                    location: event.location,
+                    kind: partner.map(crate::memory::MemoryKind::SpokeWithNpc),
+                };
+                if let Some(evicted) = npc.memory.add(mem_entry) {
+                    let npc_name = npc.name.clone();
+                    try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+                }
             }
         }
     }
@@ -1410,6 +1499,7 @@ mod tests {
                     name: "Padraig".to_string(),
                     occupation: "Publican".to_string(),
                     personality: "Warm".to_string(),
+                    pronouns: "he/him".to_string(),
                     intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                     mood: "content".to_string(),
                     relationship_summary: "friendly with Tommy".to_string(),
@@ -1419,6 +1509,7 @@ mod tests {
                     name: "Tommy".to_string(),
                     occupation: "Retired Farmer".to_string(),
                     personality: "Storyteller".to_string(),
+                    pronouns: "they/them".to_string(),
                     intelligence_prose: "Well-spoken and brilliantly creative.".to_string(),
                     mood: "reflective".to_string(),
                     relationship_summary: String::new(),
@@ -1430,8 +1521,11 @@ mod tests {
         let prompt = build_tier2_prompt(&group, "Evening", "Overcast", &lang);
         assert!(prompt.contains("Darcy's Pub"));
         assert!(prompt.contains("Dramatis personae"));
-        assert!(prompt.contains("[1] Padraig, Publican"));
-        assert!(prompt.contains("[5] Tommy, Retired Farmer"));
+        // #1026: each dramatis-personae line carries the NPC's pronouns.
+        assert!(prompt.contains("[1] Padraig (he/him), Publican"));
+        assert!(prompt.contains("[5] Tommy (they/them), Retired Farmer"));
+        // #1027: the prompt forbids naming characters outside the roster.
+        assert!(prompt.contains("Only name characters listed in the dramatis personae"));
         assert!(prompt.contains("Currently content"));
         assert!(prompt.contains("Perceptive, wise"));
         assert!(prompt.contains("friendly with Tommy"));
@@ -1484,6 +1578,93 @@ mod tests {
         // Check memories recorded for both
         assert_eq!(npcs.get(&NpcId(1)).unwrap().memory.len(), 1);
         assert_eq!(npcs.get(&NpcId(5)).unwrap().memory.len(), 1);
+    }
+
+    #[test]
+    fn tier2_drops_summary_naming_absent_npc() {
+        use parish_types::events::{EventBus, GameEvent};
+
+        let config = NpcConfig::default();
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+
+        fn count_interactions(rx: &mut tokio::sync::broadcast::Receiver<GameEvent>) -> usize {
+            let mut n = 0;
+            while let Ok(ev) = rx.try_recv() {
+                if matches!(ev, GameEvent::NpcInteraction { .. }) {
+                    n += 1;
+                }
+            }
+            n
+        }
+
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig Darcy", 2));
+        npcs.insert(NpcId(5), make_test_npc(5, "Tommy O'Brien", 2));
+        // Aoife is authored elsewhere — not part of this scene.
+        npcs.insert(NpcId(9), make_test_npc(9, "Aoife Brennan", 3));
+
+        // Summary names absent Aoife, plus a mood delta for absent Aoife.
+        let bus = EventBus::new();
+        let mut rx = bus.subscribe();
+        let hallucinated = Tier2Event {
+            location: LocationId(2),
+            summary: "Padraig pours a pint while Aoife Brennan chats nearby".to_string(),
+            participants: vec![NpcId(1), NpcId(5)],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(9),
+                new_mood: "furious".to_string(),
+            }],
+            relationship_changes: vec![],
+        };
+        assert!(
+            tier2_summary_mentions_absent_npc(&hallucinated, &npcs),
+            "predicate must flag the hallucinated summary",
+        );
+        apply_tier2_event_with_config(&hallucinated, &mut npcs, game_time, &config, &bus);
+        assert_eq!(
+            count_interactions(&mut rx),
+            0,
+            "summary naming an absent NPC must not publish an NpcInteraction",
+        );
+        // The hallucinated summary is not committed to participant memory.
+        assert_eq!(
+            npcs.get(&NpcId(1)).unwrap().memory.len(),
+            0,
+            "a hallucinated summary must not enter memory",
+        );
+        // A mood delta for a non-participant is filtered out, not applied.
+        assert_eq!(
+            npcs.get(&NpcId(9)).unwrap().mood,
+            "calm",
+            "mood deltas for non-participants must be dropped",
+        );
+
+        // A clean summary naming only participants publishes normally and is
+        // remembered.
+        let bus = EventBus::new();
+        let mut rx = bus.subscribe();
+        let clean = Tier2Event {
+            location: LocationId(2),
+            summary: "Padraig and Tommy swap stories over a pint".to_string(),
+            participants: vec![NpcId(1), NpcId(5)],
+            mood_changes: vec![],
+            relationship_changes: vec![],
+        };
+        assert!(
+            !tier2_summary_mentions_absent_npc(&clean, &npcs),
+            "predicate must pass a clean summary",
+        );
+        apply_tier2_event_with_config(&clean, &mut npcs, game_time, &config, &bus);
+        assert_eq!(
+            count_interactions(&mut rx),
+            1,
+            "a clean summary should publish exactly one NpcInteraction",
+        );
+        assert_eq!(
+            npcs.get(&NpcId(1)).unwrap().memory.len(),
+            1,
+            "a clean summary should be committed to participant memory",
+        );
     }
 
     #[test]
@@ -1815,6 +1996,7 @@ mod tests {
                 name: "Padraig".to_string(),
                 occupation: "Publican".to_string(),
                 personality: "Warm".to_string(),
+                pronouns: "he/him".to_string(),
                 intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
@@ -1865,6 +2047,7 @@ mod tests {
                     name: "Padraig".to_string(),
                     occupation: "Publican".to_string(),
                     personality: "Warm".to_string(),
+                    pronouns: "he/him".to_string(),
                     intelligence_prose: String::new(),
                     mood: "calm".to_string(),
                     relationship_summary: String::new(),
@@ -1874,6 +2057,7 @@ mod tests {
                     name: "Tommy".to_string(),
                     occupation: "Farmer".to_string(),
                     personality: "Gruff".to_string(),
+                    pronouns: "he/him".to_string(),
                     intelligence_prose: "Plain-spoken.".to_string(),
                     mood: "tired".to_string(),
                     relationship_summary: String::new(),
@@ -2507,6 +2691,7 @@ mod tests {
                 name: "Padraig".to_string(),
                 occupation: "Publican".to_string(),
                 personality: "Warm".to_string(),
+                pronouns: "he/him".to_string(),
                 intelligence_prose: String::new(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),

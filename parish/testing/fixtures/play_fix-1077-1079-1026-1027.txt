@@ -1,0 +1,38 @@
+# fix-1077-1079-1026-1027 — Tier 2 location routing, pronouns, anti-hallucination
+# ==============================================================================
+# Exercises three runtime-visible fixes at once by driving the player to a
+# dense, multi-NPC hub so Tier 2 dispatches and writes location-log entries:
+#
+#   #1077/#1079 — MoodChanged / LifeEvent now carry an event-time location;
+#                 entries file under the location where they happened. (The
+#                 async-race assertion is covered by the unit tests
+#                 mood_/life_event_routes_to_event_location_after_npc_moved.)
+#   #1026       — Tier 2 narration uses each NPC's authored pronouns.
+#   #1027       — Tier 2 summaries never name an NPC outside the scene.
+#
+# Darcy's Pub holds Padraig + Niamh Darcy (>=2 co-located Tier-2 NPCs), so it
+# surfaces as a Tier 2 dispatch group. After waiting, read the Darcy's Pub
+# location log (under PARISH_USER_DATA_DIR) and check pronouns + absence of
+# off-roster names. Run with Rundale active and PARISH_USER_DATA_DIR set to a
+# temp dir so the logs can be inspected afterward.
+
+# --- Baseline ---
+/status
+/debug clock
+
+# --- Move to Darcy's Pub and confirm the Tier 2 group ---
+go to The Crossroads
+go to Darcy's Pub
+/debug here
+/debug npcs
+/debug tiers
+
+# --- Let the schedule + Tier 2 ticks run so interactions/mood/life entries
+#     accumulate in the location log. Re-sample to catch more than one tick. ---
+/wait 30
+/debug npcs
+/debug tiers
+/wait 30
+/debug tiers
+
+/status

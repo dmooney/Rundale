@@ -557,6 +557,7 @@ mod tests {
             &GameEvent::MoodChanged {
                 npc_id: crate::npc::NpcId(1),
                 new_mood: "content".into(),
+                location: crate::world::LocationId(1),
                 timestamp: chrono::Utc::now(),
             },
             &world,

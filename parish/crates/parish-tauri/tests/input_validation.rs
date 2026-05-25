@@ -77,6 +77,7 @@ fn npc_entry(name: &str, personality: &str) -> npc::NpcFileEntry {
         age: 30,
         occupation: "Farmer".to_string(),
         personality: personality.to_string(),
+        pronouns: None,
         intelligence: None,
         home: 1,
         workplace: None,

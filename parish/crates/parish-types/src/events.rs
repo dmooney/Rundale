@@ -64,6 +64,12 @@ pub enum GameEvent {
         npc_id: NpcId,
         /// The new mood.
         new_mood: String,
+        /// Where the mood change happened, captured at publish time. The
+        /// location-log subscriber routes by this field instead of
+        /// re-resolving the NPC's (possibly newer) current location — the
+        /// bus is async, so a schedule tick can move the NPC between
+        /// publish and consume (#1077/#1079, same race as #1035).
+        location: LocationId,
         /// When the mood changed.
         timestamp: DateTime<Utc>,
     },
@@ -129,6 +135,12 @@ pub enum GameEvent {
         npc_id: NpcId,
         /// Description of the event.
         description: String,
+        /// Where the event happened, captured at publish time. The
+        /// location-log subscriber routes by this field instead of
+        /// re-resolving the NPC's (possibly newer) current location — the
+        /// bus is async, so a schedule tick can move the NPC between
+        /// publish and consume (#1077/#1079, same race as #1035).
+        location: LocationId,
         /// When the event occurred.
         timestamp: DateTime<Utc>,
     },
@@ -257,6 +269,7 @@ mod tests {
         let event = GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "happy".to_string(),
+            location: LocationId(1),
             timestamp: test_timestamp(),
         };
         let count = bus.publish(event.clone());
@@ -289,6 +302,7 @@ mod tests {
         let event = GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "angry".to_string(),
+            location: LocationId(1),
             timestamp: test_timestamp(),
         };
         // Should not panic with zero subscribers
@@ -381,6 +395,7 @@ mod tests {
             bus.publish(GameEvent::MoodChanged {
                 npc_id: NpcId(1),
                 new_mood: format!("mood {}", i),
+                location: LocationId(1),
                 timestamp: test_timestamp(),
             });
         }
@@ -406,6 +421,7 @@ mod tests {
             bus.publish(GameEvent::MoodChanged {
                 npc_id: NpcId(1),
                 new_mood: "first".to_string(),
+                location: LocationId(1),
                 timestamp: test_timestamp(),
             });
             let _ = rx.recv().await.unwrap();
@@ -414,6 +430,7 @@ mod tests {
                 bus.publish(GameEvent::MoodChanged {
                     npc_id: NpcId(1),
                     new_mood: format!("mood {}", i),
+                    location: LocationId(1),
                     timestamp: test_timestamp(),
                 });
             }
