@@ -1,0 +1,8 @@
+# Live-proof fixture for TODO #54 — Tier 3 cancel WARN downgrade.
+#
+# Boots Rundale headless and walks to a fresh location to confirm
+# the simulator code path still runs without spurious WARN/ERROR
+# at default verbosity after the tracing-level adjustment.
+
+go to the mill
+look

@@ -200,6 +200,17 @@ pub fn build_enhanced_system_prompt_with_config(
     prompt
 }
 
+/// Returns true when an inference error string represents a graceful
+/// cancellation (shutdown, `sim_cancel` on player input, demo turn cap)
+/// rather than a real failure. Both Tier 2 and Tier 3 paths construct
+/// their cancellation errors as `"Tier {N} cancelled mid-stream"`, so
+/// the substring `"cancelled mid-stream"` is the discriminator (TODO
+/// #54 — Tier 3 was emitting these at WARN instead of the lower-level
+/// the Tier 2 path already uses).
+fn is_intentional_cancellation(msg: &str) -> bool {
+    msg.contains("cancelled mid-stream")
+}
+
 /// "Already introduced" anchor — fires only on the second and later
 /// turns with a given NPC (when the NPC's name has already been
 /// surfaced to the player). TODO #39 captured this failure mode:
@@ -814,7 +825,7 @@ pub async fn run_tier2_for_group(
         }),
         Err(e) => {
             let msg = e.to_string();
-            if msg.contains("cancelled mid-stream") {
+            if is_intentional_cancellation(&msg) {
                 // Graceful cancellation (shutdown, demo turn cap). Not a failure.
                 tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
             } else {
@@ -1325,7 +1336,15 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
                 all_updates.extend(resp.updates);
             }
             Err(e) => {
-                tracing::warn!("Tier 3 batch inference failed: {}", e);
+                let msg = e.to_string();
+                if is_intentional_cancellation(&msg) {
+                    // Graceful cancellation (shutdown, sim_cancel on player
+                    // input). Not a failure — match the Tier 2 path's
+                    // distinction (TODO #54).
+                    tracing::debug!("Tier 3 batch cancelled: {}", msg);
+                } else {
+                    tracing::warn!("Tier 3 batch inference failed: {}", msg);
+                }
                 // Continue with other batches rather than failing entirely
             }
         }
@@ -1554,6 +1573,33 @@ mod tests {
             block.contains("do not borrow a name"),
             "missing borrow-from-history guard:\n{block}"
         );
+    }
+
+    /// TODO #54 — Tier 3 cancellation discriminator. The Tier 2 path
+    /// has long distinguished "cancelled mid-stream" (graceful preempt)
+    /// from real failures; this test pins the shared helper used by
+    /// both tiers so neither regresses to WARN-on-cancel.
+    #[test]
+    fn test_is_intentional_cancellation_recognises_cancel_messages() {
+        assert!(is_intentional_cancellation(
+            "inference error: Tier 3 cancelled mid-stream"
+        ));
+        assert!(is_intentional_cancellation(
+            "inference error: Tier 2 cancelled mid-stream"
+        ));
+        assert!(is_intentional_cancellation("Tier 3 cancelled mid-stream"));
+    }
+
+    #[test]
+    fn test_is_intentional_cancellation_rejects_real_failures() {
+        assert!(!is_intentional_cancellation(
+            "Tier 3 JSON parse failed: expected value at line 2 column 3"
+        ));
+        assert!(!is_intentional_cancellation(
+            "connection refused (os error 61)"
+        ));
+        assert!(!is_intentional_cancellation("timeout after 600s"));
+        assert!(!is_intentional_cancellation(""));
     }
 
     #[test]
