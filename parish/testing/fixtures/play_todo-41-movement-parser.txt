@@ -1,0 +1,17 @@
+# Live-proof fixture for TODO #41 / #46 / #53 — movement parser.
+#
+# Each command below is a phrasing the auto-player produced in the demo
+# audit that previously failed to trigger a move because the parser's
+# first-person guard classified them as Talk before any movement
+# prefix could match.
+#
+# Expected: every command yields {"result":"moved", ...} or similar,
+# not "ambient" / "talk" / a silent drop.
+
+I'll go to the mill
+I'll make for Kilteevan Village
+I'll head to the mill
+I'll be on me way to Kilteevan Village
+I'll venture to the mill
+I'm off to Kilteevan Village
+Off I go to the mill
