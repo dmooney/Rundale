@@ -76,6 +76,12 @@ fn weather_display(weather: &str) -> String {
 }
 
 /// Converts a `TimeOfDay` to a human-friendly lowercase string for templates.
+///
+/// Words match the lowercase form of `TimeOfDay`'s `Display` impl
+/// (used in the demo prompt's `Date and time: ... | Season` line) so that
+/// "It is night." in the rendered description doesn't disagree with
+/// "Night | Spring" in the same prompt block (TODO #28). `arrival_reactions`
+/// keeps its own `Night => "evening"` mapping for greeting register.
 fn time_display(tod: TimeOfDay) -> String {
     match tod {
         TimeOfDay::Dawn => "dawn".to_string(),
@@ -83,7 +89,7 @@ fn time_display(tod: TimeOfDay) -> String {
         TimeOfDay::Midday => "midday".to_string(),
         TimeOfDay::Afternoon => "afternoon".to_string(),
         TimeOfDay::Dusk => "dusk".to_string(),
-        TimeOfDay::Night => "evening".to_string(),
+        TimeOfDay::Night => "night".to_string(),
         TimeOfDay::Midnight => "late night".to_string(),
     }
 }
@@ -163,7 +169,7 @@ mod tests {
             (TimeOfDay::Midday, "midday"),
             (TimeOfDay::Afternoon, "afternoon"),
             (TimeOfDay::Dusk, "dusk"),
-            (TimeOfDay::Night, "evening"),
+            (TimeOfDay::Night, "night"),
             (TimeOfDay::Midnight, "late night"),
         ];
         for (tod, expected) in &times {

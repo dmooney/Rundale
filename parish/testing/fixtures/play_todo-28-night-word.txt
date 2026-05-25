@@ -1,0 +1,10 @@
+# Live-proof fixture for TODO #28 — Night time-of-day word
+#
+# Boots Rundale at the default 1820-03-20 08:00 (Morning), advances the
+# clock by 12 game-hours to 20:00 (Night, per time_of_day_from_hour: 19-22),
+# and looks at the current location. Acceptance criterion AC1 requires
+# the rendered description to contain "It is night" (not "It is evening").
+
+/wait 720
+look
+/time
