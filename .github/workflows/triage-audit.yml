@@ -85,12 +85,12 @@ jobs:
               .addRaw(fmt(lackingPriority))
               .addHeading(`${lackingTheme.length} lack any theme label`, 3)
               .addRaw(fmt(lackingTheme))
-              .addRaw('\n\nRun `/triage-backlog` in Claude Code to label them. Vocabulary: `docs/agent/triage-vocabulary.md`.\n');
+              .addRaw('\n\nRun `/backlog triage` in Claude Code to label them. Vocabulary: `docs/agent/triage-vocabulary.md`.\n');
 
             await summary.write();
 
             if (lackingPriority.length > 0 || lackingTheme.length > 0) {
-              core.warning(`${lackingPriority.length} open issues lack a priority, ${lackingTheme.length} lack a theme — run /triage-backlog`);
+              core.warning(`${lackingPriority.length} open issues lack a priority, ${lackingTheme.length} lack a theme — run /backlog triage`);
             }
 
   check-new-issue:
@@ -121,7 +121,7 @@ jobs:
               .addRaw(`**${issue.title}**\n\n`)
               .addRaw(`- Priority: ${priority || '**MISSING**'}\n`)
               .addRaw(`- Theme: ${themes.length ? themes.join(', ') : '**MISSING**'}\n`)
-              .addRaw(`\nIf either is missing, run \`/triage-backlog\` in Claude Code. Vocabulary: \`docs/agent/triage-vocabulary.md\`.\n`)
+              .addRaw(`\nIf either is missing, run \`/backlog triage\` in Claude Code. Vocabulary: \`docs/agent/triage-vocabulary.md\`.\n`)
               .write();
 
             if (!priority || themes.length === 0) {
