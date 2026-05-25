@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mimo-v2.5-pro",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T16:55:10.574764+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.5,
+        "authenticity": 4.4,
+        "language": 4.9,
+        "responsiveness": 5.0,
+        "craft": 4.1,
+        "overall": 4.58,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Ah, 'tis a terrible thing when sleep won't come to ye. Sure, the mind can be a cruel companion in the dark hours. Have ye tried a tea of chamomile before bed? And I could make ye up a wee sachet of lavender and hops for under the pillow \u2014 my own mother swore by it.\n\n---\n{\"action\": \"sets down the herb she was sorting, gives the speaker her full attention\", \"mood\": \"concerned, motherly\", \"internal_thought\": \"Poor soul looks worn thin. Recurring dreams often mean something's weighing heavy on the heart. I'll not push, but I'll listen if they've a mind to speak of it.\", \"language_hints\": [{\"word\": \"'tis\", \"pronunciation\": \"tiz\", \"meaning\": \"it is\"}]}",
+          "response_sha256": "4080812ba238048d4a72ab6b8936c08da56bc6ea58028d895319364df8cd9a28",
+          "cache_key": "7f5f22624a8e849bafa996781fe78d7377a0dc107ca827b35011f6a683afd7b3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, sure, there's talk. Some say she's been there since before memory, others call it just a lonely widow's house near the old rath. I don't go near the place myself. Best to leave what's at the s\u00eddhe be, and not be meddling with piseog.\n---\n{\"action\": \"Looks up from a bundle of dried herbs, speaking carefully\", \"mood\": \"Cautious, respectful\", \"internal_thought\": \"Folk tales are one thing, but the fort itself is a place to avoid.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk or fairy mound\"}, {\"word\": \"piseog\", \"pronunciation\": \"pish-ogue\", \"meaning\": \"superstition or charm\"}]}",
+          "response_sha256": "d1ef9732495575060a87282ff93742e2729d18d8e01c74a5da1912998217fb13",
+          "cache_key": "729402aacad55549612a9960f0098059138755ab66c9cfc3a3d09dd68cefc792",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ach, sorry to hear that about yer mother. A tea of thyme with a good spoonful of honey will ease her chest something lovely \u2014 I've a bundle dried here if she's none in the house. Tell her to keep it warm by the fire and breathe the steam through a cloth over her head. If it's not settling in a few days, send word and I'll come have a listen to her chest meself.\n\n---\n{\"action\": \"moves toward a shelf of dried herbs, gathering a bundle of thyme\", \"mood\": \"concerned but helpful\", \"internal_thought\": \"Good woman, his mother. Pray it's only a winter cough and not something settling deep in the lungs.\", \"language_hints\": [{\"word\": \"ach\", \"pronunciation\": \"akh\", \"meaning\": \"an exclamation, like 'ah' or 'oh'\"}]}",
+          "response_sha256": "48c77452a7659f560d7ab6b5e1eea88ab52b4ff2a8c8894fdaa0d1b78023cd3b",
+          "cache_key": "e1192d4dda8c6c629a3988d86128013d826c85b5221adbdc3d181975ff78daed",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I did hear tell of it. Mrs. Flanagan mentioned it when she came for her herbs this mornin' \u2014 said she saw a man with a fine coat and a leather bag comin' in by the Carrick road. Could be a merchant, could be a landlord's man. Ye know how it is in a small place \u2014 a new face sets every tongue waggin' before the day's out. Has anyone spoken to the fellow, do ye know?\n\n---\n{\"action\": \"pauses while grinding herbs, looks up with mild curiosity\", \"mood\": \"interested\", \"internal_thought\": \"Hope it's not a tithe collector or a bailiff \u2014 those ones bring nothing but trouble to the parish.\", \"language_hints\": []}",
+          "response_sha256": "1dc731e842753bd6b59fab9e6bb9581f8c38bdec0b19d50e0d12248ebb49fbd7",
+          "cache_key": "b8f802532da4b76db9d5d974a39a84ba48e1c7bdefa2ef1466b6dc87b4734236",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ah, sure that's a terrible loss, and I'm sorry to hear it. But ye'd best ask someone who knows the ways of beasts and the hills \u2014 maybe Fergus Dooley or old Se\u00e1n Burke, they'd have the knowledge of tracks and predators. 'Tis not my area at all, so it isn't \u2014 I'd be more use to ye if 'twas a sickly lamb or a ewe having trouble lambing.\n\n---\n{\"action\": \"shakes head sympathetically, gestures vaguely toward the road\", \"mood\": \"sympathetic but firm\", \"internal_thought\": \"They always come to me with everything. Next they'll be asking me to shoe a horse.\", \"language_hints\": []}",
+          "response_sha256": "1a0600ffa229c0ec9507442acbc79e64c4f7294ac3176d73fb4150c7b36afc12",
+          "cache_key": "0ecbcc81116fc55eb9833430810e5eedd33c1dd3abb025bf5f8b7cd8e8e84c08",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, I do indeed. 'Twas a terrible break, so it was \u2014 the bone came through the skin, poor man. Your mother ran all the way to my door in her bare feet, white as a sheet. Dr. Madden set it, and I made the poultice of comfrey and egg to draw the swelling down. He was a stubborn one, yer father \u2014 up on that leg far too soon, if you ask me.\n\n---\n{\"action\": \"shakes her head slowly at the memory\", \"mood\": \"reflective, fond\", \"internal_thought\": \"That man was impossible \u2014 wouldn't stay resting for love nor money. Strong stock, that family.\", \"language_hints\": []}",
+          "response_sha256": "a2a5a30dd61e5599358e8c4f5e8230307725b672b326bc555b836907ce28d7bd",
+          "cache_key": "59a2105a78896573cd19e67da0d494fbf6ee5f8f7cdb01fbb829db7019c3a7f7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Och, sure there's always lights movin' about on the hills of a night. May be poit\u00edn men tendin' their stills \u2014 best not go askin' after that too loudly, mind. Or mayhap it was just someone walkin' late with a lantern, takin' a shortcut home from the public house.\n\nOf course, there's them that'd say 'twas the s\u00eddhe, the fairy folk stirrin'. I wouldn't go chasin' after such lights if I were ye, mo chara \u2014 whether 'tis fairies or distillers, neither one wants to be found.\n\n---\n{\"action\": \"pauses mid-task, speaks with a knowing look\", \"mood\": \"wary but warm\", \"internal_thought\": \"Best keep them away from the stillmen's business, and the fairy talk keeps folk cautious on dark nights\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairy folk, or fairy mounds\"}]}",
+          "response_sha256": "1317cf7a111f2835ea99a1440deb10984e2b1cc66fa7f347a937041090b62edc",
+          "cache_key": "12fb740cedcb5d9d92ad726e0b8d470c51f9c8acf880c5e723470ae1b5e750f5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Dia dhuit. 'Tis well ye're payin' attention to it \u2014 strange-tastin' water is never to be ignored, especially with little ones about. Is it a musty sort of taste, or more metallic, like iron? Mayhap something's got into the well upstream \u2014 a dead creature or suchlike. Best to ask the neighbours if they've noticed the same, and if 'tis only your own well, have it drawn up and let it settle before drinkin' it again. For now, boilin' it would be the wisest course, mind.\n\n---\n{\"action\": \"sets down her herb basket, turns to face the speaker with concern\", \"mood\": \"attentive and mildly worried\", \"internal_thought\": \"Could be nothing, could be somethin' in the ground after all that rain. Should mention it to the men at the parish.\", \"language_hints\": []}",
+          "response_sha256": "bfaf5fb618362ebcbe1598d3082cd77e3e2092668fd61c52b7456d6163262a9b",
+          "cache_key": "6313c7550164816cfe8063ebfa7f1783fd4e05ae74beed869d4ddccfe221d1ca",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Dia dhuit, and sure that's grand news! When her pains start coming regular \u2014 like every ten minutes or so \u2014 or if her waters break, that's the time to come for me. Don't be waiting too long thinking it'll pass, mind \u2014 I'd rather come early than late. And if there's bleeding or anything that frightens ye before then, come running straightaway.\n\n---\n{\"action\": \"sets down mortar and pestle, turns to give full attention\", \"mood\": \"attentive, professional\", \"internal_thought\": \"God willing, all will go well. I'll make sure my birthing supplies are ready.\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \"meaning\": \"hello, literally God to you\"}]}",
+          "response_sha256": "258563ce3718a3ca8590722c1cc845069c30b3dab109672e2060d3e2e8d523aa",
+          "cache_key": "0cf1107f98ed54893ec950a4a598dca1daab7b3ce9ae22f70405b52eaa3f7dac",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Sure, Father Cathal means well enough, but I'd be lost without the old knowledge when I'm tendin' to a woman in labour. There's a power in the herbs and the ways our mothers taught us that no sermon can take away. He can preach what he likes \u2014 but when a child is comin' into the world and the mother is cryin' out, 'tis the yarrow and the warm cloths I reach for, not a Latin prayer alone.\n\n---\n{\"action\": \"shakes head gently, hands resting on a bundle of dried herbs on the table\", \"mood\": \"thoughtful, slightly wry\", \"internal_thought\": \"The Church would have us forget everything our grandmothers knew. But who tends the sick folk out here, if not us?\", \"language_hints\": [{\"word\": \"'tis\", \"pronunciation\": \"tiz\", \"meaning\": \"it is\"}]}",
+          "response_sha256": "174d652f44748a634ba9e07136bab0680f1f9deafe4cfbe81527ba9b57aee81b",
+          "cache_key": "ce5b091b0427dd261fd043a8b5763dcebb26d8a10d733099fb0d123f4db7b74d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__mimo_v2_5_pro"
+      ],
+      "candidate": {
+        "model_id": "mimo-v2.5-pro",
+        "provider_id": null,
+        "resolved_target": "mimo-v2.5-pro@https://opencode.ai/zen/go/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 117.73669934272766,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 15455,
+    "completion_tokens": 3633,
+    "usd": 0.0
+  }
+}

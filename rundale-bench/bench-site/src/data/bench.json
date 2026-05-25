@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-25T16:19:59.105427+00:00",
+  "generated_utc": "2026-05-25T17:02:50.837735+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -21,6 +21,26 @@
       "responsiveness": 5.0,
       "craft": 5.0,
       "measured_utc": "2026-05-17T21:41:47.647919+00:00",
+      "is_local": false
+    },
+    {
+      "model_id": "mimo-v2.5-pro",
+      "slug": "mimo-v2-5-pro",
+      "family": "mimo-v2.5-pro",
+      "tier": null,
+      "overall": 4.58,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 4.5,
+      "authenticity": 4.4,
+      "language": 4.9,
+      "responsiveness": 5.0,
+      "craft": 4.1,
+      "measured_utc": "2026-05-25T16:55:10.574764+00:00",
       "is_local": false
     },
     {
@@ -61,6 +81,46 @@
       "responsiveness": 4.7,
       "craft": 4.0,
       "measured_utc": "2026-05-25T11:27:41.520974+00:00",
+      "is_local": false
+    },
+    {
+      "model_id": "minimax-m2.5",
+      "slug": "minimax-m2-5",
+      "family": "minimax-m2.5",
+      "tier": null,
+      "overall": 4.32,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 4.3,
+      "authenticity": 4.4,
+      "language": 4.4,
+      "responsiveness": 4.9,
+      "craft": 3.8,
+      "measured_utc": "2026-05-25T16:57:08.600633+00:00",
+      "is_local": false
+    },
+    {
+      "model_id": "mimo-v2.5",
+      "slug": "mimo-v2-5",
+      "family": "mimo-v2.5",
+      "tier": null,
+      "overall": 4.26,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 4.1,
+      "authenticity": 4.0,
+      "language": 4.7,
+      "responsiveness": 4.6,
+      "craft": 3.9,
+      "measured_utc": "2026-05-25T16:54:10.863135+00:00",
       "is_local": false
     },
     {
@@ -128,19 +188,19 @@
       "slug": "minimax-m2-7",
       "family": "minimax-m2.7",
       "tier": null,
-      "overall": 4.05,
-      "judged": 8,
-      "bench_bugs": 2,
+      "overall": 4.0600000000000005,
+      "judged": 10,
+      "bench_bugs": 0,
       "records": 10,
       "non_latin_rate": 0.0,
       "judge_id": "judge_sonnet_v1",
       "judge_model": "claude-sonnet-4-6",
-      "character": 4.25,
-      "authenticity": 4.25,
-      "language": 4.75,
-      "responsiveness": 4.25,
-      "craft": 2.75,
-      "measured_utc": "2026-05-25T12:48:51.972876+00:00",
+      "character": 4.1,
+      "authenticity": 4.1,
+      "language": 4.3,
+      "responsiveness": 4.1,
+      "craft": 3.7,
+      "measured_utc": "2026-05-25T16:58:23.678052+00:00",
       "is_local": false
     },
     {
@@ -201,66 +261,6 @@
       "responsiveness": 4.2,
       "craft": 3.5,
       "measured_utc": "2026-05-25T12:11:09.877033+00:00",
-      "is_local": false
-    },
-    {
-      "model_id": "mimo-v2.5-pro",
-      "slug": "mimo-v2-5-pro",
-      "family": "mimo-v2.5-pro",
-      "tier": null,
-      "overall": 3.5200000000000005,
-      "judged": 5,
-      "bench_bugs": 5,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_sonnet_v1",
-      "judge_model": "claude-sonnet-4-6",
-      "character": 4.0,
-      "authenticity": 4.0,
-      "language": 4.2,
-      "responsiveness": 3.2,
-      "craft": 2.2,
-      "measured_utc": "2026-05-25T13:20:56.463196+00:00",
-      "is_local": false
-    },
-    {
-      "model_id": "mimo-v2.5",
-      "slug": "mimo-v2-5",
-      "family": "mimo-v2.5",
-      "tier": null,
-      "overall": 3.177777777777777,
-      "judged": 9,
-      "bench_bugs": 1,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_sonnet_v1",
-      "judge_model": "claude-sonnet-4-6",
-      "character": 3.5555555555555554,
-      "authenticity": 3.6666666666666665,
-      "language": 3.4444444444444446,
-      "responsiveness": 3.4444444444444446,
-      "craft": 1.7777777777777777,
-      "measured_utc": "2026-05-25T13:15:05.841299+00:00",
-      "is_local": false
-    },
-    {
-      "model_id": "minimax-m2.5",
-      "slug": "minimax-m2-5",
-      "family": "minimax-m2.5",
-      "tier": null,
-      "overall": 3.0,
-      "judged": 7,
-      "bench_bugs": 3,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_sonnet_v1",
-      "judge_model": "claude-sonnet-4-6",
-      "character": 3.2857142857142856,
-      "authenticity": 3.2857142857142856,
-      "language": 3.0,
-      "responsiveness": 3.142857142857143,
-      "craft": 2.2857142857142856,
-      "measured_utc": "2026-05-25T13:30:03.646494+00:00",
       "is_local": false
     }
   ],
@@ -8657,7 +8657,7 @@
       "dialogue": {
         "judge_id": "judge_sonnet_v1",
         "judge_model": "claude-sonnet-4-6",
-        "measured_utc": "2026-05-25T13:15:05.841299+00:00",
+        "measured_utc": "2026-05-25T16:54:10.863135+00:00",
         "axes": [
           "character",
           "authenticity",
@@ -8669,77 +8669,77 @@
           {
             "id": "dialogue-0001",
             "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
-            "reply": "Ah, that's a weary thing to carry, the same dreams visiting ye night after night. A cup of chamomile tea sipped before bed may calm",
+            "reply": "Ah, the mind can be a weary thing at night. A tea of chamomile or mint before bed might ease you, and I've a tincture of valerian root that calms the restlessness. If it's something more troubling ye, we can speak of it, but mayhap a few nights of peaceful rest first?\n---\n{\"action\": \"nods sympathetically, reaches for a small jar on her shelf\", \"mood\": \"sympathetic\", \"internal_thought\": \"The child looks tired. Better to start with the simple remedies before digging into heavier worries.\", \"language_hints\": [{\"word\": \"mayhap\", \"pronunciation\": \"/\u02c8me\u026a.h\u00e6p/\", \"meaning\": \"perhaps\"}]}",
             "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 3
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 2.8
+            "overall": 4.4
           },
           {
             "id": "dialogue-0002",
             "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
-            "reply": "Hmm, the player is asking about a \"Cailleach\" near a fairy fort. As Brigid, I need to stay within my role as a midwife and herbalist. I can't speak about supernatural matters like the s\u00eddhe or speculate on characters outside my direct knowledge. \n\nThe question touches on local folklore, which is tricky. I should redirect to someone more appropriate, like Father Declan or the seancha\u00ed, without dismissing the inquiry entirely. A neutral but warm response feels right\u2014acknowledge the question, decline to engage with the folklore, and suggest a more suitable source. \n\nI'll keep the tone friendly and use a sprinkle of Irish to maintain the cultural texture, but avoid venturing into claims or judgments. The action should show I'm pausing my work, and the internal thought can note my discomfort with the topic without saying it aloud. \n\nThe language hints will just clarify \"Cailleach\" since it's a non-English term that might",
+            "reply": "Ah, ye mean old Mair\u00e9ad? She's lived there nigh on forty years, so she has. Knows more about root and leaf than anyone in this parish \u2014 'twas her taught me the rue for bringing on a labour when the mother's time is overdue.\n---\n{\"action\": \"pauses while sorting dried herbs, glances toward the hills\", \"mood\": \"respectful, thoughtful\", \"internal_thought\": \"Mair\u00e9ad gets a bad name from some folk on account of the fort, but she's never done anyone harm \u2014 only good, if they'd open their eyes to it\", \"language_hints\": [{\"word\": \"Mair\u00e9ad\", \"pronunciation\": \"mah-RAHD\", \"meaning\": \"Margaret (Irish form of the name)\"}]}",
             "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 0.0
+            "overall": 5.0
           },
           {
             "id": "dialogue-0003",
             "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
-            "reply": "Ah, a bad cough can be a miserable thing, especially this time of year. I'll put together a tea of thyme and honey for her \u2014 thyme opens the chest something wonderful, and the honey soothes",
+            "reply": "Ah, a cough is no small thing this time of year. A tea of thyme will ease her chest right well \u2014 steep it fresh if ye have it in the garden, or dried will do. A spoonful of honey stirred in will soothe the tickle, and keep her warm by the fire till the worst of it passes.\n\n---\n{\"action\": \"nods knowingly, expression softening with concern\", \"mood\": \"sympathetic\", \"internal_thought\": \"A simple cough, thank goodness \u2014 no need to worry the family yet\", \"language_hints\": [{\"word\": \"right well\", \"pronunciation\": \"ryte well\", \"meaning\": \"very well, thoroughly\"}]}",
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 2,
-              "language": 4,
-              "responsiveness": 4
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 3.6
+            "overall": 4.4
           },
           {
             "id": "dialogue-0004",
             "prompt": "They say a stranger arrived in the village. Have you heard?",
-            "reply": "Aye, the talk of the village has been all about that. A publican in Ballinleague heard it first, I'd say",
+            "reply": "Aye, I heard that much. Father Murphy was asking after 'em at the Mass, said they came on the evening coach. Sure, the priest would know all the news first, wouldn't he?\n---\n{\"action\": \"nods while stirring a pot of herbs\", \"mood\": \"curious but reserved\", \"internal_thought\": \"Best see what Father makes of them before forming an opinion.\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-eh\", \"meaning\": \"well, indeed\"}]}",
             "axes": {
               "authenticity": 3,
               "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 2
-            },
-            "overall": 2.6
-          },
-          {
-            "id": "dialogue-0005",
-            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
-            "reply": "Dia dhuit, now. I'm sorry to hear of your loss. That's a matter for Father Dillon or the farmer with the lurchers,",
-            "axes": {
-              "authenticity": 4,
-              "character": 3,
-              "craft": 2,
+              "craft": 3,
               "language": 4,
               "responsiveness": 3
             },
             "overall": 3.2
           },
           {
-            "id": "dialogue-0006",
-            "prompt": "Do you remember when my father broke his leg in the south field?",
-            "reply": "Ah sure, I remember that well \u2014 'twas a terrible crack he got, and him trying to mend that stone wall in the rain. The",
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ye'd best ask the shepherd or old Tom\u00e1s the farmer about that, mo chara. I know midwifery, not the ways of wolves or worse.\n\n---\n{\"action\": \"shakes her head gently, looking concerned but firm\", \"mood\": \"sympathetic but staying in her lane\", \"internal_thought\": \"The poor creature, but this is for the men with the land and the dogs to worry over.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAR-uh\", \"meaning\": \"my friend\"}]}",
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 2,
-              "language": 3,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, I remember that well. A nasty break it was, and your poor mother in a terrible state over it. Sure, the doctor set it proper, but 'twas a long few months for him.\n---\n{\"action\": \"nods, pausing from sorting dried herbs\", \"mood\": \"reminiscent\", \"internal_thought\": \"Poor man hobbled for a while after, but he was fortunate it wasn't worse.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"ay\", \"meaning\": \"yes\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
               "responsiveness": 4
             },
             "overall": 3.4
@@ -8747,24 +8747,24 @@
           {
             "id": "dialogue-0007",
             "prompt": "I saw lights moving on the hill last night. What were they?",
-            "reply": "Ah, now, the lights on the hill are a thing for Father Coyle to speak of, not for the likes of me. Could be will-o'-the-wisps, mayhap,",
+            "reply": "Ah now, lights on the hill at night \u2014 sure, half the parish has a different story for that. Some say it's the s\u00eddhe out walking their mounds, and I'll not tell ye they're wrong. Mayhap it was just a lantern on the road, but best not to go chasing after things on the dark hills regardless.\n---\n{\"action\": \"pauses while sorting dried herbs, glances toward the window\", \"mood\": \"mildly curious, a touch wary\", \"internal_thought\": \"Young ones always asking about the lights. My own mother saw them once near Knockrory and wouldn't speak of it for a week.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairy folk, supernatural beings associated with fairy mounds\"}]}",
             "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 3
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 2.8
+            "overall": 5.0
           },
           {
             "id": "dialogue-0008",
             "prompt": "The well water tastes strange this week. Should I be worried?",
-            "reply": "Ah, now that's worth paying attention to, so it is. Sometimes after a heavy rain the water turns on itself and tastes of earth \u2014 that's natural enough. But if it tastes bitter or of rotten eggs, I'd tell ye to boil it before drinking, especially for the little ones and women with child. A tea of fresh mint can cover the taste in the meantime.\n\n---\n\n{\"action\": \"pauses in her work, expression turning thoughtful\", \"mood\": \"concerned but measured\", \"internal_thought",
+            "reply": "Ah, the well water, is it? Sure, I wouldn't know the first thing about the taste of wells, mo chara. Ye'd best ask the farmer who sees to it, or mayhap the priest has a thought. But if your belly is unsettled, a tea of thyme will ease it right quick.\n\n---\n{\"action\": \"pauses from sorting dried herbs on the table\", \"mood\": \"helpful but cautious\", \"internal_thought\": \"Best not to comment on things I don't know. Could be something, could be nothing.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh khar-uh\", \"meaning\": \"my friend\"}]}",
             "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 1,
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
               "language": 4,
               "responsiveness": 4
             },
@@ -8773,28 +8773,28 @@
           {
             "id": "dialogue-0009",
             "prompt": "My wife is heavy with child. When should I fetch you?",
-            "reply": "When her pains come strong and regular, or if her waters break, send for me straightaway. If 'tis her first, the labor may be long, so don't be waiting 'til the last moment. Just send word when the pains are truly upon her, and I'll come.\n\n---\n{\"",
+            "reply": "When the pains come regular, like the ticking of a clock, three miles apart \u2014 that's the time. Ye'll know it when ye feel the need to send for me, mo chara. Have a candle lit and the kettle on the boil.\n\n---\n{\"action\": \"nods steadily, hands resting on her work apron\", \"mood\": \"calm and assured\", \"internal_thought\": \"Another bairn for the Murphys. Sure, I've delivered half the children in this parish.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAH-ruh\", \"meaning\": \"my friend\"}]}",
             "axes": {
               "authenticity": 4,
-              "character": 4,
-              "craft": 1,
-              "language": 4,
-              "responsiveness": 4
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 3.4
+            "overall": 4.6
           },
           {
             "id": "dialogue-0010",
             "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
-            "reply": "Sure, Father Cathal means well, but the old ways of herb-lore and aiding a birth have saved more than a few mothers in this parish, faith. 'Twould be a cold hearth without them. Ye'd",
+            "reply": "Ah, well now, Father Cathal is a good man, but sure there's a difference between the piseog and fairy tales and a mother's knowledge of thyme for a cough or raspberry leaf for a weary womb. I'll not be giving up what works, not for any sermon.\n---\n\n{\"action\": \"shifts in her chair, hands busy sorting dried herbs into small bundles\", \"mood\": \"mildly defensive but measured\", \"internal_thought\": \"Easy for him to talk from the pulpit \u2014 he's never held a babe in the breech or brewed valerian for a woman who can't sleep\", \"language_hints\": [{\"word\": \"piseog\", \"pronunciation\": \"PISH-ug\", \"meaning\": \"superstition, old folk belief\"}, {\"word\": \"breech\", \"pronunciation\": \"BREECH\", \"meaning\": \"baby positioned bottom-first in the womb, a difficult delivery\"}]}",
             "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 4
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 3.4
+            "overall": 4.8
           }
         ]
       },
@@ -8959,7 +8959,7 @@
       "dialogue": {
         "judge_id": "judge_sonnet_v1",
         "judge_model": "claude-sonnet-4-6",
-        "measured_utc": "2026-05-25T13:20:56.463196+00:00",
+        "measured_utc": "2026-05-25T16:55:10.574764+00:00",
         "axes": [
           "character",
           "authenticity",
@@ -8971,132 +8971,132 @@
           {
             "id": "dialogue-0001",
             "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
-            "reply": "The person is telling me about trouble sleeping and recurring dreams. As a midwife and local wise woman in 1820 Ireland, I would have knowledge of herbal remedies for sleep troubles. I should respond with practical, kind advice about herbs and remedies, staying in character as Brigid O'Brien.\n\nI need to:\n- Speak in Hiberno-English (en-IE)\n- Keep it to 2-4 sentences\n- Be kind but direct\n- Reference herbal knowledge appropriate to a midwife\n- Stay in my lane - sleep and herbal remedies are within my knowledge\n- Include the metadata block after the dialogue\n\nLet me think about what a midwife in 1820 Ireland would recommend for sleep troubles:\n- Chamomile tea\n- Valerian root\n- Lavender\n- Warm milk\n- Perhaps asking about what's troubling them spiritually/emotionally\n\nI should also show empathy and perhaps gently probe about what might be causing the distress.",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0002",
-            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
-            "reply": "The player is asking about \"the old Cailleach who lives near the fairy fort.\" \n\n\"Cailleach\" is an Irish word meaning an old woman or hag - in Irish mythology, the Cailleach is a divine hag figure associated with winter and storms. In everyday usage, it just means an old woman.\n\nAs Brigid O'Brien, a midwife in rural Roscommon, I would know local people and their reputations. The fairy fort (rath or lios) would be a known local landmark. An old woman living near it would be the subject of local talk and possibly superstition.\n\nI need to:\n1. Stay in character as a midwife - I know about births, herbs, women's matters, local gossip about people\n2. Not overdo the supernatural angle - I can mention local beliefs without being \"foolishly superstitious\"\n3. Use Hiberno-English with a sprinkle of Irish\n4. Be conversational,",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0003",
-            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
-            "reply": "Ah, the poor woman, I'm sorry to hear it. A strong tea of thyme with a good spoonful of honey will ease her chest something grand \u2014 boil it fresh each mornin' and again before bed. If the cough's rattlin' deep, I've a bit of horehound I",
+            "reply": "Ah, 'tis a terrible thing when sleep won't come to ye. Sure, the mind can be a cruel companion in the dark hours. Have ye tried a tea of chamomile before bed? And I could make ye up a wee sachet of lavender and hops for under the pillow \u2014 my own mother swore by it.\n\n---\n{\"action\": \"sets down the herb she was sorting, gives the speaker her full attention\", \"mood\": \"concerned, motherly\", \"internal_thought\": \"Poor soul looks worn thin. Recurring dreams often mean something's weighing heavy on the heart. I'll not push, but I'll listen if they've a mind to speak of it.\", \"language_hints\": [{\"word\": \"'tis\", \"pronunciation\": \"tiz\", \"meaning\": \"it is\"}]}",
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 2,
-              "language": 4,
-              "responsiveness": 3
-            },
-            "overall": 3.4
-          },
-          {
-            "id": "dialogue-0004",
-            "prompt": "They say a stranger arrived in the village. Have you heard?",
-            "reply": "Ah, sure I did hear a whisper of it this mornin' when I was deliverin' a tea of chamomile to old Mrs. Flaherty. She's always first with the news, that woman \u2014 ears like a barn owl, so she has. I didn't catch the particulars though \u2014 whether 'twas a tinker or a trader or some poor soul lookin' for work. Did ye lay eyes on this person yourself?\n---\n{\"action\": \"sets down a",
-            "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 2,
-              "language": 4,
-              "responsiveness": 3
-            },
-            "overall": 3.4
-          },
-          {
-            "id": "dialogue-0005",
-            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
-            "reply": "The player is asking about losing a sheep and wondering if it could be \"more than a wolf\" - suggesting something supernatural perhaps, like the s\u00eddhe (fairy folk).\n\nNow, I need to stay in my lane as Brigid O'Brien, a midwife. I know herbs, births, sickness, and women's matters. I do NOT track livestock predators, hunt, or speak as a farmer would. A farmer talks of land, beasts, and weather - not deliveries.\n\nSo the player is asking about livestock loss and potential predators or supernatural causes. This is NOT my area of expertise as a midwife. I should redirect them to someone more appropriate - perhaps a farmer or someone who knows about such matters.\n\nHowever, I can acknowledge their distress about the loss, and perhaps mention in general terms what people say about such things (local folklore about the s\u00eddhe is something everyone knows about), but I shouldn't pretend to have expertise in tracking or identifying animal predators.\n\nLet me",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0006",
-            "prompt": "Do you remember when my father broke his leg in the south field?",
-            "reply": "The player is asking me about when their father broke his leg in the south field. As Brigid O'Brien, a midwife in rural Roscommon who has known the player's family for years, I would likely have some knowledge of this event - especially if I was involved in helping with the injury, or if it was common knowledge in the parish. I should respond warmly, showing my connection to the family, and share what I remember about this event.\n\nI need to stay in character as a midwife. While a broken leg isn't directly midwifery, a local midwife would know about injuries and illnesses in the community - we're practical healers and know the families well. So this is appropriate for me to speak about.\n\nLet me craft a response that:\n1. Shows I remember the event\n2. Demonstrates my connection to the family\n3. Uses Hiberno-English dialect appropriately\n4. Is 2-4 sentences\n5. Shows warmth",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0007",
-            "prompt": "I saw lights moving on the hill last night. What were they?",
-            "reply": "Ah, sure ye'd want to mind yerself up on that hill after dark. Could be the s\u00eddhe at their play \u2014 they do love to dance of a moonlit night. Though if 'twas near the bog, it might only be",
-            "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 2,
-              "language": 4,
-              "responsiveness": 3
-            },
-            "overall": 3.4
-          },
-          {
-            "id": "dialogue-0008",
-            "prompt": "The well water tastes strange this week. Should I be worried?",
-            "reply": "Dia dhuit. Sure, 'tis likely nothin' but the peat runoff from the recent rains, it does tinge the water sometimes. Mayhap it'll settle by itself, but",
-            "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 4,
-              "responsiveness": 3
-            },
-            "overall": 3.0
-          },
-          {
-            "id": "dialogue-0009",
-            "prompt": "My wife is heavy with child. When should I fetch you?",
-            "reply": "Ah, 'tis glad I am ye came to me, and not waitin' too long about it either. When her pains come regular-like \u2014 every ten minutes or so, and steady \u2014 that's when ye send word. And if her waters break before that, or there's blood, don't ye be waitin' at all \u2014 come fetch me straightaway, day or night. I'll",
-            "axes": {
-              "authenticity": 5,
-              "character": 5,
-              "craft": 3,
+              "craft": 4,
               "language": 5,
-              "responsiveness": 4
+              "responsiveness": 5
             },
             "overall": 4.4
           },
           {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, sure, there's talk. Some say she's been there since before memory, others call it just a lonely widow's house near the old rath. I don't go near the place myself. Best to leave what's at the s\u00eddhe be, and not be meddling with piseog.\n---\n{\"action\": \"Looks up from a bundle of dried herbs, speaking carefully\", \"mood\": \"Cautious, respectful\", \"internal_thought\": \"Folk tales are one thing, but the fort itself is a place to avoid.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk or fairy mound\"}, {\"word\": \"piseog\", \"pronunciation\": \"pish-ogue\", \"meaning\": \"superstition or charm\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ach, sorry to hear that about yer mother. A tea of thyme with a good spoonful of honey will ease her chest something lovely \u2014 I've a bundle dried here if she's none in the house. Tell her to keep it warm by the fire and breathe the steam through a cloth over her head. If it's not settling in a few days, send word and I'll come have a listen to her chest meself.\n\n---\n{\"action\": \"moves toward a shelf of dried herbs, gathering a bundle of thyme\", \"mood\": \"concerned but helpful\", \"internal_thought\": \"Good woman, his mother. Pray it's only a winter cough and not something settling deep in the lungs.\", \"language_hints\": [{\"word\": \"ach\", \"pronunciation\": \"akh\", \"meaning\": \"an exclamation, like 'ah' or 'oh'\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Aye, I did hear tell of it. Mrs. Flanagan mentioned it when she came for her herbs this mornin' \u2014 said she saw a man with a fine coat and a leather bag comin' in by the Carrick road. Could be a merchant, could be a landlord's man. Ye know how it is in a small place \u2014 a new face sets every tongue waggin' before the day's out. Has anyone spoken to the fellow, do ye know?\n\n---\n{\"action\": \"pauses while grinding herbs, looks up with mild curiosity\", \"mood\": \"interested\", \"internal_thought\": \"Hope it's not a tithe collector or a bailiff \u2014 those ones bring nothing but trouble to the parish.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, sure that's a terrible loss, and I'm sorry to hear it. But ye'd best ask someone who knows the ways of beasts and the hills \u2014 maybe Fergus Dooley or old Se\u00e1n Burke, they'd have the knowledge of tracks and predators. 'Tis not my area at all, so it isn't \u2014 I'd be more use to ye if 'twas a sickly lamb or a ewe having trouble lambing.\n\n---\n{\"action\": \"shakes head sympathetically, gestures vaguely toward the road\", \"mood\": \"sympathetic but firm\", \"internal_thought\": \"They always come to me with everything. Next they'll be asking me to shoe a horse.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, I do indeed. 'Twas a terrible break, so it was \u2014 the bone came through the skin, poor man. Your mother ran all the way to my door in her bare feet, white as a sheet. Dr. Madden set it, and I made the poultice of comfrey and egg to draw the swelling down. He was a stubborn one, yer father \u2014 up on that leg far too soon, if you ask me.\n\n---\n{\"action\": \"shakes her head slowly at the memory\", \"mood\": \"reflective, fond\", \"internal_thought\": \"That man was impossible \u2014 wouldn't stay resting for love nor money. Strong stock, that family.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Och, sure there's always lights movin' about on the hills of a night. May be poit\u00edn men tendin' their stills \u2014 best not go askin' after that too loudly, mind. Or mayhap it was just someone walkin' late with a lantern, takin' a shortcut home from the public house.\n\nOf course, there's them that'd say 'twas the s\u00eddhe, the fairy folk stirrin'. I wouldn't go chasin' after such lights if I were ye, mo chara \u2014 whether 'tis fairies or distillers, neither one wants to be found.\n\n---\n{\"action\": \"pauses mid-task, speaks with a knowing look\", \"mood\": \"wary but warm\", \"internal_thought\": \"Best keep them away from the stillmen's business, and the fairy talk keeps folk cautious on dark nights\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairy folk, or fairy mounds\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Dia dhuit. 'Tis well ye're payin' attention to it \u2014 strange-tastin' water is never to be ignored, especially with little ones about. Is it a musty sort of taste, or more metallic, like iron? Mayhap something's got into the well upstream \u2014 a dead creature or suchlike. Best to ask the neighbours if they've noticed the same, and if 'tis only your own well, have it drawn up and let it settle before drinkin' it again. For now, boilin' it would be the wisest course, mind.\n\n---\n{\"action\": \"sets down her herb basket, turns to face the speaker with concern\", \"mood\": \"attentive and mildly worried\", \"internal_thought\": \"Could be nothing, could be somethin' in the ground after all that rain. Should mention it to the men at the parish.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Dia dhuit, and sure that's grand news! When her pains start coming regular \u2014 like every ten minutes or so \u2014 or if her waters break, that's the time to come for me. Don't be waiting too long thinking it'll pass, mind \u2014 I'd rather come early than late. And if there's bleeding or anything that frightens ye before then, come running straightaway.\n\n---\n{\"action\": \"sets down mortar and pestle, turns to give full attention\", \"mood\": \"attentive, professional\", \"internal_thought\": \"God willing, all will go well. I'll make sure my birthing supplies are ready.\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \"meaning\": \"hello, literally God to you\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0
+          },
+          {
             "id": "dialogue-0010",
             "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
-            "reply": "The player is asking me about Father Cathal's sermon against \"the old ways.\" This is a delicate topic - as a midwife in 1820 Ireland, I would have complex feelings about this. The \"old ways\" would refer to folk traditions, fairy beliefs, traditional healing practices, etc. A priest preaching against these would be challenging for someone like Brigid who uses folk medicine and likely still respects some of the old traditions.\n\nI need to be careful here:\n1. I'm a midwife, so I know herbs and folk medicine - I might use \"the old ways\" in my practice\n2. But I'm also Catholic, so I respect the priest\n3. I shouldn't be disrespectful of the Church, but I can have nuanced views\n4. I should stay in character - kind but direct\n\nI should NOT:\n- Be overly critical of the priest (that would be unusual for the time)\n- Be blindly obedient either (showing the complexity",
+            "reply": "Sure, Father Cathal means well enough, but I'd be lost without the old knowledge when I'm tendin' to a woman in labour. There's a power in the herbs and the ways our mothers taught us that no sermon can take away. He can preach what he likes \u2014 but when a child is comin' into the world and the mother is cryin' out, 'tis the yarrow and the warm cloths I reach for, not a Latin prayer alone.\n\n---\n{\"action\": \"shakes head gently, hands resting on a bundle of dried herbs on the table\", \"mood\": \"thoughtful, slightly wry\", \"internal_thought\": \"The Church would have us forget everything our grandmothers knew. But who tends the sick folk out here, if not us?\", \"language_hints\": [{\"word\": \"'tis\", \"pronunciation\": \"tiz\", \"meaning\": \"it is\"}]}",
             "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 0.0
+            "overall": 4.6
           }
         ]
       },
@@ -9284,7 +9284,7 @@
       "dialogue": {
         "judge_id": "judge_sonnet_v1",
         "judge_model": "claude-sonnet-4-6",
-        "measured_utc": "2026-05-25T13:30:03.646494+00:00",
+        "measured_utc": "2026-05-25T16:57:08.600633+00:00",
         "axes": [
           "character",
           "authenticity",
@@ -9296,132 +9296,132 @@
           {
             "id": "dialogue-0001",
             "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
-            "reply": "Dreams can be a heavy thing to carry, sure they can. What manner of dreams are they troubling ye? Some find ease with a tea of valerian root before bed, or",
+            "reply": "Dreams can be hard on the body and spirit alike, so they can. Are they troubled dreams, or joyful ones that leave ye out of sorts when ye wake? Sometimes a tea of valerian root or chamomile before bed can quiet the mind. But the body often speaks what the waking mind won't say \u2014 what weighs on ye, mo chara?",
             "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 2
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 2.6
+            "overall": 4.4
           },
           {
             "id": "dialogue-0002",
             "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
-            "reply": "The user is asking about an old woman (Cailleach) who lives near a fairy fort (s\u00eddhe). This is a question about local folklore and a person in the community. As a midwife who has lived in the parish for years and knows the local people, I would know about such a person. The Cailleach in Irish folklore is often a wise woman or a figure connected to the land and supernatural. In a 1820s Irish context, this could be a real older woman in the community who might be known for folk knowledge, or there could be folklore attached to her.\n\nI should respond in character as Brigid O'Brien - kind, direct, knowledgeable about local matters. I should speak in Hiberno-English with perhaps a sprinkle of Irish. I should be conversational and give what a local midwife would know about this person.\n\nI should be careful not to speak as a farmer about livestock, or as a priest about souls. A midwife would know about women's matters,",
+            "reply": "Ah, the old Cailleach near the s\u00ed at the edge of the McDonagh land. 'Tis said she's a hard woman, but fair enough if ye treat her with respect. She knows the old ways uncommon well \u2014 herbs and such like that the rest of us have forgot. Mo ghr\u00e1, I'd not be fearin' her neither. Sure, she came to help when the Kielys were in trouble last winter. She took ill pay and a cup of tea, and nothin' more. Aye, there's always talkin' and whisperin' of her, but what woman of power escapes talk, mo chara?",
             "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 0.0
+            "overall": 4.4
           },
           {
             "id": "dialogue-0003",
             "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
-            "reply": "Ah, the both of ye, God help her. A bad cough this time of year, sure 'tis common enough. I'd need to know a bit more \u2014 is it a",
+            "reply": "Ah, the croup, is it? A tea of thyme with a spoonful of honey will ease her chest a treat. A-infusion of mullein flowers too, that softens the passage right enough. But if the phlegm runs yellow or green, ye'll want to simmer a bit of garlic in milk \u2014 bitter-tasted but it draws the sickness out. Has she a fever with it, or just the rattle in her lungs?",
             "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 2
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
             },
-            "overall": 2.6
+            "overall": 4.2
           },
           {
             "id": "dialogue-0004",
             "prompt": "They say a stranger arrived in the village. Have you heard?",
-            "reply": "Aye, I've heard tell of it, so I have. One of the lads from the public house mentioned a man asking after lodgings near the chapel road. Haven't set eyes on him m'self yet, but sure the whole parish will know his business soon enough. 'Tis a small place \u2014 nothing stays secret long here.\n\n---\n{\"action\": \"stirs a pot over the hearth",
+            "reply": "Aye, I've heard the whispers on the wind. 'Tis hard to keep a secret in a place this small, sure. Myself, I havnae laid eyes on them yet, but the kettle was boilin' at the shop yesterday and there was plenty of talk. Mayhap ye'd know more than I do, mo chara? What brings ye askin'?",
             "axes": {
               "authenticity": 4,
-              "character": 4,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 4
-            },
-            "overall": 3.4
-          },
-          {
-            "id": "dialogue-0005",
-            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
-            "reply": "Aye, losing a beast in the night is a sore thing, so it is. But that's not me wheelhouse, I'm afraid \u2014 the like of wolves and predators, ye'd best speak wi' Patrick Brennan at the next farm, or perhaps young Dermot who keeps the hounds. 'Tis the",
-            "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 3
-            },
-            "overall": 2.8
-          },
-          {
-            "id": "dialogue-0006",
-            "prompt": "Do you remember when my father broke his leg in the south field?",
-            "reply": "Ah, that was a bad turn, so it was. I remember well \u2014 I came by the cottage three times that fortnight, bringing compress",
-            "axes": {
-              "authenticity": 3,
-              "character": 3,
-              "craft": 2,
-              "language": 3,
-              "responsiveness": 3
-            },
-            "overall": 2.8
-          },
-          {
-            "id": "dialogue-0007",
-            "prompt": "I saw lights moving on the hill last night. What were they?",
-            "reply": "Ah,",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0008",
-            "prompt": "The well water tastes strange this week. Should I be worried?",
-            "reply": "Ah, strange how, is it? Metallic-like or is it more of a green taste to it? Sometimes after heavy rains, the water can carry more from the soil. If it's only been a week, 'tis likely nothing serious \u2014 but keep an eye on it all the same. Has anyone else in the household taken ill, or",
-            "axes": {
-              "authenticity": 3,
               "character": 3,
               "craft": 3,
-              "language": 3,
-              "responsiveness": 4
-            },
-            "overall": 3.2
-          },
-          {
-            "id": "dialogue-0009",
-            "prompt": "My wife is heavy with child. When should I fetch you?",
-            "reply": "Ah, well now, 'tis good ye're thinkin' ahead. When the pains come regular-like, maybe half an hour apart and not passin' with walkin' or restin', that's the time. But if her waters break, don't ye be waitin' at all \u2014 send the young one runnin' for",
-            "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 3,
-              "language": 3,
+              "language": 4,
               "responsiveness": 4
             },
             "overall": 3.6
           },
           {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, mo chara, that's a sad loss and no mistake, but ye'd best ask the right person hereabouts \u2014 'tis a farmer's concern, that, not a midwife's. I know nought of wolves nor what takes sheep of a night, sure. Mayhap young Donal \u00d3 Murch\u00fa at the next farm tracks such things \u2014 he'd know better nor I.",
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, sure I do. Yer poor father, the pain he was in that day. 'Twas a terrible fall, aye, and I came round with poultices of comfrey and arnica for the swelling. Hard times for the whole family, so it was. Is he walking well enough these days, then?",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ah, the fairy lights, sure everyone has seen them from time to time. 'Tis often the s\u00eddhe, the good people moving between the raths, or mayhap just a shepherd with a lantern on the hill. Faith, it could be anything from a late walker carryin' a torch to them little wisps that lead ye astray if ye follow them. Unless ye've lost sleep over it, I'd not be too troubled \u2014 but mind yerself on them dark lanes all the same.",
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Well now, strange how? A bit of mineral tang is common enough if the stones be porridgy, but if 'tis cloudy or smells foul, I'd not be drinking it. May I ask \u2014 has it been rainin' somethin' fierce of late? Sometimes the surface water finds its way down when the earth gets soaked through. Give it a few days and draw fresh, and if it persists, best ye ask Seamus O'Leary at the forge \u2014 he knows the wells in these parts better than most.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "When the pains come regular-like, and not a moment before, mo chara. Call for me when she's well into her labour \u2014 not the first gripes, sure those can come and go for hours. But when she cannot walk nor talk through them, that's the time. I'll be there before ye can say \"Saint Brigid.\"",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0
+          },
+          {
             "id": "dialogue-0010",
             "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
-            "reply": "Ah, Father Cathal means well",
+            "reply": "Ah, Father Cathal's a good man, sure enough, but he Preaches from the chapel while the s\u00eddhe Preach from the hollows, and I'll tell ye this much \u2014 the old herb-lore has seen more sickbeds through than his sermons have. 'Tisn't that I disrespect the Church, mo chara, but when a woman's in labour through the night, 'tis my hands and God's good thyme that bring the child, not warnings of Hell-fire. Let him mind his Mass, and I'll mind my work.",
             "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
             },
-            "overall": 0.0
+            "overall": 4.4
           }
         ]
       },
@@ -9592,7 +9592,7 @@
       "dialogue": {
         "judge_id": "judge_sonnet_v1",
         "judge_model": "claude-sonnet-4-6",
-        "measured_utc": "2026-05-25T12:48:51.972876+00:00",
+        "measured_utc": "2026-05-25T16:58:23.678052+00:00",
         "axes": [
           "character",
           "authenticity",
@@ -9604,132 +9604,132 @@
           {
             "id": "dialogue-0001",
             "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
-            "reply": "Ah, I'm sorry to hear that, mo chara. Dreams can be a heavy burden when they come back again and again. Tell me, is it the same dream each time, or different ones",
+            "reply": "\nDreams, is it? That'll wear a body down faster than any sickness, so it will. Restless nights are hard on the spirit. Would ye tell me more about what ails ye, mo chara? Is it the anxious sort, or something heavier weighing on yer mind?",
             "axes": {
               "authenticity": 4,
-              "character": 3,
-              "craft": 2,
-              "language": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
               "responsiveness": 4
             },
-            "overall": 3.4
+            "overall": 4.2
           },
           {
             "id": "dialogue-0002",
             "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
-            "reply": "Ah, sure the Cailleach Bh\u00e9ara, ye mean? Aye, everyone hereabouts knows of her. She keeps herself to herself these days, but she still gathers herbs",
+            "reply": "Aye, the Cailleach o' the Hill \u2014 sure, every soul in these parts knows her name. 'Tis said she spins wool by moonlight and leaves offerings at the s\u00eddhe for the folk that dwell below. Some call her a witch, others say she's a spirit bound to the old ways. I mind me own grandmother spoke of her not with fear, but with respect \u2014 we'd best do the same, or 'twill bring bad luck to the parish.\n\n---\n{\"action\": \"stirs the fire with a iron pokier, gaze distant\", \"mood\": \"pensive\", \"internal_thought\": \"Best to speak carefully on such folk \u2014 there's more between this world and the next than most'll own up to\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"KAL-yach\", \"meaning\": \"old woman / supernatural crone\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "A bad cough, is it? I'd be glad to help, so I would. Does she have it in her chest or just the throat? And is she bringin' up anything when she coughs, or is it dry and rasping? A tea of thyme with honey works well for the chest, and mullein flowers steamed can ease the passages right enough. But first, tell me more about how she fares.",
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 2,
-              "language": 5,
+              "craft": 3,
+              "language": 4,
               "responsiveness": 4
             },
             "overall": 3.8
           },
           {
-            "id": "dialogue-0003",
-            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
-            "reply": "Aye, sure I've a few things that might ease her. A tea made from thyme and a bit of honey stirred in works a treat for the chest. If she's brave enough, a spoonful of honey with a dash of lemon juice does well too. Has she any fever or tightness in the chest with it?",
-            "axes": {
-              "authenticity": 5,
-              "character": 4,
-              "craft": 4,
-              "language": 5,
-              "responsiveness": 5
-            },
-            "overall": 4.6
-          },
-          {
             "id": "dialogue-0004",
             "prompt": "They say a stranger arrived in the village. Have you heard?",
-            "reply": "Aye, sure 'tis all anyone's been talkin' about since yesterday. A body from the coast, by the sound of it, though what brings 'em to our little corner of nothin', the Lord only knows. I'll be keepin' my ears open, that's certain.",
+            "reply": "Aye, 'tis all folks can chatter about at the well, so I've heard. Some fellow from the city, or so they say. Though what brings him to our little corner of Roscommon, the Lord only knows. Have ye set eyes on him yerself?",
             "axes": {
-              "authenticity": 4,
-              "character": 5,
-              "craft": 4,
-              "language": 5,
-              "responsiveness": 5
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 3
             },
-            "overall": 4.6
+            "overall": 3.0
           },
           {
             "id": "dialogue-0005",
             "prompt": "I lost a sheep last night. Could it be more than a wolf?",
-            "reply": "Ah, laddo, that's a sad business entirely. I'm feared I wouldn't be the one to ask about wolves or such like \u2014 that's the farmer",
+            "reply": "Ah, mo chara, that's a terrible loss an' no mistake. Now I'm not one to be knowing about wolves and such \u2014 ye'd best have a word with Paddy Greeley up the road, he's a farmer through and through, knows the look of things that come in the night. Mayhap 'twas just a fox, or the poor beast wandered into the bog. God keep ye from further trouble.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, I do so well. 'Twas a terrible fright for yer mother, sure enough. I came running when I heard the call, and there he was, white as a sheet, clutching that leg. Happen the bone set right in the end, praise be to God.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "\nAh, well now, lights on the hill can mean any number of things. 'Tis often travellers with lanterns making their way home late, or mayhap a shepherd tending the sheep. Some folk about here will tell ye 'tis the s\u00eddhe, but I wouldn't go filling yer head with such notions. More likely a neighbor returning from the alehouse than anything fairy, so it is.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, that gives me cause for concern, sure enough. A taste strange to the tongue can mean any number of things - could be the iron in the earth, could be the clay pipes settling, but 'tis also a warning sometimes when the water's been touched by sickness from above. Has ye checked for dead things in the barrel, or has there been sick cattle near the spring? I'd say boil it first, a'course, and mayhap ask Mick the blacksmith - he's no well-digger neither, but he's about the parish a long while and knows the waters hereabouts. If the smell's turned foul too, don't let the weans near it.",
             "axes": {
               "authenticity": 4,
               "character": 4,
               "craft": 2,
               "language": 4,
-              "responsiveness": 2
-            },
-            "overall": 3.2
-          },
-          {
-            "id": "dialogue-0006",
-            "prompt": "Do you remember when my father broke his leg in the south field?",
-            "reply": "",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0007",
-            "prompt": "I saw lights moving on the hill last night. What were they?",
-            "reply": "",
-            "axes": {
-              "authenticity": 0,
-              "character": 0,
-              "craft": 0,
-              "language": 0,
-              "responsiveness": 0
-            },
-            "overall": 0.0
-          },
-          {
-            "id": "dialogue-0008",
-            "prompt": "The well water tastes strange this week. Should I be worried?",
-            "reply": "\nAh, strange how now? A bit of a taste of iron, or is it something else entirely? Sometimes after heavy rains, the springs can get a bit mucky with surface water mixing in. If it's just a mineral taste, 'tis usually harmless \u2014 we've got a fair bit of iron in these parts. But if the colour's off or 'tis making",
-            "axes": {
-              "authenticity": 4,
-              "character": 4,
-              "craft": 2,
-              "language": 5,
               "responsiveness": 4
             },
-            "overall": 3.8
+            "overall": 3.6
           },
           {
             "id": "dialogue-0009",
             "prompt": "My wife is heavy with child. When should I fetch you?",
-            "reply": "Ah, well now, ye should call for me when the pains come regular-like \u2014 three or four in the hour, I'd say, and not letting up with movement about. But if the waters break before then, ye'd best send straightaway. Has she been having much aching in the back these past days? 'Tis often a sign the bawn's turning. Go raibh maith agat for letting me know, mo chara.",
+            "reply": "\nWhen the pains come regular-like, not a fortnight apart but close together, and she can no' talk through 'em \u2014 that's when ye fetch me, sure. And if the water breaks before that, come straightaway. Don't be fashing yerself before then unless something seems wrong to ye. I'll be here come what may.",
             "axes": {
               "authenticity": 5,
               "character": 5,
-              "craft": 3,
+              "craft": 5,
               "language": 5,
               "responsiveness": 5
             },
-            "overall": 4.6
+            "overall": 5.0
           },
           {
             "id": "dialogue-0010",
             "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
-            "reply": "Ah, Father Cathal's a good man, sure, with a warm heart undher his collar. But sure, the ould ways have seen us through long before any church stood in these parts. 'Tisn't that I disrespect him, mind ye \u2014 a body should honour their faith. But there's room for both, I'd say. The herbs don't cease to grow just 'cause a priest frowns upon them.",
+            "reply": "\n'Tis a hard thing, sure. Father Cathal means well, I'll not fault the man for that. But the old ways fed us long before his church was built, and many's the child I've helped into this world with knowledge passed down from me own grandmother. Some things the Church calls sin are just... the way things have always been. We do what we must, and pray it pleases God all the same.",
             "axes": {
               "authenticity": 4,
               "character": 5,
-              "craft": 3,
+              "craft": 5,
               "language": 5,
-              "responsiveness": 5
+              "responsiveness": 4
             },
-            "overall": 4.4
+            "overall": 4.6
           }
         ]
       },
@@ -11005,6 +11005,23 @@
       "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
+      "slug": "mimo-v2-5-pro",
+      "model_id": "mimo-v2.5-pro",
+      "family": "mimo-v2.5-pro",
+      "is_local": false,
+      "dialogue_overall": 4.58,
+      "gaeilge_overall": 2.92,
+      "perf_providers": [
+        "opencode-go"
+      ],
+      "perf_best_p50_ms": 7714,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": 0.014493502119179274,
+      "perf_best_gameplay_usd_per_hour": 0.8696101271507565,
+      "perf_mean_tok_s": 354.6,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
       "slug": "qwen3-5-plus",
       "model_id": "qwen3.5-plus",
       "family": "qwen3.5",
@@ -11036,6 +11053,40 @@
       "perf_best_gameplay_usd_per_minute": 0.009542116933786173,
       "perf_best_gameplay_usd_per_hour": 0.5725270160271704,
       "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "minimax-m2-5",
+      "model_id": "minimax-m2.5",
+      "family": "minimax-m2.5",
+      "is_local": false,
+      "dialogue_overall": 4.32,
+      "gaeilge_overall": 3.7299999999999995,
+      "perf_providers": [
+        "opencode-go"
+      ],
+      "perf_best_p50_ms": 5504,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": 0.004559554551323434,
+      "perf_best_gameplay_usd_per_hour": 0.27357327307940604,
+      "perf_mean_tok_s": 43.3,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mimo-v2-5",
+      "model_id": "mimo-v2.5",
+      "family": "mimo-v2.5",
+      "is_local": false,
+      "dialogue_overall": 4.26,
+      "gaeilge_overall": 4.5200000000000005,
+      "perf_providers": [
+        "opencode-go"
+      ],
+      "perf_best_p50_ms": 4196,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": 0.006361411289190782,
+      "perf_best_gameplay_usd_per_hour": 0.38168467735144695,
+      "perf_mean_tok_s": 469.6,
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
@@ -11094,7 +11145,7 @@
       "model_id": "minimax-m2.7",
       "family": "minimax-m2.7",
       "is_local": false,
-      "dialogue_overall": 4.05,
+      "dialogue_overall": 4.0600000000000005,
       "gaeilge_overall": 3.15,
       "perf_providers": [
         "opencode-go"
@@ -11155,57 +11206,6 @@
       "perf_best_gameplay_usd_per_minute": 0.008304270637437898,
       "perf_best_gameplay_usd_per_hour": 0.4982562382462739,
       "perf_mean_tok_s": 961.3,
-      "dialogue_judge": "judge_sonnet_v1"
-    },
-    {
-      "slug": "mimo-v2-5-pro",
-      "model_id": "mimo-v2.5-pro",
-      "family": "mimo-v2.5-pro",
-      "is_local": false,
-      "dialogue_overall": 3.5200000000000005,
-      "gaeilge_overall": 2.92,
-      "perf_providers": [
-        "opencode-go"
-      ],
-      "perf_best_p50_ms": 7714,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": 0.014493502119179274,
-      "perf_best_gameplay_usd_per_hour": 0.8696101271507565,
-      "perf_mean_tok_s": 354.6,
-      "dialogue_judge": "judge_sonnet_v1"
-    },
-    {
-      "slug": "mimo-v2-5",
-      "model_id": "mimo-v2.5",
-      "family": "mimo-v2.5",
-      "is_local": false,
-      "dialogue_overall": 3.177777777777777,
-      "gaeilge_overall": 4.5200000000000005,
-      "perf_providers": [
-        "opencode-go"
-      ],
-      "perf_best_p50_ms": 4196,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": 0.006361411289190782,
-      "perf_best_gameplay_usd_per_hour": 0.38168467735144695,
-      "perf_mean_tok_s": 469.6,
-      "dialogue_judge": "judge_sonnet_v1"
-    },
-    {
-      "slug": "minimax-m2-5",
-      "model_id": "minimax-m2.5",
-      "family": "minimax-m2.5",
-      "is_local": false,
-      "dialogue_overall": 3.0,
-      "gaeilge_overall": 3.7299999999999995,
-      "perf_providers": [
-        "opencode-go"
-      ],
-      "perf_best_p50_ms": 5504,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": 0.004559554551323434,
-      "perf_best_gameplay_usd_per_hour": 0.27357327307940604,
-      "perf_mean_tok_s": 43.3,
       "dialogue_judge": "judge_sonnet_v1"
     },
     {

@@ -127,6 +127,70 @@ def _is_thinking_mlx_model(model_id: str) -> bool:
     return any(model_id.startswith(p) for p in THINKING_MLX_PREFIXES)
 
 
+# Markers a model writes when it leaks its own planning prose into the
+# visible `content` field instead of emitting the in-character reply.
+# Match case-insensitively at the start of the response (or after a
+# leading blank line, to catch responses that begin with a quoted thought
+# block). Tuned against the 11 bench-bugs surfaced in the opencode-go
+# 2026-05-25 sweep — mostly mimo-v2.5-pro / minimax-m2.*.
+_COT_OPENERS = (
+    r"the user is (asking|telling|requesting)",
+    r"the player is (asking|telling|requesting|wondering)",
+    r"the person is (asking|telling)",
+    r"we (need|are|have) to respond",
+    r"i (need|have|should) to respond",
+    r"let me (think|draft|craft|consider|plan)",
+    r"hmm,",
+    r"okay,",
+    r"alright,",
+    r"key (elements|constraints|considerations):",
+    r"constraints to (remember|consider):",
+    r"steps:",
+    r"plan:",
+    r"approach:",
+)
+_COT_PREFIX_RE = re.compile(
+    r"^\s*(" + "|".join(_COT_OPENERS) + r")\b",
+    re.IGNORECASE,
+)
+# In-character dialogue markers — when CoT is detected, scan forward for
+# the first occurrence of one of these as the start of a line and return
+# from there. Covers the Hiberno-English idioms the Brigid prompt seeds.
+_DIALOGUE_RESUMERS = (
+    r"^\s*(Ah[,!]|Aye[,.]|Sure[,!]|Mhuise|'Tis|Tis |Mayhap|Well now|Now,)",
+    r"^\s*\"",                    # quoted dialogue
+    r"^\s*Brigid[:\s]",           # rare but seen
+    r"^\s*Dia dhuit|^\s*Mo chara|^\s*A leanbh|^\s*A chroí",
+)
+_DIALOGUE_RESUMER_RE = re.compile(
+    "|".join(_DIALOGUE_RESUMERS),
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _scrub_chain_of_thought(text: str) -> str:
+    """Strip chain-of-thought leak from the start of a reply.
+
+    Returns the original text unchanged if no CoT marker is found, the
+    in-character reply if planning prose is followed by actual dialogue,
+    or an empty string if the whole response is planning prose (judge
+    will then flag the empty reply as a bench-bug).
+    """
+    if not text or not _COT_PREFIX_RE.match(text):
+        return text
+    # Skip past the planning prose. Find first dialogue-resumer marker
+    # ANYWHERE after the leading CoT block. Search from the first newline
+    # so we don't immediately match characters inside the planning prose.
+    nl = text.find("\n")
+    if nl == -1:
+        return ""  # single line of planning prose → no reply present
+    tail = text[nl:]
+    m = _DIALOGUE_RESUMER_RE.search(tail)
+    if not m:
+        return ""  # never resumed in-character → bench-bug
+    return tail[m.start():].lstrip()
+
+
 def _default_reasoning_for(model_id: str) -> dict:
     """OpenRouter doesn't normalise reasoning-suppression syntax across
     providers, so we pick the form each model actually honours.
@@ -209,19 +273,20 @@ def call_chat(
             body["reasoning_effort"] = "none"
         elif mid.startswith(("deepseek-v4-", "mimo-v2")):
             body["reasoning_effort"] = "low"
-            # DeepSeek-v4-flash/pro emit their answer in `content` ONLY after
-            # exhausting a chain-of-thought that is reported separately in
-            # `reasoning_content`. At dialogue's max_tokens=200 the budget
-            # runs out mid-thinking, leaving content="" — the judge then
-            # ends up scoring raw thinking ("We need to respond as Brigid…").
-            # Probed 2026-05-25: v4-flash reliably emits content at ~500,
-            # v4-pro is non-deterministic at 2000 and only reliably emits
-            # at 3000+. Bump to 3000 for both so dialogue / reaction /
-            # gaeilge / sim all have headroom. Cost stays trivial
-            # (<$0.01 per slice at $0.14/$0.28 per M).
-            if mid.startswith("deepseek-v4-") and (max_tokens is None or max_tokens < 3000):
-                body["max_tokens"] = 3000
         # minimax: deliberately omit reasoning_effort.
+        # Several opencode-go families burn most of their token budget on
+        # internal reasoning (deepseek-v4-* in reasoning_content; mimo-v2.*
+        # and minimax-m2.* often leak it into content as "We need to respond
+        # as Brigid…" planning prose, or run out before emitting any reply).
+        # At dialogue's max_tokens=200 the candidate response is either
+        # blank, a single token, or pure chain-of-thought. Bump to 3000
+        # across these families so dialogue / reaction / gaeilge / sim
+        # have headroom to actually emit a reply. Cost trivial — even at
+        # max output 12k tokens × $4/M = $0.05 per call worst case, real
+        # usage is <$0.01 per slice.
+        if (mid.startswith(("deepseek-v4-", "mimo-v2", "minimax-m2"))
+                and (max_tokens is None or max_tokens < 3000)):
+            body["max_tokens"] = 3000
     elif reasoning is not None:
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
@@ -309,6 +374,14 @@ def call_chat(
         # max_tokens cut the model off mid-thought (no closing tag emitted).
         if "<think>" in text:
             text = re.sub(r"<think>.*?(?:</think>|$)\s*", "", text, flags=re.DOTALL)
+        # opencode-go mimo-v2.5-pro / minimax-m2.* leak chain-of-thought
+        # planning prose into content even with reasoning_effort tuned.
+        # Telltale openers ("The user is asking…", "The player wants…",
+        # "We need to respond as Brigid…") are recoverable: the model
+        # usually delivers the actual reply after the planning block, or
+        # not at all. Try to extract the in-character segment; if none
+        # found, leave content empty so the judge bench-bug-flags it.
+        text = _scrub_chain_of_thought(text) if is_opencode_go else text
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(
             f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "

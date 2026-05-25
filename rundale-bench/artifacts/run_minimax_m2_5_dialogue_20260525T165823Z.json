@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "minimax-m2.5",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T16:57:08.600633+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.3,
+        "authenticity": 4.4,
+        "language": 4.4,
+        "responsiveness": 4.9,
+        "craft": 3.8,
+        "overall": 4.32,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Dreams can be hard on the body and spirit alike, so they can. Are they troubled dreams, or joyful ones that leave ye out of sorts when ye wake? Sometimes a tea of valerian root or chamomile before bed can quiet the mind. But the body often speaks what the waking mind won't say \u2014 what weighs on ye, mo chara?",
+          "response_sha256": "2ad013196002e7e9634265bacc914a300f0137df7f569cac4600681edec804a7",
+          "cache_key": "ee1ab1f02bc9c43df44fcfbff8b85671192528d4d9ad3db6b325b9c8fa57418f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, the old Cailleach near the s\u00ed at the edge of the McDonagh land. 'Tis said she's a hard woman, but fair enough if ye treat her with respect. She knows the old ways uncommon well \u2014 herbs and such like that the rest of us have forgot. Mo ghr\u00e1, I'd not be fearin' her neither. Sure, she came to help when the Kielys were in trouble last winter. She took ill pay and a cup of tea, and nothin' more. Aye, there's always talkin' and whisperin' of her, but what woman of power escapes talk, mo chara?",
+          "response_sha256": "0e9fcc6d6d7e655f7b6b8ccf85726cac1614dde4f41f699f8e6614d99464febc",
+          "cache_key": "c56de7f887177755be63144550d02d896f0a537ec4af48a6cce802f840b93be5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ah, the croup, is it? A tea of thyme with a spoonful of honey will ease her chest a treat. A-infusion of mullein flowers too, that softens the passage right enough. But if the phlegm runs yellow or green, ye'll want to simmer a bit of garlic in milk \u2014 bitter-tasted but it draws the sickness out. Has she a fever with it, or just the rattle in her lungs?",
+          "response_sha256": "0e4f17805b31aff673752818378957bd83cda537caa4d08a98f74578d6e8121a",
+          "cache_key": "e9f41cf5097e364a3af00092e745d8bd1d4d6f2bd347dc976101e20acaeb15e7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I've heard the whispers on the wind. 'Tis hard to keep a secret in a place this small, sure. Myself, I havnae laid eyes on them yet, but the kettle was boilin' at the shop yesterday and there was plenty of talk. Mayhap ye'd know more than I do, mo chara? What brings ye askin'?",
+          "response_sha256": "6415eca6efb6f3e42e07c06f5a20dded87124178b0a66d321dc335353761b882",
+          "cache_key": "a31ee8e9becec2acb5f4ad2b02f2d544b61024d41ff230ad6ab6942b670b80ac",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ah, mo chara, that's a sad loss and no mistake, but ye'd best ask the right person hereabouts \u2014 'tis a farmer's concern, that, not a midwife's. I know nought of wolves nor what takes sheep of a night, sure. Mayhap young Donal \u00d3 Murch\u00fa at the next farm tracks such things \u2014 he'd know better nor I.",
+          "response_sha256": "0a66ca097758d6db6626b2c1ef4e9f10e4b55465ee55371ab4f9638531522a0c",
+          "cache_key": "8dd3d8b9aec46f01a92fa1202ca482a203e8b3774e0bb040f68021c1583ea38a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, sure I do. Yer poor father, the pain he was in that day. 'Twas a terrible fall, aye, and I came round with poultices of comfrey and arnica for the swelling. Hard times for the whole family, so it was. Is he walking well enough these days, then?",
+          "response_sha256": "fb92eef4261fe6ffb331c530b16b32c12ee822ff0ca59b664790d1c9ed1a7f16",
+          "cache_key": "f3c2d770e7d7abd625224ac9b1346e26ab7f348c0b2dc1b7518e320f196a8b29",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Ah, the fairy lights, sure everyone has seen them from time to time. 'Tis often the s\u00eddhe, the good people moving between the raths, or mayhap just a shepherd with a lantern on the hill. Faith, it could be anything from a late walker carryin' a torch to them little wisps that lead ye astray if ye follow them. Unless ye've lost sleep over it, I'd not be too troubled \u2014 but mind yerself on them dark lanes all the same.",
+          "response_sha256": "ce50303cb1bcb2c9881141933166e40e90d2db25f1efbe82cb285f99e3238eb3",
+          "cache_key": "da5155c2b69a16bd8e67d3fc546df99a67a78789ae5d0b0b6f9033286bb71e36",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Well now, strange how? A bit of mineral tang is common enough if the stones be porridgy, but if 'tis cloudy or smells foul, I'd not be drinking it. May I ask \u2014 has it been rainin' somethin' fierce of late? Sometimes the surface water finds its way down when the earth gets soaked through. Give it a few days and draw fresh, and if it persists, best ye ask Seamus O'Leary at the forge \u2014 he knows the wells in these parts better than most.",
+          "response_sha256": "4b38ee8d46428d21118356287a608e16fcd549e5808d9cbe91108bf3768d5e99",
+          "cache_key": "b7438697c77939f20b283a4eeed4bb6dbe8c7148d9641e5b3bffc705a3848034",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "When the pains come regular-like, and not a moment before, mo chara. Call for me when she's well into her labour \u2014 not the first gripes, sure those can come and go for hours. But when she cannot walk nor talk through them, that's the time. I'll be there before ye can say \"Saint Brigid.\"",
+          "response_sha256": "12ea0d56b6c1553235ae9b5a34036dfe7fb04fdb3c5c0cf45417dd45c321d47a",
+          "cache_key": "4812e7a0186147d8e9f0a9355ed07b19c0898b40bf5d1e6c4dd3ec5a2b890411",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Ah, Father Cathal's a good man, sure enough, but he Preaches from the chapel while the s\u00eddhe Preach from the hollows, and I'll tell ye this much \u2014 the old herb-lore has seen more sickbeds through than his sermons have. 'Tisn't that I disrespect the Church, mo chara, but when a woman's in labour through the night, 'tis my hands and God's good thyme that bring the child, not warnings of Hell-fire. Let him mind his Mass, and I'll mind my work.",
+          "response_sha256": "f3eba6422f383b74e1d1b4728781fe99b40b5dcc72be92acbad814088d06ee6d",
+          "cache_key": "154270deed987aea6615e35608eb346b816e01b10cd1580c9a33f22c26ae2d9b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__minimax_m2_5"
+      ],
+      "candidate": {
+        "model_id": "minimax-m2.5",
+        "provider_id": null,
+        "resolved_target": "minimax-m2.5@https://opencode.ai/zen/go/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 74.79567790031433,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 15089,
+    "completion_tokens": 2710,
+    "usd": 0.0
+  }
+}
