@@ -105,6 +105,7 @@ mod tests {
     fn test_dialogue_converts() {
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(1),
+            location: LocationId(1),
             summary: "discussed farming".to_string(),
             player_said: None,
             npc_said: None,

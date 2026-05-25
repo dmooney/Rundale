@@ -188,6 +188,7 @@ impl LocationLogManager {
             }
             GameEvent::DialogueOccurred {
                 npc_id,
+                location,
                 summary,
                 player_said,
                 npc_said,
@@ -196,7 +197,9 @@ impl LocationLogManager {
                 let Some(npc) = npc_manager.get(*npc_id) else {
                     return Ok(());
                 };
-                let Some(path) = path_for(npc.location) else {
+                // Route by the event-time location, not the NPC's current
+                // location — the NPC may have moved since publish (#1035).
+                let Some(path) = path_for(*location) else {
                     return Ok(());
                 };
                 let player_line = player_said.as_deref().unwrap_or("").trim();
@@ -315,6 +318,103 @@ impl LocationLogManager {
 
 // ── Profile formatter ───────────────────────────────────────────────────────
 
+/// Strips runtime render placeholders (e.g. `{time}`, `{weather}`) from a
+/// location's description template for use in the stable profile pane.
+///
+/// The template is authored for runtime substitution by
+/// `parish_world::description::render_description`; the profile is a fixed
+/// "vital stats" pane, so current time / weather belong in journal entries,
+/// not here (#1030). Placeholders embedded in a substantive sentence
+/// (e.g. "The {weather} sky stretches over the midlands") are removed
+/// in-place, while sentences that are *only* time/weather filler
+/// (e.g. "It is {time}.") are dropped entirely so no dangling clause or
+/// raw `{token}` survives.
+fn strip_description_placeholders(template: &str) -> String {
+    // Stopwords that don't count as descriptive content when deciding
+    // whether a placeholder-stripped sentence still says anything.
+    const STOPWORDS: &[&str] = &[
+        "the", "and", "is", "are", "was", "were", "its", "his", "her", "outside", "over", "with",
+        "of", "in", "on", "it",
+    ];
+    fn content_words(s: &str) -> usize {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.len() >= 3 && !STOPWORDS.contains(&w.to_lowercase().as_str()))
+            .count()
+    }
+
+    let mut kept: Vec<String> = Vec::new();
+    for sentence in split_sentences(template) {
+        if !sentence.contains('{') {
+            kept.push(sentence.trim().to_string());
+            continue;
+        }
+        let cleaned = clean_sentence(&remove_placeholder_tokens(&sentence));
+        // Keep the sentence only if it still carries real description;
+        // otherwise it was pure time/weather filler — drop it.
+        if content_words(&cleaned) >= 3 {
+            kept.push(cleaned);
+        }
+    }
+    kept.join(" ").trim().to_string()
+}
+
+/// Removes `{token}` placeholders from a string. Any `{...}` run is dropped;
+/// surrounding whitespace is left to [`clean_sentence`] to normalise.
+fn remove_placeholder_tokens(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '{' {
+            for n in chars.by_ref() {
+                if n == '}' {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Collapses repeated spaces and removes spaces left dangling before
+/// sentence punctuation (e.g. "the  sky" → "the sky", "It is ." → "It is.").
+fn clean_sentence(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c == ' ' {
+            if out.ends_with(' ') {
+                continue;
+            }
+        } else if matches!(c, '.' | ',' | '!' | '?' | ';' | ':') && out.ends_with(' ') {
+            out.pop();
+        }
+        out.push(c);
+    }
+    out.trim().to_string()
+}
+
+/// Splits text into sentences, keeping each terminating `.`/`!`/`?`.
+fn split_sentences(text: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        current.push(c);
+        if matches!(c, '.' | '!' | '?') {
+            // Sentence ends when the terminator is followed by whitespace or EOT.
+            if chars.peek().map(|n| n.is_whitespace()).unwrap_or(true) {
+                sentences.push(current.trim().to_string());
+                current.clear();
+            }
+        }
+    }
+    if !current.trim().is_empty() {
+        sentences.push(current.trim().to_string());
+    }
+    sentences
+}
+
 /// Renders the full PROFILE markdown for a location.
 pub fn format_location_profile(
     loc: &LocationData,
@@ -330,7 +430,7 @@ pub fn format_location_profile(
     ));
 
     out.push_str("## Description\n\n");
-    out.push_str(loc.description_template.trim());
+    out.push_str(&strip_description_placeholders(&loc.description_template));
     out.push_str("\n\n");
 
     out.push_str("## Geography\n\n");
@@ -448,6 +548,47 @@ fn slugify(s: &str) -> String {
 mod tests {
     use super::*;
     use chrono::{DateTime, TimeZone, Utc};
+
+    #[test]
+    fn strip_placeholders_removes_tokens_and_filler() {
+        // Standalone time/weather sentences are dropped; embedded
+        // placeholders are removed in place while keeping the sentence.
+        let crossroads = "A quiet crossroads where four narrow roads meet. \
+            A weathered stone wall lines the eastern side, half-hidden by brambles. \
+            The {weather} sky stretches over the flat midlands. It is {time}.";
+        let out = strip_description_placeholders(crossroads);
+        assert!(!out.contains('{'), "raw token survived: {out}");
+        assert!(!out.contains('}'), "raw token survived: {out}");
+        assert!(out.contains("A quiet crossroads where four narrow roads meet."));
+        // Embedded placeholder removed cleanly, sentence retained.
+        assert!(
+            out.contains("The sky stretches over the flat midlands."),
+            "{out}"
+        );
+        // Pure time filler dropped.
+        assert!(!out.contains("It is"), "time filler not dropped: {out}");
+
+        // Placeholder embedded in the primary descriptive sentence must NOT
+        // delete that sentence's content.
+        let church = "A small stone church with a slate roof, its stained-glass \
+            windows catching the {time} light. The sky is {weather}.";
+        let out2 = strip_description_placeholders(church);
+        assert!(!out2.contains('{'), "{out2}");
+        assert!(
+            out2.contains("stained-glass windows catching the light."),
+            "{out2}"
+        );
+        assert!(
+            !out2.contains("The sky is"),
+            "weather filler not dropped: {out2}"
+        );
+
+        // A combined filler sentence collapses away entirely.
+        let pub_desc = "The warm interior of Darcy's Pub. \
+            It is {time} and the weather outside is {weather}.";
+        let out3 = strip_description_placeholders(pub_desc);
+        assert_eq!(out3, "The warm interior of Darcy's Pub.");
+    }
     use parish_npc::Npc;
     use parish_npc::manager::NpcManager;
     use parish_npc::memory::{LongTermMemory, ShortTermMemory};
@@ -650,6 +791,7 @@ mod tests {
 
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(7),
+            location: LocationId(2),
             summary: "discussed weather".into(),
             player_said: Some("Good afternoon, Padraig.".into()),
             npc_said: Some("Ah, God bless ye.".into()),
@@ -674,6 +816,48 @@ mod tests {
             !other_contents.contains("Good afternoon, Padraig."),
             "dialogue leaked to wrong location: {}",
             other_contents,
+        );
+    }
+
+    /// #1035: the subscriber must route a DialogueOccurred to the event's
+    /// own `location`, not the NPC's current location. The async bus can
+    /// deliver the event after a schedule tick has moved the NPC.
+    #[test]
+    fn dialogue_routes_to_event_location_after_npc_moved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        // NPC has already moved to location 1 by the time the event is
+        // consumed, but the dialogue happened at location 2.
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::DialogueOccurred {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            summary: "discussed weather".into(),
+            player_said: Some("Good afternoon, Padraig.".into()),
+            npc_said: Some("Ah, God bless ye.".into()),
+            request_id: None,
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        // Written to the event-time location (2), not the NPC's current one (1).
+        let at_event_loc = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let event_contents = std::fs::read_to_string(&at_event_loc).unwrap();
+        assert!(
+            event_contents.contains("Good afternoon, Padraig."),
+            "dialogue should be at the event location: {}",
+            event_contents,
+        );
+        let at_current_loc = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let current_contents = std::fs::read_to_string(&at_current_loc).unwrap();
+        assert!(
+            !current_contents.contains("Good afternoon, Padraig."),
+            "dialogue must NOT follow the NPC to its current location: {}",
+            current_contents,
         );
     }
 

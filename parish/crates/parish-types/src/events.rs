@@ -32,6 +32,12 @@ pub enum GameEvent {
     DialogueOccurred {
         /// Which NPC spoke.
         npc_id: NpcId,
+        /// Where the dialogue happened, captured at publish time. The
+        /// location-log subscriber routes by this field instead of
+        /// re-resolving the NPC's (possibly newer) current location — the
+        /// bus is async, so a schedule tick can move the NPC between
+        /// publish and consume (#1035).
+        location: LocationId,
         /// Summary of what was said.
         summary: String,
         /// The player's full utterance, if available. Populated by the
@@ -322,6 +328,7 @@ mod tests {
         assert_eq!(
             GameEvent::DialogueOccurred {
                 npc_id: NpcId(1),
+                location: LocationId(1),
                 summary: "hi".into(),
                 player_said: None,
                 npc_said: None,

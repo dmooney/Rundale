@@ -1,0 +1,47 @@
+# F17 / #1025 — Tier 2 dispatch gated on co-located groups (>=2)
+# ==============================================================
+# Tier 2 models GROUP dynamics. tier2_groups() must only return locations
+# with two or more co-located Present Tier-2 NPCs; solo Tier-2 NPCs fall
+# through to Tier 3/4 and must NOT appear as a dispatch group.
+#
+# Observability: /debug tiers now prints a "Tier 2 dispatch groups
+# (>=2 co-located)" section. Cross-check it against /debug npcs (which
+# lists every NPC's location + tier + state) to confirm:
+#   - every dispatch group has count >= 2
+#   - a location holding a single Tier-2 NPC is absent from the group list
+#
+# Tier 2 = BFS distance 1..=2 from the player (engine defaults).
+
+# --- Baseline at the starting location ---
+/status
+/debug clock
+/debug here
+/debug npcs
+/debug tiers
+
+# --- The Crossroads: a hub. Darcy's Pub (Padraig + Niamh) sits one step
+#     away, so it should surface as a 2-NPC Tier 2 dispatch group, while
+#     single-occupant neighbours stay out of the group list. ---
+go to The Crossroads
+/debug here
+/debug npcs
+/debug tiers
+
+# Let the schedule advance and re-sample so transient solo/group splits
+# are captured at more than one game time.
+/wait 30
+/debug npcs
+/debug tiers
+
+# --- Kilteevan Village: the densest hub (many distance 1..=2 neighbours)
+#     — gives a second, independent sample of the gate. ---
+go to Kilteevan Village
+/debug here
+/debug npcs
+/debug tiers
+
+/wait 60
+/debug npcs
+/debug tiers
+
+/status

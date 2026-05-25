@@ -476,7 +476,16 @@ impl NpcManager {
             .collect()
     }
 
-    /// Groups Tier 2 NPCs by their current location.
+    /// Groups co-located Tier 2 NPCs by location, returning only locations
+    /// with two or more members.
+    ///
+    /// Tier 2 models *group* dynamics, so a location holding a single
+    /// Tier 2 NPC is excluded from Tier 2 dispatch: running Tier 2 on a
+    /// solo NPC only produces repetitive filler and wastes an LLM
+    /// round-trip (#1025). The NPC keeps its distance-based `Tier2`
+    /// assignment (it is not reassigned to Tier 3/4) and is picked up by
+    /// Tier 2 again as soon as it shares a location with another Tier 2
+    /// NPC, or by Tier 3/4 once the player moves and its distance grows.
     pub fn tier2_groups(&self) -> HashMap<LocationId, Vec<NpcId>> {
         let mut groups: HashMap<LocationId, Vec<NpcId>> = HashMap::new();
         for (id, tier) in &self.tier_assignments {
@@ -487,6 +496,7 @@ impl NpcManager {
                 groups.entry(npc.location).or_default().push(*id);
             }
         }
+        groups.retain(|_, ids| ids.len() >= 2);
         groups
     }
 
@@ -1300,13 +1310,48 @@ mod tests {
         assert_eq!(groups.get(&LocationId(2)).map(|v| v.len()), Some(2));
     }
 
+    /// #1025: tier2_groups returns only locations with >=2 co-located
+    /// Tier 2 NPCs; a solo Tier 2 NPC's location is gated out. Uses a
+    /// chain graph so the assertion runs without the optional data file.
+    #[test]
+    fn test_tier2_groups_excludes_solo() {
+        use parish_world::WorldState;
+
+        let graph = make_chain_graph(4); // 0 — 1 — 2 — 3 — 4
+        let mut mgr = NpcManager::new();
+        // Player at loc 0. Tier 2 = BFS distance 1..=2 (engine defaults).
+        mgr.add_npc(make_test_npc(1, 1)); // loc 1, dist 1 → Tier2 (group)
+        mgr.add_npc(make_test_npc(2, 1)); // loc 1, dist 1 → Tier2 (group)
+        mgr.add_npc(make_test_npc(3, 2)); // loc 2, dist 2 → Tier2 (solo)
+        mgr.add_npc(make_test_npc(4, 3)); // loc 3, dist 3 → Tier3
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+        mgr.assign_tiers(&world, &[]);
+
+        // Sanity: the solo NPC really is Tier 2, so its exclusion is the gate.
+        assert_eq!(mgr.tier_of(NpcId(3)), Some(CogTier::Tier2));
+
+        let groups = mgr.tier2_groups();
+        // Location 1 holds two co-located Tier 2 NPCs → included with count 2.
+        assert_eq!(groups.get(&LocationId(1)).map(|v| v.len()), Some(2));
+        // Location 2 holds a single Tier 2 NPC → excluded.
+        assert!(!groups.contains_key(&LocationId(2)));
+        // No surviving group has fewer than two members.
+        assert!(groups.values().all(|ids| ids.len() >= 2));
+        assert_eq!(groups.len(), 1);
+    }
+
     #[test]
     fn test_tier2_dispatch_wiring_cycle() {
         use parish_world::WorldState;
 
         let graph = make_chain_graph(4);
         let mut mgr = NpcManager::new();
+        // Two co-located Tier 2 NPCs so tier2_groups yields a >=2 group (#1025).
         mgr.add_npc(make_test_npc(20, 2)); // distance 2 → Tier2
+        mgr.add_npc(make_test_npc(21, 2)); // distance 2 → Tier2
 
         let mut world = WorldState::new();
         world.player_location = LocationId(0);

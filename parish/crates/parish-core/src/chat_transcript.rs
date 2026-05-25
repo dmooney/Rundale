@@ -520,6 +520,7 @@ mod tests {
     fn dialogue_event() -> GameEvent {
         GameEvent::DialogueOccurred {
             npc_id: crate::npc::NpcId(1),
+            location: crate::world::LocationId(1),
             summary: "greeted the player".into(),
             player_said: Some("hello".into()),
             npc_said: Some("Well met.".into()),

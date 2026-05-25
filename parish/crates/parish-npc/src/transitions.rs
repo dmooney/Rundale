@@ -208,6 +208,7 @@ mod tests {
             },
             GameEvent::DialogueOccurred {
                 npc_id: NpcId(1),
+                location: LocationId(1),
                 summary: "discussed the weather".to_string(),
                 player_said: None,
                 npc_said: None,
@@ -305,6 +306,7 @@ mod tests {
     fn test_event_involves_npc_dialogue() {
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(3),
+            location: LocationId(1),
             summary: "test".to_string(),
             player_said: None,
             npc_said: None,

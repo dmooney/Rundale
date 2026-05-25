@@ -1,0 +1,19 @@
+# F25 / #1035 — DialogueOccurred carries an event-time location
+# ==============================================================
+# Regression check: a normal dialogue turn must file the verbatim dialogue
+# under the location where it happened. The harness publishes
+# DialogueOccurred with the event-time location field; the location-log
+# subscriber routes by it. We talk to Padraig at Darcy's Pub, then (after
+# the run) read Darcy's Pub's location log and confirm the lines landed
+# there. The race-specific assertion (NPC moved post-event) is covered by
+# the unit test dialogue_routes_to_event_location_after_npc_moved.
+#
+# Run with Rundale active and PARISH_USER_DATA_DIR pointed at a temp dir so
+# the location logs can be read afterwards.
+
+go to The Crossroads
+go to Darcy's Pub
+/debug here
+/stub Padraig Darcy: A fair morning to ye, and welcome.
+say @Padraig Darcy Good morning, Padraig — a fine day at the pub.
+/status

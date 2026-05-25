@@ -961,6 +961,7 @@ mod tests {
 
         let event = GameEvent::DialogueOccurred {
             npc_id: npc_path_marker,
+            location: crate::world::LocationId(1),
             summary: "discussed weather".into(),
             player_said: Some("Good afternoon, Padraig.".into()),
             npc_said: Some("Ah, God bless ye.".into()),
