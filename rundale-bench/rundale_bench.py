@@ -255,35 +255,55 @@ def _dialogue_aggregate(results: list[dict]) -> dict:
     """Aggregate dialogue axis means over results that carry a judgment.
 
     Shared by the bundled runner (partial: only cache hits) and `ingest`
-    (complete: after subagent results are folded in). Unjudged or errored
-    rows are excluded and surfaced via `judge_failures`.
+    (complete: after subagent results are folded in).
+
+    Three exclusion buckets, surfaced separately so the leaderboard isn't
+    misled:
+      - errors          : candidate HTTP/parse error before judging
+      - judge_failures  : judge rejected the item (rubric mismatch, missing
+                          axes) — distinct from a low score
+      - bench_bugs      : judge ran fine but the response was thinking-token
+                          leak / blank — orchestrator pulled garbage, not a
+                          quality signal. Excluded from the mean instead of
+                          dragging it to the 1.0 floor.
     """
     axes = ("character", "authenticity", "language", "responsiveness", "craft")
     sums = {k: 0.0 for k in axes}
     overall_sum = 0.0
     judged = 0
     nl_flags = 0
+    bench_bugs = 0
     for r in results:
         j = r.get("judgment")
         if not r.get("judged") or not j or not j.get("axes"):
+            continue
+        flags = j.get("flags") or {}
+        if flags.get("bench_bug"):
+            bench_bugs += 1
             continue
         judged += 1
         for k in axes:
             sums[k] += j["axes"].get(k, 0)
         overall_sum += j.get("overall") or 0.0
-        if (j.get("flags") or {}).get("non_latin_detected"):
+        if flags.get("non_latin_detected"):
             nl_flags += 1
     n = max(1, judged)
     summary = {
         "slice": "dialogue",
         "records": len(results),
         "judged": judged,
+        "bench_bugs": bench_bugs,
         "judge_failures": len([r for r in results if not r.get("error") and not r.get("judged")]),
         "errors": len([r for r in results if r.get("error")]),
         "non_latin_rate": nl_flags / n,
         **{k: sums[k] / n for k in axes},
         "overall": overall_sum / n,
     }
+    if judged == 0:
+        # No scoreable items at all — null out the axes so the leaderboard
+        # doesn't publish 0.0 as a real score.
+        for k in (*axes, "overall"):
+            summary[k] = None
     return summary
 
 

@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mimo-v2.5",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T16:54:10.863135+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.1,
+        "authenticity": 4.0,
+        "language": 4.7,
+        "responsiveness": 4.6,
+        "craft": 3.9,
+        "overall": 4.26,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Ah, the mind can be a weary thing at night. A tea of chamomile or mint before bed might ease you, and I've a tincture of valerian root that calms the restlessness. If it's something more troubling ye, we can speak of it, but mayhap a few nights of peaceful rest first?\n---\n{\"action\": \"nods sympathetically, reaches for a small jar on her shelf\", \"mood\": \"sympathetic\", \"internal_thought\": \"The child looks tired. Better to start with the simple remedies before digging into heavier worries.\", \"language_hints\": [{\"word\": \"mayhap\", \"pronunciation\": \"/\u02c8me\u026a.h\u00e6p/\", \"meaning\": \"perhaps\"}]}",
+          "response_sha256": "8ff99b55389a583a6374f734010b4ebef127cee860ddc312346539d2ca9963da",
+          "cache_key": "2f573364ad895fe46f59ad755a5b49c0c5f1fbeb61a071ab2cf0e86055ba9f87",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, ye mean old Mair\u00e9ad? She's lived there nigh on forty years, so she has. Knows more about root and leaf than anyone in this parish \u2014 'twas her taught me the rue for bringing on a labour when the mother's time is overdue.\n---\n{\"action\": \"pauses while sorting dried herbs, glances toward the hills\", \"mood\": \"respectful, thoughtful\", \"internal_thought\": \"Mair\u00e9ad gets a bad name from some folk on account of the fort, but she's never done anyone harm \u2014 only good, if they'd open their eyes to it\", \"language_hints\": [{\"word\": \"Mair\u00e9ad\", \"pronunciation\": \"mah-RAHD\", \"meaning\": \"Margaret (Irish form of the name)\"}]}",
+          "response_sha256": "1305c409f15cdaf3b5b624c9ab793ae2a22c089af0a8599987ae22e416e4949d",
+          "cache_key": "7f134d4885430ab212f56151b531f79d076374fc7c6deeaea916961fdc67e27a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ah, a cough is no small thing this time of year. A tea of thyme will ease her chest right well \u2014 steep it fresh if ye have it in the garden, or dried will do. A spoonful of honey stirred in will soothe the tickle, and keep her warm by the fire till the worst of it passes.\n\n---\n{\"action\": \"nods knowingly, expression softening with concern\", \"mood\": \"sympathetic\", \"internal_thought\": \"A simple cough, thank goodness \u2014 no need to worry the family yet\", \"language_hints\": [{\"word\": \"right well\", \"pronunciation\": \"ryte well\", \"meaning\": \"very well, thoroughly\"}]}",
+          "response_sha256": "345fa552add3dbd55eaea19738de5f0d7d70ef7693d77f9ff9bce466a6ec2ae0",
+          "cache_key": "99de216487b59309ceaa9ab76b921d65fb662a8aba63ad50512ffde237dbd7b7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I heard that much. Father Murphy was asking after 'em at the Mass, said they came on the evening coach. Sure, the priest would know all the news first, wouldn't he?\n---\n{\"action\": \"nods while stirring a pot of herbs\", \"mood\": \"curious but reserved\", \"internal_thought\": \"Best see what Father makes of them before forming an opinion.\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"mwish-eh\", \"meaning\": \"well, indeed\"}]}",
+          "response_sha256": "01812b032aafe56f70c5a1a7c66dcd93d1d1c070b61a2e8e634e8ffa477f1359",
+          "cache_key": "be77d0a9c432a097938ba461e50f0c44371e7af1304135a7141460361c4d0f1a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ye'd best ask the shepherd or old Tom\u00e1s the farmer about that, mo chara. I know midwifery, not the ways of wolves or worse.\n\n---\n{\"action\": \"shakes her head gently, looking concerned but firm\", \"mood\": \"sympathetic but staying in her lane\", \"internal_thought\": \"The poor creature, but this is for the men with the land and the dogs to worry over.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAR-uh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "6ef79c9b4a2098b99b7733405ce843433519e648b9247f947344d75f9ab34493",
+          "cache_key": "235b833514d25764b6abee1ef92cd7a1de757854c3dd7dd5aa69735cc2f2e58c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, I remember that well. A nasty break it was, and your poor mother in a terrible state over it. Sure, the doctor set it proper, but 'twas a long few months for him.\n---\n{\"action\": \"nods, pausing from sorting dried herbs\", \"mood\": \"reminiscent\", \"internal_thought\": \"Poor man hobbled for a while after, but he was fortunate it wasn't worse.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"ay\", \"meaning\": \"yes\"}]}",
+          "response_sha256": "7c3b9e5ad3c242eab425a9a224046cb0085124292219d36640a8c2918c338138",
+          "cache_key": "f7a5d3b47f59ee29befb70582c3110ff23b910d0bcf33a60cc156dcef6b6f2a0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Ah now, lights on the hill at night \u2014 sure, half the parish has a different story for that. Some say it's the s\u00eddhe out walking their mounds, and I'll not tell ye they're wrong. Mayhap it was just a lantern on the road, but best not to go chasing after things on the dark hills regardless.\n---\n{\"action\": \"pauses while sorting dried herbs, glances toward the window\", \"mood\": \"mildly curious, a touch wary\", \"internal_thought\": \"Young ones always asking about the lights. My own mother saw them once near Knockrory and wouldn't speak of it for a week.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairy folk, supernatural beings associated with fairy mounds\"}]}",
+          "response_sha256": "6dfe39cfa9dd795ebb918bb30b04a6ff78a7a3544d00492430b77be5d75c9de2",
+          "cache_key": "9c23e5a23b96d08940b7b7e3c6fd5a20933f25ce8e235f31e795517db5faf4c1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Ah, the well water, is it? Sure, I wouldn't know the first thing about the taste of wells, mo chara. Ye'd best ask the farmer who sees to it, or mayhap the priest has a thought. But if your belly is unsettled, a tea of thyme will ease it right quick.\n\n---\n{\"action\": \"pauses from sorting dried herbs on the table\", \"mood\": \"helpful but cautious\", \"internal_thought\": \"Best not to comment on things I don't know. Could be something, could be nothing.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh khar-uh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "6cd60040c219dfc71715d069dcfbd1f2a5a5d9658dfd537a113b7f73d0130dc6",
+          "cache_key": "e813dcb94edb261747fb90c743bd57597cba28477e2ac3ee27a7bfd4896f9224",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "When the pains come regular, like the ticking of a clock, three miles apart \u2014 that's the time. Ye'll know it when ye feel the need to send for me, mo chara. Have a candle lit and the kettle on the boil.\n\n---\n{\"action\": \"nods steadily, hands resting on her work apron\", \"mood\": \"calm and assured\", \"internal_thought\": \"Another bairn for the Murphys. Sure, I've delivered half the children in this parish.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAH-ruh\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "f35ec0df4a0b19df968017a2f763afabab3e95d7c0178731d605595f3d13ee37",
+          "cache_key": "bb78f5c003e3254de8aaae7a8f4b5d682d8cbd9d24a312d5dad43428f45a1e0e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Ah, well now, Father Cathal is a good man, but sure there's a difference between the piseog and fairy tales and a mother's knowledge of thyme for a cough or raspberry leaf for a weary womb. I'll not be giving up what works, not for any sermon.\n---\n\n{\"action\": \"shifts in her chair, hands busy sorting dried herbs into small bundles\", \"mood\": \"mildly defensive but measured\", \"internal_thought\": \"Easy for him to talk from the pulpit \u2014 he's never held a babe in the breech or brewed valerian for a woman who can't sleep\", \"language_hints\": [{\"word\": \"piseog\", \"pronunciation\": \"PISH-ug\", \"meaning\": \"superstition, old folk belief\"}, {\"word\": \"breech\", \"pronunciation\": \"BREECH\", \"meaning\": \"baby positioned bottom-first in the womb, a difficult delivery\"}]}",
+          "response_sha256": "f4b65bdbebe13936fc18a64dd254826952b8853dfd5a52cc727d4d2b3b9a6e91",
+          "cache_key": "1487aedf00bdddad71b655e4788b93b8f45eb3269d0e9155aa975e94e655f220",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__mimo_v2_5"
+      ],
+      "candidate": {
+        "model_id": "mimo-v2.5",
+        "provider_id": null,
+        "resolved_target": "mimo-v2.5@https://opencode.ai/zen/go/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 59.47639012336731,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 15455,
+    "completion_tokens": 3468,
+    "usd": 0.0
+  }
+}

@@ -1,10 +1,43 @@
 ---
 import Base from '../layouts/Base.astro';
+import SortableTable from '../components/SortableTable.svelte';
 import data from '../data/bench.json';
+import { modelCell, fmt, fmtPct } from '../lib/render';
 const base = import.meta.env.BASE_URL;
 const rows = data.gaeilge ?? [];
 const AXES = ['fluency', 'grammar', 'idiom', 'task_fulfillment', 'english_leakage'];
-const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
+
+const AXIS_ABBR = {
+  fluency: 'Flu',
+  grammar: 'Gram',
+  idiom: 'Idiom',
+  task_fulfillment: 'Task',
+  english_leakage: 'Leak',
+};
+const columns = [
+  { key: 'model_id', header: 'Model' },
+  { key: 'overall', header: 'Overall', num: true },
+  ...AXES.map((a) => ({ key: a, header: AXIS_ABBR[a] ?? a, num: true })),
+  { key: 'english_leakage_flag_rate', header: 'Leak %', num: true },
+  { key: 'records', header: 'n', num: true },
+];
+
+const tableRows = rows.map((r) => ({
+  sort: {
+    model_id: r.model_id,
+    overall: r.overall,
+    ...Object.fromEntries(AXES.map((a) => [a, r[a]])),
+    english_leakage_flag_rate: r.english_leakage_flag_rate ?? 0,
+    records: r.records,
+  },
+  html: {
+    model_id: modelCell(r, base),
+    overall: `<strong>${fmt(r.overall)}</strong>`,
+    ...Object.fromEntries(AXES.map((a) => [a, fmt(r[a])])),
+    english_leakage_flag_rate: fmtPct(r.english_leakage_flag_rate ?? 0),
+    records: typeof r.records === 'number' ? String(r.records) : '—',
+  },
+}));
 ---
 <Base title="Rundale Bench — Gaeilge fluency">
   <h2>Irish (Gaeilge) fluency</h2>
@@ -23,27 +56,6 @@ const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
   {rows.length === 0 ? (
     <div class="empty">No gaeilge runs yet. Run the gaeilge slice and ingest.</div>
   ) : (
-    <table>
-      <thead>
-        <tr>
-          <th>Model</th>
-          <th class="num">Overall</th>
-          {AXES.map((a) => <th class="num">{a}</th>)}
-          <th class="num">leakage %</th>
-          <th class="num">n</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr>
-            <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a> {r.family !== 'unknown' && <span class="badge">{r.family}</span>}</td>
-            <td class="num"><strong>{fmt(r.overall)}</strong></td>
-            {AXES.map((a) => <td class="num">{fmt(r[a])}</td>)}
-            <td class="num">{fmt((r.english_leakage_flag_rate ?? 0) * 100)}%</td>
-            <td class="num">{r.records ?? '—'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <SortableTable client:load columns={columns} rows={tableRows} initialSort={{ key: 'overall', dir: -1 }} />
   )}
 </Base>

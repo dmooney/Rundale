@@ -75,6 +75,18 @@ fi
 
 CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb)$'
 
+# Paths that ship NO runtime behavior and are explicitly exempt per
+# CLAUDE.md / AGENTS.md "non-negotiable engineering rules" (rule 10). A
+# change limited to these prefixes does not require a proof bundle:
+#   - parish/scripts/**  : check-tooling (CLAUDE.md exempt list)
+#   - rundale-bench/**   : bench harness/orchestrator (not a runtime path;
+#                          changes are exercised by running the bench
+#                          itself, not by the engine proof flow)
+#   - bench-site/**      : static Astro site that publishes bench results;
+#                          verified by `pnpm build` not by the engine
+#                          proof flow.
+EXEMPT_PATH_REGEX='(^|/)(parish/scripts/|rundale-bench/|bench-site/)'
+
 # Subset of CODE_REGEX paths that ship runtime behavior. When any changed
 # file is under one of these prefixes, unit-test signals (cargo test /
 # just check / npm run check) are no longer sufficient on their own —
@@ -114,7 +126,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
   )"
 fi
 
-CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$' | sort -u || true)"
+CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$' | sort -u | grep -vE "$EXEMPT_PATH_REGEX" || true)"
 
 # ── Acceptance-criteria detection ─────────────────────────────────────
 # Computed here (before the early no-code-change exit) so proof-only
@@ -412,8 +424,8 @@ ${EXAMPLES}
 Also required (rule 13): write .proofs/<task-id>/acceptance-criteria.md
 BEFORE coding, run the game, capture the transcript, and include
 'Acceptance criteria: met' in judge.md. Use /task-start <task-id>.
-After the bundle is complete, run `just attach-proof <task-id>` to post it
-to the PR — bundles are not committed (`.proofs/` is gitignored).
+After the bundle is complete, run \`just attach-proof <task-id>\` to post it
+to the PR — bundles are not committed (\`.proofs/\` is gitignored).
 
 Then restate in your message what you exercised and what the result was.
 Type-checking and svelte-check are not proof of behavior — they catch
