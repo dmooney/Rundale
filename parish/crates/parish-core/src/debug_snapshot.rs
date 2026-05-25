@@ -722,6 +722,17 @@ fn build_event_bus_debug(
                     activity,
                     ..
                 } => format!("{} @ {}: {}", name_of(*npc_id), loc_of(*location), activity),
+                GameEvent::GossipSpread {
+                    source,
+                    location,
+                    content,
+                    ..
+                } => format!(
+                    "Gossip [{} @ {}]: {}",
+                    name_of(*source),
+                    loc_of(*location),
+                    content
+                ),
                 GameEvent::WeatherChanged { new_weather, .. } => {
                     format!("Weather: {}", new_weather)
                 }

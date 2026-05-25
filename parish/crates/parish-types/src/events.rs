@@ -104,6 +104,26 @@ pub enum GameEvent {
         /// When they departed.
         timestamp: DateTime<Utc>,
     },
+    /// Gossip propagated from a Tier-2 group dialogue.
+    ///
+    /// Fired when `create_gossip_from_tier2_event` would add a new
+    /// rumor to `world.gossip_network` — either because a
+    /// relationship delta exceeded the threshold or because the
+    /// dialogue summary was substantive (> 30 chars). Carries the
+    /// originating NPC, the gossip text, and the location where the
+    /// conversation took place so subscribers (logs, UI hints) can
+    /// render the gossip-spreading moment.
+    GossipSpread {
+        /// NPC who originated the gossip (the first participant of
+        /// the Tier-2 event).
+        source: NpcId,
+        /// Where the originating conversation happened.
+        location: LocationId,
+        /// The dialogue summary that became gossip.
+        content: String,
+        /// When the gossip was minted.
+        timestamp: DateTime<Utc>,
+    },
     /// An NPC's authored schedule activity at a location.
     ///
     /// Distinct from tier-3 LLM-summarised `last_activity`: this carries
@@ -190,6 +210,7 @@ impl GameEvent {
             | GameEvent::NpcArrived { timestamp, .. }
             | GameEvent::NpcDeparted { timestamp, .. }
             | GameEvent::NpcActivity { timestamp, .. }
+            | GameEvent::GossipSpread { timestamp, .. }
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
             | GameEvent::PlayerMoved { timestamp, .. }
@@ -207,6 +228,7 @@ impl GameEvent {
             GameEvent::NpcArrived { .. } => "NpcArrived",
             GameEvent::NpcDeparted { .. } => "NpcDeparted",
             GameEvent::NpcActivity { .. } => "NpcActivity",
+            GameEvent::GossipSpread { .. } => "GossipSpread",
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::PlayerMoved { .. } => "PlayerMoved",

@@ -209,6 +209,25 @@ impl LocationLogManager {
                 let body = format!("*{}*\n", activity);
                 append_journal_entry(&path, ts, Some(&suffix), &body)?;
             }
+            GameEvent::GossipSpread {
+                source,
+                location,
+                content,
+                ..
+            } => {
+                if content.trim().is_empty() {
+                    return Ok(());
+                }
+                let Some(npc) = npc_manager.get(*source) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let suffix = format!("Gossip from {}", npc.name);
+                let body = format!("*{}*\n", content);
+                append_journal_entry(&path, ts, Some(&suffix), &body)?;
+            }
             GameEvent::DialogueOccurred {
                 npc_id,
                 location,
@@ -997,6 +1016,66 @@ mod tests {
         let contents = std::fs::read_to_string(&path).unwrap();
         assert_eq!(contents.matches("Padraig Darcy arrived").count(), 2);
         assert_eq!(contents.matches("Padraig Darcy departed").count(), 1);
+    }
+
+    #[test]
+    fn npc_activity_event_writes_authored_activity_to_location_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::NpcActivity {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            activity: "tending bar".to_string(),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            contents.contains("Padraig Darcy activity"),
+            "location log missing activity heading: {}",
+            contents,
+        );
+        assert!(
+            contents.contains("*tending bar*"),
+            "location log missing activity body: {}",
+            contents,
+        );
+    }
+
+    #[test]
+    fn gossip_spread_event_writes_to_location_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::GossipSpread {
+            source: NpcId(7),
+            location: LocationId(2),
+            content: "the landlord raised the rent again".to_string(),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            contents.contains("Gossip from Padraig Darcy"),
+            "location log missing gossip heading: {}",
+            contents,
+        );
+        assert!(
+            contents.contains("*the landlord raised the rent again*"),
+            "location log missing gossip body: {}",
+            contents,
+        );
     }
 
     #[test]

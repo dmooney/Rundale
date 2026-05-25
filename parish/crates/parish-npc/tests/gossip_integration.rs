@@ -137,12 +137,52 @@ fn trivial_tier2_event_does_not_seed_gossip() {
             delta: 0.05, // below the 0.3 notability threshold
         }],
     };
-    create_gossip_from_tier2_event(&event, &mut network, game_time());
+    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
     assert_eq!(
         network.len(),
         0,
         "trivial events must not seed gossip items"
     );
+    assert!(
+        returned.is_none(),
+        "trivial events must not return a GossipSpread event"
+    );
+}
+
+/// A notable Tier 2 event must return a `GameEvent::GossipSpread` so the
+/// caller can publish it on the world event bus. The payload must reflect
+/// the originating NPC, the conversation location, and the summary that
+/// became gossip.
+#[test]
+fn notable_tier2_event_returns_gossip_spread_event() {
+    use parish_types::events::GameEvent;
+    let mut network = GossipNetwork::new();
+    let alice = NpcId(1);
+    let event = Tier2Event {
+        location: LocationId(7),
+        summary: "Alice confronted the landlord about the rent".to_string(),
+        participants: vec![alice, NpcId(2)],
+        mood_changes: Vec::new(),
+        relationship_changes: vec![RelationshipChange {
+            from: alice,
+            to: NpcId(99),
+            delta: 0.5,
+        }],
+    };
+    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
+    match returned {
+        Some(GameEvent::GossipSpread {
+            source,
+            location,
+            content,
+            ..
+        }) => {
+            assert_eq!(source, alice);
+            assert_eq!(location, LocationId(7));
+            assert_eq!(content, "Alice confronted the landlord about the rent");
+        }
+        other => panic!("expected Some(GossipSpread), got {:?}", other),
+    }
 }
 
 /// Transitive propagation: A → B → C across two separate Tier 2 rounds.
