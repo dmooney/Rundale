@@ -2,13 +2,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
-use parish::config::{
+use parish_engine::config::{
     CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, ProviderConfig,
     resolve_category_configs, resolve_cloud_config, resolve_config,
 };
-use parish::headless;
-use parish::inference::InferenceClients;
-use parish::inference::setup::{self, StdoutProgress};
+use parish_engine::headless;
+use parish_engine::inference::InferenceClients;
+use parish_engine::inference::setup::{self, StdoutProgress};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -136,15 +136,19 @@ fn setup_tracing_and_otel() {
 /// Resolves provider config, cloud config, and per-category configs from CLI.
 struct ResolvedConfigs {
     provider_config: ProviderConfig,
-    cloud_config: Option<parish::config::CloudConfig>,
-    category_configs: std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
+    cloud_config: Option<parish_engine::config::CloudConfig>,
+    category_configs:
+        std::collections::HashMap<InferenceCategory, parish_engine::config::CategoryConfig>,
     clients: InferenceClients,
-    engine_inference: parish::config::InferenceConfig,
+    engine_inference: parish_engine::config::InferenceConfig,
 }
 
 async fn resolve_configs(
     cli: &Cli,
-) -> Result<(ResolvedConfigs, parish::inference::client::RuntimeProcesses)> {
+) -> Result<(
+    ResolvedConfigs,
+    parish_engine::inference::client::RuntimeProcesses,
+)> {
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
@@ -240,7 +244,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(script_path) = &cli.script {
-        return parish::testing::run_script_mode(Path::new(script_path));
+        return parish_engine::testing::run_script_mode(Path::new(script_path));
     }
 
     if let Some(port) = cli.web {
@@ -287,16 +291,16 @@ async fn setup_provider(
     _cli: &Cli,
     config: &ProviderConfig,
 ) -> Result<(
-    parish::inference::AnyClient,
+    parish_engine::inference::AnyClient,
     String,
-    parish::inference::client::RuntimeProcesses,
+    parish_engine::inference::client::RuntimeProcesses,
 )> {
     let progress = StdoutProgress;
     let (client, model, process) = setup::setup_provider_client(
         config,
         &[],
         &[],
-        &parish::config::InferenceConfig::default(),
+        &parish_engine::config::InferenceConfig::default(),
         &progress,
     )
     .await?;
@@ -317,15 +321,18 @@ async fn setup_provider(
 /// per-category env vars) routes Dialogue → Opus, Simulation/Reaction →
 /// Sonnet, Intent → Haiku — even though `category_configs` is empty.
 fn build_inference_clients(
-    base_provider_config: &parish::config::ProviderConfig,
-    base_client: &parish::inference::AnyClient,
+    base_provider_config: &parish_engine::config::ProviderConfig,
+    base_client: &parish_engine::inference::AnyClient,
     base_model: &str,
-    category_configs: &std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
+    category_configs: &std::collections::HashMap<
+        InferenceCategory,
+        parish_engine::config::CategoryConfig,
+    >,
 ) -> InferenceClients {
     let mut overrides = std::collections::HashMap::new();
-    let inference_cfg = parish::config::InferenceConfig::default();
+    let inference_cfg = parish_engine::config::InferenceConfig::default();
     for (category, cfg) in category_configs {
-        let client = parish::inference::build_client(
+        let client = parish_engine::inference::build_client(
             &cfg.provider,
             &cfg.base_url,
             cfg.api_key.as_deref(),

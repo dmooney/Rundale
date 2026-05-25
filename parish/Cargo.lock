@@ -3317,6 +3317,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "opentelemetry",
+ "parish-core",
+ "parish-server",
+ "parish-types",
+ "rand 0.9.4",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
+ "tokio-test",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-appender",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "parish-geo-tool"
 version = "0.1.0"
 dependencies = [
@@ -3443,32 +3469,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "parish-repl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "dotenvy",
- "opentelemetry",
- "parish-core",
- "parish-server",
- "parish-types",
- "rand 0.9.4",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
- "tokio",
- "tokio-test",
- "toml 0.8.2",
- "tracing",
- "tracing-appender",
- "tracing-opentelemetry",
- "tracing-subscriber",
 ]
 
 [[package]]

@@ -133,5 +133,5 @@ echo
 echo "Add a fixture for any flagged gap with /feature-scaffold or by hand:"
 echo "  parish/testing/fixtures/play_<subsystem>.txt"
 echo "and consider adding it to BASELINED_FIXTURES in"
-echo "  parish/crates/parish-cli/tests/eval_baselines.rs"
+echo "  parish/crates/parish-engine/tests/eval_baselines.rs"
 echo "for drift-sensor coverage."

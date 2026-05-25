@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/parish-core",
     "crates/parish-server",
-    "crates/parish-cli",
+    "crates/parish-engine",
     "crates/parish-mcp",
     "crates/parish-tauri",
     "crates/parish-geo-tool",
@@ -18,7 +18,7 @@ members = [
     "crates/parish-input",
     "crates/parish-client",
 ]
-default-members = ["crates/parish-cli"]
+default-members = ["crates/parish-engine"]
 
 # ---------------------------------------------------------------------------
 # Workspace-level version pins (#698)

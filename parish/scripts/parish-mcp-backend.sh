@@ -3,12 +3,12 @@
 #
 # parish-mcp itself is a stateless HTTP client; it needs *something* serving
 # the `/api/*` routes on `127.0.0.1:3030` for tool calls to succeed. The
-# easiest backend in a sandbox is `parish web`, the headless Axum server
+# easiest backend in a sandbox is `parish-engine --web`, the headless Axum server
 # (the desktop `parish-tauri --mcp-port 3030` is the alternative when a
 # display is available).
 #
 # Usage:
-#   bash parish/scripts/parish-mcp-backend.sh start   # spawn parish web in background
+#   bash parish/scripts/parish-mcp-backend.sh start   # spawn parish-engine --web in background
 #   bash parish/scripts/parish-mcp-backend.sh stop    # kill the spawned process
 #   bash parish/scripts/parish-mcp-backend.sh status  # report PID + health
 #   bash parish/scripts/parish-mcp-backend.sh logs    # tail the log file
@@ -34,15 +34,15 @@ cmd_start() {
         return 0
     fi
 
-    echo "Starting parish web --port $PORT in background..."
+    echo "Starting parish-engine --web $PORT in background..."
     # nohup detaches so the server survives the script's exit.
-    # `cargo run --quiet` reuses the cached build if `parish` is already
+    # `cargo run --quiet` reuses the cached build if parish-engine is already
     # compiled (the SessionStart hook pre-builds it).
-    nohup cargo run --quiet -p parish --bin parish -- web --port "$PORT" \
+    nohup cargo run --quiet -p parish-engine -- --web "$PORT" \
         >"$LOG_FILE" 2>&1 &
     echo $! >"$PID_FILE"
 
-    # Wait up to 60s for the health endpoint to come up. parish web has
+    # Wait up to 60s for the health endpoint to come up. parish-engine --web has
     # provider bootstrap that may take a few seconds on first run.
     for _ in $(seq 1 60); do
         if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then

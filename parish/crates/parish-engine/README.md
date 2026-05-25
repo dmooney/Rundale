@@ -1,4 +1,4 @@
-# parish-cli (package: `parish`)
+# parish-engine (package: `parish`)
 
 Headless/terminal entry point and runtime wiring for Parish.
 

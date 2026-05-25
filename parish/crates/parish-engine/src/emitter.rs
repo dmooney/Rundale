@@ -12,7 +12,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use parish::emitter::StdoutEmitter;
+//! use parish_engine::emitter::StdoutEmitter;
 //! use parish_core::ipc::EventEmitter;
 //! use std::sync::Arc;
 //!

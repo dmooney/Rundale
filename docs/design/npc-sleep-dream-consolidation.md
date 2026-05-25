@@ -52,7 +52,7 @@ PR #443 (emotion system) is open, not yet playtested, and touches several of the
 | `crates/parish-npc/src/ticks.rs` | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas | New `run_dream_consolidation` pass; fatigue tick | Medium |
 | `crates/parish-persistence/src/snapshot.rs` | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical |
 | `crates/parish-config/src/engine.rs` | `NpcConfig.emotions_enabled` flag | `NpcConfig.dreams_enabled` flag | Medium |
-| `crates/parish-cli/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion` | `/debug dreams`, `/stub-fatigue`, `/force-dream` | Low — parallel patterns |
+| `crates/parish-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion` | `/debug dreams`, `/stub-fatigue`, `/force-dream` | Low — parallel patterns |
 | `crates/parish-core/prompts/*.prompt.yml` | `npc_tier1` emotion preamble | New `npc_dream_consolidation.prompt.yml` | Low — new file |
 | `crates/parish-npc/src/memory.rs` | (untouched by #443) | Consolidation logic, core-memory marker, decay of old summaries | None |
 | `crates/parish-npc/src/types.rs` | (untouched by #443) | Extend `NpcState` with `Sleeping` variant | None |
@@ -324,7 +324,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 ## Non-negotiable engineering rules (CLAUDE.md)
 
-1. Shared logic (sleep detection, consolidation, fatigue dynamics) goes in `crates/parish-core` / `crates/parish-npc` only. Do not duplicate into `parish-cli`. ✓
+1. Shared logic (sleep detection, consolidation, fatigue dynamics) goes in `crates/parish-core` / `crates/parish-npc` only. Do not duplicate into `parish-engine`. ✓
 2. **Mode parity:** Tauri, headless CLI, web server must all run sleep/dream identically. Thread the flags through all three entry points (same gap #443 had to close in audit items #14 / #28).
 3. **Tests with behaviour changes:** unit tests for sleep entry/exit detection, fatigue clamp, recompaction threshold, core-memory de-dup, snapshot round-trip. Integration test for a full night → consolidation → next-day Tier 1 prompt including consolidation summary.
 4. **Gameplay proof:** `/prove dreams` fixture described above. Unit tests are not sufficient.
@@ -338,7 +338,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 1. `just check` — fmt + clippy + workspace test suite green.
 2. `just verify` — harness walkthrough green.
-3. `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script parish/testing/fixtures/play_prove_dreams.txt` — passes.
+3. `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/fixtures/play_prove_dreams.txt` — passes.
 4. Manual Tauri session: start a new game, play ≥ 1 in-game day, advance through night, open dev-mode NPC debug panel, confirm a consolidation entry is visible with a sensible summary.
 5. Manual regression on #443 coverage (assuming it has landed): `/prove emotions` still passes unchanged; the combined `/debug emotion` + `/debug dreams` shows fatigue biasing emotion decay baseline as designed.
 6. Save a game mid-way through, reload, confirm `consolidations` and `core_memories` survived the round-trip.
@@ -361,7 +361,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 - `crates/parish-npc/src/data.rs` — load any optional sleep/dream tuning from `npcs.json` (e.g. personality-specific sleep needs) if designers want it later; minimal initially.
 - `crates/parish-persistence/src/snapshot.rs` — snapshot fields with `#[serde(default)]`.
 - `crates/parish-config/src/engine.rs` — `sleep_state_enabled`, `dreams_enabled` flags.
-- `crates/parish-cli/src/debug.rs` + `crates/parish-cli/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
+- `crates/parish-engine/src/debug.rs` + `crates/parish-engine/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
 - `crates/parish-core/src/prompts/mod.rs` — register new prompt file via `include_str!` + `LazyLock<PromptFile>`.
 - Tauri + server entry points to thread config flags to NPC tick calls (parity).
 - `docs/design/npc-system.md` — add a "Sleep & Dream Consolidation" cross-link to this doc.

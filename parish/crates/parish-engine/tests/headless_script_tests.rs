@@ -5,16 +5,16 @@
 //! test fixture scripts. Every test verifies actual game state —
 //! not just "no crash".
 
-use parish::testing::{ActionResult, GameTestHarness, ScriptResult};
-use parish::world::graph::WorldGraph;
-use parish::world::time::{Season, TimeOfDay};
+use parish_engine::testing::{ActionResult, GameTestHarness, ScriptResult};
+use parish_engine::world::graph::WorldGraph;
+use parish_engine::world::time::{Season, TimeOfDay};
 use std::path::Path;
 
 /// Helper: load a fixture and return captured results.
 fn fixture(name: &str) -> Vec<ScriptResult> {
     let path = Path::new("../../testing/fixtures").join(name);
     assert!(path.exists(), "Fixture {} must exist", name);
-    parish::testing::run_script_captured(&path).expect("Script should execute without error")
+    parish_engine::testing::run_script_captured(&path).expect("Script should execute without error")
 }
 
 /// Loads the world graph from the canonical fixture path.

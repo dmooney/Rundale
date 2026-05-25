@@ -8,7 +8,7 @@
 //! # Usage in tests
 //!
 //! ```rust,no_run
-//! use parish::testing::{GameTestHarness, ActionResult};
+//! use parish_engine::testing::{GameTestHarness, ActionResult};
 //!
 //! let mut h = GameTestHarness::new();
 //! let result = h.execute("go to crossroads");
@@ -95,7 +95,7 @@ pub enum ActionResult {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use parish::testing::GameTestHarness;
+/// use parish_engine::testing::GameTestHarness;
 ///
 /// let mut h = GameTestHarness::new();
 /// assert_eq!(h.player_location(), "Kilteevan Village");
@@ -263,7 +263,7 @@ impl GameTestHarness {
     /// [`ActionResult::NpcNotAvailable`]. No network or GPU required.
     ///
     /// ```rust,no_run
-    /// use parish::testing::GameTestHarness;
+    /// use parish_engine::testing::GameTestHarness;
     /// let mut h = GameTestHarness::new().with_simulator();
     /// h.execute("go to pub");
     /// h.execute("hello"); // NPC responds with Markov nonsense

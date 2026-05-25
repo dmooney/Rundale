@@ -35,7 +35,7 @@ The inference queue is **one** `InferenceQueue` struct (`crates/parish-inference
 | Background  | 32       | Tier 2 nearby NPC simulation (JSON) |
 | Batch       | 64       | Tier 3 distant NPC batch simulation (JSON) |
 
-Capacities are set at queue construction in each frontend — see `crates/parish-server/src/routes.rs:205-207`, `crates/parish-tauri/src/commands.rs:305-307`, and `crates/parish-cli/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
+Capacities are set at queue construction in each frontend — see `crates/parish-server/src/routes.rs:205-207`, `crates/parish-tauri/src/commands.rs:305-307`, and `crates/parish-engine/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
 
 ### Single-Flight Worker
 

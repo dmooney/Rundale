@@ -32,7 +32,7 @@ the trade-off is explicit.
    │                       │                                 │
    ▼                       ▼                                 ▼
 ┌─────────────┐  ┌──────────────────┐  ┌──────────────────────────────┐
-│ parish-cli  │  │ parish-tauri     │  │ parish-tauri                 │
+│ parish-engine  │  │ parish-tauri     │  │ parish-tauri                 │
 │ (headless)  │  │ desktop          │  │ iOS (new)                    │
 │ Ollama HTTP │  │ Ollama HTTP      │  │ LiteRT-LM + iOS GPU in-proc  │
 └─────────────┘  └──────────────────┘  └──────────────────────────────┘
@@ -139,7 +139,7 @@ Concrete call sites to update (from a repo sweep):
 - `crates/parish-inference/src/lib.rs` — definition of `AnyClient`, `InferenceClients`, `spawn_inference_worker`
 - `crates/parish-tauri/src/lib.rs` — `build_client_from_env` and `build_cloud_client_from_env` (both construct `AnyClient`); setup hook that wires `InferenceClients`
 - `crates/parish-tauri/src/commands.rs` — dynamic `InferenceClients` rebuild path when the user changes provider at runtime
-- `crates/parish-cli/` — any direct `AnyClient` use
+- `crates/parish-engine/` — any direct `AnyClient` use
 - `crates/parish-server/` — any direct `AnyClient` use
 
 The worker's queue / log / streaming machinery does not change — only the
@@ -321,7 +321,7 @@ pub fn ensure_saves_dir(base: &Path) -> PathBuf {
 
 Call-site handling:
 
-- **`parish-cli`** passes `Path::new(".")` — preserves today's relative-`saves/` behaviour.
+- **`parish-engine`** passes `Path::new(".")` — preserves today's relative-`saves/` behaviour.
 - **`parish-tauri` (desktop + iOS)** passes `app_handle.path().app_data_dir()?`. On desktop this resolves to the OS-native app-data directory (XDG on Linux, `Application Support` on macOS, `%APPDATA%` on Windows); on iOS it resolves to the sandboxed Application Support directory. One mechanism, no iOS-only branch.
 - **`parish-server`** passes its existing configured data directory.
 
@@ -355,7 +355,7 @@ size impact.
 - The Ollama auto-installer and GPU probe in `crates/parish-inference/src/setup.rs`
 - The `OllamaProcess` lifecycle wrapper in `crates/parish-inference/src/client.rs`
 - The `AnyClient` enum — replaced by the `InferenceBackend` trait for every mode
-- The Axum web-server mode (`crates/parish-server/`) — not built for iOS. The iOS build only touches `parish-tauri`, `parish-core`, `parish-inference`, `parish-persistence`, so `parish-server` and `parish-cli` are excluded naturally. No Cargo manifest surgery required.
+- The Axum web-server mode (`crates/parish-server/`) — not built for iOS. The iOS build only touches `parish-tauri`, `parish-core`, `parish-inference`, `parish-persistence`, so `parish-server` and `parish-engine` are excluded naturally. No Cargo manifest surgery required.
 - The `--screenshot <dir>` flag parsing in `crates/parish-tauri/src/lib.rs` (a desktop dev affordance)
 
 ## Model Download UX

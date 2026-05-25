@@ -35,7 +35,7 @@
 //!
 //! ## CLI coverage
 //!
-//! The CLI (`parish-cli`) runs the same `parish-core` game loop and exposes
+//! The CLI (`parish-engine`) runs the same `parish-core` game loop and exposes
 //! game commands as slash-commands typed at the prompt rather than as HTTP
 //! routes or Tauri IPC calls.  It is therefore not a third registry to
 //! diff here — its coverage is verified indirectly by the shared `parish-core`

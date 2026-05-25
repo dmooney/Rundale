@@ -152,7 +152,7 @@ is_runtime_path() {
     case "$file" in
         parish/crates/parish-tauri/*|\
         parish/crates/parish-server/*|\
-        parish/crates/parish-cli/*|\
+        parish/crates/parish-engine/*|\
         parish/crates/parish-core/src/game_loop/*|\
         parish/crates/parish-core/src/game_session/*|\
         parish/crates/parish-core/src/ipc/*|\

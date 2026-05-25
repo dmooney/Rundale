@@ -11,9 +11,9 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | Edit a doc that cites a path | Rejects nonexistent paths in any backtick-quoted token | `parish/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`) |
 | Edit `AGENTS.md` | `CLAUDE.md` follows automatically | `CLAUDE.md` is a symlink to `AGENTS.md` |
 | Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate | Test fails citing the rule | `parish/crates/parish-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
-| Create a top-level module under `parish/crates/parish-cli/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate) | `architecture_fitness.rs` → `parish_cli_does_not_duplicate_parish_core_modules` |
+| Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate) | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules` |
 | Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere) | Test fails listing the orphan(s) | `architecture_fitness.rs` → `no_orphaned_source_files` |
-| Change anything that affects gameplay JSON output | Snapshot baseline test fails with a `live | baseline` diff window | `parish/crates/parish-cli/tests/eval_baselines.rs` |
+| Change anything that affects gameplay JSON output | Snapshot baseline test fails with a `live | baseline` diff window | `parish/crates/parish-engine/tests/eval_baselines.rs` |
 | Introduce an out-of-period word in a fixture | Rubric fails | `eval_baselines.rs` → `rubric_anachronisms_are_empty` |
 | Accidentally return `Moved { minutes: 0 }` (frozen clock) | Rubric fails | `eval_baselines.rs` → `rubric_movement_minutes_are_positive` |
 | Silently break the location-description renderer | Rubric fails | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty` |

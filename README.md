@@ -27,9 +27,9 @@ flowchart LR
         Core[("game loop · world · NPCs · inference · save store")]
     end
 
-    Repl["**parish-repl --headless**<br/>stdin/stdout REPL"]
+    Repl["**parish-engine --headless**<br/>stdin/stdout REPL"]
     Tauri["**parish-tauri**<br/>desktop app<br/>(Svelte 5 UI + Tauri IPC)"]
-    Web["**parish-repl --web PORT**<br/>Axum HTTP/WS server"]
+    Web["**parish-engine --web PORT**<br/>Axum HTTP/WS server"]
 
     Browser["Browser<br/>(serves the same Svelte UI)"]
     Client["**parish-client**<br/>thin HTTP shell<br/>(single-shot · script · REPL · JSON)"]
@@ -46,9 +46,9 @@ flowchart LR
 | Binary | Mode | Has engine in-process? | When to use |
 |---|---|---|---|
 | `parish-tauri` | `just run` | yes | Default desktop experience — full GUI. |
-| `parish-repl` | `--headless` (`just run-headless`) | yes | Single-process terminal play; deterministic `--script` runs drive the test harness. |
-| `parish-repl` | `--web PORT` (`just web`) | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions. |
-| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell** | Drive a running `parish-repl --web` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
+| `parish-engine` | `--headless` (`just run-headless`) | yes | Single-process terminal play; deterministic `--script` runs drive the test harness. |
+| `parish-engine` | `--web PORT` (`just web`) | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions. |
+| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell** | Drive a running `parish-engine --web` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
 | `parish-mcp` | MCP server (`bash parish/scripts/parish-mcp-backend.sh start`) | no — bridge | Expose `mcp__parish__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend. |
 
 Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
@@ -139,7 +139,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### Headless / CLI
 
-- **`parish-repl`** — single-process binary with three modes: `--headless` (stdin/stdout REPL), `--web PORT` (Axum server, see above), no flag (Tauri desktop). The engine lives in-process in all three.
+- **`parish-engine`** — single-process binary with three modes: `--headless` (stdin/stdout REPL), `--web PORT` (Axum server, see above), no flag (Tauri desktop). The engine lives in-process in all three.
 - **Plain stdin/stdout REPL** for scripting, fixtures, and headless servers.
 - **Interactive save picker** with the same branch model as the GUI.
 - **ANSI-coloured output** matching the GUI palette (NPC names, system messages, errors).
@@ -148,7 +148,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### Thin HTTP client (`parish-client`)
 
-- **Separate `parish` binary** that talks to a running `parish-repl --web` over HTTP — no engine in-process, no game state owned locally.
+- **Separate `parish` binary** that talks to a running `parish-engine --web` over HTTP — no engine in-process, no game state owned locally.
 - **Four modes:** `parish "<cmd>"` single-shot, `parish --script <file>` for batch fixtures, `parish` no-arg REPL, `parish --json "<cmd>"` for raw `CommandResponse` JSON suitable for piping into `jq` / automation.
 - **Cookie persistence** — the server's `parish_sid` cookie is saved between runs so subsequent invocations resume the same save branch.
 - **Use cases:** CI scripts, agent harnesses, lightweight terminal play against a remote or local server, anything that doesn't want to boot the full engine just to issue a command.

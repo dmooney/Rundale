@@ -4,10 +4,10 @@
 
 Most engine commands should be run from the `parish/` directory:
 
-- Build: `cargo build` (builds the default member, `parish-repl`)
+- Build: `cargo build` (builds the default member, `parish-engine`)
 - Build everything: `cargo build --workspace`
 - Release build: `cargo build --release`
-- Run (headless REPL): `cargo run -p parish-repl` (or `cargo run`, default member)
+- Run (headless REPL): `cargo run -p parish-engine` (or `cargo run`, default member)
 - Run (HTTP client against server): `cargo run -p parish-client`
 - Test all: `cargo test --workspace`
 - Test one: `cargo test <test_name>`
@@ -22,7 +22,7 @@ Scripted gameplay fixtures live in `parish/testing/fixtures/`. Run one with:
 
 ```sh
 # From parish/ directory (local headless runtime — no LLM):
-cargo run -p parish-repl -- --script testing/fixtures/test_walkthrough.txt
+cargo run -p parish-engine -- --script testing/fixtures/test_walkthrough.txt
 
 # Or from root via just:
 just game-test
@@ -55,8 +55,8 @@ just ui-e2e-update
 
 ```sh
 cd parish/apps/ui && npm run build && cd ../../..
-cargo run -p parish-repl -- --web            # default port 3001
-cargo run -p parish-repl -- --web 8080
+cargo run -p parish-engine -- --web            # default port 3001
+cargo run -p parish-engine -- --web 8080
 ```
 
 Then open `http://localhost:3001`.
@@ -87,7 +87,7 @@ just baselines       # regenerate gameplay-output snapshots after intentional ch
 just harness-audit   # cross-reference fixtures, baselines, and roadmap for gaps
 ```
 
-See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-cli/tests/eval_baselines.rs`.
+See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-engine/tests/eval_baselines.rs`.
 
 ## Coverage
 
