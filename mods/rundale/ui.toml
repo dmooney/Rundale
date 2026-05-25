@@ -14,36 +14,26 @@ input_bg = "#f0f0ce"
 border = "#cec293"
 muted = "#76663b"
 
-# Time-of-day keyframes — engine smoothly interpolates between these to
-# produce the live palette. Anchor hours are midpoints of each named slot.
-# Moved here from parish-palette during the rundale-extraction refactor;
-# any base mod can ship its own (omit to fall back to the static palette
-# above, as testbed does for its static blueprint look).
+# Day/night keyframes — engine interpolates linearly between adjacent
+# anchors. Snap transitions: 1-game-minute windows at 05:59→06:00 and
+# 19:59→20:00 give effectively atomic palette swaps at each backend
+# tick. The visible fade duration is governed by the CSS transition
+# in app.css (2s). Day palette mirrors the static [theme.palette]
+# above. Omit this block in a base mod to fall back to that static
+# palette (as testbed does).
 
 [[theme.keyframes]]
-hour = 1.5  # Midnight (23:00–4:59)
-palette = { bg = "#0a0c14", fg = "#9696a5", accent = "#464b64", panel_bg = "#0f121c", input_bg = "#141824", border = "#2d3041", muted = "#646473" }
+hour = 5.9999  # End of night — interpolation window to the next anchor is < 1 game-second
+palette = { bg = "#141928", fg = "#b4b4be", accent = "#646e8c", panel_bg = "#191e30", input_bg = "#1e2337", border = "#3c415a", muted = "#787887" }
 
 [[theme.keyframes]]
-hour = 5.5  # Dawn (5:00–6:59)
-palette = { bg = "#ffdcb4", fg = "#3c2814", accent = "#c88c3c", panel_bg = "#fad7af", input_bg = "#f5d2aa", border = "#c8aa82", muted = "#786446" }
+hour = 6.0  # 06:00 — snap to day
+palette = { bg = "#fafad8", fg = "#31240f", accent = "#b08531", panel_bg = "#f5f5d3", input_bg = "#f0f0ce", border = "#cec293", muted = "#76663b" }
 
 [[theme.keyframes]]
-hour = 8.5  # Morning (7:00–9:59)
-palette = { bg = "#fff5dc", fg = "#32230f", accent = "#b48232", panel_bg = "#faf0d7", input_bg = "#f5ebd2", border = "#d2be96", muted = "#78643c" }
+hour = 19.9999  # End of day — interpolation window to the next anchor is < 1 game-second
+palette = { bg = "#fafad8", fg = "#31240f", accent = "#b08531", panel_bg = "#f5f5d3", input_bg = "#f0f0ce", border = "#cec293", muted = "#76663b" }
 
 [[theme.keyframes]]
-hour = 12.0  # Midday (10:00–13:59)
-palette = { bg = "#fffff0", fg = "#281e0a", accent = "#a07828", panel_bg = "#fafaeb", input_bg = "#f5f5e6", border = "#d2c8aa", muted = "#6e643c" }
-
-[[theme.keyframes]]
-hour = 15.5  # Afternoon (14:00–16:59)
-palette = { bg = "#f0dcaa", fg = "#32230f", accent = "#b48232", panel_bg = "#ebd7a5", input_bg = "#e6d2a0", border = "#c8b482", muted = "#78643c" }
-
-[[theme.keyframes]]
-hour = 18.0  # Dusk (17:00–18:59)
-palette = { bg = "#3c466e", fg = "#dcd2be", accent = "#c8a050", panel_bg = "#374164", input_bg = "#323c5f", border = "#5a648c", muted = "#a0968c" }
-
-[[theme.keyframes]]
-hour = 21.0  # Night (19:00–22:59)
+hour = 20.0  # 20:00 — snap to night
 palette = { bg = "#141928", fg = "#b4b4be", accent = "#646e8c", panel_bg = "#191e30", input_bg = "#1e2337", border = "#3c415a", muted = "#787887" }
