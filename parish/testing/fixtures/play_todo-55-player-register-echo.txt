@@ -1,0 +1,9 @@
+# Live-proof fixture for TODO #55 — player modern-register echo guard.
+#
+# Boots Rundale, walks to The Mill where Cormac/Brendan Duffy live, and
+# issues a line containing the canonical modern-register phrase
+# "taking in the sights" (the exact phrase the demo audit caught
+# Concannon echoing in cycle 12).
+
+go to the mill
+I'm just taking in the sights
