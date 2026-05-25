@@ -95,6 +95,7 @@ mod tests {
         let event = GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "happy".to_string(),
+            location: LocationId(1),
             timestamp: test_time(),
         };
         let journal = to_journal_event(&event).unwrap();
@@ -152,6 +153,7 @@ mod tests {
         let event = GameEvent::LifeEvent {
             npc_id: NpcId(1),
             description: "got married".to_string(),
+            location: LocationId(1),
             timestamp: test_time(),
         };
         assert!(to_journal_event(&event).is_none());
@@ -165,6 +167,7 @@ mod tests {
         bus.publish(GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "happy".to_string(),
+            location: LocationId(1),
             timestamp: test_time(),
         });
         bus.publish(GameEvent::FestivalStarted {

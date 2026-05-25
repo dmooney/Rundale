@@ -72,6 +72,10 @@ pub struct Npc {
     pub occupation: String,
     /// Personality description used in system prompts.
     pub personality: String,
+    /// Pronouns used when narrating this NPC (e.g. `he/him`, `she/her`,
+    /// `they/them`). Defaults to `they/them` for NPCs that don't state them
+    /// (#1026).
+    pub pronouns: String,
     /// Multidimensional intelligence profile shaping dialogue generation.
     pub intelligence: Intelligence,
     /// Current location.
@@ -139,6 +143,7 @@ impl Npc {
                 local history, and tendency to offer unsolicited advice. He speaks with \
                 a thick Roscommon accent and peppers his speech with Irish phrases."
                 .to_string(),
+            pronouns: "he/him".to_string(),
             intelligence: Intelligence::new(3, 3, 4, 4, 5, 4),
             location: LocationId(1),
             mood: "content".to_string(),
@@ -1326,6 +1331,7 @@ mod tests {
                     name: "Brigid Murphy".to_string(),
                     occupation: "Weaver".to_string(),
                     personality: "Steady and observant".to_string(),
+                    pronouns: "she/her".to_string(),
                     intelligence_prose: "Sharp-minded and perceptive.".to_string(),
                     mood: "thoughtful".to_string(),
                     relationship_summary: String::new(),
@@ -1335,6 +1341,7 @@ mod tests {
                     name: "Seamus Fahey".to_string(),
                     occupation: "Blacksmith".to_string(),
                     personality: "Blunt and loyal".to_string(),
+                    pronouns: "he/him".to_string(),
                     intelligence_prose: "Plain-spoken and blunt.".to_string(),
                     mood: "tired".to_string(),
                     relationship_summary: String::new(),
@@ -1566,6 +1573,7 @@ pub(crate) mod test_helpers {
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),

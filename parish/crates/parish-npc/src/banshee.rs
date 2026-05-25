@@ -208,6 +208,7 @@ pub fn tick(
             event_bus.publish(GameEvent::LifeEvent {
                 npc_id: id,
                 description: desc,
+                location: current_location,
                 timestamp: now,
             });
             if recent_events_ring.len() >= RING_BUFFER_CAPACITY {

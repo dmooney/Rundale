@@ -67,6 +67,11 @@ pub struct ClockSnapshot {
     pub paused: bool,
 }
 
+/// Default pronouns for NPCs saved before the `pronouns` field existed.
+fn default_pronouns() -> String {
+    "they/them".to_string()
+}
+
 /// Snapshot of a single NPC's dynamic state.
 ///
 /// Mirrors the fields of [`Npc`] so the struct can be serialized
@@ -86,6 +91,10 @@ pub struct NpcSnapshot {
     pub occupation: String,
     /// Personality description.
     pub personality: String,
+    /// Narration pronouns. Defaults to `they/them` for saves written before
+    /// the field existed (#1026).
+    #[serde(default = "default_pronouns")]
+    pub pronouns: String,
     /// Multidimensional intelligence profile.
     #[serde(default)]
     pub intelligence: Intelligence,
@@ -154,6 +163,7 @@ impl NpcSnapshot {
             age,
             occupation,
             personality,
+            pronouns,
             intelligence,
             location,
             mood,
@@ -180,6 +190,7 @@ impl NpcSnapshot {
             age: *age,
             occupation: occupation.clone(),
             personality: personality.clone(),
+            pronouns: pronouns.clone(),
             intelligence: *intelligence,
             location: *location,
             mood: mood.clone(),
@@ -216,6 +227,7 @@ impl NpcSnapshot {
             age,
             occupation,
             personality,
+            pronouns,
             intelligence,
             location,
             mood,
@@ -241,6 +253,7 @@ impl NpcSnapshot {
             age,
             occupation,
             personality,
+            pronouns,
             intelligence,
             location,
             mood,
@@ -505,6 +518,7 @@ mod tests {
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
@@ -562,6 +576,7 @@ mod tests {
             age: 47,
             occupation: "Midwife".to_string(),
             personality: "Quiet and deliberate, moves with purpose.".to_string(),
+            pronouns: "she/her".to_string(),
             intelligence: Intelligence::new(4, 3, 5, 2, 4, 3),
             location: LocationId(7),
             mood: "melancholy".to_string(),
@@ -610,6 +625,7 @@ mod tests {
             restored.personality,
             "Quiet and deliberate, moves with purpose."
         );
+        assert_eq!(restored.pronouns, "she/her", "pronouns lost on round-trip");
         assert_eq!(restored.location, LocationId(7));
         assert_eq!(restored.mood, "melancholy");
         assert_eq!(restored.home, Some(LocationId(3)));

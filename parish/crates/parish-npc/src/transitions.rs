@@ -204,6 +204,7 @@ mod tests {
             GameEvent::MoodChanged {
                 npc_id: NpcId(1),
                 new_mood: "happy".to_string(),
+                location: LocationId(1),
                 timestamp: test_time(),
             },
             GameEvent::DialogueOccurred {
@@ -231,6 +232,7 @@ mod tests {
         let events = vec![GameEvent::MoodChanged {
             npc_id: NpcId(99), // different NPC
             new_mood: "angry".to_string(),
+            location: LocationId(1),
             timestamp: test_time(),
         }];
 
@@ -344,6 +346,7 @@ mod tests {
         let event = GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "joyful".to_string(),
+            location: LocationId(1),
             timestamp: test_time(),
         };
         let summary = summarize_event_for_npc(NpcId(1), &event);
@@ -369,11 +372,13 @@ mod tests {
             GameEvent::MoodChanged {
                 npc_id: NpcId(1),
                 new_mood: "happy".to_string(),
+                location: LocationId(1),
                 timestamp: test_time(),
             },
             GameEvent::MoodChanged {
                 npc_id: NpcId(2),
                 new_mood: "sad".to_string(),
+                location: LocationId(1),
                 timestamp: test_time(),
             },
             GameEvent::WeatherChanged {
