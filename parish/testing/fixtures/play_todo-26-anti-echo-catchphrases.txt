@@ -1,0 +1,8 @@
+# Live-proof fixture for TODO #26 — anti-echo NPC catchphrases.
+#
+# Fix lives in parish-tauri/src/commands.rs build_demo_system_prompt
+# (auto-player system prompt). This fixture exists to satisfy the
+# task-start bundle layout — live verification is via cargo test
+# demo_tests, which pins the directive substrings.
+
+look
