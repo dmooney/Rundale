@@ -224,18 +224,19 @@ pub fn build_travel_start(
         .and_then(|id| graph.get(*id))
         .map(|data| data.name.clone())
         .unwrap_or_default();
-    let to = path
-        .last()
+    let last = path.last();
+    let to = last
         .and_then(|id| graph.get(*id))
         .map(|data| data.name.clone())
         .unwrap_or_default();
+    let destination = last.map(|id| id.0.to_string()).unwrap_or_default();
 
     super::types::TravelStartPayload {
         from,
         to,
         waypoints,
         duration_minutes: minutes,
-        destination: path.last().map(|id| id.0.to_string()).unwrap_or_default(),
+        destination,
     }
 }
 
