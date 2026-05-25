@@ -37,7 +37,7 @@ export default defineConfig({
 	],
 
 	webServer: {
-		command: `cd ../.. && cargo run -p parish-repl -- --web ${process.env.PARISH_TEST_PORT || 3099}`,
+		command: `cd ../.. && cargo run -p parish-server -- --port ${process.env.PARISH_TEST_PORT || 3099}`,
 		url: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}/api/world-snapshot`,
 		timeout: 120_000, // cargo build can be slow on first run
 		reuseExistingServer: !process.env.CI,
