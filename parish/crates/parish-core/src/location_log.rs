@@ -190,6 +190,25 @@ impl LocationLogManager {
                 let body = format!("*Headed to {}*\n", loc_name(*to));
                 append_journal_entry(&path, ts, Some(&suffix), &body)?;
             }
+            GameEvent::NpcActivity {
+                npc_id,
+                location,
+                activity,
+                ..
+            } => {
+                if activity.trim().is_empty() {
+                    return Ok(());
+                }
+                let Some(npc) = npc_manager.get(*npc_id) else {
+                    return Ok(());
+                };
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let suffix = format!("{} activity", npc.name);
+                let body = format!("*{}*\n", activity);
+                append_journal_entry(&path, ts, Some(&suffix), &body)?;
+            }
             GameEvent::DialogueOccurred {
                 npc_id,
                 location,

@@ -282,6 +282,26 @@ impl CharacterLogManager {
                     )?;
                 }
             }
+            GameEvent::NpcActivity {
+                npc_id,
+                location,
+                activity,
+                ..
+            } => {
+                if activity.trim().is_empty() {
+                    return Ok(());
+                }
+                if let Some(npc) = npc_manager.get(*npc_id) {
+                    let loc = loc_of(*location);
+                    let body = format!("*{}*\n", activity);
+                    append_journal_entry(
+                        &self.npc_log_path(npc),
+                        ts,
+                        Some(&format!("Activity at {}", loc)),
+                        &body,
+                    )?;
+                }
+            }
             GameEvent::PlayerMoved { from, to, .. } => {
                 let to_n = loc_of(*to);
                 let from_n = loc_of(*from);

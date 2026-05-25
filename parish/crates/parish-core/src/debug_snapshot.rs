@@ -710,6 +710,12 @@ fn build_event_bus_debug(
                 GameEvent::NpcDeparted {
                     npc_id, location, ..
                 } => format!("{} departed from {}", name_of(*npc_id), loc_of(*location)),
+                GameEvent::NpcActivity {
+                    npc_id,
+                    location,
+                    activity,
+                    ..
+                } => format!("{} @ {}: {}", name_of(*npc_id), loc_of(*location), activity),
                 GameEvent::WeatherChanged { new_weather, .. } => {
                     format!("Weather: {}", new_weather)
                 }

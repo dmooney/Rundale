@@ -821,6 +821,7 @@ mod tests {
             from: LocationId(2),
             to: LocationId(3),
             arrives_at: chrono::Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(),
+            activity: None,
         };
         mgr.add_npc(npc);
 

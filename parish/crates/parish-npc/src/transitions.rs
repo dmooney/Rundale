@@ -137,6 +137,7 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::MoodChanged { npc_id: id, .. }
         | GameEvent::NpcArrived { npc_id: id, .. }
         | GameEvent::NpcDeparted { npc_id: id, .. }
+        | GameEvent::NpcActivity { npc_id: id, .. }
         | GameEvent::LifeEvent { npc_id: id, .. } => *id == npc_id,
         GameEvent::RelationshipChanged { npc_a, npc_b, .. } => *npc_a == npc_id || *npc_b == npc_id,
         GameEvent::NpcInteraction { participants, .. } => participants.contains(&npc_id),
@@ -175,6 +176,7 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
         GameEvent::NpcDeparted { location, .. } => {
             format!("Left location {}.", location.0)
         }
+        GameEvent::NpcActivity { activity, .. } => activity.clone(),
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
         }
