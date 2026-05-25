@@ -1,0 +1,11 @@
+# Live-proof fixture for TODO #5 / #13 — HH:MM + time-of-day signal.
+#
+# Boots Rundale at 08:00 (Morning), advances the clock by 9 hours 30
+# minutes to 17:30 (Dusk per time_of_day_from_hour buckets 17-18), and
+# looks. The /time output should show "17:30 Dusk"; the eval
+# infrastructure can confirm the dialogue context emits
+# Time of day: Dusk (17:30).
+
+/wait 570
+look
+/time

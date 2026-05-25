@@ -785,12 +785,23 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         season = season,
     );
 
+    // TODO #13: explicit time-of-day cue so the model picks the
+    // right greeting register. NPCs were saying "good morning" at
+    // Dusk because the only time signal in the context was the bare
+    // 17:30 HH:MM — without an English label the model defaulted
+    // to "morning". Spell out the bucket and direct the model to
+    // greet accordingly.
+    let time_of_day_label = time_of_day.to_string();
     format!(
         "Your Location: {loc_name} — {loc_desc}\n\
-        Date and time: {date_time}",
+        Date and time: {date_time}\n\
+        Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.",
         loc_name = world.current_location().name,
         loc_desc = rendered_desc,
         date_time = date_time_str,
+        tod = time_of_day_label,
+        hour = now.hour(),
+        minute = now.minute(),
     )
 }
 
@@ -859,14 +870,31 @@ mod tests {
         let world = WorldState::new();
         let context = build_tier1_context(&world);
         assert!(context.contains("The Crossroads"));
-        // Time of day is conveyed by the clock time (e.g. 08:00), not a separate label
         assert!(context.contains("Spring"));
         assert!(context.contains("1820"));
         assert!(context.contains("Your Location:"));
         assert!(context.contains("Date and time:"));
+        // TODO #13 — explicit time-of-day cue with both the bucket
+        // label and HH:MM so the model picks the right greeting
+        // register (NPCs were saying "good morning" at Dusk because
+        // the only time signal was 17:30 with no English label).
+        assert!(
+            context.contains("Time of day:"),
+            "missing time-of-day greeting cue:\n{context}"
+        );
+        // WorldState::new() starts at 08:00 → TimeOfDay::Morning
+        assert!(
+            context.contains("Time of day: Morning (08:00)"),
+            "time-of-day cue must include both label and HH:MM:\n{context}"
+        );
+        assert!(
+            context.contains("greet and refer to the time of day accordingly"),
+            "missing greeting-register directive:\n{context}"
+        );
         assert!(!context.contains("is here"));
-        // Weather is now embedded in the rendered description, not a standalone line
         assert!(!context.contains("\nWeather:"));
+        // Old "\nTime:" / "\nSeason:" standalone lines must stay absent.
+        // (The new "\nTime of day:" line is allowed — note the space.)
         assert!(!context.contains("\nTime:"));
         assert!(!context.contains("\nSeason:"));
     }

@@ -2143,14 +2143,19 @@ pub async fn get_demo_context(
     let map =
         parish_core::ipc::handlers::build_map_data(&world, state.transport.default_mode(), false);
 
-    use chrono::Datelike;
+    use chrono::{Datelike, Timelike};
     let now = world.clock.now();
+    // TODO #5: include HH:MM alongside the time-of-day word so the
+    // demo auto-player can see clock progression between turns and
+    // pick an appropriate greeting register.
     let game_time = format!(
-        "{}, {} {} {}, {}",
+        "{}, {} {} {}, {:02}:{:02} ({})",
         now.format("%A"),
         now.day(),
         now.format("%B"),
         now.year(),
+        now.hour(),
+        now.minute(),
         world.clock.time_of_day(),
     );
     let season = format!("{}", world.clock.season());
