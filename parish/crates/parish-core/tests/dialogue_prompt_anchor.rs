@@ -109,6 +109,34 @@ fn dialogue_context_forbids_borrowed_name_when_unknown() {
     );
 }
 
+/// TODO #13: assembled context must carry an explicit time-of-day
+/// cue naming both the bucket (Morning/Dusk/Night/...) and HH:MM, so
+/// the model has an unambiguous signal for greeting register. The bug:
+/// NPCs at Dusk were greeting with "good mornin'" because the only
+/// time signal was the bare 17:30 timestamp.
+#[test]
+fn dialogue_context_carries_time_of_day_cue() {
+    let context = build_dialogue_context_with_first_npc(Some("Aiden Carney"), true);
+
+    assert!(
+        context.contains("Time of day:"),
+        "missing Time of day cue:\n{context}"
+    );
+    assert!(
+        context.contains("greet and refer to the time of day accordingly"),
+        "missing greeting-register directive:\n{context}"
+    );
+    // Rundale fresh save loads at 08:00 → Morning bucket.
+    assert!(
+        context.contains("Morning"),
+        "time-of-day label missing:\n{context}"
+    );
+    assert!(
+        context.contains("(08:"),
+        "HH:MM must accompany the cue:\n{context}"
+    );
+}
+
 /// TODO #21: the assembled context must pin the NPC to the player's
 /// current location with a directive forbidding substitution of any
 /// nearby canonical settlement. The bug surfaced at The Mill near
