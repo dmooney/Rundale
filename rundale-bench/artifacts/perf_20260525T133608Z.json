@@ -1,0 +1,149 @@
+{
+  "ran_at_utc": "2026-05-25T13:36:08.006225+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "minimax-m2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1392,
+      "ttft_ms_p90": 4514,
+      "total_ms_median": 5504,
+      "tokens_per_second_median": 43.3,
+      "tokens_per_second_p90": 1845.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=The user asks: \"What's the boiling point of water in Celsius?\" This is a simple "
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 639,
+          "total_ms": 4551,
+          "completion_tokens": 171,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 43.71165644171779,
+          "reply_len": 768,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 3461,
+          "total_ms": 9038,
+          "completion_tokens": 200,
+          "prompt_tokens": 1512,
+          "tokens_per_second": 35.861574323112784,
+          "reply_len": 962,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 5744,
+          "total_ms": 6323,
+          "completion_tokens": 200,
+          "prompt_tokens": 1512,
+          "tokens_per_second": 345.4231433506045,
+          "reply_len": 869,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 4378,
+          "total_ms": 10367,
+          "completion_tokens": 200,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 33.39455668725998,
+          "reply_len": 830,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 976,
+          "total_ms": 7112,
+          "completion_tokens": 200,
+          "prompt_tokens": 1508,
+          "tokens_per_second": 32.59452411994785,
+          "reply_len": 861,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1809,
+          "total_ms": 2054,
+          "completion_tokens": 200,
+          "prompt_tokens": 1509,
+          "tokens_per_second": 816.3265306122449,
+          "reply_len": 922,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 2184,
+          "total_ms": 2202,
+          "completion_tokens": 200,
+          "prompt_tokens": 1509,
+          "tokens_per_second": 11111.111111111111,
+          "reply_len": 989,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 764,
+          "total_ms": 5639,
+          "completion_tokens": 200,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 41.02564102564103,
+          "reply_len": 856,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 701,
+          "total_ms": 5370,
+          "completion_tokens": 200,
+          "prompt_tokens": 1506,
+          "tokens_per_second": 42.83572499464554,
+          "reply_len": 856,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 633,
+          "total_ms": 5070,
+          "completion_tokens": 200,
+          "prompt_tokens": 1509,
+          "tokens_per_second": 45.075501464953796,
+          "reply_len": 872,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 164.26694583892822,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-25T11:37:59.357507+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "kimi-k2.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": null,
+      "ttft_ms_p90": null,
+      "total_ms_median": 6759,
+      "tokens_per_second_median": null,
+      "tokens_per_second_p90": null,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 17368,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 7335,
+          "completion_tokens": 200,
+          "prompt_tokens": 1526,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 6653,
+          "completion_tokens": 200,
+          "prompt_tokens": 1526,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": null,
+          "total_ms": 6934,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 6772,
+          "completion_tokens": 200,
+          "prompt_tokens": 1524,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 6746,
+          "completion_tokens": 200,
+          "prompt_tokens": 1523,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 6437,
+          "completion_tokens": 200,
+          "prompt_tokens": 1523,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": null,
+          "total_ms": 6312,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 6617,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "kimi-k2.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 7285,
+          "completion_tokens": 200,
+          "prompt_tokens": 1525,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 114.71328783035278,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

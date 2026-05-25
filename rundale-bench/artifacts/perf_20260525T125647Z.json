@@ -1,0 +1,151 @@
+{
+  "ran_at_utc": "2026-05-25T12:56:47.039841+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "minimax-m2.7": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 2741,
+      "ttft_ms_p90": 6472,
+      "total_ms_median": 2781,
+      "tokens_per_second_median": 4975.4,
+      "tokens_per_second_p90": 33363.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=The user asks: \"What is the chemical symbol for gold?\" This is a straightforward"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=The user asks: \"Name the first month of the year.\" That's a simple question. The"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1789,
+          "total_ms": 1826,
+          "completion_tokens": 200,
+          "prompt_tokens": 1508,
+          "tokens_per_second": 5405.405405405406,
+          "reply_len": 107,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 12187,
+          "completion_tokens": 200,
+          "prompt_tokens": 109,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1930,
+          "total_ms": 1990,
+          "completion_tokens": 200,
+          "prompt_tokens": 8,
+          "tokens_per_second": 3333.3333333333335,
+          "reply_len": 142,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 2046,
+          "total_ms": 2048,
+          "completion_tokens": 180,
+          "prompt_tokens": 4,
+          "tokens_per_second": 90000.0,
+          "reply_len": 222,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 2713,
+          "total_ms": 2757,
+          "completion_tokens": 200,
+          "prompt_tokens": 6,
+          "tokens_per_second": 4545.454545454546,
+          "reply_len": 176,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 2769,
+          "total_ms": 2806,
+          "completion_tokens": 200,
+          "prompt_tokens": 5,
+          "tokens_per_second": 5405.405405405406,
+          "reply_len": 213,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 1421,
+          "completion_tokens": 200,
+          "prompt_tokens": 5,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 8782,
+          "total_ms": 8804,
+          "completion_tokens": 200,
+          "prompt_tokens": 104,
+          "tokens_per_second": 9090.909090909092,
+          "reply_len": 36,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 5483,
+          "total_ms": 6120,
+          "completion_tokens": 200,
+          "prompt_tokens": 1502,
+          "tokens_per_second": 313.9717425431711,
+          "reply_len": 313,
+          "error": null
+        },
+        {
+          "candidate": "minimax-m2.7",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 5018,
+          "total_ms": 5966,
+          "completion_tokens": 200,
+          "prompt_tokens": 0,
+          "tokens_per_second": 210.9704641350211,
+          "reply_len": 185,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 104.27568006515503,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

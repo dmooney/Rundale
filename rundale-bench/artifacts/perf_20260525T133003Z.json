@@ -1,0 +1,149 @@
+{
+  "ran_at_utc": "2026-05-25T13:30:03.271613+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mimo-v2.5-pro": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 6314,
+      "ttft_ms_p90": 6765,
+      "total_ms_median": 7714,
+      "tokens_per_second_median": 354.6,
+      "tokens_per_second_p90": 1513.5,
+      "json_freeform": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=First, the user asked: \"Name the first month of the year.\" This is a straightfor"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 6925,
+          "total_ms": 7015,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 2222.222222222222,
+          "reply_len": 28,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 7719,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 5987,
+          "total_ms": 6551,
+          "completion_tokens": 200,
+          "prompt_tokens": 1548,
+          "tokens_per_second": 354.6099290780142,
+          "reply_len": 90,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 6202,
+          "total_ms": 8222,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 99.00990099009901,
+          "reply_len": 279,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 6188,
+          "completion_tokens": 200,
+          "prompt_tokens": 1546,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 6314,
+          "total_ms": 6758,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": 450.45045045045043,
+          "reply_len": 69,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 8190,
+          "completion_tokens": 200,
+          "prompt_tokens": 1545,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 6527,
+          "total_ms": 7910,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": 144.61315979754158,
+          "reply_len": 221,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 7709,
+          "completion_tokens": 200,
+          "prompt_tokens": 1544,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "mimo-v2.5-pro",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 8146,
+          "completion_tokens": 200,
+          "prompt_tokens": 1547,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 110.21915984153748,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

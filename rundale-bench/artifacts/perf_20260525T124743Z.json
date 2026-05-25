@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-25T12:47:43.718436+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "deepseek-v4-pro": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 6346,
+      "ttft_ms_p90": 6346,
+      "total_ms_median": 6482,
+      "tokens_per_second_median": 2777.8,
+      "tokens_per_second_p90": 2777.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 7322,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 6134,
+          "completion_tokens": 200,
+          "prompt_tokens": 1613,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 6910,
+          "completion_tokens": 200,
+          "prompt_tokens": 1613,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 6346,
+          "total_ms": 6418,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": 2777.777777777778,
+          "reply_len": 6,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 5927,
+          "completion_tokens": 200,
+          "prompt_tokens": 1611,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 6336,
+          "completion_tokens": 200,
+          "prompt_tokens": 1610,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 6546,
+          "completion_tokens": 200,
+          "prompt_tokens": 1610,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": null,
+          "total_ms": 6870,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 6414,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-pro",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 7795,
+          "completion_tokens": 200,
+          "prompt_tokens": 1612,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 76.3887071609497,
+  "cost": {
+    "usd": 0.0,
+    "calls": 10
+  }
+}
