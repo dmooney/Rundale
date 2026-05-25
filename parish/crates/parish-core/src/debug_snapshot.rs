@@ -533,6 +533,12 @@ pub struct InferenceDebug {
     pub categories: Vec<InferenceCategoryDebug>,
     /// List of provider display names that have an API key configured (or are local).
     pub configured_providers: Vec<String>,
+    /// Cumulative count of Tier 2 JSON parse failures since process start.
+    /// TODO #29 — operator-visible counter so silent off-screen sim drops
+    /// (caught only in WARN logs pre-fix) get a number an operator can
+    /// trend across a demo run. Per-location detail is still available
+    /// via the `parish_npc::ticks=warn` log channel.
+    pub tier2_parse_failures_total: u64,
 }
 
 /// Re-export from parish-inference so callers don't need a separate import.
@@ -1208,6 +1214,7 @@ mod tests {
             call_log: vec![],
             categories: vec![],
             configured_providers: vec![],
+            tier2_parse_failures_total: 0,
         }
     }
 
@@ -1537,6 +1544,7 @@ mod tests {
             call_log: vec![],
             categories: vec![],
             configured_providers: vec![],
+            tier2_parse_failures_total: 0,
         };
         let snapshot = build_debug_snapshot(
             &world,

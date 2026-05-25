@@ -262,6 +262,28 @@ pub(crate) fn is_tier2_json_parse_failure(msg: &str) -> bool {
     msg.contains("Tier 2 JSON parse failed")
 }
 
+/// Cumulative Tier 2 JSON parse failure count since process start
+/// (TODO #29). Surfaced in `parish_core::debug_snapshot::InferenceDebug`
+/// so an operator can trend silent off-screen sim drops across a demo
+/// run. Per-location detail still lives in `parish_npc::ticks` WARN
+/// logs — the counter is a coarse trend signal, not a replacement.
+static TIER2_PARSE_FAILURES_TOTAL: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Returns the cumulative Tier 2 JSON parse failure count since process
+/// start. Used by `build_debug_snapshot` to populate
+/// `InferenceDebug::tier2_parse_failures_total`.
+pub fn tier2_parse_failures_total() -> u64 {
+    TIER2_PARSE_FAILURES_TOTAL.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Records a Tier 2 JSON parse failure. Internal — callers reach
+/// the counter through the WARN log path that already classifies
+/// the error.
+fn record_tier2_parse_failure() {
+    TIER2_PARSE_FAILURES_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Returns true when an inference error string represents a graceful
 /// cancellation (shutdown, `sim_cancel` on player input, demo turn cap)
 /// rather than a real failure. Both Tier 2 and Tier 3 paths construct
@@ -870,6 +892,7 @@ pub async fn run_tier2_for_group(
     // and non-parse errors fall through to the diagnostic block below.
     let msg = last_err.to_string();
     if !is_intentional_cancellation(&msg) && is_tier2_json_parse_failure(&msg) {
+        record_tier2_parse_failure(); // TODO #29
         tracing::debug!(
             "Tier 2 JSON parse failed at {}, retrying once with strict-JSON reminder: {}",
             group.location_name,
@@ -888,6 +911,12 @@ pub async fn run_tier2_for_group(
                 });
             }
             Err(e) => {
+                // Retry also failed — count again if it was another parse
+                // failure (TODO #29). Cancellation between attempts will
+                // fall through to the diagnostic block without counting.
+                if is_tier2_json_parse_failure(&e.to_string()) {
+                    record_tier2_parse_failure();
+                }
                 last_err = e;
             }
         }
