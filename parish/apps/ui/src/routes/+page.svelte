@@ -116,7 +116,7 @@
 			// let the native F11 fullscreen behaviour stand.
 			if (isTauri()) {
 				e.preventDefault();
-				void toggleFullscreen();
+				toggleFullscreen().catch((err) => console.warn('Fullscreen toggle failed:', err));
 			}
 		}
 		if (e.key === 'F12') {
