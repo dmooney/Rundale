@@ -1,0 +1,4 @@
+# F16 / #1118 — location-log dialogue heading names the partner
+# ==============================================================
+# Pure heading change; unit-test-driven verification.
+# This fixture is a placeholder so /task-start conventions hold.
