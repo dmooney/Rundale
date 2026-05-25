@@ -1245,12 +1245,15 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                             &world.event_bus,
                                         );
                                     // Push gossip so it can propagate to other NPCs.
-                                    if summary_clean {
-                                        parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                            event,
-                                            &mut world.gossip_network,
-                                            game_time,
-                                        );
+                                    if summary_clean
+                                        && let Some(gossip_evt) =
+                                            parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                                event,
+                                                &mut world.gossip_network,
+                                                game_time,
+                                            )
+                                    {
+                                        world.event_bus.publish(gossip_evt);
                                     }
                                 }
                                 npc_mgr.record_tier2_tick(game_time);
