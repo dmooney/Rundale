@@ -174,7 +174,15 @@ pub fn render_user_prompt(ctx: &DemoContextSnapshot) -> String {
         parts.push(ctx.location_description.clone());
     }
     parts.push(format!("Date and time: {} | {}", ctx.game_time, ctx.season));
-    parts.push(format!("Weather: {}", ctx.weather));
+    // TODO #15: weather is already carried in `location_description` via the
+    // {weather} placeholder substitution (14 of the 22 Rundale location
+    // templates include it inline). A standalone `Weather: ...` line here
+    // duplicated that signal for those locations and confused the demo
+    // auto-player into "the weather is X. ... the weather is X." parroting.
+    // For the 8 templates that don't carry weather inline, the prompt's
+    // `Date and time:` line still anchors the broader sky/season context,
+    // and the in-game NPC dialogue layer surfaces weather independently
+    // via `ANACHRONISM ALERT` / NPC personality.
 
     if ctx.npcs_here.is_empty() {
         parts.push("NPCs here: none".to_string());
@@ -481,6 +489,33 @@ mod tests {
         assert!(
             ctx.recent_actions.is_empty(),
             "Tauri/server build path must leave recent_actions empty; frontend fills it"
+        );
+    }
+
+    /// TODO #15 — the standalone `Weather: ...` line was removed
+    /// because every Rundale location template that mentions weather
+    /// already substitutes `{weather}` inside its
+    /// `location_description`. Keeping the duplicate line caused the
+    /// demo auto-player to parrot weather adjectives.
+    #[test]
+    fn render_user_prompt_drops_standalone_weather_line() {
+        let ctx = build_demo_context(
+            &world_snapshot(),
+            &[],
+            &map_data(vec![], vec![]),
+            "Wednesday".to_string(),
+            "spring".to_string(),
+            None,
+        );
+        let prompt = render_user_prompt(&ctx);
+        assert!(
+            !prompt.contains("Weather:"),
+            "Weather: line should be absent — templates already carry weather inline:\n{prompt}"
+        );
+        // Date and time line still present.
+        assert!(
+            prompt.contains("Date and time:"),
+            "Date and time: line must remain:\n{prompt}"
         );
     }
 
