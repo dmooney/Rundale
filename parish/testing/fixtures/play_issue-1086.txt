@@ -1,0 +1,17 @@
+# play_issue-1086.txt
+#
+# Placeholder fixture for the issue-1086 task bundle.
+#
+# This task is a Playwright e2e test-infrastructure fix
+# (parish/apps/ui/e2e/smoke.spec.ts), not a gameplay change. There is
+# no parish-engine script that can demonstrate the relevant signal —
+# the bug lives in the test runner's interaction with a cold-start web
+# server.
+#
+# Real verification: run the smoke spec ten times in a loop and
+# confirm 10/10 passes. See .proofs/issue-1086/acceptance-criteria.md
+# for the exact command. The captured loop output is the
+# transcript.txt in the proof bundle.
+#
+# Kept as a non-empty fixture so /task-start conventions hold and so
+# this file shows up in any "what tasks have shipped" sweep.
