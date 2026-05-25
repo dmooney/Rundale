@@ -238,24 +238,32 @@ impl LocationLogManager {
             GameEvent::LifeEvent {
                 npc_id,
                 description,
+                location,
                 ..
             } => {
                 let Some(npc) = npc_manager.get(*npc_id) else {
                     return Ok(());
                 };
-                let Some(path) = path_for(npc.location) else {
+                // Route by the event-time location, not the NPC's current
+                // location — the NPC may have moved since publish (#1077/#1079).
+                let Some(path) = path_for(*location) else {
                     return Ok(());
                 };
                 let body = format!("*{} — {}*\n", npc.name, description);
                 append_journal_entry(&path, ts, Some("Life event"), &body)?;
             }
             GameEvent::MoodChanged {
-                npc_id, new_mood, ..
+                npc_id,
+                new_mood,
+                location,
+                ..
             } => {
                 let Some(npc) = npc_manager.get(*npc_id) else {
                     return Ok(());
                 };
-                let Some(path) = path_for(npc.location) else {
+                // Route by the event-time location, not the NPC's current
+                // location — the NPC may have moved since publish (#1077/#1079).
+                let Some(path) = path_for(*location) else {
                     return Ok(());
                 };
                 let body = format!("*{}: mood shifted to {}*\n", npc.name, new_mood);
@@ -655,6 +663,7 @@ mod tests {
             age: 40,
             occupation: "Publican".to_string(),
             personality: "Warm-hearted".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: Intelligence::new(3, 3, 3, 3, 3, 3),
             location: loc,
             mood: "content".to_string(),
@@ -857,6 +866,74 @@ mod tests {
         assert!(
             !current_contents.contains("Good afternoon, Padraig."),
             "dialogue must NOT follow the NPC to its current location: {}",
+            current_contents,
+        );
+    }
+
+    #[test]
+    fn mood_routes_to_event_location_after_npc_moved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        // NPC is now at location 1, but the mood shift happened at location 2.
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::MoodChanged {
+            npc_id: NpcId(7),
+            new_mood: "merry".into(),
+            location: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let at_event_loc = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let event_contents = std::fs::read_to_string(&at_event_loc).unwrap();
+        assert!(
+            event_contents.contains("mood shifted to merry"),
+            "mood entry should be at the event location: {}",
+            event_contents,
+        );
+        let at_current_loc = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let current_contents = std::fs::read_to_string(&at_current_loc).unwrap();
+        assert!(
+            !current_contents.contains("mood shifted to merry"),
+            "mood entry must NOT follow the NPC to its current location: {}",
+            current_contents,
+        );
+    }
+
+    #[test]
+    fn life_event_routes_to_event_location_after_npc_moved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        // NPC is now at location 1, but the life event happened at location 2.
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::LifeEvent {
+            npc_id: NpcId(7),
+            description: "fell gravely ill".into(),
+            location: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let at_event_loc = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let event_contents = std::fs::read_to_string(&at_event_loc).unwrap();
+        assert!(
+            event_contents.contains("fell gravely ill"),
+            "life event should be at the event location: {}",
+            event_contents,
+        );
+        let at_current_loc = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let current_contents = std::fs::read_to_string(&at_current_loc).unwrap();
+        assert!(
+            !current_contents.contains("fell gravely ill"),
+            "life event must NOT follow the NPC to its current location: {}",
             current_contents,
         );
     }

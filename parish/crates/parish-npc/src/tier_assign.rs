@@ -373,6 +373,7 @@ mod tests {
         let events = vec![GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "excited".to_string(),
+            location: LocationId(1),
             timestamp: world.clock.now(),
         }];
 

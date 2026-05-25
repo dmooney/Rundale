@@ -356,16 +356,19 @@ fn apply_illness(
     if let Some(npc) = npcs.get_mut(npc_id) {
         npc.is_ill = true;
         npc.mood = "unwell".to_string();
+        let location = npc.location;
         let desc = format!("{} has fallen ill.", npc.name);
         life_descs.push(desc.clone());
         events.push(GameEvent::LifeEvent {
             npc_id: *npc_id,
             description: desc,
+            location,
             timestamp,
         });
         events.push(GameEvent::MoodChanged {
             npc_id: *npc_id,
             new_mood: "unwell".to_string(),
+            location,
             timestamp,
         });
     }
@@ -382,16 +385,19 @@ fn apply_recovery(
     if let Some(npc) = npcs.get_mut(npc_id) {
         npc.is_ill = false;
         npc.mood = "content".to_string();
+        let location = npc.location;
         let desc = format!("{} has recovered from illness.", npc.name);
         life_descs.push(desc.clone());
         events.push(GameEvent::LifeEvent {
             npc_id: *npc_id,
             description: desc,
+            location,
             timestamp,
         });
         events.push(GameEvent::MoodChanged {
             npc_id: *npc_id,
             new_mood: "content".to_string(),
+            location,
             timestamp,
         });
     }
@@ -411,11 +417,13 @@ fn apply_death(
             let doom = timestamp + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
             npc.doom = Some(doom);
             npc.banshee_heralded = false;
+            let location = npc.location;
             let desc = format!("{} is fated to die.", npc.name);
             life_descs.push(desc.clone());
             events.push(GameEvent::LifeEvent {
                 npc_id: *npc_id,
                 description: desc,
+                location,
                 timestamp,
             });
         }
@@ -425,6 +433,7 @@ fn apply_death(
         events.push(GameEvent::LifeEvent {
             npc_id: *npc_id,
             description: desc,
+            location: npc.location,
             timestamp,
         });
     }
@@ -444,6 +453,7 @@ fn apply_birth(
     let Some(parent_b) = npcs.get(&parent_ids.1) else {
         return events;
     };
+    let location = parent_a.location;
     let desc = format!(
         "A child has been born to {} and {}.",
         parent_a.name, parent_b.name
@@ -452,6 +462,7 @@ fn apply_birth(
     events.push(GameEvent::LifeEvent {
         npc_id: parent_ids.0,
         description: desc,
+        location,
         timestamp,
     });
     events
@@ -466,11 +477,13 @@ fn apply_seasonal_shift(
 ) -> Vec<GameEvent> {
     let mut events = Vec::new();
     if let Some(npc) = npcs.get(npc_id) {
+        let location = npc.location;
         let desc = format!("{}: {}", npc.name, new_schedule_desc);
         life_descs.push(desc.clone());
         events.push(GameEvent::LifeEvent {
             npc_id: *npc_id,
             description: desc,
+            location,
             timestamp,
         });
     }
@@ -487,6 +500,12 @@ fn apply_trade(
     let mut events = Vec::new();
     let buyer_name = npcs.get(buyer).map(|n| n.name.clone()).unwrap_or_default();
     let seller_name = npcs.get(seller).map(|n| n.name.clone()).unwrap_or_default();
+    // Anchor the trade entry at the buyer's location (fall back to the
+    // seller's) — captured before any further mutation (#1077/#1079).
+    let trade_location = npcs
+        .get(buyer)
+        .or_else(|| npcs.get(seller))
+        .map(|n| n.location);
     if let Some(b) = npcs.get_mut(buyer)
         && let Some(rel) = b.relationships.get_mut(seller)
     {
@@ -499,11 +518,14 @@ fn apply_trade(
     }
     let desc = format!("{buyer_name} completed a trade with {seller_name}.");
     life_descs.push(desc.clone());
-    events.push(GameEvent::LifeEvent {
-        npc_id: *buyer,
-        description: desc,
-        timestamp,
-    });
+    if let Some(location) = trade_location {
+        events.push(GameEvent::LifeEvent {
+            npc_id: *buyer,
+            description: desc,
+            location,
+            timestamp,
+        });
+    }
     events.push(GameEvent::RelationshipChanged {
         npc_a: *buyer,
         npc_b: *seller,
@@ -615,6 +637,7 @@ mod tests {
             age,
             occupation: occupation.to_string(),
             personality: "friendly".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: Intelligence::default(),
             location: LocationId(1),
             mood: "content".to_string(),

@@ -2528,6 +2528,7 @@ mod tests {
             age: 40,
             occupation: "Farmer".to_string(),
             personality: "Quiet".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: parish_core::npc::types::Intelligence::default(),
             location: LocationId(6),
             mood: "calm".to_string(),

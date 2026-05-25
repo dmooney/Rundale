@@ -7,6 +7,7 @@
             "age": 58,
             "occupation": "Publican",
             "personality": "A gruff but warm-hearted publican who has run Darcy's Pub for thirty years. Known for his dry wit, encyclopedic knowledge of local history, and tendency to offer unsolicited advice. He speaks with a thick Roscommon accent and peppers his speech with Irish phrases. Fiercely protective of his daughter Niamh, though he struggles to understand her restlessness.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 3,
@@ -210,6 +211,7 @@
             "age": 45,
             "occupation": "Farmer",
             "personality": "A practical, no-nonsense farmer who runs Murphy's Farm with quiet efficiency after her husband's passing three years ago. Respected for her hard work and fair dealing. She has little patience for gossip or idle talk, but shows unexpected tenderness with children and animals. Speaks plainly and directly.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 3,
@@ -498,6 +500,7 @@
             "age": 62,
             "occupation": "Parish Priest",
             "personality": "A kind, thoughtful priest who has served the parish for twenty-five years. Educated at Maynooth, he walks the line between Church doctrine and the practical realities of his flock's lives. Known for his gentle sermons, his fondness for poetry, and his habit of quoting scripture in both Irish and Latin. He turns a diplomatic blind eye to hedge-school teaching and old customs.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 5,
                 "analytical": 4,
@@ -721,6 +724,7 @@
             "age": 38,
             "occupation": "Shopkeeper",
             "personality": "An ambitious and sharp-minded shopkeeper who runs Connolly's Shop with her mother. She dreams of expanding the business and establishing a proper trading post. Roisin has a talent for negotiation, a keen eye for opportunity, and a warm smile that masks a calculating mind. She collects news and gossip as currency.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 4,
                 "analytical": 5,
@@ -984,6 +988,7 @@
             "age": 70,
             "occupation": "Retired Farmer",
             "personality": "A legendary storyteller and the oldest man in the parish. Tommy has farmed O'Brien's land his whole life, now largely leaving the work to his sons. He holds the oral history of the parish in his memory — every ghost story, fairy tale, and family scandal. His mind is sharp even as his body slows. He speaks in long, winding stories that always have a point, eventually.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 5,
                 "analytical": 2,
@@ -1191,6 +1196,7 @@
             "age": 29,
             "occupation": "Hedge School Teacher",
             "personality": "An idealistic young teacher who runs the hedge school with fierce dedication. Educated by her father (a schoolmaster before her), she teaches reading, writing, arithmetic, and Irish to the children of the parish — all technically illegal under the Penal Laws. She is passionate about preserving Irish language and culture, brave to the point of recklessness, and carries a quiet anger about the injustices she sees.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 5,
                 "analytical": 4,
@@ -1398,6 +1404,7 @@
             "age": 65,
             "occupation": "Retired Constable",
             "personality": "A retired constable who served in the local barracks for thirty years. Mick walks a careful line — he was a Catholic man enforcing Protestant law, and not everyone has forgiven him for it. He is deeply observant, notices everything, and keeps his own counsel. Despite his past role, he is fundamentally decent and now spends his days watching, walking, and occasionally offering cryptic warnings to those he trusts.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 4,
@@ -1599,6 +1606,7 @@
             "age": 22,
             "occupation": "Publican's Daughter",
             "personality": "Padraig's daughter, restless and bright, torn between duty to her father and a longing for the wider world. She helps at the pub but dreams of Dublin, or even America. She reads everything she can get her hands on, asks too many questions, and chafes at the limitations of parish life. Beneath her frustration is a deep love for the land and its people that she has not yet recognised in herself.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 4,
                 "analytical": 3,
@@ -1804,6 +1812,7 @@
             "age": 42,
             "occupation": "Blacksmith",
             "personality": "A powerfully built blacksmith who keeps the forge at the crossroads. Sociable and good-natured, he hears every bit of news in the parish — everyone brings their horses, tools, and gossip to the forge. Speaks with a booming laugh and a ready opinion on everything. Married to Maire, Aoife Brennan's older sister, and proud of his son Colm who is learning the trade. A steady man, respected for his strength and fairness.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 3,
@@ -1958,6 +1967,7 @@
             "age": 39,
             "occupation": "Blacksmith's Wife",
             "personality": "Aoife Brennan's older sister, Maire is warm, practical, and fiercely protective of her family. She manages the household and the forge's accounts, handles customers when Seamus is at the anvil, and keeps a neat garden behind the forge. Worries constantly about her younger sister Aoife's dangerous work at the hedge school. A talented cook and a shrewd judge of character.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 4,
@@ -2112,6 +2122,7 @@
             "age": 15,
             "occupation": "Blacksmith's Apprentice",
             "personality": "An eager, energetic lad learning the blacksmith's trade from his father. Colm is friendly to everyone and runs errands across the parish, making him a familiar face at every door. Best friends with Liam Murphy. He is proud of his growing strength at the anvil but still has much to learn. Curious about everything, a little reckless, and always hungry.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 2,
@@ -2272,6 +2283,7 @@
             "age": 50,
             "occupation": "Miller",
             "personality": "The prosperous miller who controls the only mill in the parish. Cormac is shrewd, cunning with weights and measures, and always looking to turn a profit. He is polite to your face but hard in his dealings. Fond of quoting proverbs to justify his prices. Deeply ambitious for his son Brendan and disapproves of the boy's interest in Niamh Darcy — he has grander plans. Devout on Sundays, sharp on Mondays.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 5,
@@ -2421,6 +2433,7 @@
             "age": 46,
             "occupation": "Miller's Wife",
             "personality": "A devout, anxious woman who lives in her husband's shadow. Nora is kind but nervous, always worried about something — the weather, the harvest, her son's future, the state of her soul. She bakes the best brown bread in the parish and is generous with neighbours in need, despite Cormac's grumbling. Deeply religious, she visits the holy well regularly and lights candles at St. Brigid's for every concern.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 2,
@@ -2575,6 +2588,7 @@
             "age": 19,
             "occupation": "Miller's Son",
             "personality": "A quiet, strong young man who works the mill with his father. Brendan is dutiful but restless — he does what is asked but dreams of more than grinding grain. He is sweet on Niamh Darcy and finds excuses to visit the pub, much to his father's annoyance. Honest and hardworking, but lacks his father's cunning. His mother dotes on him. He speaks little but means what he says.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 3,
@@ -2723,6 +2737,7 @@
             "age": 35,
             "occupation": "Boatman",
             "personality": "A quiet, careful man who makes his living fishing Lough Ree and ferrying goods across the water. Eamon knows every island, current, and hidden cove on the lake. He supplements his income by smuggling poitín and occasionally other goods across the lake by night — a secret he guards fiercely. Loyal to his wife Kathleen and young son Ciaran, he would do anything for them. Speaks little but watches everything.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 3,
@@ -2919,6 +2934,7 @@
             "age": 30,
             "occupation": "Fisherman's Wife",
             "personality": "A practical, warm-hearted young woman who keeps the boatman's cottage together. Kathleen worries about Eamon's smuggling but knows the fishing alone won't feed them. She has a lovely singing voice and knows dozens of old songs. Devoted to young Ciaran and fiercely protective. She grew up in Curraghboy and still visits her family there when she can. Stronger than she looks.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 2,
@@ -3061,6 +3077,7 @@
             "age": 8,
             "occupation": "Child",
             "personality": "A curious, adventurous child who is always exploring — the shore, the bog, the fields. He collects interesting stones and feathers and knows where every bird nests within a mile of the cottage. He is his father's shadow when allowed, and dreams of being a boatman on the great lake. Shy with strangers at first but warms up quickly. Speaks a mix of Irish and English.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 2,
@@ -3192,6 +3209,7 @@
             "age": 16,
             "occupation": "Farm Boy",
             "personality": "Siobhan Murphy's son, a quiet, hardworking lad who has taken on much of the heavy farm work since his father died three years ago. Liam is good with animals and has a gentle way with the cattle and horses. He misses his father terribly but does not speak of it. Best friends with Colm Gallagher, the two are inseparable when chores allow. He attends the hedge school when he can, though the farm comes first.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 2,
                 "analytical": 2,
@@ -3352,6 +3370,7 @@
             "age": 56,
             "occupation": "Midwife",
             "personality": "The parish bean feasa — a healer, midwife, and keeper of old knowledge. Brigid has delivered half the children in the parish and laid out many of the dead. She knows herbs, poultices, charms, and prayers for every ailment. Unmarried and independent, she walks the line between Christian devotion and the older traditions. Fr. Tierney respects her but wishes she would leave the charms alone. She speaks with quiet authority and misses nothing.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 3,
@@ -3506,6 +3525,7 @@
             "age": 48,
             "occupation": "Weaver",
             "personality": "A talented weaver who produces the finest cloth in the parish from her cottage loom. Una is a widow whose husband died at sea ten years ago. She keeps the old patterns — diamond twills and herringbones that have been woven in Roscommon for centuries. A quiet woman with a deep knowledge of old songs, stories, and traditions. She and Aoife Brennan share a passion for preserving Irish culture. Her cottage is a gathering place for women who come to spin, weave, and talk.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 2,
@@ -3654,6 +3674,7 @@
             "age": 26,
             "occupation": "Labourer",
             "personality": "A landless cottier — one of the poorest men in the parish. Sean Ruadh (Red Sean, for his hair) works as a seasonal labourer on whichever farm will have him. He is strong, quick-tempered, and deeply angry about the injustice of the land system. He has Whiteboy sympathies and attends secret meetings. He despises the land agent's clerk Martin Concannon and everything he represents. Beneath the anger is a sharp mind and a fierce loyalty to the poor. He drinks too much.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 3,
                 "analytical": 3,
@@ -3849,6 +3870,7 @@
             "age": 67,
             "occupation": "Widow",
             "personality": "The parish gossip — though she would say she is merely well-informed. Peig has a fierce tongue and a sharp wit that can cut a man down to size in three words. Widowed twenty years, her children have all emigrated to America and England, and she lives alone in a cottage in the village. Despite her sharp exterior she is kind underneath, always the first to bring food to the sick and sit with the dying. She and Tommy O'Brien trade stories and memories of the old days.",
+            "pronouns": "she/her",
             "intelligence": {
                 "verbal": 5,
                 "analytical": 3,
@@ -4004,6 +4026,7 @@
             "age": 33,
             "occupation": "Land Agent's Clerk",
             "personality": "The local representative of the absentee landlord — polite, educated, and thoroughly distrusted. Martin collects rents, records debts, and delivers the landlord's decrees. He is a Protestant in a Catholic parish, which sets him further apart. Beneath his professional manner he is not unkind, but his position forces him to enforce decisions that hurt people he knows. He reads widely, speaks carefully, and drinks alone. He knows he is hated and has learned to live with it.",
+            "pronouns": "he/him",
             "intelligence": {
                 "verbal": 4,
                 "analytical": 5,

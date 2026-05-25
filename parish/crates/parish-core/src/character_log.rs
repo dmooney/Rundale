@@ -776,6 +776,7 @@ mod tests {
             age: 40,
             occupation: "Publican".to_string(),
             personality: "Warm-hearted".to_string(),
+            pronouns: "they/them".to_string(),
             intelligence: Intelligence::new(3, 3, 3, 3, 3, 3),
             location: LocationId(1),
             mood: "content".to_string(),

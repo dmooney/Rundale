@@ -44,6 +44,11 @@ pub struct NpcFileEntry {
     pub age: u8,
     pub occupation: String,
     pub personality: String,
+    /// Pronouns for narration (e.g. `he/him`, `she/her`, `they/them`).
+    /// Defaults to `they/them` when absent so narration never mis-genders
+    /// an NPC whose pronouns are stated (#1026).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pronouns: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intelligence: Option<IntelligenceFileEntry>,
     pub home: u32,
@@ -232,6 +237,10 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 age: entry.age,
                 occupation: entry.occupation.clone(),
                 personality: entry.personality.clone(),
+                pronouns: entry
+                    .pronouns
+                    .clone()
+                    .unwrap_or_else(|| "they/them".to_string()),
                 intelligence: entry
                     .intelligence
                     .as_ref()
@@ -460,6 +469,31 @@ mod tests {
         assert_eq!(npcs[0].home, Some(LocationId(1)));
         assert!(npcs[0].workplace.is_none());
         assert!(npcs[0].relationships.is_empty());
+        // #1026: an NPC with no `pronouns` field defaults to they/them.
+        assert_eq!(npcs[0].pronouns, "they/them");
+    }
+
+    #[test]
+    fn test_pronouns_field_parsed() {
+        let json = r#"{
+            "npcs": [{
+                "id": 42,
+                "name": "Aoife Brennan",
+                "age": 26,
+                "occupation": "Hedge School Teacher",
+                "personality": "Bright",
+                "pronouns": "she/her",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "schedule": [
+                    {"start_hour": 0, "end_hour": 23, "location": 1, "activity": "teaching"}
+                ],
+                "relationships": []
+            }]
+        }"#;
+        let npcs = load_npcs_from_str(json).unwrap();
+        assert_eq!(npcs[0].pronouns, "she/her");
     }
 
     #[test]
