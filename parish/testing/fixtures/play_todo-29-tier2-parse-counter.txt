@@ -1,0 +1,8 @@
+# Live-proof fixture for TODO #29 — Tier 2 parse-failures counter.
+#
+# Pure observability addition. The counter only increments on actual
+# Tier 2 JSON parse failures during demo runs (requires an LLM
+# provider). This fixture confirms the engine boots cleanly under
+# the new InferenceDebug shape.
+
+look

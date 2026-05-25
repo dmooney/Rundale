@@ -290,6 +290,7 @@ pub async fn get_debug_snapshot(
         call_log: raw_call_log.clone(),
         categories,
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+        tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };
     let linked = global.identity_store.get_account(&session_id.0);
     let auth = AuthDebug {

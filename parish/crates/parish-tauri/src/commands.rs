@@ -199,6 +199,7 @@ pub async fn get_debug_snapshot(
         call_log,
         categories: parish_core::debug_snapshot::build_inference_categories(&config),
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+        tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };
 
     Ok(debug_snapshot::build_debug_snapshot(
