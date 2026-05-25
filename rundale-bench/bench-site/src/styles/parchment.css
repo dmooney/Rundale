@@ -104,3 +104,39 @@ code {
   table { display: block; max-width: 100%; overflow-x: auto; }
   th, td { padding: 0.4rem 0.5rem; }
 }
+
+/* Brand glyph rendered to the left of model names — set globally so
+ * tables built via SortableTable (which streams pre-rendered HTML in)
+ * pick up the spacing regardless of which page mounts them. */
+.brand-icon, .brand-fallback {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 0.4em;
+  flex-shrink: 0;
+}
+.brand-fallback {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { background: var(--color-input-bg); }
+
+/* Wide sortable tables get horizontal scroll within their wrapper.
+ * `table { width: 100% }` above shrinks columns to fit; override here
+ * so each column claims natural width and the wrapper scrolls when
+ * the sum exceeds the main column. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { width: max-content; min-width: 100%; }
+.table-scroll td.num, .table-scroll th.num { white-space: nowrap; }
