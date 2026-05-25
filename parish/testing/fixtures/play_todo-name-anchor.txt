@@ -1,0 +1,17 @@
+# Live-proof fixture for TODO #11/#24/#35 — NPC name anchor
+#
+# Boots Rundale, walks to the Mill, introduces the player to the present
+# NPC, then issues a follow-up line. After this run, grep the dialogue
+# system prompt (either via inference-log JSONL or DEBUG-level trace)
+# for the new anchor strings:
+#
+#   - "Refer to {player} by that name only"
+#   - "Speak only to the people listed above" (or solo-NPC equivalent)
+#
+# The script harness does not call out to a real LLM, but the prompt
+# builder runs and its output is observable via tracing.
+
+go to the mill
+look
+hello, I'm Aiden Carney
+how does the mill work?
