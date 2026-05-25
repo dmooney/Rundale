@@ -261,7 +261,8 @@ impl LocationLogManager {
                 if !npc_line.is_empty() {
                     body.push_str(&format!("**{}:** {}\n", npc.name, npc_line));
                 }
-                append_journal_entry(&path, ts, Some("Dialogue"), &body)?;
+                let heading = format!("Dialogue with {}", npc.name);
+                append_journal_entry(&path, ts, Some(&heading), &body)?;
             }
             GameEvent::WeatherChanged { new_weather, .. } => {
                 // Weather is world-wide — every location experiences the
@@ -865,7 +866,11 @@ mod tests {
 
         let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
         let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(contents.contains("Dialogue"), "{}", contents);
+        assert!(
+            contents.contains("Dialogue with Padraig Darcy"),
+            "dialogue heading should name the partner: {}",
+            contents,
+        );
         assert!(
             contents.contains("Good afternoon, Padraig."),
             "{}",
