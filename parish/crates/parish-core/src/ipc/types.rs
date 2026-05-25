@@ -259,8 +259,16 @@ pub struct TravelWaypoint {
 /// Payload for `travel-start` events, emitted when the player begins moving.
 ///
 /// The frontend uses this to animate a moving dot along the path on the map.
+/// The `from` / `to` location names are also consumed by the synchronous
+/// `/api/command` drain to populate the response's `travel` field.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TravelStartPayload {
+    /// Origin location name (player's location before the move).
+    #[serde(default)]
+    pub from: String,
+    /// Destination location name.
+    #[serde(default)]
+    pub to: String,
     /// Ordered waypoints from origin to destination (including both endpoints).
     pub waypoints: Vec<TravelWaypoint>,
     /// Total travel duration in game minutes.

@@ -1,0 +1,17 @@
+# Verification fixture for demo-run-fixes.
+#
+# Drives the synchronous /api/command path to expose the one engine-side
+# bug that survived triage:
+#
+#   C3 — travel.from / travel.to populated on kind=moved.
+#
+# C1 + C2 (Tauri tokio panic, default-mod selection) are validated
+# against `.demo-run.log` from a separate `just demo MAX_TURNS=3`
+# invocation, not from this CLI script.
+#
+# Three initially-suspected bugs (state-bundle rewind across non-moved
+# kinds, empty world.text_log, real_name leak) were ruled out — see
+# acceptance-criteria.md "Initially suspected, then ruled out".
+
+# Move to a new location. Travel detail must include from/to (C3).
+go to the holy well
