@@ -57,6 +57,7 @@ pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
         | GameEvent::LifeEvent { .. }
         | GameEvent::NpcArrived { .. }
         | GameEvent::NpcDeparted { .. }
+        | GameEvent::NpcActivity { .. }
         | GameEvent::PlayerMoved { .. }
         | GameEvent::NpcInteraction { .. } => None,
     }

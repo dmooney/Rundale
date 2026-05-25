@@ -104,6 +104,22 @@ pub enum GameEvent {
         /// When they departed.
         timestamp: DateTime<Utc>,
     },
+    /// An NPC's authored schedule activity at a location.
+    ///
+    /// Distinct from tier-3 LLM-summarised `last_activity`: this carries
+    /// the authored `ScheduleEntry::activity` text (e.g. "tending bar",
+    /// "praying", "cuaird visiting") fired deterministically when the
+    /// NPC arrives at the location for that schedule window.
+    NpcActivity {
+        /// Which NPC.
+        npc_id: NpcId,
+        /// Where they are.
+        location: LocationId,
+        /// Authored activity text from the NPC's schedule.
+        activity: String,
+        /// When the activity began.
+        timestamp: DateTime<Utc>,
+    },
     /// The weather changed.
     WeatherChanged {
         /// The new weather description.
@@ -173,6 +189,7 @@ impl GameEvent {
             | GameEvent::RelationshipChanged { timestamp, .. }
             | GameEvent::NpcArrived { timestamp, .. }
             | GameEvent::NpcDeparted { timestamp, .. }
+            | GameEvent::NpcActivity { timestamp, .. }
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
             | GameEvent::PlayerMoved { timestamp, .. }
@@ -189,6 +206,7 @@ impl GameEvent {
             GameEvent::RelationshipChanged { .. } => "RelationshipChanged",
             GameEvent::NpcArrived { .. } => "NpcArrived",
             GameEvent::NpcDeparted { .. } => "NpcDeparted",
+            GameEvent::NpcActivity { .. } => "NpcActivity",
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::PlayerMoved { .. } => "PlayerMoved",

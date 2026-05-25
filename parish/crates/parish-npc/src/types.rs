@@ -506,6 +506,17 @@ pub enum NpcState {
         to: LocationId,
         /// Game time when they will arrive.
         arrives_at: DateTime<Utc>,
+        /// Authored `ScheduleEntry::activity` text resolved at the
+        /// moment of departure. Captured here so the activity
+        /// published on arrival reflects the schedule entry that
+        /// triggered the move — independent of any subsequent
+        /// schedule-window boundary the NPC may cross while in
+        /// transit. `None` when the trip was rerouted away from the
+        /// scheduled `entry.location` (cuaird visit, weather
+        /// shelter) — in that case the authored activity does not
+        /// match the destination and is suppressed.
+        #[serde(default)]
+        activity: Option<String>,
     },
 }
 
@@ -776,6 +787,7 @@ mod tests {
             from: LocationId(1),
             to: LocationId(2),
             arrives_at: arrives,
+            activity: None,
         };
         match state {
             NpcState::InTransit { from, to, .. } => {
