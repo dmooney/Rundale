@@ -2,7 +2,11 @@
 
 ## Open
 
-*(none)*
+| ID | Category | Severity | Location | Description |
+|----|----------|----------|----------|-------------|
+| TD-015 | Complexity | P2 | `src/provider.rs:1-2473` | Largest file in the crate. It combines provider schema, builtin/mod registry, alias normalization, environment/config resolution, preset/model logic, cloud config resolution, and ~1,500 lines of tests. Split provider schema/registry, config resolution, presets, aliases, and tests before adding more providers. |
+| TD-016 | Complexity | P2 | `src/engine.rs:1-1531` | Engine config keeps all config structs, defaults, resolution, and tests in one module. Split by config domain (`session`, `npc`, `inference`, `map`, `palette`, `world`) to reduce merge conflicts and make defaults easier to audit. |
+| TD-017 | Test Hygiene | P3 | `src/provider.rs:997-1005` | Provider tests include a helper that mutates `current_dir()`. It restores on drop, but cwd mutation is process-global and brittle under parallel tests. Prefer explicit path inputs or a serial test guard for any future cwd-dependent provider discovery tests. |
 
 ## In Progress
 
@@ -34,6 +38,7 @@
 ## Progress log
 
 - 2026-05-11 — Closed TD-009 through TD-014. All open items in parish-config TODO are now resolved. `cargo clippy -p parish-config` clean; `cargo test -p parish-config` 109 passed.
+- 2026-05-25 — Refreshed the debt scan against current source. Reopened TD-015 through TD-017 for provider/engine file-size hotspots and cwd-mutating test hygiene.
 
 ## Discovery scan (2026-05-07)
 

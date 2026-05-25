@@ -2,7 +2,11 @@
 
 ## Open
 
-*(none — all items resolved in 2026-05-11 sweep)*
+| ID | Category | Severity | Location | Description |
+|----|----------|----------|----------|-------------|
+| TD-021 | Complexity | P2 | `src/extract.rs:1-954` | Largest library file. It combines Overpass element filtering, tag classification, road/path extraction, geometry conversion, crossroads detection, and tests. Split into classifier, geometry extraction, crossroads, and test-fixture modules before adding more OSM feature handling. |
+| TD-022 | Complexity | P2 | `src/bin/realign_rundale_coords.rs:1-863` | The realignment binary carries CLI parsing, graph resolution, baseline delta inference, relative-position solving, override parsing, output rewriting, and tests in one file. Extract reusable realignment logic into the library so the bin stays a thin CLI wrapper. |
+| TD-023 | API Robustness | P3 | `src/connections.rs:165` | `connect_nearby` compares against `best.unwrap()` inside a conditional. It is currently guarded by `best.is_none() ||`, but the unwrap makes the invariant easy to break during future edits. Replace with `match best`/`Option::is_none_or` style in a small cleanup. |
 
 ## In Progress
 
@@ -36,3 +40,4 @@
 ## Progress Log
 
 - **2026-05-11**: Resolved TD-012 through TD-020. All fixes behavior-safe; 22 new tests added. `cargo test -p parish-geo-tool` passes (113 tests). `cargo clippy -p parish-geo-tool --all-targets` clean.
+- **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-021 through TD-023 for current layout hotspots and a small brittle conditional.
