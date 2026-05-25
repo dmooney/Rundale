@@ -99,6 +99,8 @@ pub enum GameEvent {
         npc_id: NpcId,
         /// Where they departed from.
         location: LocationId,
+        /// Where they are heading.
+        to: LocationId,
         /// When they departed.
         timestamp: DateTime<Utc>,
     },
@@ -380,6 +382,7 @@ mod tests {
         let event = GameEvent::NpcDeparted {
             npc_id: NpcId(3),
             location: LocationId(7),
+            to: LocationId(8),
             timestamp: test_timestamp(),
         };
         let json = serde_json::to_string(&event).unwrap();

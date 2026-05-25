@@ -1,0 +1,26 @@
+# F3 / #1091 — NPC departure log body must include destination
+# ============================================================
+# Before the fix the per-character log for any departing NPC reads:
+#   ### <ts> — Departed from <loc>
+# with an empty body. After the fix the body line is:
+#   *Headed to <to_name>*
+#
+# We can't trigger a Tier-1 transit directly from the player, but the
+# Rundale schedule fires several scheduled departures every in-game
+# hour. `/wait 90` straddles a full schedule tick, so by the second
+# /debug clock at least one NPC has departed and the markdown log
+# file should contain a `*Headed to ...*` body line.
+#
+# Observability: the harness writes NPC logs to the configured user
+# data dir. The proof step (outside this fixture) reads those files
+# and `grep -A1 'Departed from'` confirms the body.
+
+/status
+/debug clock
+/debug npcs
+
+/wait 90
+
+/status
+/debug clock
+/debug npcs
