@@ -209,6 +209,18 @@ def call_chat(
             body["reasoning_effort"] = "none"
         elif mid.startswith(("deepseek-v4-", "mimo-v2")):
             body["reasoning_effort"] = "low"
+            # DeepSeek-v4-flash/pro emit their answer in `content` ONLY after
+            # exhausting a chain-of-thought that is reported separately in
+            # `reasoning_content`. At dialogue's max_tokens=200 the budget
+            # runs out mid-thinking, leaving content="" — the judge then
+            # ends up scoring raw thinking ("We need to respond as Brigid…").
+            # Probed 2026-05-25: v4-flash reliably emits content at ~500,
+            # v4-pro is non-deterministic at 2000 and only reliably emits
+            # at 3000+. Bump to 3000 for both so dialogue / reaction /
+            # gaeilge / sim all have headroom. Cost stays trivial
+            # (<$0.01 per slice at $0.14/$0.28 per M).
+            if mid.startswith("deepseek-v4-") and (max_tokens is None or max_tokens < 3000):
+                body["max_tokens"] = 3000
         # minimax: deliberately omit reasoning_effort.
     elif reasoning is not None:
         body["reasoning"] = reasoning
@@ -271,17 +283,26 @@ def call_chat(
     try:
         msg = data["choices"][0]["message"]
         text = msg.get("content") or ""
-        # Reasoning-class models (kimi-k2.6, kimi-k2-thinking, glm-4.7, etc.)
-        # sometimes return content="" with the actual answer in `reasoning`
-        # (OpenRouter convention) or `reasoning_content` (DeepSeek / GLM /
-        # opencode-go convention). This happens when max_tokens is consumed
-        # by reasoning before content is emitted. Fall back rather than fail.
+        # Reasoning fallback:
+        # - OpenRouter exposes a `reasoning` field that, for some models,
+        #   holds the actual answer when `content` is empty (kimi-k2-thinking
+        #   via OR is the canonical case). Fall back to it.
+        # - opencode-go reports chain-of-thought in `reasoning_content` —
+        #   that's the *thinking*, not the answer. Falling back would feed
+        #   raw "We need to respond as Brigid…" to the judge, scoring 1.0.
+        #   So skip it on this gateway; let an empty reply stay empty so
+        #   the failure mode is visible. (We bump deepseek-v4-* max_tokens
+        #   to 2000 above so the reply phase has headroom in the first
+        #   place.)
         if not text.strip():
-            for field in ("reasoning_content", "reasoning"):
-                trace = msg.get(field) or ""
-                if trace.strip():
-                    text = trace
-                    break
+            if is_opencode_go:
+                pass
+            else:
+                for field in ("reasoning_content", "reasoning"):
+                    trace = msg.get(field) or ""
+                    if trace.strip():
+                        text = trace
+                        break
         # Some providers emit the thinking trace inline in content, wrapped
         # in <think>…</think>. Strip so the judge scores the actual reply.
         # The `</think>|$` alternation also handles truncated traces where
