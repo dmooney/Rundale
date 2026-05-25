@@ -15,7 +15,36 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
 
     // Movement patterns — multi-word phrases checked first (longest match wins),
     // then single-verb prefixes. Covers common, colloquial, and unusual verbs.
+    //
+    // First-person movement intents (TODO #41/#46/#53) MUST appear in this
+    // list so they match before the generic first-person narrative guard
+    // below classifies them as `Talk`. The auto-player in the demo audit
+    // produced lines like "I'll make for the Crossroads then" 9 turns in
+    // a row that vanished into Talk-no-NPC because none of these were
+    // registered as move prefixes.
     let move_phrases = [
+        // First-person movement intents — longest first.
+        "i'll be making for ",
+        "i'll be makin' for ",
+        "i'll be heading to ",
+        "i'll be walking to ",
+        "i'll be on me way to ",
+        "i'll be on my way to ",
+        "i'll be off to ",
+        "i'll make my way to ",
+        "i'll head over to ",
+        "i'll head to ",
+        "i'll make for ",
+        "i'll venture to ",
+        "i'll wander to ",
+        "i'll stroll to ",
+        "i'll walk to ",
+        "i'll go to ",
+        "i'm off to ",
+        "i'm headed to ",
+        "i'm heading to ",
+        "off i go to ",
+        // Generic multi-word movement phrases.
         "make my way to ",
         "make my way ",
         "head over to ",
@@ -459,6 +488,83 @@ mod tests {
         assert_eq!(intent.intent, IntentKind::Move);
         assert_eq!(intent.target, Some("crossroads".to_string()));
     }
+    /// TODO #41/#46/#53: first-person + movement-verb phrasings the
+    /// demo auto-player produced repeatedly that the parser silently
+    /// dropped because the first-person guard caught them first.
+    #[test]
+    fn test_local_parse_first_person_movement_intents() {
+        let cases = [
+            ("I'll make for the Crossroads", "the Crossroads"),
+            ("I'll be making for the Hedge School", "the Hedge School"),
+            ("I'll venture to the Letter Office", "the Letter Office"),
+            ("I'll head to the pub", "the pub"),
+            ("I'll go to the mill", "the mill"),
+            ("I'll walk to the church", "the church"),
+            ("I'll wander to the crossroads", "the crossroads"),
+            ("I'll stroll to the green", "the green"),
+            ("I'll make my way to the shop", "the shop"),
+            ("I'll head over to the Letter Office", "the Letter Office"),
+            ("I'll be on me way to the Crossroads", "the Crossroads"),
+            ("I'll be on my way to the Crossroads", "the Crossroads"),
+            ("I'll be off to the pub", "the pub"),
+            ("I'll be heading to the mill", "the mill"),
+            ("I'll be walking to the well", "the well"),
+            ("I'm off to the Letter Office", "the Letter Office"),
+            ("I'm heading to the green", "the green"),
+            ("Off I go to the Letter Office", "the Letter Office"),
+        ];
+        for (input, target) in cases {
+            let intent =
+                parse_intent_local(input).unwrap_or_else(|| panic!("no intent parsed: {input}"));
+            assert_eq!(
+                intent.intent,
+                IntentKind::Move,
+                "{input} must parse as Move (got {:?}): {intent:?}",
+                intent.intent
+            );
+            assert_eq!(
+                intent.target.as_deref(),
+                Some(target),
+                "{input} target mismatch"
+            );
+        }
+    }
+
+    /// TODO #41 guard: ensure the first-person narrative cases that
+    /// must STAY Talk are unaffected by the new movement patterns.
+    /// Without a movement verb, "I" / "I'm" / "I've" stay narrative.
+    #[test]
+    fn test_local_parse_first_person_narrative_still_talk_after_anchor_add() {
+        let cases = [
+            "I came from the coast",
+            "I was at the shore yesterday",
+            "I'm not from around here",
+            "I've been to the pub before",
+        ];
+        for input in cases {
+            let intent =
+                parse_intent_local(input).unwrap_or_else(|| panic!("no intent parsed: {input}"));
+            assert_eq!(
+                intent.intent,
+                IntentKind::Talk,
+                "{input} must stay Talk: got {intent:?}"
+            );
+        }
+    }
+
+    /// TODO #41 case-insensitivity guard for the new first-person move
+    /// patterns.
+    #[test]
+    fn test_local_parse_first_person_movement_case_insensitive() {
+        let intent = parse_intent_local("I'LL MAKE FOR THE CROSSROADS").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target.as_deref(), Some("THE CROSSROADS"));
+
+        let intent = parse_intent_local("Off I Go To The Mill").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target.as_deref(), Some("The Mill"));
+    }
+
     #[test]
     fn test_local_parse_bare_unusual_verbs_no_target() {
         // Bare verbs without a target should not match
