@@ -119,6 +119,7 @@ run:
 # Run the game in LLM demo / auto-player mode (Tauri desktop GUI).
 # Optional args: PAUSE=seconds between turns (default 2), MAX_TURNS=limit (default unlimited).
 # Uses mods/rundale/demo-prompt.txt as the extra prompt.
+# MCP bridge listens on $PARISH_MCP_PORT (default 3030) so `mcp__parish__*` tools work during the demo.
 demo PAUSE="2" MAX_TURNS="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -130,10 +131,11 @@ demo PAUSE="2" MAX_TURNS="":
         if [ "$PORT" -gt 5200 ]; then echo "No free port found in range 5173-5200" >&2; exit 1; fi
     done
     export PARISH_DEV_PORT=$PORT
+    MCP_PORT="${PARISH_MCP_PORT:-3030}"
     PROMPT_FILE="{{justfile_directory()}}/../mods/rundale/demo-prompt.txt"
-    DEMO_ARGS="--demo --demo-prompt $PROMPT_FILE --demo-pause {{PAUSE}}"
+    DEMO_ARGS="--demo --demo-prompt $PROMPT_FILE --demo-pause {{PAUSE}} --mcp-port $MCP_PORT"
     if [ -n "{{MAX_TURNS}}" ]; then DEMO_ARGS="$DEMO_ARGS --demo-max-turns {{MAX_TURNS}}"; fi
-    echo "Demo mode: pause={{PAUSE}}s, max_turns=${MAX_TURNS:-unlimited}, prompt=$PROMPT_FILE"
+    echo "Demo mode: pause={{PAUSE}}s, max_turns=${MAX_TURNS:-unlimited}, mcp_port=$MCP_PORT, prompt=$PROMPT_FILE"
     if [ "$PORT" -eq 5173 ]; then
         cargo tauri dev -- -- $DEMO_ARGS
     else

@@ -63,6 +63,12 @@ parish/dist/vllm-mlx-bundle.tar.zst.sha256
 parish/.parish-mcp-backend.log
 parish/.parish-mcp-backend.pid
 
+# Demo auto-player log (created by `just demo`).
+parish/.demo-run.log
+
+# Per-session runtime lock written by Claude Code's scheduled-tasks system.
+.claude/scheduled_tasks.lock
+
 # Optional bundled tile directory consumed by TileCache.bundled_dir fallback.
 # Empty in tree — populate locally if/when a tile bundle becomes available.
 mods/rundale/tiles/
