@@ -316,7 +316,7 @@ and resolve that base in `parish-tauri` via `tauri::Manager::path().app_data_dir
 pub fn ensure_saves_dir(base: &Path) -> PathBuf {
     let saves_dir = base.join(SAVES_DIR);
     std::fs::create_dir_all(&saves_dir).ok();
-    // ... legacy migration stays here, but walks relative to `base`
+    // (elided) legacy migration stays here, but walks relative to `base`
     saves_dir
 }
 ```
