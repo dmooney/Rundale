@@ -43,9 +43,12 @@ test.describe('Parish Web UI', () => {
 		await input.fill('look');
 		await input.press('Enter');
 
-		// Chat panel should update with player input echo and system response
+		// Chat panel should update with player input echo and system response.
+		// Timeout is 30 s, not 5 s, because the chat panel only updates after
+		// the backend's first round-trip — which on a cold-start CI runner
+		// can exceed 5 s when the inference worker hasn't warmed up (#1086).
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText('look', { timeout: 5_000 });
+		await expect(chatPanel).toContainText('look', { timeout: 30_000 });
 	});
 
 	test('player can move to a location', async ({ page }) => {
@@ -56,9 +59,11 @@ test.describe('Parish Web UI', () => {
 		await input.fill('go to church');
 		await input.press('Enter');
 
-		// Should see travel narration or "not found" message in the chat
+		// Should see travel narration or "not found" message in the chat.
+		// Timeout is 30 s for the same cold-start reason as the sibling
+		// 'player can type a command' test above (#1086).
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText(/church|faintest notion/i, { timeout: 5_000 });
+		await expect(chatPanel).toContainText(/church|faintest notion/i, { timeout: 30_000 });
 	});
 
 	test('API endpoints return valid JSON', async ({ request }) => {
