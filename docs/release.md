@@ -135,6 +135,11 @@ release lands, or `mcp__github__get_release_by_tag` with `v0.2.0`.
   list + PR titles since the previous tag) cover this for now.
 - **Bundle icons are derived from `parish/crates/parish-tauri/icons/icon.png`.**
   That file must be ≥1024×1024 for the macOS/Windows bundlers to generate
-  `.icns` / `.ico` correctly. If you replace it, regenerate platform icons
-  with `cargo tauri icon parish/crates/parish-tauri/icons/icon.png` before
-  tagging.
+  `.icns` / `.ico` correctly. If you replace it, regenerate the platform
+  icons from the `parish/crates/parish-tauri/` directory (so `cargo tauri`
+  finds `tauri.conf.json`) and commit the generated assets before tagging:
+
+  ```sh
+  cd parish/crates/parish-tauri
+  cargo tauri icon icons/icon.png
+  ```
