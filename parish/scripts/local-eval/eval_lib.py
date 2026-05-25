@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -87,6 +88,21 @@ REASONING_MODEL_PREFIXES = (
     "deepseek/deepseek-r1",
     "google/gemini-2.5-pro",
     "google/gemini-3",
+    # opencode.ai/zen/go/v1 — bare ids (no org prefix). Every model the
+    # gateway exposes declares reasoning=true in its registry, so listing
+    # the families is simpler than enumerating each.
+    "kimi-k2.5",
+    "kimi-k2.6",
+    "qwen3.5-plus",
+    "qwen3.6-plus",
+    "glm-5",
+    "glm-5.1",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    "minimax-m2.5",
+    "minimax-m2.7",
+    "mimo-v2.5",
+    "mimo-v2.5-pro",
 )
 
 
@@ -228,13 +244,22 @@ def call_chat(
         msg = data["choices"][0]["message"]
         text = msg.get("content") or ""
         # Reasoning-class models (kimi-k2.6, kimi-k2-thinking, glm-4.7, etc.)
-        # sometimes return content="" with the actual answer in `reasoning`.
-        # This happens when max_tokens is consumed by reasoning before
-        # content is emitted. Fall back to reasoning rather than failing.
+        # sometimes return content="" with the actual answer in `reasoning`
+        # (OpenRouter convention) or `reasoning_content` (DeepSeek / GLM /
+        # opencode-go convention). This happens when max_tokens is consumed
+        # by reasoning before content is emitted. Fall back rather than fail.
         if not text.strip():
-            reasoning = msg.get("reasoning") or ""
-            if reasoning.strip():
-                text = reasoning
+            for field in ("reasoning_content", "reasoning"):
+                trace = msg.get(field) or ""
+                if trace.strip():
+                    text = trace
+                    break
+        # Some providers emit the thinking trace inline in content, wrapped
+        # in <think>…</think>. Strip so the judge scores the actual reply.
+        # The `</think>|$` alternation also handles truncated traces where
+        # max_tokens cut the model off mid-thought (no closing tag emitted).
+        if "<think>" in text:
+            text = re.sub(r"<think>.*?(?:</think>|$)\s*", "", text, flags=re.DOTALL)
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(
             f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "

@@ -38,8 +38,8 @@ display_name = "Llama-3.3 70B Instruct"
 params_b = 70
 family = "llama-3.3"
 providers = [
-  { provider_id = "groq", model_name_at_provider = "llama-3.3-70b-versatile", base_url = "https://api.groq.com/openai/v1", api_key_env = "PARISH_GROQ_API_KEY", price_in_per_mtok = 0.59, price_out_per_mtok = 0.79, max_context = 131072 },
-  { provider_id = "together", model_name_at_provider = "meta-llama/Llama-3.3-70B-Instruct-Turbo", base_url = "https://api.together.xyz/v1", api_key_env = "PARISH_TOGETHER_API_KEY", price_in_per_mtok = 0.88, price_out_per_mtok = 0.88, max_context = 131072 },
+  { provider_id = "groq", model_name_at_provider = "llama-3.3-70b-versatile", base_url = "https://api.groq.com/openai/v1", api_key_env = "GROQ_API_KEY", price_in_per_mtok = 0.59, price_out_per_mtok = 0.79, max_context = 131072 },
+  { provider_id = "together", model_name_at_provider = "meta-llama/Llama-3.3-70B-Instruct-Turbo", base_url = "https://api.together.xyz/v1", api_key_env = "TOGETHER_API_KEY", price_in_per_mtok = 0.88, price_out_per_mtok = 0.88, max_context = 131072 },
   { provider_id = "openrouter", model_name_at_provider = "meta-llama/llama-3.3-70b-instruct", base_url = "https://openrouter.ai/api/v1", api_key_env = "OPENROUTER_API_KEY", price_in_per_mtok = 0.13, price_out_per_mtok = 0.39, max_context = 131072 },
 ]
 
@@ -56,7 +56,7 @@ id = "deepseek-v3"
 display_name = "DeepSeek V3"
 family = "deepseek"
 providers = [
-  { provider_id = "deepseek", model_name_at_provider = "deepseek-chat", base_url = "https://api.deepseek.com/v1", api_key_env = "PARISH_DEEPSEEK_API_KEY", price_in_per_mtok = 0.27, price_out_per_mtok = 1.10, max_context = 64000 },
+  { provider_id = "deepseek", model_name_at_provider = "deepseek-chat", base_url = "https://api.deepseek.com/v1", api_key_env = "DEEPSEEK_API_KEY", price_in_per_mtok = 0.27, price_out_per_mtok = 1.10, max_context = 64000 },
   { provider_id = "openrouter", model_name_at_provider = "deepseek/deepseek-chat", base_url = "https://openrouter.ai/api/v1", api_key_env = "OPENROUTER_API_KEY", price_in_per_mtok = 0.28, price_out_per_mtok = 1.10, max_context = 64000 },
 ]
 
@@ -65,7 +65,7 @@ id = "grok-4-fast"
 display_name = "Grok 4 Fast"
 family = "grok"
 providers = [
-  { provider_id = "xai", model_name_at_provider = "grok-4-fast", base_url = "https://api.x.ai/v1", api_key_env = "PARISH_XAI_API_KEY", price_in_per_mtok = 0.20, price_out_per_mtok = 0.50, max_context = 131072 },
+  { provider_id = "xai", model_name_at_provider = "grok-4-fast", base_url = "https://api.x.ai/v1", api_key_env = "XAI_API_KEY", price_in_per_mtok = 0.20, price_out_per_mtok = 0.50, max_context = 131072 },
 ]
 
 # Reference target: the cheapest cloud "small" model, used as a sanity anchor.
@@ -74,5 +74,105 @@ id = "gpt-5-mini"
 display_name = "GPT-5 mini"
 family = "gpt"
 providers = [
-  { provider_id = "openai", model_name_at_provider = "gpt-5-mini", base_url = "https://api.openai.com/v1", api_key_env = "PARISH_OPENAI_API_KEY", price_in_per_mtok = 0.25, price_out_per_mtok = 2.00, max_context = 400000 },
+  { provider_id = "openai", model_name_at_provider = "gpt-5-mini", base_url = "https://api.openai.com/v1", api_key_env = "OPENAI_API_KEY", price_in_per_mtok = 0.25, price_out_per_mtok = 2.00, max_context = 400000 },
+]
+
+# OpenCode Go (https://opencode.ai/zen/go/v1) — OpenAI-compatible gateway.
+# Prices pulled from ~/.cache/opencode/models.json (provider "opencode-go").
+# Deprecated entries (mimo-v2-omni, mimo-v2-pro) omitted.
+
+[[model]]
+id = "kimi-k2.5"
+display_name = "Kimi K2.5"
+family = "kimi-k2.5"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "kimi-k2.5", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.60, price_out_per_mtok = 3.00, max_context = 262144 },
+]
+
+[[model]]
+id = "kimi-k2.6"
+display_name = "Kimi K2.6"
+family = "kimi-k2.6"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "kimi-k2.6", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.95, price_out_per_mtok = 4.00, max_context = 262144 },
+]
+
+[[model]]
+id = "qwen3.5-plus"
+display_name = "Qwen3.5 Plus"
+family = "qwen3.5"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "qwen3.5-plus", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.20, price_out_per_mtok = 1.20, max_context = 262144 },
+]
+
+[[model]]
+id = "qwen3.6-plus"
+display_name = "Qwen3.6 Plus"
+family = "qwen3.6"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "qwen3.6-plus", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.50, price_out_per_mtok = 3.00, max_context = 262144 },
+]
+
+[[model]]
+id = "glm-5"
+display_name = "GLM-5"
+family = "glm"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "glm-5", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 1.00, price_out_per_mtok = 3.20, max_context = 202752 },
+]
+
+[[model]]
+id = "glm-5.1"
+display_name = "GLM-5.1"
+family = "glm"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "glm-5.1", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 1.40, price_out_per_mtok = 4.40, max_context = 202752 },
+]
+
+[[model]]
+id = "deepseek-v4-flash"
+display_name = "DeepSeek V4 Flash"
+family = "deepseek-flash"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "deepseek-v4-flash", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.14, price_out_per_mtok = 0.28, max_context = 1000000 },
+]
+
+[[model]]
+id = "deepseek-v4-pro"
+display_name = "DeepSeek V4 Pro"
+family = "deepseek-thinking"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "deepseek-v4-pro", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 1.74, price_out_per_mtok = 3.48, max_context = 1000000 },
+]
+
+[[model]]
+id = "minimax-m2.5"
+display_name = "MiniMax M2.5"
+family = "minimax-m2.5"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "minimax-m2.5", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.30, price_out_per_mtok = 1.20, max_context = 204800 },
+]
+
+[[model]]
+id = "minimax-m2.7"
+display_name = "MiniMax M2.7"
+family = "minimax-m2.7"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "minimax-m2.7", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.30, price_out_per_mtok = 1.20, max_context = 204800 },
+]
+
+[[model]]
+id = "mimo-v2.5"
+display_name = "MiMo V2.5"
+family = "mimo-v2.5"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "mimo-v2.5", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 0.40, price_out_per_mtok = 2.00, max_context = 1000000 },
+]
+
+[[model]]
+id = "mimo-v2.5-pro"
+display_name = "MiMo V2.5 Pro"
+family = "mimo-v2.5-pro"
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "mimo-v2.5-pro", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 1.00, price_out_per_mtok = 3.00, max_context = 1048576 },
 ]
