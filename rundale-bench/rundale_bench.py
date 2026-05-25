@@ -1037,7 +1037,7 @@ def legacy_main(argv: list[str]) -> None:
     ap.add_argument("--mode", default="absolute", choices=["absolute", "elo"],
                     help="absolute: per-slice graders; elo: pairwise ELO over dialogue slice")
     ap.add_argument("--judge", default=None,
-                    help="judge config id or alias (sonnet|qwen); default judge_v1 absolute, judge_pairwise_v1 elo")
+                    help="judge config id or alias (sonnet|qwen); default judge_sonnet_v1 absolute, judge_pairwise_v1 elo")
     ap.add_argument("--tier", default=None, choices=["screen", "contender", "finalist"],
                     help="filter prompts to a tier id set (<suite>/<tier>.ids.json)")
     ap.add_argument("--model-id", dest="model_id", default=None,
@@ -1079,7 +1079,7 @@ def legacy_main(argv: list[str]) -> None:
     if args.slice is None:
         raise SystemExit("--slice is required in absolute mode")
     if args.judge is None:
-        args.judge = "judge_v1"
+        args.judge = "judge_sonnet_v1"
     if len(args.target) > 1:
         raise SystemExit("absolute mode takes one --target; pass --mode elo for multi-target sweeps")
     target = parse_target(args.target[0])
