@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "deepseek-v4-pro",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T04:29:46.569761+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 4.5,
+        "authenticity": 4.5,
+        "language": 4.6,
+        "responsiveness": 4.4,
+        "craft": 4.2,
+        "overall": 4.4
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "We are asked: \"I have been having trouble sleeping. The dreams keep coming back.\"\n\nAs Brigid O'Brien, a midwife in 1820 Ireland, she would respond with folk wisdom, perhaps suggesting a herbal remedy or asking about the dreams. She might also reference \"s\u00eddhe\" if it's about fairy dreams, or talk about calming teas. She speaks in Hiberno-English with some Irish phrases.\n\nWe need to output only dialogue, then metadata. Length: 2-4 sentences.\n\nPossible response: She might say something about a tea of chamomile or lavender, or a drop of poit\u00edn? But she's a midwife, so she knows about women's matters and herbs. She could suggest a calming tea. Also, she might ask if the dreams are of the s\u00eddhe, because that could be a sign. But careful about superstition: the guidelines say not to portray Irish as foolishly superstitious, but we can mention s\u00edd"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "We are asked: \"What do you know about the old Cailleach who lives near the fairy fort?\"\n\nAs Brigid O'Brien, a midwife in 1820 Roscommon, I know about local people, including an old woman living near a fairy fort. The \"Cailleach\" is an Irish word for an old woman, often with connotations of a wise woman or witch. In this context, it likely refers to an elderly woman, possibly a healer or someone known to me. The fairy fort is a place associated with the s\u00eddhe. I should respond in character, with Hiberno-English, mentioning what I know about her but also noting that such matters might be best left alone, or that I know her as a person, not a myth. I must not be superstitious in a foolish way, but I can acknowledge local beliefs respectfully. I might mention that I've helped her with some ailment or that she's a neighbour. Since I'm a"
+        },
+        {
+          "character": 1,
+          "authenticity": 1,
+          "language": 1,
+          "responsiveness": 1,
+          "craft": 1,
+          "overall": 1.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "We are asked to play as Brigid O'Brien, a midwife in 1820 County Roscommon, Ireland. The user's mother has a bad cough, and they're asking for help. As a midwife with knowledge of herbs and folk medicine, I should offer a remedy, in character, with appropriate Hiberno-English and possibly a sprinkle of Irish.\n\nI need to reply within 2-4 sentences, conversational. I'll mention a herbal remedy like a tea of thyme, coltsfoot, or honey. I should also be kind but direct. The mother's cough could be a concern, so I'll ask about the nature of the cough maybe.\n\nI'll craft the dialogue: \"Ah, a bad cough, is it? I've a tea of thyme and honey that'll ease her chest and calm the tickle. Let me put a bit together for ye now.\"\n\nThen the JSON metadata: action, mood, internal_thought, language_hints. I can include"
+        },
+        {
+          "character": 5,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "We need to respond as Brigid O'Brien, midwife, in character. The user says: \"They say a stranger arrived in the village. Have you heard?\" We need to stay in lane: midwife, so we can comment on local news, health, births, but not about livestock etc. Stranger arrival can be a topic. We should provide a response with dialect, Hiberno-English, maybe a sprinkle of Irish, and the JSON metadata. We note the guidelines: avoid top of the mornin', etc. Keep it natural. We can say something like: \"Aye, I did hear something of it. A stranger, is it? Sure, I've been up to my elbows in a birth these two nights, so I've not laid eyes on him. But tell me, what's the talk?\" Something like that. Note the user said \"they say\" so we can acknowledge rumors. We'll use \"Dia dhuit\" maybe in greeting?"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "We are asked to role-play as Brigid O'Brien, a midwife in 1820 Roscommon. The user says: \"I lost a sheep last night. Could it be more than a wolf?\" This is about livestock predation, which is outside Brigid's expertise as a midwife. According to the instructions: \"STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters \u2014 she does NOT track livestock predators, hunt, or speak as a farmer would.\" So I should redirect, perhaps suggest they ask someone else, and maybe I can relate it to local lore or something I might know as a woman familiar with the s\u00eddhe (fairies), but not as a farmer. The instructions also say: \"If asked about something outside your knowledge, redirect \u2014 'Ye'd best ask the right person hereabouts' \u2014 or admit ye don't know.\" So I'll do that.\n\nI'll craft a response that acknowledges the loss,"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "We are asked: \"Do you remember when my father broke his leg in the south field?\" We must respond as Brigid O'Brien, the midwife. We need to stay in character, reply in Hiberno-English with maybe a sprinkle of Irish, and keep within our lane. We don't know the player's father specifically, but we can acknowledge the memory. As a midwife, we might have been called to tend to a broken leg? Midwives do know herbs and sickness, but broken bones might be more for a bonesetter. However, we can recall it, perhaps we helped with pain or something. We'll keep it conversational.\n\nWe should use en-IE spelling. We can add a language hint if we use a ga-IE phrase. Let's think: we can say something like \"Ah, sure I do. 'Twas a terrible break, and yer poor father sufferin' so. I brought him a poultice of comfrey to help"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.6,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "We are asked: \"I saw lights moving on the hill last night. What were they?\" Brigid O'Brien, midwife, 1820s rural Ireland. She knows herbs, births, sickness, women's matters. She does NOT track livestock predators or hunt. However, seeing lights on the hill: this could be interpreted as fairy lights, will-o'-the-wisps, maybe from a celebration or something. She would likely mention the s\u00eddhe (fairies) but in a period-appropriate way: not foolishly superstitious, but she might say it might be the fairy folk, or perhaps folk from the parish out late, or maybe a sick call? She's a midwife, so she might know about lights from cottage windows. But the question is about lights moving on the hill. She might say: \"Ah, ye'd best not be mindin' those lights, now. 'Tis the s\u00eddhe, mayhap, or a soul"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "We need to respond as Brigid O'Brien, midwife in 1820 County Roscommon. The user says the well water tastes strange. This is a health/wellness concern that could be within her knowledge. She knows herbs, sickness, women's matters, but also general village health. She might offer advice or herbal remedy. She should not talk about livestock or farming. She might mention checking the well for contamination, or suggest boiling the water, or using herbs to purify, or perhaps it's just a natural change. Keep in Hiberno-English, use en-IE spellings. Mood: content. Add language hints for any Irish phrase used.\n\nThe well water tasting strange could be a sign of illness (like cholera, but that's not yet prominent; but midwife would know about bad water causing sickness). She might advise caution. She could offer a tea of something.\n\nBut she's not a well digger or a farmer. She might say \"Ye'd best ask"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "We are asked: \"My wife is heavy with child. When should I fetch you?\"\n\nWe are Brigid O'Brien, midwife. We should respond with advice about when to call the midwife: typically when labour begins, when the waters break, or when contractions are regular. We might also mention that she should send for us earlier if she's worried. Use Hiberno-English.\n\nWe need to stay in character. Current mood is content.\n\nLet's craft a response:\n\n\"When the pains come steady-like, an' she can't talk through 'em, then 'tis time. But if her waters break or she takes a worry, ye'll send for me straightaway, no matter the hour.\"\n\nAdd a bit more: maybe a reassuring note. Keep it 2-4 sentences. No action tags in speech. Then metadata.\n\nLanguage hints? Maybe a word like \"pains\" or \"labour\"? Or sprinkle a phrase? We could say \"Dia dhuit\""
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "We are Brigid O'Brien, a 42-year-old midwife in County Roscommon, 1820. Father Cathal preached against the old ways. We are Catholic, but we also know the old ways: herbs, folk medicine, maybe some beliefs about the s\u00eddhe. We are kind but direct. We know the priest, but we also respect the traditions that help people, especially in childbirth and healing. We should respond in character, with Hiberno-English, a sprinkle of Irish if natural.\n\nWe need to react to what Father Cathal preached. We can acknowledge the priest's authority but also gently defend the old ways that are good and not superstitious. Maybe we say that the old ways often work alongside the Church, not against it. Or we might say that the priest doesn't know everything about the women's world. We shouldn't be too defiant, but we can suggest that the old ways have their place.\n\nWe need to stay in our lane: mid"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 83.0350489616394,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 21583,
+    "completion_tokens": 2345,
+    "usd": 0.00041796
+  }
+}

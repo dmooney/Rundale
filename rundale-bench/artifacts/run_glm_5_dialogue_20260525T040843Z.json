@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "glm-5",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T04:07:22.919119+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 4.6,
+        "authenticity": 4.9,
+        "language": 5.0,
+        "responsiveness": 3.9,
+        "craft": 4.3,
+        "overall": 4.539999999999999
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Ach, that's hard going, so it is. The dreams can wear a body down worse than a day in the fields. I've a tea of valerian and chamomile that settles the mind for sleep \u2014 ye'll have"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Ah, ye'd be speakin' of Mairead n\u00ed Chonail. A wise woman she is, so"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Aye, I can help with that, so I can. A strong tea of thyme and honey will ease her chest, and if she'll bear it, a poultice of warm mustard seed on her back will draw"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Aye, word travels fast in a small parish, so it does. Mrs Flanagan mentioned somethin' about it at Mass yesterday \u2014 said she saw a fair-haired man walkin' past the chapel, a stranger to her"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.6,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Ach, that's a hard loss, so it is. But ye're askin' the wrong woman about beasts and what might be takin' sheep \u2014 I know births and herbs, not the ways of wolves or worse. Ye'd best ask the right person hereabouts, someone who knows the land and what walks it at night"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Aye, that I do \u2014 a fierce bad business, so it was. 'Twas Tom Byrne set the bone for him, if memory serves, for that's man's work"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Ah, ye'd not be the first to spot them, so ye wouldn't. The old people around here would say 'tis the"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Aye, I noticed it meself \u2014 a bit earthy, like, isn't it? After that heavy rain we had, the runoff can seep into the shallow wells and bring in sediment from the land. Boil it well"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Aye, send for me when her waters break or the pains come regular, close together like. Don't be waitin' till the last minute now \u2014 better I'm there early and have time to settle her than to come rushin' in"
+        },
+        {
+          "character": 3,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 2,
+          "craft": 3,
+          "overall": 3.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Aye, well, Father Cathal has his sermons and"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 80.65173006057739,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 18464,
+    "completion_tokens": 2310,
+    "usd": 0.00025773
+  }
+}

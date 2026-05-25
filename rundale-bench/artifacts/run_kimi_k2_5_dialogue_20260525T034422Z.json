@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "kimi-k2.5",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T03:43:18.329859+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 5.0,
+        "authenticity": 5.0,
+        "language": 5.0,
+        "responsiveness": 4.8,
+        "craft": 5.0,
+        "overall": 4.96
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "The user is speaking to me as Brigid O'Brien, a 42-year-old midwife in County Roscommon, Ireland, 1820. They say they have trouble sleeping and recurring dreams.\n\nI need to:\n1. Stay in character as Brigid O'Brien - midwife, knows herbs, births, sickness, women's matters. Kind but direct. Deep knowledge of local plants and folk medicine. Known the player's family for years. Content mood.\n2. Respond in Hiberno-English with appropriate dialect markers.\n3. Use only allowed ga-IE phrases from the provided list, sprinkled in (1-5 words max per reply).\n4. 2-4 sentences, conversational.\n5. No narration, no action tags in speech. Just dialogue.\n6. Then --- on new line.\n7. Then JSON metadata block.\n8. No 21st century words.\n9. en-IE spelling (not en-US).\n10. Only Latin script.\n11. React"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "The user is asking Brigid O'Brien about an \"old Cailleach\" who lives near a fairy fort. I need to stay in character as a 42-year-old midwife in County Roscommon, 1820.\n\nKey constraints:\n- Stay in lane: midwife knows herbs, births, sickness, women's matters. Does NOT track livestock, hunt, speak as farmer/priest/teacher.\n- If asked something outside knowledge, redirect or admit don't know.\n- Hiberno-English, dialect markers.\n- 2-4 sentences, conversational.\n- Only specified Irish phrases allowed verbatim (from the first list), but the second list gives preferred ga-IE phrases. Wait, there are two lists. Let me check carefully.\n\nActually, looking at the prompt, there are two sets of Irish phrases:\n1. \"You MAY use these Irish phrases verbatim \u2014 and ONLY these\" - first list: Sl\u00e1n abhaile, Sl\u00e1n leat, Dia dhuit,"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "The user is asking me, as Brigid O'Brien (a midwife in 1820 County Roscommon), for a remedy for their mother's bad cough.\n\nKey constraints to remember:\n- Stay in character: midwife, knows herbs, births, sickness, women's matters\n- Kind but direct, deep knowledge of local plants and folk medicine\n- Hiberno-English register\n- Use en-IE spelling (not en-US)\n- Sprinkle at most one short ga-IE phrase (1-5 words) per reply\n- Only use approved ga-IE phrases from the list\n- 2-4 sentences, conversational\n- No narration, no action tags in speech\n- Write dialogue, then ---, then JSON metadata\n- No 21st century words\n- No mention of future events (Famine, Emancipation, etc.)\n- Only Latin script\n\nWhat would Brigid know? Herbal remedies for coughs. Thyme tea is mentioned in the prompt as"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "The user is asking about a stranger arriving in the village. As Brigid O'Brien, a midwife in 1820 County Roscommon, I need to respond in character.\n\nKey constraints:\n- Stay in lane: midwife knowledge only (herbs, births, sickness, women's matters). I don't track strangers unless they relate to my work.\n- Hiberno-English with dialect markers\n- Can use only specified Irish phrases (from the first list) OR the preferred ga-IE phrases (from the second list) \u2014 need to check if there's conflict. Actually looking carefully, the first list says \"You MAY use these Irish phrases verbatim \u2014 and ONLY these\" but then later says \"Preferred ga-IE phrases (use these where natural; do not confabulate other Irish)\" with a longer list. The second instruction seems to expand/override with more options. The critical rule is: \"Use ONLY en-IE and ga-IE \u2014 no other language\" and \"Every"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "The user is asking about a lost sheep and whether it could be \"more than a wolf\" (implying something supernatural like s\u00eddhe/fairies or other folklore). \n\nI need to stay in character as Brigid O'Brien, a 42-year-old midwife in County Roscommon, 1820. Key constraints:\n- STAY IN YOUR LANE: A midwife knows herbs, births, sickness, and women's matters. She does NOT track livestock predators, hunt, or speak as a farmer would. If asked about something outside my knowledge, redirect \u2014 \"Ye'd best ask the right person hereabouts\" \u2014 or admit ye don't know.\n- The user is asking about livestock predators/sheep loss. This is outside my lane as a midwife.\n- I should redirect them to the right person (a farmer, shepherd, etc.) or admit I don't know.\n- I can acknowledge their worry but make clear this isn't my area.\n- Current mood: content ("
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "The user is asking me to recall a memory about their father breaking his leg in the south field. Since this is a roleplay scenario where I am Brigid O'Brien, a midwife in 1820 County Roscommon, and the user is implying they are someone whose family I've known for years, I should respond in character.\n\nKey constraints to remember:\n- Stay in character as Brigid O'Brien, midwife\n- I know herbs, births, sickness, and women's matters - NOT farming/livestock/land matters in detail\n- The father broke his leg in the south field - this is a farming/land matter, but I can acknowledge it as a memory of a person I know\n- Use Hiberno-English with appropriate dialect markers\n- Use en-IE spelling (not en-US)\n- Can sprinkle ga-IE phrases (1-5 words max) with language hints\n- 2-4 sentences, conversational\n- No narration, no action tags"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "The user is asking about lights moving on a hill at night. As Brigid O'Brien, a midwife in 1820 County Roscommon, I need to respond in character.\n\nKey constraints:\n- Stay in lane: midwife knows herbs, births, sickness, women's matters. Doesn't track livestock predators, hunt, or speak as farmer. If asked something outside knowledge, redirect or admit I don't know.\n- Lights on a hill could be will-o'-the-wisp, fairies (s\u00eddhe), lanterns, or something else. But I'm not a hunter or farmer. However, as a midwife in rural Ireland, I would know local folklore and women's tales. I might speculate cautiously but should probably redirect since tracking things on hills isn't my domain.\n- Actually, \"lights on the hill\" could be interpreted as s\u00eddhe/fairy lights, which is folklore/midwifery adjacent in terms of women's matters and local knowledge, but I should be careful not"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "The user is asking about strange-tasting well water. As Brigid O'Brien, a midwife in 1820 County Roscommon, I need to respond in character.\n\nKey constraints:\n- Stay in lane: midwife knows herbs, births, sickness, women's matters. Water quality/taste might relate to sickness, but I'm not a well-digger or engineer. I should focus on health implications if any, or redirect if it's truly outside my knowledge. However, strange water could cause sickness, so I can speak to health concerns while suggesting they ask someone more knowledgeable about the well itself.\n- 1820 Ireland, rural Roscommon\n- Hiberno-English with some dialect markers\n- 2-4 sentences, conversational\n- No narration, no action tags in speech\n- Then --- and JSON metadata\n- en-IE spelling (colour, not color; etc.)\n- At most one short ga-IE phrase (1-5 words) per reply, woven into"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "The user is asking me, as Brigid O'Brien, a midwife in 1820 County Roscommon, when they should fetch me because their wife is pregnant (\"heavy with child\").\n\nI need to:\n1. Stay in character as a midwife - I know about births, herbs, women's matters.\n2. Use Hiberno-English with appropriate dialect markers.\n3. Keep it to 2-4 sentences, conversational.\n4. Use en-IE spelling (e.g., \"labour\" not \"labor\").\n5. Maybe sprinkle one ga-IE phrase if natural.\n6. No narration or action tags in the speech itself.\n7. Then provide the JSON metadata block after \"---\".\n\nContent-wise: I should ask about the wife's condition - how far along, has her water broken, are the pains coming regular? Or give advice about when to call - when the pains are strong and close, or if the water breaks, or if there's bleeding. Since"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "The user is asking Brigid O'Brien, a 42-year-old midwife in County Roscommon in 1820, about Father Cathal preaching against \"the old ways\" on Sunday.\n\nKey constraints:\n- Stay in character as Brigid O'Brien\n- Write only dialogue (what she says aloud)\n- No narration, no action tags in speech\n- React to what was just said (someone asked her opinion on Father Cathal's sermon)\n- Length: 2-4 sentences\n- Conversational, not monologue\n- Hiberno-English with dialect markers\n- Use en-IE spelling (not en-US)\n- Can sprinkle ga-IE phrases (1-5 words max per reply) from the approved list\n- Must use ONLY the approved ga-IE phrases or the specific list provided in the prompt\n- Do NOT invent Irish phrases. The prompt gives a specific list of allowed phrases verbatim and another list of preferred ga-IE phrases. I"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 64.57141590118408,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20146,
+    "completion_tokens": 2328,
+    "usd": 0.00037657000000000006
+  }
+}
