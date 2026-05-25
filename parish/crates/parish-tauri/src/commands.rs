@@ -2420,6 +2420,60 @@ fn strip_thinking_block(text: &str) -> &str {
     trimmed
 }
 
+/// Builds the demo-turn system prompt for the LLM-as-player.
+///
+/// Extracted from `get_llm_player_action` so the role anchor (TODO #51)
+/// is unit-testable without driving the full Tauri command flow. The
+/// optional `extra_prompt` is appended verbatim after the "Explore
+/// naturally" paragraph — usually loaded from
+/// `mods/rundale/demo-prompt.txt`.
+fn build_demo_system_prompt(extra_prompt: Option<&str>) -> String {
+    let extra_section = extra_prompt
+        .map(|p| format!("\n\n{}", p))
+        .unwrap_or_default();
+
+    format!(
+        "You are playing Rundale, an Irish living-world simulation set in 1820. You are a \
+wandering stranger named Aiden Carney exploring the townlands of east Roscommon. The world \
+is populated by historical Irish villagers — farmers, priests, weavers, matchmakers — each \
+living their own life.\n\
+\n\
+ROLE: You are ALWAYS Aiden Carney. Speak ONLY in Aiden's voice — never as a priest, miller, \
+shopkeeper, schoolmaster, or any other local NPC. If the previous turn in the prompt ends \
+with your own line and no NPC reply, that means the NPC's reply is still in flight; you \
+still speak as Aiden on the next turn — do NOT take the NPC's side of the exchange. Do not \
+answer your own questions on the NPC's behalf, and do not roleplay an answer from a \
+villager.\n\
+\n\
+Date: 1820. Catholic Emancipation: 1829 (not yet). Famine: 1845 (not yet).\n\
+\n\
+Speak as a 1820 traveller would: plain, short, period-appropriate. Avoid modern words \
+like: fascinating, amazing, definitely, totally, decided to visit, taking in the sights, \
+healing properties.\n\
+\n\
+Explore naturally: talk to people, learn their stories, travel between locations, and \
+respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
+\n\
+Respond with a JSON object containing a single field \"action\" — the text the player \
+would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
+words or command directly.\n\
+\n\
+Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
+\"Recent events\" block of the user prompt, pick a different action — try a different \
+greeting, ask a different question, or travel somewhere new. The location description \
+is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
+\n\
+Examples:\n\
+  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
+  {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
+  {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
+  {{\"action\": \"go to the mill\"}}\n\
+\n\
+Your entire response must be a single JSON object — nothing before or after it.",
+        extra = extra_section,
+    )
+}
+
 /// Asks the LLM to choose the next player action given the current game context.
 ///
 /// The frontend fills `ctx.recent_log` from the text log store before calling
@@ -2449,45 +2503,7 @@ pub async fn get_llm_player_action(
         return Err("No LLM client configured.".to_string());
     };
 
-    let extra_section = ctx
-        .extra_prompt
-        .as_deref()
-        .map(|p| format!("\n\n{}", p))
-        .unwrap_or_default();
-
-    let system_prompt = format!(
-        "You are playing Rundale, an Irish living-world simulation set in 1820. You are a \
-wandering stranger exploring the townlands of east Roscommon. The world is populated by \
-historical Irish villagers — farmers, priests, weavers, matchmakers — each living their \
-own life.\n\
-\n\
-Date: 1820. Catholic Emancipation: 1829 (not yet). Famine: 1845 (not yet).\n\
-\n\
-Speak as a 1820 traveller would: plain, short, period-appropriate. Avoid modern words \
-like: fascinating, amazing, definitely, totally, decided to visit, taking in the sights, \
-healing properties.\n\
-\n\
-Explore naturally: talk to people, learn their stories, travel between locations, and \
-respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
-\n\
-Respond with a JSON object containing a single field \"action\" — the text the player \
-would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
-words or command directly.\n\
-\n\
-Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
-\"Recent events\" block of the user prompt, pick a different action — try a different \
-greeting, ask a different question, or travel somewhere new. The location description \
-is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
-\n\
-Examples:\n\
-  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
-  {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
-  {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
-  {{\"action\": \"go to the mill\"}}\n\
-\n\
-Your entire response must be a single JSON object — nothing before or after it.",
-        extra = extra_section,
-    );
+    let system_prompt = build_demo_system_prompt(ctx.extra_prompt.as_deref());
 
     // Issue #998: render via the shared `parish_core::ipc::demo` helper so the
     // prompt format stays in lockstep with the typed snapshot (no
@@ -2541,7 +2557,55 @@ Your entire response must be a single JSON object — nothing before or after it
 
 #[cfg(test)]
 mod demo_tests {
-    use super::{extract_action_from_response, strip_thinking_block};
+    use super::{build_demo_system_prompt, extract_action_from_response, strip_thinking_block};
+
+    #[test]
+    fn demo_system_prompt_names_aiden_carney() {
+        // TODO #51 — AC1: system prompt must explicitly name the
+        // auto-player so the model has a role anchor stronger than
+        // the generic "wandering stranger" phrasing.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Aiden Carney"),
+            "system prompt missing player name anchor:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_speaking_as_npc() {
+        // TODO #51 — AC2: prompt must direct the model to speak only
+        // in Aiden's voice and not roleplay an NPC's reply, even when
+        // the prior turn lacks an NPC line.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Speak ONLY in Aiden's voice"),
+            "system prompt missing speak-only-as-Aiden directive:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("never as a priest, miller, shopkeeper"),
+            "system prompt missing never-as-NPC list:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("NPC's reply is still in flight"),
+            "system prompt missing in-flight-reply guidance:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("do NOT take the NPC's side"),
+            "system prompt missing don't-flip-roles directive:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_layers_extra_prompt() {
+        // TODO #51 — AC3: operator extra prompt must still appear.
+        let prompt = build_demo_system_prompt(Some("RUNDALE-SPECIFIC: stay east of the river."));
+        assert!(
+            prompt.contains("RUNDALE-SPECIFIC: stay east of the river."),
+            "extra prompt missing from layered system prompt:\n{prompt}"
+        );
+        // And the anchor still appears alongside the extra content.
+        assert!(prompt.contains("Speak ONLY in Aiden's voice"));
+    }
 
     #[test]
     fn extracts_action_from_json() {
