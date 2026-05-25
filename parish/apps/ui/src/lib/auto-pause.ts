@@ -20,6 +20,21 @@ export interface AutoPauseTrackerOptions {
 	submitInput: (text: string) => Promise<void>;
 	/** Returns whether the world is currently player-paused. */
 	isWorldPaused: () => boolean;
+	/**
+	 * Returns whether the Tauri / browser window currently has OS-level
+	 * focus. When omitted, defaults to always-true (preserves the
+	 * pre-#31a behaviour for tests that don't care about focus).
+	 *
+	 * TODO #6 / #31a: the cycle-6 demo audit caught a burst of
+	 * `/pause` + `/resume` toggles whenever the user shifted attention
+	 * to another app. The window still received keyboard / mouse
+	 * events globally via DOM, so the idle timer would fire while the
+	 * user was actively working elsewhere. The guard skips the
+	 * `/pause` dispatch when the window is not focused — being away
+	 * from the window is not the same as being idle while engaged
+	 * with the game.
+	 */
+	isWindowFocused?: () => boolean;
 }
 
 export interface AutoPauseTracker {
@@ -51,6 +66,20 @@ export function createAutoPauseTracker(opts: AutoPauseTrackerOptions): AutoPause
 		clearIdleTimer();
 		idleTimer = setTimeout(() => {
 			idleTimer = null;
+			// TODO #6 / #31a focus guard: skip auto-pause when the
+			// window is not focused. The user being away from the
+			// window is not the same as being idle while engaged with
+			// the game. Without this guard the idle timer would fire
+			// every time attention shifts to another app, producing
+			// the burst of /pause + /resume toggles the demo audit
+			// captured in cycle 6.
+			const focused = opts.isWindowFocused ? opts.isWindowFocused() : true;
+			if (!focused) {
+				// Restart so a later focused-idle interval can still
+				// trigger the pause. The tracker must not get stuck.
+				startIdleTimer();
+				return;
+			}
 			// Only fire pause if the world is currently running.
 			if (!opts.isWorldPaused()) {
 				pausedByAutoIdle = true;

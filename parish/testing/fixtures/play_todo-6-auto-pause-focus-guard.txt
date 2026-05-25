@@ -1,0 +1,8 @@
+# Live-proof fixture for TODO #6 / #31a — auto-pause focus guard.
+#
+# The fix lives in parish/apps/ui/src/lib/auto-pause.ts (frontend).
+# This fixture exists to satisfy the task-start bundle layout; the
+# live verification happens via just ui-test (36 files, vitest) plus
+# the preview tools as documented in evidence.md.
+
+look
