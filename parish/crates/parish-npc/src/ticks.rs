@@ -201,17 +201,48 @@ pub fn build_enhanced_system_prompt_with_config(
 }
 
 /// Interlocutor label — who the NPC is speaking with.
+///
+/// The anchor sentence forbids the model from addressing the player by any
+/// other name that may appear in the recent-events buffer (TODO #35 — a
+/// shopkeeper at a new location called the player "Nora" because the prior
+/// location's NPC named Nora was still in the dialogue history).
 fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
-    let label = player_name_for_npc.unwrap_or("A newcomer to the parish");
-    format!("\n\nPERSON YOU ARE SPEAKING WITH:\n{label}.")
+    match player_name_for_npc {
+        Some(name) => format!(
+            "\n\nPERSON YOU ARE SPEAKING WITH:\n{name}.\n\
+             Address them by the name '{name}' only. Do not call them any \
+             other name, even if a different name appears in the recent \
+             conversation history."
+        ),
+        None => String::from(
+            "\n\nPERSON YOU ARE SPEAKING WITH:\nA newcomer to the parish.\n\
+             You do not yet know their name. Refer to them as 'the newcomer', \
+             'stranger', 'friend', or similar — do not invent a name and do \
+             not borrow a name from the recent conversation history.",
+        ),
+    }
 }
 
 /// Describes other NPCs present at the location with relationship context.
+///
+/// The anchor sentence forbids the model from speaking to or about any
+/// character not in this list as if they were present (TODO #11 — Brendan
+/// addressed "Nora" mid-reply while Nora was not at the location; the
+/// player-side LLM mirrored this and addressed absent NPCs).
 fn other_npcs_block(npc: &Npc, other_npcs: &[&Npc], config: &NpcConfig) -> Option<String> {
     if other_npcs.is_empty() {
-        return None;
+        return Some(String::from(
+            "\n\nNo one else is here. Do not address or invoke any other \
+             character by name as if they were present. You may still \
+             mention absent people when recalling past events, but speak \
+             of them in the past tense or as elsewhere — never as if they \
+             can hear you now.",
+        ));
     }
-    let mut block = String::from("\n\nAlso present:");
+    let mut block = String::from(
+        "\n\nAlso present (these are the only other people you may address \
+         or speak about as 'here right now'):",
+    );
     for other in other_npcs {
         let relationship_note = npc
             .relationships
@@ -1427,8 +1458,64 @@ mod tests {
             &lang,
             &npc_names,
         );
-        assert!(context.contains("Also present:"));
+        assert!(context.contains("Also present"));
         assert!(context.contains("Tommy, the Test"));
+        // Name anchor (TODO #11) — block must forbid addressing absent NPCs.
+        assert!(
+            context.contains("these are the only other people"),
+            "other_npcs_block must anchor present-only addressing:\n{context}"
+        );
+    }
+
+    #[test]
+    fn test_interlocutor_block_named_player_has_anchor() {
+        // Name anchor (TODO #35) — when the NPC knows the player's name,
+        // the block must explicitly forbid addressing them by any other
+        // name from recent history.
+        let block = interlocutor_block(Some("Aiden Carney"));
+        assert!(block.contains("Aiden Carney"), "missing player name");
+        assert!(
+            block.contains("Address them by the name 'Aiden Carney' only"),
+            "missing strict-name anchor:\n{block}"
+        );
+        assert!(
+            block.contains("recent conversation history"),
+            "missing history-leak guard:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_interlocutor_block_unintroduced_player_has_anchor() {
+        // Pre-introduction (TODO #35 corollary) — the NPC must NOT borrow a
+        // name from the history buffer when it doesn't yet know the player.
+        let block = interlocutor_block(None);
+        assert!(block.contains("A newcomer to the parish"));
+        assert!(
+            block.contains("do not invent a name"),
+            "missing invent-name guard:\n{block}"
+        );
+        assert!(
+            block.contains("do not borrow a name"),
+            "missing borrow-from-history guard:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_other_npcs_block_empty_emits_solo_anchor() {
+        // Solo-NPC anchor (TODO #11) — when no one else is present, the
+        // builder must still emit a directive forbidding addressing absent
+        // characters as if they were here.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let cfg = NpcConfig::default();
+        let block = other_npcs_block(&npc, &[], &cfg).expect("solo anchor must render");
+        assert!(
+            block.contains("No one else is here"),
+            "missing solo-NPC anchor:\n{block}"
+        );
+        assert!(
+            block.contains("never as if they can hear you now"),
+            "missing absent-as-present guard:\n{block}"
+        );
     }
 
     #[test]
