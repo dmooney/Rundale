@@ -1,0 +1,40 @@
+# F20 / #1028 — script harness learns the player's name on self-introduction
+# ============================================================================
+# The harness (testing.rs) previously never called detect_and_record_player_name,
+# so every interaction labelled the player "A newcomer"/"A stranger" regardless
+# of introductions. After the fix the harness matches the server/Tauri/headless
+# paths: introducing yourself sets world.player_name and teaches the addressed
+# NPC, so their recorded memory uses the real name.
+#
+# Observable via /debug memory <npc>: the short-term entry switches from
+# "A newcomer said: …" to "Aiden said: …".
+#
+# Run with Rundale active (PARISH_MODS_DIR pointing at a mods root with rundale).
+
+# --- @mention path (handle_npc_interaction -> consume_canned_npc_response) ---
+go to The Crossroads
+go to Darcy's Pub
+/debug here
+
+# Pre-introduction: a plain greeting. Padraig should remember "A newcomer".
+/stub Padraig Darcy: A fair morning to ye.
+say @Padraig Darcy Good morning to you.
+/debug memory Padraig Darcy
+
+# Introduction: Padraig is the addressed speaker, so he is taught the name.
+/stub Padraig Darcy: Aiden, is it? Welcome in.
+say @Padraig Darcy I'm Aiden, lately come from over by the Shannon.
+/debug memory Padraig Darcy
+
+# A later, non-introduction turn must keep using the learned name.
+/stub Padraig Darcy: Grand day for it, Aiden.
+say @Padraig Darcy And how's the pub today?
+/debug memory Padraig Darcy
+
+# --- first-co-located path (no @mention) at a solo-NPC location ---
+go to The Crossroads
+go to The Letter Office
+/debug here
+/stub Martin Concannon: Good day to ye.
+say I'm Aiden, newly arrived in the parish.
+/debug memory Martin Concannon

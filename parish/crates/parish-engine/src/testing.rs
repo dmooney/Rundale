@@ -1337,6 +1337,15 @@ impl GameTestHarness {
                     mentioned_people: Vec::new(),
                 }),
             };
+            // Learn the player's name from a self-introduction before
+            // recording memory, matching the server/Tauri (`npc_turn`) and
+            // headless paths so harness runs reach mode parity (#1028, rule #2).
+            parish_core::ipc::detect_and_record_player_name(
+                &mut self.app.world,
+                &mut self.app.npc_manager,
+                text,
+                speaker_id,
+            );
             let game_time = self.app.world.clock.now();
             let player_name_for_mem = if self.app.npc_manager.knows_player_name(speaker_id) {
                 self.app.world.player_name.clone()
@@ -1494,6 +1503,15 @@ impl GameTestHarness {
                 mentioned_people: Vec::new(),
             }),
         };
+        // Learn the player's name from a self-introduction before recording
+        // memory, matching the server/Tauri (`npc_turn`) and headless paths
+        // so harness runs reach mode parity (#1028, rule #2).
+        parish_core::ipc::detect_and_record_player_name(
+            &mut self.app.world,
+            &mut self.app.npc_manager,
+            text,
+            npc_id,
+        );
         let game_time = self.app.world.clock.now();
         let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
             self.app.world.player_name.clone()
