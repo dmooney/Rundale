@@ -237,6 +237,17 @@ def run_dialogue_bundled(target: Target, records: list[dict], tracker: CostTrack
     summary["rubric_sha256"] = rubric_sha
     summary["bundles_queued"] = len(bundle_ids)
     summary["cache_hits"] = cache_hits
+    # If any bundles are still queued (waiting for subagent judging), the
+    # numeric axis means are partial-or-zero and not safe for the
+    # leaderboard. Null them out and mark the run as pending so downstream
+    # readers (build_site_data.py, eyeballed summaries) skip rather than
+    # publishing an `overall=0.0` regression. `ingest --finalize` rebuilds
+    # the summary with full scores once subagent results land.
+    if len(bundle_ids) > 0 and summary.get("judged", 0) < summary.get("records", 0):
+        summary["pending_judge"] = True
+        for k in ("character", "authenticity", "language",
+                  "responsiveness", "craft", "overall"):
+            summary[k] = None
     return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
 
 
