@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 5,
+    "craft": 4,
+    "language": 4,
+    "responsiveness": 5
+  },
+  "cache_key": "d96fa0803e6f049ab64e6d682ebb7af18fe084740fcf415076b25ad62fbf4433",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0006",
+  "rationales": {
+    "authenticity": "Ash splints and comfrey poultices are period-correct remedies; language is consistently 1820s Irish village.",
+    "character": "Brigid's voice is warm and authoritative; the memory, teasing banter, and clinical confidence all ring true to a 42-year-old healer.",
+    "craft": "Exceeds 2-4 sentences slightly but earns it with specific, evocative detail; the nostalgic tone adds craft depth.",
+    "language": "Natural, storytelling rhythm; 'hidin' behind yer mother's skirts' and 'cursed like a sailor' are vivid and period-appropriate.",
+    "responsiveness": "Directly recalls the exact incident with emotional and practical detail; fully engages with memory and relationship."
+  },
+  "response_sha256": "4b11da715b74bd912ef70ef0b13a20d84e7b16c2653c2a39015c76de20ee4646",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

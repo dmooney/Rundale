@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 4,
+    "responsiveness": 4
+  },
+  "cache_key": "47c2b483e55c7fe8f42c3a9352afaa68d63f2a1ac15c3b5d2e7ae386e34dd403",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.0,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Valerian root, lavender, and priest consultation are all period-appropriate; vocabulary is consistently 1820s Irish.",
+    "character": "Brigid's warmth and medicinal expertise shine through with 'A leanbh' and herbal remedies suited to her station.",
+    "craft": "Concise, evocative detail (herbs under pillow, soul's unrest) in four sentences; slight listiness in the final clause.",
+    "language": "Well-formed Hiberno-English prose with optional Irish, no non-Latin script, rhythmic and clear.",
+    "responsiveness": "Directly addresses sleep troubles with both practical remedy and spiritual counsel, acknowledges the weight of the problem."
+  },
+  "response_sha256": "9a6d600a36274229bfd13cf5839e722889eb60b164d19cc10fcab9278617db5d",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

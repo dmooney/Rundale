@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "b89ab6d18da01fecc2ec93f1389d723650c29e726e0a3f445804ed73950d10f4",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Valerian and honey are period-appropriate; Irish phrases ('Le c\u00fanamh D\u00e9', 'mo chara') are well-placed and not forced.",
+    "character": "Strong midwife voice with practical remedies and concern, though the tone is somewhat formulaic.",
+    "craft": "Four sentences, vivid detail with the 'fire' imagery; within brief but perhaps slightly long-winded.",
+    "language": "Clean English with correct Irish interjections; grammar and prose are well-formed throughout.",
+    "responsiveness": "Directly addresses sleep troubles with a specific herbal remedy and reassurance."
+  },
+  "response_sha256": "7516cd8c8a29e76d2d8cf4c93885f65b07c5f56d67d247ce4d980e780f1f1584",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 5,
+    "craft": 5,
+    "language": 4,
+    "responsiveness": 5
+  },
+  "cache_key": "cc7c04effac747ed3b5092d4c78fa3d8d104d6702a90bac0c93e8f2518e45c17",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.6,
+  "prompt_id": "dialogue-0009",
+  "rationales": {
+    "authenticity": "Period-appropriate advice on labor signs (waters breaking, pain frequency); language and tone are consistently 1820s Irish.",
+    "character": "Brigid's voice is warm, authoritative, and humorous; the tea joke and practical confidence are perfectly in-character.",
+    "craft": "Concise, evocative, and memorable; the tea detail is both practical and humorous, landing exactly in the 2-4 sentence range.",
+    "language": "Natural, conversational rhythm with good use of Hiberno-English; the tea joke works smoothly.",
+    "responsiveness": "Directly answers when to fetch her with both practical symptoms and warm reassurance to calm anxiety."
+  },
+  "response_sha256": "130a2e6b996c4fe1c701d4fb214f31a0046cc6f74ae88301a62130ba7f5c6fb0",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

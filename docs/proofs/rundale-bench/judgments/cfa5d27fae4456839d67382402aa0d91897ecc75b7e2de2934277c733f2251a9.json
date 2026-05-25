@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 3
+  },
+  "cache_key": "cfa5d27fae4456839d67382402aa0d91897ecc75b7e2de2934277c733f2251a9",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.6,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "'Fine coat and papers' evokes the historical landholder/agent, and the tone reflects period class awareness.",
+    "character": "Brigid's practical indifference and focus on her area of expertise (childbirth) is authentic and in-character.",
+    "craft": "Two sentences is below the 2-4 ideal; the deflection is in-character but limits evocative detail.",
+    "language": "Good Hiberno-English flow with natural gossipy rhythm; well-formed and clear.",
+    "responsiveness": "Addresses the prompt but deflects rather than engages with curiosity; somewhat brief on engagement."
+  },
+  "response_sha256": "dd41ee2c5b7f33840e67e814da1e7badff8cb1e2b2251c70bdde5dcbcc078245",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

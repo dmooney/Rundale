@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 2,
+    "language": 3,
+    "responsiveness": 4
+  },
+  "cache_key": "ce00b3aaeb5db53495eff19bae40ca46e05a980db22e92656034742e371ba691",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.4,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "'Will-o'-the-wisps' (Gaelic 'solus s\u00eddhe') is historically accurate lore; 'mayhap' is period diction.",
+    "character": "Brigid's restraint in deferring supernatural matters to clergy while remaining helpful shows good character judgment and role boundaries.",
+    "craft": "Truncated mid-sentence, cutting off what appears to be a complete thought and undermining the sentence-count instruction.",
+    "language": "Correct Irish English, with appropriate period vocabulary, though truncated.",
+    "responsiveness": "Directly addresses the lights on the hill prompt, offering both a deflection and a plausible natural explanation."
+  },
+  "response_sha256": "54a72670dfd9197c194a69cda71c9b352b885ad9aa92ec77ac22382aff764bb9",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

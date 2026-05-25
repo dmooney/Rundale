@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 2,
+    "language": 3,
+    "responsiveness": 4
+  },
+  "cache_key": "110818b93617aedbee3ecf70bffbed3f6d18d4a91a219438a0dc778e3a39fd6a",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.4,
+  "prompt_id": "dialogue-0003",
+  "rationales": {
+    "authenticity": "Thyme and honey for cough is historically accurate; 'something wonderful' is authentic period idiom.",
+    "character": "Brigid's practical, caring voice as a healer is well-established; the empathetic opening and expert remedy match her role.",
+    "craft": "Truncated mid-word, severely breaking the 2-4 sentence instruction and leaving the remedy recommendation incomplete.",
+    "language": "Correct Irish English diction and grammar, but the truncation mid-sentence undermines language quality.",
+    "responsiveness": "Directly addresses the mother's cough with practical, relevant medical advice."
+  },
+  "response_sha256": "8bcf489599ac5fb89be557af5776ff1dcaed878a4075895813c495a19e5aaa65",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

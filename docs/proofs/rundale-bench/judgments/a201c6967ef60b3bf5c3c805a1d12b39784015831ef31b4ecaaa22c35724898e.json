@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "a201c6967ef60b3bf5c3c805a1d12b39784015831ef31b4ecaaa22c35724898e",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0006",
+  "rationales": {
+    "authenticity": "Context analysis provided but no period dialogue attempted.",
+    "character": "No dialogue; only setup about Brigid's role as a midwife vs. bonesetter.",
+    "craft": "Incomplete planning fragment with no actual dialogue.",
+    "language": "Planning prose, not dialogue.",
+    "responsiveness": "Acknowledges the leg-break prompt but provides no dialogue response."
+  },
+  "response_sha256": "1a65b6d07d31ff43dc0b64a96cc87f6caf93312c82faf6af6d81bdaa4f52a196",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

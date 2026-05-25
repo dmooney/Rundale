@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 2,
+    "responsiveness": 1
+  },
+  "cache_key": "c0e19ae83a4e9ae7a4a246eb61ff5c153b9f88eb81bca70085d93abcd7b1ddec",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.2,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "No meaningful content to assess period-appropriateness.",
+    "character": "Single interjection 'Ah,' offers no character development or voice.",
+    "craft": "Provides only 'Ah,' \u2014 fails entirely to deliver dialogue, explanation, or even a sentence.",
+    "language": "A single interjection is grammatically present but no prose to evaluate.",
+    "responsiveness": "Completely unresponsive; does not engage with the prompt about mysterious lights."
+  },
+  "response_sha256": "214ed1adc2c406613f30affee38b175ce13d2a8b276dafe5e7b581802e123a3a",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

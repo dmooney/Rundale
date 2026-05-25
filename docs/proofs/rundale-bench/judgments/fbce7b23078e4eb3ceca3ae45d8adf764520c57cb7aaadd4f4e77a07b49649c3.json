@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 3,
+    "craft": 3,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "fbce7b23078e4eb3ceca3ae45d8adf764520c57cb7aaadd4f4e77a07b49649c3",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.8,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Iron in clay is plausible; boil-with-mint is period; concern about fever fits role.",
+    "character": "Appropriately cautious but voice is generic; could be any herbalist.",
+    "craft": "Generic opening ('taste it first') and remedies don't reach evocative threshold.",
+    "language": "Clean en-IE; 'mo chara' and 'ye' placed well; no errors.",
+    "responsiveness": "Addresses well-water concern; defers to specialist appropriately."
+  },
+  "response_sha256": "aba1d6d520766bf5aea989f18248ed6a94e6a87c0de6ff0cafb51bd111b0311a",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

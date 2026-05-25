@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "91797ce4762da47d8472bcdadb098909866d89f42fa1bd82744a8d157b14702a",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.8,
+  "prompt_id": "dialogue-0003",
+  "rationales": {
+    "authenticity": "Thyme, horehound, and honey are authentic 1820s remedies; 'Dia dhuit' and 'consumption' language are perfect period markers.",
+    "character": "Exceptional midwife professionalism: formal greeting, proper medical assessment, and actionable advice.",
+    "craft": "Four sentences with specific, evocative herb detail and reassuring bedside manner; publication-grade.",
+    "language": "Flawless English-Irish blend; 'listen to her chest proper' is excellent colloquial period diction.",
+    "responsiveness": "Comprehensively addresses the cough with immediate remedy and follow-up assessment."
+  },
+  "response_sha256": "b3ea22fd32b4d3937070ac4cc9d09f6b5a47728af954359f184cd8538a72d6b8",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 5,
+    "responsiveness": 3
+  },
+  "cache_key": "991d50afac24eff0170b6d05417625d0e00827d0866837a73d921e555156bd94",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.8,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "Strong dialectal voice and 'Cailleach Bh\u00e9ara' usage; 'hereabouts' and folk knowledge fit the period.",
+    "character": "Conversational village knowledge-bearer persona, using 'Aye' and local familiarity effectively.",
+    "craft": "Response is incomplete\u2014cuts off mid-thought without resolving the sentence or completing a thought.",
+    "language": "Excellent Irish spelling (Cailleach Bh\u00e9ara), smooth prose, no errors.",
+    "responsiveness": "Acknowledges the Cailleach but abruptly cuts off mid-sentence about herb gathering."
+  },
+  "response_sha256": "16a87e83dffa65bf0f1445decf247badadbd7be860c19f4c5cd887cc4c0e3a68",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

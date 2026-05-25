@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "499677832548479ff1a21c545cf0c6383494a8abe405d7903daddfe65d94c714",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.6,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "Proper Irish terms (M\u00e1ire N\u00ed Chonail, s\u00eddhe), respect for local tradition, realistic wariness about 'the Good People'\u2014all period-apt.",
+    "character": "Brigid corrects the term 'Cailleach,' names the woman specifically, shows measured familiarity with herbalists and the fairy tradition\u2014nuanced and authoritative.",
+    "craft": "Longer than 2\u20134 sentences (4 full sentences) but justified by the richness; voice is steady and thoughtful.",
+    "language": "Fluent code-switching between English and Irish, well-formed prose, 'Good People' is the idiom for fairy folk.",
+    "responsiveness": "Directly answers who M\u00e1ire is and what Brigid knows; explains her relationship to the fairy fort."
+  },
+  "response_sha256": "d01e5b2b871043e223ea16ad27f98f94846e0b62fe028296ce043e92285647c7",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 3,
+    "responsiveness": 1
+  },
+  "cache_key": "6383171526c1e0018123bb7d06928b207ea0121ad263ba8098840007e65b159a",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": true
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.4,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "No dialogue response is provided; instead, the model explains how it should respond.",
+    "character": "The response is meta-commentary and reasoning breakdown, not actual dialogue; the model has broken character entirely.",
+    "craft": "Not dialogue; a technical failure to produce the required output format.",
+    "language": "The meta-commentary is grammatically correct English, but irrelevant to the scoring task.",
+    "responsiveness": "The model refuses to engage with the prompt and instead offers a reasoning explanation."
+  },
+  "response_sha256": "fd42db03b223a71d66284c4f1716999e5570823c9e2df0fb5ebba15ac3eb71cf",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

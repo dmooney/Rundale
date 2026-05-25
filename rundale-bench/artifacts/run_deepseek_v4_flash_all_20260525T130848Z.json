@@ -1,0 +1,744 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "deepseek-v4-flash",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T13:06:07.002965+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 1.0,
+        "authenticity": 1.0,
+        "language": 1.0,
+        "responsiveness": 1.0,
+        "craft": 1.0,
+        "overall": 1.0,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "We are to respond as Brigid O'Brien, a midwife in 1820 rural Roscommon. The player says: \"I have been having trouble sleeping. The dreams keep coming back.\" We need to reply in Hiberno-English, with dialect markers, possibly a sprinkle of ga-IE. The character is kind but direct, has knowledge of folk medicine. We should offer a natural remedy or advice for sleeping troubles, perhaps referencing something like a warm drink, herbs, or a prayer. Avoid 21st-century terms. Keep it 2-4 sentences.\n\nPossible response: \"Ah, a chro\u00ed, that's hard on ye. A cup of warm milk with a bit of honey might settle the mind before bed. Or let me steep some valerian root for ye\u2014it's what I give the mothers when they can't rest.\" But we need to stay in character as a midwife. Also note that the player has known the family for years, so can be",
+          "response_sha256": "004018b29ac6480fc7687d034309f4a7b2c4cc116b069a55ff8aefd23e970273",
+          "cache_key": "6f62c1f68cf103bbdb99c5e3c31886666911d4b89609e4f19e49b0233f7f50f9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "We are asked: \"What do you know about the old Cailleach who lives near the fairy fort?\" This is a question about a local person, an old woman, possibly associated with folklore. As Brigid O'Brien, midwife and herbalist, I would know about local people, especially those involved in women's matters, herbs, and births. The Cailleach is a term for a hag or wise woman, often associated with supernatural elements. But I must stay in my lane: I know about herbs, births, sickness, and women's matters. I don't track livestock predators, hunt, or speak as a farmer. A priest speaks of souls and gossip, not arithmetic. A teacher speaks of pupils and books, not midwifery. If asked about something outside my knowledge, redirect or admit ignorance. However, this question is about a local woman, which might be within my knowledge as a midwife and community member. I should answer with warmth and respect, perhaps mentioning",
+          "response_sha256": "f0714dfd90b4b482bc30e79819ca329235ce7ab68f30cd086540f579894853b4",
+          "cache_key": "9f78bbab5560a2ba24b228597541f74d35866f0ad80ba82dfe57f6ef76d7d2ae",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "We need to parse the user's query: \"My mother is taken with a bad cough. Is there anything you can give her?\" This is a request for a midwife's help with a cough remedy. The AI is Brigid O'Brien, a midwife in 1820 rural Roscommon. She must respond in Hiberno-English with appropriate dialect markers and possibly a sprinkle of Irish.\n\nKey elements: Stay in character as a midwife. Know herbs, births, sickness, women's matters. She would have knowledge of herbal remedies for a cough. She must not speak like a farmer or priest. She should be kind but direct. The length: 2-4 sentences conversational.\n\nThe dialogue should be first person. After that, a blank line, then ---, then JSON metadata block with action, mood, internal_thought, language_hints.\n\nWe need to include language_hints if we use any Irish phrase. The instruction says: \"Sprinkle words and short phrases from",
+          "response_sha256": "ccc65de71f51df44d75971ca6f9473ab2997a76a82676be22ff81b523d8ffef7",
+          "cache_key": "6ecf68a6205e0e792a6909348a59efa777393da46a1f2bbb7a45d7d04d440188",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "We are to respond as Brigid O'Brien, a midwife in rural Roscommon, 1820. The player says: \"They say a stranger arrived in the village. Have you heard?\" We need to reply in Hiberno-English, with appropriate dialect markers, using allowed Irish phrases sparingly. The character is kind but direct, midwife knowledge, current mood content. Must be 2-4 sentences, then metadata block.\n\nWe can refer to local news, perhaps about a stranger. Brigid would have heard from her travels. She might have seen someone? Keep it plausible. Use a phrase like \"sure\" or \"mayhap\". Possibly include \"C\u00e9ad m\u00edle f\u00e1ilte\" if offering welcome to the stranger, but that might be too enthusiastic for just hearing. We can mention it.\n\nLet's draft: \"Ah, indeed I have, mo chara. They say he's a quiet one, keeps to himself. I heard he had words with",
+          "response_sha256": "06feb436f30d00643819f34a00e3795515e077050e275d223e85eeddc8d025b9",
+          "cache_key": "e7455bdb679e2b47a99cefba8e3dd94a3c0556fb197ce2bf4e4026cfd37a1d94",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "We are asked to stay in character as Brigid O'Brien, a midwife. The player says \"I lost a sheep last night. Could it be more than a wolf?\" This is outside a midwife's knowledge. She doesn't track livestock predators. She should redirect to the right person. Also, keep in mind the context: Ireland 1820, rural. Brigid is kind, direct, knows people. She might express sympathy but defer to someone else\u2014maybe the shepherd or farmer. Also, she might mention that she's seen strange tracks? No, she wouldn't. She shouldn't know about predator behavior. She could say, \"Ah, I'm sorry to hear that, but I'd not be the one to ask about such things. Ye'd best speak with old Tom the shepherd\u2014he knows every beast round here.\" That stays in lane.\n\nWe need to output dialogue and then a JSON metadata block. Dialogue should be 2-4 sentences. Hiberno",
+          "response_sha256": "618aefc11edf92a11ff2ddf2c405020d3d102445d492a4bbf1f75cca4128c2fc",
+          "cache_key": "95d4b30d4b38853dd59a53e37dfc3343dbd915faad0bb5291568c869a3bf7173",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "We are to respond as Brigid O'Brien, a midwife in 1820 rural Roscommon. The user asks, \"Do you remember when my father broke his leg in the south field?\" We need to stay in character, use Hiberno-English, include dialect markers, maybe a sprinkle of Irish phrase. The response should be 2-4 sentences, conversational. Then a JSON metadata block.\n\nWe have to recall that Brigid is a midwife, not a farmer, but she knows births, sickness, women's matters, and herbs. She might have been involved in setting the leg or providing remedies. So she can remember that event. The father is someone she knows. The tone should be kind, direct.\n\nLet's craft a response. Use some Irish phrase like \"a chro\u00ed\" (dear) or \"mo ghr\u00e1\". Also, note the language hints.\n\nResponse: \"Ah, indeed I do, a chro\u00ed. That was a bad",
+          "response_sha256": "d44b0e7fd9bb4284eb2d6a2c5e10b8c0d6a30b4ef2daecc93a7a85fc629dea0d",
+          "cache_key": "efe52515373969d11e0f6c9bd7d6082cf375b8b89fa29dc1b3b55e96ec51adb4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "We need to parse the user's query. They say \"I saw lights moving on the hill last night. What were they?\" They're asking about something they saw that might be unusual. In 1820 rural Ireland, people might attribute strange lights to fairies (s\u00eddhe), will-o'-the-wisps, or natural phenomena. Brigid O'Brien is a midwife, so she might have knowledge of local superstitions and natural explanations. She would not be an expert on astronomy or physics, but she would know common beliefs.\n\nI need to craft a response in Hiberno-English, staying in character. The player is likely someone from the local parish. Brigid would respond thoughtfully, perhaps offering a folk explanation but not being dismissive. She might mention the \"s\u00eddhe\" or \"fairies\" as a possibility, but also a more mundane one like swamp gas or lanterns. The query is ambiguous, so she must give a plausible answer in her voice.\n\n",
+          "response_sha256": "fdc60e82f2d1cc92f3d4cd6b060209828d9bb2c7b0b548ae00038691bde54859",
+          "cache_key": "29877361b26018abbec54a14284ae081468c67745a72ff4a83095233dd6992c2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "We are to respond as Brigid O'Brien, an 1820 midwife in rural Roscommon. The question: \"The well water tastes strange this week. Should I be worried?\" Brigid knows about local plants, folk medicine, births, women's matters, but not specifically about water quality as a scientific matter. However, she might have practical knowledge: if the water tastes strange, it could be due to something like minerals seeping, or perhaps it's been affected by something. But she would not speak as a farmer or scientist. She might suggest caution, maybe to boil the water, or to see if others have noticed. She could use her knowledge of herbs to suggest something to mask the taste? But that's not a remedy for tainted water. Better to give practical advice: \"You might want to boil it before drinking, or use water from a different source for a time.\" Or she might connect it to something in the area: \"Have the cattle been at the",
+          "response_sha256": "149ff8d1b64ffb351c81fef033fb4ca27eedc5ccbf6f1f4e2c8d3706a4bed33b",
+          "cache_key": "65b5c042e21d6b31b3b166d1dfb34d8d8b1813ea3fb038eadf4a58e3a59c18c3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "We are Brigid O'Brien, a midwife in 1820 rural Roscommon. The player asks about fetching for his wife's childbirth. I must respond in Hiberno-English with appropriate dialect and a touch of Irish phrase if natural. I should be kind, direct, knowledgeable. I'd ask about the woman's condition, note signs of labor, and give practical advice. The response should be 2-4 sentences, then the metadata.\n\nI'll reply: \"Ah, sure, 'tis not the first time I've been called, and I'll come when the pains come steady. Keep her walking and comfortable, and if the waters break, send for me directly. Go n-\u00e9ir\u00ed leat, a st\u00f3r.\" But careful: \"a st\u00f3r\" is dear, might be appropriate. Also I'll include language hints for \"Go n-\u00e9ir\u00ed leat\" meaning good luck.\n\nBut the guidelines say at most one short phrase per reply, and",
+          "response_sha256": "5305050858ed42d7ae1ac4fe6d7fa30387cee76b0c23a232b1cf47d74d50d695",
+          "cache_key": "7e44dec517a33ca1e59516b22080248e9fabfee62f8d0e3dc0932f5bf86f7826",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "We need to parse the user query: \"Father Cathal preached against the old ways on Sunday. What do you think?\" The context is 1820 rural Roscommon, Brigid O'Brien is a midwife with knowledge of herbs, births, sickness, women's matters. She is to stay in character, kind but direct, with deep knowledge of local plants and folk medicine, and has known the player's family for years.\n\nThe user is asking what Brigid thinks about Father Cathal's sermon against the \"old ways\". This implies the old folk traditions, perhaps including herbal remedies, midwifery practices, maybe the s\u00eddhe and piseogs. She would likely have an opinion on this, but she must be careful not to contradict the Church too openly, as the Church is powerful and she might be seen as having some pagan / folk practices herself. She is a midwife who uses herbs, so she might be caught between the Church and the old ways.\n\nGiven the constraints",
+          "response_sha256": "de25bc0ee473535f1f6d7402551a3007cbcb4bd4905da00fbb0e366246ec5879",
+          "cache_key": "d6b6fab8bc9d0e6446e8c08babe055e1d0568e49b517a50d849d04cdf3258e1b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__deepseek_v4_flash"
+      ],
+      "candidate": {
+        "model_id": "deepseek-v4-flash",
+        "provider_id": null,
+        "resolved_target": "deepseek-v4-flash@https://opencode.ai/zen/go/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "mean_score": 0.42000000000000004
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0001",
+          "reply": "Thinking. 1.  **Analyze the Request:**\n    *   Target Persona: Padraig Darcy, 58-year-old Irish publican, 1820.\n    *   Traits: Gruff but warm-hearted, dry wit. Current mood: content.\n    *   Setting: Evening, clear. A newcomer arrives.\n    *   Situation: First meeting. Introduce yourself briefly.\n    *   Format: Dialogue only (1-2 sentences). No narration, no action descriptions"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 4,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.8,
+          "id": "reaction-0002",
+          "reply": "First, the user says: \"A familiar has just arrived at Brigid's cottage. It is morning, Light Rain. You have met this person before. You are working here as the publican. Greet them by name.\"\n\nI am playing the role of Padraig Darcy, a 58-year-old publican in rural Ireland, 1820. My character is gruff but warm-hearted, with a dry wit. The setting is Brigid's cottage, not my pub, but"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 1,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.2,
+          "id": "reaction-0003",
+          "reply": "Thinking. 1.  **Analyze the Request:**\n    *   Character: Padraig Darcy, 58, publican in rural Ireland, 1820. Gruff but warm-hearted, dry wit.\n    *   Setting: Sunday noon, at the church porch. The person is a familiar.\n    *   Role: The assistant is acting as Padraig Darcy, but the *user prompt* establishes a scene. Wait, the user prompt says \"You are Padra"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0004",
+          "reply": "We are asked to write a single brief greeting or reaction (1-2 sentences max). Dialogue only, no narration or action descriptions. The character is Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. The setting is Darcy's Pub, evening. The newcomer has just arrived, and Brigid has not met them before. She is working as the midwife. We need to introduce herself briefly.\n\nThe instruction says: \"Write a single brief greeting or"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 1,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.2,
+          "id": "reaction-0005",
+          "reply": "Thinking. 1.  **Analyze the Request:**\n    *   **Character:** Brigid O'Brien, 42-year-old midwife in rural Ireland, 1820. Kind but direct, knows local plants/folk medicine. Focused.\n    *   **Setting:** Her cottage, morning, light rain.\n    *   **Situation:** A familiar person has arrived. The user *has met this person before*. The user is *working here as the midwife*.\n"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0006",
+          "reply": "Thinking. 1.  **Analyze the Request:**\n    *   Role: Brigid O'Brien, 42-year-old midwife, rural Ireland, 1820. Kind but direct. Knows local plants and folk medicine. Current mood: focused.\n    *   Scenario: A familiar person arrives at the church porch on Sunday noon. I am working here as the midwife.\n    *   Constraint: Greet them by name. Dialogue only, 1-2 sentences"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0007",
+          "reply": "First, the user says: \"A newcomer has just arrived at Darcy's Pub. It is evening, Clear. You have not met this person before. You are working here as the priest. Introduce yourself briefly.\"\n\nI am Father Cathal Donnellan, a 51-year-old priest in rural Ireland, 1820. My character is eloquent and severe, and I preach against the old ways. The mood is watchful.\n\nThe instruction is: \"Write a single brief greeting or reaction ("
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0008",
+          "reply": "Thinking. 1.  **Analyze the Request:**\n    *   Character: Father Cathal Donnellan, 51, priest in rural Ireland, 1820.\n    *   Traits: Eloquent, severe, preaches against the old ways. Watchful mood.\n    *   Scene: Morning, Light Rain. Brigid's cottage. A familiar person arrives.\n    *   Goal: Greet them by name, 1-2 sentences, dialogue only, no"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0009",
+          "reply": "We are to write a dialogue-only greeting or reaction from Father Cathal Donnellan. The scenario: \"A familiar has just arrived at the church porch. It is Sunday noon, Mist. You have met this person before. You are working here as the priest. Greet them by name.\"\n\nWe need a single brief greeting (1-2 sentences max). Dialogue only, no narration. No modern language. The character is a priest in rural Ireland, 1820, eloquent, severe,"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 0,
+          "length_ok": false,
+          "non_latin_chars": {},
+          "score": 0.0,
+          "id": "reaction-0010",
+          "reply": "First, the user says: \"A newcomer has just arrived at Darcy's Pub. It is evening, Clear. You have not met this person before. You are working here as the farmer. Introduce yourself briefly.\"\n\nI need to write a single brief greeting or reaction from Sean Murphy. It must be dialogue only, 1-2 sentences max, no narration or action descriptions. No modern language.\n\nSean Murphy is a 41-year-old farmer in rural Ireland, 1820. He is plain"
+        }
+      ]
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0008",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        }
+      ]
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0012",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        }
+      ]
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.6,
+        "fluency_mean": 2.7,
+        "grammar_mean": 2.7,
+        "idiom_mean": 2.7,
+        "task_fulfillment_mean": 2.7,
+        "english_leakage_mean": 2.6,
+        "overall_mean": 2.65
+      },
+      "results": [
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is entirely in English, explaining the translation process rather than providing the Irish sentence as required by the constraints.",
+          "english_leakage_examples": [
+            "First, the task is to translate",
+            "The sentence is in the past tense",
+            "Putting it together",
+            "In Irish, word order is typically verb-subject-object"
+          ],
+          "id": "gaeilge-0001",
+          "reply": "First, the task is to translate the English sentence \"The harvest was good this year.\" into natural Irish Gaeilge. The constraints say to answer in Irish only, use one sentence, and not explain the translation.\n\nThe sentence is in the past tense: \"was good.\" In Irish, the word for harvest is \"f\u00f3mhar.\" The verb \"was\" would be \"bh\u00ed\" for past tense, and \"good\" is \"maith.\" Also, \"this year\" is \"i mbliana.\"\n\nPutting it together: \"The harvest was good this year.\" could be \"Bh\u00ed an f\u00f3mhar maith i mbliana.\" But I need to ensure it's natural and correct.\n\nIn Irish, word order is typically verb-subject-object, so \"Bh\u00ed\" (was) comes first. \"An f\u00f3mhar\" (the harvest) is the subject. \"Maith\" (good) is the predicate adjective. \"I mbliana\" (this year) is the time adverb.\n\nI should consider if there are any idiomatic expressions. \"The harvest was good\" might also be expressed as \"Bh\u00ed f\u00f3mhar maith ann i mbliana\" or something similar, but I think \"Bh\u00ed an f\u00f3mhar maith i mbliana\" is fine.\n\nTo make it more natural, I recall that in Irish, \"good\" after \"bh\u00ed\" might require a s\u00e9imhi\u00fa or something"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, perfectly expressing obligation, movement, and first-person singular in natural Irish.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0002",
+          "reply": "Caithfidh m\u00e9 dul go dt\u00ed an banc."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is almost entirely English explanation and reasoning, with no final Irish sentence provided; it completely fails the constraint to answer in Irish only with one sentence.",
+          "english_leakage_examples": [
+            "We are asked to translate",
+            "The constraints: answer in Irish only",
+            "In Irish, a natural translation would be",
+            "Both are correct, but",
+            "I need to use one sentence"
+          ],
+          "id": "gaeilge-0003",
+          "reply": "We are asked to translate \"I want to tell you the truth.\" into natural Irish Gaeilge. The constraints: answer in Irish only, use one sentence, do not explain the translation.\n\nThe sentence is \"I want to tell you the truth.\" In Irish, a natural translation would be \"T\u00e1 m\u00e9 ag iarraidh an fh\u00edrinne a insint duit.\" or \"Ba mhaith liom an fh\u00edrinne a insint duit.\" The phrase \"I want to\" can be \"T\u00e1 m\u00e9 ag iarraidh\" or \"Ba mhaith liom\". \"Tell you the truth\" is \"an fh\u00edrinne a insint duit\". So a common natural phrasing is \"Ba mhaith liom an fh\u00edrinne a insint duit.\" Alternatively, \"T\u00e1 m\u00e9 ag iarraidh an fh\u00edrinne a insint duit.\" Both are correct, but \"Ba mhaith liom\" might be more polite or standard for \"I want\" in this context. However, \"I want to tell you the truth\" can also be \"Is mian liom an fh\u00edrinne a insint duit,\" but \"Ba mhaith liom\" is more common in spoken Irish.\n\nI need to use one sentence and answer only in Irish. So I will provide the translation without any additional text.\n\nI'll go with"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the past tense of 'ith', first-person singular pronoun, and the definite form 'an t-ar\u00e1n'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0004",
+          "reply": "D'ith m\u00e9 an t-ar\u00e1n."
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is entirely in English, providing a lengthy explanation and analysis rather than the required single Irish sentence.",
+          "english_leakage_examples": [
+            "First, the task is to translate",
+            "In Irish, the future tense is often expressed",
+            "The sentence is in the future tense"
+          ],
+          "id": "gaeilge-0005",
+          "reply": "First, the task is to translate \"You will buy the book today.\" into natural Irish Gaeilge. I need to answer in Irish only, use one sentence, and not explain the translation.\n\nThe sentence is in the future tense: \"You will buy the book today.\" The subject is \"you\" (singular, informal), the verb is \"will buy,\" the object is \"the book,\" and there's a time phrase \"today.\"\n\nIn Irish, the future tense is often expressed with the verb \"ceannaigh\" (to buy) in the future form. For \"you\" (singular informal), it would be \"ceann\u00f3idh t\u00fa\" meaning \"you will buy.\"\n\nThe object \"the book\" is \"an leabhar.\"\n\n\"Today\" is \"inniu.\"\n\nSo, a direct translation might be: \"Ceann\u00f3idh t\u00fa an leabhar inniu.\" That means \"You will buy the book today.\"\n\nBut I need to make sure it's natural. In Irish, the standard word order is verb-subject-object (VSO), which is what I have: verb \"ceann\u00f3idh,\" subject \"t\u00fa,\" object \"an leabhar,\" and time \"inniu.\"\n\nTime expressions like \"inniu\" usually come at the end of the sentence, so that should be fine.\n\nI could also use the conjunctive form if needed, but for a simple statement like this, it seems straightforward.\n\nAnother structure"
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is entirely in English with reasoning and meta-commentary; it never produces a final Irish sentence, violating all constraints.",
+          "english_leakage_examples": [
+            "We are asked to translate",
+            "The instruction is to answer in Irish only",
+            "We need to think about idiomatic Irish",
+            "Thus, I'll go with"
+          ],
+          "id": "gaeilge-0006",
+          "reply": "We are asked to translate \"I'm looking forward to the snow.\" into natural Irish Gaeilge, preferring an idiomatic Irish phrasing. The instruction is to answer in Irish only, one sentence, no explanation.\n\nWe need to think about idiomatic Irish for \"looking forward to something\". Common phrases include \"T\u00e1 m\u00e9 ag tn\u00fath le\", \"T\u00e1 m\u00e9 ag s\u00fail le\", but \"ag tn\u00fath le\" is often used for looking forward to something with anticipation. For \"the snow\", that's \"an sneachta\". So \"T\u00e1 m\u00e9 ag tn\u00fath leis an sneachta\" is a good translation. But we might also consider \"T\u00e1 m\u00e9 ag s\u00fail le\" which is more \"expecting\" but can be used. \"Ag tn\u00fath le\" is more \"eagerly anticipating\". Another phrase is \"Ag f\u00e9achaint ar aghaidh le\" which is a calque from English. We should avoid that.\n\nPerhaps there is a more idiomatic phrasing using \"t\u00e1im ag tn\u00fath\" contraction: \"T\u00e1im ag tn\u00fath leis an sneachta.\" But \"T\u00e1 m\u00e9\" is fine.\n\nWe should check if there's any specific idiom. In Irish, \"looking forward to\" can also be \"ag tn\u00fath le\" or \"ag s\u00fail le\". For something like snow, it's straightforward.\n\nThus, I'll go with: \"T\u00e1 m\u00e9"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' for possession.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0007",
+          "reply": "An bhfuil airgead aici?"
+        },
+        {
+          "fluency": 2,
+          "grammar": 2,
+          "idiom": 2,
+          "task_fulfillment": 2,
+          "english_leakage": 1,
+          "overall": 1.5,
+          "reason": "The candidate response is almost entirely English reasoning and explanation, violating the 'Answer in Irish only' and 'Do not explain the translation' constraints; the correct Irish sentence appears buried in the English text but was never delivered as the sole output.",
+          "english_leakage_examples": [
+            "We are asked to translate",
+            "The phrase 'I am going to the shop' in Irish",
+            "However, sometimes people use",
+            "But both are fine",
+            "The prompt says 'Answer in Irish only.'"
+          ],
+          "id": "gaeilge-0008",
+          "reply": "We are asked to translate \"I am going to the shop\" into natural Irish Gaeilge. The task says \"Translate into natural Irish Gaeilge\", and the constraints: Answer in Irish only, Use one sentence, Do not explain the translation. So we just need to provide the Irish translation.\n\nThe phrase \"I am going to the shop\" in Irish: \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" But we need to consider natural Irish. The standard translation is \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" However, sometimes people use \"T\u00e1im ag dul go dt\u00ed an siopa.\" But \"T\u00e1 m\u00e9\" is also common. To be natural, we can use \"T\u00e1im ag dul go dt\u00ed an siopa.\" But both are fine. However, \"go dt\u00ed\" can be shortened in some dialects to \"go\" in certain contexts, but for \"to the shop\", \"go dt\u00ed an siopa\" is standard. Also, \"chuig\" can be used: \"T\u00e1 m\u00e9 ag dul chuig an siopa.\" That is also natural. Which is more natural? \"go dt\u00ed\" and \"chuig\" are both used. I'll pick one. Perhaps \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" is fine.\n\nThe prompt says \"Answer in Irish only.\" So I'll just output the Irish sentence. Also \"Use one sentence.\" So just"
+        },
+        {
+          "fluency": 1,
+          "grammar": 1,
+          "idiom": 1,
+          "task_fulfillment": 1,
+          "english_leakage": 1,
+          "overall": 1.0,
+          "reason": "The candidate response is almost entirely in English, consisting of meta-commentary, translation, and reasoning rather than a single Irish sentence answering the question.",
+          "english_leakage_examples": [
+            "We are given:",
+            "Translation: Read this sentence and answer in Irish",
+            "We need to answer in Irish only",
+            "So the man was walking with the woman",
+            "Or more directly:"
+          ],
+          "id": "gaeilge-0009",
+          "reply": "We are given: \"L\u00e9igh an abairt seo agus freagair i nGaeilge: 'Bh\u00ed an fear ag si\u00fal leis an mbean.' C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?\"\n\nTranslation: Read this sentence and answer in Irish: \"The man was walking with the woman.\" Who was walking and with whom?\n\nWe need to answer in Irish only, using one sentence, based only on the source sentence.\n\nThe source sentence is \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" So the man was walking with the woman. So answer: An fear a bh\u00ed ag si\u00fal, agus leis an mbean a bh\u00ed s\u00e9? Or more directly: Bh\u00ed an fear ag si\u00fal leis an mbean. But the question asks: \"C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?\" So we need to state who was walking and with whom.\n\nIn Irish: \"An fear a bh\u00ed ag si\u00fal, agus leis an mbean.\" Or \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" But that's just repeating the sentence. Perhaps: \"An fear a bh\u00ed ag si\u00fal agus bh\u00ed s\u00e9 ag si\u00fal leis an mbean.\" But we need one sentence.\n\nBetter: \"An fear a bh\u00ed ag si\u00fal agus ba leis an mbean a bh\u00ed s\u00e9 ag si\u00fal.\" Or simpler: \"An fear a bh\u00ed"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "Perfect match with the reference answer: negative interrogative correctly converted to positive declarative with past-tense verb and subject retained.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0010",
+          "reply": "Labhair Se\u00e1n."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 161.15281414985657,
+  "cost": {
+    "calls": 46,
+    "prompt_tokens": 33992,
+    "completion_tokens": 6879,
+    "usd": 0.053197799999999996
+  }
+}

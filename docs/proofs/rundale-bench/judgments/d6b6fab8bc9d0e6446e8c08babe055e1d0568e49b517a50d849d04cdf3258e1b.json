@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "d6b6fab8bc9d0e6446e8c08babe055e1d0568e49b517a50d849d04cdf3258e1b",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0010",
+  "rationales": {
+    "authenticity": "Discusses tensions but delivers no dialogue.",
+    "character": "Contextual analysis without any actual voice.",
+    "craft": "Incomplete; trailing off into 'Given the constraints...'",
+    "language": "Analytical English only; no character speech.",
+    "responsiveness": "Does not respond to the Father Cathal prompt."
+  },
+  "response_sha256": "de25bc0ee473535f1f6d7402551a3007cbcb4bd4905da00fbb0e366246ec5879",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

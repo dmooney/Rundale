@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "159ceae1e3c9fd17c36940bc2b636b5842b003d197bea8c61dce30565a016f20",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.8,
+  "prompt_id": "dialogue-0009",
+  "rationales": {
+    "authenticity": "Precise period medical knowledge (regular pains, water breaking, back aching as signs), Irish idiom ('the bawn's turning'), and 'Go raibh maith agat'.",
+    "character": "Expert midwife providing specific, confident guidance with appropriate concern and warmth for expectant father.",
+    "craft": "Slightly long but specific, evocative details about labor signs justify the length; minor craft excess.",
+    "language": "Excellent English-Irish blend with proper grammar and authentic dialectal speech.",
+    "responsiveness": "Thoroughly addresses when to fetch the midwife with detailed criteria and follow-up care questions."
+  },
+  "response_sha256": "4092a73d024078e397f5de32cde426198d9a16bd442aafca55c5468aedeb1c24",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

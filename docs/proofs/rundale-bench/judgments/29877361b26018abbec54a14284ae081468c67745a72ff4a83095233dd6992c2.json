@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "29877361b26018abbec54a14284ae081468c67745a72ff4a83095233dd6992c2",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "Analysis of plausible folklore; no actual response.",
+    "character": "Metacognitive framing; no character dialogue present.",
+    "craft": "Incomplete; ends unfinished mid-explanation.",
+    "language": "Analytical prose instead of character voice.",
+    "responsiveness": "Does not answer the lights-on-the-hill prompt."
+  },
+  "response_sha256": "fdc60e82f2d1cc92f3d4cd6b060209828d9bb2c7b0b548ae00038691bde54859",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

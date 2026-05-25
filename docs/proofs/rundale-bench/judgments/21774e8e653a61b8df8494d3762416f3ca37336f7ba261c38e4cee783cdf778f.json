@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "21774e8e653a61b8df8494d3762416f3ca37336f7ba261c38e4cee783cdf778f",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.2,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Boiling water and wormwood with chamomile are period-appropriate precautions.",
+    "character": "Practical midwife voice addressing practical concern; knows herbal treatments for belly gripes.",
+    "craft": "Three sentences with good pacing but slightly exceeds the 2-4 sentence ideal.",
+    "language": "Clear, natural colloquial English with no anachronism.",
+    "responsiveness": "Directly addresses the concern with practical steps and contingency planning."
+  },
+  "response_sha256": "60d43f9e3689701faaf80c2b97a67d9ace2895ba9262a87312139db27007dafe",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

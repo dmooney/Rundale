@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 1,
+    "responsiveness": 1
+  },
+  "cache_key": "420790e7a5dc014dafd31ee5fb63f01a943f67e2180170a1ef84dc7d2b648d9a",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.0,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Discusses period superstitions and folklore but generates no dialogue.",
+    "character": "No dialogue provided; only explanation of Brigid's lane as a midwife vs. a farmer.",
+    "craft": "Incomplete fragment trailing off mid-sentence.",
+    "language": "Analytical planning text only; no dialogue voice.",
+    "responsiveness": "Explains reasoning but does not respond to the sheep loss prompt with dialogue."
+  },
+  "response_sha256": "ebf51e217ae632486baf50617dee217ca04464a3050ff43130a76145e5f2a2c7",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

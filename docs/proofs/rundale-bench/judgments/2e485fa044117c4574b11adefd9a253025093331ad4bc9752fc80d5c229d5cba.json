@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 1,
+    "character": 1,
+    "craft": 1,
+    "language": 3,
+    "responsiveness": 1
+  },
+  "cache_key": "2e485fa044117c4574b11adefd9a253025093331ad4bc9752fc80d5c229d5cba",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": true
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 1.4,
+  "prompt_id": "dialogue-0002",
+  "rationales": {
+    "authenticity": "No actual character dialogue present; response is an explanation of what the model should do.",
+    "character": "Entirely breaks character; the response is meta-commentary and internal monologue, not dialogue.",
+    "craft": "Fails the fundamental requirement of providing actual character dialogue; this is a refusal.",
+    "language": "The explanatory prose is grammatically sound but entirely inappropriate to the dialogue format.",
+    "responsiveness": "Completely off-task; the model declines to role-play and instead meta-narrates."
+  },
+  "response_sha256": "b8abd4afc841184ec32109f59a2f3320bdc7e3e9ce2176499a16369e2f7af31a",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

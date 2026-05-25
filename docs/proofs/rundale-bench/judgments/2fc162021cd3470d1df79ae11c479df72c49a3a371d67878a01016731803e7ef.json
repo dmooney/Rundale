@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 3,
+    "craft": 3,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "2fc162021cd3470d1df79ae11c479df72c49a3a371d67878a01016731803e7ef",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.8,
+  "prompt_id": "dialogue-0005",
+  "rationales": {
+    "authenticity": "Appropriate to defer to shepherd; m\u00e1irt\u00edn reference is plausible.",
+    "character": "Midwife correctly defers but voice feels generic; lacks the warmth or specific detail of stronger replies.",
+    "craft": "Two brief sentences; somewhat terse and dismissive rather than warmly bounded.",
+    "language": "Clear prose with natural Irish phrase insertion.",
+    "responsiveness": "Acknowledges the concern but appropriately redirects to shepherd expertise."
+  },
+  "response_sha256": "ff88ac830bbaaa411466c77602f87c1572da915bcb9e0859af2a2acb03ac980e",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

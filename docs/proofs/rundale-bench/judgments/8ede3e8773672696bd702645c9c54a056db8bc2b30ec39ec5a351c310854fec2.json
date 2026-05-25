@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 4
+  },
+  "cache_key": "8ede3e8773672696bd702645c9c54a056db8bc2b30ec39ec5a351c310854fec2",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.8,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Period register maintained with 'mo chara' and natural phrasing, but lacks specific period detail.",
+    "character": "Empathetic midwife voice with 'mo chara' and thoughtful probing of the dream, though somewhat generic.",
+    "craft": "Adequate length but the response trails into a question, breaking the 2-4 sentence instruction.",
+    "language": "Well-formed English-Irish mix with proper terms; no errors.",
+    "responsiveness": "Directly addresses the sleep trouble and dreams, asking clarifying questions."
+  },
+  "response_sha256": "357d8e3ab3fe7f78690ac328000cb5172b21fc9fd964f0f3fc847c05d621d583",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

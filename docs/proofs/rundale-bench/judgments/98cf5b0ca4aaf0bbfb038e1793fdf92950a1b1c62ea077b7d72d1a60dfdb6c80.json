@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "98cf5b0ca4aaf0bbfb038e1793fdf92950a1b1c62ea077b7d72d1a60dfdb6c80",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.6,
+  "prompt_id": "dialogue-0010",
+  "rationales": {
+    "authenticity": "Nettle root for fever is period-plausible but 'gifts God put in the earth' slightly generic.",
+    "character": "Calmly defiant philosophy and role clarity are distinctive and earned.",
+    "craft": "Slightly exceeds 4-sentence ideal but justified by philosophical depth.",
+    "language": "Strong en-IE; apron-smoothing action grounds it; no errors.",
+    "responsiveness": "Directly addresses sermon question and establishes her ethical stance."
+  },
+  "response_sha256": "7d1dbf7c4c3fd8ef2af2d2b296dcd853ae6c2ae9982c62f8ee1705840c95d5e3",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

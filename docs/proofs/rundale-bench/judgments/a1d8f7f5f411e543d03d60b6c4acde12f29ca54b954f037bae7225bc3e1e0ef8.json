@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 5,
+    "character": 5,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "a1d8f7f5f411e543d03d60b6c4acde12f29ca54b954f037bae7225bc3e1e0ef8",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.8,
+  "prompt_id": "dialogue-0006",
+  "rationales": {
+    "authenticity": "Comfrey and elder bark are historically documented folk remedies; poultice technique is period-accurate.",
+    "character": "Exceptionally warm and present; personal memory grounds her authority and connection.",
+    "craft": "Three sentences with reflective depth; slightly long but warmth compensates.",
+    "language": "Excellent with natural Irish phrase (Le c\u00fanamh D\u00e9) and reflective tone.",
+    "responsiveness": "Directly recalls the event with specific details that affirm intimacy with the family."
+  },
+  "response_sha256": "2790cbac273448c226aca86c6015c494da04b19cc635fdf3fd6464f464656d49",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

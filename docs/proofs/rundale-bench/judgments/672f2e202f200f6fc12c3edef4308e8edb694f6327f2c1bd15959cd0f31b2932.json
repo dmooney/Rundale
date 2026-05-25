@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 3,
+    "language": 4,
+    "responsiveness": 3
+  },
+  "cache_key": "672f2e202f200f6fc12c3edef4308e8edb694f6327f2c1bd15959cd0f31b2932",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.6,
+  "prompt_id": "dialogue-0007",
+  "rationales": {
+    "authenticity": "Period tone appropriate to how a practical woman would view folk stories; s\u00eddhe reference is spot-on.",
+    "character": "Brigid's practical wariness\u2014'minds her own business'\u2014fits her character; doesn't claim knowledge she doesn't have.",
+    "craft": "Three sentences but somewhat evasive\u2014'no place for decent folk' is evocative but the rest is hedging.",
+    "language": "Natural Irish English; 'so I do' is idiomatic; no errors.",
+    "responsiveness": "Addresses the lights but mostly by deflecting; could have engaged more with the phenomenon."
+  },
+  "response_sha256": "a0a555acae1acbecb93c7d76aa1c0becb22966d6af66de4d8ebdaa4f9e4d7e31",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

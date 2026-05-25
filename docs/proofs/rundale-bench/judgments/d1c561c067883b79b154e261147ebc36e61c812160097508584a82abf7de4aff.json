@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "d1c561c067883b79b154e261147ebc36e61c812160097508584a82abf7de4aff",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Valerian and chamomile are period-appropriate remedies; syntax and tone fit 1820 rural Ireland well, though 'weary thing' is slightly general.",
+    "character": "Brigid's warm, practical midwife voice comes through; offering tea and probing for underlying causes fits her role perfectly.",
+    "craft": "Three well-balanced sentences with action beats; coherent and evocative without excess.",
+    "language": "Clear English with excellent rhythm and diction; no errors or anachronisms.",
+    "responsiveness": "Directly addresses the sleep troubles and dreams, offers remedy and follow-up care."
+  },
+  "response_sha256": "7d61b203cbd8e2f99c6df474cef6086f4e6e980253146177a3f92958423706ca",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

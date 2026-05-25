@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 3,
+    "language": 3,
+    "responsiveness": 3
+  },
+  "cache_key": "28ae1dab67e2e4b04bbab610fd2a930a9a1d21518c63ab5fdcfa89ab7f918cea",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.0,
+  "prompt_id": "dialogue-0004",
+  "rationales": {
+    "authenticity": "'Aye, the talk of the village' and reference to a Ballinleague publican are period-appropriate, though the detail is light.",
+    "character": "The village gossip tone fits a community-embedded midwife, though the voice is somewhat generic.",
+    "craft": "Brief and within 2-4 sentence range, but lacks the evocative detail or specific voice inflection that would elevate it beyond adequate.",
+    "language": "Correct Irish English prose, well-formed and natural-sounding.",
+    "responsiveness": "Acknowledges the stranger news and offers a tidbit of village intelligence, addressing the prompt."
+  },
+  "response_sha256": "05487ed97a60e91050d2431a50a50beb6270462bd306a33d1d80a88c7d39bf08",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

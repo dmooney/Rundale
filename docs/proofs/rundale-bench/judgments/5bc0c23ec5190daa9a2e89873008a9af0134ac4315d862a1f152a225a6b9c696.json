@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 3,
+    "character": 3,
+    "craft": 3,
+    "language": 3,
+    "responsiveness": 4
+  },
+  "cache_key": "5bc0c23ec5190daa9a2e89873008a9af0134ac4315d862a1f152a225a6b9c696",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 3.2,
+  "prompt_id": "dialogue-0008",
+  "rationales": {
+    "authenticity": "Period-appropriate explanation (soil after rain), sensible caution; no anachronisms.",
+    "character": "Diagnostic questions ('Metallic-like or is it more of a green taste to it?') fit a midwife's practical wisdom.",
+    "craft": "Responsive and practical, but slightly prolix and truncated at the end, preventing fuller development.",
+    "language": "Prose is clear and well-formed, with natural Hiberno-English phrasing; cuts off at the end.",
+    "responsiveness": "Directly engages with water concern, asks clarifying questions, offers reassurance and advice."
+  },
+  "response_sha256": "1dd787de24eaba310876cf18094f8e01343608b006a36a69e849296109e2d424",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 4
+  },
+  "cache_key": "7d23e824529f5f60b5374a1918b78ac9ed749049dc704568b919c6239366fb6a",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.2,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Valerian and chamomile are period-plausible, 'a st\u00f3r' is woven in naturally, no anachronisms.",
+    "character": "Brigid's gentle practicality and concern ring true for a midwife; the tea remedy is immediate and caring.",
+    "craft": "Concise and evocative in 3 sentences; the herbal detail and body language grounded the scene.",
+    "language": "Clean, idiomatic Irish English with natural 'so it is' rhythm; 'a st\u00f3r' pronunciation hint is accurate.",
+    "responsiveness": "Directly addresses the sleep trouble, offers remedy, asks clarifying question about dream content."
+  },
+  "response_sha256": "70fe793e2dfee79be0096b19fac128733ed408bd9adf23bdab4ed0709fc292f1",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}

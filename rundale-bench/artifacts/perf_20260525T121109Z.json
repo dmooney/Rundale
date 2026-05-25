@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-25T12:11:09.516065+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "qwen3.5-plus": {
+      "n_streamed": 10,
+      "n_ok": 5,
+      "ttft_ms_median": 79646,
+      "ttft_ms_p90": 166765,
+      "total_ms_median": 81710,
+      "tokens_per_second_median": 2081.4,
+      "tokens_per_second_p90": 3724.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 3817,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 3788,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 3893,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 79646,
+          "total_ms": 81710,
+          "completion_tokens": 4296,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 2081.3953488372094,
+          "reply_len": 438,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 3846,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 3822,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 36849,
+          "total_ms": 38865,
+          "completion_tokens": 1844,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 914.6825396825396,
+          "reply_len": 484,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 50748,
+          "total_ms": 52524,
+          "completion_tokens": 2704,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 1522.5225225225224,
+          "reply_len": 487,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 214253,
+          "total_ms": 216837,
+          "completion_tokens": 11917,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 4611.8421052631575,
+          "reply_len": 483,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.5-plus",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 95535,
+          "total_ms": 97761,
+          "completion_tokens": 5327,
+          "prompt_tokens": 1576,
+          "tokens_per_second": 2393.0817610062895,
+          "reply_len": 479,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 683.1511459350586,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

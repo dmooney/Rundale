@@ -1,0 +1,29 @@
+{
+  "axes": {
+    "authenticity": 4,
+    "character": 4,
+    "craft": 4,
+    "language": 5,
+    "responsiveness": 5
+  },
+  "cache_key": "feda258f95e7814fc8e0bd9befb23dca95f61fdcd2fbd15625588cf02776928e",
+  "flags": {
+    "judge_retry": false,
+    "non_latin_detected": false,
+    "refused": false
+  },
+  "judge_id": "judge_sonnet_v1",
+  "judge_model": "claude-sonnet-4-6",
+  "overall": 4.4,
+  "prompt_id": "dialogue-0001",
+  "rationales": {
+    "authenticity": "Period remedies (chamomile, valerian) and consultation with priest are historically accurate.",
+    "character": "Strong midwife voice with practical herbal knowledge and appropriate spiritual referral.",
+    "craft": "Three sentences with good rhythm, though slightly verbose for the brief.",
+    "language": "Clean English with natural Irish phrasing; well-formed prose.",
+    "responsiveness": "Directly addresses the sleep troubles with practical remedy and metaphysical option."
+  },
+  "response_sha256": "af4c898ac50a967b30eec8c3b231875d556415a7d14b9e63a1a8fd3b532bb9e6",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "slice": "dialogue"
+}
