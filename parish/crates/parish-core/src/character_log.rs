@@ -265,15 +265,20 @@ impl CharacterLogManager {
                 }
             }
             GameEvent::NpcDeparted {
-                npc_id, location, ..
+                npc_id,
+                location,
+                to,
+                ..
             } => {
-                let loc = loc_of(*location);
                 if let Some(npc) = npc_manager.get(*npc_id) {
+                    let loc = loc_of(*location);
+                    let to_name = loc_of(*to);
+                    let body = format!("*Headed to {}*\n", to_name);
                     append_journal_entry(
                         &self.npc_log_path(npc),
                         ts,
                         Some(&format!("Departed from {}", loc)),
-                        "",
+                        &body,
                     )?;
                 }
             }

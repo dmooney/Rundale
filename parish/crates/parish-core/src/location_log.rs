@@ -175,7 +175,10 @@ impl LocationLogManager {
                 append_journal_entry(&path, ts, Some(&suffix), "")?;
             }
             GameEvent::NpcDeparted {
-                npc_id, location, ..
+                npc_id,
+                location,
+                to,
+                ..
             } => {
                 let Some(npc) = npc_manager.get(*npc_id) else {
                     return Ok(());
@@ -184,7 +187,8 @@ impl LocationLogManager {
                     return Ok(());
                 };
                 let suffix = format!("{} departed", npc.name);
-                append_journal_entry(&path, ts, Some(&suffix), "")?;
+                let body = format!("*Headed to {}*\n", loc_name(*to));
+                append_journal_entry(&path, ts, Some(&suffix), &body)?;
             }
             GameEvent::DialogueOccurred {
                 npc_id,
@@ -958,6 +962,7 @@ mod tests {
         let depart = GameEvent::NpcDeparted {
             npc_id: NpcId(7),
             location: LocationId(2),
+            to: LocationId(3),
             timestamp: Utc.with_ymd_and_hms(1820, 3, 3, 14, 35, 0).unwrap(),
         };
         let re_arrive = GameEvent::NpcArrived {
