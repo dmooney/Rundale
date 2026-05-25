@@ -1,0 +1,44 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "deepseek-v4-flash",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T03:42:53.043970+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 1,
+        "non_latin_rate": 0.0,
+        "character": 1.0,
+        "authenticity": 1.0,
+        "language": 1.0,
+        "responsiveness": 1.0,
+        "craft": 1.0,
+        "overall": 1.0
+      },
+      "results": [
+        {
+          "character": 1,
+          "authenticity": 1,
+          "language": 1,
+          "responsiveness": 1,
+          "craft": 1,
+          "overall": 1.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": ""
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 4.966064214706421,
+  "cost": {
+    "calls": 2,
+    "prompt_tokens": 1892,
+    "completion_tokens": 242,
+    "usd": 2.4010000000000002e-05
+  }
+}

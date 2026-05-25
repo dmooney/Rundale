@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "qwen3.6-plus",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T03:58:04.446160+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 5.0,
+        "authenticity": 5.0,
+        "language": 5.0,
+        "responsiveness": 4.9,
+        "craft": 4.9,
+        "overall": 4.9399999999999995
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "A chro\u00ed, sure if the mind won't settle for sleep, 'tis often a heavy supper or a restless spirit keeping ye awake. I'll boil a draught of dried valerian and chamomile for ye to take at dusk, and Mayhap ye'd best leave the window cracked to let in the cool night air. If the dreams trouble ye past a fortnight, bring them to me and we'll sort what's weighing on your heart, but for now, trust the quiet and let the herbs do their work.\n---\n{\"action\": \"ties a small muslin pouch of dried herbs, hands it over gently\", \"mood\": \"steady and caring\", \"internal_thought\": \"Nerves often ride heavy on a troubled mind, but a steady routine will see it right\", \"language_hints\": [{\"word\": \"A chro\u00ed\", \"pronunciation\": \"uh KHRUHEE\", \"meaning\": \"dear, sweetheart\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Aye, I know her well enough, mo chara, though she\u2019d sooner bite my tongue than hear that old name spoken. Sure, she\u2019s just a sharp-witted widow who\u2019s kept her cottage past the fairy fort for near forty years, and a steady hand with yarrow and willow bark when a mother\u2019s milk runs thin. I\u2019ll not credit her to the fairies, for she\u2019s flesh and blood like the rest of us, just a bit quieter in her ways and clever with a poultice.\n---\n{\"action\": \"sets down a bundle of dried herbs and looks up from the hearth\", \"mood\": \"content\", \"internal_thought\": \"Folk still whisper of the old ways, but I know the value of a steady hand and good roots\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAH-ruh\", \"meaning\": \"my friend\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Dia dhuit. I\u2019ll put up a strong tea of thyme and a spoon of honey for her chest, sure, and tell her to keep the hearth warm and the damp out. If she\u2019s wheezing proper or running a fever, ye\u2019d best send for the doctor in town, but this will ease the worst of it.\n---\n{\"action\": \"gathers dried thyme from a wooden box and fills a kettle with water\", \"mood\": \"content\", \"internal_thought\": \"I hope it hasn't settled deep in her lungs, but a good strong tea will see her through the night\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-uh gwit\", \"meaning\": \"hello (lit. God to you)\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.6,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Aye, word travels quick on the wind here, as it always does. I mind my own business with herbs and deliveries, but if the stranger's taken ill or his wife is in labour, he'll find my door soon enough. Le c\u00fanamh D\u00e9, I'll see him right if he needs tending, but otherwise ye'd best ask the parish priest for his particulars.\n---\n{\"action\": \"wipes her hands on a linen apron while sorting dried chamomile into a wicker basket\", \"mood\": \"content\", \"internal_thought\": \"Strangers bring talk, but I'll wait to see what business he has before troubling my head with it\", \"language_hints\": [{\"word\": \"Le c\u00fanamh D\u00e9\", \"pronunciation\": \"leh KOO-num DAY\", \"meaning\": \"with God's help\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "I\u2019m a midwife, not a keeper of flocks, so ye\u2019d best ask the right person hereabouts if \u2019tis a fox, a stray hound, or something worse. I only know how to ease a ewe in labour or steep a willow-bark draught for a fever, and I\u2019ve no skill for reading tracks in the mud. I hope the flock is safe enough, but I must be off to tend a young mother down the lane. Sl\u00e1n leat.\n---\n{\"action\": \"wipes hands on her linen apron and nods toward the boreen\", \"mood\": \"content\", \"internal_thought\": \"Poor man fretting over a lost ewe, but I've no business with beasts or hunters\", \"language_hints\": [{\"word\": \"Sl\u00e1n leat\", \"pronunciation\": \"slawn lyat\", \"meaning\": \"goodbye\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Aye, I remember it well enough, 'twas a clean break but the swelling had him laid up for a good fortnight. I splinted it with seasoned ash and gave him a steady draught of willow bark and comfrey to ease the ache, and sure, your father never let out so much as a sigh while I bound it tight. Go raibh maith agat for bringing it to mind; the bone healed strong and straight, which is all one can hope for.\n---\n{\"action\": \"nods while wiping hands on a linen cloth\", \"mood\": \"content\", \"internal_thought\": \"Glad to see the family still remembers the old ways of healing\", \"language_hints\": [{\"word\": \"Go raibh maith agat\", \"pronunciation\": \"guh rev mah ah-gut\", \"meaning\": \"thank you\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Ah, sure 'tis likely just the damp air playing tricks with a shepherd's lantern, or mayhap the s\u00eddhe out walking. I'd not trouble myself chasing shadows; stick to the low road when the mist rolls in. If your sleep's been restless from the sight, I'll brew a cup of valerian and chamomile to settle your mind.\n---\n{\"action\": \"looks up from grinding dried leaves, wipes her hands on her apron\", \"mood\": \"content\", \"internal_thought\": \"Folk will always wonder at the bog lights, but a steady hand and a warm cup keep worse terrors at bay\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"SHEE-uh\", \"meaning\": \"the fairy folk\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Aye, I'd not be letting ye give it to any woman carrying or the little ones while it's tasting off like that. Boil it well with a sprig of thyme, and watch close for any cramping or looseness in the belly, mo chara. Mayhap the heavy rains have turned the peat, but 'tis safer to keep the kettle hot until the flavour clears.\n---\n{\"action\": \"wipes hands on apron, speaks calmly\", \"mood\": \"content\", \"internal_thought\": \"The spring rains always stir the peat, but a bit of boiling and thyme will see the stomachs right\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAR-uh\", \"meaning\": \"my friend\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Fetch me when her waters break or when the pains come steady and close, say less than a handful of breaths between them, mo chara. If \u2019tis her first child, ye\u2019d do well to send word when the show appears or her back grows heavy, so I\u2019ve time to pack my herbs and boil the linens. Don\u2019t wait till she\u2019s spent, for the lanes are rough and I\u2019ll be little use if I\u2019m scrambling over stones in the dark.\n---\n{\"action\": \"wipes hands on apron, looks up with steady gaze\", \"mood\": \"content\", \"internal_thought\": \"Another young husband to steady through the waiting hours\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHAR-uh\", \"meaning\": \"my friend\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Well, Father Cathal has his books and his rosary, but when a woman\u2019s labour turns hard or a babe won\u2019t take the breast, it\u2019s the willow-bark tea and the steady hands that see her through, not a sermon from the pulpit. I\u2019ll keep my herbs in the jar and my prayers in my heart, and let him tend to souls while I mind the mothers. Le c\u00fanamh D\u00e9, we\u2019ll both be doing the Lord\u2019s work in our own fashion.\n---\n{\"action\": \"wipes her hands on a linen apron and sets down a clay mortar of dried yarrow\", \"mood\": \"content\", \"internal_thought\": \"The good Lord made the earth to bear remedies, and I\u2019ll not let a frightened sermon keep me from a struggling mother\", \"language_hints\": [{\"word\": \"Le c\u00fanamh D\u00e9\", \"pronunciation\": \"leh KOO-num DAY\", \"meaning\": \"with God's help\"}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 558.1451058387756,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20159,
+    "completion_tokens": 29222,
+    "usd": 0.00033958
+  }
+}
