@@ -82,7 +82,7 @@ These supply the gentry / middling-farmer register and are programmatically conv
 - **Period dictionaries** — filtered to game-domain entries (agriculture, kinship, religion, trade). Useful as lexical attestation for the OED 1820 cutoff anachronism wordlist used by the period-axis judge.
   - **Internet Archive search:** <https://archive.org/search?query=dictionary+english+language+1820>
 
-These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md).
+These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md).
 
 -----
 
@@ -254,7 +254,7 @@ Rather than hunting for a pre-existing model, build your own fine-tune. Take a s
 
 ### Dialect-oracle corpus spec (fully disjoint author split)
 
-The [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md) trains a small (~250M-param) decoder-only LM on the literary corpus to use as a period/dialect judge during DPO. To avoid circularity (the oracle preferring outputs that mimic exactly the authors the policy is trained on), the oracle's training corpus and the SFT mix **must use fully disjoint author splits** — no shared authors.
+The [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md) trains a small (~250M-param) decoder-only LM on the literary corpus to use as a period/dialect judge during DPO. To avoid circularity (the oracle preferring outputs that mimic exactly the authors the policy is trained on), the oracle's training corpus and the SFT mix **must use fully disjoint author splits** — no shared authors.
 
 The 5-author corpus above is too thin to support a meaningful disjoint split, so the plan adds three more public-domain Anglo-Irish authors of the same era:
 

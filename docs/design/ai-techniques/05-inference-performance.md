@@ -67,7 +67,7 @@ Instead of one persona prompt per NPC, train small LoRA adapters per
 request — llama.cpp and vLLM both support hot-swap. Smaller prompt, sharper
 voice, and a natural place to encode period dialect.
 
-See `docs/design/gemma4-rundale-training-plan.md` — this slots in alongside.
+See `docs/plans/gemma4-rundale-training-plan.md` — this slots in alongside.
 
 ### 6. Smarter priority lanes
 

@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted
+Accepted — amended by [ADR-024](024-documentation-reorg-v2.md) (2026-05-25)
 
 ## Date
 
@@ -86,5 +86,6 @@ Organize documentation in a strict hierarchy optimized for progressive disclosur
 
 ## Related
 
+- [ADR-024](024-documentation-reorg-v2.md) — **amends this ADR**; introduces purpose-based folders (`design/ideas/`, `plans/archive/`), status headers, and a feature-status roadmap
 - [docs/index.md](../index.md) — The documentation hub this ADR describes
-- [DESIGN.md](../../DESIGN.md) — The original monolithic document this hierarchy replaces
+- [DESIGN.md](../archive/DESIGN.md) — The original monolithic document this hierarchy replaces

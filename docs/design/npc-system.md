@@ -1,5 +1,7 @@
 # NPC System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [008](../adr/008-structured-json-llm-output.md)
 
 ## Entity Data Model

@@ -1,5 +1,7 @@
 # Geo-Tool — Geographic Data Conversion
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [011](../adr/011-geo-tool-osm-pipeline.md)
 
 A development tool that downloads real geographic data from OpenStreetMap and converts it into the `parish.json` world graph format used by the Parish game engine.

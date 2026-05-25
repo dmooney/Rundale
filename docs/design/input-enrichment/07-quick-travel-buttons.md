@@ -1,6 +1,6 @@
 # Design: Location Quick-Travel Buttons
 
-> Parent: [Input Enrichment Ideas](../input-enrichment-ideas.md) | Idea #7
+> Parent: [Input Enrichment Ideas](../ideas/input-enrichment-ideas.md) | Idea #7
 
 ## Overview
 

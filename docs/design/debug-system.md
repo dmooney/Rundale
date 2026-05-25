@@ -1,5 +1,7 @@
 # Debug System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
 The debug system provides runtime visibility into Rundale's background simulation. It exposes NPC state, inference pipeline metrics, background task health, and performance data through slash commands.

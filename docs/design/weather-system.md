@@ -1,5 +1,7 @@
 # Weather System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
 Weather is a simulation driver. Weather state is part of world state and affects NPC context prompts, location descriptions, and encounter patterns. It does **not** affect the UI palette — the time-of-day palette is independent of weather.

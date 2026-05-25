@@ -1,4 +1,6 @@
-# Phase 9 — Save/Load UI Design Plan
+# Save/Load UI Plan
+
+> Status: Planned · Updated: 2026-05-25 · [Docs Index](../index.md)
 
 ## Context
 

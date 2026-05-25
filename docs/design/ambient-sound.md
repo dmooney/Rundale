@@ -1,5 +1,7 @@
 # Ambient Sound System Design
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > [Docs Index](../index.md) | [ADR-015](../adr/015-ambient-sound-system.md) | [Audio Sources](../research/ambient-sound-sources.md) | [Music Research](../research/music-entertainment.md)
 
 ## Overview

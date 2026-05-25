@@ -1,5 +1,7 @@
 # Debug UI
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Debug System](debug-system.md) | [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
 Comprehensive in-game debug UI for inspecting all game state, events, and internals. Renders in the Tauri/Svelte desktop GUI.

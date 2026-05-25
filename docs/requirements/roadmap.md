@@ -1,221 +1,81 @@
 # Rundale Roadmap
 
 > [Docs Index](../index.md)
-
-> Last updated: 2026-04-09
-> Current phase: **Phase 5 — Full LOD & Scale** (in progress; 5A/5B/5C/5D/5E done including Tier 2 wiring, priority queue redesign, and debug panel visibility; 5F not started)
-
-## Status Legend
-
-- [ ] Not started
-- [~] In progress
-- [x] Complete
-
----
-
-## Phase 1 — Core Loop
-
-> [Detailed plan](../plans/phase-1-core-loop.md) | [Design: Architecture Overview](../design/overview.md)
-
-- [x] Rust project scaffolding (Cargo.toml, module declarations, dependencies)
-- [x] Error type definitions (`ParishError` with thiserror)
-- [x] Tokio runtime + tracing initialization
-- [x] `GameClock`, `TimeOfDay`, `Season` enums in `world/time.rs`
-- [x] Basic `Location` struct and `WorldState` in `world/mod.rs`
-- [x] TUI terminal init/restore with crossterm panic hook
-- [x] Main render loop: top bar, main text panel, input prompt
-- [x] Day/night color palette system (dawn → midnight RGB gradients)
-- [x] `Command` enum and `/` prefix parsing in `input/mod.rs`
-- [x] `OllamaClient` in `inference/client.rs` (reqwest + timeout)
-- [x] `InferenceRequest`/`InferenceResponse` types and tokio mpsc queue
-- [x] Basic `Npc` struct with identity, personality, location
-- [x] NPC context construction for Tier 1
-- [x] Player intent parsing via Ollama (natural language → structured JSON)
-- [x] Main game loop wiring: input → parse → inference → response → render
-
-## Phase 2 — World Graph
-
-> [Detailed plan](../plans/phase-2-world-graph.md) | [Design: World & Geography](../design/world-geography.md)
-
-- [x] Full `Location` struct with connections and properties
-- [x] `WorldGraph` struct (adjacency list with BFS pathfinding)
-- [x] Hand-authored test parish JSON (15 locations, starting at Kilteevan Village)
-- [ ] OSM data extraction tool (stretch goal)
-- [x] Movement command handling ("go to X", fuzzy matching, traversal time)
-- [x] Time advancement during traversal
-- [x] En-route encounter system (probability-based, time-of-day weighted)
-- [x] Dynamic location descriptions (template interpolation with time/weather/NPCs)
-
-## Phase 3 — Multiple NPCs & Simulation
-
-> [Detailed plan](../plans/phase-3-npcs-simulation.md) | [Design: NPC System](../design/npc-system.md), [Cognitive LOD](../design/cognitive-lod.md)
-
-- [x] Full NPC entity model (schedule, relationships, memory)
-- [x] `NpcManager` with tier assignment and tick dispatch
-- [x] Tier 1 enhanced inference with memory/relationships
-- [x] Tier 2 lighter inference tick
-- [x] NPC schedule-driven movement
-- [x] Short-term memory system (20-entry ring buffer)
-- [x] Initial NPC data (8 NPCs for test parish)
-- [x] "Overhear" mechanic for Tier 2 interactions
-
-## Phase 4 — Persistence
-
-> [Detailed plan](../plans/phase-4-persistence.md) | [Design: Persistence](../design/persistence.md)
-
-- [x] SQLite schema design and migrations
-- [x] Journal system (append-only event log)
-- [x] Periodic snapshot compaction (autosave every 45s)
-- [x] `/save` command
-- [x] `/quit` with autosave and clean shutdown
-- [x] `/load <name>` — load branch head
-- [x] `/fork <name>` — create new branch
-- [x] `/branches` and `/log` commands
-
-## Phase 5 — Full LOD & Scale
-
-> [Detailed plan](../plans/phase-5-full-lod-scale.md) | [Design: Cognitive LOD](../design/cognitive-lod.md), [Weather](../design/weather-system.md)
 >
-> Broken into six independently workable sub-phases with explicit dependency ordering.
+> Last updated: 2026-05-25
 
-### Phase 5A — Event Bus & Tier Transitions
+This is the authoritative status view for Rundale + the Parish engine. The
+project no longer tracks a single linear phase pointer — it ships features
+across many subsystems in parallel. The **feature-status matrix** below is the
+source of truth; the historical linear phases are preserved at the bottom for
+provenance.
 
-> [Detailed plan](../plans/phase-5a-event-bus-tier-transitions.md) | **Foundation — do first**
+## Status legend
 
-- [x] `WorldEvent` enum and `EventBus` (tokio broadcast)
-- [x] Tier inflation: build narrative context on NPC promotion (distant → close)
-- [x] Tier deflation: compact short-term memory on NPC demotion (close → distant)
-- [x] Wire transitions into `NpcManager::assign_tiers`
-- [x] Event journal bridge (persistence subscriber)
+- **Implemented** — shipped and exercised in a running build
+- **Partial** — core shipped; named follow-ups outstanding
+- **In progress** — actively landing, incremental PRs
+- **Proposed** — designed/agreed, no code yet
+- **Planned** — queued, design may be sketch-level
 
-### Phase 5B — Weather State Machine
+## Feature-status matrix
 
-> [Detailed plan](../plans/phase-5b-weather-state-machine.md) | Depends on: 5A
+| Subsystem / Feature | Status | Primary design doc | ADR(s) |
+|---|---|---|---|
+| Graph-based world & geography | Implemented | [World & Geography](../design/world-geography.md) | [001](../adr/001-graph-based-world.md), [009](../adr/009-real-geography-fictional-people.md) |
+| World graph expansion (Roscommon/Athlone/Dublin) | Planned | — | — |
+| Time, day/night & seasons | Implemented | [Time System](../design/time-system.md) | [007](../adr/007-time-scale-20min-day.md) |
+| Weather state machine | Implemented | [Weather System](../design/weather-system.md) | — |
+| Cognitive LOD tiers 1–4 | Implemented | [Cognitive LOD](../design/cognitive-lod.md) | [002](../adr/002-cognitive-lod-tiers.md) |
+| NPC simulation (memory, gossip, witness, schedules) | Implemented | [NPC System](../design/npc-system.md) | [018](../adr/018-npc-intelligence-dimensions.md) |
+| NPC dialogue — structured JSON output | Implemented | [Inference Pipeline](../design/inference-pipeline.md) | [008](../adr/008-structured-json-llm-output.md), [019](../adr/019-json-structured-output-for-npc-dialogue.md) |
+| NPC dialogue — function-calling / tool use | Proposed | — | [020](../adr/020-npc-tool-use.md) |
+| NPC memory — embedding-based retrieval | Proposed | — | [021](../adr/021-npc-memory-retrieval.md) |
+| Natural-language player input | Implemented | [Player Input](../design/player-input.md) | [006](../adr/006-natural-language-input.md) |
+| Persistence & git-like branching saves | Implemented | [Persistence](../design/persistence.md) | [003](../adr/003-sqlite-wal-persistence.md), [004](../adr/004-git-like-branching-saves.md) |
+| Inference pipeline — local (Ollama) | Implemented | [Inference Pipeline](../design/inference-pipeline.md) | [005](../adr/005-ollama-local-inference.md) |
+| Inference — cloud dialogue & per-category providers | Implemented | [Inference Pipeline](../design/inference-pipeline.md) | [013](../adr/013-cloud-llm-dialogue.md), [017](../adr/017-per-category-inference-providers.md) |
+| Engine tuning via configuration | Implemented | — | [022](../adr/022-engine-config-extraction.md) |
+| Prompt-injection defenses | Implemented | [Inference Pipeline](../design/inference-pipeline.md) | [010](../adr/010-prompt-injection-defenses.md) |
+| Tauri 2 + Svelte 5 desktop GUI | Implemented | [GUI Design](../design/gui-design.md) | [016](../adr/016-tauri-svelte-gui.md) |
+| Web server mode (Chrome testing / axum) | Implemented | — | [014](../adr/014-web-mobile-architecture.md), [023](../adr/023-web-testing-server.md) |
+| Full web & mobile client | Partial | [Phase 7 plan](../plans/phase-7-web-mobile.md) | [014](../adr/014-web-mobile-architecture.md) |
+| Save / load UI (GUI) | Planned | [Save/Load UI plan](../plans/phase-9-save-load-ui.md) | — |
+| Parish Designer (in-GUI data editor) | Implemented | [Designer Editor](../design/designer-editor.md) | — |
+| Debug system & debug UI | Implemented | [Debug System](../design/debug-system.md), [Debug UI](../design/debug-ui.md) | — |
+| Ambient sound | Implemented | [Ambient Sound](../design/ambient-sound.md) | [015](../adr/015-ambient-sound-system.md) |
+| parish-geo-tool (OSM pipeline) | Implemented | [Geo-Tool](../design/geo-tool.md) | [011](../adr/011-geo-tool-osm-pipeline.md) |
+| Testing harness | Implemented | [Testing Harness](../design/testing.md) | — |
+| rundale-bench model-quality benchmark | In progress | [Rundale-Bench plan](../plans/rundale-bench.md) | — |
+| LLM-as-judge quality evals | Proposed | [LLM Quality Evals plan](../plans/llm-quality-evals.md) | — |
+| Promptfoo pentest harness | Proposed | [Promptfoo Pentest plan](../plans/promptfoo-pentest-plan.md) | — |
+| Hiberno-English dialogue fine-tune | Proposed | [Gemma 4 training plan](../plans/gemma4-rundale-training-plan.md) | [005](../adr/005-ollama-local-inference.md) |
+| LLM demo / auto-player mode | Implemented | [Demo mode plan](../plans/archive/demo-mode.md) | — |
+| Mythology layer | Proposed | [Mythology Hooks](../design/ideas/mythology-hooks.md) | — |
 
-- [x] Expand `Weather` enum (add PartlyCloudy, LightRain, HeavyRain)
-- [x] `WeatherEngine` with seasonal transition probabilities
-- [x] Weather affects NPC schedules (seek shelter in rain)
-- [x] Weather context in Tier 2 prompts
-- [x] Publish `WeatherChanged` events via event bus
+## Historical phases
 
-### Phase 5C — NPC Long-Term Memory & Gossip
+The project was originally organised as linear phases 1–9. Those plans are kept
+under [`docs/plans/archive/`](../plans/archive/) for provenance; their status is
+reflected in the matrix above.
 
-> [Detailed plan](../plans/phase-5c-memory-gossip.md) | Depends on: 5A
->
-> **Runtime status:** wired in all entry points. `propagate_gossip_at_location` and `apply_tier1_response` are called from `parish-tauri`, `parish-server`, and `parish-cli/headless`.
+| Phase | Plan | Outcome |
+|---|---|---|
+| 1 — Core Loop | [archive](../plans/archive/phase-1-core-loop.md) | Complete |
+| 2 — World Graph | [archive](../plans/archive/phase-2-world-graph.md) | Complete |
+| 3 — NPCs & Simulation | [archive](../plans/archive/phase-3-npcs-simulation.md) | Complete |
+| 4 — Persistence | [archive](../plans/archive/phase-4-persistence.md) | Complete |
+| 5 — Full LOD & Scale | [archive](../plans/archive/phase-5-full-lod-scale.md) | 5A–5E complete; [5F](../plans/phase-5f-world-expansion.md) planned |
+| 6 — Polish & Mythology | [active](../plans/phase-6-polish-mythology.md) | Planned |
+| 7 — Web & Mobile | [active](../plans/phase-7-web-mobile.md) | Partial — web server shipped; egui-WASM approach superseded by [ADR-016](../adr/016-tauri-svelte-gui.md) |
+| 8 — Tauri GUI Rewrite | [archive](../plans/archive/phase-8-tauri-gui.md) | Complete |
+| 9 — Save/Load UI | [active](../plans/phase-9-save-load-ui.md) | Planned |
 
-- [x] `LongTermMemory` with keyword-based retrieval
-- [x] Short-term → long-term promotion on eviction (importance threshold)
-- [x] Long-term memory recall in Tier 1 context construction
-- [x] `GossipNetwork` with probabilistic propagation (60% transfer, 20% distortion)
-- [x] Gossip creation from world events
-- [x] Gossip injection into Tier 1 dialogue context
-- [x] `ConversationLog` for per-location exchange history (scene awareness)
-- [x] Witness memory system — bystander NPCs overhear conversations
-- [x] Named relationships in prompts (by name, not NPC ID)
-- [x] Scene continuity cues (no re-greeting mid-conversation)
-- [x] `apply_tier1_response` wired in all modes (mood + memory updates)
-- [x] Conversation log persisted in `GameSnapshot`
+## Open questions
 
-### Phase 5D — Tier 3 Batch Inference
+> [Detailed analysis](../plans/archive/open-questions.md) — **all resolved.**
 
-> [Detailed plan](../plans/phase-5d-tier3-batch-inference.md) | Depends on: 5A, 5C
->
-> **Runtime status:** wired in all three entry points. `tick_tier3` is dispatched from the background tick loops in parish-tauri (spawned task), parish-server (spawned task), and parish-cli/headless (inline await). The `tier3_in_flight` flag prevents double-dispatch.
-
-- [x] `Tier3Update` / `Tier3Response` types
-- [x] Batch prompt construction (8-10 NPCs per call) — `TIER3_BATCH_SIZE = 10`
-- [x] Tier 3 tick function (every 1 in-game day) — wired into all three entry points
-- [x] Priority queue: Tier 1 > Tier 2 > Tier 3 — multi-lane `InferenceQueue` (Interactive/Background/Batch) with `tokio::select! biased;` worker. Tier 3 routed through Batch lane via `submit_json`. Per-category simulation client routing deferred (TODO in call sites)
-- [x] Skip overdue ticks (don't queue) — `tier3_in_flight` flag gates re-entry while a batch is awaited
-- [x] Tier 3 vs Tier 4 distance split in `assign_tiers`
-
-### Phase 5E — Tier 4 Rules Engine & Seasonal Effects
-
-> [Detailed plan](../plans/phase-5e-tier4-seasonal-effects.md) | Depends on: 5A, 5B, 5D
->
-> **Runtime status:** wired in all three entry points. `tick_tier4` runs inline (sub-ms CPU) inside the background tick scope, gated on `needs_tier4_tick`, with returned `Tier4Event`s passed through `apply_tier4_events` and published on `world.event_bus`.
-
-- [x] `Tier4Event` enum and `tick_tier4` CPU-only rules engine
-- [x] Life event probabilities (illness, death, birth, trade)
-- [x] Seasonal schedule overrides (farmers, teachers, publicans)
-- [x] Festival event hooks (Imbolc, Bealtaine, Lughnasa, Samhain)
-- [x] NPC health state tracking
-- [x] Run on `spawn_blocking`
-
-### Phase 5F — World Graph Expansion
-
-> [Detailed plan](../plans/phase-5f-world-expansion.md) | Depends on: 5D
-
-- [ ] Roscommon town data (~10 locations)
-- [ ] Athlone data (~5 locations)
-- [ ] Dublin data (~5 locations)
-- [ ] Inter-region connections with realistic travel times
-- [ ] Multi-file graph loading
-- [ ] New NPCs for expanded locations
-- [ ] Long-journey travel narration
-
-## Phase 6 — Polish & Mythology Hooks
-
-> [Detailed plan](../plans/phase-6-polish-mythology.md) | [Design: Mythology Hooks](../design/mythology-hooks.md)
-
-- [ ] `/help` command
-- [ ] `/map` command (ASCII rendering)
-- [ ] `/status`, `/log`, `/branches` UI
-- [ ] `mythological_significance` location property
-- [ ] Festival event hooks in time system
-- [ ] Night-time atmosphere differentiation
-- [ ] NPC belief/superstition knowledge fields
-
-## Phase 7 — Web & Mobile Apps
-
-> [Detailed plan](../plans/phase-7-web-mobile.md)
-
-- [ ] Client-server protocol definition (`ClientMessage` / `ServerMessage`)
-- [ ] `GameSession` extraction (decouple game engine from UI)
-- [ ] axum game server with WebSocket support
-- [ ] Session management (create, resume, idle timeout)
-- [ ] Web client: Svelte SPA deployed to static hosting
-- [ ] Web client: WebSocket networking layer
-- [ ] Mobile client: Tauri v2 project (iOS + Android)
-- [ ] Mobile-specific adaptations (touch input, responsive layout)
-- [ ] Authentication (session tokens)
-- [ ] Server deployment (Docker, health checks)
-- [ ] Monitoring and rate limiting
-
-## Phase 8 — Tauri GUI Rewrite
-
-> [Detailed plan](../plans/phase-8-tauri-gui.md) | [ADR-015](../adr/015-tauri-svelte-gui.md)
-
-- [x] Convert Cargo.toml to workspace (root + crates/parish-core + src-tauri)
-- [x] Extract pure game logic to `crates/parish-core` library crate
-- [x] Delete `src/gui/` (egui); clean root `lib.rs` and `main.rs`
-- [x] Scaffold `crates/parish-tauri/` Tauri 2 backend with `AppState`, IPC commands, streaming events
-- [x] Scaffold `apps/ui/` Svelte 5 + SvelteKit frontend (static adapter)
-- [x] IPC types (`apps/ui/src/lib/types.ts`), command wrappers (`ipc.ts`), Svelte stores
-- [x] Svelte components: StatusBar, ChatPanel, MapPanel, Sidebar, InputField
-- [x] CSS theme via CSS custom properties (`var(--color-*)`) driven by Rust theme-tick events
-- [x] Add `lat`/`lon` to `LocationData` for SVG map projection
-- [x] Frontend component tests (Vitest + @testing-library/svelte, 22 tests)
-- [ ] Screenshot replacement via `WebviewWindow::capture_image()`
-
-## Phase 9 — Gameplay-AI Quality
-
-> Tracks the deferred items from the harness-engineering plan. These are
-> design-stage; each links to a plan or ADR before any code lands.
-
-- [ ] LLM-as-judge eval suite over Tier 1 / Tier 2 / Intent prompts → [Plan](../plans/llm-quality-evals.md)
-- [ ] Function-calling / tool-use output for NPC dialogue → [ADR-020](../adr/020-npc-tool-use.md)
-- [ ] Embedding-based long-term NPC memory retrieval → [ADR-021](../adr/021-npc-memory-retrieval.md)
-
-## Open Questions
-
-> [Detailed analysis](../plans/open-questions.md) — **All resolved.**
-
-- [x] Exact parish location near Roscommon → **Kilteevan** (civil parish, Barony of Ballintobber; ~2 miles SE of Roscommon town). Catholic-parish layer is **Roscommon and Kilteevan** (NLI parish 0564).
-- [x] Player character model → **Newcomer / "blow-in"**
-- [x] Goal/quest structure → **Purely emergent** (prototype); hybrid later
-- [x] Story and lore → **Mundane surface** with mythology hooks in Phase 6
-- [x] Command prefix UX → **`/` prefix** through Phase 5; hybrid in Phase 6
-- [x] Mythology content scope → **Moderate / behavioral** via NPC prompt modification
-- [x] Player verb set → **Phased rollout** starting minimal (Move, Talk, Look, Examine)
+Parish location (Kilteevan), player model (newcomer/"blow-in"), emergent goal
+structure, mundane-surface lore with mythology hooks, `/`-prefix command UX,
+behavioral mythology scope, and a phased player verb set — all decided. See the
+archived analysis for context and trade-offs.

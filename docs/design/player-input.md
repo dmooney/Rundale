@@ -1,5 +1,7 @@
 # Player Input & Command System
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [006](../adr/006-natural-language-input.md)
 
 ## Natural Language Input

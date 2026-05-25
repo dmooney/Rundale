@@ -1,6 +1,6 @@
 # Design: Input History with Arrow Keys
 
-> Parent: [Input Enrichment Ideas](../input-enrichment-ideas.md) | Idea #3
+> Parent: [Input Enrichment Ideas](../ideas/input-enrichment-ideas.md) | Idea #3
 
 ## Overview
 
