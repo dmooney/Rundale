@@ -71,6 +71,9 @@ export const getDebugSnapshot = () => command<DebugSnapshot>('get_debug_snapshot
 
 export const getUiConfig = () => command<UiConfig>('get_ui_config');
 
+/** Toggles the desktop window's fullscreen state. Tauri-only (F11). */
+export const toggleFullscreen = () => command<boolean>('toggle_fullscreen');
+
 // ── Mod selection ────────────────────────────────────────────────────────────
 
 export const getMods = (): Promise<ModEntry[]> => {

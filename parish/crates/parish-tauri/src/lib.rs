@@ -1353,6 +1353,7 @@ pub fn run() {
             commands::get_ui_config,
             commands::get_debug_snapshot,
             commands::get_setup_snapshot,
+            commands::toggle_fullscreen,
             commands::set_provider_config,
             commands::validate_provider_config,
             commands::get_provider_config,
