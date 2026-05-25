@@ -1,0 +1,7 @@
+# Live-proof fixture for TODO #14 — single-addressee dialogue anchor.
+#
+# Walks to The Mill where Cormac + Brendan Duffy live (the location
+# where the demo audit caught Brendan mixing multiple Slán* farewells
+# in a single reply).
+
+go to the mill

@@ -867,7 +867,11 @@ pub fn prepare_npc_conversation_turn(
         player_name_for_npc,
     ));
     context.push_str(
-        "\n\nRespond to the live exchange above. You may answer the player or another nearby NPC by name when it feels natural.\n",
+        "\n\nRespond to the live exchange above. Address ONLY ONE person in your \
+         reply — either the player or one specific co-located NPC by name. Do NOT \
+         say goodbye to one person and then continue speaking to another in the \
+         same reply, and do NOT mix farewells with ongoing chat. One addressee, \
+         one tone, one beat.\n",
     );
 
     Some(NpcConversationSetup {
