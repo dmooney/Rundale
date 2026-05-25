@@ -2463,6 +2463,12 @@ Do NOT repeat yourself: if your last action appears in the \"Your last actions\"
 greeting, ask a different question, or travel somewhere new. The location description \
 is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
 \n\
+Do NOT mirror NPC catchphrases. The \"Recent events\" block carries NPC replies in \
+their own voice — they may use stock tags like \"Just askin', mind ye\", \"so it is\", \
+\"sure\", or \"mayhap\" as their personal vocal habits. Aiden has his own voice: use \
+plain Hiberno-English without adopting another character's verbal tics. If an NPC \
+ends every line with \"so it is\", do not start ending yours with it too.\n\
+\n\
 Examples:\n\
   {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
@@ -2592,6 +2598,27 @@ mod demo_tests {
         assert!(
             prompt.contains("do NOT take the NPC's side"),
             "system prompt missing don't-flip-roles directive:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_mirroring_npc_catchphrases() {
+        // TODO #26: the auto-player was adopting NPC stock tags
+        // ("Just askin', mind ye") from the recent-events buffer.
+        // Prompt must explicitly tell the model not to mirror NPC
+        // verbal tics.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Do NOT mirror NPC catchphrases"),
+            "system prompt missing catchphrase-mirror guard:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Aiden has his own voice"),
+            "system prompt missing own-voice anchor:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Just askin', mind ye"),
+            "system prompt should name the canonical example phrase:\n{prompt}"
         );
     }
 
