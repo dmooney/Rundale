@@ -123,4 +123,70 @@ describe('createAutoPauseTracker', () => {
 		expect(tracker.wasAutoPaused()).toBe(false);
 		tracker.dispose();
 	});
+
+	describe('window-focus guard (TODO #6 / #31a)', () => {
+		it('does NOT auto-pause when the window is not focused', () => {
+			let focused = false;
+			const tracker = createAutoPauseTracker({
+				idleMs: () => 60_000,
+				mousemoveThrottleMs: 1000,
+				submitInput,
+				isWorldPaused: () => worldPaused,
+				isWindowFocused: () => focused
+			});
+			vi.advanceTimersByTime(60_000);
+			expect(submitInput).not.toHaveBeenCalledWith('/pause');
+			expect(tracker.wasAutoPaused()).toBe(false);
+			tracker.dispose();
+		});
+
+		it('restarts the timer when unfocused so a later focus + idle still pauses', () => {
+			let focused = false;
+			const tracker = createAutoPauseTracker({
+				idleMs: () => 60_000,
+				mousemoveThrottleMs: 1000,
+				submitInput,
+				isWorldPaused: () => worldPaused,
+				isWindowFocused: () => focused
+			});
+			// First idle interval fires while unfocused — no /pause.
+			vi.advanceTimersByTime(60_000);
+			expect(submitInput).not.toHaveBeenCalled();
+
+			// User returns to the window; next full idle interval must
+			// fire /pause normally.
+			focused = true;
+			vi.advanceTimersByTime(60_000);
+			expect(submitInput).toHaveBeenCalledWith('/pause');
+			expect(tracker.wasAutoPaused()).toBe(true);
+			tracker.dispose();
+		});
+
+		it('auto-pauses normally when focused (preserves prior behaviour)', () => {
+			const tracker = createAutoPauseTracker({
+				idleMs: () => 60_000,
+				mousemoveThrottleMs: 1000,
+				submitInput,
+				isWorldPaused: () => worldPaused,
+				isWindowFocused: () => true
+			});
+			vi.advanceTimersByTime(60_000);
+			expect(submitInput).toHaveBeenCalledWith('/pause');
+			tracker.dispose();
+		});
+
+		it('omitting isWindowFocused preserves legacy always-pause behaviour', () => {
+			// Existing callers that don't pass the new option must keep
+			// the pre-#31a behaviour.
+			const tracker = createAutoPauseTracker({
+				idleMs: () => 60_000,
+				mousemoveThrottleMs: 1000,
+				submitInput,
+				isWorldPaused: () => worldPaused
+			});
+			vi.advanceTimersByTime(60_000);
+			expect(submitInput).toHaveBeenCalledWith('/pause');
+			tracker.dispose();
+		});
+	});
 });
