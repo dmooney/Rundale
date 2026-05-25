@@ -2,7 +2,15 @@
 
 ## Open
 
-*(none — all items resolved)*
+| ID | Category | Severity | Location | Description |
+|----|----------|----------|----------|-------------|
+| TD-033 | Complexity | P1 | `src/routes.rs:1-3044` | Largest file in the crate. It combines snapshot/map/setup routes, input/game-loop adapters, save/branch lifecycle, admin checks, demo endpoints, mod switching, reaction handling, and ~1,350 lines of tests. Split by route family (`game_routes`, `save_routes`, `admin_routes`, `mod_routes`, `demo_routes`, tests) before adding more HTTP surface. |
+| TD-034 | Complexity | P2 | `src/lib.rs:369-681` | `run_server()` still builds all route registrations, middleware layering, Tower-session setup, legal/static routes, rate limiting, and security headers inline after the earlier constructor-step extraction. Extract router/layer builders so startup config, route registration, and serving are separately reviewable. |
+| TD-035 | Duplication | P2 | `src/editor_routes.rs:69-87`, `src/routes.rs:1578-1588` | `mods_root()` and `mods_root_path()` duplicate the same active-mod-parent lookup and fallback to `game_mod::find_default_mod()` / relative `mods`. Consolidate into one helper on `AppState` or a shared server utility so editor and public mod-listing routes cannot drift. |
+| TD-036 | Security Debt | P2 | `src/lib.rs:96-126`, `tests/security_headers.rs:278-280` | CSP still requires `script-src 'unsafe-inline'` for the SvelteKit bootstrap and carries a `TODO` to replace it with build-time hashes (#543). Track this as open debt rather than leaving it hidden in comments, because it is a deliberate security relaxation. |
+| TD-037 | API Shape | P2 | `src/state.rs:299-333` | `build_app_state()` takes seventeen parameters and needs `#[allow(clippy::too_many_arguments)]`. The comment documents why the flat state exists, but call sites still have a brittle positional constructor. Introduce a typed `AppStateParts`/builder object before adding more server-wide state. |
+| TD-038 | Rule 9 / Packaging | P2 | `src/main.rs:86-120`, `src/lib.rs:683-710` | Startup helpers still parent-walk from `current_dir()` to find `mods/rundale`, UI dist, and `.env` fallbacks. They are documented as legacy/dev behavior, but packaged and daemonized launches should resolve from explicit CLI/env/config inputs only. Gate cwd discovery to debug/dev or replace it with configured paths. |
+| TD-039 | Complexity | P2 | `src/session.rs:178-1448` | `session.rs` mixes registry persistence, session creation/restoration, inference queue initialization, autosave/tick scheduling, gossip budgeting, cloud-client construction, and tests. Split lifecycle, persistence, tick scheduling, and inference setup into narrower modules before more session orchestration lands. |
 
 ## In Progress
 
@@ -53,3 +61,10 @@
 - **2026-05-07**: Phase 3.1 — resolved TD-006 through TD-010 (complexity).
 - **2026-05-07**: Phase 4.1 — resolved TD-011 and TD-012 (WebSocket + OAuth weak tests).
 - **2026-05-12**: Resolved TD-021 through TD-032. All changes verified with `cargo fmt`, `cargo clippy -p parish-server`, `cargo test -p parish-server`, and `cargo check --workspace`.
+- **2026-05-25**: Refreshed the debt scan against current source. Reopened the ledger with TD-033 through TD-039 after checking LOC hotspots, inline TODOs, duplicated helpers, and clippy allows. Verified with `cargo check -p parish-server --all-targets`, `cargo clippy -p parish-server --all-targets -- -D warnings`, and `cargo test -p parish-server` (full test needed non-sandbox execution because wiremock/websocket tests bind local ports).
+
+## Follow-up
+
+- **TD-033 first**: `routes.rs` is the highest-impact hotspot. Keep the first split mechanical and route-family based; avoid changing handler behavior while moving code.
+- **TD-035 + TD-038**: Mod-root and cwd-fallback cleanup are related. Resolve path sources once at startup and keep request handlers on `AppState` data.
+- **TD-036**: CSP hashing needs a build/frontend handoff. Do it as a focused security-hardening change with browser verification, not as incidental server cleanup.

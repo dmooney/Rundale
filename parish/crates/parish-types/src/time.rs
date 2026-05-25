@@ -379,13 +379,24 @@ impl GameClock {
 
     /// Advances the game clock by the given number of game minutes.
     ///
-    /// Used during travel or other time-consuming actions.
+    /// Used during travel or other time-consuming actions. Emits a
+    /// `tracing::debug` line so the per-turn clock advance is visible
+    /// in the demo log (TODO #32: the audit caught a "15 minutes on
+    /// foot" travel that appeared to consume ~5 game-hours of clock
+    /// time; the only way to localise the discrepancy is to see
+    /// every advance call with its delta).
     pub fn advance(&mut self, game_minutes: i64) {
         if self.is_frozen() {
             self.paused_game_time += Duration::minutes(game_minutes);
         } else {
             self.start_game += Duration::minutes(game_minutes);
         }
+        tracing::debug!(
+            game_minutes_advanced = game_minutes,
+            frozen = self.is_frozen(),
+            now = %self.now().format("%H:%M"),
+            "clock advance"
+        );
     }
 
     /// Pauses the game clock (player-initiated), freezing game time.

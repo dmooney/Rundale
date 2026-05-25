@@ -2,7 +2,15 @@
 
 ## Open
 
-*(none — all items resolved)*
+| ID | Category | Description |
+|----|----------|-------------|
+| TD-023 | Stale Docs | Literal `parish-cli` references remain after the headless crate rename: `src/ipc/event_emitter.rs:8,25`, `src/secret_store.rs:4`, `src/game_loop/inference.rs:15`, `src/game_loop/reactions.rs:70`, `src/ipc/byok.rs:4`, `src/ipc/commands.rs:2039`, `src/character_log.rs:23`. Refresh to `parish-engine` or generic "headless CLI" wording and grep the crate for zero stale hits. |
+| TD-024 | Untracked TODO | `src/ipc/handlers.rs:788` contains `TODO #39 (mid-reply self-introduction)` inside `prepare_npc_conversation_turn`, but the crate TODO said discovery was clean. Decide whether the introduced-state behaviour is still a bug; either fix it with a conversation test or move the rationale into this debt list and remove the inline TODO. |
+| TD-025 | Config/Cargo | Remove unused `tokio-test` dev-dep at `Cargo.toml:31`. No `tokio_test` import or macro appears under `src/` or `tests/`; async tests use `#[tokio::test]` from the `tokio` dependency instead. |
+| TD-026 | Test/Tooling | `src/editor/maintenance_tool.rs:1-35` is a destructive ignored maintenance test inside library source and hard-codes `../../../mods/rundale`. Move it to a dedicated script or integration test helper that takes an explicit mod path/env var, so normal library source stays non-destructive and cwd-independent. |
+| TD-027 | Structure | `src/game_mod.rs` is 2,075 LOC and mixes manifest schema, runtime data structs, `GameMod::load`, mod discovery, provider catalog loading, cwd fallback helpers, and tests. Split along those boundaries (`manifest`, `runtime_data`, `loader`, `discovery`, `providers`, tests) without behaviour changes. |
+| TD-028 | Structure | `src/ipc/commands.rs` is 2,278 LOC; production command dispatch runs through line 1,048 and the in-file test module then occupies ~1,229 lines. Move tests into focused modules or split provider/flag/map/session command handlers so command semantics remain reviewable. |
+| TD-029 | Structure | `src/debug_snapshot.rs` is 1,568 LOC and combines many debug DTO definitions, snapshot builders, helper functions, and tests. Split type definitions from builders/tests to reduce the blast radius for debug-panel changes. |
 
 ## In Progress
 
@@ -37,4 +45,4 @@
 
 ## Discovery note
 
-Discovery scan of `parish/crates/parish-core/src/` found no additional credible debt beyond the items already tracked.
+2026-05-25 scan of `parish/crates/parish-core/src/` reopened discovery with TD-023 through TD-029. `cargo check -p parish-core --all-targets`, `cargo clippy -p parish-core --all-targets -- -D warnings`, and `cargo test -p parish-core --test architecture_fitness` passed before recording these items.
