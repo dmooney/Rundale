@@ -1569,6 +1569,7 @@ impl GameTestHarness {
             .event_bus
             .publish(parish_core::world::events::GameEvent::DialogueOccurred {
                 npc_id,
+                location,
                 summary: dialogue.clone(),
                 player_said: Some(player_line),
                 npc_said: Some(dialogue.clone()),

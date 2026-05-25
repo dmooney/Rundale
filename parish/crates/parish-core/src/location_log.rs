@@ -188,6 +188,7 @@ impl LocationLogManager {
             }
             GameEvent::DialogueOccurred {
                 npc_id,
+                location,
                 summary,
                 player_said,
                 npc_said,
@@ -196,7 +197,9 @@ impl LocationLogManager {
                 let Some(npc) = npc_manager.get(*npc_id) else {
                     return Ok(());
                 };
-                let Some(path) = path_for(npc.location) else {
+                // Route by the event-time location, not the NPC's current
+                // location — the NPC may have moved since publish (#1035).
+                let Some(path) = path_for(*location) else {
                     return Ok(());
                 };
                 let player_line = player_said.as_deref().unwrap_or("").trim();
@@ -650,6 +653,7 @@ mod tests {
 
         let event = GameEvent::DialogueOccurred {
             npc_id: NpcId(7),
+            location: LocationId(2),
             summary: "discussed weather".into(),
             player_said: Some("Good afternoon, Padraig.".into()),
             npc_said: Some("Ah, God bless ye.".into()),
@@ -674,6 +678,48 @@ mod tests {
             !other_contents.contains("Good afternoon, Padraig."),
             "dialogue leaked to wrong location: {}",
             other_contents,
+        );
+    }
+
+    /// #1035: the subscriber must route a DialogueOccurred to the event's
+    /// own `location`, not the NPC's current location. The async bus can
+    /// deliver the event after a schedule tick has moved the NPC.
+    #[test]
+    fn dialogue_routes_to_event_location_after_npc_moved() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let mut npcs = NpcManager::new();
+        // NPC has already moved to location 1 by the time the event is
+        // consumed, but the dialogue happened at location 2.
+        npcs.add_npc(make_npc(7, "Padraig Darcy", LocationId(1)));
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::DialogueOccurred {
+            npc_id: NpcId(7),
+            location: LocationId(2),
+            summary: "discussed weather".into(),
+            player_said: Some("Good afternoon, Padraig.".into()),
+            npc_said: Some("Ah, God bless ye.".into()),
+            request_id: None,
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        // Written to the event-time location (2), not the NPC's current one (1).
+        let at_event_loc = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let event_contents = std::fs::read_to_string(&at_event_loc).unwrap();
+        assert!(
+            event_contents.contains("Good afternoon, Padraig."),
+            "dialogue should be at the event location: {}",
+            event_contents,
+        );
+        let at_current_loc = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let current_contents = std::fs::read_to_string(&at_current_loc).unwrap();
+        assert!(
+            !current_contents.contains("Good afternoon, Padraig."),
+            "dialogue must NOT follow the NPC to its current location: {}",
+            current_contents,
         );
     }
 
