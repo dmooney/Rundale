@@ -199,6 +199,7 @@ mod tests {
         let event = GameEvent::NpcDeparted {
             npc_id: NpcId(5),
             location: LocationId(10),
+            to: LocationId(11),
             timestamp: test_time(),
         };
         assert!(to_journal_event(&event).is_none());

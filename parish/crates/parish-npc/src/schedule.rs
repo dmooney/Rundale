@@ -187,6 +187,7 @@ pub fn tick_schedules(
                     event_bus.publish(GameEvent::NpcDeparted {
                         npc_id: id,
                         location: from,
+                        to: desired,
                         timestamp: now,
                     });
                     tracing::debug!(

@@ -1408,6 +1408,7 @@ pub fn apply_tier3_updates(
                     event_bus.publish(parish_types::events::GameEvent::NpcDeparted {
                         npc_id: update.npc_id,
                         location: from,
+                        to: new_loc,
                         timestamp: game_time,
                     });
                     event_bus.publish(parish_types::events::GameEvent::NpcArrived {
