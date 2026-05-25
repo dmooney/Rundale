@@ -256,8 +256,10 @@ def call_chat(
                     break
         # Some providers emit the thinking trace inline in content, wrapped
         # in <think>…</think>. Strip so the judge scores the actual reply.
+        # The `</think>|$` alternation also handles truncated traces where
+        # max_tokens cut the model off mid-thought (no closing tag emitted).
         if "<think>" in text:
-            text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)
+            text = re.sub(r"<think>.*?(?:</think>|$)\s*", "", text, flags=re.DOTALL)
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(
             f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "
