@@ -169,6 +169,23 @@ fn debug_tiers(app: &App) -> Vec<String> {
         }
     }
 
+    // Tier 2 dispatch groups: only locations with >=2 co-located Tier 2
+    // NPCs receive a Tier 2 tick (#1025). Solo Tier 2 NPCs are gated out.
+    let groups = app.npc_manager.tier2_groups();
+    if groups.is_empty() {
+        lines.push("  Tier 2 dispatch groups (>=2 co-located): (none)".to_string());
+    } else {
+        lines.push("  Tier 2 dispatch groups (>=2 co-located):".to_string());
+        let mut entries: Vec<(String, usize)> = groups
+            .iter()
+            .map(|(loc, ids)| (location_name(*loc, &app.world.graph), ids.len()))
+            .collect();
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        for (name, count) in entries {
+            lines.push(format!("    {}: {} NPCs", name, count));
+        }
+    }
+
     lines
 }
 

@@ -332,10 +332,17 @@ pub async fn run_npc_turn(
         // line up with the player's prompt, but we skip if both sides
         // are empty (no useful record).
         if !prompt_input.trim().is_empty() || !parsed.dialogue.trim().is_empty() {
+            // Capture the speaker's location now, while the lock is held, so
+            // the location log routes by event-time location (#1035).
+            let event_location = npc_manager
+                .get(speaker_id)
+                .map(|n| n.location)
+                .unwrap_or(world.player_location);
             world
                 .event_bus
                 .publish(parish_types::GameEvent::DialogueOccurred {
                     npc_id: speaker_id,
+                    location: event_location,
                     summary: parsed.dialogue.clone(),
                     player_said: Some(prompt_input.to_string()),
                     npc_said: Some(parsed.dialogue.clone()),

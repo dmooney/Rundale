@@ -1,0 +1,15 @@
+# F1 / #1030 — location-log profile section must not show raw {time}/{weather}
+# ===========================================================================
+# write_all_profiles runs at session start and regenerates every location's
+# profile pane. After the fix, the "## Description" section contains no raw
+# {token}. We visit a couple of locations and let profiles regenerate; the
+# proof reads the generated loc-*.md files afterwards.
+#
+# Run with Rundale active and PARISH_USER_DATA_DIR pointed at a temp dir.
+
+/status
+go to The Crossroads
+look
+go to Darcy's Pub
+look
+/status
