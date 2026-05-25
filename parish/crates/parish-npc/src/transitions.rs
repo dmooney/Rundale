@@ -141,6 +141,7 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::LifeEvent { npc_id: id, .. } => *id == npc_id,
         GameEvent::RelationshipChanged { npc_a, npc_b, .. } => *npc_a == npc_id || *npc_b == npc_id,
         GameEvent::NpcInteraction { participants, .. } => participants.contains(&npc_id),
+        GameEvent::GossipSpread { source, .. } => *source == npc_id,
         GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
         | GameEvent::PlayerMoved { .. } => false,
@@ -177,6 +178,7 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
             format!("Left location {}.", location.0)
         }
         GameEvent::NpcActivity { activity, .. } => activity.clone(),
+        GameEvent::GossipSpread { content, .. } => format!("Heard gossip: {content}"),
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
         }

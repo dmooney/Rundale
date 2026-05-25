@@ -1120,27 +1120,34 @@ pub fn create_gossip_from_tier2_event(
     event: &Tier2Event,
     gossip_network: &mut GossipNetwork,
     game_time: chrono::DateTime<Utc>,
-) {
+) -> Option<parish_types::events::GameEvent> {
+    let source = *event.participants.first().unwrap_or(&NpcId(0));
+
     // Create gossip from large relationship changes
     for rc in &event.relationship_changes {
         if rc.delta.abs() > 0.3 {
-            gossip_network.create(
-                event.summary.clone(),
-                *event.participants.first().unwrap_or(&NpcId(0)),
-                game_time,
-            );
-            return; // One gossip item per event is enough
+            gossip_network.create(event.summary.clone(), source, game_time);
+            return Some(parish_types::events::GameEvent::GossipSpread {
+                source,
+                location: event.location,
+                content: event.summary.clone(),
+                timestamp: game_time,
+            });
         }
     }
 
     // Create gossip from non-trivial dialogue summaries (>30 chars suggests substance)
     if event.summary.len() > 30 {
-        gossip_network.create(
-            event.summary.clone(),
-            *event.participants.first().unwrap_or(&NpcId(0)),
-            game_time,
-        );
+        gossip_network.create(event.summary.clone(), source, game_time);
+        return Some(parish_types::events::GameEvent::GossipSpread {
+            source,
+            location: event.location,
+            content: event.summary.clone(),
+            timestamp: game_time,
+        });
     }
+
+    None
 }
 
 /// Propagates gossip between NPCs during a Tier 2 group interaction.

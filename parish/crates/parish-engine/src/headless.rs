@@ -1636,12 +1636,15 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                         &NpcConfig::default(),
                         &app.world.event_bus,
                     );
-                    if summary_clean {
-                        parish_core::npc::ticks::create_gossip_from_tier2_event(
-                            event,
-                            &mut app.world.gossip_network,
-                            game_time,
-                        );
+                    if summary_clean
+                        && let Some(gossip_evt) =
+                            parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                event,
+                                &mut app.world.gossip_network,
+                                game_time,
+                            )
+                    {
+                        app.world.event_bus.publish(gossip_evt);
                     }
                 }
                 app.npc_manager.record_tier2_tick(game_time);

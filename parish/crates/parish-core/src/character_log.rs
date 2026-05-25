@@ -302,6 +302,26 @@ impl CharacterLogManager {
                     )?;
                 }
             }
+            GameEvent::GossipSpread {
+                source,
+                location,
+                content,
+                ..
+            } => {
+                if content.trim().is_empty() {
+                    return Ok(());
+                }
+                if let Some(npc) = npc_manager.get(*source) {
+                    let loc = loc_of(*location);
+                    let body = format!("*{}*\n", content);
+                    append_journal_entry(
+                        &self.npc_log_path(npc),
+                        ts,
+                        Some(&format!("Gossip at {}", loc)),
+                        &body,
+                    )?;
+                }
+            }
             GameEvent::PlayerMoved { from, to, .. } => {
                 let to_n = loc_of(*to);
                 let from_n = loc_of(*from);
@@ -1008,6 +1028,92 @@ mod tests {
             npc_log.contains("**I:** Ah, God bless ye."),
             "npc line missing or wrong POV: {}",
             npc_log,
+        );
+    }
+
+    #[test]
+    fn npc_activity_event_writes_authored_activity_to_npc_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let npc_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::NpcActivity {
+            npc_id,
+            location: crate::world::LocationId(1),
+            activity: "tending bar".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        assert!(
+            log.contains("Activity at"),
+            "activity heading missing: {}",
+            log,
+        );
+        assert!(
+            log.contains("*tending bar*"),
+            "activity body missing or wrong italic marker: {}",
+            log,
+        );
+    }
+
+    #[test]
+    fn npc_activity_event_with_empty_text_is_noop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let npc_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let path = mgr.npc_log_path(npcs.get(npc_id).unwrap());
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let event = GameEvent::NpcActivity {
+            npc_id,
+            location: crate::world::LocationId(1),
+            activity: "   ".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let after = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            before, after,
+            "empty/whitespace activity must not append a journal entry"
+        );
+    }
+
+    #[test]
+    fn gossip_spread_event_writes_source_npc_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let source_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::GossipSpread {
+            source: source_id,
+            location: crate::world::LocationId(1),
+            content: "the landlord raised the rent again".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(source_id).unwrap())).unwrap();
+        assert!(log.contains("Gossip at"), "gossip heading missing: {}", log,);
+        assert!(
+            log.contains("*the landlord raised the rent again*"),
+            "gossip body missing: {}",
+            log,
         );
     }
 
