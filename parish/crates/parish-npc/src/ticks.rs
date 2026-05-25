@@ -1121,7 +1121,10 @@ pub fn create_gossip_from_tier2_event(
     gossip_network: &mut GossipNetwork,
     game_time: chrono::DateTime<Utc>,
 ) -> Option<parish_types::events::GameEvent> {
-    let source = *event.participants.first().unwrap_or(&NpcId(0));
+    // Tier-2 events without participants are degenerate (no group, no
+    // speaker). Defaulting the source to NpcId(0) — the player — would
+    // mint gossip falsely attributed to the player. Bail out instead.
+    let &source = event.participants.first()?;
 
     // Create gossip from large relationship changes
     for rc in &event.relationship_changes {

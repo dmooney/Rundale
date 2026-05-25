@@ -141,8 +141,14 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::LifeEvent { npc_id: id, .. } => *id == npc_id,
         GameEvent::RelationshipChanged { npc_a, npc_b, .. } => *npc_a == npc_id || *npc_b == npc_id,
         GameEvent::NpcInteraction { participants, .. } => participants.contains(&npc_id),
-        GameEvent::GossipSpread { source, .. } => *source == npc_id,
-        GameEvent::WeatherChanged { .. }
+        // GossipSpread is informational on the bus — gossip propagation to
+        // other NPCs happens in-memory via `gossip_network` and is surfaced
+        // to the speaker via `gossip_block` injection, not via the
+        // recap-summary path that this function feeds. Including it here
+        // would replay the source NPC's own dialogue summary back into
+        // their context inflation (#1110 gemini review).
+        GameEvent::GossipSpread { .. }
+        | GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
         | GameEvent::PlayerMoved { .. } => false,
     }
@@ -178,7 +184,9 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
             format!("Left location {}.", location.0)
         }
         GameEvent::NpcActivity { activity, .. } => activity.clone(),
-        GameEvent::GossipSpread { content, .. } => format!("Heard gossip: {content}"),
+        // GossipSpread does not feed any NPC's context inflation
+        // (see `event_involves_npc`); empty string keeps callers honest.
+        GameEvent::GossipSpread { .. } => String::new(),
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
         }
