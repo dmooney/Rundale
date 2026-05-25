@@ -1,0 +1,7 @@
+# Live-proof fixture for TODO #32 — clock-advance trace.
+#
+# Fix lives in parish-types/src/time.rs Clock::advance. The trace is
+# debug-level so default RUST_LOG won't surface it; this fixture just
+# confirms the engine boots cleanly under the instrumentation.
+
+look
