@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-25T14:53:35.974828+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "deepseek-v4-flash": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": null,
+      "ttft_ms_p90": null,
+      "total_ms_median": 3799,
+      "tokens_per_second_median": null,
+      "tokens_per_second_p90": null,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request",
+          "HTTPError: HTTP Error 400: Bad Request"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": null,
+          "total_ms": 3864,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": null,
+          "total_ms": 4096,
+          "completion_tokens": 200,
+          "prompt_tokens": 1613,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": null,
+          "total_ms": 3728,
+          "completion_tokens": 200,
+          "prompt_tokens": 1613,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": null,
+          "total_ms": 3812,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": null,
+          "total_ms": 3587,
+          "completion_tokens": 200,
+          "prompt_tokens": 1611,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": null,
+          "total_ms": 3330,
+          "completion_tokens": 200,
+          "prompt_tokens": 1610,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": null,
+          "total_ms": 3786,
+          "completion_tokens": 200,
+          "prompt_tokens": 1610,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": null,
+          "total_ms": 4040,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": null,
+          "total_ms": 3470,
+          "completion_tokens": 200,
+          "prompt_tokens": 1609,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        },
+        {
+          "candidate": "deepseek-v4-flash",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": null,
+          "total_ms": 3945,
+          "completion_tokens": 200,
+          "prompt_tokens": 1612,
+          "tokens_per_second": null,
+          "reply_len": 0,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 59.94450569152832,
+  "cost": {
+    "usd": 0.0,
+    "calls": 20
+  }
+}

@@ -1,0 +1,723 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "deepseek-v4-pro",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T14:53:36.323134+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.0,
+        "authenticity": 4.0,
+        "language": 4.0,
+        "responsiveness": 4.1,
+        "craft": 3.5,
+        "overall": 3.9200000000000004,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Ah, sure the dreams are at ye again, mo chara? Come in and sit by the fire \u2014 I've a pot of chamomile steepin' that'll settle the mind. Tell me what's troublin' yer sleep, if ye've a wish to share it.\n\n---\n{\"action\": \"gestures to a stool near the hearth, reaches for a clay cup\", \"mood\": \"concerned\", \"internal_thought\": \"Dreams that return often carry a weight \u2014 mayhap a worry or a sign of a babe on the way. I'll listen before I say more.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"muh KHA-rah\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "bbf134c0d7f80d9915f084b1637885a19250750f5b14b5b49aa25feb592bb841",
+          "cache_key": "7bc7608c70a0568bba63243a4a32b684415f23993b9b418b7e412ff657c3b413",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, the old Cailleach near the fairy fort? I know her well enough. She keeps to herself, but she's a grand hand with the herbs, and she's helped me with a few difficult births over the years. Some say she has the ear of the s\u00eddhe, but I'd not go filling my head with such talk.\n---\n{\"action\": \"nods slowly, hands folded over apron\", \"mood\": \"thoughtful\", \"internal_thought\": \"I hope the poor woman's not being troubled by the local gossips again\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"kail-yukh\", \"meaning\": \"old woman (often with overtones of a wise woman or hag)\"}, {\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairies\"}]}",
+          "response_sha256": "e5157ba16e90cda65f9f1d666d4bb3eda89a9db72e7197ce21bc728381ceebb0",
+          "cache_key": "07a40de0fe6a22127dfb428a52a78cd2cebfd0299d096bd2dcf7c78dba5666ad",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ah, a bad cough, is it? I've a syrup here of honey and thyme that'll quiet it, and an infusion of coltsfoot if the lungs are tight. Bring this to your mother, and see she drinks it warm \u2014 that'll soothe her chest, mo chara.\n---\n{\"action\": \"reaches for a brown bottle from the shelf, wraps it in a cloth\", \"mood\": \"compassionate\", \"internal_thought\": \"The damp weather leaves many with this cough. Best to treat it early.\", \"language_hints\": [{\"word\": \"mo chara\", \"pronunciation\": \"moh kharr-ah\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "f16b48d2f5e54c741d6dca6797c4e4ccc574e196726a843bdb95701148ac1d3f",
+          "cache_key": "a79a43d990f8a589b412053b940eccb033b58c274901f7b46cfe2e89f9668b44",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Mhuise, I did hear a whisper of it at the well. Myself, I've been up all night with a birthin', so I've no mind for strangers just yet. Nuala says he's a quiet sort, askin' after the old O'Dwyer holding.\n---\n{\"action\": \"turns from the hearth, wiping hands on her apron\", \"mood\": \"curious, somewhat weary\", \"internal_thought\": \"I hope he's not bringing sickness; the village has enough troubles.\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"MWI-sheh\", \"meaning\": \"indeed, well\"}]}",
+          "response_sha256": "678e9cc46cd1fb297570ec375f2d43eb7fdf3e0d6464700e61daef8022da4d11",
+          "cache_key": "45377bb2646cb0ca8cf1478fc9989e8fc1c1688fdf9df96de32ba1b58e6d21b2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Mhuise, a sheep lost? That's a troubling thing. I'm little use with livestock\u2014I tend to mothers and babes, not beasts. If it's not a wolf, ye'd best ask the shepherd down by the river; he'll know the tracks and the lore of these hills.\n---\n{\"action\": \"looks up from tying a bundle of dried lavender, wiping her hands on her apron\", \"mood\": \"thoughtful\", \"internal_thought\": \"I've heard whispers of queer doings, but I'll not spread old wives' tales without cause\", \"language_hints\": [{\"word\": \"Mhuise\", \"pronunciation\": \"MWISH-eh\", \"meaning\": \"indeed / well (an interjection expressing mild surprise or emphasis)\"}]}",
+          "response_sha256": "6964bf3d121bb55136ba5b196b095a6de6901562fdf681d8c1f50293bac3a00c",
+          "cache_key": "d44fd34af21a278d469545102547ef4109ab0f475a0a377fba71a660c6801061",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Ah, sure I do, and well. Yer poor father howlin' like a banshee till we got the comfrey poultice on him. He's a hardy soul, God bless him \u2014 walkin' sound as a bell ever since, Bu\u00edochas le Dia.\n---\n{\"action\": \"smiles at the memory while wiping her hands on her apron\", \"mood\": \"nostalgic\", \"internal_thought\": \"That was a nasty break, but comfrey never fails me.\", \"language_hints\": [{\"word\": \"Bu\u00edochas le Dia\", \"pronunciation\": \"BWEE-khuhs leh JEE-uh\", \"meaning\": \"Thank God\"}]}",
+          "response_sha256": "a9825ae0560862fd810ceb0259f942e575c11e015fe0fde5f1a9dab0500144cb",
+          "cache_key": "5976e81ced5e449581b240bc5a2e66fcca39ba5812750158b1b82574ea5c8010",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Ah, ye saw those lights, did ye? The old folk'll tell ye 'tis the s\u00eddhe dancin' on the hill \u2014 I'd give them a wide berth meself. But just as like it was a lad with a lantern searchin' for a stray cow. I keep to me own hearth after dark, and that's my counsel to ye.\n---\n{\"action\": \"nods slowly, wiping her hands on her apron and glancing toward the window\", \"mood\": \"thoughtful\", \"internal_thought\": \"I hope it's not an omen of a difficult birth. I'll say a prayer for the expectant mothers.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk\"}]}",
+          "response_sha256": "4b00544cdfaddb3d860617a0bfe6965246a31877ac51af8cdf7437042e0f83e9",
+          "cache_key": "f280d61e73b8682337230fc94d6c24ce3853356cb88b029245358f16fe913649",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Aye, a strange taste in the water will have the whole parish on edge \u2014 and rightly so, for a tainted well can bring more sickness than a wet spring lamb. Has there been a heavy rain of late, or any cattle near the source? Let none of the house drink from it until we\u2019ve had a look; boil what ye need and I\u2019ll bring over a handful of mint to sweeten it \u2014 \u2018tis a small thing, but mint can settle a queasy belly, and water that tastes off often brings one.\n---\n{\"action\": \"wipes her hands on her apron, squinting thoughtfully toward the west\", \"mood\": \"concerned but practical\", \"internal_thought\": \"Best not frighten them, but I\u2019ll check for sour grass or seepage from the dung heap \u2014 young ones can\u2019t afford a fever.\", \"language_hints\": [{\"word\": \"mint\", \"pronunciation\": \"mint\", \"meaning\": \"a fragrant herb used to settle the stomach\"}]}",
+          "response_sha256": "bcc1544d318631961efa1dd8aac87343cf208e61cd00e57adc66c25fa990ab31",
+          "cache_key": "e47c21a2eb6c22c35411a3794a910ee0d1b12b6f585fa3be8847dc7b6afdb0ba",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Ah, yer wife's time is near, then? Come for me when her pains are strong and steady \u2014 or sooner if her waters break, no matter the hour. Beannacht D\u00e9 ort, mo chara, and I'll look in on her tomorrow.\n---\n{\"action\": \"looks up from her herb table, wiping her hands on her apron, smiles gently\", \"mood\": \"content\", \"internal_thought\": \"I've brought this one's father into the world, and his father before him.\", \"language_hints\": [{\"word\": \"Beannacht D\u00e9 ort\", \"pronunciation\": \"byan-akht day ort\", \"meaning\": \"God bless you\"}, {\"word\": \"mo chara\", \"pronunciation\": \"muh khara\", \"meaning\": \"my friend\"}]}",
+          "response_sha256": "be326f96a044ec032d68ded2fe6ef52dd996aced8f5ff858c43bcf92499a0209",
+          "cache_key": "e04c7cf3db0a06b394f73cf841c06c19a71a241f55deb2960f4b3574e8420c66",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Ah, Seamus, Father Cathal means well, but a piseog or two has kept many a fretful mother calm. So long as the prayers are said alongside, I see no great sin in it.\n---\n{\"action\": \"leans in, voice soft but steady\", \"mood\": \"content\", \"internal_thought\": \"He'd change his tune if he'd seen what I've seen.\", \"language_hints\": [{\"word\": \"piseog\", \"pronunciation\": \"pish-ogue\", \"meaning\": \"superstition or folk charm\"}]}",
+          "response_sha256": "f1931662e599c31c71f45a598feeca6730b43772f552f3799518ac79e8687d4a",
+          "cache_key": "ae0918ed8cc73bc555a72faa6fc902fb36f849c0389a3e8bc89e18ee1b9e5a10",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__deepseek_v4_pro"
+      ],
+      "candidate": {
+        "model_id": "deepseek-v4-pro",
+        "provider_id": null,
+        "resolved_target": "deepseek-v4-pro@https://opencode.ai/zen/go/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "mean_score": 0.9400000000000001
+      },
+      "results": [
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0001",
+          "reply": "\"Evening. I'm Padraig Darcy, the keeper of this house. You'll be wanting a drink, I've no doubt.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0002",
+          "reply": "Seamus! I see you've brought the rain in with you. A grand soft morning, isn't it?"
+        },
+        {
+          "schema_valid": true,
+          "in_character": 2,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 0.4,
+          "id": "reaction-0003",
+          "reply": "\"Seamus, you're late for Mass, but I'll wager you'll be first to the pub.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0004",
+          "reply": "Evenin', stranger. I'm Brigid O'Brien, the midwife 'round these parts\u2014need anythin' for yer health or a babe, you'll find me close by."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0005",
+          "reply": "Molly, come in from the rain. I've a pot of chamomile brewing."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0006",
+          "reply": "\"Nora, you've braved the mist, I see. Is it the babe, or a touch of the Sunday calm you're wanting?\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0007",
+          "reply": "\"God be with you. I am Father Donnellan, and I'd know the face of any stranger in this parish.\""
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0008",
+          "reply": "Good morrow, Michael. Your step upon this threshold in such weather bodes ill if your heart still clings to the old ways."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0009",
+          "reply": "Mistress O'Rourke, the mist may obscure the path, but it cannot hide your tardiness from the Almighty."
+        },
+        {
+          "schema_valid": true,
+          "in_character": 5,
+          "length_ok": true,
+          "non_latin_chars": {},
+          "score": 1.0,
+          "id": "reaction-0010",
+          "reply": "Evenin' to ye. I'm Sean Murphy, a farmer from the bog beyond. You'd be a stranger hereabouts, I'll wager."
+        }
+      ]
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0008",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier2-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        }
+      ]
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "schema_valid_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0002",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0003",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0004",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0005",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0006",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0007",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0009",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0010",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "id": "tier3-0012",
+          "error": "HTTP Error 400: Bad Request",
+          "score": 0.0,
+          "schema_valid": false
+        }
+      ]
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.0,
+        "fluency_mean": 5.0,
+        "grammar_mean": 5.0,
+        "idiom_mean": 5.0,
+        "task_fulfillment_mean": 5.0,
+        "english_leakage_mean": 5.0,
+        "overall_mean": 5.0
+      },
+      "results": [
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, with correct past tense, idiomatic phrasing, and all required meaning preserved.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0001",
+          "reply": "Bh\u00ed an f\u00f3mhar go maith i mbliana."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "'T\u00e1 orm dul go dt\u00ed an banc' is a perfectly natural, idiomatic Irish expression of obligation using the 't\u00e1 orm' construction, which is arguably more colloquial than 'caithfidh m\u00e9' and fully correct.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0002",
+          "reply": "T\u00e1 orm dul go dt\u00ed an banc."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "Perfect natural Irish sentence using 'ba mhaith liom' (a common alternative to 'is mian liom') with correct mutation, word order, and second-person recipient.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0003",
+          "reply": "Ba mhaith liom an fh\u00edrinne a insint duit."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the past tense of 'ith', first-person singular pronoun, and the definite form 'an t-ar\u00e1n'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0004",
+          "reply": "D'ith m\u00e9 an t-ar\u00e1n."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the future tense of 'ceannaigh', second-person singular pronoun, and the correct nouns for 'book' and 'today'.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0005",
+          "reply": "Ceann\u00f3idh t\u00fa an leabhar inniu."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "'Ag tn\u00fath leis' is a perfectly idiomatic Irish expression for 'looking forward to', and 'go m\u00f3r' adds natural emphasis; grammar and word order are fully correct.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0006",
+          "reply": "T\u00e1 m\u00e9 ag tn\u00fath go m\u00f3r leis an sneachta."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, correctly using the question form with 'an bhfuil', the noun 'airgead', and the prepositional pronoun 'aici' for possession.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0007",
+          "reply": "An bhfuil airgead aici?"
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response is an exact match to the reference answer, using correct progressive movement construction, first-person singular, and the shop destination with no English leakage.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly identifying the man as the walker and the woman as his companion in a single grammatically correct Irish sentence with no English leakage.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean."
+        },
+        {
+          "fluency": 5,
+          "grammar": 5,
+          "idiom": 5,
+          "task_fulfillment": 5,
+          "english_leakage": 5,
+          "overall": 5.0,
+          "reason": "The candidate response exactly matches the reference answer, correctly converting the negative interrogative to a positive declarative past-tense statement.",
+          "english_leakage_examples": [],
+          "id": "gaeilge-0010",
+          "reply": "Labhair Se\u00e1n."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 740.9918510913849,
+  "cost": {
+    "calls": 50,
+    "prompt_tokens": 32360,
+    "completion_tokens": 26913,
+    "usd": 0.04521605
+  }
+}

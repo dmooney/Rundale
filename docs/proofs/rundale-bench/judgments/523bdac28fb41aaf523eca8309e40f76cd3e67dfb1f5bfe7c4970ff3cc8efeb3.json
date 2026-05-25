@@ -8,6 +8,7 @@
   },
   "cache_key": "523bdac28fb41aaf523eca8309e40f76cd3e67dfb1f5bfe7c4970ff3cc8efeb3",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 3.4,
   "prompt_id": "dialogue-0007",
   "rationales": {
-    "authenticity": "Period voice with 's\u00eddhe' reference and Hiberno-English ('Ah, sure ye'd want to mind yerself', 'moonlit night').",
-    "character": "Midwife's perspective on supernatural and natural explanations fits character\u2014cautious, knowledgeable about local beliefs.",
-    "craft": "Cuts off mid-explanation, violating completion and forcing incomplete thought.",
-    "language": "Well-formed Irish-English dialect with proper Celtic reference (s\u00eddhe), no anachronism.",
-    "responsiveness": "Addresses the lights prompt by offering both supernatural (fairy dancing) and natural (bog) explanations."
+    "authenticity": "S\u00eddhe reference is period-plausible.",
+    "character": "Knowledgeable about local lore.",
+    "craft": "Response cut off mid-thought.",
+    "language": "Hiberno-English well-formed.",
+    "responsiveness": "Addresses the lights but trails off."
   },
   "response_sha256": "2a68c59138d481741604a205ee09833d27270a9f2ca3798433234cc64fe5a958",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

@@ -4,24 +4,25 @@
     "character": 4,
     "craft": 4,
     "language": 4,
-    "responsiveness": 4
+    "responsiveness": 5
   },
   "cache_key": "f1686b07b00c78d858e28698e77f5109832e2341e45ffc2ac6f57e07736bd32a",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
   },
   "judge_id": "judge_sonnet_v1",
   "judge_model": "claude-sonnet-4-6",
-  "overall": 4.0,
+  "overall": 4.2,
   "prompt_id": "dialogue-0006",
   "rationales": {
-    "authenticity": "Willow bark and comfrey poultice are accurate period remedies; 'Le c\u00fanamh D\u00e9' is natural; 'within the fortnight' is realistic timeline.",
-    "character": "Strong memory and care for the family; Brigid's role as healer and community fixture comes through; the check-in for another injury shows attentiveness.",
-    "craft": "Four sentences but each carries weight; specific remedies ground the reply; minor verbosity in the setup.",
-    "language": "Solid Irish English with idiomatic 'so it is' and 'Aye'; Irish phrase well-placed and pronounced.",
-    "responsiveness": "Recalls the specific event, demonstrates knowledge, asks why the memory surfaced\u2014engaging and responsive."
+    "authenticity": "Willow bark and comfrey are period-accurate treatments; 'Le c\u00fanamh D\u00e9' is idiomatic.",
+    "character": "Knowledgeable healer recalling specific case with appropriate professional memory.",
+    "craft": "Good pacing and detail.",
+    "language": "Clean en-IE with natural Irish invocation.",
+    "responsiveness": "Recalls the specific incident in detail and probes for the reason."
   },
   "response_sha256": "9aa434ed7bfef5b0097efca6009fc196d970e34e2d6889bd5c5476f84c2fd6b2",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

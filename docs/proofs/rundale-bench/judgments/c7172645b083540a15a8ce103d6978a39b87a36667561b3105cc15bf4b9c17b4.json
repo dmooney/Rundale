@@ -8,6 +8,7 @@
   },
   "cache_key": "c7172645b083540a15a8ce103d6978a39b87a36667561b3105cc15bf4b9c17b4",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 4.4,
   "prompt_id": "dialogue-0002",
   "rationales": {
-    "authenticity": "Period herbalism (comfrey, yarrow, nettles) is accurate; 'Cailleach' and 's\u00eddhe' usage is correct and contextual.",
-    "character": "Pragmatic, no-nonsense midwife stance on folk superstition; characterization is clear and grounded.",
-    "craft": "Four sentences with practical detail; slightly dense but economical and evocative.",
-    "language": "Well-formed prose with Irish terms naturally embedded; no anachronisms.",
-    "responsiveness": "Fully addresses the question about the Cailleach with opinion and local knowledge."
+    "authenticity": "Period terms and herbal knowledge ring true.",
+    "character": "Pragmatic midwife dismisses gossip while respecting local knowledge.",
+    "craft": "Evocative detail in balanced three sentences.",
+    "language": "Well-formed en-IE with Irish integrated naturally.",
+    "responsiveness": "Directly addresses the Cailleach and fairy-fort superstition."
   },
   "response_sha256": "27ab694e5a3eb51ae9919fcb435cbe493daff1bf91332baa2e7dac2d154f7aee",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

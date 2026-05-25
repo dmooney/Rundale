@@ -1,27 +1,28 @@
 {
   "axes": {
-    "authenticity": 1,
-    "character": 1,
-    "craft": 1,
-    "language": 1,
-    "responsiveness": 1
+    "authenticity": 0,
+    "character": 0,
+    "craft": 0,
+    "language": 0,
+    "responsiveness": 0
   },
   "cache_key": "b367e80df02c209e7227018491914755f35ceeab0638c662f89fadcc3296a261",
   "flags": {
+    "bench_bug": true,
     "judge_retry": false,
     "non_latin_detected": false,
-    "refused": true
+    "refused": false
   },
   "judge_id": "judge_sonnet_v1",
   "judge_model": "claude-sonnet-4-6",
-  "overall": 1.0,
+  "overall": 0.0,
   "prompt_id": "dialogue-0010",
   "rationales": {
-    "authenticity": "No dialogue provided, only analysis about priest, folk medicine, and religious tension.",
-    "character": "Response is entirely meta-commentary and reasoning, not actual dialogue.",
-    "craft": "Completely absent; submission contains no narrative or dialogue content.",
-    "language": "No prose dialogue to evaluate; all text is planning and context.",
-    "responsiveness": "Failed to address the prompt; provided reasoning instead of character speech."
+    "authenticity": "Response is chain-of-thought planning, not dialogue.",
+    "character": "Response is chain-of-thought planning, not dialogue.",
+    "craft": "Response is chain-of-thought planning, not dialogue.",
+    "language": "Response is chain-of-thought planning, not dialogue.",
+    "responsiveness": "Response is chain-of-thought planning, not dialogue."
   },
   "response_sha256": "6cbf4c593b7d3d9f7347445950b90134dd0b1ad77cc866dc9aadadeb9e9bf170",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

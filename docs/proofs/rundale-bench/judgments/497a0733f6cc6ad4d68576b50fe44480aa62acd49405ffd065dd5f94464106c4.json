@@ -8,6 +8,7 @@
   },
   "cache_key": "497a0733f6cc6ad4d68576b50fe44480aa62acd49405ffd065dd5f94464106c4",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 4.4,
   "prompt_id": "dialogue-0007",
   "rationales": {
-    "authenticity": "Peat cutter, lanterns, and s\u00eddhe references are period-plausible; 'moon playing tricks' is a natural idiom.",
-    "character": "Rational skepticism about folk superstition fits the character; appropriately reassuring and earthbound.",
-    "craft": "Four sentences, deliberate rhythm and reassuring tone; effective but slightly formulaic in structure.",
-    "language": "Well-formed English with correct Irish term (s\u00eddhe); natural pacing and no anachronisms.",
-    "responsiveness": "Fully addresses the lights sighting with practical alternative explanations."
+    "authenticity": "Acknowledges s\u00eddhe superstition while offering sensible alternatives.",
+    "character": "Reassuring, practical midwife balances folk belief with skepticism.",
+    "craft": "Four sentences with good pacing and evocative imagery.",
+    "language": "Clean en-IE with Irish term integrated naturally.",
+    "responsiveness": "Directly addresses the mysterious lights with plausible explanations."
   },
   "response_sha256": "95b8b1d33a7680b556844e227c1ff681babda576a38b68de56d845750c5717ca",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

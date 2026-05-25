@@ -4,24 +4,25 @@
     "character": 4,
     "craft": 4,
     "language": 4,
-    "responsiveness": 5
+    "responsiveness": 4
   },
   "cache_key": "2c075d0807700ad9d3ff599fb5fa58446a689a4180e29dfa4fdbf9f4c65ae556",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
   },
   "judge_id": "judge_sonnet_v1",
   "judge_model": "claude-sonnet-4-6",
-  "overall": 4.2,
+  "overall": 4.0,
   "prompt_id": "dialogue-0002",
   "rationales": {
-    "authenticity": "Period-apt reference to wise women and fairy beliefs; caution about gossip fits the social dynamic, though the explanation is slightly expository.",
-    "character": "Brigid's careful, measured tone and protective attitude toward M\u00e1ire align well with a rural midwife's pragmatism and respect for local folklore.",
-    "craft": "Three sentences with deliberate pacing; the action beat anchors the nervousness effectively.",
-    "language": "Well-formed with Irish terms (s\u00eddhe) properly integrated; one minor comma splice in the longer clause.",
-    "responsiveness": "Fully addresses the question about the Cailleach/M\u00e1ire, giving community context and personal stance."
+    "authenticity": "S\u00eddhe, hesitation about gossip, and recognition of 'old ways' align with 1820 rural mindset.",
+    "character": "Brigid shows respect for M\u00e1ire and knowledge of local folklore without superstition.",
+    "craft": "Three sentences, measured and thoughtful.",
+    "language": "Clean Irish English with proper Irish terms.",
+    "responsiveness": "Answers the question about the Cailleach while deflecting gossip."
   },
   "response_sha256": "cbedf8b6be6ed0a30a53c75e1bf747b3d5ad1472443295170791e538115c1949",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

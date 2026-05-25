@@ -8,6 +8,7 @@
   },
   "cache_key": "d8ad8db5e058a24f5942cb67ef462c8a73677041c629e9d0a803d4b307fc5b33",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 3.4,
   "prompt_id": "dialogue-0010",
   "rationales": {
-    "authenticity": "'Sure, Father Cathal means well' and the contrast between church teaching and practical survival reflect real 1820s rural Ireland dynamics.",
-    "character": "Brigid's principled defense of herbalism and midwifery against clerical dismissal shows character conviction and period-plausible tension.",
-    "craft": "Truncated mid-response, breaking the 2-4 sentence instruction and cutting off Brigid's argument incomplete.",
-    "language": "Period-authentic phrasing ('cold hearth,' 'faith'), though the response is truncated.",
-    "responsiveness": "Engages directly with the theological/practical tension raised by the Father's sermon."
+    "authenticity": "Herb-lore and childbirth knowledge reflect period midwife authority.",
+    "character": "Nuanced stance balancing faith and practical herb-lore expertise.",
+    "craft": "Truncated mid-sentence.",
+    "language": "''Twould' and natural phrasing present; minor rhythm awkwardness.",
+    "responsiveness": "Directly answers priest's doctrine with reasoned counterpoint."
   },
   "response_sha256": "0c827a509ba5d0faeee66de40c40bea13b6fcaf6b3c3d6c8396273b92ac0e8a6",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

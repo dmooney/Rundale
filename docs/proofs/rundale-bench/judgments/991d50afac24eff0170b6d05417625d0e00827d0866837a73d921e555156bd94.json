@@ -2,12 +2,13 @@
   "axes": {
     "authenticity": 4,
     "character": 4,
-    "craft": 3,
+    "craft": 2,
     "language": 5,
-    "responsiveness": 3
+    "responsiveness": 4
   },
   "cache_key": "991d50afac24eff0170b6d05417625d0e00827d0866837a73d921e555156bd94",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 3.8,
   "prompt_id": "dialogue-0002",
   "rationales": {
-    "authenticity": "Strong dialectal voice and 'Cailleach Bh\u00e9ara' usage; 'hereabouts' and folk knowledge fit the period.",
-    "character": "Conversational village knowledge-bearer persona, using 'Aye' and local familiarity effectively.",
-    "craft": "Response is incomplete\u2014cuts off mid-thought without resolving the sentence or completing a thought.",
-    "language": "Excellent Irish spelling (Cailleach Bh\u00e9ara), smooth prose, no errors.",
-    "responsiveness": "Acknowledges the Cailleach but abruptly cuts off mid-sentence about herb gathering."
+    "authenticity": "Cailleach Bh\u00e9ara reference feels period-correct.",
+    "character": "Knowledgeable elder voice with local authority.",
+    "craft": "Truncated.",
+    "language": "Clean Irish diacritics; truncated mid-sentence.",
+    "responsiveness": "Addresses the Cailleach Bh\u00e9ara directly but cuts off."
   },
   "response_sha256": "16a87e83dffa65bf0f1445decf247badadbd7be860c19f4c5cd887cc4c0e3a68",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

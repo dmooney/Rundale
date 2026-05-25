@@ -191,16 +191,17 @@
       "summary": {
         "slice": "dialogue",
         "records": 10,
-        "judged": 10,
+        "judged": 9,
+        "bench_bugs": 1,
         "judge_failures": 0,
         "errors": 0,
         "non_latin_rate": 0.0,
-        "character": 3.4,
-        "authenticity": 3.4,
-        "language": 3.2,
-        "responsiveness": 3.5,
-        "craft": 2.3,
-        "overall": 3.1599999999999997,
+        "character": 3.5555555555555554,
+        "authenticity": 3.6666666666666665,
+        "language": 3.4444444444444446,
+        "responsiveness": 3.4444444444444446,
+        "craft": 1.7777777777777777,
+        "overall": 3.177777777777777,
         "judge": "judge_sonnet_v1",
         "judge_model": "claude-sonnet-4-6",
         "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
@@ -222,6 +223,7 @@
             },
             "overall": 2.8,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -236,17 +238,18 @@
           "judged": true,
           "judgment": {
             "axes": {
-              "authenticity": 1,
-              "character": 1,
-              "craft": 1,
-              "language": 3,
-              "responsiveness": 1
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
             },
-            "overall": 1.4,
+            "overall": 0.0,
             "flags": {
+              "bench_bug": true,
               "judge_retry": false,
               "non_latin_detected": false,
-              "refused": true
+              "refused": false
             }
           }
         },
@@ -261,11 +264,12 @@
               "authenticity": 4,
               "character": 4,
               "craft": 2,
-              "language": 3,
+              "language": 4,
               "responsiveness": 4
             },
-            "overall": 3.4,
+            "overall": 3.6,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -282,12 +286,13 @@
             "axes": {
               "authenticity": 3,
               "character": 3,
-              "craft": 3,
+              "craft": 2,
               "language": 3,
-              "responsiveness": 3
+              "responsiveness": 2
             },
-            "overall": 3.0,
+            "overall": 2.6,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -303,13 +308,14 @@
           "judgment": {
             "axes": {
               "authenticity": 4,
-              "character": 4,
+              "character": 3,
               "craft": 2,
-              "language": 3,
-              "responsiveness": 4
+              "language": 4,
+              "responsiveness": 3
             },
-            "overall": 3.4,
+            "overall": 3.2,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -324,14 +330,15 @@
           "judged": true,
           "judgment": {
             "axes": {
-              "authenticity": 3,
-              "character": 3,
+              "authenticity": 4,
+              "character": 4,
               "craft": 2,
               "language": 3,
-              "responsiveness": 3
+              "responsiveness": 4
             },
-            "overall": 2.8,
+            "overall": 3.4,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -346,14 +353,15 @@
           "judged": true,
           "judgment": {
             "axes": {
-              "authenticity": 4,
-              "character": 4,
+              "authenticity": 3,
+              "character": 3,
               "craft": 2,
               "language": 3,
-              "responsiveness": 4
+              "responsiveness": 3
             },
-            "overall": 3.4,
+            "overall": 2.8,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -370,12 +378,13 @@
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 3,
+              "craft": 1,
               "language": 4,
               "responsiveness": 4
             },
-            "overall": 3.8,
+            "overall": 3.4,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -392,12 +401,13 @@
             "axes": {
               "authenticity": 4,
               "character": 4,
-              "craft": 4,
+              "craft": 1,
               "language": 4,
-              "responsiveness": 5
+              "responsiveness": 4
             },
-            "overall": 4.2,
+            "overall": 3.4,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false
@@ -420,6 +430,7 @@
             },
             "overall": 3.4,
             "flags": {
+              "bench_bug": false,
               "judge_retry": false,
               "non_latin_detected": false,
               "refused": false

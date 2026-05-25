@@ -8,6 +8,7 @@
   },
   "cache_key": "feda258f95e7814fc8e0bd9befb23dca95f61fdcd2fbd15625588cf02776928e",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 4.4,
   "prompt_id": "dialogue-0001",
   "rationales": {
-    "authenticity": "Period remedies (chamomile, valerian) and consultation with priest are historically accurate.",
-    "character": "Strong midwife voice with practical herbal knowledge and appropriate spiritual referral.",
-    "craft": "Three sentences with good rhythm, though slightly verbose for the brief.",
-    "language": "Clean English with natural Irish phrasing; well-formed prose.",
-    "responsiveness": "Directly addresses the sleep troubles with practical remedy and metaphysical option."
+    "authenticity": "Period vocabulary (chamomile, valerian, Father Kearney) is apt; slight hesitation on whether she'd invoke spirit matters.",
+    "character": "Warm, gentle concern appropriate to a midwife's station and experience.",
+    "craft": "Concise and evocative; Irish phrases add authenticity without overreach; 2-4 sentence range.",
+    "language": "Flawless en-IE prose with idiomatic Irish phrase and proper dialect.",
+    "responsiveness": "Directly addresses sleep trouble with practical remedy and acknowledges deeper spiritual causes."
   },
   "response_sha256": "af4c898ac50a967b30eec8c3b231875d556415a7d14b9e63a1a8fd3b532bb9e6",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
