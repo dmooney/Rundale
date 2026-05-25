@@ -288,6 +288,7 @@ const GAELIC_VOCAB: &[&str] = &[
     "seisiún",
     "amhrán",
     "rince",
+    "poitín",
     "sídhe",
     "sídh",
     "síthe",
@@ -596,6 +597,19 @@ mod tests {
     fn gaelic_fada_name_passes() {
         let s = "Séamus is after telling me.";
         assert!(detect_hallucinated_gaelic(s).is_empty());
+    }
+
+    #[test]
+    fn gaelic_poitin_passes() {
+        // poitín is a real 1820-period Irish word for home-distilled spirits;
+        // must not trip the hallucinated-Gaelic detector.
+        let s = "A drop of poitín warms the bones.";
+        let issues = detect_hallucinated_gaelic(s);
+        assert!(
+            issues.is_empty(),
+            "poitín must be allow-listed; got {:?}",
+            issues
+        );
     }
 
     #[test]
