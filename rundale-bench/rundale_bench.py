@@ -237,6 +237,17 @@ def run_dialogue_bundled(target: Target, records: list[dict], tracker: CostTrack
     summary["rubric_sha256"] = rubric_sha
     summary["bundles_queued"] = len(bundle_ids)
     summary["cache_hits"] = cache_hits
+    # If any bundles are still queued (waiting for subagent judging), the
+    # numeric axis means are partial-or-zero and not safe for the
+    # leaderboard. Null them out and mark the run as pending so downstream
+    # readers (build_site_data.py, eyeballed summaries) skip rather than
+    # publishing an `overall=0.0` regression. `ingest --finalize` rebuilds
+    # the summary with full scores once subagent results land.
+    if len(bundle_ids) > 0 and summary.get("judged", 0) < summary.get("records", 0):
+        summary["pending_judge"] = True
+        for k in ("character", "authenticity", "language",
+                  "responsiveness", "craft", "overall"):
+            summary[k] = None
     return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
 
 
@@ -1037,7 +1048,7 @@ def legacy_main(argv: list[str]) -> None:
     ap.add_argument("--mode", default="absolute", choices=["absolute", "elo"],
                     help="absolute: per-slice graders; elo: pairwise ELO over dialogue slice")
     ap.add_argument("--judge", default=None,
-                    help="judge config id or alias (sonnet|qwen); default judge_v1 absolute, judge_pairwise_v1 elo")
+                    help="judge config id or alias (sonnet|qwen); default judge_sonnet_v1 absolute, judge_pairwise_v1 elo")
     ap.add_argument("--tier", default=None, choices=["screen", "contender", "finalist"],
                     help="filter prompts to a tier id set (<suite>/<tier>.ids.json)")
     ap.add_argument("--model-id", dest="model_id", default=None,
@@ -1079,7 +1090,7 @@ def legacy_main(argv: list[str]) -> None:
     if args.slice is None:
         raise SystemExit("--slice is required in absolute mode")
     if args.judge is None:
-        args.judge = "judge_v1"
+        args.judge = "judge_sonnet_v1"
     if len(args.target) > 1:
         raise SystemExit("absolute mode takes one --target; pass --mode elo for multi-target sweeps")
     target = parse_target(args.target[0])

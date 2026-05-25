@@ -70,23 +70,55 @@ intent target limit="20":
     python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice intent --limit {{ limit }}
 
 
-# Dialogue smoke (absolute 5-axis rubric). `judge=` flag overrides the default
-# qwen3-235b judge baked into judge_v1.json.
-dialogue target judge="judge_v1" limit="10":
+# Dialogue smoke (absolute 5-axis rubric). Default judge: Claude Sonnet 4.6
+# subagents (queued — requires `/rundale-bench drain-queue` to score, then
+# `python3 rundale_bench.py ingest --finalize` to fold scores back).
+# Pass `judge=judge_v1` to fall back to the HTTP Qwen3-235B judge.
+# model_id / provider_id pin the catalog identity recorded on the candidate
+# — required for the leaderboard to merge across runs (build_site_data.py
+# keys on candidate.model_id). Omit only for ad-hoc probes.
+dialogue target judge="judge_sonnet_v1" limit="10" model_id="" provider_id="":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
-    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice dialogue --judge {{ judge }} --limit {{ limit }}
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice dialogue --judge {{ judge }} --limit {{ limit }} \
+        ${model_id:+--model-id "$model_id"} \
+        ${provider_id:+--provider-id "$provider_id"}
 
 
-# Full slice sweep — every slice end-to-end. ~$0.05 on a free target.
-bench target judge="judge_v1" limit="10":
+# Full slice sweep — every slice end-to-end. See `dialogue` for model_id / provider_id.
+bench target judge="judge_sonnet_v1" limit="10" model_id="" provider_id="":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
-    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice all --judge {{ judge }} --limit {{ limit }}
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice all --judge {{ judge }} --limit {{ limit }} \
+        ${model_id:+--model-id "$model_id"} \
+        ${provider_id:+--provider-id "$provider_id"}
+
+
+# Everything for one (model, provider). Generates samples for every slice
+# AND runs the perf probe in one go. With the default sonnet subagent
+# judge, judging is queued — invoke `/rundale-bench drain-queue` to score
+# the queued bundles, then `python3 rundale_bench.py ingest --finalize`.
+# Pass judge=judge_v1 for the HTTP-only (no subagent) path.
+# model_id / provider_id pin catalog identity — see `dialogue` recipe note.
+bench-it target judge="judge_sonnet_v1" limit="10" perf_prompts="10" model_id="" provider_id="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    echo ">>> [1/2] sample generation (every slice) + judge queue"
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice all --judge {{ judge }} --limit {{ limit }} \
+        ${model_id:+--model-id "$model_id"} \
+        ${provider_id:+--provider-id "$provider_id"}
+    echo
+    echo ">>> [2/2] perf probe (latency, tokens/sec)"
+    python3 -u {{ BENCH }}/bench_perf.py --target '{{ target }}' --prompts {{ perf_prompts }}
+    echo
+    echo ">>> Next: drain the judge queue with '/rundale-bench drain-queue', then"
+    echo ">>>       python3 {{ BENCH }}/rundale_bench.py ingest --finalize"
 
 
 # ----------------------------------------------------------------------------
