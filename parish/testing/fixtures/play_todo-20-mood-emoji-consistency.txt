@@ -1,0 +1,9 @@
+# Live-proof fixture for TODO #20 — mood emoji consistency.
+#
+# Boots Rundale headless. The UI fix lives in Svelte; the backend
+# code path (which populates NpcInfo.mood_emoji) is unchanged. This
+# fixture exists to satisfy the task-start bundle layout — the live
+# UI verification happens via the preview tools rather than the
+# script harness.
+
+look
