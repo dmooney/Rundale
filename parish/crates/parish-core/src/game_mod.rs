@@ -1841,13 +1841,13 @@ tier2_system = "prompts/tier2_system.txt"
     }
 
     #[test]
-    fn checked_in_mod_list_selects_testbed_by_default() {
+    fn checked_in_mod_list_selects_rundale_by_default() {
         let mods = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods");
         if mods.exists() {
             let discovered = discover_mods_in(&mods).expect("repo mod discovery succeeds");
             assert!(
-                discovered.base.ends_with("testbed"),
-                "checked-in mods/mod-list.toml should select testbed for blueprint testing"
+                discovered.base.ends_with("rundale"),
+                "checked-in mods/mod-list.toml should select rundale (the shipped base mod) by default"
             );
         }
     }
