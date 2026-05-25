@@ -109,6 +109,28 @@ fn dialogue_context_forbids_borrowed_name_when_unknown() {
     );
 }
 
+/// TODO #21: the assembled context must pin the NPC to the player's
+/// current location with a directive forbidding substitution of any
+/// nearby canonical settlement. The bug surfaced at The Mill near
+/// Kilteevan when Cormac/Nora kept saying "here in Curraghboy".
+#[test]
+fn dialogue_context_pins_current_location() {
+    let context = build_dialogue_context_with_first_npc(Some("Aiden Carney"), true);
+
+    assert!(
+        context.contains("WHERE YOU ARE RIGHT NOW"),
+        "location anchor header missing:\n{context}"
+    );
+    assert!(
+        context.contains("no other settlement"),
+        "no-other-settlement directive missing:\n{context}"
+    );
+    assert!(
+        context.contains("you are NOT at any of them"),
+        "not-elsewhere guard missing:\n{context}"
+    );
+}
+
 /// AC2/AC3: the assembled context must always carry a present-only
 /// anchor — either listing co-located NPCs as the exclusive set or
 /// declaring nobody else is here. TODO #11 captured the failure mode

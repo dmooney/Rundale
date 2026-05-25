@@ -1,0 +1,9 @@
+# Live-proof fixture for TODO #21 — NPC location anchor
+#
+# Walks the player from Kilteevan to The Mill — the location where
+# cycle-4 of the demo audit caught Cormac and Nora Duffy referring to
+# "their" village as Curraghboy (the canon townland mentioned in their
+# backstory) instead of Kilteevan/The Mill where they actually are.
+
+go to the mill
+look

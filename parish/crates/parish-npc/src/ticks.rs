@@ -200,6 +200,26 @@ pub fn build_enhanced_system_prompt_with_config(
     prompt
 }
 
+/// "Where you are right now" anchor — pins the NPC to the player's
+/// current location so they don't substitute a nearby canonical
+/// settlement from their backstory or short-term memory.
+///
+/// TODO #21 surfaced this: Cormac and Nora Duffy, who work at The Mill
+/// near Kilteevan, repeatedly told the player they were "here in
+/// Curraghboy" because Curraghboy Village is real, neighbouring, and
+/// mentioned in their family backstory. The base location label
+/// (`"Your Location: ..."`) is informative — this block is directive.
+fn location_anchor_block(world: &WorldState) -> String {
+    let name = &world.current_location().name;
+    format!(
+        "\n\nWHERE YOU ARE RIGHT NOW:\n{name}.\n\
+         When you say 'here', 'this place', 'this village', or 'this town' \
+         you mean {name} — no other settlement. Other nearby places (mentioned \
+         in your memory or backstory) exist, but you are NOT at any of them \
+         right now."
+    )
+}
+
 /// Interlocutor label — who the NPC is speaking with.
 ///
 /// The anchor sentence forbids the model from addressing the player by any
@@ -361,6 +381,8 @@ pub fn build_enhanced_context_with_config(
     player_name_for_npc: Option<&str>,
 ) -> String {
     let mut context = build_tier1_context(world);
+
+    context.push_str(&location_anchor_block(world));
 
     context.push_str(&interlocutor_block(player_name_for_npc));
 
@@ -1497,6 +1519,31 @@ mod tests {
         assert!(
             block.contains("do not borrow a name"),
             "missing borrow-from-history guard:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_location_anchor_block_pins_current_location() {
+        // Location anchor (TODO #21) — block must name the current
+        // location and forbid substituting any other settlement.
+        let world = WorldState::new();
+        let block = location_anchor_block(&world);
+        let name = &world.current_location().name;
+        assert!(
+            block.contains("WHERE YOU ARE RIGHT NOW"),
+            "missing anchor header:\n{block}"
+        );
+        assert!(
+            block.contains(name.as_str()),
+            "anchor must name current location ({name}):\n{block}"
+        );
+        assert!(
+            block.contains("no other settlement"),
+            "missing no-other-settlement directive:\n{block}"
+        );
+        assert!(
+            block.contains("you are NOT at any of them"),
+            "missing not-elsewhere guard:\n{block}"
         );
     }
 
