@@ -751,6 +751,19 @@ pub async fn run_tier2_for_group(
 /// shorter token match would hit. The result is deterministic — when several
 /// absent NPCs are named, the lexicographically first is returned — so the
 /// warning and any test assertion are stable across HashMap iteration order.
+/// Whether a Tier 2 event's summary names an NPC outside its participant list.
+///
+/// Callers use this to gate side effects that propagate the summary text —
+/// e.g. skipping `create_gossip_from_tier2_event` so a hallucinated name can't
+/// spread through the gossip network (#1027), mirroring the in-function guard
+/// that suppresses the `NpcInteraction` publish and the memory write.
+pub fn tier2_summary_mentions_absent_npc(
+    event: &Tier2Event,
+    npcs: &std::collections::HashMap<NpcId, Npc>,
+) -> bool {
+    summary_mentions_absent_npc(&event.summary, &event.participants, npcs).is_some()
+}
+
 fn summary_mentions_absent_npc(
     summary: &str,
     participants: &[NpcId],
@@ -789,16 +802,19 @@ pub fn apply_tier2_event_with_config(
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
-    // Publish the narrative beat before mutating state so the bus carries
-    // the story before downstream subscribers see deltas.
-    //
     // #1027: the Tier 2 LLM sometimes pulls absent characters into a scene
     // (from gossip / relationship context / its training prior). If the
-    // summary names an NPC who isn't a participant, drop the beat rather than
-    // file a hallucination verbatim into the location and character logs.
+    // summary names an NPC who isn't a participant, treat the whole narrative
+    // beat as untrusted — don't publish it, don't commit it to memory, and
+    // (via `tier2_summary_mentions_absent_npc`) don't let the caller gossip it.
+    // The mechanical deltas below are still applied, but only for actual
+    // participants, since Tier 2 cognition requires co-location.
+    let absent_npc = summary_mentions_absent_npc(&event.summary, &event.participants, npcs);
+
+    // Publish the narrative beat before mutating state so the bus carries
+    // the story before downstream subscribers see deltas.
     if !event.summary.trim().is_empty() {
-        if let Some(absent) = summary_mentions_absent_npc(&event.summary, &event.participants, npcs)
-        {
+        if let Some(absent) = &absent_npc {
             tracing::warn!(
                 location = event.location.0,
                 absent_npc = %absent,
@@ -817,8 +833,14 @@ pub fn apply_tier2_event_with_config(
         }
     }
 
-    // Apply mood changes
+    // Apply mood changes — only for scene participants. Tier 2 cognition is a
+    // co-located group activity, so a delta for a non-participant id is an LLM
+    // hallucination; applying it would also mis-file the mood entry under the
+    // scene's `event.location` rather than that NPC's real location (#1027).
     for mc in &event.mood_changes {
+        if !event.participants.contains(&mc.npc_id) {
+            continue;
+        }
         if let Some(npc) = npcs.get_mut(&mc.npc_id)
             && npc.mood != mc.new_mood
         {
@@ -836,9 +858,13 @@ pub fn apply_tier2_event_with_config(
         }
     }
 
-    // Apply relationship changes
+    // Apply relationship changes — only between two scene participants, for the
+    // same co-location reason as mood changes above (#1027).
     for rc in &event.relationship_changes {
         if rc.delta == 0.0 {
+            continue;
+        }
+        if !event.participants.contains(&rc.from) || !event.participants.contains(&rc.to) {
             continue;
         }
         if let Some(npc) = npcs.get_mut(&rc.from)
@@ -854,38 +880,42 @@ pub fn apply_tier2_event_with_config(
         }
     }
 
-    // Record memory for all participants
-    let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
-    // Log the memory commit for all participants
-    for &pid in &event.participants {
-        if let Some(npc) = npcs.get(&pid) {
-            debug_events.push(format!(
-                "{} remembers: {}",
-                npc.name,
-                truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
-            ));
+    // Record memory for all participants — but skip a hallucinated summary so
+    // the absent NPC's name can't re-enter model context via memory prompts
+    // (#1027). Mechanical deltas above already landed.
+    if absent_npc.is_none() {
+        let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
+        // Log the memory commit for all participants
+        for &pid in &event.participants {
+            if let Some(npc) = npcs.get(&pid) {
+                debug_events.push(format!(
+                    "{} remembers: {}",
+                    npc.name,
+                    truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
+                ));
+            }
         }
-    }
-    for &participant_id in &event.participants {
-        if let Some(npc) = npcs.get_mut(&participant_id) {
-            // Record the first *other* participant as the conversation partner.
-            // For two-NPC conversations this is unambiguous; for larger groups
-            // we store the first other participant as a representative.
-            let partner = event
-                .participants
-                .iter()
-                .copied()
-                .find(|&p| p != participant_id);
-            let mem_entry = MemoryEntry {
-                timestamp: game_time,
-                content: memory_content.clone(),
-                participants: event.participants.clone(),
-                location: event.location,
-                kind: partner.map(crate::memory::MemoryKind::SpokeWithNpc),
-            };
-            if let Some(evicted) = npc.memory.add(mem_entry) {
-                let npc_name = npc.name.clone();
-                try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+        for &participant_id in &event.participants {
+            if let Some(npc) = npcs.get_mut(&participant_id) {
+                // Record the first *other* participant as the conversation partner.
+                // For two-NPC conversations this is unambiguous; for larger groups
+                // we store the first other participant as a representative.
+                let partner = event
+                    .participants
+                    .iter()
+                    .copied()
+                    .find(|&p| p != participant_id);
+                let mem_entry = MemoryEntry {
+                    timestamp: game_time,
+                    content: memory_content.clone(),
+                    participants: event.participants.clone(),
+                    location: event.location,
+                    kind: partner.map(crate::memory::MemoryKind::SpokeWithNpc),
+                };
+                if let Some(evicted) = npc.memory.add(mem_entry) {
+                    let npc_name = npc.name.clone();
+                    try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+                }
             }
         }
     }
@@ -1573,24 +1603,44 @@ mod tests {
         // Aoife is authored elsewhere — not part of this scene.
         npcs.insert(NpcId(9), make_test_npc(9, "Aoife Brennan", 3));
 
-        // Summary names absent Aoife → the interaction beat is dropped.
+        // Summary names absent Aoife, plus a mood delta for absent Aoife.
         let bus = EventBus::new();
         let mut rx = bus.subscribe();
         let hallucinated = Tier2Event {
             location: LocationId(2),
             summary: "Padraig pours a pint while Aoife Brennan chats nearby".to_string(),
             participants: vec![NpcId(1), NpcId(5)],
-            mood_changes: vec![],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(9),
+                new_mood: "furious".to_string(),
+            }],
             relationship_changes: vec![],
         };
+        assert!(
+            tier2_summary_mentions_absent_npc(&hallucinated, &npcs),
+            "predicate must flag the hallucinated summary",
+        );
         apply_tier2_event_with_config(&hallucinated, &mut npcs, game_time, &config, &bus);
         assert_eq!(
             count_interactions(&mut rx),
             0,
             "summary naming an absent NPC must not publish an NpcInteraction",
         );
+        // The hallucinated summary is not committed to participant memory.
+        assert_eq!(
+            npcs.get(&NpcId(1)).unwrap().memory.len(),
+            0,
+            "a hallucinated summary must not enter memory",
+        );
+        // A mood delta for a non-participant is filtered out, not applied.
+        assert_eq!(
+            npcs.get(&NpcId(9)).unwrap().mood,
+            "calm",
+            "mood deltas for non-participants must be dropped",
+        );
 
-        // A clean summary naming only participants publishes normally.
+        // A clean summary naming only participants publishes normally and is
+        // remembered.
         let bus = EventBus::new();
         let mut rx = bus.subscribe();
         let clean = Tier2Event {
@@ -1600,11 +1650,20 @@ mod tests {
             mood_changes: vec![],
             relationship_changes: vec![],
         };
+        assert!(
+            !tier2_summary_mentions_absent_npc(&clean, &npcs),
+            "predicate must pass a clean summary",
+        );
         apply_tier2_event_with_config(&clean, &mut npcs, game_time, &config, &bus);
         assert_eq!(
             count_interactions(&mut rx),
             1,
             "a clean summary should publish exactly one NpcInteraction",
+        );
+        assert_eq!(
+            npcs.get(&NpcId(1)).unwrap().memory.len(),
+            1,
+            "a clean summary should be committed to participant memory",
         );
     }
 

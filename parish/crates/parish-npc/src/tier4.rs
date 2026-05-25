@@ -498,14 +498,13 @@ fn apply_trade(
     life_descs: &mut Vec<String>,
 ) -> Vec<GameEvent> {
     let mut events = Vec::new();
-    let buyer_name = npcs.get(buyer).map(|n| n.name.clone()).unwrap_or_default();
-    let seller_name = npcs.get(seller).map(|n| n.name.clone()).unwrap_or_default();
-    // Anchor the trade entry at the buyer's location (fall back to the
-    // seller's) — captured before any further mutation (#1077/#1079).
-    let trade_location = npcs
-        .get(buyer)
-        .or_else(|| npcs.get(seller))
-        .map(|n| n.location);
+    // Both NPCs must exist before we record a trade — otherwise the entry
+    // would have a broken " completed a trade with " description and no valid
+    // location. Capture the buyer's location as the event-time anchor (#1077).
+    let (buyer_name, seller_name, trade_location) = match (npcs.get(buyer), npcs.get(seller)) {
+        (Some(b), Some(s)) => (b.name.clone(), s.name.clone(), b.location),
+        _ => return events,
+    };
     if let Some(b) = npcs.get_mut(buyer)
         && let Some(rel) = b.relationships.get_mut(seller)
     {
@@ -518,14 +517,12 @@ fn apply_trade(
     }
     let desc = format!("{buyer_name} completed a trade with {seller_name}.");
     life_descs.push(desc.clone());
-    if let Some(location) = trade_location {
-        events.push(GameEvent::LifeEvent {
-            npc_id: *buyer,
-            description: desc,
-            location,
-            timestamp,
-        });
-    }
+    events.push(GameEvent::LifeEvent {
+        npc_id: *buyer,
+        description: desc,
+        location: trade_location,
+        timestamp,
+    });
     events.push(GameEvent::RelationshipChanged {
         npc_a: *buyer,
         npc_b: *seller,

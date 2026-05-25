@@ -407,6 +407,11 @@ impl NpcManager {
         self.npcs.values()
     }
 
+    /// Returns a shared reference to the internal NPC map.
+    pub fn npcs(&self) -> &HashMap<NpcId, Npc> {
+        &self.npcs
+    }
+
     /// Returns a mutable reference to the internal NPC map.
     pub fn npcs_mut(&mut self) -> &mut HashMap<NpcId, Npc> {
         &mut self.npcs
