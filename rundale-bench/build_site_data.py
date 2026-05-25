@@ -3,7 +3,7 @@
 
 Walks `rundale-bench/artifacts/run_*.json` (dialogue quality) and
 `docs/proofs/rundale-bench/perf/*.json` (per-provider perf) and writes
-`bench-site/src/data/bench.json`:
+`rundale-bench/bench-site/src/data/bench.json`:
 
     { generated_utc, judge_model, suite, leaderboard[], perf[] }
 
@@ -25,7 +25,7 @@ ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 PROOFS_RUNS_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench"
 PERF_DIR = _REPO_ROOT / "docs" / "proofs" / "rundale-bench" / "perf"
 DEMO_PROFILE_DIR = _REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
-SITE_DATA = _REPO_ROOT / "bench-site" / "src" / "data" / "bench.json"
+SITE_DATA = _BENCH_DIR / "bench-site" / "src" / "data" / "bench.json"
 
 
 def _run_paths(artifacts_dir: Path) -> list[str]:

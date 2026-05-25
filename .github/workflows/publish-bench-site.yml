@@ -7,7 +7,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'bench-site/**'
       - 'docs/proofs/rundale-bench/**'
       - 'rundale-bench/**'
       - '.github/workflows/publish-bench-site.yml'
@@ -34,19 +33,19 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: bench-site/pnpm-lock.yaml
+          cache-dependency-path: rundale-bench/bench-site/pnpm-lock.yaml
       - name: Regenerate site data from committed artifacts
         run: python3 rundale-bench/build_site_data.py
       - name: Install
-        working-directory: bench-site
+        working-directory: rundale-bench/bench-site
         run: pnpm install --frozen-lockfile
       - name: Build
-        working-directory: bench-site
+        working-directory: rundale-bench/bench-site
         run: pnpm build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: bench-site/dist
+          path: rundale-bench/bench-site/dist
 
   deploy:
     needs: build
