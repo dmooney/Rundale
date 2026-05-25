@@ -16,6 +16,7 @@
 | TD-025 | Weak Tests | P3 | `src/main.rs:809-818` | `import_npcs` (the stdin-reading wrapper around `import_npcs_inner`) has no test for its JSON-error path: malformed input should bubble `"invalid JSON input"` (the `.context` at line 812). `import_npcs_inner` is well-covered, but the wrapper's JSON validation contract is not. A test that builds a `Cursor` over bad bytes and asserts the error message would close the gap (or split parsing into a pure helper). |
 | TD-026 | Stale Docs | P3 | `src/main.rs:319` | The comment "Matches the pattern used by `import_npcs`" inside `generate_parish` now points at the wrong function — the transactional UPSERT pattern actually lives in `import_npcs_inner` (line 741), not `import_npcs` (line 809, which only reads stdin and delegates). Update the reference so future readers find the real prior art. |
 | TD-027 | Complexity | P3 | `src/main.rs:604-671` | `validate_db` mixes a tiny inner `with_filter` helper (line 620), a local `count!` macro (line 632), and four duplicated `query_row` calls. The macro exists only to switch between a `params![…]` and `[]` binding based on `has_parish`. A small `count_with_optional_parish(conn, predicate, parish_lc.as_deref())` free function would remove the macro, the boolean flag, and the inner `fn`, and let each rule become a one-liner. |
+| TD-028 | Complexity | P2 | `src/main.rs:1-1680` | The binary remains a single-file CLI containing schema management, world/parish generation, search/list/show/edit/promote, validation, import/export, relationship display, and tests. Split into `schema`, `generate`, `query`, `validate`, `import_export`, and CLI wiring modules before adding more authoring commands. |
 
 ## In Progress
 
@@ -42,3 +43,5 @@
 | TD-015 | Data Consistency | P2 | `src/main.rs:295,324` | Normalized parish names via `.to_lowercase()` at all insert and query sites, matching county behavior. |
 
 2026-05-07: All 15 items resolved. 36 tests pass, clippy clean.
+
+2026-05-25: Refreshed the debt scan against current source. Existing TD-016 through TD-027 remain credible; added TD-028 for the single-file CLI hotspot.

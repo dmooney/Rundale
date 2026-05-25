@@ -2,7 +2,7 @@
 
 ## Open
 
-*(none)*
+*(none — 2026-05-25 discovery scan found no new actionable debt beyond ordinary inline test unwraps)*
 
 ## In Progress
 
@@ -33,5 +33,7 @@
 ## Discovery
 
 2026-05-11 — Resolved TD-008 through TD-017. Post-fix verification: 122 tests passing, zero clippy warnings, zero unused dependencies.
+
+2026-05-25 — Refreshed scan against current source. Largest files (`time.rs`, `ids.rs`) remain under the split threshold for this workspace and have focused tests; no new TODO entries opened.
 
 2026-05-07 — All TODO items resolved. Discovery scan of `parish/crates/parish-types` found no additional credible technical debt within scope. Crate has clean tests (116 passing), zero clippy warnings, and no unused dependencies.

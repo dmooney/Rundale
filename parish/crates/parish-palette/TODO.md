@@ -2,7 +2,7 @@
 
 ## Open
 
-*(none — discovery scan complete, no new debt found)*
+*(none — 2026-05-25 discovery scan complete, no new debt found)*
 
 ## In Progress
 
@@ -29,3 +29,4 @@
 
 - 2026-05-07: All 7 TODO items resolved. 18→27 tests (9 added). Discovery scan found no new debt.
 - 2026-05-11: Resolved TD-008 through TD-012. 26→25 tests (1 removed). fmt/clippy/test clean.
+- 2026-05-25: Refreshed scan against current source. Single-file crate remains small (626 LOC) with focused tests; no new TODO entries opened.
