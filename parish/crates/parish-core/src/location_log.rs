@@ -264,18 +264,30 @@ impl LocationLogManager {
                 append_journal_entry(&path, ts, Some("Dialogue"), &body)?;
             }
             GameEvent::WeatherChanged { new_weather, .. } => {
-                let Some(path) = path_for(world.player_location) else {
-                    return Ok(());
-                };
+                // Weather is world-wide — every location experiences the
+                // same shift. Log to every location's journal so the
+                // parish-level state is uniformly visible (#1023 F4).
                 let body = format!("*Weather: {}*\n", new_weather);
-                append_journal_entry(&path, ts, Some("Weather"), &body)?;
+                for loc_id in world.graph.location_ids() {
+                    let Some(path) = path_for(loc_id) else {
+                        continue;
+                    };
+                    append_journal_entry(&path, ts, Some("Weather"), &body)?;
+                }
             }
             GameEvent::FestivalStarted { name, .. } => {
-                let Some(path) = path_for(world.player_location) else {
-                    return Ok(());
-                };
+                // Festivals are world-wide events — every location's
+                // residents experience the calendar shift. Log to every
+                // location for the same reason as WeatherChanged
+                // (#1023 F4).
                 let body = format!("*Festival begins: {}*\n", name);
-                append_journal_entry(&path, ts, Some(&format!("Festival: {}", name)), &body)?;
+                let heading = format!("Festival: {}", name);
+                for loc_id in world.graph.location_ids() {
+                    let Some(path) = path_for(loc_id) else {
+                        continue;
+                    };
+                    append_journal_entry(&path, ts, Some(&heading), &body)?;
+                }
             }
             GameEvent::LifeEvent {
                 npc_id,
@@ -1075,6 +1087,67 @@ mod tests {
             contents.contains("*the landlord raised the rent again*"),
             "location log missing gossip body: {}",
             contents,
+        );
+    }
+
+    #[test]
+    fn weather_changed_event_logs_to_every_location() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::WeatherChanged {
+            new_weather: "Storm".to_string(),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        // Both locations must have the same Weather entry.
+        let path1 = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let path2 = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let c1 = std::fs::read_to_string(&path1).unwrap();
+        let c2 = std::fs::read_to_string(&path2).unwrap();
+        assert!(
+            c1.contains("Weather") && c1.contains("Storm"),
+            "loc 1 missing Weather entry: {}",
+            c1,
+        );
+        assert!(
+            c2.contains("Weather") && c2.contains("Storm"),
+            "loc 2 missing Weather entry: {}",
+            c2,
+        );
+    }
+
+    #[test]
+    fn festival_started_event_logs_to_every_location() {
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::FestivalStarted {
+            name: "Bealtaine".to_string(),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let path1 = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let path2 = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let c1 = std::fs::read_to_string(&path1).unwrap();
+        let c2 = std::fs::read_to_string(&path2).unwrap();
+        assert!(
+            c1.contains("Festival") && c1.contains("Bealtaine"),
+            "loc 1 missing Festival entry: {}",
+            c1,
+        );
+        assert!(
+            c2.contains("Festival") && c2.contains("Bealtaine"),
+            "loc 2 missing Festival entry: {}",
+            c2,
         );
     }
 
