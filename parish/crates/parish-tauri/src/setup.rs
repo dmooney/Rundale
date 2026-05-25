@@ -1374,6 +1374,7 @@ pub(crate) fn spawn_debug_tick(handle: AppHandle, state: Arc<AppState>) {
                 call_log,
                 categories,
                 configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+                tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
             };
 
             // 6. Acquire world and npc_manager (canonical order)

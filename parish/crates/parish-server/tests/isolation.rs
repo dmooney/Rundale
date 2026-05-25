@@ -453,6 +453,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
                 call_log,
                 categories: vec![],
                 configured_providers: vec![],
+                tier2_parse_failures_total: 0,
             };
 
             // Acquire world + npc_manager last, build snapshot, release.
