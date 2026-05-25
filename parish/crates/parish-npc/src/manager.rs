@@ -480,9 +480,12 @@ impl NpcManager {
     /// with two or more members.
     ///
     /// Tier 2 models *group* dynamics, so a location holding a single
-    /// Tier 2 NPC is excluded — it falls through to Tier 3 / Tier 4
-    /// instead. Dispatching Tier 2 on solo NPCs wastes an LLM round-trip
-    /// and floods logs with repetitive filler (#1025).
+    /// Tier 2 NPC is excluded from Tier 2 dispatch: running Tier 2 on a
+    /// solo NPC only produces repetitive filler and wastes an LLM
+    /// round-trip (#1025). The NPC keeps its distance-based `Tier2`
+    /// assignment (it is not reassigned to Tier 3/4) and is picked up by
+    /// Tier 2 again as soon as it shares a location with another Tier 2
+    /// NPC, or by Tier 3/4 once the player moves and its distance grows.
     pub fn tier2_groups(&self) -> HashMap<LocationId, Vec<NpcId>> {
         let mut groups: HashMap<LocationId, Vec<NpcId>> = HashMap::new();
         for (id, tier) in &self.tier_assignments {
