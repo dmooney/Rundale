@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "minimax-m2.7",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-25T16:58:23.678052+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 4.1,
+        "authenticity": 4.1,
+        "language": 4.3,
+        "responsiveness": 4.1,
+        "craft": 3.7,
+        "overall": 4.0600000000000005,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "\nDreams, is it? That'll wear a body down faster than any sickness, so it will. Restless nights are hard on the spirit. Would ye tell me more about what ails ye, mo chara? Is it the anxious sort, or something heavier weighing on yer mind?",
+          "response_sha256": "e29798444664617fe127b7fa48d0be95958d886d9048f0dec504da95d54763a0",
+          "cache_key": "10c25b046a2eebeac896199e5576d4e7be3599704c005d3cd1b07a18f6ee6ae2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Aye, the Cailleach o' the Hill \u2014 sure, every soul in these parts knows her name. 'Tis said she spins wool by moonlight and leaves offerings at the s\u00eddhe for the folk that dwell below. Some call her a witch, others say she's a spirit bound to the old ways. I mind me own grandmother spoke of her not with fear, but with respect \u2014 we'd best do the same, or 'twill bring bad luck to the parish.\n\n---\n{\"action\": \"stirs the fire with a iron pokier, gaze distant\", \"mood\": \"pensive\", \"internal_thought\": \"Best to speak carefully on such folk \u2014 there's more between this world and the next than most'll own up to\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"KAL-yach\", \"meaning\": \"old woman / supernatural crone\"}]}",
+          "response_sha256": "566857d3115becc3c23c13add47c53238b408c6b50ec35e7f64aef343ab38378",
+          "cache_key": "e0075c55aa7e3048b03f50905eba75f21a20809807cf64135f809a7a278855bd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "A bad cough, is it? I'd be glad to help, so I would. Does she have it in her chest or just the throat? And is she bringin' up anything when she coughs, or is it dry and rasping? A tea of thyme with honey works well for the chest, and mullein flowers steamed can ease the passages right enough. But first, tell me more about how she fares.",
+          "response_sha256": "7e8b54aa9f8a2cc3a7e331baf5335e458279d51cd8aa02a293b08c4fad3efc28",
+          "cache_key": "6d54e6670f208c7b2c68f6035b0626e126ca68534db838d6e685422e2b24e2d1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, 'tis all folks can chatter about at the well, so I've heard. Some fellow from the city, or so they say. Though what brings him to our little corner of Roscommon, the Lord only knows. Have ye set eyes on him yerself?",
+          "response_sha256": "00f5bc92ed1a78698556b0f66f9824fdb11a61ff4e836a4035b01b49e9c13af5",
+          "cache_key": "6b9178f55852bd12b7c364d99d2e1430fcc10723a57b56ee6fd28ed092752ab7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ah, mo chara, that's a terrible loss an' no mistake. Now I'm not one to be knowing about wolves and such \u2014 ye'd best have a word with Paddy Greeley up the road, he's a farmer through and through, knows the look of things that come in the night. Mayhap 'twas just a fox, or the poor beast wandered into the bog. God keep ye from further trouble.",
+          "response_sha256": "a12e3675bbdcca527ecf01a380babade05a63d2a21ad05701ba3856d58b773c7",
+          "cache_key": "5897970de0bbac258b3be0f946d9803c43597372f0e1ab5e23c023b50282d3d6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, I do so well. 'Twas a terrible fright for yer mother, sure enough. I came running when I heard the call, and there he was, white as a sheet, clutching that leg. Happen the bone set right in the end, praise be to God.",
+          "response_sha256": "fe9f392e05f17c315dc1b94197eb52510b97e3a29506d28c22c4f2268974aaca",
+          "cache_key": "bbe0f3829b431449cbab493af32e6500503080e152257a1e53e2c32a3941fc97",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "\nAh, well now, lights on the hill can mean any number of things. 'Tis often travellers with lanterns making their way home late, or mayhap a shepherd tending the sheep. Some folk about here will tell ye 'tis the s\u00eddhe, but I wouldn't go filling yer head with such notions. More likely a neighbor returning from the alehouse than anything fairy, so it is.",
+          "response_sha256": "89399c2b4e6ff40d2753f293fcec5519f431b3ed06fe95b047631718015d5b4a",
+          "cache_key": "cf5bd93fa647b05be00288220a88f0feeaa4a911d62289884e2be68c17bd1091",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Ah, that gives me cause for concern, sure enough. A taste strange to the tongue can mean any number of things - could be the iron in the earth, could be the clay pipes settling, but 'tis also a warning sometimes when the water's been touched by sickness from above. Has ye checked for dead things in the barrel, or has there been sick cattle near the spring? I'd say boil it first, a'course, and mayhap ask Mick the blacksmith - he's no well-digger neither, but he's about the parish a long while and knows the waters hereabouts. If the smell's turned foul too, don't let the weans near it.",
+          "response_sha256": "e599764b7916f89a5b6e8d014ffe50877991a54d0003a15c2045e6284de694c4",
+          "cache_key": "231e63647eb1d87d1696b9bbc993ee42a8d92679599f03cf10c87f89323fbd90",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "\nWhen the pains come regular-like, not a fortnight apart but close together, and she can no' talk through 'em \u2014 that's when ye fetch me, sure. And if the water breaks before that, come straightaway. Don't be fashing yerself before then unless something seems wrong to ye. I'll be here come what may.",
+          "response_sha256": "b11c5a3138995f00ecc7b74b80e92204a11bdd899acc8cab233f64bb67bb6078",
+          "cache_key": "dbef1f976653342bd1e05c453301930bdeed25e8b0822eb7af31955e0d4171a0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "\n'Tis a hard thing, sure. Father Cathal means well, I'll not fault the man for that. But the old ways fed us long before his church was built, and many's the child I've helped into this world with knowledge passed down from me own grandmother. Some things the Church calls sin are just... the way things have always been. We do what we must, and pray it pleases God all the same.",
+          "response_sha256": "9cd9040d3e3b7fb7893b3e9c51aeb44dc988512c3783f971afeb18209bb80be9",
+          "cache_key": "350b6be95b2e9136fe1ba9bd9e223ee39e58bc6508cbfbd0b4237c1a00f85e02",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 5,
+              "craft": 5,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__minimax_m2_7"
+      ],
+      "candidate": {
+        "model_id": "minimax-m2.7",
+        "provider_id": null,
+        "resolved_target": "minimax-m2.7@https://opencode.ai/zen/go/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 68.35233473777771,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 3240,
+    "completion_tokens": 2411,
+    "usd": 0.0
+  }
+}

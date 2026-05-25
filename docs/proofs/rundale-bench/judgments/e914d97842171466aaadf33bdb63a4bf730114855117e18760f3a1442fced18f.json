@@ -8,6 +8,7 @@
   },
   "cache_key": "e914d97842171466aaadf33bdb63a4bf730114855117e18760f3a1442fced18f",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 2.8,
   "prompt_id": "dialogue-0001",
   "rationales": {
-    "authenticity": "Period diction ('weary thing,' 'visiting ye') is appropriate, and chamomile remedy is historically plausible.",
-    "character": "Brigid's warmth and empathy toward suffering are evident in the opening phrase, reading as her voice.",
-    "craft": "Truncated mid-sentence severely damages the response; the incomplete state breaks the instructed 2-4 sentence form.",
-    "language": "Well-formed Irish English prose with no non-Latin script, though the response cuts off mid-word.",
-    "responsiveness": "Acknowledges the sleep trouble and offers a herbal remedy, directly addressing the prompt."
+    "authenticity": "Period vocabulary present but lacks specificity.",
+    "character": "Appropriate midwife voice but generic remedy suggestion.",
+    "craft": "Truncated mid-sentence; violates 2-4 sentence brevity.",
+    "language": "Well-formed en-IE prose with no errors.",
+    "responsiveness": "Addresses the sleep-dreams complaint with practical suggestion."
   },
   "response_sha256": "dfebae72341a8db8ad0d506d49227314cca5d5ba204b0778cb71500a74415d33",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

@@ -1,27 +1,28 @@
 {
   "axes": {
-    "authenticity": 5,
-    "character": 5,
+    "authenticity": 4,
+    "character": 4,
     "craft": 4,
     "language": 4,
     "responsiveness": 5
   },
   "cache_key": "b4828ea1180d5751f9cbbb39c83386d637ecc8175c3908a2bfb4f439f661b3ca",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
   },
   "judge_id": "judge_sonnet_v1",
   "judge_model": "claude-sonnet-4-6",
-  "overall": 4.6,
+  "overall": 4.2,
   "prompt_id": "dialogue-0009",
   "rationales": {
-    "authenticity": "Raspberry leaf tea is period-appropriate; the frank advice and humor fit a 1820 midwife; 'mo chara' adds personal warmth.",
-    "character": "Brigid's practical midwifery expertise, warm humor at male clients' expense, and proactive care all ring true.",
-    "craft": "Three substantive sentences with good rhythm and an amusing deflation; slightly over-explanatory but the humor and detail justify the length.",
-    "language": "Clear and colloquial; one minor grammatical slip ('best to send word when the pains begin proper' is slightly elliptical).",
-    "responsiveness": "Comprehensively addresses the timing question, offers preparatory advice, and shows professional readiness."
+    "authenticity": "Raspberry leaves and labor-onset advice ring true.",
+    "character": "Experienced midwife balancing professionalism with humor.",
+    "craft": "Three sentences with personality and practical detail.",
+    "language": "Natural Irish English with period-appropriate instruction and humor.",
+    "responsiveness": "Comprehensively addresses when to call and offers pre-labor advice."
   },
   "response_sha256": "76c07bc3b16b3fa7959ff0c77e91c7540724b2c01933f6de641221d6a86a01ee",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

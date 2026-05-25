@@ -1,6 +1,8 @@
 ---
 import Base from '../layouts/Base.astro';
+import SortableTable from '../components/SortableTable.svelte';
 import data from '../data/bench.json';
+import { modelCell, badge, fmt, fmtInt, fmtMoney, fmtMoneyHour, fmtPct } from '../lib/render';
 const base = import.meta.env.BASE_URL;
 const perf = data.perf ?? [];
 const profile = data.normal_play_profile;
@@ -10,11 +12,77 @@ const profileRows = [
   ...(profile ? [{ ...profile.total_gameplay, label: 'Total gameplay', isTotal: true }] : []),
 ];
 const costExamples = data.cloud_cost_examples ?? [];
-const fmt = (v, d = 0) => (typeof v === 'number' ? v.toFixed(d) : '—');
-const fmtMoney = (v, d = 4) => (typeof v === 'number' ? `$${v.toFixed(d)}` : '—');
-const fmtMoneyHour = (v) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '—');
-// Every perf row's model gets a /models/<slug> page via models_index, so
-// linking is unconditional now.
+
+const costColumns = [
+  { key: 'model_id', header: 'Model' },
+  { key: 'provider_id', header: 'Provider' },
+  { key: 'price_input_usd_per_mtok', header: 'input $/M', num: true },
+  { key: 'price_output_usd_per_mtok', header: 'output $/M', num: true },
+  { key: 'gameplay_cost_usd_per_minute', header: 'game $/min', num: true },
+  { key: 'gameplay_cost_usd_per_hour', header: 'game $/hr', num: true },
+];
+
+const costRows = costExamples.map((r) => ({
+  sort: {
+    model_id: r.display_name ?? r.model_id,
+    provider_id: r.provider_id,
+    price_input_usd_per_mtok: r.price_input_usd_per_mtok,
+    price_output_usd_per_mtok: r.price_output_usd_per_mtok,
+    gameplay_cost_usd_per_minute: r.gameplay_cost_usd_per_minute,
+    gameplay_cost_usd_per_hour: r.gameplay_cost_usd_per_hour,
+  },
+  html: {
+    model_id: modelCell({ model_id: r.model_id, family: r.family, display_name: r.display_name, slug: r.slug ?? null }, base),
+    provider_id: badge(r.provider_id),
+    price_input_usd_per_mtok: fmtMoney(r.price_input_usd_per_mtok, 2),
+    price_output_usd_per_mtok: fmtMoney(r.price_output_usd_per_mtok, 2),
+    gameplay_cost_usd_per_minute: fmtMoney(r.gameplay_cost_usd_per_minute),
+    gameplay_cost_usd_per_hour: fmtMoneyHour(r.gameplay_cost_usd_per_hour),
+  },
+}));
+
+const perfColumns = [
+  { key: 'model_id', header: 'Model' },
+  { key: 'provider_id', header: 'Provider' },
+  { key: 'latency_p50_ms', header: 'total p50 ms', num: true },
+  { key: 'latency_p95_ms', header: 'total p95/p90 ms', num: true },
+  { key: 'tokens_per_sec_mean', header: 'tok/s', num: true },
+  { key: 'ttft_p50_ms', header: 'ttft p50 ms', num: true },
+  { key: 'usd_per_mtok_observed', header: '$/Mtok', num: true },
+  { key: 'gameplay_cost_usd_per_minute', header: 'game $/min', num: true },
+  { key: 'gameplay_cost_usd_per_hour', header: 'game $/hr', num: true },
+  { key: 'error_rate', header: 'err', num: true },
+  { key: 'source', header: 'source' },
+];
+
+const perfRows = perf.map((r) => ({
+  sort: {
+    model_id: r.model_id,
+    provider_id: r.provider_id,
+    latency_p50_ms: r.latency_p50_ms,
+    latency_p95_ms: r.latency_p95_ms,
+    tokens_per_sec_mean: r.tokens_per_sec_mean,
+    ttft_p50_ms: r.ttft_p50_ms,
+    usd_per_mtok_observed: r.usd_per_mtok_observed,
+    gameplay_cost_usd_per_minute: r.gameplay_cost_usd_per_minute,
+    gameplay_cost_usd_per_hour: r.gameplay_cost_usd_per_hour,
+    error_rate: r.error_rate ?? 0,
+    source: r.source ?? 'phase3',
+  },
+  html: {
+    model_id: modelCell(r, base) + (r.is_local ? ` ${badge('local', 'local runtime')}` : ''),
+    provider_id: badge(r.provider_id),
+    latency_p50_ms: fmtInt(r.latency_p50_ms),
+    latency_p95_ms: fmtInt(r.latency_p95_ms),
+    tokens_per_sec_mean: fmt(r.tokens_per_sec_mean, 1),
+    ttft_p50_ms: fmtInt(r.ttft_p50_ms),
+    usd_per_mtok_observed: r.usd_per_mtok_observed != null ? `$${r.usd_per_mtok_observed}` : '—',
+    gameplay_cost_usd_per_minute: fmtMoney(r.gameplay_cost_usd_per_minute),
+    gameplay_cost_usd_per_hour: fmtMoneyHour(r.gameplay_cost_usd_per_hour),
+    error_rate: fmtPct(r.error_rate ?? 0, 0),
+    source: badge(r.source ?? 'phase3'),
+  },
+}));
 ---
 <Base title="Rundale Bench — Perf matrix">
   <h2>Per-provider performance</h2>
@@ -64,66 +132,16 @@ const fmtMoneyHour = (v) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '—')
       <h3>Catalog cloud cost examples</h3>
       <p class="muted">
         Examples combine the same normal-play profile with input/output prices from
-        <code>rundale-bench/v1/models.toml</code>. Prices are point-in-time estimates; verify provider pricing before spending money.
+        <code>rundale-bench/v1/models.toml</code>. Prices are point-in-time estimates; verify provider pricing before spending money. Click a column header to sort.
       </p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Model</th><th>Provider</th>
-              <th class="num">input $/M</th><th class="num">output $/M</th>
-              <th class="num">game $/min</th><th class="num">game $/hr</th>
-            </tr>
-          </thead>
-          <tbody>
-            {costExamples.map((r) => (
-              <tr>
-                <td>{r.display_name ?? r.model_id}</td>
-                <td><span class="badge">{r.provider_id}</span></td>
-                <td class="num">{fmtMoney(r.price_input_usd_per_mtok, 2)}</td>
-                <td class="num">{fmtMoney(r.price_output_usd_per_mtok, 2)}</td>
-                <td class="num">{fmtMoney(r.gameplay_cost_usd_per_minute)}</td>
-                <td class="num">{fmtMoneyHour(r.gameplay_cost_usd_per_hour)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SortableTable client:load columns={costColumns} rows={costRows} initialSort={{ key: 'gameplay_cost_usd_per_hour', dir: 1 }} />
     </>
   )}
   {perf.length === 0 ? (
     <div class="empty">No perf measurements yet.</div>
   ) : (
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Model</th><th>Provider</th>
-            <th class="num">total p50 ms</th><th class="num">total p95/p90 ms</th>
-            <th class="num">tok/s</th><th class="num">ttft p50 ms</th>
-            <th class="num">$/Mtok</th><th class="num">game $/min</th><th class="num">game $/hr</th>
-            <th class="num">err</th><th>source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {perf.map((r) => (
-            <tr>
-              <td><a href={`${base}/models/${r.slug}`}>{r.model_id}</a>
-                {r.is_local && <span class="badge" title="local runtime">local</span>}</td>
-              <td><span class="badge">{r.provider_id}</span></td>
-              <td class="num">{fmt(r.latency_p50_ms)}</td>
-              <td class="num">{fmt(r.latency_p95_ms)}</td>
-              <td class="num">{fmt(r.tokens_per_sec_mean, 1)}</td>
-              <td class="num">{fmt(r.ttft_p50_ms)}</td>
-              <td class="num">{r.usd_per_mtok_observed != null ? `$${r.usd_per_mtok_observed}` : '—'}</td>
-              <td class="num">{fmtMoney(r.gameplay_cost_usd_per_minute)}</td>
-              <td class="num">{fmtMoneyHour(r.gameplay_cost_usd_per_hour)}</td>
-              <td class="num">{fmt((r.error_rate ?? 0) * 100)}%</td>
-              <td><span class="badge">{r.source ?? 'phase3'}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <SortableTable client:load columns={perfColumns} rows={perfRows} initialSort={{ key: 'latency_p50_ms', dir: 1 }} />
+    </>
   )}
 </Base>

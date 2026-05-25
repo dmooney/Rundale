@@ -1,13 +1,14 @@
 {
   "axes": {
     "authenticity": 4,
-    "character": 5,
+    "character": 4,
     "craft": 4,
-    "language": 4,
+    "language": 5,
     "responsiveness": 5
   },
   "cache_key": "ea8b9b8f5cd811523f8c7aae24625225b922fbaadc0362cf31b50f9ea8d8b49e",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 4.4,
   "prompt_id": "dialogue-0010",
   "rationales": {
-    "authenticity": "The perspective reflects a real 1820s Irish tension between Catholic teaching and folk practice; 'mo chara' is used naturally.",
-    "character": "Brigid's pragmatism about mixing old and new ways, her deference to spiritual authority, and her grounded experience all ring true.",
-    "craft": "Strong thematic depth and emotional intelligence; three sentences feel slightly short but are conceptually dense and evocative.",
-    "language": "Thoughtful, well-formed prose with authentic Hiberno-English; the church reference is period-appropriate.",
-    "responsiveness": "Fully engages with the theological tension, asserting both respect and the primacy of practical care."
+    "authenticity": "Tension between 'old ways' and church doctrine is historically grounded; 'mo chara' is correct.",
+    "character": "Thoughtful voice that balances respect for church with midwife's practical wisdom.",
+    "craft": "Three sentences, evocative and philosophically weighted.",
+    "language": "Clean en-IE prose with proper Irish usage.",
+    "responsiveness": "Fully addresses with a nuanced take on Father Cathal's preaching."
   },
   "response_sha256": "eac09ec431b4a54e522c6d1e2de1c405c1452830a93069818e87cccaa96f501a",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

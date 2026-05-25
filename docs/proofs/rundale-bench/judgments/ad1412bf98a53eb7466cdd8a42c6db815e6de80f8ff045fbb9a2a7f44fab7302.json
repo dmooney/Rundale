@@ -1,27 +1,28 @@
 {
   "axes": {
-    "authenticity": 5,
-    "character": 5,
+    "authenticity": 4,
+    "character": 4,
     "craft": 4,
-    "language": 5,
+    "language": 4,
     "responsiveness": 4
   },
   "cache_key": "ad1412bf98a53eb7466cdd8a42c6db815e6de80f8ff045fbb9a2a7f44fab7302",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
   },
   "judge_id": "judge_sonnet_v1",
   "judge_model": "claude-sonnet-4-6",
-  "overall": 4.6,
+  "overall": 4.0,
   "prompt_id": "dialogue-0007",
   "rationales": {
-    "authenticity": "Period belief in fairy forts and lights is genuine; her reluctance to name or discuss them fits folk custom; the cross and glance are vivid period detail.",
-    "character": "Brigid's superstitious caution, spiritual boundaries, and protective concern for the questioner are expertly drawn.",
-    "craft": "Three sentences with strong action; perhaps slightly longer than ideal, but the atmospheric tension and character depth justify the length.",
-    "language": "Well-formed, with Irish term (s\u00eddhe) precise and idiomatic; the colloquialism 'ye wouldn't' is apt.",
-    "responsiveness": "Addresses the lights by declining to explain them directly, which is a form of response but slightly indirect for a full answer."
+    "authenticity": "Belief in s\u00eddhe and reluctance to speak of them fits 1820s rural Irish culture.",
+    "character": "Brigid shows superstitious caution and concern for the questioner.",
+    "craft": "Three sentences with atmosphere and concern.",
+    "language": "Clean Irish English with s\u00eddhe spelled and pronounced correctly.",
+    "responsiveness": "Acknowledges the lights while refusing to explain."
   },
   "response_sha256": "f932c540d08626e183c3c9790c31a17b392024f00610517ada2b1e6b8be79c31",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

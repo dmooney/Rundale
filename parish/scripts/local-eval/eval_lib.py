@@ -127,6 +127,104 @@ def _is_thinking_mlx_model(model_id: str) -> bool:
     return any(model_id.startswith(p) for p in THINKING_MLX_PREFIXES)
 
 
+# Markers a model writes when it leaks its own planning prose into the
+# visible `content` field instead of emitting the in-character reply.
+# Tuned against the 11 bench-bugs surfaced in the opencode-go 2026-05-25
+# sweep — mostly mimo-v2.5-pro / minimax-m2.*. Tracked for a principled
+# replacement in #1085 — these heuristics are brittle by design.
+#
+# Each entry is a regex anchored at the start of the response. Use full
+# verb phrases ("hmm, the user is...", "okay, so...") rather than bare
+# interjections like "Hmm," — Brigid legitimately opens dialogue with
+# those, so matching them in isolation is a false-positive risk.
+_COT_OPENERS = (
+    r"the user is (asking|telling|requesting)",
+    r"the player is (asking|telling|requesting|wondering)",
+    r"the person is (asking|telling)",
+    r"we (need|are|have) to respond",
+    r"i (need|have|should) to respond",
+    r"let me (think|draft|craft|consider|plan)\b",
+    r"hmm,?\s+(the|so|let me|i (need|should)|we)\b",
+    r"okay,?\s+(the|so|let me|i (need|should)|we)\b",
+    r"alright,?\s+(the|so|let me|i (need|should)|we)\b",
+    r"key (elements|constraints|considerations):",
+    r"constraints to (remember|consider):",
+    r"steps:",
+    r"plan:",
+    r"approach:",
+)
+# Drop the trailing `\b` from the alternation: many openers end in `,`
+# or `:` which are non-word characters, and `\b` after a non-word char
+# requires a following word char — that never matches when the opener is
+# followed by whitespace (the common case). Anchor with `^\s*` only.
+_COT_PREFIX_RE = re.compile(
+    r"^\s*(?:" + "|".join(_COT_OPENERS) + r")",
+    re.IGNORECASE,
+)
+# In-character dialogue markers — when CoT is detected, scan forward for
+# the first one. Reachable from either a line start, a sentence boundary
+# on the same line (`. Ah,` / `? Aye,`), or a paragraph break — so
+# planning prose ending in "...respond as Brigid. Ah, sure now..." on a
+# single line is still recovered. Persona-specific (rundale midwife);
+# see #1085 for a persona-agnostic replacement.
+_RESUMER_BOUNDARY = r"(?:^|[.!?]\s+|\n\s*)"
+_RESUMER_TOKENS = (
+    r"Ah[,!]",
+    r"Aye[,.]",
+    r"Sure[,!]",
+    r"Mhuise",
+    r"'Tis",
+    r"Tis\s",
+    r"Mayhap",
+    r"Well now",
+    r"Now,",
+    r"\"",                  # quoted dialogue
+    r"Brigid[:\s]",
+    r"Dia dhuit",
+    r"Mo chara",
+    r"A leanbh",
+    r"A chroí",
+)
+_DIALOGUE_RESUMER_RE = re.compile(
+    _RESUMER_BOUNDARY + r"(" + "|".join(_RESUMER_TOKENS) + r")",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _scrub_chain_of_thought(text: str) -> str:
+    """Strip chain-of-thought leak from the start of a reply.
+
+    Returns the original text unchanged if no CoT marker is found, the
+    in-character reply if planning prose is followed by actual dialogue,
+    or an empty string if the whole response is planning prose (judge
+    will then flag the empty reply as a bench-bug).
+
+    Same-line dialogue (planning then `... Ah, sure I'll fetch ye some`
+    on the same line, no newline) is also recovered — search starts at
+    the end of the matched CoT prefix, not the first newline.
+    """
+    if not text:
+        return text
+    m_cot = _COT_PREFIX_RE.match(text)
+    if not m_cot:
+        return text
+    # Scan for a resumer marker anywhere after the CoT prefix. Cover both
+    # newline-separated planning blocks AND same-line planning preambles
+    # ("Hmm, the user is asking. Ah, sure now, here's some chamomile…").
+    # MULTILINE makes the resumers' leading `^` also match after `\n`,
+    # but we still need to inject one synthetic line start so a same-line
+    # resumer that doesn't appear after a real newline is reachable —
+    # do that by anchoring the search at the end of the CoT prefix.
+    tail = text[m_cot.end():]
+    m = _DIALOGUE_RESUMER_RE.search(tail)
+    if not m:
+        return ""  # never resumed in-character → bench-bug
+    # group 1 is the marker itself; m.start(1) skips the boundary chars
+    # (newline / sentence-end punctuation) so the returned text begins
+    # at the in-character marker.
+    return tail[m.start(1):].lstrip()
+
+
 def _default_reasoning_for(model_id: str) -> dict:
     """OpenRouter doesn't normalise reasoning-suppression syntax across
     providers, so we pick the form each model actually honours.
@@ -210,6 +308,19 @@ def call_chat(
         elif mid.startswith(("deepseek-v4-", "mimo-v2")):
             body["reasoning_effort"] = "low"
         # minimax: deliberately omit reasoning_effort.
+        # Several opencode-go families burn most of their token budget on
+        # internal reasoning (deepseek-v4-* in reasoning_content; mimo-v2.*
+        # and minimax-m2.* often leak it into content as "We need to respond
+        # as Brigid…" planning prose, or run out before emitting any reply).
+        # At dialogue's max_tokens=200 the candidate response is either
+        # blank, a single token, or pure chain-of-thought. Bump to 3000
+        # across these families so dialogue / reaction / gaeilge / sim
+        # have headroom to actually emit a reply. Cost trivial — even at
+        # max output 12k tokens × $4/M = $0.05 per call worst case, real
+        # usage is <$0.01 per slice.
+        if (mid.startswith(("deepseek-v4-", "mimo-v2", "minimax-m2"))
+                and (max_tokens is None or max_tokens < 3000)):
+            body["max_tokens"] = 3000
     elif reasoning is not None:
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
@@ -271,23 +382,40 @@ def call_chat(
     try:
         msg = data["choices"][0]["message"]
         text = msg.get("content") or ""
-        # Reasoning-class models (kimi-k2.6, kimi-k2-thinking, glm-4.7, etc.)
-        # sometimes return content="" with the actual answer in `reasoning`
-        # (OpenRouter convention) or `reasoning_content` (DeepSeek / GLM /
-        # opencode-go convention). This happens when max_tokens is consumed
-        # by reasoning before content is emitted. Fall back rather than fail.
+        # Reasoning fallback:
+        # - OpenRouter exposes a `reasoning` field that, for some models,
+        #   holds the actual answer when `content` is empty (kimi-k2-thinking
+        #   via OR is the canonical case). Fall back to it.
+        # - opencode-go reports chain-of-thought in `reasoning_content` —
+        #   that's the *thinking*, not the answer. Falling back would feed
+        #   raw "We need to respond as Brigid…" to the judge, scoring 1.0.
+        #   So skip it on this gateway; let an empty reply stay empty so
+        #   the failure mode is visible. (We bump deepseek-v4-* max_tokens
+        #   to 2000 above so the reply phase has headroom in the first
+        #   place.)
         if not text.strip():
-            for field in ("reasoning_content", "reasoning"):
-                trace = msg.get(field) or ""
-                if trace.strip():
-                    text = trace
-                    break
+            if is_opencode_go:
+                pass
+            else:
+                for field in ("reasoning_content", "reasoning"):
+                    trace = msg.get(field) or ""
+                    if trace.strip():
+                        text = trace
+                        break
         # Some providers emit the thinking trace inline in content, wrapped
         # in <think>…</think>. Strip so the judge scores the actual reply.
         # The `</think>|$` alternation also handles truncated traces where
         # max_tokens cut the model off mid-thought (no closing tag emitted).
         if "<think>" in text:
             text = re.sub(r"<think>.*?(?:</think>|$)\s*", "", text, flags=re.DOTALL)
+        # opencode-go mimo-v2.5-pro / minimax-m2.* leak chain-of-thought
+        # planning prose into content even with reasoning_effort tuned.
+        # Telltale openers ("The user is asking…", "The player wants…",
+        # "We need to respond as Brigid…") are recoverable: the model
+        # usually delivers the actual reply after the planning block, or
+        # not at all. Try to extract the in-character segment; if none
+        # found, leave content empty so the judge bench-bug-flags it.
+        text = _scrub_chain_of_thought(text) if is_opencode_go else text
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(
             f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "

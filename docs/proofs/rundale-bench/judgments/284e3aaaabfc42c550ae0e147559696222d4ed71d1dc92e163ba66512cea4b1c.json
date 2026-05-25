@@ -8,6 +8,7 @@
   },
   "cache_key": "284e3aaaabfc42c550ae0e147559696222d4ed71d1dc92e163ba66512cea4b1c",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 2.6,
   "prompt_id": "dialogue-0001",
   "rationales": {
-    "authenticity": "Valerian root is period-appropriate remedy; language rings true but incomplete.",
-    "character": "Opens with idiomatic Irish-English voice ('Dreams can be a heavy thing to carry, sure they can') but truncated.",
-    "craft": "Truncated mid-sentence; fails to complete the 2-4 sentence brief and leaves thought unfinished.",
-    "language": "Well-formed prose with good Hiberno-English register, though cut off mid-thought.",
-    "responsiveness": "Begins addressing the sleep trouble and asks a follow-up question, but incompleteness undercuts responsiveness."
+    "authenticity": "Period-appropriate language with 'valerian root' remedy.",
+    "character": "Sounds like an Irish midwife, though somewhat generic.",
+    "craft": "Truncated mid-thought.",
+    "language": "Clean en-IE despite cut-off.",
+    "responsiveness": "Addresses the sleeping trouble partially but response is incomplete."
   },
   "response_sha256": "18e59371518755e14372cdfd44b9f3aca5a2867045697177d53377517b76d015",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",

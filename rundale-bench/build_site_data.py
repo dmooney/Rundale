@@ -103,16 +103,44 @@ def slugify(model_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", model_id).strip("-").lower()
 
 
-def _infer_provider(candidate_id: str) -> str:
+def _infer_provider(candidate_id: str, model_to_provider: Optional[dict] = None) -> str:
     """Best-effort provider tag for legacy perf rows (no provider_id field).
 
-    Legacy runs went through OpenRouter; vendor-prefixed ids (`anthropic/…`,
-    `google/…`, etc.) signal OpenRouter routing. Bare local ids fall back to
-    `legacy` so the row isn't silently dropped.
+    Resolution order:
+      1. catalog lookup — `rundale-bench/v1/models.toml` knows which
+         provider hosts each id.
+      2. vendor-prefixed ids (`anthropic/…`, `google/…`) → openrouter
+         (legacy OpenRouter runs used this naming).
+      3. bare ids → `legacy` so the row isn't silently dropped.
     """
+    if model_to_provider and candidate_id in model_to_provider:
+        return model_to_provider[candidate_id]
     if "/" in candidate_id:
         return "openrouter"
     return "legacy"
+
+
+def _provider_lookup(suite: str) -> dict[str, str]:
+    """model_id (and provider model_name) → provider_id from the catalog.
+
+    Prefers the first provider listed for each catalog model. Lets
+    `_infer_provider` route bare ids like `kimi-k2.5` to `opencode-go`
+    instead of the `legacy` fallback.
+    """
+    try:
+        from catalog import load_catalog
+        cat = load_catalog(version=suite)
+        out: dict[str, str] = {}
+        for m in cat.models:
+            if not m.providers:
+                continue
+            pid = m.providers[0].provider_id
+            out[m.id] = pid
+            for p in m.providers:
+                out.setdefault(p.model_name_at_provider, p.provider_id)
+        return out
+    except Exception:
+        return {}
 
 
 def _family_lookup(suite: str) -> dict[str, str]:
@@ -290,6 +318,7 @@ def build_cloud_cost_examples(profile: Optional[dict], suite: str = "v1") -> lis
             row = {
                 "model_id": m.id,
                 "display_name": m.display_name,
+                "family": m.family or "unknown",
                 "provider_id": p.provider_id,
                 "model_name_at_provider": p.model_name_at_provider,
                 "price_input_usd_per_mtok": p.price_in_per_mtok,
@@ -344,6 +373,7 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
             "tier": out.get("tier"),
             "overall": s.get("overall"),
             "judged": s.get("judged", s.get("records")),
+            "bench_bugs": s.get("bench_bugs", 0),
             "records": s.get("records"),
             "non_latin_rate": s.get("non_latin_rate"),
             "judge_id": s.get("judge") or s.get("judge_id") or "judge_v1 (qwen3-235b)",
@@ -356,7 +386,9 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
     return [row for _, row in sorted(latest.values(), key=lambda kv: -(kv[1].get("overall") or 0))]
 
 
-def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None) -> list[dict]:
+def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
+               families: Optional[dict] = None,
+               providers: Optional[dict] = None) -> list[dict]:
     """Per-(model, provider) perf row, latest per pair wins.
 
     Reads Phase 3 schema from `perf_dir` and the legacy multi-target schema
@@ -377,7 +409,9 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None) -> list[dict]:
             continue
         ts = row.get("measured_utc", "")
         if key not in latest or ts > latest[key][0]:
-            latest[key] = (ts, {**row, "slug": slugify(row["model_id"]), "source": "phase3"})
+            fam = (families or {}).get(row["model_id"], "unknown")
+            latest[key] = (ts, {**row, "slug": slugify(row["model_id"]),
+                                 "family": fam, "source": "phase3"})
 
     # Legacy multi-target perf JSONs (one file holds many per_target entries)
     if legacy_dir and legacy_dir.exists():
@@ -388,13 +422,14 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None) -> list[dict]:
                 continue
             ts = bundle.get("ran_at_utc", "")
             for cand, stats in (bundle.get("per_target") or {}).items():
-                pid = _infer_provider(cand)
+                pid = _infer_provider(cand, providers)
                 key = (cand, pid)
                 n_streamed = stats.get("n_streamed", 0) or 0
                 n_ok = stats.get("n_ok", 0) or 0
                 row = {
                     "model_id": cand,
                     "slug": slugify(cand),
+                    "family": (families or {}).get(cand, "unknown"),
                     "provider_id": pid,
                     "model_name_at_provider": cand,
                     "n_ok": n_ok,
@@ -611,6 +646,7 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
         if slug not in by_slug:
             by_slug[slug] = {
                 "slug": slug, "model_id": model_id,
+                "family": "unknown",
                 "is_local": model_is_local(model_id),
                 "dialogue_overall": None, "gaeilge_overall": None,
                 "perf_providers": [], "perf_best_p50_ms": None,
@@ -619,18 +655,25 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
             }
         return by_slug[slug]
 
+    def _adopt_family(e: dict, candidate: Optional[str]) -> None:
+        if candidate and candidate != "unknown" and e["family"] == "unknown":
+            e["family"] = candidate
+
     for r in leaderboard:
         e = _ensure(r["slug"], r["model_id"])
         e["dialogue_overall"] = r.get("overall")
         e["dialogue_judge"] = r.get("judge_id")
+        _adopt_family(e, r.get("family"))
     for r in gaeilge:
         e = _ensure(r["slug"], r["model_id"])
         e["gaeilge_overall"] = r.get("overall")
+        _adopt_family(e, r.get("family"))
     for s in samples.values():
         _ensure(s["slug"], s["model_id"])
     for r in perf:
         e = _ensure(r["slug"], r["model_id"])
         e["perf_providers"].append(r["provider_id"])
+        _adopt_family(e, r.get("family"))
         p50 = r.get("latency_p50_ms")
         if isinstance(p50, (int, float)):
             cur = e["perf_best_p50_ms"]
@@ -666,13 +709,15 @@ def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
                profile_dir: Path = DEMO_PROFILE_DIR,
                *, suite: str = "v1", judge_model: str = "claude-sonnet-4-6") -> dict:
     families = _family_lookup(suite)
+    providers = _provider_lookup(suite)
     datasets = build_datasets(suite)
     datasets_with_purpose = {
         name: {**info, "purpose": SLICE_PURPOSE.get(name, "")} for name, info in datasets.items()
     }
     leaderboard = build_leaderboard(artifacts_dir, families)
     gaeilge = build_gaeilge(artifacts_dir, families)
-    perf = build_perf(perf_dir, legacy_dir=artifacts_dir)
+    perf = build_perf(perf_dir, legacy_dir=artifacts_dir, families=families,
+                       providers=providers)
     samples = build_samples(artifacts_dir, datasets)
     normal_play_profile = build_normal_play_profile(profile_dir)
     attach_gameplay_costs(perf, normal_play_profile, _price_lookup(suite))

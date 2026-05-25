@@ -8,6 +8,7 @@
   },
   "cache_key": "db3c5598f69ffc0a5f02f0cb01391e7260d2b5f687947c61056589eb375ff560",
   "flags": {
+    "bench_bug": false,
     "judge_retry": false,
     "non_latin_detected": false,
     "refused": false
@@ -17,11 +18,11 @@
   "overall": 4.4,
   "prompt_id": "dialogue-0004",
   "rationales": {
-    "authenticity": "Seancha\u00ed reference natural; plausible gossip chain from post boy and mail coach.",
-    "character": "Good village gossip voice; cautious but engaged as someone who hears news.",
-    "craft": "Three sentences; well-paced but slightly long for the brief.",
-    "language": "Natural colloquial English with period phrasing and no anachronism.",
-    "responsiveness": "Acknowledges the news while appropriately deferring deeper knowledge to storyteller."
+    "authenticity": "Post boy, mail coach, widow Byrne, forge \u2014 plausible 1820 social texture.",
+    "character": "Curious but boundaried; befits a midwife with local knowledge but professional discretion.",
+    "craft": "Concise narrative; fits length brief.",
+    "language": "Fluent en-IE with natural dialect contraction.",
+    "responsiveness": "Describes the stranger and speculates appropriately, then defers to storyteller."
   },
   "response_sha256": "7875b1ed5aed958801493ef44cb52e83493c73a56956e24a82f37cb5bbfaf2c7",
   "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
