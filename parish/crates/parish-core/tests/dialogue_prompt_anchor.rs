@@ -26,6 +26,18 @@ fn rundale_mod_dir() -> PathBuf {
     crate_dir.join("../../../mods/rundale")
 }
 
+/// Loads Rundale and returns (npc_manager, world) so a test can drive
+/// `prepare_npc_conversation_turn` more than once against the same
+/// fixture (e.g. turn 1 vs turn 2 for the introduced-anchor test).
+fn fresh_rundale_world_and_npcs() -> (
+    parish_core::world::WorldState,
+    parish_core::npc::manager::NpcManager,
+) {
+    let mod_dir = rundale_mod_dir();
+    let game_mod = GameMod::load(&mod_dir).expect("load rundale mod");
+    load_fresh_world_and_npcs(Some(&game_mod), &mod_dir).expect("load fresh world")
+}
+
 /// Loads Rundale, picks the first NPC co-located with the player at
 /// fresh save, optionally marks the NPC as knowing the player's name,
 /// and returns the assembled dialogue context.
@@ -106,6 +118,68 @@ fn dialogue_context_forbids_borrowed_name_when_unknown() {
     assert!(
         context.contains("do not borrow a name"),
         "borrow-name guard missing:\n{context}"
+    );
+}
+
+/// TODO #39: assembled context must carry an "already introduced"
+/// anchor on the second and later turns with an NPC, but NOT on the
+/// first turn (so the NPC can naturally introduce themselves once).
+/// The bug: Roisin recited "Roisin Connolly, of Connolly's Shop"
+/// mid-reply on turn 7 because the dialogue prompt did not flag her
+/// as already introduced.
+#[test]
+fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
+    use parish_core::npc::LanguageSettings;
+
+    let (mut world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+    world.player_name = Some("Aiden Carney".to_string());
+
+    // Turn 1 — NPC has never been met before; the anchor must NOT
+    // appear so the NPC can introduce themselves.
+    let setup1 = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "hello there",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+    )
+    .expect("turn 1 setup");
+    assert!(
+        !setup1.context.contains("You have already introduced yourself"),
+        "anchor must not render on first contact:\n{}",
+        setup1.context
+    );
+
+    // Turn 2 — NPC was marked introduced inside the turn-1 call. Now
+    // the anchor must appear and name the NPC + their occupation.
+    let setup2 = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "what brings ye to the parish today?",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+    )
+    .expect("turn 2 setup");
+    assert!(
+        setup2.context.contains("You have already introduced yourself"),
+        "anchor must render on follow-up turns:\n{}",
+        setup2.context
+    );
+    assert!(
+        setup2
+            .context
+            .contains("Do not recite your full name and occupation"),
+        "anchor missing recitation guard:\n{}",
+        setup2.context
     );
 }
 

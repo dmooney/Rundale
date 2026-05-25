@@ -1,0 +1,9 @@
+# Live-proof fixture for TODO #39 — introduced-anchor renders on
+# turns 2+ but not turn 1.
+#
+# Walks the player to The Mill where Cormac/Brendan Duffy are
+# co-located. The headless harness will move to the mill and look —
+# the integration test verifies the anchor wiring is correct.
+
+go to the mill
+look

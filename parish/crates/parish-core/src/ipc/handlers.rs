@@ -782,6 +782,12 @@ pub fn prepare_npc_conversation_turn(
     language: &LanguageSettings,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
+    // Capture introduced state BEFORE marking — the dialogue context
+    // builder needs to know whether this is the first turn (no anchor)
+    // or a follow-up (anchor forbids reciting full name + occupation).
+    // TODO #39 (mid-reply self-introduction): mark_introduced makes
+    // is_introduced unconditionally true from this point on.
+    let was_introduced = npc_manager.is_introduced(speaker_id);
     // Mark NPC as introduced before computing display_name so first conversation
     // shows their name, not their anonymous description.
     npc_manager.mark_introduced(speaker_id);
@@ -834,6 +840,7 @@ pub fn prepare_npc_conversation_turn(
         &crate::config::NpcConfig::default(),
         &npc_names,
         player_name_for_npc,
+        was_introduced,
     );
     let player_label = player_name_for_npc.unwrap_or("The newcomer");
     // Transcript history first (current player input excluded — shown separately below).
