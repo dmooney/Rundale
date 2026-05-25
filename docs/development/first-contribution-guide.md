@@ -50,7 +50,7 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
 
 ### Runtime boot flow (high level)
 
-`crates/parish-cli/src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
+`crates/parish-engine/src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
 
 ### Core simulation triangle to understand early
 
@@ -69,7 +69,7 @@ If you only study three subsystems first, make them:
 Start in input classification and command dispatch, then wire each runtime surface:
 
 - shared parse/intent behavior in `parish-core`
-- headless dispatch path in `crates/parish-cli/src/headless.rs`
+- headless dispatch path in `crates/parish-engine/src/headless.rs`
 - web command endpoint in `crates/parish-server/src/routes.rs`
 - desktop command wiring in `crates/parish-tauri/src/`
 
@@ -142,10 +142,10 @@ Read these in order:
 1. `README.md`
 2. `docs/index.md`
 3. `docs/design/overview.md`
-4. `crates/parish-cli/src/main.rs` (startup + mode routing)
-5. `crates/parish-cli/src/headless.rs` (single-turn runtime flow)
+4. `crates/parish-engine/src/main.rs` (startup + mode routing)
+5. `crates/parish-engine/src/headless.rs` (single-turn runtime flow)
 6. `crates/parish-core/src/world/`, `npc/`, and `inference/`
-7. `crates/parish-cli/src/testing.rs` (GameTestHarness for controlled iteration)
+7. `crates/parish-engine/src/testing.rs` (GameTestHarness for controlled iteration)
 
 ---
 

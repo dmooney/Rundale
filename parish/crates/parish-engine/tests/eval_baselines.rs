@@ -22,10 +22,10 @@
 //!   `assert!` names the fixture, the step, the rule that fired, and the
 //!   canonical fix.
 
-use parish::npc::manager::TierTransition;
-use parish::npc::types::CogTier;
-use parish::testing::{ActionResult, GameTestHarness, ScriptResult, run_script_captured};
-use parish::world::LocationId;
+use parish_engine::npc::manager::TierTransition;
+use parish_engine::npc::types::CogTier;
+use parish_engine::testing::{ActionResult, GameTestHarness, ScriptResult, run_script_captured};
+use parish_engine::world::LocationId;
 use parish_types::events::GameEvent;
 use std::collections::HashMap;
 use std::fs;
@@ -255,7 +255,7 @@ fn rubric_look_descriptions_are_non_empty() {
 
 #[test]
 fn rubric_no_json_envelope_leak_in_fixtures() {
-    use parish::npc::quality::detect_json_envelope_leak;
+    use parish_engine::npc::quality::detect_json_envelope_leak;
     for name in BASELINED_FIXTURES {
         let results = capture(name);
         for (i, r) in results.iter().enumerate() {
@@ -286,7 +286,7 @@ fn rubric_no_json_envelope_leak_in_fixtures() {
 
 #[test]
 fn rubric_no_template_tokens_in_fixtures() {
-    use parish::npc::quality::detect_template_tokens;
+    use parish_engine::npc::quality::detect_template_tokens;
     for name in BASELINED_FIXTURES {
         let results = capture(name);
         for (i, r) in results.iter().enumerate() {
@@ -316,7 +316,7 @@ fn rubric_no_template_tokens_in_fixtures() {
 
 #[test]
 fn rubric_no_hallucinated_gaelic_in_fixtures() {
-    use parish::npc::quality::detect_hallucinated_gaelic;
+    use parish_engine::npc::quality::detect_hallucinated_gaelic;
     for name in BASELINED_FIXTURES {
         let results = capture(name);
         for (i, r) in results.iter().enumerate() {
@@ -362,7 +362,7 @@ fn rubric_tier4_events_appear_in_journal() {
     let tier4_count_before = h
         .app
         .npc_manager
-        .npcs_in_tier(parish::npc::types::CogTier::Tier4)
+        .npcs_in_tier(parish_engine::npc::types::CogTier::Tier4)
         .len();
 
     // Subscribe to the event bus BEFORE advancing time.
@@ -520,9 +520,9 @@ fn rubric_tier_promotion_on_proximity() {
     // Walsh family (NpcIds 15, 16, 17) home at Boatman's Cottage (id=20),
     // BFS-distance 3 from Kilteevan.  Tier 3 range is d <= 5.
     let walsh_ids = [
-        parish::npc::NpcId(15), // Eamon Walsh
-        parish::npc::NpcId(16), // Kathleen Walsh
-        parish::npc::NpcId(17), // Ciaran Walsh
+        parish_engine::npc::NpcId(15), // Eamon Walsh
+        parish_engine::npc::NpcId(16), // Kathleen Walsh
+        parish_engine::npc::NpcId(17), // Ciaran Walsh
     ];
 
     for id in walsh_ids {

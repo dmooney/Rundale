@@ -290,11 +290,11 @@ Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses id
 
 ## Source Modules
 
-- [`crates/parish-cli/src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
+- [`crates/parish-engine/src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
 - [`src/lib.rs`](../../src/lib.rs)
 - [`src/error.rs`](../../src/error.rs)
-- [`crates/parish-cli/src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
-- [`crates/parish-cli/src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
+- [`crates/parish-engine/src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
+- [`crates/parish-engine/src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
 - [`src/world/`](../../src/world/)
 - [`src/npc/`](../../src/npc/)
 - [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap

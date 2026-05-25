@@ -10,6 +10,7 @@
 pub mod auth;
 pub mod cf_auth;
 pub mod command_host;
+pub mod drain;
 pub mod editor_routes;
 pub mod emitter;
 pub mod middleware;
@@ -18,6 +19,8 @@ pub mod routes;
 pub mod session;
 pub mod session_store_impl;
 pub mod state;
+pub mod sync_routes;
+pub mod sync_types;
 pub mod tile_routes;
 pub mod tracing_setup;
 pub mod ws;
@@ -483,6 +486,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/save-screenshot", post(routes::save_screenshot))
         .route("/api/latest-screenshot", get(routes::get_latest_screenshot))
         .route("/api/take-screenshot", post(routes::take_screenshot))
+        // ── Synchronous command/state endpoints (thin clients, agents) ─────
+        .route("/api/command", post(sync_routes::post_command))
+        .route("/api/state", get(sync_routes::get_state))
         .route("/api/ws", get(ws::ws_handler))
         // ── Tile proxy (issue #360) ──────────────────────────────────────
         // Requires a valid session (session_middleware already in the stack).

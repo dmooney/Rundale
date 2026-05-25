@@ -1,27 +1,28 @@
 [package]
-name = "parish"
+name = "parish-engine"
 version = "0.1.0"
 edition = "2024"
-description = "An Irish Living World Text Adventure — CLI / headless / web entry point"
+description = "An Irish Living World Text Adventure — in-process engine entry point (headless REPL / web server / Tauri launch)"
 license = "GPL-3.0-only"
 publish = false
-default-run = "parish"
+default-run = "parish-engine"
 
 [[bin]]
-name = "parish"
+name = "parish-engine"
 path = "src/main.rs"
+
+[lib]
+name = "parish_engine"
+path = "src/lib.rs"
 
 [dependencies]
 parish-core    = { workspace = true }
-parish-server  = { path = "../parish-server" }
 tokio              = { workspace = true }
 clap               = { workspace = true, features = ["env"] }
 anyhow             = { workspace = true }
 tracing                 = { workspace = true }
 tracing-subscriber      = { workspace = true }
 tracing-appender        = { workspace = true }
-tracing-opentelemetry   = { workspace = true }
-opentelemetry           = { workspace = true }
 chrono             = { workspace = true }
 toml               = { workspace = true }
 dotenvy            = { workspace = true }

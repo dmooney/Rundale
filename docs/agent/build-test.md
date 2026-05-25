@@ -4,10 +4,11 @@
 
 Most engine commands should be run from the `parish/` directory:
 
-- Build: `cargo build` (builds the default member, `parish-cli`)
+- Build: `cargo build` (builds the default member, `parish-engine`)
 - Build everything: `cargo build --workspace`
 - Release build: `cargo build --release`
-- Run: `cargo run -p parish` (or `cargo run`, since parish-cli is the default)
+- Run (headless REPL): `cargo run -p parish-engine` (or `cargo run`, default member)
+- Run (HTTP client against server): `cargo run -p parish-client`
 - Test all: `cargo test --workspace`
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
@@ -20,13 +21,18 @@ Alternatively, use the top-level `justfile` proxies from the repository root.
 Scripted gameplay fixtures live in `parish/testing/fixtures/`. Run one with:
 
 ```sh
-# From parish/ directory:
-cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt
+# From parish/ directory (local headless runtime — no LLM):
+cargo run -p parish-engine -- --script testing/fixtures/test_walkthrough.txt
 
 # Or from root via just:
 just game-test
 just game-test-one test_movement_errors
 just game-test-all
+
+# Against a live server (real LLM, real NPCs):
+cargo run -p parish-client -- "look"          # single-shot
+cargo run -p parish-client -- --script testing/fixtures/test_walkthrough.txt
+just run-client                               # interactive REPL
 ```
 
 ## Demo API Profiling
@@ -67,8 +73,8 @@ just ui-e2e-update
 
 ```sh
 cd parish/apps/ui && npm run build && cd ../../..
-cargo run -p parish -- --web            # default port 3001
-cargo run -p parish -- --web 8080
+cargo run -p parish-server -- --port            # default port 3001
+cargo run -p parish-server -- --port 8080
 ```
 
 Then open `http://localhost:3001`.
@@ -98,7 +104,7 @@ just baselines       # regenerate gameplay-output snapshots after intentional ch
 just harness-audit   # cross-reference fixtures, baselines, and roadmap for gaps
 ```
 
-See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-cli/tests/eval_baselines.rs`.
+See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-engine/tests/eval_baselines.rs`.
 
 ## Coverage
 

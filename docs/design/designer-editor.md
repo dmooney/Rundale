@@ -105,7 +105,7 @@ this separation is the single most important architectural rule of the feature.
 - `crates/parish-types/src/error.rs` — `ParishError` enum (use for all editor errors)
 - `crates/parish-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
 - `crates/parish-persistence/src/picker.rs:63` `discover_saves` + `crates/parish-persistence/src/database.rs` `list_branches` / `load_latest_snapshot` — save inspector never opens rusqlite directly
-- `crates/parish-cli/src/testing.rs` — `GameTestHarness` for Phase 2 live preview
+- `crates/parish-engine/src/testing.rs` — `GameTestHarness` for Phase 2 live preview
 - `crates/parish-world/src/description.rs::render_description` — reuse for live placeholder preview
 
 **Frontend**

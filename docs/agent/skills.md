@@ -6,6 +6,7 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 |---|---|
 | `/check` | Quality gates: `just check` (pre-commit) and `just verify` (pre-push, adds harness walkthrough), plus the known CI false-positives reference. |
 | `/parish-engine [mode] [arg]` | Run the engine to observe behaviour — script harness, feature `prove`, autonomous `play`, eval rubrics/baselines, live `demo` auto-player, `browser` UI session, and GUI `screenshot`s. Required after implementing gameplay features. |
+| `parish [command]` | Thin HTTP client binary (from the `parish-client` crate) for a running `parish-server`. Single-shot, `--script FILE`, `--json`, or interactive REPL. Calls `POST /api/command`; returns rendered prose. Use when you need real LLM responses or are exercising server-mode features. |
 | `/task-start <task-id>` | Mandatory first step for any coding task: write acceptance criteria + verification fixture (and, for features, a design note + plan) before code, then stop for review. |
 | `/backlog <mode>` | GitHub issue lifecycle: `triage` (label by theme + P0–P3, vocabulary in [`triage-vocabulary.md`](triage-vocabulary.md)), `fix-one <issue#>` (single issue end-to-end), `drain` (multi-wave parallel fix-agent sweep that merges bug-fix PRs). |
 | `/techdebt [path] \| crate-audit` | Debt loop: process `TODO.md`, dispatch fix agents, discover new debt when empty. `crate-audit` mode produces a phased pure-relocation crate-layout refactor PR. |

@@ -6,13 +6,13 @@
 
 use std::path::Path;
 
-use parish::world::LocationId;
-use parish::world::description::render_description;
-use parish::world::encounter::check_encounter;
-use parish::world::graph::{Hazard, WorldGraph};
-use parish::world::movement::{MovementResult, resolve_movement};
-use parish::world::time::TimeOfDay;
-use parish::world::transport::TransportMode;
+use parish_engine::world::LocationId;
+use parish_engine::world::description::render_description;
+use parish_engine::world::encounter::check_encounter;
+use parish_engine::world::graph::{Hazard, WorldGraph};
+use parish_engine::world::movement::{MovementResult, resolve_movement};
+use parish_engine::world::time::TimeOfDay;
+use parish_engine::world::transport::TransportMode;
 
 fn load_parish_graph() -> WorldGraph {
     let path = Path::new("../../../mods/rundale/world.json");
@@ -218,7 +218,7 @@ fn test_movement_time_advancement() {
     match result {
         MovementResult::Arrived { minutes, .. } => {
             use chrono::{TimeZone, Utc};
-            use parish::world::time::GameClock;
+            use parish_engine::world::time::GameClock;
 
             let mut clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
             clock.advance(minutes as i64);

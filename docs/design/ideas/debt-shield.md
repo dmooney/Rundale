@@ -373,7 +373,7 @@ For each of the following categories, examine the PR diff and report ALL finding
 
 ### 2. Design / Architecture Debt
 - **Structural Erosion**: New code that violates Parish's module ownership rules.
-  Leaf crate logic placed in `parish-cli/src/`. Backend-agnostic crates depending on
+  Leaf crate logic placed in `parish-engine/src/`. Backend-agnostic crates depending on
   tauri/axum/tower/wry/tao.
 - **Tight Coupling**: Changes that create new dependencies between crates that should be
   independent. Changes in one module that force coordinated changes in unrelated modules.
@@ -409,7 +409,7 @@ For each of the following categories, examine the PR diff and report ALL finding
 - `current_dir()` or parent-walk patterns (use `AppState` runtime paths)
 - `#[allow(clippy::*)]` without a justifying comment
 - `reqwest::get()` or `reqwest::Client::new()` without an explicit timeout
-- Module ownership violation: leaf crate logic in `parish-cli/src/`
+- Module ownership violation: leaf crate logic in `parish-engine/src/`
 
 ## Severity Classification
 
@@ -1055,7 +1055,7 @@ for FILE in $FILES; do
       LIBRARY_CRATE=true ;;
     parish/crates/parish-core/src/*)
       LIBRARY_CRATE=true ;;
-    parish/crates/parish-cli/src/*)
+    parish/crates/parish-engine/src/*)
       # CLI is a binary, different rules apply
       ;;
     parish/crates/parish-server/src/*)
@@ -1143,7 +1143,7 @@ Add to `parish/crates/parish-core/tests/architecture_fitness.rs`:
 /// Each entry point should call the same core game loop functions.
 #[test]
 fn mode_parity_check() {
-    // Verify that parish-cli, parish-server, and parish-tauri
+    // Verify that parish-engine, parish-server, and parish-tauri
     // all invoke the same set of game loop / session functions.
     // This is a structural check -- exact implementation details TBD
     // based on the current handler registration pattern.

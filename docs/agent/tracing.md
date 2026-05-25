@@ -67,7 +67,7 @@ fields: session_id, tick (generation counter)
 |--------------------------|--------------------------------------------------------------|
 | OTel provider setup       | `parish/crates/parish-server/src/tracing_setup.rs`          |
 | Request-ID middleware      | `parish/crates/parish-server/src/middleware.rs`             |
-| Subscriber composition    | `parish/crates/parish-cli/src/main.rs`                      |
+| Subscriber composition    | `parish/crates/parish-engine/src/main.rs`                      |
 | Session field recording   | `parish/crates/parish-server/src/middleware.rs`             |
 | Account-id recording      | `parish/crates/parish-server/src/lib.rs` (`cf_access_guard`)|
 | Per-session tick metric   | `parish/crates/parish-server/src/session.rs`                |
