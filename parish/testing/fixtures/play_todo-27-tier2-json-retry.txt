@@ -1,0 +1,10 @@
+# Live-proof fixture for TODO #27 — Tier 2 JSON parse retry.
+#
+# Boots Rundale headless and walks to The Mill. The Tier 2 loop runs
+# off-screen for each non-player-location group of NPCs. Without an
+# LLM provider configured this run won't actually call inference, but
+# it does confirm the helper compiles and the simulator startup path
+# remains clean at default verbosity.
+
+go to the mill
+look

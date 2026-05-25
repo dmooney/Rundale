@@ -200,6 +200,68 @@ pub fn build_enhanced_system_prompt_with_config(
     prompt
 }
 
+/// Runs a single Tier 2 inference attempt: streams via `client`, sinks
+/// tokens to discard, races against `cancel`, and parses the assembled
+/// string into a [`Tier2Response`]. Errors are returned for the caller
+/// to classify (parse failure → retry; cancellation → bail; transport
+/// → bail with diagnostic).
+async fn try_tier2_inference(
+    client: &parish_inference::AnyClient,
+    model: &str,
+    prompt: &str,
+    cancel: Option<parish_inference::CancellationToken>,
+) -> Result<Tier2Response, ParishError> {
+    // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
+    // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
+    // Streaming path: discards chunks (the assembled string returns from
+    // generate_stream_with_format) but enables mid-flight cancellation (#9).
+    let (sink_tx, mut sink_rx) =
+        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+
+    let stream_fut =
+        client.generate_stream_with_format(model, prompt, None, sink_tx, None, Some(200), None);
+
+    let raw = match cancel {
+        Some(tok) => tokio::select! {
+            biased;
+            () = tok.cancelled() => Err(ParishError::Inference(
+                "Tier 2 cancelled mid-stream".to_string(),
+            )),
+            res = stream_fut => res,
+        },
+        None => stream_fut.await,
+    };
+
+    raw.and_then(|s| {
+        serde_json::from_str::<Tier2Response>(&s)
+            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
+    })
+}
+
+/// Strict-JSON reminder appended to a Tier 2 prompt on retry.
+///
+/// TODO #27: the 1.5B simulation-tier model occasionally emits
+/// malformed JSON (unquoted keys, trailing prose, markdown fences),
+/// which surfaces as `"Tier 2 JSON parse failed: ..."` and silently
+/// drops the location's off-screen update for that tick. The retry
+/// re-invokes inference with this reminder appended so the model
+/// has a second, sharper push toward strict JSON.
+pub(crate) const TIER2_STRICT_JSON_REMINDER: &str = "\n\n\
+    IMPORTANT — your previous reply was not valid JSON. Return STRICT \
+    JSON ONLY. No markdown fences, no commentary before or after the \
+    object, no trailing prose. All keys must be double-quoted strings. \
+    The envelope shape is exactly:\n\
+    {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}";
+
+/// Returns true when the error string represents a JSON parse
+/// failure produced by [`run_tier2_for_group`]. Used to gate the
+/// one-shot retry — non-parse failures (cancellation, transport,
+/// timeout) should not retry.
+pub(crate) fn is_tier2_json_parse_failure(msg: &str) -> bool {
+    msg.contains("Tier 2 JSON parse failed")
+}
+
 /// Returns true when an inference error string represents a graceful
 /// cancellation (shutdown, `sim_cancel` on player input, demo turn cap)
 /// rather than a real failure. Both Tier 2 and Tier 3 paths construct
@@ -790,53 +852,60 @@ pub async fn run_tier2_for_group(
     let prompt = build_tier2_prompt(group, time_desc, weather, language);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
-    // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
-    // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
-    // Streaming path: discards chunks (the assembled string returns from
-    // generate_stream_with_format) but enables mid-flight cancellation (#9).
-    let (sink_tx, mut sink_rx) =
-        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
-    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
-
-    let stream_fut =
-        client.generate_stream_with_format(model, &prompt, None, sink_tx, None, Some(200), None);
-
-    let raw = match cancel {
-        Some(tok) => tokio::select! {
-            biased;
-            () = tok.cancelled() => Err(ParishError::Inference(
-                "Tier 2 cancelled mid-stream".to_string(),
-            )),
-            res = stream_fut => res,
-        },
-        None => stream_fut.await,
-    };
-
-    match raw.and_then(|s| {
-        serde_json::from_str::<Tier2Response>(&s)
-            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
-    }) {
-        Ok(resp) => Some(Tier2Event {
-            location: group.location,
-            summary: resp.summary,
-            participants: participant_ids,
-            mood_changes: resp.mood_changes,
-            relationship_changes: resp.relationship_changes,
-        }),
-        Err(e) => {
-            let msg = e.to_string();
-            if is_intentional_cancellation(&msg) {
-                // Graceful cancellation (shutdown, demo turn cap). Not a failure.
-                tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
-            } else {
-                tracing::error!(
-                    "Tier 2 inference failed at {}: {}",
-                    group.location_name,
-                    msg
-                );
+    let mut last_err: ParishError =
+        match try_tier2_inference(client, model, &prompt, cancel.clone()).await {
+            Ok(resp) => {
+                return Some(Tier2Event {
+                    location: group.location,
+                    summary: resp.summary,
+                    participants: participant_ids,
+                    mood_changes: resp.mood_changes,
+                    relationship_changes: resp.relationship_changes,
+                });
             }
-            None
+            Err(e) => e,
+        };
+
+    // Retry exactly once on JSON parse failure (TODO #27). Cancellation
+    // and non-parse errors fall through to the diagnostic block below.
+    let msg = last_err.to_string();
+    if !is_intentional_cancellation(&msg) && is_tier2_json_parse_failure(&msg) {
+        tracing::debug!(
+            "Tier 2 JSON parse failed at {}, retrying once with strict-JSON reminder: {}",
+            group.location_name,
+            msg
+        );
+        let retry_prompt = format!("{}{}", prompt, TIER2_STRICT_JSON_REMINDER);
+        match try_tier2_inference(client, model, &retry_prompt, cancel).await {
+            Ok(resp) => {
+                tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
+                return Some(Tier2Event {
+                    location: group.location,
+                    summary: resp.summary,
+                    participants: participant_ids,
+                    mood_changes: resp.mood_changes,
+                    relationship_changes: resp.relationship_changes,
+                });
+            }
+            Err(e) => {
+                last_err = e;
+            }
         }
+    }
+
+    {
+        let msg = last_err.to_string();
+        if is_intentional_cancellation(&msg) {
+            // Graceful cancellation (shutdown, demo turn cap). Not a failure.
+            tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
+        } else {
+            tracing::error!(
+                "Tier 2 inference failed at {}: {}",
+                group.location_name,
+                msg
+            );
+        }
+        None
     }
 }
 
@@ -1573,6 +1642,54 @@ mod tests {
         assert!(
             block.contains("do not borrow a name"),
             "missing borrow-from-history guard:\n{block}"
+        );
+    }
+
+    /// TODO #27 — JSON parse failures discriminate cleanly from other
+    /// error shapes so the retry only fires for the intended failure
+    /// mode.
+    #[test]
+    fn test_is_tier2_json_parse_failure_discriminator() {
+        // Positive cases — the exact string `run_tier2_for_group`
+        // constructs via `format!("Tier 2 JSON parse failed: {e}")`.
+        assert!(is_tier2_json_parse_failure(
+            "Tier 2 JSON parse failed: key must be a string at line 2 column 3"
+        ));
+        assert!(is_tier2_json_parse_failure(
+            "inference error: Tier 2 JSON parse failed: expected value"
+        ));
+
+        // Negative cases — every other error path must NOT trigger the
+        // retry.
+        assert!(!is_tier2_json_parse_failure("Tier 2 cancelled mid-stream"));
+        assert!(!is_tier2_json_parse_failure(
+            "Tier 3 JSON parse failed: ..." // different tier
+        ));
+        assert!(!is_tier2_json_parse_failure("connection refused"));
+        assert!(!is_tier2_json_parse_failure("timeout after 600s"));
+        assert!(!is_tier2_json_parse_failure(""));
+    }
+
+    #[test]
+    fn test_tier2_strict_json_reminder_carries_required_anchors() {
+        // The reminder must explicitly disable common 1.5B failure
+        // modes the demo audit observed: unquoted keys, markdown
+        // fences, prose around the JSON object.
+        let r = TIER2_STRICT_JSON_REMINDER;
+        assert!(r.contains("STRICT JSON ONLY"), "missing strict-only:\n{r}");
+        assert!(
+            r.contains("No markdown fences"),
+            "missing fence guard:\n{r}"
+        );
+        assert!(
+            r.contains("double-quoted strings"),
+            "missing quoted-key guard:\n{r}"
+        );
+        // The exact envelope shape must appear so the model has a
+        // concrete target.
+        assert!(
+            r.contains(r#"{"summary": "...", "mood_changes": [], "relationship_changes": []}"#),
+            "missing envelope template:\n{r}"
         );
     }
 
