@@ -1,6 +1,7 @@
 # Architecture Overview
 
-> [Docs Index](../index.md)
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 
 ## Project Overview
 
@@ -89,7 +90,7 @@ The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected
 - `get_ui_config` IPC command — sidebar labels and theme from mod
 - `name_hints_for()` — contextual name pronunciation hints matched against NPCs and locations
 
-See [Engine / Game Data Separation Plan](../plans/engine-game-data-separation.md) for the full design.
+See [Engine / Game Data Separation Plan](../plans/archive/engine-game-data-separation.md) for the full design.
 
 ## Module Tree
 
@@ -174,7 +175,7 @@ src/
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
 - [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
 - [Debug UI](debug-ui.md) — Tabbed debug panel for Tauri GUI (full game state inspector)
-- [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
+- [Mythology Hooks](ideas/mythology-hooks.md) — Future mythology layer data model hooks
 - [parish-geo-tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
 

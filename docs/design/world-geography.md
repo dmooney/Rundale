@@ -1,5 +1,7 @@
 # World & Geography
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [001](../adr/001-graph-based-world.md), [009](../adr/009-real-geography-fictional-people.md)
 
 The world is built on real Irish geography. All places are real. All people and businesses are fictional.

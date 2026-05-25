@@ -1,5 +1,7 @@
 # GUI Design
 
+> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
 ## Loading Spinner
@@ -82,7 +84,7 @@ Uses a **greedy 8-position candidate model** based on the Imhof cartographic con
 
 The `estimateTextWidth(name, maxChars, fontSize)` function approximates SVG text width at ~0.6em per character, scaling with font size.
 
-See [Map Evolution](map-evolution.md) for future map improvements (fog of war, animated travel, OSM tiles).
+See [Map Evolution](ideas/map-evolution.md) for future map improvements (fog of war, animated travel, OSM tiles).
 
 ### Sidebar
 

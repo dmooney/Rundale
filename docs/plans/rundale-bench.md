@@ -1,5 +1,7 @@
 # Rundale-Bench Plan
 
+> Status: In progress · Updated: 2026-05-25 · [Docs Index](../index.md)
+
 > Back to [Docs Index](../index.md) | Siblings: [LLM Quality Evals Plan](llm-quality-evals.md), [Promptfoo Pentest Plan](promptfoo-pentest-plan.md)
 
 ## Goal

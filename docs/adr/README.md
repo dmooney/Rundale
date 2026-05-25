@@ -29,6 +29,13 @@ This directory contains Architecture Decision Records (ADRs) for the Rundale gam
 | [019](019-json-structured-output-for-npc-dialogue.md) | JSON Structured Output for NPC Dialogue | Accepted | 2026-04-22 |
 | [020](020-npc-tool-use.md) | NPC Function-Calling / Tool-Use Output | Proposed | 2026-04-26 |
 | [021](021-npc-memory-retrieval.md) | Embedding-Based NPC Memory Retrieval | Proposed | 2026-04-26 |
+| [022](022-engine-config-extraction.md) | Extract Engine Tuning into Configuration | Accepted | 2026-03-25 |
+| [023](023-web-testing-server.md) | Web Server Mode for Chrome GUI Testing | Accepted | 2026-03-26 |
+| [024](024-documentation-reorg-v2.md) | Documentation Reorganization v2 | Accepted | 2026-05-25 |
+
+> Note: ADRs 022 and 023 were previously misnumbered `018` (a three-way
+> collision); they were renumbered to the next free numbers in the 2026-05
+> documentation reorganization ([ADR-024](024-documentation-reorg-v2.md)).
 
 ## ADR Template
 
