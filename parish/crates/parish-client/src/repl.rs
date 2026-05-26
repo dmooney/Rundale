@@ -14,7 +14,7 @@ pub async fn run_interactive(client: &ParishClient, json: bool) -> Result<()> {
         if text.is_empty() || text.starts_with('#') {
             continue;
         }
-        if text == "quit" || text == "/quit" {
+        if text == "quit" || text == "/quit" || text == "exit" || text == "/exit" {
             break;
         }
         send(client, text, json).await?;
@@ -30,7 +30,7 @@ pub async fn run_script(client: &ParishClient, path: &Path, json: bool) -> Resul
         if text.is_empty() || text.starts_with('#') {
             continue;
         }
-        if text == "quit" || text == "/quit" {
+        if text == "quit" || text == "/quit" || text == "exit" || text == "/exit" {
             break;
         }
         send(client, text, json).await?;

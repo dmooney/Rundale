@@ -98,7 +98,7 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
     match keyword {
         "/pause" => Some(Command::Pause),
         "/resume" => Some(Command::Resume),
-        "/quit" => Some(Command::Quit),
+        "/quit" | "/exit" => Some(Command::Quit),
         "/save" => Some(Command::Save),
         "/branches" => Some(Command::Branches),
         "/log" => Some(Command::Log),
@@ -393,6 +393,9 @@ mod tests {
         assert_eq!(parse_system_command("/quit"), Some(Command::Quit));
         assert_eq!(parse_system_command("/QUIT"), Some(Command::Quit));
         assert_eq!(parse_system_command("  /quit  "), Some(Command::Quit));
+        assert_eq!(parse_system_command("/exit"), Some(Command::Quit));
+        assert_eq!(parse_system_command("/EXIT"), Some(Command::Quit));
+        assert_eq!(parse_system_command("  /exit  "), Some(Command::Quit));
     }
     #[test]
     fn test_parse_fork() {
@@ -430,6 +433,7 @@ mod tests {
         assert_eq!(parse_system_command("/pause foo"), None);
         assert_eq!(parse_system_command("/resume now"), None);
         assert_eq!(parse_system_command("/quit please"), None);
+        assert_eq!(parse_system_command("/exit please"), None);
         assert_eq!(parse_system_command("/save me"), None);
         assert_eq!(parse_system_command("/branches list"), None);
         assert_eq!(parse_system_command("/log all"), None);
@@ -463,6 +467,10 @@ mod tests {
     fn test_classify_system_command() {
         assert_eq!(
             classify_input("/quit"),
+            InputResult::SystemCommand(Command::Quit)
+        );
+        assert_eq!(
+            classify_input("/exit"),
             InputResult::SystemCommand(Command::Quit)
         );
         assert_eq!(
