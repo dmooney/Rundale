@@ -1,0 +1,11 @@
+# Live-proof fixture for TODO #7 — raise recent-events memory cap +
+# switch truncation suffix to single-codepoint ellipsis.
+#
+# The change is config-only (default constants in parish-config) plus
+# a one-char swap in `truncate_for_memory`. The fixture exercises the
+# engine harness so the new defaults load end-to-end without panics.
+# Memory-entry truncation behaviour is unit-tested.
+
+look
+go to The Mill
+look
