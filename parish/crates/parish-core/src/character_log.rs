@@ -322,6 +322,16 @@ impl CharacterLogManager {
                     )?;
                 }
             }
+            GameEvent::AddressedAbsentNpc { name, location, .. } => {
+                let loc = loc_of(*location);
+                let body = format!("*Addressed {} — they were not present.*\n", name);
+                append_journal_entry(
+                    &self.player_log_path(),
+                    ts,
+                    Some(&format!("Missed introduction at {}", loc)),
+                    &body,
+                )?;
+            }
             GameEvent::PlayerMoved { from, to, .. } => {
                 let to_n = loc_of(*to);
                 let from_n = loc_of(*from);
@@ -1162,6 +1172,36 @@ mod tests {
         assert!(
             log.contains("*the landlord raised the rent again*"),
             "gossip body missing: {}",
+            log,
+        );
+    }
+
+    #[test]
+    fn addressed_absent_npc_event_writes_player_log() {
+        // F9 / #1135: player addresses an NPC who isn't here — event
+        // lands in player.md so a post-session scan captures the
+        // missed introduction.
+        let tmp = tempfile::tempdir().unwrap();
+        let npcs = NpcManager::new();
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::AddressedAbsentNpc {
+            name: "Mrs. Hannigan".to_string(),
+            location: crate::world::LocationId(1),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        assert!(
+            log.contains("Missed introduction at"),
+            "heading missing from player log: {}",
+            log,
+        );
+        assert!(
+            log.contains("Mrs. Hannigan"),
+            "absent npc name missing from player log: {}",
             log,
         );
     }
