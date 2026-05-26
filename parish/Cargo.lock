@@ -3332,7 +3332,6 @@ dependencies = [
  "serial_test",
  "tempfile",
  "tokio",
- "tokio-test",
  "toml 0.8.2",
  "tracing",
  "tracing-appender",

@@ -374,7 +374,7 @@ fn debug_relationships(app: &App, name: Option<&str>) -> Vec<String> {
         lines.push("  (no relationships)".to_string());
     } else {
         let mut rels: Vec<_> = npc.relationships.iter().collect();
-        rels.sort_by(|a, b| b.1.strength.partial_cmp(&a.1.strength).unwrap());
+        rels.sort_by(|a, b| b.1.strength.total_cmp(&a.1.strength).reverse());
 
         for (target_id, rel) in rels {
             let target_name = app
