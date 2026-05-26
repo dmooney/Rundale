@@ -731,11 +731,7 @@ fn apply_npc_response(
 ) {
     let parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
-        tracing::debug!(
-            "NPC metadata: action={}, mood={}",
-            meta.action,
-            meta.mood
-        );
+        tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
     let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
         app.world.player_name.clone()
@@ -755,16 +751,16 @@ fn apply_npc_response(
             app.debug_event(event.clone());
         }
     }
-    app.world.conversation_log.add(
-        parish_core::npc::conversation::ConversationExchange {
+    app.world
+        .conversation_log
+        .add(parish_core::npc::conversation::ConversationExchange {
             timestamp: game_time,
             speaker_id: npc_id,
             speaker_name: npc_actual_name,
             player_input: player_input.to_string(),
             npc_dialogue: parsed.dialogue.clone(),
             location,
-        },
-    );
+        });
     let witness_events = parish_core::npc::ticks::record_witness_memories(
         app.npc_manager.npcs_mut(),
         npc_id,

@@ -253,8 +253,7 @@ impl App {
     /// Updates latest_snapshot_id and last_autosave on success.
     pub async fn capture_and_save_async(&mut self, branch_id: i64) -> Option<i64> {
         let db = self.db.as_ref()?;
-        let snapshot =
-            crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+        let snapshot = crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
         match db.save_snapshot(branch_id, &snapshot).await {
             Ok(snap_id) => {
                 self.latest_snapshot_id = snap_id;
@@ -371,42 +370,61 @@ impl App {
     pub fn category_provider_name(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
-            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).provider_name.as_deref(),
+            cat => self
+                .category_override(cat.try_into().expect("Dialogue already handled"))
+                .provider_name
+                .as_deref(),
         }
     }
 
     pub fn category_model(&self, cat: InferenceCategory) -> &str {
         match cat {
             InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
-            cat => &self.category_override(cat.try_into().expect("Dialogue already handled")).model,
+            cat => {
+                &self
+                    .category_override(cat.try_into().expect("Dialogue already handled"))
+                    .model
+            }
         }
     }
 
     pub fn category_api_key(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
-            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).api_key.as_deref(),
+            cat => self
+                .category_override(cat.try_into().expect("Dialogue already handled"))
+                .api_key
+                .as_deref(),
         }
     }
 
     pub fn category_base_url(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
-            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).base_url.as_deref(),
+            cat => self
+                .category_override(cat.try_into().expect("Dialogue already handled"))
+                .base_url
+                .as_deref(),
         }
     }
 
     pub fn category_client(&self, cat: InferenceCategory) -> Option<&AnyClient> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client.as_ref(),
-            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).client.as_ref(),
+            cat => self
+                .category_override(cat.try_into().expect("Dialogue already handled"))
+                .client
+                .as_ref(),
         }
     }
 
     pub fn set_category_provider_name(&mut self, cat: InferenceCategory, name: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
-            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).provider_name = Some(name),
+            cat => {
+                self.category_override_mut(cat.try_into().expect("Dialogue already handled"))
+                    .provider_name = Some(name)
+            }
         }
     }
 
@@ -416,28 +434,40 @@ impl App {
                 self.cloud_model_name = Some(model.clone());
                 self.dialogue_model = model;
             }
-            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).model = model,
+            cat => {
+                self.category_override_mut(cat.try_into().expect("Dialogue already handled"))
+                    .model = model
+            }
         }
     }
 
     pub fn set_category_api_key(&mut self, cat: InferenceCategory, key: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
-            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).api_key = Some(key),
+            cat => {
+                self.category_override_mut(cat.try_into().expect("Dialogue already handled"))
+                    .api_key = Some(key)
+            }
         }
     }
 
     pub fn set_category_base_url(&mut self, cat: InferenceCategory, url: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
-            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).base_url = Some(url),
+            cat => {
+                self.category_override_mut(cat.try_into().expect("Dialogue already handled"))
+                    .base_url = Some(url)
+            }
         }
     }
 
     pub fn set_category_client(&mut self, cat: InferenceCategory, client: AnyClient) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client = Some(client),
-            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).client = Some(client),
+            cat => {
+                self.category_override_mut(cat.try_into().expect("Dialogue already handled"))
+                    .client = Some(client)
+            }
         }
     }
 
