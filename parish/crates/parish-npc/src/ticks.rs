@@ -219,8 +219,16 @@ async fn try_tier2_inference(
         tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
     tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
 
-    let stream_fut =
-        client.generate_stream_with_format(model, prompt, None, sink_tx, None, Some(200), None);
+    let stream_fut = client.generate_stream_with_format(
+        model,
+        prompt,
+        None,
+        sink_tx,
+        None,
+        Some(200),
+        None,
+        None,
+    );
 
     let raw = match cancel {
         Some(tok) => tokio::select! {
@@ -1422,6 +1430,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             sink_tx,
             None,
             Some(600),
+            None,
             None,
         );
 

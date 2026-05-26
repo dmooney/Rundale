@@ -137,8 +137,15 @@ pub async fn run_npc_turn(
         .unwrap_or(serde_json::Value::Null),
     );
 
+    // TODO #10 / #23 / #34: Qwen2.5-14B-4bit degenerates into verbatim
+    // repetition loops ("'Tis a place of steady X, but not without its Y"
+    // x12, trailing-question chains, "'Tis not just X, but Y" stutters)
+    // without a sampling penalty. `frequency_penalty = 0.5` breaks the
+    // loop on vllm-mlx / OpenAI / OpenRouter; Anthropic + Simulator
+    // ignore the field. Only Tier 1 dialogue sets this; Tier 2/3/intent
+    // /reaction stay at `None` so behaviour there is unchanged.
     let send_result = queue
-        .send(
+        .send_with_penalty(
             req_id,
             model.to_string(),
             setup.context,
@@ -146,6 +153,7 @@ pub async fn run_npc_turn(
             Some(token_tx),
             Some(TIER1_DIALOGUE_MAX_TOKENS),
             Some(0.7),
+            Some(0.5),
             crate::inference::InferencePriority::Interactive,
             true,
         )

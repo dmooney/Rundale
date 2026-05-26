@@ -797,8 +797,12 @@ async fn stream_headless_npc_dialogue(
             std::io::stdout().flush().ok();
         });
 
+        // TODO #10 / #23 / #34: pair with the parish-core dialogue call
+        // site — both Tier 1 entry points must set frequency_penalty so
+        // the headless CLI exhibits the same loop-suppression behaviour
+        // as the Tauri / server runtimes (mode parity, rule #2).
         match queue
-            .send(
+            .send_with_penalty(
                 *request_id,
                 app.dialogue_model.clone(),
                 context,
@@ -806,6 +810,7 @@ async fn stream_headless_npc_dialogue(
                 Some(token_tx),
                 None,
                 Some(0.7),
+                Some(0.5),
                 parish_core::inference::InferencePriority::Interactive,
                 true,
             )

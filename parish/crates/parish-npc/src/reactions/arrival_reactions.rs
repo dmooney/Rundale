@@ -784,7 +784,15 @@ pub async fn resolve_llm_greeting(
     tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
     let result = tokio::time::timeout(
         timeout,
-        client.generate_stream(model, &context, Some(&system), sink_tx, Some(100), None),
+        client.generate_stream(
+            model,
+            &context,
+            Some(&system),
+            sink_tx,
+            Some(100),
+            None,
+            None,
+        ),
     )
     .await;
 
