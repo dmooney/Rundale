@@ -81,6 +81,11 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
         run: |
@@ -99,7 +104,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Unit and integration tests
-        run: cargo test --workspace --all-targets
+        run: cargo nextest run --workspace --all-targets
 
   rust-coverage-ratchet:
     name: Rust coverage ratchet
@@ -115,9 +120,16 @@ jobs:
       # so coverage drift is from tests/code, not a surprise compiler update.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: llvm-tools-preview
 
+      # Distinct cache prefix: coverage instrumentation bakes -Cinstrument-coverage
+      # into target/, so sharing a cache with the quality gate would force one
+      # side to rebuild every run.
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust-coverage
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -130,11 +142,17 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+      # cargo-llvm-cov drives rustc's native LLVM coverage; cargo-nextest
+      # runs the instrumented test binaries in parallel (one process per
+      # core), where tarpaulin executes them serially. On an 8-vcpu runner
+      # this is the main speedup for the ratchet.
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
 
       - name: Enforce coverage floor
-        run: cargo tarpaulin --engine Llvm --workspace --all-targets --exclude parish-client --out Html --out Json --output-dir target/coverage --fail-under 60.8
+        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --fail-under-lines 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
@@ -143,7 +161,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, beta]
+        # Beta is a heads-up signal, not a merge blocker — run it on push to
+        # main/develop only so PR runs aren't paying for two channel checks.
+        toolchain: ${{ github.event_name == 'pull_request' && fromJSON('["stable"]') || fromJSON('["stable", "beta"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
