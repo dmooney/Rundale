@@ -25,8 +25,6 @@ defaults:
 env:
   CARGO_TERM_COLOR: always
   NO_PROXY: localhost,127.0.0.1,::1
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
 
 permissions:
   contents: read
@@ -80,9 +78,6 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
@@ -115,11 +110,6 @@ jobs:
     name: Rust coverage ratchet
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Coverage instrumentation produces a separate target/ profile from the
-    # quality-gate's cache, so running it on every PR added ~9 min to the
-    # critical path for marginal signal (a regression here can be caught
-    # post-merge). Restrict to push/dispatch; quality-gate still blocks PRs.
-    if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -130,13 +120,12 @@ jobs:
       # so coverage drift is from tests/code, not a surprise compiler update.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: llvm-tools-preview
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
-      # Distinct cache prefix: tarpaulin's --engine Llvm bakes coverage
-      # instrumentation into target/, so sharing a cache with the quality
-      # gate would force one side to rebuild every run.
+      # Distinct cache prefix: coverage instrumentation bakes -Cinstrument-coverage
+      # into target/, so sharing a cache with the quality gate would force one
+      # side to rebuild every run.
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -153,13 +142,17 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
-      - name: Install cargo-tarpaulin
+      # cargo-llvm-cov drives rustc's native LLVM coverage; cargo-nextest
+      # runs the instrumented test binaries in parallel (one process per
+      # core), where tarpaulin executes them serially. On an 8-vcpu runner
+      # this is the main speedup for the ratchet.
+      - name: Install cargo-llvm-cov and cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-tarpaulin
+          tool: cargo-llvm-cov,cargo-nextest
 
       - name: Enforce coverage floor
-        run: cargo tarpaulin --engine Llvm --workspace --all-targets --exclude parish-client --out Html --out Json --output-dir target/coverage --fail-under 60.8
+        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --html --json --output-dir target/coverage --fail-under-lines 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
@@ -181,9 +174,6 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -226,9 +216,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -308,9 +295,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
