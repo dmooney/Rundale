@@ -392,6 +392,7 @@ mod tests {
             last_tier4_game_time: None,
             introduced_npcs: Default::default(),
             visited_locations: std::collections::HashSet::new(),
+            visited_order: Vec::new(),
             edge_traversals: Default::default(),
             gossip_network: Default::default(),
             conversation_log: Default::default(),
