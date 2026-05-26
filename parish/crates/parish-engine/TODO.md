@@ -2,25 +2,7 @@
 
 ## Open
 
-| ID | Category | Description |
-|----|----------|-------------|
-| TD-019 | Stale Docs | Reopened: `src/headless.rs:190` still says the `too_many_arguments` allow is tracked in `parish-cli/TODO.md`, even though this file previously marked TD-019 done. Update the inline comment to `parish-engine/TODO.md` or drop the tracker reference once the argument-list rationale is documented. |
-| TD-020 | Config/Cargo | Remove unused `tokio-test` dev-dep at `Cargo.toml:34`. No `tokio_test` import or `tokio_test::` macro is used anywhere in `src/` or `tests/`; the existing async tests use `tokio::test` (the `tokio` proc-macro), which is unrelated. |
-| TD-021 | CLAUDE.md Rule 9 | `src/main.rs:191` calls `std::env::current_dir()` inside `resolve_configs()` to derive `engine_config_path`. This is the same daemonised/`/tmp` failure mode that already led to deprecating `find_data_dir`/`find_ui_dist_dir` (TD-014). Resolve `engine_config_path` from an explicit CLI flag/env var or a startup-time picker, not from the per-call cwd. |
-| TD-022 | Stale Code | `src/testing.rs:1037` and `src/testing.rs:1049` fall back to `data/parish.json` and `data/npcs.json` inside `handle_new_game_effect`. Game content has moved under `mods/rundale/` (CLAUDE.md "Rundale game content" map); the legacy `data/` paths cannot exist in a fresh checkout. Drop the dead fallback or replace it with a clear error. |
-| TD-023 | Stale Docs | `src/command_host.rs:13-17` documents the move-back idiom as `std::mem::replace(app, App::new())` + `Arc::try_unwrap(app_arc).expect("no clone").into_inner()`. The real call site at `src/headless.rs:599,610-612` uses `std::mem::take(app)` and `Arc::into_inner(app_arc).expect(...).into_inner()`. Update the doc example to match. |
-| TD-024 | Bug Risk | `src/debug.rs:377` sorts relationships with `b.1.strength.partial_cmp(&a.1.strength).unwrap()`. `Relationship::strength` is `f64`; a `NaN` value (e.g. from a corrupt save) panics the entire `/debug rels <name>` command. Use `unwrap_or(std::cmp::Ordering::Equal)` or `total_cmp`. |
-| TD-025 | Code Smell | `src/app.rs:310,320` panic with `panic!("Dialogue has no CategoryOverride")` from `category_override`/`category_override_mut`. The Dialogue branch is reachable through any `set_category_*` call that the public API exposes — only convention prevents misuse. Either narrow the input enum (e.g. `NonDialogueCategory`) so the panic is statically unreachable, or use `unreachable!` with a clearer rationale. |
-| TD-026 | Stale Docs | `README.md` (lines 13-17) lists "Key modules" as `main`, `app`, `headless`, `config`, `debug`/`testing`, but mis-describes `app` as "top-level startup and mode routing" (it's the shared `App` state) and omits the entire `command_host`, `emitter`, and `lib` modules. Refresh the module list to match `src/lib.rs`. |
-| TD-027 | Duplication | The `GameSnapshot::capture(&world, &npc_manager)` + `db.save_snapshot(branch_id, &snapshot)` pair is repeated 6+ times across `src/command_host.rs:97-98, 199-200, 221-224` and `src/testing.rs:809-811, 838-843, 882-886`, plus `src/headless.rs:636-638, 694-696, 740-741, 1669-1670`. Extract a shared `capture_and_save(db, &mut app)` helper (sync + async variants) so journal-clear and `last_autosave` bookkeeping stay in one place. |
-| TD-028 | Duplication | `src/headless.rs:719-736` (`handle_headless_new_game`) and `src/testing.rs:1028-1057` (`handle_new_game_effect`) both reload the active mod's world + NPCs and call `assign_tiers`. The mod-reload core (`world_state_from_mod` + `NpcManager::load_from_file` + `assign_tiers`) belongs in a shared helper instead of being copy-pasted across the headless and testing modes. |
-| TD-029 | Complexity | `stream_headless_npc_dialogue` (`src/headless.rs:757-907`, ~150 lines) reaches deep nesting around `src/headless.rs:800-888` (`match queue.send` → `Ok(rx)` → spawned task → `match rx.await` → `Ok(response)` → `else` arm → `if let Some(meta)` → ...). Split the response-handling arm into a `apply_npc_response` helper to flatten the control flow. |
-| TD-030 | Dead State | `App::idle_counter` (`src/app.rs:78,192,502`) is initialized to `0` and asserted in one test but never read or mutated anywhere. The headless idle messaging instead uses the file-scoped `HEADLESS_IDLE_COUNTER` `AtomicUsize` (`src/headless.rs:507,979`). Either delete the dead `App` field or migrate the headless counter onto `App` so the state lives in one place. |
-| TD-031 | CLI/Mode Parity | `src/main.rs:239-240` returns directly to `testing::run_script_mode()` before `load_game_mod()` runs, so `--game-mod` / `PARISH_MOD` are ignored in `--script` mode. `src/testing.rs:1678-1682` then builds the harness from `mods/mod-list.toml` instead of the explicit CLI mod. Pass the resolved mod into script mode or move script dispatch after mod resolution. |
-| TD-032 | Runtime Paths | `setup_tracing()` writes to cwd-relative `logs/` (`src/main.rs:115-116`). This has the same packaged/daemon `/tmp` failure mode as the deprecated cwd path probes; resolve the log directory from explicit config or the platform user-data root instead. |
-| TD-033 | Observability Bug Risk | `setup_tracing()` drops the `tracing_appender::non_blocking` `WorkerGuard` when the function returns (`src/main.rs:117`), so file logging may stop or fail to flush reliably. Return the guard to `main()` or store it for the process lifetime. |
-| TD-034 | Dead State / Stale Docs | `App` still carries UI/TUI-era fields with no repo references beyond initialization/tests (`src/app.rs:52,60,68-74,78,102`), while its doc comment says it is shared with Tauri (`src/app.rs:44-47`) even though Tauri has its own `AppState`. Audit `input_buffer`, `sidebar_visible`, `debug_*`, `idle_counter`, and `loading_animation`; delete dead fields or move real CLI-only state into a narrower type. |
-| TD-035 | Stale Rename References | Rename leftovers still refer to the old `parish-cli` / `parish` package identity inside this crate: `src/config.rs:381`, `src/headless.rs:190`, `tests/eval_baselines.rs:384`, `README.md:1`, and `README.md:7`. Refresh these alongside TD-026 so the crate docs match `Cargo.toml` (`package = "parish-engine"`, binary `parish-engine`). |
+*(none)*
 
 ## In Progress
 
@@ -48,3 +30,22 @@
 | TD-010 | Duplication | Extracted `load_and_restore_snapshot` (28 lines) shared by `restore_from_db` and `handle_headless_load` named-branch path. Removes inline duplicate of snapshot-load + replay + tier-assign. |
 | TD-011 | Duplication | Extracted `dispatch_headless_tier4_tick`, `dispatch_headless_tier3_tick`, and `dispatch_headless_tier2_tick` from the REPL loop, plus `dispatch_headless_weather`, `dispatch_headless_banshee`, and `dispatch_headless_autosave`. |
 | TD-012 | Complexity | Extracted `setup_tracing_and_otel`, `resolve_configs`, and `load_game_mod` from `main()` (172→40 lines). `resolve_configs` returns a single `ResolvedConfigs` struct. |
+| TD-019 | Stale Docs | Updated inline comment at `src/headless.rs:190` to reference `parish-engine/TODO.md` instead of stale `parish-cli/TODO.md` reference. |
+| TD-020 | Config/Cargo | Removed unused `tokio-test` dev-dependency from `Cargo.toml:34`; no crate code imports or macros from this package. |
+| TD-021 | CLAUDE.md Rule 9 | Replaced `std::env::current_dir()` call in `src/main.rs:191` with explicit `engine_config_path` resolved from CLI flag/env var at startup. |
+| TD-022 | Stale Code | Removed legacy `data/parish.json` and `data/npcs.json` fallback paths in `src/testing.rs`; game content now loaded exclusively from `mods/rundale/`. |
+| TD-023 | Stale Docs | Updated `src/command_host.rs:13-17` move-back idiom doc to match actual `std::mem::take` + `Arc::into_inner` usage at call sites. |
+| TD-024 | Bug Risk | Fixed `unwrap()` panic on NaN in relationship strength sorting at `src/debug.rs:377`; replaced with `unwrap_or(std::cmp::Ordering::Equal)`. |
+| TD-025 | Code Smell | Removed unreachable panics in `category_override` / `category_override_mut` at `src/app.rs:310,320`; methods now only accept `NonDialogueCategory`. |
+| TD-026 | Stale Docs | Refreshed `README.md` module list to match `src/lib.rs`, adding `command_host`, `emitter`, and `lib`; corrected `app` description. |
+| TD-027 | Duplication | Extracted `capture_and_save` helper for the repeated GameSnapshot-capture + db.save_snapshot pattern across `command_host`, `testing`, and `headless` modules. |
+| TD-028 | Duplication | Extracted `world_state_from_mod` + `load_npcs_and_assign_tiers` shared helper, deduplicating mod-reload logic between headless and testing new-game handlers. |
+| TD-029 | Complexity | Extracted `apply_npc_response` from `stream_headless_npc_dialogue`, flattening the deeply nested response-handling arm (~90 lines out of 150). |
+| TD-030 | Dead State | Removed unused `idle_counter` field from `App`; headless idle messaging already uses file-scoped `HEADLESS_IDLE_COUNTER` `AtomicUsize`. |
+| TD-031 | CLI/Mode Parity | Fixed `--game-mod` / `PARISH_MOD` being ignored in `--script` mode; script dispatch now occurs after mod resolution, passing the resolved mod to `run_script_mode`. |
+| TD-032 | Runtime Paths | `setup_tracing()` log directory now resolved from platform user-data root (`resolve_user_data_dir`) instead of CWD-relative `logs/`. |
+| TD-033 | Observability Bug Risk | `setup_tracing()` now returns the `WorkerGuard` to `main()` for process-lifetime retention, preventing premature log flush. |
+| TD-034 | Dead State / Stale Docs | Audited `App` state fields; removed dead `input_buffer`, `sidebar_visible`, `debug_*`, `idle_counter`, and `loading_animation` fields; updated doc comment to reflect CLI-only usage. |
+| TD-035 | Stale Rename References | Refreshed all `parish-cli` / `parish` rename leftovers in `config.rs`, `headless.rs`, `eval_baselines.rs`, and `README.md` to use `parish-engine`. |
+
+(End of file - total 53 lines)
