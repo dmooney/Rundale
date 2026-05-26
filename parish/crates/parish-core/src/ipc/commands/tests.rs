@@ -29,6 +29,54 @@ fn resume_command() {
 }
 
 #[test]
+fn redundant_pause_is_silent_no_edge() {
+    // TODO #6 / #31: a second /pause while already paused must not re-emit the
+    // "stand still" line. The clock stays paused; the response is empty.
+    let (mut world, mut npc, mut config) = default_state();
+    let first = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    assert!(first.response.contains("stand still"));
+    assert!(world.clock.is_paused());
+
+    let second = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    assert!(
+        second.response.is_empty(),
+        "redundant pause must emit no text; got {:?}",
+        second.response
+    );
+    assert!(world.clock.is_paused());
+}
+
+#[test]
+fn redundant_resume_is_silent_no_edge() {
+    // TODO #6 / #31: /resume while already running must not emit "stirs again".
+    // This is the back-to-back duplicate the demo audit captured.
+    let (mut world, mut npc, mut config) = default_state();
+    assert!(!world.clock.is_paused());
+    let result = handle_command(Command::Resume, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.is_empty(),
+        "redundant resume must emit no text; got {:?}",
+        result.response
+    );
+    assert!(!world.clock.is_paused());
+}
+
+#[test]
+fn pause_resume_sequence_emits_each_edge_once() {
+    // /pause /pause /resume /resume → exactly one edge message each direction.
+    let (mut world, mut npc, mut config) = default_state();
+    let p1 = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    let p2 = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    let r1 = handle_command(Command::Resume, &mut world, &mut npc, &mut config);
+    let r2 = handle_command(Command::Resume, &mut world, &mut npc, &mut config);
+    assert!(p1.response.contains("stand still"));
+    assert!(p2.response.is_empty());
+    assert!(r1.response.contains("stirs again"));
+    assert!(r2.response.is_empty());
+    assert!(!world.clock.is_paused());
+}
+
+#[test]
 fn status_command() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(Command::Status, &mut world, &mut npc, &mut config);
