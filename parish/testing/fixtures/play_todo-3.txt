@@ -1,0 +1,14 @@
+# TODO #3 / #20 — mood→emoji miscategorises `bitter` and `sharp`
+# ==============================================================
+# mood_emoji() had no arm for `bitter` or `sharp`, so both fell through to the
+# 🙂 fallback. Sean Ruadh Kelly (mood `bitter`) and Peig Hannigan (mood `sharp`)
+# are shipped in mods/rundale/npcs.json with exactly those moods.
+#
+# `/debug npcs` lists every NPC with `Mood: <emoji> <label>`. After the fix,
+# Sean Ruadh Kelly must render with 😒 and Peig Hannigan with 😤 — never 🙂.
+#
+# mood.rs is not in the live-proof tier list, so this transcript is regression
+# cover; the behavioural assertions live in parish-npc mood unit tests.
+
+/status
+/debug npcs
