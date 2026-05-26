@@ -782,11 +782,11 @@ pub fn prepare_npc_conversation_turn(
     language: &LanguageSettings,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
-    // Capture introduced state BEFORE marking — the dialogue context
-    // builder needs to know whether this is the first turn (no anchor)
-    // or a follow-up (anchor forbids reciting full name + occupation).
-    // TODO #39 (mid-reply self-introduction): mark_introduced makes
-    // is_introduced unconditionally true from this point on.
+    // Capture introduced state BEFORE marking. The dialogue context builder
+    // uses was_introduced to decide: first turn (no anchor, NPC introduces
+    // themselves naturally) vs follow-up (anchor injected, forbids mid-reply
+    // self-recitation). mark_introduced is called before the context builder
+    // so display_name returns the real name, not the anonymous description.
     let was_introduced = npc_manager.is_introduced(speaker_id);
     // Mark NPC as introduced before computing display_name so first conversation
     // shows their name, not their anonymous description.

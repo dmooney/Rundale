@@ -14,8 +14,6 @@
 
 pub mod format;
 pub mod live_reload;
-#[cfg(test)]
-mod maintenance_tool;
 pub mod mod_io;
 pub mod persist;
 pub mod save_inspect;
