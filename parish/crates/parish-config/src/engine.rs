@@ -455,10 +455,20 @@ fn default_memory_context_count() -> usize {
     5
 }
 fn default_memory_truncation_dialogue() -> usize {
-    250
+    // TODO #7: 250 trimmed in-spec replies mid-sentence in the
+    // recent-events buffer fed to subsequent NPC turns. After the
+    // round-22 repetition_penalty fix, Tier 1 replies stabilise
+    // around 400–600 chars; 600 keeps them intact so downstream
+    // NPCs read the full prior dialogue, and only degenerate-loop
+    // outliers clip.
+    600
 }
 fn default_memory_truncation_event_log() -> usize {
-    150
+    // TODO #7: 150 was too tight given the dialogue cap raise.
+    // 300 leaves headroom for the outer
+    // `"{speaker} said: '{input}'. Responded: {dialogue}"` wrapper
+    // around the now-larger dialogue body without double-clipping.
+    300
 }
 fn default_event_summary_truncation() -> usize {
     100
