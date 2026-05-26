@@ -264,6 +264,14 @@ impl LocationLogManager {
                 let heading = format!("Dialogue with {}", npc.name);
                 append_journal_entry(&path, ts, Some(&heading), &body)?;
             }
+            GameEvent::AddressedAbsentNpc { name, location, .. } => {
+                let Some(path) = path_for(*location) else {
+                    return Ok(());
+                };
+                let heading = format!("Missed introduction: {}", name);
+                let body = format!("*The player called for {} — not present.*\n", name);
+                append_journal_entry(&path, ts, Some(&heading), &body)?;
+            }
             GameEvent::WeatherChanged { new_weather, .. } => {
                 // Weather is world-wide — every location experiences the
                 // same shift. Log to every location's journal so the
@@ -1092,6 +1100,40 @@ mod tests {
             contents.contains("*the landlord raised the rent again*"),
             "location log missing gossip body: {}",
             contents,
+        );
+    }
+
+    #[test]
+    fn addressed_absent_npc_event_writes_to_location_log() {
+        // F9 / #1135: location-log captures the moment the player
+        // called for someone who wasn't there.
+        let tmp = tempfile::tempdir().unwrap();
+        let world = make_world_two_locations();
+        let npcs = NpcManager::new();
+        let mgr = LocationLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::AddressedAbsentNpc {
+            name: "Mrs. Hannigan".to_string(),
+            location: LocationId(2),
+            timestamp: ts(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let path = mgr.location_log_path(world.graph.get(LocationId(2)).unwrap());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            contents.contains("Missed introduction: Mrs. Hannigan"),
+            "missing heading: {}",
+            contents,
+        );
+        // Other location's log must NOT pick up the entry — the event
+        // belongs to the location the player was in.
+        let other = mgr.location_log_path(world.graph.get(LocationId(1)).unwrap());
+        let other_contents = std::fs::read_to_string(&other).unwrap();
+        assert!(
+            !other_contents.contains("Mrs. Hannigan"),
+            "missed-introduction leaked to wrong location: {}",
+            other_contents,
         );
     }
 
