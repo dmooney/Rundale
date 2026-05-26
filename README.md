@@ -57,7 +57,7 @@ Shared rule: **mode parity**. Every gameplay feature behaves identically across 
 
 - **Location graph** with fuzzy (Jaro-Winkler) name resolution, prose-described edges, and per-edge traversal counts that drive a "worn paths" map visualization.
 - **Hybrid geography**: locations can be real-world (geocoded from OSM), author-pinned, or fully fictional, with relative anchors that let fictional clusters subordinate to a real place.
-- **Game clock** with seven time-of-day phases (Midnight → Evening) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
+- **Game clock** with seven time-of-day phases (Midnight → Night) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
 - **Four seasons** with seasonal NPC schedules, weather biases, and Tier 4 life-event rates.
 - **Weather state machine** — seven states (Clear → PartlyCloudy → Overcast → LightRain → HeavyRain → Storm, plus Fog), adjacent-state-only transitions, 2-hour minimum dwell, season-biased probabilities. NPCs seek shelter in heavy rain.
 - **Weather-gated travel** — hazard-tagged routes can become impassable in storms or slower in heavy rain and fog, with alternate-route pathfinding where available.
@@ -83,7 +83,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### LLM inference
 
-- **14 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
+- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, and others.) On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
 - **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
