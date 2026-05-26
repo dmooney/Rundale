@@ -2471,6 +2471,17 @@ Respond with a JSON object containing a single field \"action\" — the text the
 would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
 words or command directly.\n\
 \n\
+NO NARRATION (TODO #47): The engine has no narrative parser. Do NOT describe what \
+you are doing in past tense, third person, or participial style. Inputs like \
+\"Walking up to the cabin, I knock gently on the door\", \"Sittin' here, I \
+notice a book half-open on the table\", or \"I'll take a seat on the bench\" \
+vanish into the dialogue path and produce no game-state change. Legal action \
+shapes are: (a) spoken dialogue in first-person present tense (\"Good \
+mornin'. Have ye news from the road?\"), (b) movement commands (\"go to The \
+Mill\"), or (c) a bare command verb the engine recognises (\"look\"). If you \
+want to do something physical, say what you would say aloud — never narrate \
+the action.\n\
+\n\
 Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
 \"Recent events\" block of the user prompt, pick a different action — try a different \
 greeting, ask a different question, or travel somewhere new. The location description \
@@ -2759,6 +2770,35 @@ mod demo_tests {
             "system prompt must distinguish movement commands from \
              dialogue so the model emits bare 'go to X' rather than \
              wrapping it in a spoken line:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_narrative_action_style() {
+        // TODO #47: cycle 9 caught 8/18 turns in narrative form
+        // ("Walking up to the cabin, I knock gently on the door";
+        // "Sittin' here, I notice a book half-open on the table";
+        // "I'll take a seat on the bench") — all silently dropped by
+        // the engine. The prompt must (a) name the failure mode, (b)
+        // cite at least one concrete negative example so the model
+        // pattern-matches, and (c) enumerate the legal action shapes.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("NO NARRATION"),
+            "system prompt missing no-narration header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Walking up to the cabin"),
+            "system prompt missing participial-narration negative example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("vanish into the dialogue path"),
+            "system prompt must spell out the engine's failure mode so the \
+             model has a reason to obey:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Legal action shapes are"),
+            "system prompt must enumerate the legal action shapes:\n{prompt}"
         );
     }
 
