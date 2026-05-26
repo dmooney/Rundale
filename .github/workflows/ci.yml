@@ -152,7 +152,7 @@ jobs:
           tool: cargo-llvm-cov,cargo-nextest
 
       - name: Enforce coverage floor
-        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --html --json --output-dir target/coverage --fail-under-lines 60.8
+        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --fail-under-lines 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
