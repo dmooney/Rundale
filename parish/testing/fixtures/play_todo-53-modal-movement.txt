@@ -1,0 +1,10 @@
+# Live-proof fixture for TODO #53 — modal first-person movement
+# patterns ("Might I venture to X", "I shall go to X").
+#
+# Fix lives in parish-input/src/intent_local.rs — extends move_phrases
+# with twelve modal prefix patterns. The harness pipes the modal forms
+# through the engine; the engine should respond with result:"moved".
+
+Might I venture to The Mill
+I shall go to Kilteevan Village
+look
