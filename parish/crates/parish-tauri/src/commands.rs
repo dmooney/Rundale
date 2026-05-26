@@ -2490,6 +2490,13 @@ is the correct shape: the engine parses these as movement, not dialogue. If \
 you have visited only one location in the last 5 turns, your next action \
 should be a movement command.\n\
 \n\
+WHEN ALONE (TODO #12): If the user prompt's status block contains the line \
+\"NPCs here: none\", there is nobody to hear you. Do NOT speak, ask questions, \
+roleplay knocking on doors, or wait around. Your ONLY useful action at an \
+empty location is to move. Pick a destination from the \"You can go to: ...\" \
+line and emit a bare movement command (\"go to X\" / \"walk to X\" / \"head \
+to X\"). Speaking at an empty location burns a turn and accomplishes nothing.\n\
+\n\
 Examples:\n\
   {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
@@ -2759,6 +2766,34 @@ mod demo_tests {
             "system prompt must distinguish movement commands from \
              dialogue so the model emits bare 'go to X' rather than \
              wrapping it in a spoken line:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_carries_alone_move_directive() {
+        // TODO #12: 4-turn / 18-turn empty-location strandings observed in
+        // cycles 2, 7, and 9 of the demo audit. When the user prompt shows
+        // "NPCs here: none", the LLM-as-player kept speaking aloud instead of
+        // moving. The prompt must (a) name the empty-location header so the
+        // model can pattern-match against the user prompt, (b) reference the
+        // literal "NPCs here: none" cue, and (c) instruct the model to emit a
+        // bare movement command rather than dialogue.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("WHEN ALONE"),
+            "system prompt missing alone-at-location header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("NPCs here: none"),
+            "system prompt must cite the verbatim empty-location cue:\n{prompt}"
+        );
+        assert!(
+            prompt.contains(
+                "ONLY useful action at an \
+empty location is to move"
+            ),
+            "system prompt must direct the model to move at an empty \
+             location:\n{prompt}"
         );
     }
 
