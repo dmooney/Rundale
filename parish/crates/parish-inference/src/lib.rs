@@ -1427,6 +1427,10 @@ mod tests {
     /// accidentally pick up the Tier 1 sampling override.
     #[tokio::test]
     async fn test_inference_queue_send_default_omits_frequency_penalty() {
+        // Send into the Interactive lane and receive on `irx` so the
+        // request actually surfaces. The original Background-into-irx
+        // mismatch hung this test forever and stalled CI's quality
+        // gate at the 30-minute timeout (#1127 follow-up).
         let (queue, mut irx, _brx, _batrx) = make_queue();
         let _rx = queue
             .send(
@@ -1437,7 +1441,7 @@ mod tests {
                 None,
                 None,
                 None,
-                InferencePriority::Background,
+                InferencePriority::Interactive,
                 false,
             )
             .await
