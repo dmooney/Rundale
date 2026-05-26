@@ -41,6 +41,7 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 - Per-edge travel time computed from lat/lon distance
 - **Transport modes:** walk vs. horse/cart — configurable travel speeds per mode, surfaced into travel-time calculations
 - **Travel encounters:** time-of-day-weighted en-route encounters with ~20% base probability modulated by time of day, mod-driven flavour text in `encounters.json` keyed by time period
+- **Wayfarers** — traveling NPCs randomly encountered on roads during movement. Each encounter resolves through the wayfarer system (`parish-world/src/wayfarers.rs`): an encounter is selected, an enrichment prompt is built for the LLM, and the wayfarer's dialogue is integrated into the travel narrative. Seed-based for reproducibility.
 
 ### Festivals
 - Four traditional Irish calendar festivals, data-driven from mod files:
@@ -121,6 +122,18 @@ Profile dimensions are translated into behavioral directives and injected into t
 - **Bystander propagation** — Tier 2 NPCs at the same location overhear conversations and propagate what they hear to their own contacts
 - Gossip state is tracked in the debug panel's Gossip tab
 
+### Death & The Banshee
+
+NPCs can die through Tier 4 life events (illness, old age, accident). When death is scheduled, a **banshee herald** is triggered:
+
+- Doom is scheduled with a configurable lead time (`DOOM_LEAD_TIME_HOURS`) during which the NPC remains alive
+- Keening wails are emitted to the world text log during the dusk-to-dawn window on a random night within the lead-time period
+- Players who are outdoors or near a window may hear the cry; the NPC themselves never hears it
+- On the final tick, the NPC dies and an epitaph line is generated
+- Integrated across all three runtimes (Tauri, server, headless)
+
+Controlled by the `banshee` feature flag (default-on). NPCs carry a `banshee_heralded: bool` field to prevent double-triggering.
+
 ### Anachronism Detection
 - Scans player input for words and concepts that post-date 1820
 - Categories: Technology, Slang, Concepts, Materials, Measurements
@@ -195,6 +208,7 @@ Known engine flags (all **default-on**; disable to opt out):
   Disable to skip the wizard entirely and force startup to use
   whatever `PARISH_*` env vars / `parish.toml` already configure.
 - `night-visions` (planned) — see `docs/design/ideas/night-visions.md`.
+- `banshee` — banshee death-herald system: keening cries announce impending NPC death during dusk-to-dawn windows (see Death & The Banshee).
 
 Flags documented in plans but not yet implemented:
 - `inference-rejection-sampler` — planned (see `docs/plans/gemma4-rundale-training-plan.md`).
@@ -210,6 +224,7 @@ Opt-in engine flags (**default-off**; `/flag enable <name>` to turn on):
 - `/provider [name]` — Show or set the base LLM provider
 - `/model [name]` — Show or set the base model
 - `/key [value]` — Show or set the base API key
+- `/preset <name>` — Apply a pre-configured provider stack (e.g. `/preset nvidia-nim` loads a Nemotron 3 triple: Super 120B for Dialogue, Nano 30B for Intent, Nano 9B for Simulation). Presets are defined in provider TOMLs; new ones can be added by mods.
 
 **Provider Configuration (cloud, legacy subcommand form):**
 - `/cloud` — Show cloud provider config
@@ -275,6 +290,8 @@ Categories are `dialogue`, `simulation`, `intent`, or `reaction`.
 | **NVIDIA NIM** | Cloud | OpenAI-compatible; ships with a Nemotron 3 Super 120B / Nemotron 3 Nano 30B / Nemotron Nano 9B preset triple via `/preset nvidia-nim` |
 | **Custom** | User-provided | Any OpenAI-compatible endpoint |
 
+20 additional providers are available via mod-loaded configurations under `mods/` — including Cohere, GitHub Models, Qwen, Zhipu (智谱), Moonshot, Scaleway, SiliconFlow, Vercel AI, and more. Each ships as a `kind = "providers"` mod manifest with a single provider TOML file. See `mods/AGENTS.md` for the full list.
+
 ### Inference Categories
 Four independent inference categories, each with its own provider/model/key override:
 - **Dialogue** — NPC conversations with the player
@@ -328,6 +345,33 @@ Five-layer defense against prompt injection:
   - <11 GB → `gemma4:e2b` (edge, 2.3B effective)
 - Auto-pulls models not already cached; warmup before gameplay begins
 
+### BYOK Setup / First-Run Onboarding
+
+On first launch (or when no inference provider is configured), the engine presents a **SetupOverlay** fork screen:
+
+- **Local inference path** — downloads bundled Qwen2.5 weights for vllm-mlx on macOS (16 GB+ unified memory), or auto-installs Ollama on Linux/Windows
+- **BYOK cloud path** — configure any supported cloud provider with your own API key
+
+The BYOK flow is driven by two tools:
+
+- `parish_setup_status` — reads current setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`
+- `parish_setup_byok` — persists a provider config (provider id, API key, optional base URL / model override) and rebuilds the live inference worker
+
+API keys are stored in the **OS keychain** via the `SecretStore` trait (using the `keyring` crate), never in plaintext config files. `parish.toml` explicitly excludes the `api_key` field — secrets and config are deliberately separated. The `local-inference-onboarding` feature flag (default-on) controls whether the wizard appears; disable to skip it entirely and force startup to use whatever `PARISH_*` env vars or `parish.toml` already configure.
+
+In the GUI, the onboarding flow renders as a **SetupOverlay** component with a fork UX (`ByokOnboarding.svelte`, `LocalInferenceFork.svelte`), live weight-download progress with a triquetra spinner SVG, and streaming setup-message updates. In server mode, the equivalent HTTP endpoints are `/api/setup-status` and `/api/submit-byok`.
+
+### Packaged macOS Bundle
+
+For a shippable `.app` that runs with zero Python or vllm-mlx setup on the end user's machine:
+
+- `just build-vllm-mlx-bundle` (~5 min, ~360 MB compressed) materializes a relocatable Python runtime at `parish/dist/vllm-mlx/python-runtime/` with vllm-mlx pip-installed via `python-build-standalone` — no venv (absolute paths would break when the bundle moves)
+- `cargo tauri build` includes the bundle under `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`
+- On first launch, the app detects the bundle, recommends local inference for Macs with ≥16 GB unified memory, and downloads Qwen2.5 weights with a live progress bar
+- CI: `.github/workflows/build-vllm-mlx-bundle.yml` (manual trigger)
+
+For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime falls through to a `PATH`-installed vllm-mlx (`uv tool install vllm-mlx`).
+
 ### Inference Logging
 - Ring buffer of recent LLM calls (configurable capacity, default 50)
 - Logs prompt, response, model, timing, streaming flag, and error status
@@ -375,8 +419,7 @@ Five-layer defense against prompt injection:
 ### Theme System
 - **Three themes** selectable with `/theme`: cream/parchment (default), Solarized Light, Solarized Dark
 - Driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette
-- Time-of-day color theming with smooth RGB gradient interpolation
-- CSS custom properties driven by Rust theme-tick events
+- Time-of-day color theming applies smooth RGB gradient interpolation between the current time phase's palette and the next, driven by Rust theme-tick events that push CSS custom properties to the frontend. Transitions are continuous — the chat background, NPC name colors, and status bar all shift gradually as game-time advances through morning, afternoon, evening, and night.
 - Mod-configurable accent color
 
 ### Save Picker
@@ -407,7 +450,26 @@ Five-layer defense against prompt injection:
 - Auto-disabled during NPC streaming responses
 - Auto-refocus when streaming stops
 
+### Demo / Auto-Play Mode
+
+A hands-free auto-player that drives NPC conversations at a configurable pace:
+
+- Invoke via `just demo <pause> <turns>` (e.g. `just demo 3 50` for 3-second pauses, 50 turns)
+- The auto-player selects NPCs, issues `/talk` commands, and advances through conversation turns
+- UI includes a `DemoBanner` and `DemoPanel` overlay showing current turn and remaining count
+- Toggle with F11
+- Use cases: smoke testing, quality assessment, capturing proof transcripts
+
+### Screenshot Capture
+
+- Press **F2** to capture a screenshot of the current game view
+- Screenshots are saved to the platform-appropriate pictures directory
+- The MCP tool `parish_latest_screenshot` returns metadata (path, timestamp, size) for the most recent player-triggered capture
+- Server endpoints: `/api/take-screenshot` and `/api/latest-screenshot`
+- Automated screenshot capture via `--screenshot <dir>` flag: captures at four times of day for use in `just screenshots`
+
 ### Keyboard Shortcuts
+- **F2** — capture screenshot
 - **F5** — open save picker / save game
 - **F12** — toggle debug panel
 - **M** — toggle full-screen map overlay
@@ -433,6 +495,16 @@ Five-layer defense against prompt injection:
 - WCAG-AA contrast compliance across all three theme variants
 - Full keyboard navigation with Esc as a reliable dismiss action
 
+### Ambient Sound
+
+Location-based ambient audio with distance attenuation and weather dampening:
+
+- Each location can specify ambient sounds (birdsong, rain, wind, village bustle, church bells) with per-audio volume and loop configuration
+- Volume attenuates with distance from the player's current location
+- Weather states (rain, storm) add dampening and overlay effects
+- Playback via `rodio`; feature-gated for GUI-only (Tauri desktop app)
+- See ADR-015 for the full design rationale
+
 ---
 
 ## Web Server
@@ -441,6 +513,7 @@ Five-layer defense against prompt injection:
 - `parish-server` crate (`crates/parish-server/`) serves the same Svelte UI over HTTP + WebSocket
 - One isolated engine session per `parish_sid` cookie — each browser tab gets its own game instance
 - Library crate plus a runnable binary with `--port PORT` flag (default 3001)
+- **Tile proxy** at `/tiles/{*path}` with a 3-tier cache: user-local disk cache (configurable via `PARISH_TILE_CACHE_DIR`), bundled tiles shipped with the app (`PARISH_BUNDLED_TILES_DIR`), and upstream fetch from tile servers as the final fallback. Tiles are served as XYZ slippy-map fragments for MapLibre GL.
 
 ### Authentication
 - **Cloudflare Access JWT** — validates CF Access tokens in production deployments
@@ -452,6 +525,7 @@ Five-layer defense against prompt injection:
 - World state updates pushed to the client in real time (location changes, time advances, weather shifts)
 - Streaming inference tokens delivered word-by-word over the socket
 - Theme changes and map source switches propagated instantly
+- Connection resilience — per-session backpressure, reconnect loop avoidance with jittered retry, and admission control (rate limiting per connecting IP)
 
 ### Session & Persistence
 - Per-session save isolation — game state lives under `<user-data>/saves/<session_id>/` and survives server restarts
@@ -512,7 +586,8 @@ mods/<mod-name>/
 ├── loading.toml          # Spinner animation frames, colors, and loading phrases
 ├── ui.toml               # Sidebar labels, accent color
 ├── pronunciations.json   # Name pronunciation hints (Irish names to phonetic guides)
-└── transport.toml        # Transport configuration
+├── transport.toml        # Transport configuration
+└── fonts/                # Typeface registry for UI customization (monospace for tabular output, body text for dialogue)
 ```
 
 ### world.json Location Fields
@@ -539,7 +614,7 @@ Parish ships as five binaries with one shared engine core:
 
 | Binary | Mode | Has engine in-process? | Description |
 |--------|------|------------------------|-------------|
-| `parish-tauri` | `just run` | yes | Default desktop experience — full GUI in a native window |
+| `parish-tauri` | `just run`, `--screenshot <dir>` | yes | Default desktop experience — full GUI in a native window; `--screenshot` captures at four times of day |
 | `parish-engine` | `--headless`, `--script FILE` | yes | Single-process terminal REPL; `--script` drives the deterministic test harness |
 | `parish-server` | `--port PORT` (`just web`) | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI over HTTP + WebSocket |
 | `parish-client` | single-shot / script / REPL / `--json` | no — thin shell | Drive a running `parish-server` over HTTP; lightweight terminal alternative |
@@ -547,6 +622,14 @@ Parish ships as five binaries with one shared engine core:
 
 ### Mode Parity Rule
 Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring. A given feature's behavior cannot diverge between runtimes.
+
+### MCP Bridge
+
+The desktop app (`parish-tauri`) can expose an in-process MCP bridge via `--mcp-port <N>`. This opens an Axum router on `127.0.0.1:<N>` that serves a subset of game endpoints (world snapshot, submit input, save/load, setup, screenshot) to the external `parish-mcp` binary. The bridge enforces mode parity — every Tauri IPC command that has an MCP counterpart is verified at compile time.
+
+- `parish-mcp` connects to the bridge over HTTP and registers itself as an MCP server for AI agents (Claude Code, etc.)
+- The same bridge is used by `parish/scripts/parish-mcp-backend.sh` for the headless server path
+- Bridge endpoints: world snapshot, map, NPCs, save state, submit input, new game, save/load branch, setup status, setup BYOK, latest screenshot
 
 ---
 
@@ -566,6 +649,18 @@ Every gameplay feature behaves identically across Tauri, headless, and web. Shar
 - Batch-elaborate backstories with an LLM (pass an NPC set through inference for richer detail)
 - Validate referential integrity across the entire NPC set
 - Export and import JSON
+
+### rundale-bench (LLM Benchmark)
+
+A reproducible, self-contained LLM benchmark for evaluating model quality against Rundale's dialogue demands:
+
+- **Four evaluation slices:** dialogue quality, intent classification, reaction generation, NPC simulation
+- **Pinned-judge contract:** rubric prompts are SHA-256 hashed and verified before scoring to prevent drift
+- **ELO pairwise scoring** (K=32 → K=16 after 50 matches per candidate, bootstrap 5/95 CI via 500 i.i.d. match resamples) alongside absolute multi-axis 0-10 scoring
+- **Live leaderboard** at [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) with per-slice scores, per-provider perf matrix, and verbatim judge prompts
+- **Reproducible harness:** `rundale-bench/rundale_bench.py` single-entry orchestrator with a v1-dev dataset (155 prompts, growing to 1100)
+- **Local MLX sweep:** `local_runner.py` spawns `mlx_lm.server` per candidate and runs the full bench, appending rows to the local leaderboard
+- Status: v1-dev — structurally complete but dataset frozen tag (`v1.0`) waits for corpus growth and three independently-evaluated targets on the holdout split
 
 ### Script Harness
 - `.txt` fixtures in `testing/fixtures/` drive the engine through scripted scenes
@@ -590,6 +685,9 @@ Every gameplay feature behaves identically across Tauri, headless, and web. Shar
 - `justfile` with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`
 - Witness-marker scan (`just witness-scan`) — rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files
 - Doc-path validator (`just check-doc-paths`) — ensures every backtick-cited file path in `docs/` actually exists
+- `just setup` — one-time recipe installing system dependencies, Rust toolchain, Node.js v20+, and frontend packages
+- `just act-*` recipes for running CI workflows locally via `nektos/act`
+- `just reset-onboarding` — clears keychain entries and config markers for end-to-end testing of the BYOK flow
 
 ### Frontend Test Stack
 - **Vitest** unit tests with `@testing-library/svelte` (22 tests)
