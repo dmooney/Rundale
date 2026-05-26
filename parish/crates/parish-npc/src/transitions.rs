@@ -147,7 +147,11 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         // recap-summary path that this function feeds. Including it here
         // would replay the source NPC's own dialogue summary back into
         // their context inflation (#1110 gemini review).
+        // AddressedAbsentNpc is informational for log writers; the
+        // named NPC is by definition not present, so it doesn't feed
+        // any NPC's context inflation.
         GameEvent::GossipSpread { .. }
+        | GameEvent::AddressedAbsentNpc { .. }
         | GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
         | GameEvent::PlayerMoved { .. } => false,
@@ -187,6 +191,7 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
         // GossipSpread does not feed any NPC's context inflation
         // (see `event_involves_npc`); empty string keeps callers honest.
         GameEvent::GossipSpread { .. } => String::new(),
+        GameEvent::AddressedAbsentNpc { .. } => String::new(),
         GameEvent::LifeEvent { description, .. } => {
             format!("Experienced: {description}")
         }

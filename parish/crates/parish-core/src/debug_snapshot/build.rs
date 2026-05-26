@@ -212,6 +212,9 @@ pub(crate) fn build_event_bus_debug(
                     loc_of(*location),
                     content
                 ),
+                GameEvent::AddressedAbsentNpc { name, location, .. } => {
+                    format!("Addressed absent: {} @ {}", name, loc_of(*location))
+                }
                 GameEvent::WeatherChanged { new_weather, .. } => {
                     format!("Weather: {}", new_weather)
                 }

@@ -280,6 +280,7 @@ impl ChatTranscriptLog {
             | GameEvent::NpcDeparted { .. }
             | GameEvent::NpcActivity { .. }
             | GameEvent::GossipSpread { .. }
+            | GameEvent::AddressedAbsentNpc { .. }
             | GameEvent::LifeEvent { .. } => {}
         }
     }

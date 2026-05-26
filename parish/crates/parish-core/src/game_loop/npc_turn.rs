@@ -536,12 +536,27 @@ pub async fn handle_npc_conversation(
     // (#985). Emit one "{name} is not here." line per absent target. This
     // must fire before the LLM-not-configured short-circuit so the player
     // gets useful feedback even when no inference provider is set.
-    for name in &absent {
-        ctx.emitter.emit_event(
-            "text-log",
-            serde_json::to_value(text_log("system", format!("{name} is not here.")))
-                .unwrap_or(serde_json::Value::Null),
-        );
+    //
+    // Also publish a `GameEvent::AddressedAbsentNpc` so character + location
+    // log writers capture the missed introduction in the persisted
+    // markdown — the UI text-log emission alone is ephemeral (#1135 / F9).
+    if !absent.is_empty() {
+        let world = ctx.world.lock().await;
+        let now = world.clock.now();
+        for name in &absent {
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log("system", format!("{name} is not here.")))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+            world
+                .event_bus
+                .publish(parish_types::GameEvent::AddressedAbsentNpc {
+                    name: name.clone(),
+                    location: player_location,
+                    timestamp: now,
+                });
+        }
     }
 
     if targets.is_empty() {
