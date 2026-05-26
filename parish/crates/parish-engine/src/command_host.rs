@@ -10,11 +10,13 @@
 //! an `Arc<Mutex<App>>`, calls the shared dispatcher, then moves it back out:
 //!
 //! ```rust,ignore
-//! let app_val = std::mem::replace(app, App::new());
+//! let app_val = std::mem::take(app);
 //! let app_arc = Arc::new(tokio::sync::Mutex::new(app_val));
 //! let host = CliCommandHost::new(Arc::clone(&app_arc));
-//! let should_quit = parish_core::game_loop::handle_system_command(&host, cmd).await;
-//! *app = Arc::try_unwrap(app_arc).expect("no clone").into_inner();
+//! let _ = parish_core::game_loop::handle_system_command(&host, cmd).await;
+//! *app = Arc::into_inner(app_arc)
+//!     .expect("CliCommandHost dropped: Arc should have exactly 1 reference")
+//!     .into_inner();
 //! ```
 //!
 //! # Mode-parity
@@ -93,15 +95,11 @@ impl SystemCommandHost for CliCommandHost {
         Box::pin(async move {
             // Autosave before quitting.
             let mut app = self.app.lock().await;
-            if let Some(ref db) = app.db {
-                let snapshot = GameSnapshot::capture(&app.world, &app.npc_manager);
-                match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                    Ok(snap_id) => {
-                        app.latest_snapshot_id = snap_id;
-                        println!("Saved and farewell.");
-                    }
-                    Err(e) => eprintln!("Warning: Failed to save on quit: {}", e),
-                }
+            let branch_id = app.active_branch_id;
+            if app.capture_and_save_async(branch_id).await.is_some() {
+                println!("Saved and farewell.");
+            } else if app.db.is_some() {
+                eprintln!("Warning: Failed to save on quit.");
             }
             app.should_quit = true;
         })
@@ -195,21 +193,17 @@ impl SystemCommandHost for CliCommandHost {
     fn save_game(&self) -> BoxFuture<'_, String> {
         Box::pin(async move {
             let mut app = self.app.lock().await;
-            if let Some(ref db) = app.db {
-                let snapshot = GameSnapshot::capture(&app.world, &app.npc_manager);
-                match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                    Ok(snap_id) => {
-                        let _ = db
-                            .clear_journal(app.active_branch_id, app.latest_snapshot_id)
-                            .await;
-                        app.latest_snapshot_id = snap_id;
-                        app.last_autosave = Some(std::time::Instant::now());
-                        "Game saved.".to_string()
+            let old_snap = app.latest_snapshot_id;
+            let branch_id = app.active_branch_id;
+            match app.capture_and_save_async(branch_id).await {
+                Some(_) => {
+                    if let Some(ref db) = app.db {
+                        let _ = db.clear_journal(branch_id, old_snap).await;
                     }
-                    Err(e) => format!("Failed to save: {}", e),
+                    "Game saved.".to_string()
                 }
-            } else {
-                "Persistence not available.".to_string()
+                None if app.db.is_some() => "Failed to save.".to_string(),
+                None => "Persistence not available.".to_string(),
             }
         })
     }
@@ -217,10 +211,12 @@ impl SystemCommandHost for CliCommandHost {
     fn fork_branch(&self, name: String) -> BoxFuture<'_, String> {
         Box::pin(async move {
             let mut app = self.app.lock().await;
-            if let Some(ref db) = app.db {
+            let branch_id = app.active_branch_id;
+            if app.db.is_some() {
                 let snapshot = GameSnapshot::capture(&app.world, &app.npc_manager);
-                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-                match db.create_branch(&name, Some(app.active_branch_id)).await {
+                let _ = app.capture_and_save_async(branch_id).await;
+                let db = app.db.as_ref().unwrap();
+                match db.create_branch(&name, Some(branch_id)).await {
                     Ok(new_branch_id) => match db.save_snapshot(new_branch_id, &snapshot).await {
                         Ok(snap_id) => {
                             app.active_branch_id = new_branch_id;

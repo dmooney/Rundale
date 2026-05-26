@@ -381,7 +381,7 @@ fn rubric_tier4_events_appear_in_journal() {
         "test_tier4_far_npcs: tier4 tick should have fired after advancing \
          {MINUTES_TO_LUGHNASA} game-minutes (~134 days to Lughnasa).\n\
          FIX: check NpcManager::needs_tier4_tick and GameTestHarness::advance_time \
-         in parish/crates/parish-cli/src/testing.rs.\n\
+         in parish/crates/parish-engine/src/testing.rs.\n\
          Tier 4 NPC count at test start: {tier4_count_before}."
     );
 

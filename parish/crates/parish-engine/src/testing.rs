@@ -23,7 +23,7 @@ use crate::npc::manager::NpcManager;
 use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::time::{Season, TimeOfDay};
-use crate::world::{DEFAULT_START_LOCATION, LocationId};
+use crate::world::LocationId;
 use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
 use rand::SeedableRng;
@@ -137,8 +137,20 @@ impl GameTestHarness {
         Self::build(true)
     }
 
+    /// Builds a harness with the given game mod set on the app.
+    /// The world is initially loaded from the active mod (mod-list.toml);
+    /// the supplied `game_mod` is stored so that subsequent reloads
+    /// (e.g. `/new`) use the CLI-specified mod.
+    pub fn build_with_mod(game_mod: Option<parish_core::game_mod::GameMod>) -> Self {
+        let mut harness = Self::build(false);
+        if let Some(gm) = game_mod {
+            harness.app.game_mod = Some(gm);
+        }
+        harness
+    }
+
     fn build(enable_character_logs: bool) -> Self {
-        Self::build_with_mod(enable_character_logs, None)
+        Self::build_from_mod_dir(enable_character_logs, None)
     }
 
     /// Builds a harness loaded from the Rundale mod directory explicitly,
@@ -148,10 +160,10 @@ impl GameTestHarness {
     fn build_rundale(enable_character_logs: bool) -> Self {
         let rundale_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-        Self::build_with_mod(enable_character_logs, Some(&rundale_dir))
+        Self::build_from_mod_dir(enable_character_logs, Some(&rundale_dir))
     }
 
-    fn build_with_mod(enable_character_logs: bool, mod_dir: Option<&std::path::Path>) -> Self {
+    fn build_from_mod_dir(enable_character_logs: bool, mod_dir: Option<&std::path::Path>) -> Self {
         let mut app = App::new();
 
         let game_mod = match mod_dir {
@@ -1029,30 +1041,31 @@ impl GameTestHarness {
         let game_mod = parish_core::game_mod::find_default_mod()
             .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
-        if let Some(ref gm) = game_mod
-            && let Ok(world) = parish_core::game_mod::world_state_from_mod(gm)
-        {
-            self.app.world = world;
-        } else {
-            let parish_path = Path::new("data/parish.json");
-            if parish_path.exists()
-                && let Ok(world) =
-                    crate::world::WorldState::from_parish_file(parish_path, DEFAULT_START_LOCATION)
-            {
-                self.app.world = world;
-            }
-        }
-
-        let npcs_path = if let Some(ref gm) = game_mod {
-            gm.npcs_path()
-        } else {
-            std::path::PathBuf::from("data/npcs.json")
+        let Some(ref gm) = game_mod else {
+            return ActionResult::SystemCommand {
+                response: "New game failed: no game mod found.".to_string(),
+            };
         };
-        if npcs_path.exists()
-            && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
-        {
-            self.app.npc_manager = mgr;
+
+        let Ok(world) = parish_core::game_mod::world_state_from_mod(gm) else {
+            return ActionResult::SystemCommand {
+                response: "New game failed: failed to load world state from mod.".to_string(),
+            };
+        };
+        self.app.world = world;
+
+        let npcs_path = gm.npcs_path();
+        if !npcs_path.exists() {
+            return ActionResult::SystemCommand {
+                response: "New game failed: could not find NPCs data file.".to_string(),
+            };
         }
+        let Ok(mgr) = NpcManager::load_from_file(&npcs_path) else {
+            return ActionResult::SystemCommand {
+                response: "New game failed: failed to load NPCs from mod.".to_string(),
+            };
+        };
+        self.app.npc_manager = mgr;
         self.app.game_mod = game_mod;
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
 
@@ -1675,10 +1688,11 @@ fn strip_dialogue_verb(raw: &str) -> String {
 /// Each command is executed through [`GameTestHarness`] and produces
 /// one JSON line of output. This allows Claude Code (or any script)
 /// to verify game behavior without a terminal or Ollama.
-pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
-    // Build a harness from the currently-active mod (respects mod-list.toml)
-    // with character logs enabled so live-proof transcripts are written.
-    let harness = GameTestHarness::build(true);
+pub fn run_script_mode(
+    script_path: &Path,
+    game_mod: Option<parish_core::game_mod::GameMod>,
+) -> anyhow::Result<()> {
+    let harness = GameTestHarness::build_with_mod(game_mod);
     run_script_mode_with(script_path, harness)
 }
 
@@ -1765,6 +1779,7 @@ pub fn run_script_captured(script_path: &Path) -> anyhow::Result<Vec<ScriptResul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::DEFAULT_START_LOCATION;
 
     #[test]
     fn test_harness_new_starts_at_kilteevan() {

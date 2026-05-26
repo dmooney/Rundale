@@ -17,7 +17,6 @@ use crate::config::{InferenceCategory, InferenceConfig};
 use crate::inference::AnyClient;
 use crate::inference::InferenceQueue;
 use crate::loading::LoadingAnimation;
-use crate::npc::LanguageHint;
 use crate::npc::LanguageSettings;
 use crate::npc::manager::NpcManager;
 use crate::persistence::AsyncDatabase;
@@ -26,6 +25,26 @@ use parish_core::game_mod::GameMod;
 
 /// Maximum number of entries in the debug activity log.
 pub const DEBUG_LOG_CAPACITY: usize = 50;
+
+/// Inference categories that have a [`CategoryOverride`] (excludes Dialogue).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NonDialogueCategory {
+    Intent,
+    Simulation,
+    Reaction,
+}
+
+impl TryFrom<InferenceCategory> for NonDialogueCategory {
+    type Error = &'static str;
+    fn try_from(cat: InferenceCategory) -> Result<Self, Self::Error> {
+        match cat {
+            InferenceCategory::Intent => Ok(Self::Intent),
+            InferenceCategory::Simulation => Ok(Self::Simulation),
+            InferenceCategory::Reaction => Ok(Self::Reaction),
+            InferenceCategory::Dialogue => Err("Dialogue has no CategoryOverride"),
+        }
+    }
+}
 
 /// Per-category overrides for inference clients.
 ///
@@ -44,7 +63,7 @@ pub struct CategoryOverride {
 /// Main application state.
 ///
 /// Holds the game world state, input buffer, and control flags.
-/// Shared across headless, script, and Tauri modes.
+/// Shared across headless and script modes.
 pub struct App {
     /// The game world state.
     pub world: WorldState,
@@ -56,10 +75,7 @@ pub struct App {
     pub inference_queue: Option<InferenceQueue>,
     /// Central NPC manager — owns all NPCs and handles tier assignment.
     pub npc_manager: NpcManager,
-    /// Whether the Irish pronunciation sidebar is visible.
-    pub sidebar_visible: bool,
-    /// Pronunciation hints for secondary-language words from NPC responses.
-    pub pronunciation_hints: Vec<LanguageHint>,
+
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
     /// Whether map APIs should reveal all unexplored locations.
@@ -180,8 +196,6 @@ impl App {
             should_quit: false,
             inference_queue: None,
             npc_manager: NpcManager::new(),
-            sidebar_visible: false,
-            pronunciation_hints: Vec::new(),
             improv_enabled: false,
             reveal_unexplored_locations: false,
             debug_sidebar_visible: false,
@@ -233,6 +247,41 @@ impl App {
             chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
             chat_transcript_rx: None,
         }
+    }
+
+    /// Captures and saves a world snapshot asynchronously.
+    /// Updates latest_snapshot_id and last_autosave on success.
+    pub async fn capture_and_save_async(&mut self, branch_id: i64) -> Option<i64> {
+        let db = self.db.as_ref()?;
+        let snapshot =
+            crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+        match db.save_snapshot(branch_id, &snapshot).await {
+            Ok(snap_id) => {
+                self.latest_snapshot_id = snap_id;
+                self.last_autosave = Some(std::time::Instant::now());
+                Some(snap_id)
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// Reloads world state and NPCs from the active game mod.
+    pub fn reload_mod_world_and_npcs(&mut self) -> Result<(), String> {
+        let gm = self
+            .game_mod
+            .as_ref()
+            .ok_or("No game mod loaded.".to_string())?;
+        let world = parish_core::game_mod::world_state_from_mod(gm)
+            .map_err(|e| format!("Failed to load world: {}", e))?;
+        self.world = world;
+        let npcs_path = gm.npcs_path();
+        if npcs_path.exists() {
+            let mgr = NpcManager::load_from_file(&npcs_path)
+                .map_err(|e| format!("Failed to load NPCs: {}", e))?;
+            self.npc_manager = mgr;
+        }
+        self.npc_manager.assign_tiers(&self.world, &[]);
+        Ok(())
     }
 
     /// Rebuilds `self.character_log` / `self.location_log` when the active
@@ -302,64 +351,62 @@ impl App {
     }
 
     /// Returns the [`CategoryOverride`] for categories that have one (not Dialogue).
-    fn category_override(&self, cat: InferenceCategory) -> &CategoryOverride {
+    fn category_override(&self, cat: NonDialogueCategory) -> &CategoryOverride {
         match cat {
-            InferenceCategory::Intent => &self.intent,
-            InferenceCategory::Simulation => &self.simulation,
-            InferenceCategory::Reaction => &self.reaction,
-            InferenceCategory::Dialogue => panic!("Dialogue has no CategoryOverride"),
+            NonDialogueCategory::Intent => &self.intent,
+            NonDialogueCategory::Simulation => &self.simulation,
+            NonDialogueCategory::Reaction => &self.reaction,
         }
     }
 
     /// Returns the mutable [`CategoryOverride`] for categories that have one (not Dialogue).
-    fn category_override_mut(&mut self, cat: InferenceCategory) -> &mut CategoryOverride {
+    fn category_override_mut(&mut self, cat: NonDialogueCategory) -> &mut CategoryOverride {
         match cat {
-            InferenceCategory::Intent => &mut self.intent,
-            InferenceCategory::Simulation => &mut self.simulation,
-            InferenceCategory::Reaction => &mut self.reaction,
-            InferenceCategory::Dialogue => panic!("Dialogue has no CategoryOverride"),
+            NonDialogueCategory::Intent => &mut self.intent,
+            NonDialogueCategory::Simulation => &mut self.simulation,
+            NonDialogueCategory::Reaction => &mut self.reaction,
         }
     }
 
     pub fn category_provider_name(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
-            cat => self.category_override(cat).provider_name.as_deref(),
+            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).provider_name.as_deref(),
         }
     }
 
     pub fn category_model(&self, cat: InferenceCategory) -> &str {
         match cat {
             InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
-            cat => &self.category_override(cat).model,
+            cat => &self.category_override(cat.try_into().expect("Dialogue already handled")).model,
         }
     }
 
     pub fn category_api_key(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
-            cat => self.category_override(cat).api_key.as_deref(),
+            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).api_key.as_deref(),
         }
     }
 
     pub fn category_base_url(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
-            cat => self.category_override(cat).base_url.as_deref(),
+            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).base_url.as_deref(),
         }
     }
 
     pub fn category_client(&self, cat: InferenceCategory) -> Option<&AnyClient> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client.as_ref(),
-            cat => self.category_override(cat).client.as_ref(),
+            cat => self.category_override(cat.try_into().expect("Dialogue already handled")).client.as_ref(),
         }
     }
 
     pub fn set_category_provider_name(&mut self, cat: InferenceCategory, name: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
-            cat => self.category_override_mut(cat).provider_name = Some(name),
+            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).provider_name = Some(name),
         }
     }
 
@@ -369,28 +416,28 @@ impl App {
                 self.cloud_model_name = Some(model.clone());
                 self.dialogue_model = model;
             }
-            cat => self.category_override_mut(cat).model = model,
+            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).model = model,
         }
     }
 
     pub fn set_category_api_key(&mut self, cat: InferenceCategory, key: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
-            cat => self.category_override_mut(cat).api_key = Some(key),
+            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).api_key = Some(key),
         }
     }
 
     pub fn set_category_base_url(&mut self, cat: InferenceCategory, url: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
-            cat => self.category_override_mut(cat).base_url = Some(url),
+            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).base_url = Some(url),
         }
     }
 
     pub fn set_category_client(&mut self, cat: InferenceCategory, client: AnyClient) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client = Some(client),
-            cat => self.category_override_mut(cat).client = Some(client),
+            cat => self.category_override_mut(cat.try_into().expect("Dialogue already handled")).client = Some(client),
         }
     }
 
@@ -495,10 +542,8 @@ mod tests {
         assert!(app.input_buffer.is_empty());
         assert!(app.inference_queue.is_none());
         assert_eq!(app.npc_manager.npc_count(), 0);
-        assert!(!app.sidebar_visible);
         assert!(!app.improv_enabled);
         assert!(!app.reveal_unexplored_locations);
-        assert!(app.pronunciation_hints.is_empty());
         assert_eq!(app.idle_counter, 0);
     }
 
@@ -506,17 +551,6 @@ mod tests {
     fn test_app_default() {
         let app = App::default();
         assert!(!app.should_quit);
-        assert!(!app.sidebar_visible);
-    }
-
-    #[test]
-    fn test_sidebar_toggle() {
-        let mut app = App::new();
-        assert!(!app.sidebar_visible);
-        app.sidebar_visible = !app.sidebar_visible;
-        assert!(app.sidebar_visible);
-        app.sidebar_visible = !app.sidebar_visible;
-        assert!(!app.sidebar_visible);
     }
 
     #[test]
@@ -527,35 +561,6 @@ mod tests {
         assert!(app.improv_enabled);
         app.improv_enabled = !app.improv_enabled;
         assert!(!app.improv_enabled);
-    }
-
-    #[test]
-    fn test_pronunciation_hints_storage() {
-        use crate::npc::LanguageHint;
-        let mut app = App::new();
-        let hint = LanguageHint {
-            word: "sláinte".to_string(),
-            pronunciation: "SLAWN-cha".to_string(),
-            meaning: Some("Health/cheers".to_string()),
-        };
-        app.pronunciation_hints.push(hint.clone());
-        assert_eq!(app.pronunciation_hints.len(), 1);
-        assert_eq!(app.pronunciation_hints[0].word, "sláinte");
-    }
-
-    #[test]
-    fn test_pronunciation_hints_truncation() {
-        use crate::npc::LanguageHint;
-        let mut app = App::new();
-        for i in 0..25 {
-            app.pronunciation_hints.push(LanguageHint {
-                word: format!("word_{}", i),
-                pronunciation: format!("pron_{}", i),
-                meaning: None,
-            });
-        }
-        app.pronunciation_hints.truncate(20);
-        assert_eq!(app.pronunciation_hints.len(), 20);
     }
 
     #[test]
