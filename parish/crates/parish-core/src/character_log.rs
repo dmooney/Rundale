@@ -20,7 +20,7 @@
 //!
 //! ## Wiring
 //!
-//! Every entry point (`parish-tauri`, `parish-server`, `parish-cli`) is
+//! Every entry point (`parish-tauri`, `parish-server`, `parish-engine`) is
 //! responsible for:
 //! 1. Constructing a [`CharacterLogManager`] at startup with the active
 //!    mod's `app_name` and the loaded branch id.

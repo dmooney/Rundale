@@ -1,7 +1,7 @@
 //! BYOK (Bring Your Own Key) IPC handlers.
 //!
 //! Backend-agnostic per-CLAUDE.md rule 12: each runtime crate (parish-tauri,
-//! parish-server, parish-cli) wires a thin shim and reuses these handlers.
+//! parish-server, parish-engine) wires a thin shim and reuses these handlers.
 //! v1 is desktop-only; web/CLI shims should return a "desktop-only" error.
 
 use std::path::Path;

@@ -18,7 +18,7 @@ use crate::world::LocationId;
 /// Shared across all three runtimes:
 /// - `parish-tauri` (desktop Tauri app)
 /// - `parish-server` (axum web server)
-/// - `parish-cli` uses a subset of this pattern but does not yet reference this type
+/// - `parish-engine` uses a subset of this pattern but does not yet reference this type
 pub struct ConversationRuntimeState {
     /// Player location associated with the current transcript.
     pub location: Option<LocationId>,

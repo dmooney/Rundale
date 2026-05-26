@@ -1,7 +1,7 @@
 //! Backend-agnostic secret storage for BYOK (Bring Your Own Key) credentials.
 //!
 //! Implementations live in runtime crates: `parish-tauri` provides
-//! `KeyringSecretStore` (OS keychain), while `parish-cli` and `parish-server`
+//! `KeyringSecretStore` (OS keychain), while `parish-engine` and `parish-server`
 //! use env-var or no-op stubs in v1. Tests use `InMemorySecretStore`.
 
 use std::collections::HashMap;
