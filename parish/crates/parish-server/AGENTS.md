@@ -22,7 +22,7 @@ The crate ships **both** a library (`parish_server::run_server`) and a binary (`
 
 ## Module map
 
-`routes/` HTTP, `ws/` real-time channel, `sync_routes/` + `sync_types/` + `drain/` synchronous `POST /api/command` + `GET /api/state` endpoints for thin clients, `editor_routes/` mod editor surface, `session/`+`state/` lifecycle, `auth/`+`cf_auth/`+`middleware/` policy.
+`routes.rs` HTTP, `ws.rs` real-time channel, `sync_routes.rs` + `sync_types.rs` + `drain.rs` synchronous `POST /api/command` + `GET /api/state` endpoints for thin clients, `editor_routes.rs` mod editor surface, `session.rs`+`state.rs` lifecycle, `auth.rs`+`cf_auth.rs`+`middleware.rs` policy.
 
 ## Thin-client surface (`sync_routes.rs`)
 

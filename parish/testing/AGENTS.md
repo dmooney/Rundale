@@ -15,10 +15,10 @@ just agent-check     # proof-evidence + judge verdict gate
 
 - **Integration-test cwd = crate root**, not workspace root. Fixture paths are `../../testing/fixtures/...` from `parish/crates/<name>/`.
 - **`fixtures/` scripts are harness-syntax**, not shell. One command per line. Comments with `#`. Read [`docs/agent/harness.md`](../../docs/agent/harness.md) before adding new ones.
-- **`rundale-bench/` Phase 1 corpus is frozen** for ELO comparability. Append-only — never edit existing prompts. Use `/eval-dialogue` to score new candidates.
+- **`rundale-bench/` (repo root, `../../rundale-bench/`) Phase 1 corpus is frozen** for ELO comparability. Append-only — never edit existing prompts. Use `/eval-dialogue` to score new candidates.
 - **`evals/` rubrics gate gameplay PRs.** Touching a rubric retroactively invalidates baselines — bump the version + note in PR.
 - **Proof-bundle judge.md must be independent.** A judge written by the same agent that wrote the proof = no signal (rule #10).
 
 ## Layout
 
-`fixtures/` harness scripts, `evals/` rubric configs, `rundale-bench/` ELO corpus + runner.
+`fixtures/` harness scripts, `evals/` rubric configs, `eval/` judge + player agent + rubrics + scenarios.
