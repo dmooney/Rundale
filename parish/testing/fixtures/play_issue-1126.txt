@@ -1,0 +1,3 @@
+# F15 / #1126 — Kilteevan alias dedup
+# ====================================
+# Pure data + unit-test fix. Placeholder fixture for convention.

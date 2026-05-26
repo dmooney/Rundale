@@ -416,6 +416,38 @@ fn test_parish_find_by_alias_bog() {
 }
 
 #[test]
+fn test_find_by_name_kilteevan_town_aliases_resolve_after_dedup() {
+    // F15 / #1126: the redundant "the town" alias was removed; the
+    // article-strip fallback in find_by_name_with_config still resolves
+    // it to Kilteevan Village via the "town" alias.
+    let graph = load_parish_graph();
+    let kilteevan = graph
+        .find_by_name("Kilteevan Village")
+        .expect("Kilteevan Village must resolve by exact name");
+
+    assert_eq!(
+        graph.find_by_name("town"),
+        Some(kilteevan),
+        "'town' alias must resolve to Kilteevan Village",
+    );
+    assert_eq!(
+        graph.find_by_name("the town"),
+        Some(kilteevan),
+        "'the town' must still resolve to Kilteevan Village via article-strip fallback",
+    );
+    assert_eq!(
+        graph.find_by_name("village"),
+        Some(kilteevan),
+        "'village' alias must still resolve to Kilteevan Village",
+    );
+    assert_eq!(
+        graph.find_by_name("kilteevan"),
+        Some(kilteevan),
+        "'kilteevan' alias must still resolve to Kilteevan Village",
+    );
+}
+
+#[test]
 fn test_movement_go_to_coast() {
     let graph = load_parish_graph();
     let result = resolve_movement("the coast", &graph, LocationId(1), &walking());
