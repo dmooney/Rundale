@@ -430,13 +430,32 @@ impl GameSnapshot {
             });
         world.visited_locations = visited_locations;
         // Restore first-visit order from the snapshot, retaining only ids
-        // also present in the set (legacy saves may have set entries
-        // without a corresponding order entry, in which case
-        // `visited_order` defaults to empty).
-        world.visited_order = visited_order
+        // also present in the set. Legacy saves carry an empty
+        // `visited_order` even when `visited_locations` is populated; in
+        // that case backfill from the set (sorted by id for determinism)
+        // so that a subsequent `mark_visited(new_id)` doesn't shrink the
+        // renderer's output to only the freshly-visited locations
+        // (#1130 / codex review).
+        let mut restored: Vec<parish_types::LocationId> = visited_order
             .into_iter()
             .filter(|id| world.visited_locations.contains(id))
             .collect();
+        if restored.is_empty() && !world.visited_locations.is_empty() {
+            restored = world.visited_locations.iter().copied().collect();
+            restored.sort_by_key(|id| id.0);
+        } else {
+            // Append any visited-set entries the order vector missed
+            // (mismatched save). Sorted by id for determinism.
+            let mut missing: Vec<parish_types::LocationId> = world
+                .visited_locations
+                .iter()
+                .copied()
+                .filter(|id| !restored.contains(id))
+                .collect();
+            missing.sort_by_key(|id| id.0);
+            restored.extend(missing);
+        }
+        world.visited_order = restored;
         // The player's current location must always be marked visited.
         // `mark_visited` updates both fields, preserving the no-op
         // contract when already present.
