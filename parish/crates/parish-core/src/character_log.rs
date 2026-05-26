@@ -488,9 +488,18 @@ pub fn format_player_profile(world: &WorldState) -> String {
     if world.visited_locations.is_empty() {
         out.push_str("*(none yet)*\n\n");
     } else {
-        let mut visited: Vec<&LocationId> = world.visited_locations.iter().collect();
-        visited.sort_by_key(|id| id.0);
-        for id in visited {
+        // Iterate first-visit order so the player's playthrough route
+        // is visible. Older saves loaded before #1130 land with an
+        // empty `visited_order`; fall back to sorted-by-id in that
+        // case so the section is never empty when locations exist.
+        let order: Vec<LocationId> = if world.visited_order.is_empty() {
+            let mut v: Vec<LocationId> = world.visited_locations.iter().copied().collect();
+            v.sort_by_key(|id| id.0);
+            v
+        } else {
+            world.visited_order.clone()
+        };
+        for id in &order {
             let n = world
                 .graph
                 .get(*id)
@@ -860,6 +869,46 @@ mod tests {
         assert!(profile.contains("Age 40"), "profile = {}", profile);
         assert!(profile.contains("## Intelligence"), "profile = {}", profile);
         assert!(profile.contains("## Schedule"), "profile = {}", profile);
+    }
+
+    #[test]
+    fn player_profile_visited_locations_use_first_visit_order() {
+        // #1130 / F14: visited locations render in the order
+        // `mark_visited` recorded them, not by numeric LocationId.
+        // WorldState::new()'s graph is empty, so the renderer falls
+        // back to `format!("location {}", id.0)` for each id — the
+        // ordering check is what's under test, not the rendered
+        // names.
+        let mut world = WorldState::new();
+        // WorldState::new() seeds visited with LocationId(1). Visit
+        // three more in a deliberately-out-of-order sequence: 5, 3, 2.
+        world.mark_visited(LocationId(5));
+        world.mark_visited(LocationId(3));
+        world.mark_visited(LocationId(2));
+
+        let profile = format_player_profile(&world);
+        let visited_section = profile
+            .split("## Visited locations\n\n")
+            .nth(1)
+            .expect("profile must have the Visited locations section");
+        let p1 = visited_section
+            .find("- location 1")
+            .expect("LocationId(1) missing from visited section");
+        let p5 = visited_section
+            .find("- location 5")
+            .expect("LocationId(5) missing from visited section");
+        let p3 = visited_section
+            .find("- location 3")
+            .expect("LocationId(3) missing from visited section");
+        let p2 = visited_section
+            .find("- location 2")
+            .expect("LocationId(2) missing from visited section");
+        assert!(
+            p1 < p5 && p5 < p3 && p3 < p2,
+            "visited locations must render in first-visit order \
+             (1, 5, 3, 2), got positions 1@{p1} 5@{p5} 3@{p3} 2@{p2}.\n\
+             section:\n{visited_section}",
+        );
     }
 
     #[test]

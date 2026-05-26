@@ -23,6 +23,7 @@ fn make_test_snapshot() -> GameSnapshot {
         last_tier4_game_time: None,
         introduced_npcs: Default::default(),
         visited_locations: std::collections::HashSet::from([LocationId(1)]),
+        visited_order: vec![LocationId(1)],
         edge_traversals: Default::default(),
         gossip_network: Default::default(),
         conversation_log: Default::default(),
