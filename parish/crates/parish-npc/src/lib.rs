@@ -624,7 +624,15 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         repeated softeners. Every reply must use distinct wording — never recycle \
         the closer of any earlier turn in the conversation, and never echo another \
         NPC's phrasing. End on a concrete observation, question, or action rooted \
-        in your character, not a formula.\
+        in your character, not a formula.\n\
+        \n\
+        NEVER FAREWELL MID-CONVERSATION: Do not end your reply with \"Slán\", \
+        \"Slán abhaile\", \"Slán leat\", \"Goodbye\", \"Farewell\", \"safe home\", \
+        or any other parting phrase unless the player has explicitly said they \
+        are leaving (e.g. \"I'll be off\", \"I must go\", \"goodbye\"). A \
+        farewell closes the dialogue — only use one when the conversation is \
+        actually ending. While the conversation continues, end on a question, \
+        an observation, or an offer — never on a goodbye.\
         {improv_section}\n\
         \n\
         Personality: {personality}\n\
@@ -1267,6 +1275,19 @@ mod tests {
             prompt.contains("healing properties"),
             "modern-register negative example missing"
         );
+
+        // Anti-farewell directive (TODO #4: Cormac signed off with
+        // "Slán abhaile" mid-conversation in cycle 1 of the demo audit).
+        assert!(
+            prompt.contains("NEVER FAREWELL MID-CONVERSATION"),
+            "anti-farewell directive header missing"
+        );
+        for tok in ["Slán abhaile", "Slán leat", "Goodbye", "Farewell"] {
+            assert!(
+                prompt.contains(tok),
+                "anti-farewell directive missing gated token {tok:?}"
+            );
+        }
     }
 
     /// Tier 1 context prompt: every `{placeholder}` must be substituted.
