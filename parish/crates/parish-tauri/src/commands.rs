@@ -2482,11 +2482,21 @@ their own voice — they may use stock tags like \"Just askin', mind ye\", \"so 
 plain Hiberno-English without adopting another character's verbal tics. If an NPC \
 ends every line with \"so it is\", do not start ending yours with it too.\n\
 \n\
+MOVEMENT CADENCE (TODO #1/#30): A traveller does not loiter. After 3–5 turns \
+at one location, move to a new place — pick a name from the \"You can go to: \
+...\" line in the user prompt and emit a movement command on its own (no \
+spoken line wrapped around it). Bare \"go to X\" / \"walk to X\" / \"head to X\" \
+is the correct shape: the engine parses these as movement, not dialogue. If \
+you have visited only one location in the last 5 turns, your next action \
+should be a movement command.\n\
+\n\
 Examples:\n\
   {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
   {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
-  {{\"action\": \"go to the mill\"}}\n\
+  {{\"action\": \"go to The Mill\"}}\n\
+  {{\"action\": \"walk to St. Brigid's Church\"}}\n\
+  {{\"action\": \"head to Connolly's Shop\"}}\n\
 \n\
 Your entire response must be a single JSON object — nothing before or after it.",
         extra = extra_section,
@@ -2709,6 +2719,44 @@ mod demo_tests {
         assert!(
             prompt.contains("Just askin', mind ye"),
             "system prompt should name the canonical example phrase:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_carries_movement_cadence_directive() {
+        // TODO #1/#30: auto-player produced exactly 1 movement in 38+
+        // turns because the prompt has no explicit cadence rule and
+        // movement is 1 of 4 few-shot examples. Prompt must (a) name
+        // movement as a first-class action, (b) carry a "move after
+        // N turns" cadence rule, (c) show ≥ 2 movement few-shots
+        // alongside the dialogue ones, and (d) cite all three canonical
+        // movement verbs so the model picks across them.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("MOVEMENT CADENCE"),
+            "system prompt missing movement-cadence header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("After 3–5 turns"),
+            "system prompt missing 3-5 turn cadence rule:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("go to The Mill"),
+            "system prompt missing 'go to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("walk to St. Brigid's Church"),
+            "system prompt missing 'walk to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("head to Connolly's Shop"),
+            "system prompt missing 'head to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("the engine parses these as movement"),
+            "system prompt must distinguish movement commands from \
+             dialogue so the model emits bare 'go to X' rather than \
+             wrapping it in a spoken line:\n{prompt}"
         );
     }
 
