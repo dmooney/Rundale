@@ -1,0 +1,12 @@
+# Live-proof fixture for TODO #47 — forbid narrative action style in
+# auto-player.
+#
+# Fix lives in parish-tauri/src/commands.rs build_demo_system_prompt —
+# adds a NO NARRATION directive that forbids participial / past-tense
+# action narration and pins the legal action shapes. Live behavioural
+# verification (LLM-as-player stops narrating) requires a real model
+# and is out of scope here. This fixture proves the engine still boots
+# cleanly with the modified system prompt.
+
+go to The Mill
+look
