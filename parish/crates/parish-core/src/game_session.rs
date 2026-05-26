@@ -361,7 +361,7 @@ pub async fn enrich_travel_encounter(
     let timeout = Duration::from_secs(timeout_secs);
     let result = tokio::time::timeout(
         timeout,
-        client.generate(model, &context, Some(&system), Some(80), None),
+        client.generate(model, &context, Some(&system), Some(80), None, None),
     )
     .await;
 
@@ -589,6 +589,7 @@ pub async fn stream_reaction_texts(
                                 Some(&system),
                                 tx,
                                 Some(100),
+                                None,
                                 None,
                             ),
                         )

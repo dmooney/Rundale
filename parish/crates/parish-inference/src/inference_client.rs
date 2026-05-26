@@ -448,6 +448,7 @@ impl InferenceClient for AnyClientAdapter {
                 system,
                 req.params.max_tokens,
                 req.params.temperature(),
+                None,
             )
             .await?;
 

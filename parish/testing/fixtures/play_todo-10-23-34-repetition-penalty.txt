@@ -1,0 +1,19 @@
+# Live-proof fixture for TODO #10 / #23 / #34 — repetition_penalty plumbing.
+#
+# Smoke against the Simulator backend (deterministic, ignores
+# frequency_penalty by accept-and-ignore on the Anthropic / Simulator
+# arms of AnyClient). The fixture goes to a location with an NPC and
+# fires a dialogue Tier 1 turn so the new `send_with_penalty` code path
+# in parish-core/src/game_loop/npc_turn.rs is exercised end-to-end:
+# `InferenceQueue::send_with_penalty` → `InferenceRequest.frequency_penalty`
+# → worker → `AnyClient::generate_stream_with_format(..., None)` (sim
+# ignores the field but the call shape proves the plumbing compiles +
+# runs on the Tier 1 hot path).
+#
+# Real loop-suppression with vllm-mlx + Qwen2.5-14B-4bit is a separate
+# follow-up run; this fixture validates the plumbing in CI.
+
+look
+/npcs
+say good morning to ye all
+look
