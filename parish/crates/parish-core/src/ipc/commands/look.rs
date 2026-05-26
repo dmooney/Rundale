@@ -1,8 +1,8 @@
 //! Look command — renders the current location description with NPC names and exits.
 
 use crate::npc::manager::NpcManager;
-use crate::world::description::{format_exits, render_description};
 use crate::world::WorldState;
+use crate::world::description::{format_exits, render_description};
 
 /// Renders the current location description with NPC names and exits.
 ///

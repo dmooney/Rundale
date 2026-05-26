@@ -12,10 +12,7 @@ use super::CommandResult;
 /// running. With an argument, forces a weather state — useful for testing
 /// weather-gated travel and demonstrations. Accepts the canonical names
 /// plus common shorthands (e.g. `rain`, `partly`).
-pub(super) fn handle_weather_command(
-    world: &mut WorldState,
-    arg: Option<String>,
-) -> CommandResult {
+pub(super) fn handle_weather_command(world: &mut WorldState, arg: Option<String>) -> CommandResult {
     let parse_weather = |s: &str| -> Option<Weather> {
         match s.trim().to_lowercase().as_str() {
             "clear" | "sun" | "sunny" => Some(Weather::Clear),

@@ -4,15 +4,13 @@
 //! view of all inspectable game internals. Consumed by both the TUI debug
 //! panel and the Tauri/Svelte debug panel via IPC.
 
-pub(crate) mod types;
 pub(crate) mod build;
 mod reexport;
+pub(crate) mod types;
 
-pub use types::*;
-pub use build::{
-    build_configured_providers, build_debug_snapshot, build_inference_categories,
-};
+pub use build::{build_configured_providers, build_debug_snapshot, build_inference_categories};
 pub use reexport::*;
+pub use types::*;
 
 #[cfg(test)]
 mod tests;

@@ -4,8 +4,8 @@ use crate::config::{InferenceCategory, Provider};
 use crate::input::Command;
 use crate::ipc::handlers::mask_key;
 
-use crate::ipc::config::GameConfig;
 use super::{CommandEffect, CommandResult};
+use crate::ipc::config::GameConfig;
 
 /// Base provider/model/key commands.
 pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
@@ -47,7 +47,10 @@ pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> 
 }
 
 /// Cloud provider/model/key commands.
-pub(super) fn handle_cloud_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+pub(super) fn handle_cloud_provider_command(
+    cmd: Command,
+    config: &mut GameConfig,
+) -> CommandResult {
     match cmd {
         Command::ShowCloud => {
             if let Some(ref provider) = config.cloud_provider_name {

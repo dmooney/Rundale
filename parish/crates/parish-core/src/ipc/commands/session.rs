@@ -1,10 +1,10 @@
 //! Session command — music vignette at the pub.
 
-use crate::world::session::{is_session_hour, session_seed, vignette_from_seed};
 use crate::world::WorldState;
+use crate::world::session::{is_session_hour, session_seed, vignette_from_seed};
 
-use crate::ipc::config::GameConfig;
 use super::CommandResult;
+use crate::ipc::config::GameConfig;
 
 /// Handles the `/session` command.
 ///

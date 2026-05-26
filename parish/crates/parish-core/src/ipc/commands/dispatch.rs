@@ -4,7 +4,6 @@ use crate::input::Command;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
-use crate::ipc::config::GameConfig;
 use super::flags::handle_flag_command;
 use super::help::render_help_text;
 use super::info::handle_info_command;
@@ -19,6 +18,7 @@ use super::time::handle_time_control_command;
 use super::toggles::handle_sidebar_improv_command;
 use super::weather::handle_weather_command;
 use super::{CommandEffect, CommandResult};
+use crate::ipc::config::GameConfig;
 
 /// Processes a system command, mutating world/NPC/config state and returning
 /// the response text plus any side effects.

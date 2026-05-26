@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::error::ParishError;
 use super::manifest::{ModKind, ModMeta};
+use crate::error::ParishError;
 
 /// All mods discovered under a `mods/` root.
 ///

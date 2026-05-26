@@ -6,9 +6,9 @@ use chrono::{Datelike, Timelike};
 
 use crate::npc::manager::NpcManager;
 use crate::npc::types::{CogTier, NpcState};
+use crate::world::WorldState;
 use crate::world::graph::WorldGraph;
 use crate::world::time::{DayType, Season};
-use crate::world::WorldState;
 
 use super::types::*;
 
@@ -574,7 +574,10 @@ pub(crate) fn build_npc_relationship_debug(
 }
 
 /// Builds recent short-term memory debug entries for a single NPC.
-pub(crate) fn build_npc_memory_debug(npc: &crate::npc::Npc, graph: &WorldGraph) -> Vec<MemoryDebug> {
+pub(crate) fn build_npc_memory_debug(
+    npc: &crate::npc::Npc,
+    graph: &WorldGraph,
+) -> Vec<MemoryDebug> {
     npc.memory
         .recent(10)
         .iter()

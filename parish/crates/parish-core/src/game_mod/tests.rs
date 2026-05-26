@@ -548,8 +548,7 @@ fn test_name_hints_case_insensitive() {
 
 #[test]
 fn test_pronunciation_entry_deserialize() {
-    let json =
-        r#"{"word":"Aoife","pronunciation":"EE-fa","meaning":"beauty","matches":["Aoife"]}"#;
+    let json = r#"{"word":"Aoife","pronunciation":"EE-fa","meaning":"beauty","matches":["Aoife"]}"#;
     let e: PronunciationEntry = serde_json::from_str(json).unwrap();
     assert_eq!(e.word, "Aoife");
     assert_eq!(e.pronunciation, "EE-fa");
@@ -813,8 +812,7 @@ featured = false
 "#;
     fs::write(mod_dir.join("providers/a.toml"), body).unwrap();
     fs::write(mod_dir.join("providers/b.toml"), body).unwrap();
-    let err =
-        load_providers_from_mod(&mod_dir).expect_err("intra-mod duplicate must be rejected");
+    let err = load_providers_from_mod(&mod_dir).expect_err("intra-mod duplicate must be rejected");
     let msg = format!("{err:?}");
     assert!(msg.contains("more than once"), "got: {msg}");
 }

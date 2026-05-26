@@ -1,14 +1,17 @@
 //! Map-related commands: `/unexplored` (reveal/hide map locations) and `/map` (tile sources).
 
-use crate::ipc::config::GameConfig;
 use super::{CommandEffect, CommandResult};
+use crate::ipc::config::GameConfig;
 
 /// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
 ///
 /// Gated by the `reveal-unexplored` feature flag (default-enabled per
 /// CLAUDE.md rule #6). Uses `is_disabled` semantics so the feature ships
 /// on without needing to seed the flags file.
-pub(super) fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
+pub(super) fn handle_unexplored_command(
+    config: &mut GameConfig,
+    arg: Option<bool>,
+) -> CommandResult {
     if config.flags.is_disabled("reveal-unexplored") {
         config.reveal_unexplored_locations = false;
         return CommandResult::text(

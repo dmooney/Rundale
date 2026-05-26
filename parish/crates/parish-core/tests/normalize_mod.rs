@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use parish_core::editor::{load_mod_snapshot, save_mod};
 use parish_core::editor::types::EditorDoc;
+use parish_core::editor::{load_mod_snapshot, save_mod};
+use std::path::PathBuf;
 
 #[test]
 #[ignore = "pass PARISH_NORMALIZE_MOD_DIR env var to run"]

@@ -2,8 +2,8 @@
 
 use crate::input::{Command, FlagSubcommand};
 
-use crate::ipc::config::GameConfig;
 use super::{CommandEffect, CommandResult};
+use crate::ipc::config::GameConfig;
 
 /// Feature flag commands.
 pub(super) fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> CommandResult {

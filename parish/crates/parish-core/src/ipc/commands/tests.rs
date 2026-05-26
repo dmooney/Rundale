@@ -744,8 +744,7 @@ fn flag_list_empty() {
     );
     // Either empty-state message or flag header — depends on default flags.
     assert!(
-        result.response.contains("No feature flags")
-            || result.response.contains("Feature flags")
+        result.response.contains("No feature flags") || result.response.contains("Feature flags")
     );
 }
 

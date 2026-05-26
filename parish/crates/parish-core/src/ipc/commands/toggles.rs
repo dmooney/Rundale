@@ -2,11 +2,14 @@
 
 use crate::input::Command;
 
-use crate::ipc::config::GameConfig;
 use super::CommandResult;
+use crate::ipc::config::GameConfig;
 
 /// Sidebar and improv toggles.
-pub(super) fn handle_sidebar_improv_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+pub(super) fn handle_sidebar_improv_command(
+    cmd: Command,
+    config: &mut GameConfig,
+) -> CommandResult {
     match cmd {
         Command::ToggleSidebar => {
             CommandResult::text("The Irish words panel is managed by the sidebar.")

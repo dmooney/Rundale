@@ -34,7 +34,9 @@ pub use world::world_state_from_mod;
 
 // Re-export discovery items
 pub(crate) use discovery::find_mods_root;
-pub use discovery::{DiscoveredMod, DiscoveredMods, discover_mods, discover_mods_in, find_default_mod};
+pub use discovery::{
+    DiscoveredMod, DiscoveredMods, discover_mods, discover_mods_in, find_default_mod,
+};
 
 // ---------------------------------------------------------------------------
 // GameMod

@@ -1,11 +1,11 @@
-use super::*;
 use super::build::*;
+use super::*;
 use crate::npc::manager::NpcManager;
 use crate::npc::{Npc, NpcId};
+use crate::world::WorldState;
+use crate::world::events::GameEvent;
 use crate::world::graph::WorldGraph;
 use crate::world::time::{DayType, Season};
-use crate::world::events::GameEvent;
-use crate::world::WorldState;
 use std::collections::VecDeque;
 
 /// Helper: build a minimal `InferenceDebug` for tests.
