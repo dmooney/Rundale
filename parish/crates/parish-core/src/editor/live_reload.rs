@@ -33,7 +33,10 @@ fn apply_world_graph_refresh(world: &mut WorldState, fresh_world: WorldState) {
     world
         .visited_locations
         .retain(|id| world.locations.contains_key(id));
-    world.visited_locations.insert(world.player_location);
+    world
+        .visited_order
+        .retain(|id| world.locations.contains_key(id));
+    world.mark_visited(world.player_location);
 
     world
         .edge_traversals
@@ -202,8 +205,8 @@ tier2_system = "prompts/tier2_system.txt"
         let game_mod = GameMod::load(dir.path()).unwrap();
         let mut world = world_state_from_mod(&game_mod).unwrap();
         world.player_location = LocationId(2);
-        world.visited_locations.insert(LocationId(2));
-        world.visited_locations.insert(LocationId(999));
+        world.mark_visited(LocationId(2));
+        world.mark_visited(LocationId(999));
         world
             .edge_traversals
             .insert((LocationId(1), LocationId(2)), 3);

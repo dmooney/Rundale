@@ -1,0 +1,12 @@
+# F14 / #1130 — player.md visited locations in first-visit order
+# ===============================================================
+# Walk a deliberate non-id-order route. The proof step inspects
+# player.md's "## Visited locations" section to confirm the
+# entries appear in the order visited, not sorted by LocationId.
+
+/status
+go to The Forge
+go to The Mill
+go to Connolly's Shop
+go to The Crossroads
+/status

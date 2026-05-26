@@ -128,7 +128,7 @@ fn apply_player_moved(
         world.clock.advance(m);
     }
     world.player_location = to;
-    world.visited_locations.insert(to);
+    world.mark_visited(to);
     *player_moved = true;
 }
 
