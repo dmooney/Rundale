@@ -533,8 +533,8 @@ pub async fn handle_npc_conversation(
     // log writers capture the missed introduction in the persisted
     // markdown — the UI text-log emission alone is ephemeral (#1135 / F9).
     if !absent.is_empty() {
-        let now = ctx.world.lock().await.clock.now();
         let world = ctx.world.lock().await;
+        let now = world.clock.now();
         for name in &absent {
             ctx.emitter.emit_event(
                 "text-log",
