@@ -2501,6 +2501,13 @@ is the correct shape: the engine parses these as movement, not dialogue. If \
 you have visited only one location in the last 5 turns, your next action \
 should be a movement command.\n\
 \n\
+WHEN ALONE (TODO #12): If the user prompt's status block contains the line \
+\"NPCs here: none\", there is nobody to hear you. Do NOT speak, ask questions, \
+roleplay knocking on doors, or wait around. Your ONLY useful action at an \
+empty location is to move. Pick a destination from the \"You can go to: ...\" \
+line and emit a bare movement command (\"go to X\" / \"walk to X\" / \"head \
+to X\"). Speaking at an empty location burns a turn and accomplishes nothing.\n\
+\n\
 Examples:\n\
   {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
   {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
