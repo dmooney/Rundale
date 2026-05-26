@@ -32,7 +32,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send +
 ///
 /// - `parish-server` → `AppStateCommandHost` (axum web server)
 /// - `parish-tauri` → `TauriCommandHost` (Tauri desktop)
-/// - `parish-cli` → `CliCommandHost` (headless CLI)
+/// - `parish-engine` → `CliCommandHost` (headless CLI)
 ///
 /// # Implementing this trait
 ///
@@ -162,7 +162,7 @@ pub fn apply_inference_log_sub(
 /// emits the command's text response and an updated world snapshot.
 ///
 /// This replaces the ~150-line `handle_system_command` that was triplicated in
-/// `parish-server`, `parish-tauri`, and `parish-cli` (with only the effect
+/// `parish-server`, `parish-tauri`, and `parish-engine` (with only the effect
 /// dispatch body differing).  Each backend now provides a ~20-line
 /// [`SystemCommandHost`] implementation delegating to this function.
 pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command) {

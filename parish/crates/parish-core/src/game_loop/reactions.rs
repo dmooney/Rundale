@@ -67,7 +67,7 @@ pub fn is_snippet_injection_char(c: char) -> bool {
 /// # Cross-mode parity
 ///
 /// Both `parish-server` and `parish-tauri` delegate here (#696 slice 5).
-/// The headless CLI (`parish-cli`) routes through its own inline path because
+/// The headless CLI (`parish-engine`) routes through its own inline path because
 /// its flat `App` struct does not yet use `Arc<Mutex<T>>` fields (#future).
 ///
 /// # Concurrency

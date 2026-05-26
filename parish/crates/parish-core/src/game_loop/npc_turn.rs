@@ -23,7 +23,7 @@
 //!
 //! # Headless CLI
 //!
-//! `parish-cli`'s `App` uses bare (non-Mutex) fields, so it cannot construct
+//! `parish-engine`'s `App` uses bare (non-Mutex) fields, so it cannot construct
 //! a [`GameLoopContext`].  Its inline implementations remain in `headless.rs`
 //! until a follow-up slice wraps `App`'s fields in `Arc<Mutex<>>`.
 

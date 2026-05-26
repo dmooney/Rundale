@@ -4,13 +4,8 @@
 
 | ID | Category | Description |
 |----|----------|-------------|
-| TD-023 | Stale Docs | Literal `parish-cli` references remain after the headless crate rename: `src/ipc/event_emitter.rs:8,25`, `src/secret_store.rs:4`, `src/game_loop/inference.rs:15`, `src/game_loop/reactions.rs:70`, `src/ipc/byok.rs:4`, `src/ipc/commands.rs:2039`, `src/character_log.rs:23`. Refresh to `parish-engine` or generic "headless CLI" wording and grep the crate for zero stale hits. |
-| TD-024 | Untracked TODO | `src/ipc/handlers.rs:788` contains `TODO #39 (mid-reply self-introduction)` inside `prepare_npc_conversation_turn`, but the crate TODO said discovery was clean. Decide whether the introduced-state behaviour is still a bug; either fix it with a conversation test or move the rationale into this debt list and remove the inline TODO. |
-| TD-025 | Config/Cargo | Remove unused `tokio-test` dev-dep at `Cargo.toml:31`. No `tokio_test` import or macro appears under `src/` or `tests/`; async tests use `#[tokio::test]` from the `tokio` dependency instead. |
-| TD-026 | Test/Tooling | `src/editor/maintenance_tool.rs:1-35` is a destructive ignored maintenance test inside library source and hard-codes `../../../mods/rundale`. Move it to a dedicated script or integration test helper that takes an explicit mod path/env var, so normal library source stays non-destructive and cwd-independent. |
-| TD-027 | Structure | `src/game_mod.rs` is 2,075 LOC and mixes manifest schema, runtime data structs, `GameMod::load`, mod discovery, provider catalog loading, cwd fallback helpers, and tests. Split along those boundaries (`manifest`, `runtime_data`, `loader`, `discovery`, `providers`, tests) without behaviour changes. |
-| TD-028 | Structure | `src/ipc/commands.rs` is 2,278 LOC; production command dispatch runs through line 1,048 and the in-file test module then occupies ~1,229 lines. Move tests into focused modules or split provider/flag/map/session command handlers so command semantics remain reviewable. |
-| TD-029 | Structure | `src/debug_snapshot.rs` is 1,568 LOC and combines many debug DTO definitions, snapshot builders, helper functions, and tests. Split type definitions from builders/tests to reduce the blast radius for debug-panel changes. |
+
+
 
 ## In Progress
 
@@ -31,6 +26,7 @@
 | TD-009 | 2026-05-07 | Rewrote no-op `apply_arrival_reactions_empty_location` test — removed dead `mgr.npcs_at()` call and suppressed result, renamed to `apply_arrival_reactions_does_not_panic` |
 | TD-010 | 2026-05-07 | Removed dead variable assignments (`let _ = target; let _ = start;`) from `apply_movement_already_here` test |
 | TD-011 | 2026-05-07 | Extracted 8 sub-functions from 434-line `handle_command` match: `handle_time_control_command`, `handle_info_command`, `handle_sidebar_improv_command`, `handle_provider_command`, `handle_cloud_provider_command`, `handle_category_provider_command`, `handle_preset_command`, `handle_flag_command`, `handle_theme_command`. Match reduced to dispatch calls grouped by category. |
+| TD-028 | 2026-05-25 | Split `src/ipc/commands.rs` (2,278 LOC) into 14 sub-modules under `src/ipc/commands/`: `types` (enums, struct), `help`, `dispatch` (master `handle_command`), `time`, `info`, `toggles`, `provider` (4 handlers), `flags`, `theme`, `weather`, `session`, `map`, `look`, `tests` (87 tests). Public API unchanged. |
 | TD-012 | 2026-05-07 | Extracted 6 sub-builders from 184-line `build_npc_debug_list`: `build_npc_schedule_debug`, `build_npc_relationship_debug`, `build_npc_memory_debug`, `build_npc_long_term_memory_debug`, `build_npc_reaction_debug`, `build_npc_deflated_summary_debug`. |
 | TD-013 | 2026-05-07 | Updated `SessionStore` trait doc to acknowledge single-user `session_id = ""` convention alongside multi-user UUID v4 convention |
 | TD-014 | 2026-05-07 | Updated `lib.rs` module doc to accurately describe parish-core as orchestration layer that composes leaf crates, not the owner of leaf-crate systems |
@@ -42,7 +38,13 @@
 | TD-020 | 2026-05-12 | Fixed `prepare_npc_conversation` doc to describe it as active single-target convenience wrapper used by headless CLI |
 | TD-021 | 2026-05-12 | Extracted `run_autonomous_chain` helper from Phase 2 chain in `npc_turn.rs`, replacing duplicated loop in `run_idle_banter` |
 | TD-022 | 2026-05-12 | Added Rule 9 warning docs to `find_mods_root` and `LocalDiskModSource::new`, noting cwd-walk is dev fallback only |
+| TD-023 | 2026-05-25 | Replaced all 12 stale `parish-cli` doc-comment references with `parish-engine` |
+| TD-024 | 2026-05-25 | Replaced 3 stale TODO #39 comments in `ipc/handlers.rs` and `parish-npc/src/ticks.rs` with design notes; `was_introduced` snapshot + `introduced_anchor_block` guard were already correct and test-covered |
+| TD-025 | 2026-05-25 | Removed unused `tokio-test` dev-dependency from Cargo.toml |
+| TD-026 | 2026-05-26 | Moved destructive maintenance test out of library source: deleted `src/editor/maintenance_tool.rs`, created `tests/normalize_mod.rs` (env-var-gated integration test) and `parish/scripts/normalize-mod-source.sh` (safety-gated shell wrapper) |
+| TD-027 | 2026-05-26 | Split `src/game_mod.rs` (2,075 LOC) into 7 sub-modules under `src/game_mod/`: `mod.rs` (re-exports), `types.rs` (runtime data structs), `manifest.rs` (manifest schema), `discovery.rs` (mod discovery), `world.rs` (world loading), `assets.rs` (asset resolution), `tests.rs` (tests). Public API unchanged. |
+| TD-029 | 2026-05-25 | Split `src/debug_snapshot.rs` (1,593 LOC) into 4 sub-modules under `src/debug_snapshot/`: `types.rs` (28 DTO structs), `build.rs` (builder functions + helpers), `reexport.rs` (InferenceLogEntry re-export), `tests.rs` (14 tests). Public API preserved for all cross-crate consumers. |
 
 ## Discovery note
 
-2026-05-25 scan of `parish/crates/parish-core/src/` reopened discovery with TD-023 through TD-029. `cargo check -p parish-core --all-targets`, `cargo clippy -p parish-core --all-targets -- -D warnings`, and `cargo test -p parish-core --test architecture_fitness` passed before recording these items.
+2026-05-26 scan of `parish/crates/parish-core/src/` — clean. All items from the 2026-05-25 discovery sweep (TD-023 through TD-029) are now resolved. `cargo test -p parish-core` (446 passed, 0 failures), `cargo test -p parish-core --test architecture_fitness` (3 passed), `cargo clippy -p parish-core --all-targets -- -D warnings` (clean), and cross-crate compilation (`parish-tauri`, `parish-server`, `parish-engine`, `parish-mcp`) all pass.

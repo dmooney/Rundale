@@ -297,7 +297,7 @@ fn is_intentional_cancellation(msg: &str) -> bool {
 
 /// "Already introduced" anchor — fires only on the second and later
 /// turns with a given NPC (when the NPC's name has already been
-/// surfaced to the player). TODO #39 captured this failure mode:
+/// surfaced to the player). This failure mode was captured:
 /// Roisin Connolly's reply on turn 7 included "...ye share yer
 /// plans with me, Roisin Connolly, of Connolly's Shop, and a keen
 /// eye for opportunity?" — mid-reply self-introduction that
@@ -1761,7 +1761,7 @@ mod tests {
 
     #[test]
     fn test_introduced_anchor_block_fires_only_when_previously_introduced() {
-        // TODO #39 — first contact: anchor must NOT render so the NPC
+        // First contact: anchor must NOT render so the NPC
         // can introduce themselves on turn 1.
         let npc = make_test_npc(1, "Padraig", 1);
         assert!(
