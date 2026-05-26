@@ -35,6 +35,8 @@ use memory::{LongTermMemory, ShortTermMemory};
 use parish_types::{DayType, LocationId, Season};
 use parish_world::WorldState;
 use parish_world::description::render_description;
+use parish_world::movement::{WeatherEffect, weather_effect};
+use parish_world::transport::TransportMode;
 use reactions::ReactionLog;
 use transitions::NpcSummary;
 use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
@@ -800,17 +802,80 @@ pub fn build_tier1_context(world: &WorldState) -> String {
     // to "morning". Spell out the bucket and direct the model to
     // greet accordingly.
     let time_of_day_label = time_of_day.to_string();
+    let loc_details = location_details_block(world);
     format!(
-        "Your Location: {loc_name} — {loc_desc}\n\
+        "Your Location: {loc_name} — {loc_desc}{loc_details}\n\
         Date and time: {date_time}\n\
         Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.",
         loc_name = world.current_location().name,
         loc_desc = rendered_desc,
+        loc_details = loc_details,
         date_time = date_time_str,
         tod = time_of_day_label,
         hour = now.hour(),
         minute = now.minute(),
     )
+}
+
+/// Builds the situational location block appended to the Tier 1 context:
+/// indoor/outdoor + public/private framing, any mythological note, and the
+/// paths leading away — each neighbour by name, its prose path, an on-foot
+/// travel estimate, and a live weather-hazard note when the current weather
+/// blocks or slows that edge.
+///
+/// Returns an empty string when the current location is absent from the world
+/// graph, so callers fall back to the legacy name + description text unchanged.
+fn location_details_block(world: &WorldState) -> String {
+    let Some(loc) = world.current_location_data() else {
+        return String::new();
+    };
+
+    let setting = if loc.indoor {
+        "an enclosed indoor space"
+    } else {
+        "an open outdoor place"
+    };
+    let access = if loc.public {
+        "open to all"
+    } else {
+        "a private place"
+    };
+    let mut out = format!("\nThis is {setting}, {access}.");
+
+    if let Some(sig) = &loc.mythological_significance {
+        out.push_str(&format!("\nOf local note: {sig}"));
+    }
+
+    let walking_speed = TransportMode::walking().speed_m_per_s;
+    let neighbors = world.graph.neighbors(world.player_location);
+    if neighbors.is_empty() {
+        out.push_str("\nThere are no paths leading away from here.");
+        return out;
+    }
+
+    out.push_str("\nPaths from here:");
+    for (target, conn) in neighbors {
+        let Some(dest) = world.graph.get(target) else {
+            continue;
+        };
+        let minutes = world
+            .graph
+            .edge_travel_minutes(world.player_location, target, walking_speed);
+        let hazard = match weather_effect(conn, world.weather) {
+            WeatherEffect::Impassable { reason } => {
+                format!(" — impassable in this weather: {reason}")
+            }
+            WeatherEffect::Slowed { note, .. } => format!(" — slow going today: {note}"),
+            WeatherEffect::Clear => String::new(),
+        };
+        out.push_str(&format!(
+            "\n- {name} — {path} (about {minutes} min on foot){hazard}",
+            name = dest.name,
+            path = conn.path_description,
+        ));
+    }
+
+    out
 }
 
 #[cfg(test)]
@@ -1356,6 +1421,228 @@ mod tests {
         // Date / season from WorldState::new(): 20 March 1820, Spring
         assert!(context.contains("1820"), "year missing from context");
         assert!(context.contains("Spring"), "season missing from context");
+    }
+
+    /// Helper: a world whose current location (id 1) carries the given
+    /// indoor/public flags, optional mythological note, and a single hazard
+    /// connection to "The Church" (id 2). `player_location` defaults to 1.
+    #[cfg(test)]
+    fn world_with_location_details(
+        indoor: bool,
+        public: bool,
+        myth: Option<&str>,
+        hazard: Option<&str>,
+        weather: parish_world::Weather,
+    ) -> parish_world::WorldState {
+        use parish_world::graph::WorldGraph;
+
+        let myth_field = match myth {
+            Some(s) => format!(r#""mythological_significance": "{s}","#),
+            None => String::new(),
+        };
+        let hazard_field = match hazard {
+            Some(h) => format!(r#", "hazard": "{h}""#),
+            None => String::new(),
+        };
+        let graph_json = format!(
+            r#"{{
+                "locations": [
+                    {{
+                        "id": 1,
+                        "name": "The Crossroads",
+                        "description_template": "A crossroads.",
+                        "indoor": {indoor},
+                        "public": {public},
+                        {myth_field}
+                        "lat": 53.618,
+                        "lon": -8.095,
+                        "connections": [{{"target": 2, "path_description": "a narrow boreen lined with hawthorn"{hazard_field}}}],
+                        "associated_npcs": []
+                    }},
+                    {{
+                        "id": 2,
+                        "name": "St. Brigid's Church",
+                        "description_template": "The church.",
+                        "indoor": false,
+                        "public": true,
+                        "lat": 53.640,
+                        "lon": -8.120,
+                        "connections": [{{"target": 1, "path_description": "back the way you came"}}],
+                        "associated_npcs": []
+                    }}
+                ]
+            }}"#
+        );
+
+        let mut world = parish_world::WorldState::new();
+        world.graph = WorldGraph::load_from_str(&graph_json).unwrap();
+        world.player_location = LocationId(1);
+        world.weather = weather;
+        world
+    }
+
+    #[test]
+    fn tier1_context_lists_connections_with_path_and_walk_time() {
+        let world =
+            world_with_location_details(false, true, None, None, parish_world::Weather::Clear);
+        let context = build_tier1_context(&world);
+
+        assert!(
+            context.contains("Paths from here:"),
+            "paths block missing: {context}"
+        );
+        assert!(
+            context.contains("St. Brigid's Church"),
+            "connected neighbour name missing: {context}"
+        );
+        assert!(
+            context.contains("a narrow boreen lined with hawthorn"),
+            "path description missing: {context}"
+        );
+        assert!(
+            context.contains("min on foot"),
+            "on-foot travel estimate missing: {context}"
+        );
+    }
+
+    #[test]
+    fn tier1_context_states_indoor_and_public_framing() {
+        let indoor_private =
+            world_with_location_details(true, false, None, None, parish_world::Weather::Clear);
+        let ctx = build_tier1_context(&indoor_private);
+        assert!(
+            ctx.contains("an enclosed indoor space"),
+            "indoor framing missing: {ctx}"
+        );
+        assert!(
+            ctx.contains("a private place"),
+            "private framing missing: {ctx}"
+        );
+
+        let outdoor_public =
+            world_with_location_details(false, true, None, None, parish_world::Weather::Clear);
+        let ctx = build_tier1_context(&outdoor_public);
+        assert!(
+            ctx.contains("an open outdoor place"),
+            "outdoor framing missing: {ctx}"
+        );
+        assert!(ctx.contains("open to all"), "public framing missing: {ctx}");
+    }
+
+    #[test]
+    fn tier1_context_includes_mythological_note_only_when_present() {
+        let with_myth = world_with_location_details(
+            false,
+            true,
+            Some("a fairy fort the old people will not disturb"),
+            None,
+            parish_world::Weather::Clear,
+        );
+        let ctx = build_tier1_context(&with_myth);
+        assert!(
+            ctx.contains("Of local note: a fairy fort the old people will not disturb"),
+            "mythological note missing when present: {ctx}"
+        );
+
+        let without_myth =
+            world_with_location_details(false, true, None, None, parish_world::Weather::Clear);
+        let ctx = build_tier1_context(&without_myth);
+        assert!(
+            !ctx.contains("Of local note:"),
+            "mythological note present when it should be absent: {ctx}"
+        );
+    }
+
+    #[test]
+    fn tier1_context_flags_weather_hazard_on_connections() {
+        // A flood-hazard edge is impassable in a Storm.
+        let stormy = world_with_location_details(
+            false,
+            true,
+            None,
+            Some("flood"),
+            parish_world::Weather::Storm,
+        );
+        let ctx = build_tier1_context(&stormy);
+        assert!(
+            ctx.contains("impassable in this weather"),
+            "hazard note missing under storm: {ctx}"
+        );
+
+        // Same edge under clear weather carries no hazard note.
+        let clear = world_with_location_details(
+            false,
+            true,
+            None,
+            Some("flood"),
+            parish_world::Weather::Clear,
+        );
+        let ctx = build_tier1_context(&clear);
+        assert!(
+            !ctx.contains("impassable in this weather"),
+            "hazard note present under clear weather: {ctx}"
+        );
+        assert!(
+            !ctx.contains("slow going today"),
+            "slowed note present under clear weather: {ctx}"
+        );
+    }
+
+    #[test]
+    fn tier1_context_falls_back_cleanly_when_location_absent_from_graph() {
+        use parish_world::graph::WorldGraph;
+
+        // Graph contains only ids 998/999, so the player's location (1) is
+        // absent from the graph: current_location_data() is None.
+        let graph_json = r#"{
+            "locations": [
+                {
+                    "id": 998,
+                    "name": "Nowhere",
+                    "description_template": "Empty.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.0,
+                    "lon": 0.0,
+                    "connections": [{"target": 999, "path_description": "a track"}],
+                    "associated_npcs": []
+                },
+                {
+                    "id": 999,
+                    "name": "Elsewhere",
+                    "description_template": "Empty.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 0.1,
+                    "lon": 0.1,
+                    "connections": [{"target": 998, "path_description": "a track"}],
+                    "associated_npcs": []
+                }
+            ]
+        }"#;
+
+        let mut world = parish_world::WorldState::new();
+        world.graph = WorldGraph::load_from_str(graph_json).unwrap();
+        world.player_location = LocationId(1);
+
+        // Must not panic, and must emit no paths block / setting line.
+        let ctx = build_tier1_context(&world);
+        assert!(
+            !ctx.contains("Paths from here:"),
+            "paths block leaked: {ctx}"
+        );
+        assert!(
+            !ctx.contains("There are no paths leading away"),
+            "no-paths sentinel leaked: {ctx}"
+        );
+        assert!(
+            !ctx.contains("This is an"),
+            "setting line leaked without graph data: {ctx}"
+        );
+        assert!(
+            ctx.contains("Your Location:"),
+            "legacy location line missing: {ctx}"
+        );
     }
 
     /// Tier 2 system prompt: every `{placeholder}` must be substituted.
