@@ -44,6 +44,21 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "i'm headed to ",
         "i'm heading to ",
         "off i go to ",
+        // Modal first-person movement (TODO #53) — "might i" / "i shall"
+        // forms only catch when followed by a recognised move verb so
+        // conversational "might i ask" / "i shall ponder" stay as Talk.
+        "might i make my way to ",
+        "i shall make my way to ",
+        "might i venture to ",
+        "might i make for ",
+        "might i walk to ",
+        "might i head to ",
+        "might i go to ",
+        "i shall venture to ",
+        "i shall make for ",
+        "i shall walk to ",
+        "i shall head to ",
+        "i shall go to ",
         // Generic multi-word movement phrases.
         "make my way to ",
         "make my way ",
@@ -563,6 +578,75 @@ mod tests {
         let intent = parse_intent_local("Off I Go To The Mill").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
         assert_eq!(intent.target.as_deref(), Some("The Mill"));
+    }
+
+    /// TODO #53: modal first-person movement forms that the cycle 11
+    /// auto-player produced repeatedly. Without these patterns the
+    /// "might i" cases fell through the first-person Talk guard
+    /// entirely and "i shall ..." was rewritten as Talk before any
+    /// move match could fire.
+    #[test]
+    fn test_local_parse_modal_first_person_movement_intents() {
+        let cases = [
+            ("Might I venture to the Letter Office", "the Letter Office"),
+            ("Might I go to the mill", "the mill"),
+            ("Might I walk to the church", "the church"),
+            ("Might I head to the crossroads", "the crossroads"),
+            ("Might I make my way to the shop", "the shop"),
+            ("Might I make for the green", "the green"),
+            ("I shall go to the Letter Office", "the Letter Office"),
+            ("I shall venture to the mill", "the mill"),
+            ("I shall walk to the church", "the church"),
+            ("I shall head to the crossroads", "the crossroads"),
+            ("I shall make my way to the shop", "the shop"),
+            ("I shall make for the green", "the green"),
+        ];
+        for (input, target) in cases {
+            let intent =
+                parse_intent_local(input).unwrap_or_else(|| panic!("no intent parsed: {input}"));
+            assert_eq!(
+                intent.intent,
+                IntentKind::Move,
+                "{input} must parse as Move (got {:?}): {intent:?}",
+                intent.intent
+            );
+            assert_eq!(
+                intent.target.as_deref(),
+                Some(target),
+                "{input} target mismatch"
+            );
+        }
+
+        // Case-insensitivity guard for the new modal patterns.
+        let upper = parse_intent_local("MIGHT I VENTURE TO THE MILL").unwrap();
+        assert_eq!(upper.intent, IntentKind::Move);
+        assert_eq!(upper.target.as_deref(), Some("THE MILL"));
+        let mixed = parse_intent_local("I Shall Go To The Pub").unwrap();
+        assert_eq!(mixed.intent, IntentKind::Move);
+        assert_eq!(mixed.target.as_deref(), Some("The Pub"));
+    }
+
+    /// TODO #53 guard: modal openings that do NOT contain a recognised
+    /// move verb must NOT be parsed as Move. `Might I ask…` and
+    /// `I shall ponder…` are conversational openings and must continue
+    /// to fall through to the Talk path.
+    #[test]
+    fn test_local_parse_modal_without_move_verb_stays_conversational() {
+        // "Might I ask ..." does not match any modal-move pattern.
+        // It is not first-person ("might" prefix), so the Talk guard
+        // does not fire either — parse_intent_local returns None and
+        // the input falls through to the LLM intent classifier, which
+        // is the correct behaviour for an open-ended question.
+        assert!(parse_intent_local("Might I ask about the harvest").is_none());
+        assert!(parse_intent_local("Might I inquire after the priest").is_none());
+
+        // "I shall ponder ..." starts with "i " so the first-person
+        // Talk guard catches it as Talk — the correct outcome for a
+        // reflective statement that mentions no destination.
+        let intent = parse_intent_local("I shall ponder it a while").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        let intent = parse_intent_local("I shall think on that").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
     }
 
     #[test]
