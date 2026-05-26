@@ -2554,6 +2554,7 @@ pub async fn get_llm_player_action(
             Some(&system_prompt),
             Some(200),
             Some(0.9),
+            None,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -2591,6 +2592,7 @@ pub async fn get_llm_player_action(
                 Some(&system_prompt),
                 Some(200),
                 Some(1.0),
+                None,
             )
             .await
             .map_err(|e| e.to_string())?;

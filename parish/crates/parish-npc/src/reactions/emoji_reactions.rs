@@ -265,6 +265,7 @@ pub async fn infer_player_message_reaction(
         Some(&system),
         Some(80),
         Some(REACTION_INFERENCE_TEMPERATURE),
+        None,
     );
 
     let response = match tokio::time::timeout(timeout, call).await {
