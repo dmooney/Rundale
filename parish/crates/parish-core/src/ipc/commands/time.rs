@@ -16,12 +16,26 @@ pub(super) fn handle_time_control_command(
 ) -> CommandResult {
     match cmd {
         Command::Pause => {
-            world.clock.pause();
-            CommandResult::text("The clocks of the parish stand still.")
+            // Only announce on the running->paused edge. The frontend
+            // auto-pause tracker dispatches /pause repeatedly on user-idle
+            // edges; without this gate a redundant /pause re-emits the system
+            // line, producing the duplicate messages the demo audit caught
+            // (TODO #6 / #31). An empty response is not emitted.
+            if world.clock.is_paused() {
+                CommandResult::text("")
+            } else {
+                world.clock.pause();
+                CommandResult::text("The clocks of the parish stand still.")
+            }
         }
         Command::Resume => {
-            world.clock.resume();
-            CommandResult::text("Time stirs again in the parish.")
+            // Symmetric edge-gating: only announce on the paused->running edge.
+            if world.clock.is_paused() {
+                world.clock.resume();
+                CommandResult::text("Time stirs again in the parish.")
+            } else {
+                CommandResult::text("")
+            }
         }
         Command::Status => {
             let tod = world.clock.time_of_day();
