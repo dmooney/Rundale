@@ -162,9 +162,7 @@ See the [ADR Index](adr/README.md) for the full table and template.
 
 | Document | Description |
 |----------|-------------|
-| [macOS Setup](macos-setup.md) | Native macOS setup, Apple Silicon GPU, terminal tips |
-| [Linux Setup](linux-setup.md) | Native Linux setup, NVIDIA/AMD GPU, headless screenshots |
-| [Windows Setup](windows-setup.md) | Native Windows setup, terminal tips, troubleshooting |
+| [Setup Guide](setup.md) | Platform-specific setup for macOS, Linux, and Windows |
 | [Google OAuth Setup](oauth-setup.md) | Google credentials for the web server's sign-in flow |
 
 ## Development
@@ -172,12 +170,14 @@ See the [ADR Index](adr/README.md) for the full table and template.
 | Document | Description |
 |----------|-------------|
 | [Feature List](features.md) | Player-facing and engine feature inventory |
-| [Development Journal](journal.md) | Cross-session notes, observations, recommendations |
-| [Known Issues](known-issues.md) | Active bugs and UX issues |
+| [Development Journal](archive/journal.md) | Cross-session notes, observations, recommendations (archived) |
+| [Known Issues](archive/known-issues.md) | Active bugs and UX issues (archived) |
 | [First Contribution Guide](development/first-contribution-guide.md) | Newcomer architecture map and where to implement common changes |
-| [Test Coverage Analysis](test-coverage-analysis.md) | Coverage snapshot and gaps |
+| [Test Coverage Analysis](archive/test-coverage-analysis.md) | Coverage snapshot and gaps (archived — from pre-workspace era) |
 | [Releasing Rundale](release.md) | Tag-driven release process |
 | [Maybe Bad Ideas](maybe-bad-ideas.md) | Ideas under consideration — may or may not be worth pursuing |
+| [Repository Layout](repository-layout.md) | Top-level directory tree and crate index |
+| [Troubleshooting](troubleshooting.md) | Bug reporting and inference-log artefact guide |
 
 ## Research
 

@@ -48,8 +48,8 @@ Organize documentation in a strict hierarchy optimized for progressive disclosur
 - **docs/research/*.md** — Historical research informing design
 
 ### Layer 6: Development Operations
-- **docs/journal.md** — Cross-session development notes
-- **docs/known-issues.md** — Active bugs (with severity and current state)
+- **docs/archive/journal.md** — Cross-session development notes (archived)
+- **docs/archive/known-issues.md** — Active bugs (with severity and current state) (archived)
 - **docs/maybe-bad-ideas.md** — Ideas under consideration (shipped items separated)
 
 ### Status reconciliation rules
