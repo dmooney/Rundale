@@ -12,6 +12,25 @@ P0/P1/P2.
 
 ---
 
+## Resolution status — P0 (verified 2026-05-27)
+
+All eight P0 findings (F17–F21, F1–F3) are **resolved** in the current
+tree. Verified by reading the live code paths, not by re-running the
+demo:
+
+| Finding | Resolution | Evidence |
+| --- | --- | --- |
+| F17 | `tier2_groups()` filters solo NPCs | `parish-npc/src/manager.rs:504` — `groups.retain(\|_, ids\| ids.len() >= 2)` (#1025) |
+| F18 | Pronouns interpolated into Tier 2 prompt | `parish-npc/src/ticks.rs:765-768` — dramatis personae carry `(pronouns)`; prompt says "Refer to each character with the pronouns shown in parentheses" |
+| F19 | Prompt constrains naming to participants + post-hoc filter | `parish-npc/src/ticks.rs:769` — "Only name characters listed… never a proper name"; `summary_mentions_absent_npc` drops violations |
+| F20 | Free-text name auto-extraction wired in demo/headless | `parish-engine/src/headless.rs:942-946` calls `detect_player_name()` (regex at `parish-npc/src/lib.rs:703`) and sets `world.player_name` |
+| F21 | Absent-aware routing refuses to mis-route | `parish-core/src/game_loop/npc_turn.rs:485-560` — emits "{name} is not here." and publishes `AddressedAbsentNpc` (#985, #1137) |
+| F1 | Profile strips `{time}`/`{weather}` placeholders | `parish-core/src/location_log.rs` profile section; render only in journal entries (#1030) |
+| F2 | `player.md` heading uses the named character | `parish-core/src/character_log.rs:339-342` — `format!("{} arrived", name)` from `world.player_name` |
+| F3 | Departure body carries destination | `parish-core/src/location_log.rs:190` — `format!("*Headed to {}*", …)` (#1098) |
+
+---
+
 ## New P0 findings from the 40-turn demo (NpcInteraction wired)
 
 ### F17. Tier 2 fires on solo NPCs and produces template filler *(game, P0)*
