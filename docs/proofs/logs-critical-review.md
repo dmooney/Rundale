@@ -20,7 +20,7 @@ demo:
 
 | Finding | Resolution | Evidence |
 | --- | --- | --- |
-| F17 | `tier2_groups()` filters solo NPCs | `parish-npc/src/manager.rs:504` — `groups.retain(\|_, ids\| ids.len() >= 2)` (#1025) |
+| F17 | `tier2_groups()` filters solo NPCs | `parish-npc/src/manager.rs:504` — <code>groups.retain(|_, ids| ids.len() >= 2)</code> (#1025) |
 | F18 | Pronouns interpolated into Tier 2 prompt | `parish-npc/src/ticks.rs:765-768` — dramatis personae carry `(pronouns)`; prompt says "Refer to each character with the pronouns shown in parentheses" |
 | F19 | Prompt constrains naming to participants + post-hoc filter | `parish-npc/src/ticks.rs:769` — "Only name characters listed… never a proper name"; `summary_mentions_absent_npc` drops violations |
 | F20 | Free-text name auto-extraction wired in demo/headless | `parish-engine/src/headless.rs:942-946` calls `detect_player_name()` (regex at `parish-npc/src/lib.rs:703`) and sets `world.player_name` |
