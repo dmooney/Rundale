@@ -858,14 +858,20 @@ fn location_details_block(world: &WorldState) -> String {
         let Some(dest) = world.graph.get(target) else {
             continue;
         };
-        let minutes = world
-            .graph
-            .edge_travel_minutes(world.player_location, target, walking_speed);
+        let mut minutes =
+            world
+                .graph
+                .edge_travel_minutes(world.player_location, target, walking_speed);
         let hazard = match weather_effect(conn, world.weather) {
             WeatherEffect::Impassable { reason } => {
                 format!(" — impassable in this weather: {reason}")
             }
-            WeatherEffect::Slowed { note, .. } => format!(" — slow going today: {note}"),
+            WeatherEffect::Slowed { factor, note } => {
+                // Mirror movement::weather_adjusted_path so the quoted time
+                // matches the slowdown the player will actually experience.
+                minutes = ((minutes as f64 / factor).ceil() as u16).max(minutes);
+                format!(" — slow going today: {note}")
+            }
             WeatherEffect::Clear => String::new(),
         };
         out.push_str(&format!(
@@ -1585,6 +1591,46 @@ mod tests {
         assert!(
             !ctx.contains("slow going today"),
             "slowed note present under clear weather: {ctx}"
+        );
+    }
+
+    #[test]
+    fn tier1_context_slowed_edge_quotes_weather_adjusted_travel_time() {
+        // A flood edge under heavy rain is Slowed (factor 0.6), so the quoted
+        // on-foot time must rise above the clear-weather estimate — the NPC
+        // can't say "slow going today" while quoting the dry-road time.
+        fn quoted_minutes(ctx: &str) -> u16 {
+            let marker = "(about ";
+            let start = ctx.find(marker).expect("travel estimate present") + marker.len();
+            let rest = &ctx[start..];
+            let end = rest.find(" min on foot").expect("minutes label present");
+            rest[..end].trim().parse().expect("minutes parse")
+        }
+
+        let clear = world_with_location_details(
+            false,
+            true,
+            None,
+            Some("flood"),
+            parish_world::Weather::Clear,
+        );
+        let clear_minutes = quoted_minutes(&build_tier1_context(&clear));
+
+        let rainy = world_with_location_details(
+            false,
+            true,
+            None,
+            Some("flood"),
+            parish_world::Weather::HeavyRain,
+        );
+        let rainy_ctx = build_tier1_context(&rainy);
+        assert!(
+            rainy_ctx.contains("slow going today"),
+            "slowed note missing under heavy rain: {rainy_ctx}"
+        );
+        assert!(
+            quoted_minutes(&rainy_ctx) > clear_minutes,
+            "slowed travel time should exceed clear-weather time: clear={clear_minutes}, ctx={rainy_ctx}"
         );
     }
 
