@@ -1,6 +1,6 @@
 ---
 name: rundale-bench
-description: Drive Rundale model-quality evals. Three modes — (1) `bench <target-spec>` (default): the user says "benchmark X on Y" and you run every slice + perf for that target, with Sonnet subagents as judge, end-to-end. (2) `drain-queue`: dispatch Sonnet subagents to score pending bundles already in the on-disk queue. (3) `eval-dialogue <target-spec> ...`: an in-chat blind A/B/N where Opus scores dialogue across MLX/cloud candidates on a 5-axis rubric with per-candidate USD cost. Use when comparing dialogue quality across models/providers from inside Claude Code.
+description: Drive Rundale model-quality evals. Three modes — (1) `bench <target-spec>` (default — pick this whenever the user says "eval X on Y", "evaluate X on Y", "benchmark X on Y", "run the bench on X", or any single-target phrasing without an explicit "dialogue only" qualifier): runs every slice + perf for that target, with Sonnet 4.6 subagents as judge, end-to-end. (2) `drain-queue`: dispatch Sonnet subagents to score pending bundles already in the on-disk queue. (3) `eval-dialogue <target-spec-A> <target-spec-B> [...]`: a blind A/B/N where Opus drives sample generation and a Sonnet 4.6 subagent scores dialogue across at least two candidates on the 5-axis rubric with per-candidate USD cost. Pick eval-dialogue ONLY when the user explicitly asks for a dialogue-only comparison AND supplies two or more candidates. A single-target "eval" is bench, not eval-dialogue.
 argument-hint: '[bench <target-spec> [--model-id ID --provider-id ID] | drain-queue | eval-dialogue <target-spec> <target-spec> ...]'
 ---
 
@@ -8,14 +8,34 @@ argument-hint: '[bench <target-spec> [--model-id ID --provider-id ID] | drain-qu
 
 Model-quality eval with three modes:
 
-- **`bench <target-spec>` (default)** — the user-facing entry point. Triggered when the user says "benchmark
-  X on Y" or "/rundale-bench bench …". Runs every slice + perf for one target, using Sonnet subagents as
-  judge, and ingests the scores in one workflow. Jump to the **bench mode** section below.
+- **`bench <target-spec>` (default)** — the user-facing entry point. **Triggered when the user asks to
+  evaluate or benchmark a single model+provider** — phrasings like "eval qwen3.7 on opencode-go",
+  "evaluate kimi-k2.6 on opencode-go", "benchmark X on Y", "run the bench on X", or "/rundale-bench
+  bench …". Runs **every slice (dialogue, intent, reaction, tier2-sim, tier3-sim, gaeilge) + perf** for
+  one target, using Sonnet 4.6 subagents as judge, and ingests the scores in one workflow. **This is the
+  default for any single-target "eval" request.** Jump to the **bench mode** section below.
 - **`drain-queue`** — drain an already-queued judging backlog. Useful after a prior run was aborted, or after
   someone (or a script) generated bundles outside this skill.
-- **`eval-dialogue`** — a lightweight in-chat blind A/B/N. Opus (this conversation) is the judge; no separate
-  judge process, no queue. Best for a quick cross-family dialogue comparison with USD-cost accounting. Jump
-  to the **eval-dialogue mode** section below.
+- **`eval-dialogue <spec-A> <spec-B> [...]`** — a blind A/B/N where Opus drives sample generation and a
+  single Sonnet 4.6 Agent subagent scores dialogue across **two or more candidates** on the 5-axis rubric
+  with per-candidate USD cost. **Trigger only when the user explicitly asks for a dialogue-only
+  comparison AND names at least two candidates** — e.g. "compare qwen3.6 vs qwen3.7 on dialogue",
+  "eval-dialogue A B", "A/B these two on dialogue". A single-target "eval"/"benchmark" is **bench**, not
+  eval-dialogue — when in doubt, pick bench. Jump to the **eval-dialogue mode** section below.
+
+### Mode-selection cheat sheet
+
+| User says... | Mode |
+| --- | --- |
+| "eval qwen3.7 on opencode-go" | **bench** (single target, all slices) |
+| "evaluate kimi-k2.6 on opencode-go" | **bench** |
+| "benchmark glm-5.1 on opencode-go" | **bench** |
+| "run the bench on minimax-m2.7" | **bench** |
+| "/rundale-bench bench …" | **bench** (explicit) |
+| "compare qwen3.6 vs qwen3.7 on dialogue" | **eval-dialogue** (two specs, dialogue-only) |
+| "A/B these on dialogue: spec_a, spec_b" | **eval-dialogue** |
+| "/rundale-bench eval-dialogue A B" | **eval-dialogue** (explicit) |
+| "drain the judging queue" / "/rundale-bench drain-queue" | **drain-queue** |
 
 ---
 
@@ -103,10 +123,17 @@ python3 rundale-bench/rundale_bench.py judge --verify sonnet   # rubric_sha256 i
 
 ## eval-dialogue mode
 
-A blind A/B/N where **Opus (this conversation) is the judge** — no orchestrator, no queue, no judge
-subagent. Use it to decide which model + provider combo to wire into
+A blind A/B/N where **a Sonnet 4.6 Agent subagent is the judge** — no persistent queue, no orchestrator,
+no inline self-scoring. Opus (this conversation) handles the workflow (target classification, sample
+generation, report writing); a single Agent dispatch with `model: "sonnet"` does the scoring against the
+rubric. Use it to decide which model + provider combo to wire into
 `parish-config::presets::preset_models()` for an `InferenceCategory`. Invoke with target specs:
 `/rundale-bench eval-dialogue <target-spec> <target-spec> [...]`.
+
+**Why Sonnet, not Opus-in-chat.** Project-wide rule: all rundale-bench judging is Sonnet 4.6 (see
+`bench` and `drain-queue` modes, which both dispatch Sonnet subagents). Self-judging in-chat with Opus
+risks same-conversation bias, burns the Opus 5-hour window on mechanical rubric scoring, and inverts the
+cost calculus — Sonnet does this job just as well at a fraction of the token cost.
 
 ### Target spec
 
@@ -132,9 +159,13 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
    targets need their `$VAR` set; verify with `printenv $VAR` and abort if any required key is missing.
 2. **Pre-flight local targets only.** If any target is local, check `which vllm-mlx`. If missing, tell the
    user to run `uv tool install vllm-mlx`. Skip for pure-cloud runs.
-3. **The judge is YOU (Claude Opus, in this conversation).** Do not spawn a separate judge process. Opus is
-   cross-family and stronger than any local MLX tier, eliminating same-family bias; for cloud-vs-cloud it is
-   still the most independent in-chat judge. State this in the report header with the judge model id and date.
+3. **The judge is a Sonnet 4.6 Agent subagent.** Do not score inline as Opus. After samples are generated
+   (step 5), dispatch a single `Agent` tool call with `subagent_type: "general-purpose"` and
+   `model: "sonnet"`, hand it the transcripts + the rubric below, and ingest its JSON reply verbatim.
+   Sonnet is cross-family relative to every local MLX tier and to Anthropic-branded cloud candidates only
+   when the candidate itself is Opus — Sonnet-vs-Sonnet runs are still legitimate (the rubric is mechanical
+   enough that family-relatedness is a small effect), but flag the overlap in the report header. State
+   the judge model id (`claude-sonnet-4-6`) and date in the report header.
 4. **Spawn local vllm-mlx processes** on consecutive ports from `:8000` for each *local* target. Use
    `--enable-prefix-cache --continuous-batching`. Save pids for cleanup. Wait for `/v1/models` to respond
    (Monitor with an `until curl ... ; do sleep 2; done` loop). Skip entirely for all-cloud runs.
@@ -149,10 +180,23 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
    ```
    `gen_dlg.py` uses the canonical 5 prompts and writes a transcript plus a `=== Cost: ... ===` footer.
    Record the cost line per candidate.
-6. **Score the replies yourself (Opus).** Build a single bundle in chat — one section per prompt, each
-   candidate labelled `Model X`, `Model Y`, … (no model-name leakage). Apply the 5-axis rubric below to
-   every candidate reply, producing JSON `{character,authenticity,language,responsiveness,craft,overall}`
-   per candidate per prompt. Output 1-5 integers (one decimal for `overall`).
+6. **Dispatch the Sonnet judge.** Build a single in-prompt bundle — one section per prompt, each
+   candidate labelled `Model X`, `Model Y`, … (no model-name leakage in the prompt body — the mapping
+   stays in your context for the final report). Dispatch one `Agent` call:
+
+   ```
+   Agent(
+     subagent_type: "general-purpose",
+     model: "sonnet",
+     prompt: <rubric below> + <per-prompt bundle> +
+             "Output exactly N+1 lines of compact JSON: lines 1..N = per-prompt
+              {X,Y,...}, line N+1 = per-candidate aggregate means."
+   )
+   ```
+
+   Ingest its JSON verbatim — do not re-score, do not adjust. If Sonnet's aggregate line has obvious
+   arithmetic errors (it sometimes mis-averages), recompute the aggregates yourself from the per-prompt
+   lines and note the discrepancy in the report. Do not change the per-prompt scores.
 7. **Aggregate.** Mean each axis across the 5 prompts per candidate. Build a markdown table sorted by
    **Overall** descending, with a `Cost (USD)` column from the `gen_dlg.py` footer.
 8. **Write the report** to `docs/proofs/local-perf/quality_eval_<UTC-stamp>.md`: judge model + URL; candidate
@@ -184,8 +228,12 @@ mean of the five sub-scores (1-5, one decimal). No prose, no markdown.
 ### Notes
 
 - The judge is itself an LLM with its own biases — interpret deltas <0.3 as noise.
-- For cross-family sweeps (MLX vs Claude vs GPT vs Llama), prefer three or four candidates so Opus has more
-  relative signal than absolute.
+- For cross-family sweeps (MLX vs Claude vs GPT vs Llama), prefer three or four candidates so Sonnet has
+  more relative signal than absolute.
+- **Sonnet-judging-Sonnet caveat.** If a candidate is itself Claude Sonnet 4.6 (or another close Anthropic
+  cousin), note it in the report header — same-family bias is hard to fully eliminate, though the rubric
+  is mechanical enough that the effect is usually small. For Opus candidates the bias risk is higher;
+  cross-check by spawning a second judge in a different family if the delta is load-bearing.
 - Costs come from each provider's `usage` block (where reported). Local targets show $0.00. Static
   $/M-token rates live in `parish/scripts/local-eval/eval_lib.py::COSTS` — verify before treating totals as
   gospel; providers change pricing without warning.
