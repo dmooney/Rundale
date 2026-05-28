@@ -891,15 +891,14 @@
         "slice": "tier3-sim",
         "records": 10,
         "judged": 7,
-        "bench_bugs": 2,
-        "judge_failures": 1,
+        "bench_bugs": 3,
+        "judge_failures": 0,
         "errors": 0,
         "schema_valid_rate": 0.7,
         "mean_score": 2.857142857142857,
         "judge": "judge_sim_v1",
         "judge_model": "claude-sonnet-4-6",
-        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a",
-        "pending_judge": true
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
       },
       "results": [
         {
@@ -908,7 +907,19 @@
           "schema_valid": false,
           "response_sha256": "b0181b518fdc9ad4b4a6d63c8283d579fb33b7cdf3d1382923f83635d4684e3d",
           "cache_key": "78dfb93c2968cc7e3a74d8b4e5a000d13f818fe5f971a4b49aca449acad2c6bd",
-          "judged": false
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
         },
         {
           "id": "tier3-0002",

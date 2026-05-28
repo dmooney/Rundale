@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T14:12:39.882773+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Phi-3.5-mini-instruct-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 107,
+      "ttft_ms_p90": 177,
+      "total_ms_median": 2385,
+      "tokens_per_second_median": 87.6,
+      "tokens_per_second_p90": 88.0,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 777,
+          "total_ms": 3063,
+          "completion_tokens": 200,
+          "prompt_tokens": 1799,
+          "tokens_per_second": 87.48906386701663,
+          "reply_len": 608,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 111,
+          "total_ms": 2426,
+          "completion_tokens": 200,
+          "prompt_tokens": 1802,
+          "tokens_per_second": 86.39308855291577,
+          "reply_len": 593,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 106,
+          "total_ms": 2361,
+          "completion_tokens": 192,
+          "prompt_tokens": 1802,
+          "tokens_per_second": 85.14412416851442,
+          "reply_len": 619,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 111,
+          "total_ms": 2394,
+          "completion_tokens": 200,
+          "prompt_tokens": 1797,
+          "tokens_per_second": 87.60402978537013,
+          "reply_len": 719,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 101,
+          "total_ms": 2384,
+          "completion_tokens": 200,
+          "prompt_tokens": 1800,
+          "tokens_per_second": 87.60402978537013,
+          "reply_len": 660,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 100,
+          "total_ms": 2387,
+          "completion_tokens": 200,
+          "prompt_tokens": 1798,
+          "tokens_per_second": 87.4508089199825,
+          "reply_len": 662,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 100,
+          "total_ms": 1987,
+          "completion_tokens": 166,
+          "prompt_tokens": 1798,
+          "tokens_per_second": 87.9703232644409,
+          "reply_len": 512,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 107,
+          "total_ms": 2388,
+          "completion_tokens": 200,
+          "prompt_tokens": 1800,
+          "tokens_per_second": 87.68084173608067,
+          "reply_len": 711,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 107,
+          "total_ms": 2026,
+          "completion_tokens": 169,
+          "prompt_tokens": 1797,
+          "tokens_per_second": 88.0667014069828,
+          "reply_len": 508,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-3.5-mini-instruct-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 108,
+          "total_ms": 2201,
+          "completion_tokens": 184,
+          "prompt_tokens": 1802,
+          "tokens_per_second": 87.91208791208791,
+          "reply_len": 593,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 27.45652198791504,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

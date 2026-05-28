@@ -12,9 +12,9 @@ Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html)
 | Judged candidates | 0 |
 | Unjudged backlog | 30 |
 | Distinct judges | 1 |
-| Quality rows | 23 |
-| Perf rows | 55 |
-| Gaeilge rows | 25 |
+| Quality rows | 28 |
+| Perf rows | 63 |
+| Gaeilge rows | 33 |
 
 ## Gaeilge fluency (1-5 rubric)
 
@@ -33,19 +33,27 @@ Latest `--slice gaeilge` run per candidate/base/split. Higher is better; English
 | mimo-v2.5 | dev | 10 | 0 | 4.52 | 4.50 | 4.50 | 4.40 | 4.60 | 5.00 | $0.0471 | run_mimo_v2_5_all_20260525T131923Z.json |
 | mlx-community/gpt-oss-20b-MXFP4-Q8 | dev | 10 | 0 | 4.52 | 4.60 | 4.40 | 4.20 | 4.40 | 5.00 | $0.0000 | run_mlx_community_gpt_oss_20b_MXFP4_Q8_all_20260527T225840Z.json |
 | mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit | dev | 10 | 0 | 4.34 | 4.30 | 4.10 | 4.10 | 4.30 | 5.00 | $0.0000 | run_mlx_community_EuroLLM_22B_Instruct_2512_mlx_4bit_all_20260528T031409Z.json |
+| stelterlab/EuroLLM-9B-Instruct-MLX-4bit | dev | 10 | 0 | 4.02 | 4.00 | 3.90 | 3.90 | 3.70 | 5.00 | $0.0000 | run_stelterlab_EuroLLM_9B_Instruct_MLX_4bit_all_20260528T142145Z.json |
 | mlx-community/Qwen3.6-27B-4bit | dev | 10 | 0 | 3.90 | 4.20 | 4.00 | 3.70 | 3.60 | 5.00 | $0.0000 | run_mlx_community_Qwen3_6_27B_4bit_all_20260527T223515Z.json |
 | minimax-m2.5 | dev | 10 | 0 | 3.73 | 3.70 | 3.70 | 3.80 | 4.00 | 4.60 | $0.0480 | run_minimax_m2_5_all_20260525T133323Z.json |
 | minimax-m2.7 | dev | 10 | 0 | 3.15 | 3.10 | 3.00 | 3.10 | 3.40 | 3.80 | $0.0463 | run_minimax_m2_7_all_20260525T125502Z.json |
 | mlx-community/Mistral-Nemo-Instruct-2407-4bit | dev | 10 | 0 | 2.98 | 3.30 | 3.40 | 3.10 | 2.30 | 4.90 | $0.0000 | run_mlx_community_Mistral_Nemo_Instruct_2407_4bit_all_20260528T103054Z.json |
+| mlx-community/Phi-4-4bit | dev | 10 | 0 | 2.94 | 2.40 | 2.90 | 2.30 | 2.20 | 5.00 | $0.0000 | run_mlx_community_Phi_4_4bit_all_20260528T143128Z.json |
 | mimo-v2.5-pro | dev | 10 | 0 | 2.92 | 2.90 | 2.90 | 2.90 | 3.00 | 3.40 | $0.0498 | run_mimo_v2_5_pro_all_20260525T132812Z.json |
 | mlx-community/Llama-3.1-8B-Instruct-4bit | dev | 10 | 0 | 2.90 | 3.20 | 3.10 | 3.10 | 2.30 | 5.00 | $0.0000 | run_mlx_community_Llama_3_1_8B_Instruct_4bit_all_20260528T100751Z.json |
+| mlx-community/Qwen3-32B-4bit | dev | 10 | 0 | 2.68 | 3.00 | 3.10 | 2.70 | 2.20 | 5.00 | $0.0000 | run_mlx_community_Qwen3_32B_4bit_all_20260528T144518Z.json |
 | mlx-community/Violet-Lyra-Gutenberg-4bit | dev | 10 | 0 | 2.60 | 2.30 | 2.30 | 2.20 | 2.10 | 4.80 | $0.0000 | run_mlx_community_Violet_Lyra_Gutenberg_4bit_all_20260528T031805Z.json |
 | mlx-community/Hermes-3-Llama-3.1-8B-4bit | dev | 10 | 0 | 2.36 | 2.40 | 2.40 | 2.30 | 2.10 | 4.90 | $0.0000 | run_mlx_community_Hermes_3_Llama_3_1_8B_4bit_all_20260528T102415Z.json |
 | mlx-community/Qwen3-14B-4bit | dev | 10 | 0 | 2.36 | 2.56 | 2.78 | 2.33 | 2.00 | 5.00 | $0.0000 | run_mlx_community_Qwen3_14B_4bit_all_20260528T103804Z.json |
 | mlx-community/Qwen2.5-14B-Instruct-4bit | dev | 10 | 0 | 1.88 | 1.90 | 2.00 | 1.90 | 1.70 | 5.00 | $0.0000 | run_mlx_community_Qwen2_5_14B_Instruct_4bit_all_20260527T004903Z.json |
+| mlx-community/aya-expanse-8b-4bit | dev | 10 | 0 | 1.78 | 1.50 | 1.70 | 1.40 | 1.20 | 3.60 | $0.0000 | run_mlx_community_aya_expanse_8b_4bit_all_20260528T142822Z.json |
 | mlx-community/internlm3-8b-instruct-4bit | dev | 10 | 0 | 1.60 | 1.86 | 1.86 | 1.57 | 1.29 | 5.00 | $0.0000 | run_mlx_community_internlm3_8b_instruct_4bit_all_20260528T101746Z.json |
 | mlx-community/Falcon3-10B-Instruct-4bit | dev | 10 | 0 | 1.50 | 1.80 | 1.90 | 1.50 | 1.20 | 5.00 | $0.0000 | run_mlx_community_Falcon3_10B_Instruct_4bit_all_20260528T102818Z.json |
+| mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit | dev | 10 | 0 | 1.45 | 1.50 | 1.50 | 1.00 | 1.50 | 1.75 | $0.0000 | run_mlx_community_DeepSeek_R1_Distill_Llama_8B_4bit_all_20260528T142517Z.json |
+| mlx-community/c4ai-command-r-08-2024-4bit | dev | 10 | 0 | 1.38 | 1.70 | 1.60 | 1.20 | 1.30 | 5.00 | $0.0000 | run_mlx_community_c4ai_command_r_08_2024_4bit_all_20260528T145110Z.json |
+| mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit | dev | 10 | 0 | 1.20 | 1.00 | 1.00 | 1.00 | 1.00 | 2.00 | $0.0000 | run_mlx_community_DeepSeek_R1_Distill_Qwen_7B_4bit_all_20260528T141746Z.json |
 | mlx-community/Phi-4-mini-instruct-4bit | dev | 10 | 0 | 1.10 | 1.30 | 1.20 | 1.00 | 1.00 | 4.80 | $0.0000 | run_mlx_community_Phi_4_mini_instruct_4bit_all_20260528T100407Z.json |
+| mlx-community/Phi-3.5-mini-instruct-4bit | dev | 10 | 0 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.44 | $0.0000 | run_mlx_community_Phi_3_5_mini_instruct_4bit_all_20260528T141212Z.json |
 | mlx-community/GLM-4.7-Flash-4bit | dev | 10 | 0 | - | - | - | - | - | - | $0.0000 | run_mlx_community_GLM_4_7_Flash_4bit_all_20260528T023151Z.json |
 
 ## Quality scores: dialogue (1-5 rubric, Sonnet subagent judge)
@@ -67,14 +75,19 @@ Latest `--slice dialogue` (or `--slice all`) bench-it run per (candidate, judge,
 | mlx-community/Qwen3.6-27B-4bit | claude-sonnet-4-6 | 10 | 4.04 | 4.20 | 4.20 | 4.00 | 4.20 | 3.60 | run_mlx_community_Qwen3_6_27B_4bit_all_20260527T223515Z.json |
 | deepseek-v4-flash | claude-sonnet-4-6 | 10 | 3.96 | 3.90 | 3.90 | 4.00 | 4.30 | 3.70 | run_deepseek_v4_flash_all_20260525T145235Z.json |
 | deepseek-v4-pro | claude-sonnet-4-6 | 10 | 3.92 | 4.00 | 4.00 | 4.00 | 4.10 | 3.50 | run_deepseek_v4_pro_all_20260525T150557Z.json |
+| mlx-community/c4ai-command-r-08-2024-4bit | claude-sonnet-4-6 | 10 | 3.90 | 3.90 | 3.90 | 4.20 | 4.20 | 3.30 | run_mlx_community_c4ai_command_r_08_2024_4bit_all_20260528T145110Z.json |
 | mlx-community/Hermes-3-Llama-3.1-8B-4bit | claude-sonnet-4-6 | 10 | 3.88 | 3.90 | 4.10 | 4.00 | 3.90 | 3.50 | run_mlx_community_Hermes_3_Llama_3_1_8B_4bit_all_20260528T102415Z.json |
 | mlx-community/Qwen3-14B-4bit | claude-sonnet-4-6 | 10 | 3.88 | 3.70 | 3.80 | 4.40 | 4.20 | 3.30 | run_mlx_community_Qwen3_14B_4bit_all_20260528T103804Z.json |
 | qwen3.6-plus | claude-sonnet-4-6 | 10 | 3.86 | 3.80 | 3.80 | 4.00 | 4.20 | 3.50 | run_qwen3_6_plus_all_20260525T121550Z.json |
+| mlx-community/Qwen3-32B-4bit | claude-sonnet-4-6 | 10 | 3.82 | 3.70 | 3.90 | 4.00 | 3.90 | 3.60 | run_mlx_community_Qwen3_32B_4bit_all_20260528T144518Z.json |
 | mlx-community/Qwen2.5-14B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.64 | 3.50 | 3.50 | 4.10 | 3.90 | 3.20 | run_mlx_community_Qwen2_5_14B_Instruct_4bit_all_20260527T004903Z.json |
+| mlx-community/Phi-4-4bit | claude-sonnet-4-6 | 10 | 3.62 | 3.50 | 3.70 | 3.90 | 3.80 | 3.20 | run_mlx_community_Phi_4_4bit_all_20260528T143128Z.json |
 | mlx-community/Llama-3.1-8B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.24 | 3.20 | 3.20 | 3.70 | 3.50 | 2.60 | run_mlx_community_Llama_3_1_8B_Instruct_4bit_all_20260528T100751Z.json |
 | mlx-community/Falcon3-10B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.20 | 3.00 | 3.10 | 3.50 | 3.60 | 2.80 | run_mlx_community_Falcon3_10B_Instruct_4bit_all_20260528T102818Z.json |
 | mlx-community/Mistral-Nemo-Instruct-2407-4bit | claude-sonnet-4-6 | 10 | 3.14 | 2.90 | 2.90 | 3.70 | 3.50 | 2.70 | run_mlx_community_Mistral_Nemo_Instruct_2407_4bit_all_20260528T103054Z.json |
+| stelterlab/EuroLLM-9B-Instruct-MLX-4bit | claude-sonnet-4-6 | 7 | 2.94 | 2.86 | 2.86 | 3.14 | 3.43 | 2.43 | run_stelterlab_EuroLLM_9B_Instruct_MLX_4bit_all_20260528T142145Z.json |
 | mlx-community/Phi-4-mini-instruct-4bit | claude-sonnet-4-6 | 6 | 2.93 | 2.83 | 3.00 | 3.00 | 3.33 | 2.50 | run_mlx_community_Phi_4_mini_instruct_4bit_all_20260528T100407Z.json |
+| mlx-community/aya-expanse-8b-4bit | claude-sonnet-4-6 | 10 | 2.86 | 3.10 | 2.80 | 3.20 | 3.20 | 2.00 | run_mlx_community_aya_expanse_8b_4bit_all_20260528T142822Z.json |
 | mlx-community/Violet-Lyra-Gutenberg-4bit | claude-sonnet-4-6 | 10 | 2.76 | 3.10 | 3.00 | 2.70 | 3.00 | 2.00 | run_mlx_community_Violet_Lyra_Gutenberg_4bit_all_20260528T031805Z.json |
 | mlx-community/internlm3-8b-instruct-4bit | claude-sonnet-4-6 | 6 | 1.93 | 2.17 | 2.17 | 2.00 | 2.17 | 1.17 | run_mlx_community_internlm3_8b_instruct_4bit_all_20260528T101746Z.json |
 
@@ -100,6 +113,7 @@ _No rows yet._
 | google/gemini-2.5-pro | 10 | 1925 | 2073 | 3331 | 143.30 | 165.30 | 0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | google/gemini-2.5-flash | 10 | 595 | 790 | 1032 | 99.50 | 197.10 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | mlx-community/Phi-4-mini-instruct-4bit | 10 | 58 | 89 | 1316 | 99.00 | 101.70 | 90.0% | 10.0% | perf_20260528T100423Z.json |
+| mlx-community/Phi-3.5-mini-instruct-4bit | 10 | 107 | 177 | 2385 | 87.60 | 88.00 | 100.0% | 10.0% | perf_20260528T141239Z.json |
 | mlx-community/gpt-oss-20b-MXFP4-Q8 | 10 | 671 | 676 | 3082 | 82.90 | 83.20 | 30.0% | 10.0% | perf_20260527T225921Z.json |
 | anthropic/claude-haiku-4.5 | 10 | 980 | 1399 | 1989 | 81.60 | 87.20 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | mistralai/mistral-small-24b-instruct-2501 | 10 | 250 | 290 | 838 | 77.40 | 93.40 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
@@ -107,14 +121,18 @@ _No rows yet._
 | mlx-community/GLM-4.7-Flash-4bit | 10 | 76 | 101 | 2970 | 69.30 | 69.60 | 80.0% | 10.0% | perf_20260528T023241Z.json |
 | microsoft/phi-4 | 10 | 364 | 727 | 1674 | 67.80 | 77.50 | 0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | amazon/nova-pro-v1 | 10 | 478 | 643 | 855 | 65.90 | 97.60 | 100.0% | 100.0% | perf_shardD_20260515T192852Z.json |
+| mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit | 10 | 72 | 74 | 3210 | 63.70 | 64.00 | 50.0% | 100.0% | perf_20260528T141849Z.json |
 | openai/gpt-oss-120b | 10 | 427 | 816 | 3072 | 62.70 | 600.60 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | openai/gpt-5.5 | 10 | 2242 | 4549 | 4067 | 60.00 | 82.40 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | mlx-community/Llama-3.1-8B-Instruct-4bit | 10 | 138 | 142 | 1854 | 59.60 | 60.00 | 100.0% | 100.0% | perf_20260528T100818Z.json |
+| mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit | 10 | 117 | 141 | 3506 | 59.00 | 59.10 | 0% | 0% | perf_20260528T142621Z.json |
+| mlx-community/aya-expanse-8b-4bit | 10 | 118 | 138 | 3164 | 56.10 | 56.60 | 100.0% | 10.0% | perf_20260528T142858Z.json |
 | qwen/qwen3-235b-a22b-2507 | 10 | 363 | 666 | 1696 | 54.20 | 65.30 | 100.0% | 100.0% | perf_20260514T202405Z.json |
 | meta-llama/llama-4-scout | 10 | 279 | 389 | 1419 | 54.20 | 105.80 | 90.0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | mlx-community/Hermes-3-Llama-3.1-8B-4bit | 10 | 129 | 166 | 2395 | 54.10 | 55.60 | 70.0% | 100.0% | perf_20260528T102447Z.json |
 | meta-llama/llama-4-maverick | 10 | 412 | 521 | 1601 | 51.10 | 59.80 | 100.0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | mistralai/mistral-medium-3.1 | 10 | 390 | 521 | 2089 | 50.40 | 62.40 | 10.0% | 100.0% | perf_shardB_20260515T192852Z.json |
+| stelterlab/EuroLLM-9B-Instruct-MLX-4bit | 10 | 171 | 174 | 3243 | 50.00 | 50.30 | 100.0% | 100.0% | perf_20260528T142226Z.json |
 | anthropic/claude-sonnet-4.6 | 10 | 1328 | 5300 | 3221 | 44.10 | 46.10 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | mistralai/mistral-large-2512 | 10 | 482 | 667 | 1714 | 44.10 | 51.70 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | minimax-m2.5 | 10 | 1392 | 4514 | 5504 | 43.30 | 1845.80 | 100.0% | 90.0% | perf_20260525T133608Z.json |
@@ -130,6 +148,7 @@ _No rows yet._
 | openai/gpt-5.4 | 10 | 715 | 843 | 2677 | 34.70 | 38.40 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | z-ai/glm-4.6 | 10 | 1442 | 2844 | 16883 | 34.70 | 53.30 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | qwen/qwen3-max | 10 | 1173 | 1410 | 2904 | 32.60 | 37.50 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
+| mlx-community/Phi-4-4bit | 10 | 253 | 259 | 4800 | 32.20 | 32.60 | 20.0% | 10.0% | perf_20260528T143236Z.json |
 | mlx-community/Qwen3-14B-4bit | 10 | 278 | 282 | 4181 | 31.90 | 32.00 | 100.0% | 100.0% | perf_20260528T103900Z.json |
 | mlx-community/Qwen2.5-14B-Instruct-4bit | 10 | 315 | 336 | 4368 | 28.90 | 29.20 | 100.0% | 100.0% | perf_20260527T005000Z.json |
 | mlx-community/internlm3-8b-instruct-4bit | 10 | 175 | 257 | 7263 | 28.30 | 28.40 | 20.0% | 60.0% | perf_20260528T102020Z.json |
@@ -137,6 +156,8 @@ _No rows yet._
 | google/gemma-4-31b-it | 10 | 1160 | 2111 | 3214 | 21.90 | 30.10 | 100.0% | 100.0% | perf_20260514T202405Z.json |
 | mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit | 10 | 426 | 767 | 3213 | 21.30 | 21.60 | 100.0% | 100.0% | perf_20260528T031520Z.json |
 | mlx-community/Qwen3.6-27B-4bit | 10 | 4123 | 4242 | 13072 | 17.90 | 17.90 | 100.0% | 100.0% | perf_20260527T223755Z.json |
+| mlx-community/c4ai-command-r-08-2024-4bit | 10 | 541 | 555 | 10491 | 15.30 | 15.40 | 100.0% | 10.0% | perf_20260528T145316Z.json |
+| mlx-community/Qwen3-32B-4bit | 10 | 624 | 1099 | 7520 | 14.20 | 14.30 | 100.0% | 100.0% | perf_20260528T144711Z.json |
 | qwen/qwen-2.5-72b-instruct | 1 | - | - | 5242 | - | - | 10.0% | 90.0% | perf_20260514T202405Z.json |
 | kimi-k2.5 | 10 | - | - | 6759 | - | - | 100.0% | 100.0% | perf_20260525T113759Z.json |
 | kimi-k2.6 | 10 | - | - | 7269 | - | - | 100.0% | 100.0% | perf_20260525T114843Z.json |
