@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T10:31:28.168927+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Mistral-Nemo-Instruct-2407-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 223,
+      "ttft_ms_p90": 227,
+      "total_ms_median": 2680,
+      "tokens_per_second_median": 37.0,
+      "tokens_per_second_p90": 38.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "parsed but missing keys: {}",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 137,
+          "total_ms": 1261,
+          "completion_tokens": 43,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 38.256227758007114,
+          "reply_len": 145,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 227,
+          "total_ms": 4015,
+          "completion_tokens": 137,
+          "prompt_tokens": 1578,
+          "tokens_per_second": 36.16684266103485,
+          "reply_len": 458,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 129,
+          "total_ms": 2731,
+          "completion_tokens": 96,
+          "prompt_tokens": 1577,
+          "tokens_per_second": 36.89469638739431,
+          "reply_len": 304,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 225,
+          "total_ms": 3182,
+          "completion_tokens": 109,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 36.86168413933041,
+          "reply_len": 342,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 223,
+          "total_ms": 3298,
+          "completion_tokens": 113,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 36.74796747967479,
+          "reply_len": 379,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 223,
+          "total_ms": 2630,
+          "completion_tokens": 89,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 36.97548815953469,
+          "reply_len": 285,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 224,
+          "total_ms": 2741,
+          "completion_tokens": 93,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 36.94874851013111,
+          "reply_len": 283,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 232,
+          "total_ms": 1341,
+          "completion_tokens": 42,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 37.87195671776375,
+          "reply_len": 138,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 128,
+          "total_ms": 1032,
+          "completion_tokens": 35,
+          "prompt_tokens": 1573,
+          "tokens_per_second": 38.716814159292035,
+          "reply_len": 105,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 224,
+          "total_ms": 1520,
+          "completion_tokens": 49,
+          "prompt_tokens": 1577,
+          "tokens_per_second": 37.80864197530864,
+          "reply_len": 183,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 33.898276805877686,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

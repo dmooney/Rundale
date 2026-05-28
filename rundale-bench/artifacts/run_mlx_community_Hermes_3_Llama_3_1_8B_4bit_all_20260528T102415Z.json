@@ -1,0 +1,1382 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-28T10:21:22.088297+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.9,
+        "mean_score": 0.9
+      },
+      "results": [
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0001",
+          "pred": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0002",
+          "pred": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0003",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0004",
+          "pred": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0005",
+          "pred": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0006",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "agus mar sin"
+          },
+          "gold": {
+            "intent": "unknown",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0007",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0008",
+          "pred": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0009",
+          "pred": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0010",
+          "pred": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          }
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 3.9,
+        "authenticity": 4.1,
+        "language": 4.0,
+        "responsiveness": 3.9,
+        "craft": 3.5,
+        "overall": 3.88,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Ah, the mind sure has its ways, doesn't it? A troubled soul will find its thoughts drifting off into the night hours. Have you had a hard day, then? Sometimes a cup of something warm and a good book can help chase away the shadows. Or maybe a visit with the ladies would do you good - there's nothing like a bit of gossip and laughter to take your mind off itself.",
+          "response_sha256": "4397a5a6d3f8d6ae2b134abe9a4777819a42aef797649ed51f090748d6a7f755",
+          "cache_key": "859c32eabb132951131a0481e947b54ee2381bc4b5fe29b8f4e9a32274d7493b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, ye mean the ol' woman who dwells near the s\u00eddhe mound? *strokes chin* She's a wise one, they say. Knew her mother well, I did. Her mam could cure any ailment with the right herbs, sure. But her own mouth, it's full of tales and charms. Speaks to the fairies, some say. Though I prefer to keep my eyes on the real world, myself. *sighs* But she's a kind soul, for all her talk of the otherworldly. Go visit her if ye wish, but watch what ye say. The s\u00eddhe, they don't much care for outsiders meddling in their business. Sl\u00e1n leat!\n---\n{\"action\": \"looks at player, then back at midwifery tools\", \"mood\": \"cautious, curious\", \"internal_thought\": \"An out-of-towner asking about the Cailleach? Must be curious about the old",
+          "response_sha256": "dae64b2d65f6703ab001790a260ce59c0af90bd048f44e77743fe956919d7138",
+          "cache_key": "5d46d9342155413e3f835ef57c7b192affa77035418ace3b334a86ccc1651978",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Ah, I see. A cough can be a tricky thing. Let me think on it. Give me a day or two, and I'll brew up some tea for her chest. A tea of thyme and some fennel seeds, mayhap. That'll ease her throat and loosen the phlegm. \n---\n{\"action\": \"nods, thinks\", \"mood\": \"concerned but hopeful\", \"internal_thought\": \"Poor soul, coughs are hard to cure. But we'll find a way to make her more comfortable, at least.\", \"language_hints\": []}",
+          "response_sha256": "8358bbfa7877c3c727f2260284f6d96f26036cfb613ff00f2bc882ac6df9386b",
+          "cache_key": "b1bba49a2c682b5342d7cef0f7360aa5cca0e082dba02c1684c6e866943c0491",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Ah, have I now! Word got back to me just this mornin'. A new face in the parish, ye say? Tis a thing of interest, sure. But ye'd best ask the right person hereabouts for the full of it, for I ain't one for idle gossip.\n---\n{\"action\": \"continues polishing the birthing chair\", \"mood\": \"neutral\", \"internal_thought\": \"Not my place to spread tales about folks\", \"language_hints\": []}",
+          "response_sha256": "f62aa1517ca05c4aaf3b3a5f17f987ff97d87877033c5fbb1a18dbdb25237c13",
+          "cache_key": "ab03b441d169e7da87cc58993a0caf44f0721241297e625980cc68433b6437c6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ah, I see ye've got a wee one missing from yer flock, have ye now? *kneads dough* Sure, a wolf 'twould be, the size of the creature and the damage done. More likely a fox or a dog, I'd say. But I could be wrong. *smiles* Ye'd best ask P\u00e1draig, he's the one to speak with about such matters. I'm just a poor midwife, I am.",
+          "response_sha256": "f317bfe96069bb98a8e7e83c9cb79f665f3915b0f8e152933c1cf6cae2d9269c",
+          "cache_key": "a172ad565cfb6e95f7e54633a1ae338a7a1e3d636c7d3a3eea8fdc503cb7c5e5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Ah, sure I do, I was there when it happened. Ye'd a nasty break, ye did. I remember ye layin' still for a time, holdin' it stiff-like. I bunched some dry grass and tied it tight 'round the wound to stanch the bleedin', then got ye to the cart to bring ye to the rectory. It was a long night, but the good Lord saw ye through it. I'm glad to see ye well and whole now, though. Go n-\u00e9ir\u00ed leat!",
+          "response_sha256": "b49b5c071371e295bd5c7df4dec07b5d329c6a9f56b6c208846871530fb1622d",
+          "cache_key": "9b6f0aa7ff971cc01391467371e6a69151d84e3f65d5b2a1e12d8841149cc71e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 2,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 2
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Ah, ye're askin' about the lights on the hill? 'Tis likely just the s\u00eddhe out for a spin, they are. The fairy folk are said to live in the mounds near the old stone circle. Best not meddle with such things, if ye know what's good for ye.",
+          "response_sha256": "080e5191fe4ef5e45eead818cddbb678b08642f812c387cdd97d86b03b419046",
+          "cache_key": "cf960aee3ccebbda623e3e6054d224af6e449f110a0b49a79d2fbe0b95b6f734",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "The water's a bit off, ye're right. Mayhap some rot's set in, the bottom not being stirred in a while. I'd not drink deep of it, no. 'Tis best to fetch water from the spring, 'twill slake yer thirst proper.\n---\n{\"action\": \"nods head, picks up a pitchfork to stir the well\", \"mood\": \"concerned but practical\", \"internal_thought\": \"Wish I had time to look closer at it, but the babes await\", \"language_hints\": []}",
+          "response_sha256": "b24732d89624da1f9ebd13b7603e2d03c92f6f838e541e1984dbc6df488d9961",
+          "cache_key": "55796a96198b3abf295f2eb4a7727e60341b5df39ff61d9d8499398752cd2272",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Ah, ye'll be needing me services soon! Best come by the morrow at first light. 'Twill be time for the blessed event, I reckon. Just give a knock \u2014 I'll be up early with the birds, tending to the last of the births of the night.\n---\n{\"action\": \"nods knowingly, picks up birthing kit\", \"mood\": \"practical\", \"internal_thought\": \"Another coming to greet their new little one, a joyous thing\", \"language_hints\": []}",
+          "response_sha256": "0a69cf39248939bb96d795ed191eb7c7f29706c6ec9da6c7fe9b9770771e61f0",
+          "cache_key": "a85bbe793bae6ca2f2420084e1ba841837351623a5fc4f5afede8e0b6335ae09",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Ah, Father Cathal's sermons are well enough, but some of his views on the old ways are a mite too harsh, don't ye think? 'Tis natural to respect his position, but the fairies and such are part of our people's heritage. A balance, I say. We must honor both the church and our own traditions, else we lose what makes us Irish.",
+          "response_sha256": "bfa6f9a38ef4aaf15a2852b89afc5d24969842a692d134aff6c6a52bd2ad5fc8",
+          "cache_key": "3d2b5d00d6a6528145cb5641ea68c4a5d0b3e75ca1faa263d9d878974e82cd70",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__Hermes_3_Llama_3_1_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Hermes-3-Llama-3.1-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Hermes-3-Llama-3.1-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 2.6,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "*looks up from the ledger, peering at the newcomer over the top of my spectacles* \"Welcome, and good evening to ye. I'm Padraig Darcy, publican of this here establishment. What can I get fer ye?\"",
+          "response_sha256": "7d9757e766300596e8b01617c34f0c264a0bab503c78810d75196562b1fbf839",
+          "cache_key": "2c3bbfca831b9cb9a08c48f07eb9caabdf436ce4289d4cf2a64e200b6c78451e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "\"Well, if it isn't Seamus O'Sullivan! What brings ye to Brigid's doorstep at this early hour on a damp morning? Come on in, man, and have yourself a cup of tea. The rain's a-fallin', so it is.\"",
+          "response_sha256": "060211131fa6cda38c2e690916b0b5fac5c0f1d7c121d23a73ca7119fde03184",
+          "cache_key": "d8fc303a0a2707e9e905a8e7a54634ffe5e161c52125971f4019483d4ed8f85f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Well, if it isn't Sean O'Neill! Come on in, the church is lettin' in the cool air. Grab yerself a pint, the brew's fresh today.",
+          "response_sha256": "47fe2a3855ca32100c2b3b345dfd0ac3afd576ca0f9c11d5a4c35ada0e09be61",
+          "cache_key": "ac907efd79a08f88dfe91fcdbf1348076f96be5cc6a5434ca8dd3f4ea3cc362f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "*looks up from the birth records I was reviewing* Good evening to ye, traveler. I'm Brigid, the local midwife. How may I be of assistance this fine night?",
+          "response_sha256": "a0f14b5576b91dc90905e9bea04fae0c0026b2e5c18346fd04ce0b4b7685251e",
+          "cache_key": "a3c4927b41186aef76aadc21e5252f7a53dea1cd1d5e5af44e3065719dce4d9d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "*Drops the bundle of herbs she was gathering and wipes her hands on her apron* Ah, Conor! Welcome, love. Come in, come in. What brings you to my humble abode on this damp mornin'?",
+          "response_sha256": "dcac9b652a8d91d1d0658b61e83252cef72ba84d6aea9ee08a688d7d391cb639",
+          "cache_key": "d96d4073e388b096ce6cfa5e01dcaac1cad3913024a84f9acba70904e0e120e6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "*looks up from the bassinet, wiping hands on apron* Well, hello there, P\u00e1draig. Long time no see! What brings ye to the church on a fine Sunday noon like this?",
+          "response_sha256": "ab5426503f24cb1d45dcf228a95b39059d4bc208609f97685507de30837c2157",
+          "cache_key": "4cfe541799fbf61dda03b482050eeb02380794df678a90265d6574865ad6f3d1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "*clears throat and approaches the newcomer, voice firm but kind*\n\nGood eve to you, stranger. I am Father Cathal Donnellan, priest of this parish. How might I be of assistance on this fine night?",
+          "response_sha256": "0fb3eb02e749cc4895660a8a6cb25b802c13c13db4beda04eeea58fab37fe489",
+          "cache_key": "621e3951c4ca14ae4b6926b88a2a1461b6477a537ccf56c5f7eabf7dd46f56d0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Good morrow, my child. Tis a blessing to see thee again. I trust the Lord has been watching over you in your travels.",
+          "response_sha256": "89bdd2a0b92161bade7449db9b28849a228bac9c07bea488016a3b5b189302a6",
+          "cache_key": "19931ca41bb9ef10ee1028aa7cca5d9f08161b7f14dc4edbd0c98749160f6fbe",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "*raises an eyebrow at the familiar face, a stern expression settling on my features* Welcome, my child. I trust you've kept your soul in check since last we met.",
+          "response_sha256": "fcc2493dc6ce38cb53c32df7603a11ee9f6b40606878d3b42fc847dd18a4dd67",
+          "cache_key": "96200eec042eb1aa38ded5ecfc512d2387f8c5b585c1cf40a1b69d7b3cdb6351",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "*looks up from my pint, wiping my hands on my apron* Evenin' to ya. I'm Sean, farm 'round these parts. What brings ye to Darcy's on this fine night?",
+          "response_sha256": "ad99dbd1cc9249a8b9446f47ab210506d22dc9c08d9ce03cde7edbc3de158899",
+          "cache_key": "d393c1093d5f167af35ded18819fbda171dda5c815615725f3f9e3c5f22876d5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Hermes_3_Llama_3_1_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Hermes-3-Llama-3.1-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Hermes-3-Llama-3.1-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 9,
+        "bench_bugs": 1,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.8,
+        "mean_score": 3.111111111111111,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"Padraig and Sean are deep in discussion at the bar, while Niamh serves drinks nearby.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "7760f20648c966d9f630529e32f88fd71bcfd6e47cd1857f564edd933b8efe67",
+          "cache_key": "58795e77284b958c766ceb29c012264b4b8695e7307d4e3b980b8a0898acd581",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "{\"summary\": \"Padraig, Niamh, and Sean are enjoying a quiet evening at Darcy's Pub, discussing the day's events and local news. The mood remains content and friendly among them. Their relationships stay strong and unchanged as they share stories and laughter over pints of ale and bowls of stew, their misunderstandings from the past now forgotten in the warmth of the pub's cozy atmosphere and the bonds of friendship they share. There are no significant mood or relationship changes to report this evening at Darcy's Pub. The night continues pleasantly for all involved with no notable tensions or shifts in their social dynamics, just a simple gathering of friends enjoying each other's company on a clear and peaceful Irish evening in 1820.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "70dace042d3e7bc1e5d4257226dbc91f0c4fadfc8381b2bcced862503d80ee8a",
+          "cache_key": "c9f097c24a3731a285bc810da2ebc829d9687c93cc5b0bd218d2abe78870f539",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\"summary\": \"Padraig Darcy serves drinks, Niamh Darcy tends bar, Sean Murphy eats stew\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "8f9aecc526f76b04b19c995bd3ce62630de7de8fb7a1ea623d9cbb0839ba951a",
+          "cache_key": "b8ee9190e066e0e5971d5e18e4068d45c843f40fcfac97798bd696abf8261a7f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{\"summary\": \"Tommy Maguire and Donal MacNamara stand chatting at the crossroads, the wind whipping around them as they discuss the day's events and the latest gossip from the parish. Neither man has time for deep conversation, but the casual interaction helps alleviate their respective moods and strengthens the bond of their long-standing friendship slightly. No major mood shifts or relationship changes occur during their brief encounter as dusk settles over the Irish countryside. The two part ways, content to return to their respective work with the knowledge that their friendship remains steady and true, as it has been for years, despite the wear and tear of life in a small, close-knit community. The scene fades as they go their separate ways, leaving the crossroads behind them and the night ahead. The wind howls and whistles, a gentle reminder of the power of nature and the simple joys of human connection amidst the trials of life in 1820s Ireland. The two men, while weary\"}",
+          "schema_valid": false,
+          "response_sha256": "386c77104603ce9023a48d1930a75421c81f4830800d7ee1982781318e237a04",
+          "cache_key": "31198d25b00b0533628efbc7c35f9ac2b752d8cee95c0f9c97353334cc66da6d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "{\"summary\": \"Tommy Maguire and Donal MacNamara pass each other on the crossroads, their misunderstanding still lingering between them as they go their separate ways under the gusting wind at dusk's end, each too stubborn to concede the wrong was on the other side, their relationship strained, their moods souring further as they part with a terse nod, no good will grown between them, the small parish a stage for their petty feud to play out in the fading light of the Irish dusk\", \"mood_changes\": [{\"npc_id\": 1, \"new_mood\": \"angrier\"}, {\"npc_id\": 2, \"new_mood\": \"angrier\"}], \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": -0.3}]}",
+          "schema_valid": true,
+          "response_sha256": "b78de95ddbdcad64e60f72445240777d33c78a119d447a207b4a61725bcae67d",
+          "cache_key": "66cf87304b93cc5963d7e81d9f53462129088ee3b6aa30e4257d90432b026cb6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "{\"summary\": \"Tommy Maguire and Donal MacNamara stand chatting at the crossroads, huddled against the wind, as night falls on the parish. They discuss the day's labors and weather the elements together, their moods abate, and relationship remains steady as old friends. No major shifts observed. No notable tensions or closeness arose from their brief encounter. No changes to report. No new insights or revelations shared, just the comfort of familiar company in a cold Irish dusk. No dramatic developments in this ordinary evening scene of two men just passing time together at the crossroads of their lives. No drama, just the simple pleasure of companionship and a warming ale shared between friends. No life-altering confessions or new alliances forged in this mundane moment of two men sharing the end of the day. No deep philosophical musings or grand plans hatched as the world grew dark around them. Just the quiet contentment of two friends lingering at the end of a long\"}",
+          "schema_valid": false,
+          "response_sha256": "4a0c3216994c179a9157ffd8241c9fda7cca921d407fd67c77876db0ea1c7e03",
+          "cache_key": "208cb504c5d870081371c4bda500d1c9875527409ab73a6d5fd7cc0f19b77a1f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"Brigid examines Mary, reassuring her about the baby's health and her first pregnancy experience, deepening their bond and trust as Mary feels calmer and more confident in Brigid's care. They share a warm moment, creating a stronger relationship between them. Brigid remains focused and kind, while Mary's anxiety subsides, leaving her in a more positive mood. Their interaction has positively impacted their relationship and Mary's emotional state, making the JSON output as follows: {\", \"mood_changes\": [{\"npc_id\": 2, \"new_mood\": \"confident\"}, {\"npc_id\": 1, \"new_mood\": \"appreciated\"}], \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.3}]}",
+          "schema_valid": true,
+          "response_sha256": "d665a54e03419d074156158997a6f25b17a4d97c4d727759a15cc6549ce3c3db",
+          "cache_key": "414fcc9b4c3670cb6713b374d195739a6ec0bf1a5f249257762240562c27e61d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"Brigid and Mary are discussing the signs of labor and preparing for the birth of Mary's baby in the cozy warmth of Brigid's cottage on this damp morning in 1820 Ireland, their relationship growing stronger as they work together despite a small misunderstanding earlier\", \"mood_changes\": [{\"npc_id\": 1, \"new_mood\": \"calm\"}, {\"npc_id\": 2, \"new_mood\": \"relieved\"}], \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.2}]}",
+          "schema_valid": true,
+          "response_sha256": "2291d04a5b68198c5ac85c1da196ad987c5216f1596888b7e62be1f894c0bc0f",
+          "cache_key": "10a08b9486056bf40db9d60cccb24212997703474edcc8b6d8215e84582392a5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"Brigid is attending to Mary, who has arrived seeking advice about her pregnancy\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "76023a9db337b11c16ac028fd74bd2ceda431ccee3a3f135e5dd0c16c970a6ab",
+          "cache_key": "eb408e98f1fe560583a34e44d5e4fe038b7c5fbeb934c811120f8e947880e761",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\"summary\": \"Father Cathal presides over the church service, Old Tommy prays for his sins, and Widow Kelleher mourns her lost son in the misty church porch on a somber Sunday noon in 1820s Ireland, characters unchanged\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "c431806987ddcf5c7ed219ede38452188eb61f3f07505e2db4922d40ee26c91f",
+          "cache_key": "cbd40c152f820befd1746a3ca7d75be36f2011270cd5b99ef694e4bd729b010f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__Hermes_3_Llama_3_1_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Hermes-3-Llama-3.1-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Hermes-3-Llama-3.1-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 7,
+        "bench_bugs": 3,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.8,
+        "mean_score": 3.2857142857142856,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Tending to the pub and chatting with patrons\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.2}]}, {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Serving drinks and dealing with customers\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": -0.1}, {\"from\": 3, \"to\": 2, \"delta\": 0.2}]}, {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Working the fields and tending to livestock\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 3, \"delta\": 0.1}]}, {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Telling tales to passersby at the crossroads\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 6, \"delta\": 0.1}]}, {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Delivering a baby and caring for the mother\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 2, \"delta\": 0.2}]}, {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Saying mass and counseling parishioners\", \"new_location\": null, \"relationship_changes\": [{\"from\": 6, \"to\": 4, \"delta\": -0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "faab237b678e67533b3420e0970a165aa431f5157e6e5a673b388e799667ce34",
+          "cache_key": "717796082c5d6e7c2a67637146ba98fb4c9b61ab380930ade7983032ec4a6213",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Tended to the pub and patrons, resolved a minor dispute that arose from last night's quarrel\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 1, \"delta\": 0.1}, {\"from\": 2, \"to\": 1, \"delta\": -0.1}]}, {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Served patrons, dealt with the aftermath of last night's quarrel\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.2}, {\"from\": 3, \"to\": 2, \"delta\": -0.2}]}, {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Checked on livestock, worked in the fields\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 3, \"delta\": 0.1}]}, {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Sat at the crossroads, told stories to passersby about the quarrel\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 4, \"delta\": -0.2}]}, {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Attended to deliveries, mended a baby's torn dress\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 6, \"delta\": 0.1}]}, {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Prepared sermon about forgiveness and unity after last night's quarrel\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 6, \"delta\": -0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "ce10303b5a14545b53f8bb4fceacd4283ff487a3c758628fb96762e9c15cefc3",
+          "cache_key": "b20f015ae16f788c254ea3f00f1b1519040ca9bd25ad2979d1db1514569b26b9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Tending to the pub and chatting with customers\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.1}, {\"from\": 3, \"to\": 1, \"delta\": 0.1}, {\"from\": 4, \"to\": 1, \"delta\": 0.1}, {\"from\": 5, \"to\": 1, \"delta\": 0.1}, {\"from\": 6, \"to\": 1, \"delta\": 0.1}]}, {\"npc_id\": 2, \"mood\": \"content\", \"activity_summary\": \"Serving drinks and chatting with customers\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.1}, {\"from\": 3, \"to\": 2, \"delta\": 0.1}, {\"from\": 4, \"to\": 2, \"delta\": 0.1}, {\"from\": 5, \"to\": 2, \"delta\": 0.1}]}, {\"npc_id\": 3, \"mood\": \"happy\", \"activity_summary\": \"Finished bailing the bog, heading home for dinner\", \"new_location\": 6, \"relationship_changes\": [{\"from\": 1, \"to\": 3, \"delta\": 0.2}, {\"from\": 2, \"to\": 3, \"delta\": 0.2}, {\"from\": 4, \"to\": 3, \"delta\": 0.2}]}, {\"npc_id\": 4, \"mood\": \"content\", \"activity_summary\": \"Told stories to passersby at the crossroads\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 4, \"delta\": 0.1}, {\"from\": 2, \"to\": 4, \"delta\": 0.1}, {\"from\": 3, \"to\": 4, \"delta\": 0.1}]}, {\"npc_id\": 5, \"mood\": \"content\", \"activity_summary\": \"Delivered a baby, returning home for dinner\", \"new_location\": 1, \"relationship_changes\": [{\"from\": 1, \"to\": 5, \"delta\": 0.2}, {\"from\": 2, \"to\": 5, \"delta\": 0.2}]}, {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Conducted evening prayers and reflections\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 6, \"delta\": 0.1}, {\"from\": 3, \"to\": 6, \"delta\": 0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "90abb5ec318ae50f7fa48f2d03b48146f90e3aaa6a5c1fad7cf171d1884038d4",
+          "cache_key": "0e14540f140e7645e86d2776bc126829143cf6a9c42acf96f68c9c811d9f16f8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"dull\", \"activity_summary\": \"Continued hammering at the forge, face flushed from exertion\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}, {\"from\": 3, \"to\": 1, \"delta\": -0.07}, {\"from\": 4, \"to\": 1, \"delta\": 0.02}]}, {\"npc_id\": 2, \"mood\": \"focused\", \"activity_summary\": \"Taught the children their lessons, voice patient but firm\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.03}, {\"from\": 3, \"to\": 2, \"delta\": -0.01}, {\"from\": 4, \"to\": 2, \"delta\": 0.08}]}, {\"npc_id\": 3, \"mood\": \"somber\", \"activity_summary\": \"Prayed at her son's grave, tears falling\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 3, \"delta\": 0.04}, {\"from\": 2, \"to\": 3, \"delta\": 0.02}]}, {\"npc_id\": 4, \"mood\": \"confused\", \"activity_summary\": \"Daydreamed during lessons, missed many questions\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 4, \"delta\": 0.01}, {\"from\": 2, \"to\": 4, \"delta\": -0.04}]}]}",
+          "schema_valid": true,
+          "response_sha256": "55c5223b79761f0ee58fe430e68c7cab2aee437dea88645d05021069eb109e26",
+          "cache_key": "eb97bebc506e25d49ea1cca59c2202b96abf62f80aa1f4cdde1a528bac47cc85",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"frustrated\", \"activity_summary\": \"Worked at the forge, but couldn't shake off yesterday's quarrel. Skipped lunch to finish repairs for a customer, then headed home for a late meal. No movement. Relationship with Widow Kelleher (-0.05), Eamon Kelleher (-0.05).\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 1, \"delta\": -0.05}, {\"from\": 4, \"to\": 1, \"delta\": -0.05}]}, {\"npc_id\": 2, \"mood\": \"content\", \"activity_summary\": \"Taught the morning lessons, then ate a simple meal at the schoolhouse. No movement. Relationship with Eamon Kelleher (0.05).\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 2, \"delta\": 0.05}]}, {\"npc_id\": 3, \"mood\": \"melancholy\", \"activity_summary\": \"Did chores around the cottage, then sat by the fire remembering her son. No movement. Relationship with Donal MacNamara (0.05).\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 3, \"delta\": 0.05}]}, {\"npc_id\": 4, \"mood\": \"confused\", \"activity_summary\": \"Listened to the lessons but struggled to focus. Daydreamed about his father. No movement. Relationship with Mister Lyons (0.1).\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 4, \"delta\": 0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "73870a929e377d8cb574e7be10d00a34ce5cce0e151cb0318e0cc102c2a75c30",
+          "cache_key": "f18ac12a2358146816bc0e00b89e9e1d0aa80585b9363e293ac50862212dd42a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Continued working at the forge, hammering away\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.1}, {\"from\": 3, \"to\": 1, \"delta\": 0.1}, {\"from\": 4, \"to\": 1, \"delta\": 0.1}]}, {\"npc_id\": 2, \"mood\": \"determined\", \"activity_summary\": \"Taught the children with patience and care\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.2}, {\"from\": 3, \"to\": 2, \"delta\": 0.2}, {\"from\": 4, \"to\": 2, \"delta\": 0.2}]}, {\"npc_id\": 3, \"mood\": \"reflective\", \"activity_summary\": \"Sat by the window, stitching while reminiscing\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 3, \"delta\": -0.1}, {\"from\": 4, \"to\": 3, \"delta\": 0.1}]}, {\"npc_id\": 4, \"mood\": \"sad\", \"activity_summary\": \"Played alone in the dirt, missing his father\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 4, \"delta\": -0.1}, {\"from\": 3, \"to\": 4, \"delta\": -0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "62b761bbf922b4e3035c3db7730766e22d3214aab0a98f0e1674ed276b6ed75b",
+          "cache_key": "61c363e9ce5d657435d53e3612131381b0701d0c15cc6d384a2c40a816278bed",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"exhausted\", \"activity_summary\": \"Finished fishing, brought in the day's catch\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.1}, {\"from\": 1, \"to\": 3, \"delta\": -0.1}]}, {\"npc_id\": 2, \"mood\": \"hopeful\", \"activity_summary\": \"Prepared fish for market, hopeful for a good day's earnings\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.1}, {\"from\": 2, \"to\": 3, \"delta\": 0.2}]}, {\"npc_id\": 3, \"mood\": \"anxious\", \"activity_summary\": \"Awaited Brigid's expert opinion on pregnancy progress\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 4, \"delta\": 0.2}, {\"from\": 3, \"to\": 5, \"delta\": 0.1}]}, {\"npc_id\": 4, \"mood\": \"calm\", \"activity_summary\": \"Consoled Maire, pregnancy proceeding normally\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 3, \"delta\": -0.2}, {\"from\": 4, \"to\": 5, \"delta\": 0.1}]}, {\"npc_id\": 5, \"mood\": \"content\", \"activity_summary\": \"Shared tales of his travels at the pub\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 3, \"delta\": 0.2}]}]}",
+          "schema_valid": true,
+          "response_sha256": "e1bbfb1e2f3e02f1ddf04373194c532fafc8babd6859c3651bf11d71200ae778",
+          "cache_key": "079c450af07aada47635905eaade0ba661d54d43152aa135767002b04b617cf5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "{\"npc_id\": 1, \"mood\": \"exhausted\", \"activity_summary\": \"Conor McGowan, after a long day of fishing, finally returns to his cottage, his body aching with the day's exertions. He's eager to rest and share the day's catch with his family. Conor moved from the lakeshore to his cottage. His relationship with Padraig, his younger brother, has improved. Conor's mood shift towards Padraig is now 0.2, up from 0.1 before the fishing trip. The camaraderie of their shared labor has strengthened their bond. Despite the tiredness, his relationship with Maire, his wife, remains steady at 0.9, as the long days apart have not diminished their love and support for one another. The weariness from the day's work does not diminish his respect for his father-in-law, Seamus, who he moved from 0.7 to 0.8, a small increase in admiration for the older man's wisdom and support throughout the years. His interaction with Brigid, the midwife, remains neutral at 0, as they are not close, but he appreciates her expertise and care for Maire and the baby on the way. His relationship with Tommy Maguire, the local farmer, stays at 0.4, a neighborly but not close bond based on occasional fishing discussions and shared experiences at Darcy's Pub. The heavy day of fishing hasn't changed his overall mood, but he's looking forward to a warm meal and a hot bath to soothe his aching muscles after the long day's work on the lake. Conor McGowan's current location: 3\", \"new_location\": 3, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.2}]}",
+          "schema_valid": false,
+          "response_sha256": "a3ec1c96040e9f58836d85110e2b53b45898bc5d34175dc837eea0f790c4193a",
+          "cache_key": "7c601bf88393070c7cb60e9f22267d4e95d5126514b4b1d2d281f4f51d44dc67",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"impatient\", \"activity_summary\": \"collecting rents\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 1, \"delta\": 0.1}, {\"from\": 2, \"to\": 1, \"delta\": -0.1}, {\"from\": 3, \"to\": 1, \"delta\": 0.1}]}, {\"npc_id\": 2, \"mood\": \"wary\", \"activity_summary\": \"at pub\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 3, \"delta\": 0.1}, {\"from\": 2, \"to\": 4, \"delta\": -0.1}]}, {\"npc_id\": 3, \"mood\": \"anxious\", \"activity_summary\": \"selling oats\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 4, \"delta\": 0.1}]}, {\"npc_id\": 4, \"mood\": \"neutral\", \"activity_summary\": \"buying herbs\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 3, \"delta\": 0.1}]}, {\"npc_id\": 5, \"mood\": \"content\", \"activity_summary\": \"celebrating Mass\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 6, \"delta\": 0.1}]}, {\"npc_id\": 6, \"mood\": \"talkative\", \"activity_summary\": \"regaling listeners\", \"new_location\": null, \"relationship_changes\": [{\"from\": 6, \"to\": 2, \"delta\": 0.1}]}, {\"npc_id\": 7, \"mood\": \"wary\", \"activity_summary\": \"passing through\", \"new_location\": null, \"relationship_changes\": [{\"from\": 7, \"to\": 2, \"delta\": 0.1}]}]}",
+          "schema_valid": true,
+          "response_sha256": "d9cd474177cb85d0df8af5801ff9f8a3cb77ca4364a07497a7daacd2d0ca6276",
+          "cache_key": "0ec7846d013eb47fb8d7bae8589745daa65be5b8e7e85c3c59af35418827a27c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "{\"npc_id\": 1, \"mood\": \"impatient\", \"activity_summary\": \"collecting rents at the agent's office\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.1}, {\"from\": 3, \"to\": 1, \"delta\": -0.1}, {\"from\": 4, \"to\": 1, \"delta\": 0.1}, {\"from\": 5, \"to\": 1, \"delta\": 0.1}, {\"from\": 6, \"to\": 1, \"delta\": 0.1}, {\"from\": 7, \"to\": 1, \"delta\": 0.1}]}",
+          "schema_valid": false,
+          "response_sha256": "41eaaf88a56f76d49aa12d665aacec4c0f3b3c6f93d624f52b4a44562156faaa",
+          "cache_key": "c03004f16465c27718be80df7e0336703a91ad022f6e6128350d62ea2c8e2667",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__Hermes_3_Llama_3_1_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Hermes-3-Llama-3.1-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Hermes-3-Llama-3.1-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.0,
+        "fluency_mean": 2.4,
+        "grammar_mean": 2.4,
+        "idiom_mean": 2.3,
+        "task_fulfillment_mean": 2.1,
+        "english_leakage_mean": 4.9,
+        "overall_mean": 2.3600000000000003,
+        "judge": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9"
+      },
+      "results": [
+        {
+          "id": "gaeilge-0001",
+          "reply": "Bh\u00ed an t-osca mhaith i mbliana seo.",
+          "response_sha256": "cb0c0c1c9dd28a1603cc502e10a1046783cfca7ed332da0eecfa6ffbba4ed07c",
+          "cache_key": "5a97e14f1f5ecedbe8c2deac681bce2916e8d2a0583cf171a1feec54a0bad761",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 3
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0002",
+          "reply": "Caithfaim i dhoireann.",
+          "response_sha256": "cdd5bcdfcfe740918eb20877eaaa9b0e6ada7d3a7be986fac1502becf3b1b8c4",
+          "cache_key": "2e3b1e607a29915424df896cb5767ca90fc345670840361393cce8483dbb7165",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0003",
+          "reply": "Ba mhaith liom labhairt d\u00f3ibh an f\u00edrinne.",
+          "response_sha256": "99a34b7d38a634ed9a250440337775e433f1a63d7bcb547e38ddcb790cc71d69",
+          "cache_key": "165efc16d0deda2174ee748da161652dcdda4653bd0db90c3ef54a99b051f76c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0004",
+          "reply": "D'ith m\u00e9 an ar\u00e1n.",
+          "response_sha256": "e5c01b85069dae16ae6b8d73d88a411cf989fe3e33001a104b26d8a6a396f817",
+          "cache_key": "21f71ad8b78618d486f4a4cab6ae7e65f2f1a18c402e7eaa92d52749aa3ef7cd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 4
+            },
+            "overall": 4.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0005",
+          "reply": "Ceapfar t\u00fa an leabhar inn\u00e9 a cheannach.",
+          "response_sha256": "9013626e2beab4cbc70f80cd6b9d1079c7beda2a0e076781137799f11d55ccc1",
+          "cache_key": "03536c7d5f9ab2600d7adbbd54c4679879089eb47d8d37c32c26f83130468fba",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0006",
+          "reply": "T\u00e1 an t-sneachta ag amharc m\u00e9.",
+          "response_sha256": "82eb3c1d8137174ceb82a6931d474bda4a0c4362fb87c928569a9c03c62d29c0",
+          "cache_key": "f63aede85e01b252f64948344c3ecc23ccac67daf6e98e0d1e0eb42cd4c94db3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0007",
+          "reply": "T\u00e1 aici airgead?",
+          "response_sha256": "5757e93e40c498a4bae74dc5bd54e970aecafc385c6edee6529d740af75b3657",
+          "cache_key": "b1ef97decdf405d70df33a41e79525dc477873e702e309f319b9bd0a79ccb801",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 m\u00e9 ar dhol chun an siop\u00e1il.",
+          "response_sha256": "2c6b414dee24b381ad385517724c9def1151bb7f3a72476e3accc7fa15a04ff3",
+          "cache_key": "ae839cd4e3ff9332e9c5a727869c38383f661229834bc177d286ef64a06f506e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+          "response_sha256": "b83c9da4e4b28f1c8e5b58f1b05ca087c4e9ca99d2aa267c7e78fc8da0ef6c41",
+          "cache_key": "4dadf924468a93caddd510bd208a16f337d265244a69d9d61e28221e972f0877",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0010",
+          "reply": "N\u00edor labhair Se\u00e1n.",
+          "response_sha256": "54af898bfd457d6538a8b1c8aa9bb53ff999a858208e730d0a33f9f982beb0d8",
+          "cache_key": "cffe8a18a12fb07fece7fe3c86f0da035ff175229168f9fd7779b1ecdc20eedb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "gaeilge__Hermes_3_Llama_3_1_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Hermes-3-Llama-3.1-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Hermes-3-Llama-3.1-8B-4bit@http://localhost:8000/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 172.98968505859375,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 37215,
+    "completion_tokens": 7519,
+    "usd": 0.0
+  }
+}

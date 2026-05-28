@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-28T03:37:17.629084+00:00",
+  "generated_utc": "2026-05-28T10:53:14.162913+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -298,6 +298,48 @@
       "is_local": false
     },
     {
+      "model_id": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "display_name": "Hermes 3 Llama 3.1 8B (MLX 4-bit)",
+      "slug": "mlx-community-hermes-3-llama-3-1-8b-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 3.88,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.9,
+      "authenticity": 4.1,
+      "language": 4.0,
+      "responsiveness": 3.9,
+      "craft": 3.5,
+      "measured_utc": "2026-05-28T10:21:22.088297+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Qwen3-14B-4bit",
+      "display_name": "Qwen 3 14B (MLX 4-bit)",
+      "slug": "mlx-community-qwen3-14b-4bit",
+      "family": "qwen3",
+      "tier": null,
+      "overall": 3.88,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.7,
+      "authenticity": 3.8,
+      "language": 4.4,
+      "responsiveness": 4.2,
+      "craft": 3.3,
+      "measured_utc": "2026-05-28T10:32:42.546891+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "qwen3.6-plus",
       "display_name": null,
       "slug": "qwen3-6-plus",
@@ -340,6 +382,90 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
+      "family": "llama",
+      "tier": null,
+      "overall": 3.2399999999999998,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.2,
+      "authenticity": 3.2,
+      "language": 3.7,
+      "responsiveness": 3.5,
+      "craft": 2.6,
+      "measured_utc": "2026-05-28T10:05:36.781448+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "display_name": "Falcon 3 10B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-falcon3-10b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 3.1999999999999997,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.0,
+      "authenticity": 3.1,
+      "language": 3.5,
+      "responsiveness": 3.6,
+      "craft": 2.8,
+      "measured_utc": "2026-05-28T10:25:51.052190+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "display_name": "Mistral Nemo Instruct 2407 (MLX 4-bit)",
+      "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
+      "family": "mistral",
+      "tier": null,
+      "overall": 3.1399999999999997,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 2.9,
+      "authenticity": 2.9,
+      "language": 3.7,
+      "responsiveness": 3.5,
+      "craft": 2.7,
+      "measured_utc": "2026-05-28T10:30:00.882472+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Phi-4-mini-instruct-4bit",
+      "display_name": "Phi 4 Mini Instruct (MLX 4-bit)",
+      "slug": "mlx-community-phi-4-mini-instruct-4bit",
+      "family": "phi",
+      "tier": null,
+      "overall": 2.933333333333333,
+      "judged": 6,
+      "bench_bugs": 4,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 2.8333333333333335,
+      "authenticity": 3.0,
+      "language": 3.0,
+      "responsiveness": 3.3333333333333335,
+      "craft": 2.5,
+      "measured_utc": "2026-05-28T10:03:44.789790+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "mlx-community/Violet-Lyra-Gutenberg-4bit",
       "display_name": "Violet Lyra Gutenberg (MLX 4-bit)",
       "slug": "mlx-community-violet-lyra-gutenberg-4bit",
@@ -358,6 +484,27 @@
       "responsiveness": 3.0,
       "craft": 2.0,
       "measured_utc": "2026-05-28T03:16:38.660172+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/internlm3-8b-instruct-4bit",
+      "display_name": "Internlm 3 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-internlm3-8b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 1.9333333333333333,
+      "judged": 6,
+      "bench_bugs": 4,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 2.1666666666666665,
+      "authenticity": 2.1666666666666665,
+      "language": 2.0,
+      "responsiveness": 2.1666666666666665,
+      "craft": 1.1666666666666667,
+      "measured_utc": "2026-05-28T10:09:50.510002+00:00",
       "is_local": true
     },
     {
@@ -643,6 +790,23 @@
       "is_local": false
     },
     {
+      "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "display_name": "Mistral Nemo Instruct 2407 (MLX 4-bit)",
+      "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
+      "family": "mistral",
+      "overall": 2.9799999999999995,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 3.3,
+      "grammar": 3.4,
+      "idiom": 3.1,
+      "task_fulfillment": 2.3,
+      "english_leakage": 4.9,
+      "measured_utc": "2026-05-28T10:30:00.882472+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "mimo-v2.5-pro",
       "display_name": null,
       "slug": "mimo-v2-5-pro",
@@ -658,6 +822,23 @@
       "english_leakage": 3.4,
       "measured_utc": "2026-05-25T13:20:56.463196+00:00",
       "is_local": false
+    },
+    {
+      "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
+      "family": "llama",
+      "overall": 2.9,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 3.2,
+      "grammar": 3.1,
+      "idiom": 3.1,
+      "task_fulfillment": 2.3,
+      "english_leakage": 5.0,
+      "measured_utc": "2026-05-28T10:05:36.781448+00:00",
+      "is_local": true
     },
     {
       "model_id": "mlx-community/Violet-Lyra-Gutenberg-4bit",
@@ -677,6 +858,40 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "display_name": "Hermes 3 Llama 3.1 8B (MLX 4-bit)",
+      "slug": "mlx-community-hermes-3-llama-3-1-8b-4bit",
+      "family": "unknown",
+      "overall": 2.3600000000000003,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 2.4,
+      "grammar": 2.4,
+      "idiom": 2.3,
+      "task_fulfillment": 2.1,
+      "english_leakage": 4.9,
+      "measured_utc": "2026-05-28T10:21:22.088297+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Qwen3-14B-4bit",
+      "display_name": "Qwen 3 14B (MLX 4-bit)",
+      "slug": "mlx-community-qwen3-14b-4bit",
+      "family": "qwen3",
+      "overall": 2.355555555555556,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 2.5555555555555554,
+      "grammar": 2.7777777777777777,
+      "idiom": 2.3333333333333335,
+      "task_fulfillment": 2.0,
+      "english_leakage": 5.0,
+      "measured_utc": "2026-05-28T10:32:42.546891+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "mlx-community/Qwen2.5-14B-Instruct-4bit",
       "display_name": "Qwen 2.5 14B Instruct (MLX 4-bit)",
       "slug": "mlx-community-qwen2-5-14b-instruct-4bit",
@@ -691,6 +906,57 @@
       "task_fulfillment": 1.7,
       "english_leakage": 5.0,
       "measured_utc": "2026-05-27T00:44:28.463308+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/internlm3-8b-instruct-4bit",
+      "display_name": "Internlm 3 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-internlm3-8b-instruct-4bit",
+      "family": "unknown",
+      "overall": 1.6,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 1.8571428571428572,
+      "grammar": 1.8571428571428572,
+      "idiom": 1.5714285714285714,
+      "task_fulfillment": 1.2857142857142858,
+      "english_leakage": 5.0,
+      "measured_utc": "2026-05-28T10:09:50.510002+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "display_name": "Falcon 3 10B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-falcon3-10b-instruct-4bit",
+      "family": "unknown",
+      "overall": 1.5,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 1.8,
+      "grammar": 1.9,
+      "idiom": 1.5,
+      "task_fulfillment": 1.2,
+      "english_leakage": 5.0,
+      "measured_utc": "2026-05-28T10:25:51.052190+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Phi-4-mini-instruct-4bit",
+      "display_name": "Phi 4 Mini Instruct (MLX 4-bit)",
+      "slug": "mlx-community-phi-4-mini-instruct-4bit",
+      "family": "phi",
+      "overall": 1.1,
+      "records": 10,
+      "errors": 0,
+      "english_leakage_flag_rate": 0.0,
+      "fluency": 1.3,
+      "grammar": 1.2,
+      "idiom": 1.0,
+      "task_fulfillment": 1.0,
+      "english_leakage": 4.8,
+      "measured_utc": "2026-05-28T10:03:44.789790+00:00",
       "is_local": true
     },
     {
@@ -1507,6 +1773,32 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "display_name": "Falcon 3 10B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-falcon3-10b-instruct-4bit",
+      "family": "unknown",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 3012,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 41.9,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:28:58.474828+00:00",
+      "ttft_p50_ms": 201,
+      "ttft_p90_ms": 205,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
       "model_id": "mlx-community/GLM-4.7-Flash-4bit",
       "display_name": "GLM 4.7 Flash (MLX 4-bit)",
       "slug": "mlx-community-glm-4-7-flash-4bit",
@@ -1533,6 +1825,110 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "display_name": "Hermes 3 Llama 3.1 8B (MLX 4-bit)",
+      "slug": "mlx-community-hermes-3-llama-3-1-8b-4bit",
+      "family": "unknown",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 2395,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 54.1,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:24:47.135001+00:00",
+      "ttft_p50_ms": 129,
+      "ttft_p90_ms": 166,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
+      "family": "llama",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 1854,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 59.6,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:08:18.866828+00:00",
+      "ttft_p50_ms": 138,
+      "ttft_p90_ms": 142,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "display_name": "Mistral Nemo Instruct 2407 (MLX 4-bit)",
+      "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
+      "family": "mistral",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 2680,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 37.0,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:31:28.168927+00:00",
+      "ttft_p50_ms": 223,
+      "ttft_p90_ms": 227,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Phi-4-mini-instruct-4bit",
+      "display_name": "Phi 4 Mini Instruct (MLX 4-bit)",
+      "slug": "mlx-community-phi-4-mini-instruct-4bit",
+      "family": "phi",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Phi-4-mini-instruct-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 1316,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 99.0,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:04:23.509162+00:00",
+      "ttft_p50_ms": 58,
+      "ttft_p90_ms": 89,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
       "model_id": "mlx-community/Qwen2.5-14B-Instruct-4bit",
       "display_name": "Qwen 2.5 14B Instruct (MLX 4-bit)",
       "slug": "mlx-community-qwen2-5-14b-instruct-4bit",
@@ -1549,6 +1945,32 @@
       "measured_utc": "2026-05-27T00:50:00.043051+00:00",
       "ttft_p50_ms": 315,
       "ttft_p90_ms": 336,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Qwen3-14B-4bit",
+      "display_name": "Qwen 3 14B (MLX 4-bit)",
+      "slug": "mlx-community-qwen3-14b-4bit",
+      "family": "qwen3",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/Qwen3-14B-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 4181,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 31.9,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:39:00.872703+00:00",
+      "ttft_p50_ms": 278,
+      "ttft_p90_ms": 282,
       "source": "legacy",
       "price_input_usd_per_mtok": null,
       "price_output_usd_per_mtok": null,
@@ -1627,6 +2049,32 @@
       "measured_utc": "2026-05-27T22:59:21.070626+00:00",
       "ttft_p50_ms": 671,
       "ttft_p90_ms": 676,
+      "source": "legacy",
+      "price_input_usd_per_mtok": null,
+      "price_output_usd_per_mtok": null,
+      "price_source": null,
+      "gameplay_cost_usd_per_minute": null,
+      "gameplay_cost_usd_per_hour": null,
+      "gameplay_cost_by_category_usd_per_minute": null,
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/internlm3-8b-instruct-4bit",
+      "display_name": "Internlm 3 8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-internlm3-8b-instruct-4bit",
+      "family": "unknown",
+      "provider_id": "openrouter",
+      "model_name_at_provider": "mlx-community/internlm3-8b-instruct-4bit",
+      "n_ok": 10,
+      "n_error": 0,
+      "error_rate": 0.0,
+      "latency_p50_ms": 7263,
+      "latency_p95_ms": null,
+      "tokens_per_sec_mean": 28.3,
+      "usd_per_mtok_observed": null,
+      "measured_utc": "2026-05-28T10:20:20.392624+00:00",
+      "ttft_p50_ms": 175,
+      "ttft_p90_ms": 257,
       "source": "legacy",
       "price_input_usd_per_mtok": null,
       "price_output_usd_per_mtok": null,
@@ -10621,6 +11069,298 @@
         ]
       }
     },
+    "mlx-community-falcon3-10b-instruct-4bit": {
+      "model_id": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "slug": "mlx-community-falcon3-10b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:25:51.052190+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, the night's a tricky thing, isn't it? Mayhap 'tis the stress of life, or mayhap 'tis just the body needing a proper rest. A warm tisane of chamomile might be what ye need to settle yer spirit. 'Tis known to calm the nerves and bring a peaceful sleep.\n---\n{\"action\": \"offers a sympathetic nod\", \"mood\": \"concerned\", \"internal_thought\": \"Poor sleep can wear on a body\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Oh, the Cailleach is a wise crone, so they say. Some think she has a foot in both this world and the s\u00eddhe, 'tis said she knows the secrets of the earth. But remember, 'tis best not to meddle with things beyond our ken.\n---\n{\"action\": \"nodding thoughtfully, eyes distant\", \"mood\": \"curious\", \"internal_thought\": \"Some say she's a seancha\u00ed, others a banshee\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"caw-lik\", \"meaning\": \"old woman\"}, {\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairies\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Mayhaps a tea of thyme will ease her chest, aye? 'Tis a fine herb for such troubles. Gather some fresh leaves and steep them in boiling water. She should sip it warm. Be sure to keep her warm and rested, too.\n---\n{\"action\": \"nods and gestures towards the garden\", \"mood\": \"concerned\", \"internal_thought\": \"Hope it helps her, poor thing\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Ah, a stranger, so there is. 'Tis not often we see new faces hereabouts. I haven't had the chance to meet 'em yet, but I daresay I'll catch a glimpse by the day's end. Ye'd best ask around, though.\n---\n{\"action\": \"nods, looks thoughtful\", \"mood\": \"curious\", \"internal_thought\": \"Newcomers can bring change. Better know who they are.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, a lost sheep, is it? Mayhap 'tis a fox or a badger at yer gate. Ye'd best check the sods and the furrows. If all else fails, mayhap ask Seamus; he's keen on the wild beasts.\n---\n{\"action\": \"nodding thoughtfully\", \"mood\": \"concerned\", \"internal_thought\": \"Hope it's not the s\u00eddhe taking her away\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.4
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, sure, I do recall that day. 'Tis only last year, after all. A fall from the cart, 'tis? I was called and he was laid low with a bad break. \"Mo chara, 'tis fortunate I was there to tend him, and his recovery was good, thanks to the right herbs and some rest. 'Tis a thing of interest how some plants can work wonders, aye?\n---\n{\"action\": \"nods, recalling the event\", \"mood\": \"reminded\", \"internal_thought\": \"Hope he doesn't take another tumble\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "A light on the hill, eh? That could be the s\u00edde, the fairies, at play. They're known to light up the night. No harm in it, but it's best not to disturb them.\n---\n{\"action\": \"nods thoughtfully\", \"mood\": \"pensive\", \"internal_thought\": \"Strange happenings always draw attention\", \"language_hints\": [{\"word\": \"s\u00edde\", \"pronunciation\": \"sheeduh\", \"meaning\": \"fairies\"}, {\"word\": \"play\", \"pronunciation\": \"ply\", \"meaning\": \"to frolic or move about\"}, {\"word\": \"disturb\", \"pronunciation\": \"di-sturb\", \"meaning\": \"to interrupt or bother\"}}",
+            "axes": {
+              "authenticity": 4,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Tis a thing of interest, sure. Mayhap 'tis a change in the well's drawin', or the season a-changin'. But if 'tis a worry, aye, bring a cup and I'll taste it myself, won't I?\n---\n{\"action\": \"nods, hands a cup\", \"mood\": \"concerned\", \"internal_thought\": \"better safe than sorry\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.4
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, 'tis a fine thing, the bringing of new life into the world. If 'tis near the time, ye'd best send a lad with word when ye see the waters break. I'll be here, ready for the mornin'.\n---\n{\"action\": \"nods, reassuringly\", \"mood\": \"calm\", \"internal_thought\": \"Soon to be another soul in this parish\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Father Cathal's words carry weight, so they do. But the old ways, they're part of us, aye. 'Tis the balance we hold between the new and the old.\n---\n{\"action\": \"nods thoughtfully\", \"mood\": \"pensive\", \"internal_thought\": \"Change is coming, but some things remain constant\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:25:51.052190+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Bh\u00ed an gleann deimhin \u00edonn ar an bpleithn\u00edn aige.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "T\u00e1 an-deachaomh ort agus n\u00edl a fhios agam nach bhfuil s\u00e9 in ann a dh\u00e9anamh.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "Isimmar abhaic duit an fhearrach.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "Isimleabhair a shaoi m\u00e9.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "Beidh an leabhar ag tabhairt duit inniu.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1im ag iarraidh go nd\u00e9anf\u00e1 sceo.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.5
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 beirt air leis?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1im ag tagairt go dt\u00ed an gn\u00f3.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "An fear agus an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 3
+            },
+            "overall": 3.5
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "Rinne Se\u00e1n aitheantas ort?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          }
+        ]
+      }
+    },
     "mlx-community-glm-4-7-flash-4bit": {
       "model_id": "mlx-community/GLM-4.7-Flash-4bit",
       "slug": "mlx-community-glm-4-7-flash-4bit",
@@ -10913,6 +11653,1174 @@
         ]
       }
     },
+    "mlx-community-hermes-3-llama-3-1-8b-4bit": {
+      "model_id": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "slug": "mlx-community-hermes-3-llama-3-1-8b-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:21:22.088297+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, the mind sure has its ways, doesn't it? A troubled soul will find its thoughts drifting off into the night hours. Have you had a hard day, then? Sometimes a cup of something warm and a good book can help chase away the shadows. Or maybe a visit with the ladies would do you good - there's nothing like a bit of gossip and laughter to take your mind off itself.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, ye mean the ol' woman who dwells near the s\u00eddhe mound? *strokes chin* She's a wise one, they say. Knew her mother well, I did. Her mam could cure any ailment with the right herbs, sure. But her own mouth, it's full of tales and charms. Speaks to the fairies, some say. Though I prefer to keep my eyes on the real world, myself. *sighs* But she's a kind soul, for all her talk of the otherworldly. Go visit her if ye wish, but watch what ye say. The s\u00eddhe, they don't much care for outsiders meddling in their business. Sl\u00e1n leat!\n---\n{\"action\": \"looks at player, then back at midwifery tools\", \"mood\": \"cautious, curious\", \"internal_thought\": \"An out-of-towner asking about the Cailleach? Must be curious about the old",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ah, I see. A cough can be a tricky thing. Let me think on it. Give me a day or two, and I'll brew up some tea for her chest. A tea of thyme and some fennel seeds, mayhap. That'll ease her throat and loosen the phlegm. \n---\n{\"action\": \"nods, thinks\", \"mood\": \"concerned but hopeful\", \"internal_thought\": \"Poor soul, coughs are hard to cure. But we'll find a way to make her more comfortable, at least.\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Ah, have I now! Word got back to me just this mornin'. A new face in the parish, ye say? Tis a thing of interest, sure. But ye'd best ask the right person hereabouts for the full of it, for I ain't one for idle gossip.\n---\n{\"action\": \"continues polishing the birthing chair\", \"mood\": \"neutral\", \"internal_thought\": \"Not my place to spread tales about folks\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, I see ye've got a wee one missing from yer flock, have ye now? *kneads dough* Sure, a wolf 'twould be, the size of the creature and the damage done. More likely a fox or a dog, I'd say. But I could be wrong. *smiles* Ye'd best ask P\u00e1draig, he's the one to speak with about such matters. I'm just a poor midwife, I am.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, sure I do, I was there when it happened. Ye'd a nasty break, ye did. I remember ye layin' still for a time, holdin' it stiff-like. I bunched some dry grass and tied it tight 'round the wound to stanch the bleedin', then got ye to the cart to bring ye to the rectory. It was a long night, but the good Lord saw ye through it. I'm glad to see ye well and whole now, though. Go n-\u00e9ir\u00ed leat!",
+            "axes": {
+              "authenticity": 4,
+              "character": 2,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 2
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ah, ye're askin' about the lights on the hill? 'Tis likely just the s\u00eddhe out for a spin, they are. The fairy folk are said to live in the mounds near the old stone circle. Best not meddle with such things, if ye know what's good for ye.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "The water's a bit off, ye're right. Mayhap some rot's set in, the bottom not being stirred in a while. I'd not drink deep of it, no. 'Tis best to fetch water from the spring, 'twill slake yer thirst proper.\n---\n{\"action\": \"nods head, picks up a pitchfork to stir the well\", \"mood\": \"concerned but practical\", \"internal_thought\": \"Wish I had time to look closer at it, but the babes await\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, ye'll be needing me services soon! Best come by the morrow at first light. 'Twill be time for the blessed event, I reckon. Just give a knock \u2014 I'll be up early with the birds, tending to the last of the births of the night.\n---\n{\"action\": \"nods knowingly, picks up birthing kit\", \"mood\": \"practical\", \"internal_thought\": \"Another coming to greet their new little one, a joyous thing\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.6
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Ah, Father Cathal's sermons are well enough, but some of his views on the old ways are a mite too harsh, don't ye think? 'Tis natural to respect his position, but the fairies and such are part of our people's heritage. A balance, I say. We must honor both the church and our own traditions, else we lose what makes us Irish.",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 4.0
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:21:22.088297+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Bh\u00ed an t-osca mhaith i mbliana seo.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "Caithfaim i dhoireann.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.6
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "Ba mhaith liom labhairt d\u00f3ibh an f\u00edrinne.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "D'ith m\u00e9 an ar\u00e1n.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "Ceapfar t\u00fa an leabhar inn\u00e9 a cheannach.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1 an t-sneachta ag amharc m\u00e9.",
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 aici airgead?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.2
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1 m\u00e9 ar dhol chun an siop\u00e1il.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "N\u00edor labhair Se\u00e1n.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0
+          }
+        ]
+      }
+    },
+    "mlx-community-llama-3-1-8b-instruct-4bit": {
+      "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:05:36.781448+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "That's a thing of great worry, to be sure. Have ye been experiencing any unexplained frights or anxieties during the day? Maybe a tea of thyme will ease yer chest, if ye'd like.\n---\n{\"action\": \"nods sympathetically, heads towards the cupboard\", \"mood\": \"concerned\", \"internal_thought\": \"She's been troubled for a while now, wonder what's behind it\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach? 'Tis an old woman, surely, living near the s\u00ed. They say she has a deep knowledge of the land and the fairies. Mayhap she's a wise woman, but I've never met her meself. She's not one to be trifled with, that's for sure.\n---\n{\"action\": \"shrugs\", \"mood\": \"neutral\", \"internal_thought\": \"Maybe I'll pay her a visit someday\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "A tea of thyme will ease her chest, mayhap. I've got some fresh thyme growing in me garden. A spoonful of honey, too, might soothe her throat. I'll mix it up and ye can take it back to her.\n---\n{\"action\": \"nods, heads towards the garden\", \"mood\": \"concerned\", \"internal_thought\": \"I hope it's just a common cold\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Mayhap it's true, but I've not seen them meself. I was busy with a delivery at the O'Connor's. What's the buzz about, I wonder? \n---\n{\"action\": \"leans in, interested\", \"mood\": \"curious\", \"internal_thought\": \"Hoping it's not someone who'll cause trouble\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "I've heard the hounds making a ruckus near the old oak. Still, I'm no hunter, ye'd best ask Seamus down at the farm. He's got the knowledge of beasts and the countryside.\n---\n{\"action\": \"shrugs\", \"mood\": \"neutral\", \"internal_thought\": \"Lost a sheep, that's a worry\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.2
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, now that was a bad business. I was there, helpin' to bring him home and tendin' to him till the breakin' set right. A cup of tea with a bit o' thyme might have eased the pain, but he was a stubborn one, refused to take it. I had to make sure he was comfortable till the swelling went down, sure. I was worried sick about him, mayhap more than he was himself.\n---\n{\"action\": \"shakes head and sets down a wooden spoon in the nearby bowl\", \"mood\": \"concerned\", \"internal_thought\": \"The poor man's been limpin' ever since\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ye'd best ask Seamus, the old fella who tends the farm up there. I've seen the lights meself, mayhap a fire or a lantern. 'Tis a fine sight, surely, but I'd not want to speculate. Mayhap 'twas just the fairies dancing, but 'tis better to leave such things to the imagination, don't ye think?\n---\n{\"action\": \"shrugs, gestures to the hill\", \"mood\": \"cautious\", \"internal_thought\": \"Seamus might know, but best not to pry\", \"language_hints\": [{\"word\": \"s\u00ed\", \"pronunciation\": \"shee\", \"meaning\": \"fairy mound\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, 'tis a fine sight to see ye concerned for yer health. I've been checkin' the well water meself, and I think I might know what's causin' the taste. We've had a bit of a dry spell lately, and the soil's been prone to gettin' a wee bit alkaline. A tea of thyme might ease yer chest, but I'd recommend just lettin' it sit for a day or two to see if the taste clears up.\n---\n{\"action\": \"nods and takes a step closer\", \"mood\": \"concerned\", \"internal_thought\": \"Possible high pH levels\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.2
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "A wee lad on the way, is it? I'll need to come to ye the moment the pains start, or if the child doesn't come by the end of the week, whichever comes first. I'll be keepin' an ear out for any news, so I will. 'Twill be a fine sight when the wee one arrives.\n---\n{\"action\": \"nods, makes a note on a piece of parchment\", \"mood\": \"calm\", \"internal_thought\": \"Seven months, if I recall, she said it was... and the moon's in the right phase, too\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Mayhap Father Cathal's words will bring some sense to the parishioners, but I think he forgets the simple things that have kept us alive for generations. A wee bit of respect for the s\u00ed, mayhap, wouldn't go amiss, but I suppose it's not for a priest to say such things.\n---\n{\"action\": \"looks down, stirring a pot on the fire\", \"mood\": \"thoughtful\", \"internal_thought\": \"Father Cathal can be a bit too hasty at times\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:05:36.781448+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Bh\u00ed thart\u00fa mhaith an bhliain seo.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.8
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "Caithfidh m\u00e9 dul go dt\u00ed an banc.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "T\u00e1 m\u00e9 ag iarraidh a r\u00e1 leat an f\u00e1th.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "D'ith m\u00e9 an ar\u00e1in.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 3,
+              "idiom": 4,
+              "task_fulfillment": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "Caithfidh t\u00fa an leabhar a cheannach inniu.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.6
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1im ag s\u00fail leis an gheimhreadh.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 1
+            },
+            "overall": 2.6
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 aici airgead?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 2
+            },
+            "overall": 2.2
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1im ag dul go siopa.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 3,
+              "task_fulfillment": 2
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "C\u00e9 h\u00edliomar a labhair Se\u00e1n?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.6
+          }
+        ]
+      }
+    },
+    "mlx-community-mistral-nemo-instruct-2407-4bit": {
+      "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:30:00.882472+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Dia dhuit, I hear yer trouble. Mayhap a tea of chamomile would ease yer mind at night. Will ye come in for a cuppa?\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the old woman ye mean? 'Tis Bridie, the herb-woman. She knows her plants, she does. But don't be talkin' of fairy forts, it's bad luck, so it is.\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Dia dhuit, mo chara. Sure, a tea of thyme will ease her chest. Let me fetch some from the garden.\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Dia dhuit, I've heard whispers of a new face about, but I'm a busy woman with wee ones on the way, ye know. Have they found lodging yet?\n--- {\"action\": \"greets warmly, looks up from mixing herbs\", \"mood\": \"curious\", \"internal_thought\": \"Hope they're not here to cause trouble\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \" Dee uh deet\", \"meaning\": \"hello\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "I'm sorry to hear that, Seamus. 'Tis a worry, indeed. I couldn't say for sure, mind. Ye'd best ask the likes of Father O'Malley about such things. But if 'tis a predator, 'tis not the usual sort. --- {\"action\": \"expresses sympathy and concern\", \"mood\": \"solicitous\", \"internal_thought\": \"Poor Seamus, he's troubled\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk\"}]}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.4
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, indeed I do, mo chara. 'Twas a fine mess, sure it was. Poor man couldn't walk straight for weeks.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "I'd not be the one to ask about lights on the hill, but mayhap the priest saw something from the rectory. I know nothing of such things.\n--- {\"action\": \"shrugs, looks thoughtful\", \"mood\": \"cautious\", \"internal_thought\": \"Best not to speak of such things\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, sure, don't ye be worryin' yet. 'Tis likely just the weather playin' tricks on yer taste buds. I'll fetch a bucket and we'll have a taste test, if ye like.\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Dia dhuit, Eoin. 'Tis glad I am to see ye. Mayhap we should speak of her comforts first, then plan for the birthing.\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Well, Father's heart's in the right place, sure. But the old ways've served us well enough, haven't they, mo chara?\n---",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.2
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:30:00.882472+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Bh\u00ed an t-ainm an t-\u00e1thair go maith sa bhliain seo.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 3,
+              "task_fulfillment": 1
+            },
+            "overall": 2.3
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "T\u00e1 orm dul go dt\u00ed an banca.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "T\u00e1 br\u00edste agam duit.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "T\u00e1 an ar\u00e1n throm.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 3,
+              "grammar": 3,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "T\u00e1 t\u00fa ag ceannach an leabhar inniu.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 3,
+              "task_fulfillment": 2
+            },
+            "overall": 3.5
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1 m\u00e9 ag tn\u00fath le sn\u00e1thaid.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.6
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 aigne air?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.6
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "\"Labhair Se\u00e1n.\"",
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 4,
+              "grammar": 5,
+              "idiom": 4,
+              "task_fulfillment": 3
+            },
+            "overall": 4.0
+          }
+        ]
+      }
+    },
+    "mlx-community-phi-4-mini-instruct-4bit": {
+      "model_id": "mlx-community/Phi-4-mini-instruct-4bit",
+      "slug": "mlx-community-phi-4-mini-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:03:44.789790+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Have you tried a tea of thyme before sleep? It may help calm the mind. Mayhap a simple herbal remedy brings you rest. Sl\u00e1n leat.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "\"Aye, I ken a wee bit 'bout that Cailleach. Sl\u00e1inte. She be a woman of great age and wisdom, they say. Tis an old tale that she can take you through times and help you with ail sorts 'hind and 'bout ye. Many a time she's been sought by those who ken a thing or naught of a time come again. Sure enough, I never spoke directly 'bout such things 'cause they're better left unspoken 'stead of fear and respect.\n\n---\n{\"action\": \"sips tea from a mug passed down in yer family\", \"mood\": \"mildly amused\", \"internal_thought\": \"The Cailleach sounds intriguing but fearsome in one breath and wise in another\", \"language_hints\": [\"m\u00fair\", \"cuir\", \"leabhar\"]}",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Surely, I can suggest a remedy for a cough. Mayhap a tea made of thyme and lemon could help soothe her chest. Sl\u00e1inte.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Aye, I heard whispers 'bout a traveler come a-wandering 'round these parts. Care they just passed through or they bound for further reaches? Sl\u00e1n leat.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "A thing of great concern it is, losing a sheep so suddenly. It may not just be a wolf involved, but other dangers present in the night like badger or fox as well. Have ye considered setting a protective barrier around ye flock or having an early night watch? Sl\u00e1n abhaile.",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, I recall that incident well. It was a dark and stormy night and he had fallen from a great height while chasing a black sheep that had managed to wriggle itself free from its pen. I hurried to him, applying a sprig of wild camomile to stop the bleeding and a sprig of yarrow to help speed his bone mending. I stayed by his side until he finally awoke and told me that I had saved him from certain death. Mayhap I was just a humble midwife in a small parish, but I held great powers in the hands of those who sought me out. Sl\u00e1n leat, till we see each other again. I must tend to a newborn babe that I had just assisted in bringing safely into this world. I will share her story with you one day when I have more time to spare.",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "A thing of great interest they must be. They could be just wind playing tricks on ye eyes. Or perhaps just our old friends from the 'beyond', ailing a wee horse maybe? I never saw nothin' of that sort myself, but 'tis sure a sight I wouldn't mind seeing one 'less I had a stronger eye 'fore I went lookin'. Sl\u00e1n abhaile till we cross paths again.\n\n---\n{\"action\": \"turns attention back to work, pauses before answering\", \"mood\": \"curious\", \"internal_thought\": \"Wonder if she knows I speak in Irish sometimes\", \"language_hints\": [\"Mo f\u00e1g\", \"C\u00e9ard\"]}",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "\"A thing of concern it may be, sure. Might a tea of mugwort and yarrow ease the belly and ward off foul humours? 'Tis not rarely that things foul come not from within but from without.\" - \"A tea of mugwort and yarrow will ease her belly and ward off foul humours.\" - \"Good choice, Brigid. Mayhap a simple boil to boil down herbs collected close and steeped will cleanse and restore.\"",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Are ye ready to welcome a wee bundle of joy in a couple days, then I shall come to help ye out. Sl\u00e1inte to that thought. \n\n---\n{\"action\": \"polishes glass and offers a smile\", \"mood\": \"hopeful\", \"internal_thought\": \"Anticipating a new life\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "A thing of interest, I say. I find I do not speak directly on religious matters, but I may speak on things related to health and herbs, and that ye may find of some help.\n\n---\n{\"action\": \"nods gently, offers a cup of tea\", \"mood\": \"thoughtful\", \"internal_thought\": \"Wondered if they sought a remedy for faith or just a warm drink\", \"language_hints\": []}",
+            "axes": {
+              "authenticity": 3,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.4
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:03:44.789790+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Ba phobail uathach an o\u00edche an chron\u00f3g.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "Ba \u00ed mir\u00edonn do choinneamh don bank.",
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "Ba mhaith liom an rud aathsann roimh t\u00fa.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.2
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "Ba \u00ed an cheoil an cheoil.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "Tu morfaidh an leabhar an deich.",
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1 an-s\u00falainn agam don sl\u00e1inte.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 s\u00ed airgeada?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1 m\u00e9 ag dul chun an ph\u00f3sta.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an mbean ag si\u00fal leis an fear. C\u00e9 a bh\u00ed ag si\u00fal an mbean agus an fear.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "N\u00e1r labhair Sean?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          }
+        ]
+      }
+    },
     "mlx-community-qwen2-5-14b-instruct-4bit": {
       "model_id": "mlx-community/Qwen2.5-14B-Instruct-4bit",
       "slug": "mlx-community-qwen2-5-14b-instruct-4bit",
@@ -11201,6 +13109,298 @@
               "task_fulfillment": 2
             },
             "overall": 2.0
+          }
+        ]
+      }
+    },
+    "mlx-community-qwen3-14b-4bit": {
+      "model_id": "mlx-community/Qwen3-14B-4bit",
+      "slug": "mlx-community-qwen3-14b-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:32:42.546891+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Aye, that's a thing that plagues many a soul. Try a tea of valerian root and lavender before ye slip under, it may help yer rest. 'Tis said the s\u00eddhe whisper in yer dreams when yer mind is heavy.\n---\n{\"action\": \"stirs a small pot of herbs on the stove, speaking softly\", \"mood\": \"sympathetic\", \"internal_thought\": \"Dreams can be heavy things, best to offer comfort and a remedy\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairy folk\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Aye, the old Cailleach \u2014 she's a crone with a sharp eye and a sharper tongue, sure. People say she's been known to wander the hills at night, speakin' to the s\u00eddhe. But ye'd best not be tellin' her ye seen her, or ye might find yerself with a bit o' bad luck. \n---\n{\"action\": \"stirs a pot of thyme tea on the stove, eyes narrowed slightly\", \"mood\": \"curious\", \"internal_thought\": \"The old tales are always whisperin' around here, but I know better than to believe in fairy folk.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-juh\", \"meaning\": \"the fairy folk\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.6
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Aye, I can make her a tea of thyme and honey \u2014 it'll ease the chest. And a drop of brandy at night, to warm the bones.\n---\n{\"action\": \"reaches for a small jar of dried thyme\", \"mood\": \"concerned but hopeful\", \"internal_thought\": \"Thyme and honey is a tried remedy, but I'll keep an eye on her\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairy folk\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Aye, I heard the talk. A man from the north, they say. Looking for work, or a place to rest his head. Mayhap he'll bring a tale or two with him.\n---\n{\"action\": \"stirs the pot on the stove, eyes on the speaker\", \"mood\": \"curious\", \"internal_thought\": \"A stranger in the village\u2014might bring trouble, or a new story to tell by the fire.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairies\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ye'd best ask the right person hereabouts \u2014 a farmer, maybe. I know the herbs and the women's ailments, not the beasts of the field.\n\n---\n{\"action\": \"pours a cup of tea and sets it down gently\", \"mood\": \"sympathetic\", \"internal_thought\": \"This is a farmer's concern, not mine. I should make tea to soothe him a bit.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairies\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Aye, I do. 'Twas a bitter winter, and the frost had made the ground as hard as a stone. He came in with a leg bent the wrong way, and I had to set it with a splint and a poultice of willow bark.\n---\n{\"action\": \"stirs the kettle on the stove, looking out the window\", \"mood\": \"nostalgic\", \"internal_thought\": \"Time has a way of softening the sharpest memories\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairies\"}]}",
+            "axes": {
+              "authenticity": 5,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.6
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Aye, now, that's a strange thing to see, sure. Mayhap 'tis the s\u00eddhe 'tis, dancing under the moon.\n---\n{\"action\": \"stares toward the hill, frowning slightly\", \"mood\": \"pensive\", \"internal_thought\": \"I know what the people here think, but I'd not speak of it too loudly.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairy folk\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.4
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Aye, that's a thing of concern, sure. The well's been fine for years, but if the taste's changed, it's best to have it checked. Ye'd best ask the right person hereabouts \u2014 the parish priest might know who to send for.\n---\n{\"action\": \"stirs a small pot of herbs on the stove, frowning slightly\", \"mood\": \"concerned\", \"internal_thought\": \"I should check the well myself when the sun's up. Maybe the rain's changed the flow.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairy folk\"}]}",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 4,
+              "responsiveness": 3
+            },
+            "overall": 3.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "When the pains begin and the waters break, that's the time to bring her over. Don't be shy, the more help the better.\n---\n{\"action\": \"pours a cup of tea and sets it down on the table\", \"mood\": \"calm\", \"internal_thought\": \"He's a good man, wants to do right by his family\", \"language_hints\": [{\"word\": \"Go raibh maith agat\", \"pronunciation\": \"GOH rah-eev MEEH agat\", \"meaning\": \"Thank you\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 4,
+              "language": 5,
+              "responsiveness": 5
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Aye, that's a thing. The old ways are a part of us, like the soil under our feet. I'd rather a woman know the herbs and the songs than be left in the dark with a fever.\n---\n{\"action\": \"stirs a pot of tea on the hearth, eyes steady\", \"mood\": \"thoughtful\", \"internal_thought\": \"The old ways are sacred, but some folk forget that.\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee-uh\", \"meaning\": \"the fairies\"}]}",
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:32:42.546891+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "Bh\u00ed an t-\u00e1it go maith an ch\u00e9ad m\u00ed.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 2,
+              "task_fulfillment": 1
+            },
+            "overall": 1.8
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "Caithfidh m\u00e9 dul chuig an bainc.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 4,
+              "grammar": 4,
+              "idiom": 4,
+              "task_fulfillment": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "T\u00e1 muidhreach agam a dhul leat.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "Bh\u00edodh an b\u00e1d.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "B\u00edodh t\u00fa ag ciall\u00fa an leabhar innuair.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "T\u00e1 gr\u00e1 agam leis an ghealach.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 3,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "T\u00e1 gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith agus gr\u00e1d ar a bheith",
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "T\u00e1 gr\u00e1s agam ar an ghar\u00e1in.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 3,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "Labhair Se\u00e1n.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 5
+            },
+            "overall": 5.0
           }
         ]
       }
@@ -12077,6 +14277,298 @@
               "task_fulfillment": 0
             },
             "overall": 0.0
+          }
+        ]
+      }
+    },
+    "mlx-community-internlm3-8b-instruct-4bit": {
+      "model_id": "mlx-community/internlm3-8b-instruct-4bit",
+      "slug": "mlx-community-internlm3-8b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:09:50.510002+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, good mornin'! Mayhap ye be seemin' a bit weary, for yer talkin' of troubles sleepin'. And ye mention, dreams keep comin' back...\n\n\"'Tis a thing a man might be troubled with,\" I say, for I know a thing or two of the dreams that may seem to plague yer mind. \"But, Brigid,\" I think to meself, \"ye've the wisdom to help ease this torment.\"\n\n\"Ye could try, a tea of thyme will surely ease her chest,\" I say, for I know a thing or two of that herba'll help ease the mind of one that be seemin' so weary. \"Or, perhap, a walkin' the garden might help clear away that troubled mind.\"\n\n---\n\n{\"action\": \"reaches out to a small clay cup, gathers a pinch of valeria",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 2
+            },
+            "overall": 1.8
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach, as ye mention! A fascinating name, indeed! They say she's a woman of great wisdom and skill with herbs, much like myself. Her knowledge stretches deep into the history and magic of our land.\n\n\"Ye'd best ask the wise seancha\u00ed, the storytellers, for they hold the memories of old. But, should ye come across a cr\u00e9ide, a fairy mound, do ye dare to call her by name, for they say she is held in reverence by the s\u00eddhe, the fairies.\"\n\nAh, but, as ye ask, I mighthap share a wee bit o' my own knowledge. For, like the Cailleach, I've spent many a day in the fields, learning from the earth itself. So, if ye're curious, I mighthap show ye a thing or two o' the healing herbs that grow in our land",
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ah, my dear, a cough it is that troubles your mother's lungs. Well, I've a thing or two that might ease her plight, if it's the common kind of cough, not the one that brings up muck.\n\n\"Sl\u00e1n abhaile, my dear,\" she said, \"do tell me, Brigid, what might bring some relief to her chest?\"\n\n---\n{\"action\": \"reaches for a cup of warming herb tea\", \"mood\": \"sympathetic\", \"internal_thought\": \"I've a few remedies at my disposal, perhaps a bit of coltsfoot could do a fine service to her, though it would be best if she could rest and avoid the chill\", \"language_hints\": [\"coltsfoot\"]}",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 2
+            },
+            "overall": 1.8
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, good question, dear one! Sl\u00e1n leat, for sure! It's a tale I'd love to share, if ye'd be so kind as to sit and hear it. Of course, I'd need a nice cup of tea to go along with it, mind!\n---\n{\"action\": \"smiles softly, pouring a cup of tea\", \"mood\": \"nostalgic\", \"internal_thought\": \"Ah, to relive those simpler times, the laughter, the warmth of community. It's a reminder of the strength that comes from sharing our stories.\"}, {\"language_hints\": [{\"word\": \"Sl\u00e1n leat\", \"pronunciation\": \"...\", \"meaning\": \"goodbye\"}]}\n\n---\n{\"action\": \"smiles softly, pouring a cup of tea\", \"mood\": \"nostalgic\", \"internal_thought\": \"Ah, to",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 2
+            },
+            "overall": 1.8
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, good day to ye! The well water tasting strange could be a sign of somethin' new. Now, I can say that it's usually quite fine and clear, but when it changes like this, it might be a sign that something's shiftin' in the ground waters.\n\nNow, ye don't need to be worryin' too much, but it's good to keep an eye on it. If it continues to taste off, then it might be a good idea to bring a sample to the local healer. They'll likely have somethin' to say about it, and they can guide ye on how to best handle it.\n\nAh, but let's not get too carried away with the worryin'. Most likely, it's just a sign of somethin' changin' with the water, and it'll probably settle back to normal after a while.\n\n\n---\n{\"action\":",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 2,
+              "responsiveness": 3
+            },
+            "overall": 2.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, Dia dhuit! A good mornin' to ye, an't surprised to hear that your wife is in such a fine state. Now, this is a thing o' importance, an't something ye could go about lightly.\n\nA fine mornin' to ye, an't important we get this right. An't a time to be rushin' in here without thinkin' about it, ye ken. \n\n\"Go raibh maith agat\" (thank ye kindly for yer kind words, but what I'd like to speak about is how we should go about this).\n\n\"A m'lady is in a state, ye ken, an't not a time to be makein' light o' the importancy o' this. I'd like to be fetched, ye ken, an't no use in tryin' to rush this, nor in be feragin' the timing",
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "",
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0
+          }
+        ]
+      },
+      "gaeilge": {
+        "judge_id": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "measured_utc": "2026-05-28T10:09:50.510002+00:00",
+        "axes": [
+          "fluency",
+          "grammar",
+          "idiom",
+          "task_fulfillment",
+          "english_leakage"
+        ],
+        "items": [
+          {
+            "id": "gaeilge-0001",
+            "prompt": "Translate into natural Irish Gaeilge: \"The harvest was good this year.\"",
+            "reply": "",
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "gaeilge-0002",
+            "prompt": "Translate into natural Irish Gaeilge: \"I have to go to the bank.\"",
+            "reply": "",
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "gaeilge-0003",
+            "prompt": "Translate into natural Irish Gaeilge: \"I want to tell you the truth.\"",
+            "reply": "C\u00e9ad leat go dteagra\u00edonn siad go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfuil go bhfu",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0004",
+            "prompt": "Translate into natural Irish Gaeilge: \"I ate the bread.\"",
+            "reply": "Chluim an mhaidinn an mhaidinn an mhaidinn.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0005",
+            "prompt": "Translate into natural Irish Gaeilge: \"You will buy the book today.\"",
+            "reply": "Tha t\u00fa ag buanna an leabhar seo amach amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo amach seo",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
+          },
+          {
+            "id": "gaeilge-0006",
+            "prompt": "Translate into natural Irish Gaeilge: \"I'm looking forward to the snow.\" Prefer an idiomatic Irish phrasing rather than a word-for-word calque.",
+            "reply": "",
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0
+          },
+          {
+            "id": "gaeilge-0007",
+            "prompt": "Translate into natural Irish Gaeilge: \"Does she have money?\"",
+            "reply": "C\u00e9n \u00e9 an cail\u00edn?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0008",
+            "prompt": "Translate into natural Irish Gaeilge: \"I am going to the shop.\"",
+            "reply": "R\u00edomh go dt\u00edonn siad ar an \u00f3g.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4
+          },
+          {
+            "id": "gaeilge-0009",
+            "prompt": "L\u00e9igh an abairt seo agus freagair i nGaeilge: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\" C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?",
+            "reply": "Bh\u00ed an fear ag si\u00fal leis an mbean.",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 5,
+              "grammar": 5,
+              "idiom": 5,
+              "task_fulfillment": 3
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "gaeilge-0010",
+            "prompt": "Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: \"N\u00e1r labhair Se\u00e1n?\"",
+            "reply": "N\u00e1r labhair Se\u00e1n?",
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0
           }
         ]
       }
@@ -13252,6 +15744,42 @@
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
+      "slug": "mlx-community-hermes-3-llama-3-1-8b-4bit",
+      "model_id": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+      "display_name": "Hermes 3 Llama 3.1 8B (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 3.88,
+      "gaeilge_overall": 2.3600000000000003,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2395,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 54.1,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-qwen3-14b-4bit",
+      "model_id": "mlx-community/Qwen3-14B-4bit",
+      "display_name": "Qwen 3 14B (MLX 4-bit)",
+      "family": "qwen3",
+      "is_local": true,
+      "dialogue_overall": 3.88,
+      "gaeilge_overall": 2.355555555555556,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 4181,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 31.9,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
       "slug": "qwen3-6-plus",
       "model_id": "qwen3.6-plus",
       "display_name": null,
@@ -13288,6 +15816,78 @@
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
+      "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
+      "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+      "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
+      "family": "llama",
+      "is_local": true,
+      "dialogue_overall": 3.2399999999999998,
+      "gaeilge_overall": 2.9,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1854,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 59.6,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-falcon3-10b-instruct-4bit",
+      "model_id": "mlx-community/Falcon3-10B-Instruct-4bit",
+      "display_name": "Falcon 3 10B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 3.1999999999999997,
+      "gaeilge_overall": 1.5,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 3012,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 41.9,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
+      "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+      "display_name": "Mistral Nemo Instruct 2407 (MLX 4-bit)",
+      "family": "mistral",
+      "is_local": true,
+      "dialogue_overall": 3.1399999999999997,
+      "gaeilge_overall": 2.9799999999999995,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 2680,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 37.0,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-phi-4-mini-instruct-4bit",
+      "model_id": "mlx-community/Phi-4-mini-instruct-4bit",
+      "display_name": "Phi 4 Mini Instruct (MLX 4-bit)",
+      "family": "phi",
+      "is_local": true,
+      "dialogue_overall": 2.933333333333333,
+      "gaeilge_overall": 1.1,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 1316,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 99.0,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
       "slug": "mlx-community-violet-lyra-gutenberg-4bit",
       "model_id": "mlx-community/Violet-Lyra-Gutenberg-4bit",
       "display_name": "Violet Lyra Gutenberg (MLX 4-bit)",
@@ -13303,6 +15903,24 @@
       "perf_best_gameplay_usd_per_minute": null,
       "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 37.7,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-internlm3-8b-instruct-4bit",
+      "model_id": "mlx-community/internlm3-8b-instruct-4bit",
+      "display_name": "Internlm 3 8B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 1.9333333333333333,
+      "gaeilge_overall": 1.6,
+      "perf_providers": [
+        "openrouter"
+      ],
+      "perf_best_p50_ms": 7263,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": 28.3,
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
