@@ -319,8 +319,19 @@ def _coerce_nullable_empty_strings(value, schema):
     Anthropic route emit `""` for absent nullable fields even when the system
     prompt asks for `null`; downstream consumers (graders, parsers) treat
     `""` and `None` differently, costing partial credit. This restores the
-    semantic intent of the schema's `["string", "null"]` typing."""
-    if not isinstance(value, dict) or not isinstance(schema, dict):
+    semantic intent of the schema's `["string", "null"]` typing.
+
+    Recurses through nested dicts AND arrays: an array of objects whose items
+    schema declares nullable properties needs every element coerced, not just
+    the top-level container."""
+    if not isinstance(schema, dict):
+        return value
+    if isinstance(value, list):
+        item_schema = schema.get("items") or {}
+        for i, item in enumerate(value):
+            value[i] = _coerce_nullable_empty_strings(item, item_schema)
+        return value
+    if not isinstance(value, dict):
         return value
     props = schema.get("properties") or {}
     for key, val in list(value.items()):
@@ -329,9 +340,26 @@ def _coerce_nullable_empty_strings(value, schema):
         nullable = isinstance(ptype, list) and "null" in ptype
         if nullable and val == "":
             value[key] = None
-        elif isinstance(val, dict):
-            _coerce_nullable_empty_strings(val, prop_schema)
+        elif isinstance(val, (dict, list)):
+            value[key] = _coerce_nullable_empty_strings(val, prop_schema)
     return value
+
+
+def _parse_retry_after(header_value, default: float) -> float:
+    """Parse a `Retry-After` HTTP response header to a wait in seconds.
+
+    RFC 7231 allows either a non-negative delta-seconds integer or an
+    HTTP-date (e.g. `Wed, 21 Oct 2015 07:28:00 GMT`). `float(...)` raises
+    `ValueError` on the HTTP-date form and would crash the retry loop. Fall
+    back to `default` whenever the header is missing or unparseable as a
+    delta-seconds value — we never received an HTTP-date Retry-After from
+    the gateways we target in practice, but a future provider could."""
+    if not header_value:
+        return default
+    try:
+        return float(header_value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _unwrap_raw_arguments(payload):
@@ -414,8 +442,7 @@ def _call_messages_anthropic(
             # the time on complex tool_use schemas (tier3-sim batches);
             # retrying clears most. Treat 500 like 503 for retry purposes.
             if e.code in (429, 500, 503) and attempt < max_retries:
-                retry_after = e.headers.get("Retry-After")
-                wait = min(float(retry_after), 60.0) if retry_after else 2 ** attempt
+                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2 ** attempt), 60.0)
                 attempt += 1
                 print(f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
                 time.sleep(wait)
@@ -687,8 +714,7 @@ def call_chat(
             break
         except urllib.error.HTTPError as e:
             if e.code in (429, 503) and attempt < max_retries:
-                retry_after = e.headers.get("Retry-After")
-                wait = min(float(retry_after), 60.0) if retry_after else 2 ** attempt
+                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2 ** attempt), 60.0)
                 attempt += 1
                 print(f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
                 time.sleep(wait)
