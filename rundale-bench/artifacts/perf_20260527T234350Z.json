@@ -1,0 +1,154 @@
+{
+  "ran_at_utc": "2026-05-27T23:43:50.151554+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "qwen3.7-max": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 20544,
+      "ttft_ms_p90": 24304,
+      "total_ms_median": 22809,
+      "tokens_per_second_median": 1249.8,
+      "tokens_per_second_p90": 1629.7,
+      "json_freeform": {
+        "n": 10,
+        "valid": 8,
+        "rate": 0.8,
+        "errors": [
+          "HTTPError: HTTP Error 500: Internal Server Error",
+          "HTTPError: HTTP Error 500: Internal Server Error"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 7,
+        "rate": 0.7,
+        "errors": [
+          "HTTPError: HTTP Error 500: Internal Server Error",
+          "HTTPError: HTTP Error 500: Internal Server Error",
+          "HTTPError: HTTP Error 500: Internal Server Error"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 20808,
+          "total_ms": 25653,
+          "completion_tokens": 1857,
+          "prompt_tokens": 1653,
+          "tokens_per_second": 383.28173374613004,
+          "reply_len": 690,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 29334,
+          "total_ms": 31087,
+          "completion_tokens": 2693,
+          "prompt_tokens": 1657,
+          "tokens_per_second": 1536.2236166571593,
+          "reply_len": 640,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 18435,
+          "total_ms": 19864,
+          "completion_tokens": 1749,
+          "prompt_tokens": 1657,
+          "tokens_per_second": 1223.9328201539538,
+          "reply_len": 552,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 23746,
+          "total_ms": 25148,
+          "completion_tokens": 2283,
+          "prompt_tokens": 1653,
+          "tokens_per_second": 1628.3880171184023,
+          "reply_len": 541,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 14889,
+          "total_ms": 16108,
+          "completion_tokens": 1520,
+          "prompt_tokens": 1655,
+          "tokens_per_second": 1246.923707957342,
+          "reply_len": 587,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 20280,
+          "total_ms": 21580,
+          "completion_tokens": 2021,
+          "prompt_tokens": 1654,
+          "tokens_per_second": 1554.6153846153845,
+          "reply_len": 578,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 15703,
+          "total_ms": 17305,
+          "completion_tokens": 1540,
+          "prompt_tokens": 1654,
+          "tokens_per_second": 961.2983770287141,
+          "reply_len": 652,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 22617,
+          "total_ms": 25570,
+          "completion_tokens": 2079,
+          "prompt_tokens": 1653,
+          "tokens_per_second": 704.0298002031832,
+          "reply_len": 654,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 22866,
+          "total_ms": 24039,
+          "completion_tokens": 1925,
+          "prompt_tokens": 1653,
+          "tokens_per_second": 1641.091219096334,
+          "reply_len": 603,
+          "error": null
+        },
+        {
+          "candidate": "qwen3.7-max",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 19713,
+          "total_ms": 21102,
+          "completion_tokens": 1740,
+          "prompt_tokens": 1656,
+          "tokens_per_second": 1252.6997840172787,
+          "reply_len": 619,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 347.7962579727173,
+  "cost": {
+    "usd": 0.0,
+    "calls": 25
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "qwen3.7-max",
+    "base_url": "https://opencode.ai/zen/go/v1"
+  },
+  "run_started_utc": "2026-05-28T02:39:16.002107+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "schema_valid_rate": 0.7,
+        "mean_score": 0.7
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "error": "HTTP Error 500: Internal Server Error",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0002",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Served afternoon pints and mediated lingering tensions from last night's quarrel with calm authority; ensured no further disputes arose.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}, {\"from\": 1, \"to\": 4, \"delta\": 0.03}]}, {\"npc_id\": 2, \"mood\": \"weary\", \"activity_summary\": \"Continued bar service through the busy afternoon, managing customers efficiently despite fatigue; exchanged brief words with Father Cathal when he stopped by.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.05}, {\"from\": 2, \"to\": 6, \"delta\": 0.02}]}, {\"npc_id\": 3, \"mood\": \"satisfied\", \"activity_summary\": \"Finished cutting turf at the bog, ate a modest meal of bread and cheese, then rested briefly before heading home as evening approached.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 4, \"mood\": \"settled\", \"activity_summary\": \"Shared stories with passersby at the crossroads about old parish feuds, gradually easing his restlessness; spoke briefly with Padraig about maintaining peace.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 1, \"delta\": 0.03}]}, {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Prepared herbal remedies and cleaned birthing supplies at her cottage; visited a neighboring family to check on a new mother\\u2019s recovery.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 6, \"mood\": \"resolute\", \"activity_summary\": \"Spent hours in prayer and reflection on parish discord; visited Darcy\\u2019s Pub briefly to observe the atmosphere and offer quiet counsel to Niamh.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 6, \"to\": 2, \"delta\": 0.02}]}]}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0003",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"jovial\", \"activity_summary\": \"Served rounds of porter and shared the good news with patrons, leading several toasts to the parish's fortune.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}, {\"from\": 1, \"to\": 4, \"delta\": 0.03}]}, {\"npc_id\": 2, \"mood\": \"exhausted but cheerful\", \"activity_summary\": \"Managed a busy afternoon rush at the pub, keeping up with orders despite fatigue while exchanging warm words with regulars.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.04}, {\"from\": 2, \"to\": 3, \"delta\": 0.02}]}, {\"npc_id\": 3, \"mood\": \"satisfied\", \"activity_summary\": \"Finished cutting turf at the bog and walked to Darcy's Pub for a meal and drink upon hearing the good news.\", \"new_location\": 1, \"relationship_changes\": [{\"from\": 3, \"to\": 1, \"delta\": 0.03}, {\"from\": 3, \"to\": 2, \"delta\": 0.02}]}, {\"npc_id\": 4, \"mood\": \"elated\", \"activity_summary\": \"Gathered neighbors at the crossroads to recount old tales celebrating past blessings, then moved to the pub to continue storytelling.\", \"new_location\": 1, \"relationship_changes\": [{\"from\": 4, \"to\": 1, \"delta\": 0.04}, {\"from\": 4, \"to\": 6, \"delta\": 0.02}]}, {\"npc_id\": 5, \"mood\": \"relieved\", \"activity_summary\": \"Completed preparations for an upcoming birth and visited the church to offer thanks for the parish's good tidings.\", \"new_location\": 6, \"relationship_changes\": [{\"from\": 5, \"to\": 6, \"delta\": 0.05}]}, {\"npc_id\": 6, \"mood\": \"grateful yet solemn\", \"activity_summary\": \"Led private prayers of thanksgiving at the church and received Brigid O'Brien, offering pastoral counsel on the day's events.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 6, \"to\": 5, \"delta\": 0.04}, {\"from\": 6, \"to\": 1, \"delta\": 0.02}]}]}"
+        },
+        {
+          "id": "tier3-0004",
+          "error": "HTTP Error 500: Internal Server Error",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0005",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"irritable\", \"activity_summary\": \"Worked the forge in silence despite the cold; snapped at a neighbor who mentioned last night's quarrel, then focused on repairing a ploughshare to avoid further conversation.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": -0.05}]}, {\"npc_id\": 2, \"mood\": \"concerned\", \"activity_summary\": \"Arrived early to light the schoolhouse fire; gently redirected Eamon\\u2019s attention during lessons and avoided pressing Donal about the quarrel, maintaining a calm demeanor for the children\\u2019s sake.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 4, \"delta\": 0.08}, {\"from\": 2, \"to\": 1, \"delta\": -0.03}]}, {\"npc_id\": 3, \"mood\": \"melancholic\", \"activity_summary\": \"Remained indoors tending a small hearth; visited her son\\u2019s grave at dawn despite the frost, then sat quietly mending clothes while reflecting on her loss and the parish tensions.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 4, \"delta\": 0.06}]}, {\"npc_id\": 4, \"mood\": \"distracted\", \"activity_summary\": \"Struggled to focus on arithmetic at school; glanced often toward the window thinking of his father and the quarrel he overheard, but responded to Mister Lyons\\u2019 patience with small efforts to engage.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 2, \"delta\": 0.07}, {\"from\": 4, \"to\": 3, \"delta\": 0.04}]}]}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0006",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"quietly hopeful\", \"activity_summary\": \"Tended the forge fire and repaired a ploughshare; paused to listen as good news spread through the parish, offering a rare nod of acknowledgment to passersby.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}]}, {\"npc_id\": 2, \"mood\": \"gently uplifted\", \"activity_summary\": \"Led morning lessons with renewed patience; shared the good news with pupils in measured terms, offering quiet reassurance to Eamon during a moment of distraction.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 4, \"delta\": 0.08}, {\"from\": 2, \"to\": 1, \"delta\": 0.05}]}, {\"npc_id\": 3, \"mood\": \"tentatively comforted\", \"activity_summary\": \"Sat by the hearth mending stockings; received word of the good news from a neighbor and allowed herself a small, tearful smile while thinking of her late son.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 2, \"delta\": 0.06}]}, {\"npc_id\": 4, \"mood\": \"softly distracted but steadied\", \"activity_summary\": \"Struggled to focus on sums at schoolhouse; Mister Lyons\\u2019 kind words about the good news briefly eased his grief, though thoughts of his father lingered.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 2, \"delta\": 0.08}]}]}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0007",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"exhausted\", \"activity_summary\": \"Hauled in final nets as rain intensified; secured boat and trudged home through mud, too tired to speak much upon arrival.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}]}, {\"npc_id\": 2, \"mood\": \"content\", \"activity_summary\": \"Helped Conor secure the catch despite downpour; walked back with brother sharing quiet optimism about tomorrow\\u2019s market.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.05}]}, {\"npc_id\": 3, \"mood\": \"reassured\", \"activity_summary\": \"Received Brigid\\u2019s weekly check; anxiety eased after hearing baby is strong, then rested by hearth while rain pattered outside.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 4, \"delta\": 0.08}]}, {\"npc_id\": 4, \"mood\": \"satisfied\", \"activity_summary\": \"Completed Maire\\u2019s prenatal visit; offered herbal tea and steady counsel before departing into light rain for her own cottage.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 3, \"delta\": 0.07}]}, {\"npc_id\": 5, \"mood\": \"boisterous\", \"activity_summary\": \"Regaled pub patrons with exaggerated tales of youth and fishing lore; grew louder as evening deepened, spilling bits of ale on the floor.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 1, \"delta\": -0.03}, {\"from\": 5, \"to\": 2, \"delta\": -0.02}]}]}"
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0009",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"relieved\", \"activity_summary\": \"Hauled in nets despite the rain, then walked home upon hearing the parish news; shared a quiet word of thanks with Padraig before resting.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}]}, {\"npc_id\": 2, \"mood\": \"elated\", \"activity_summary\": \"Helped Conor secure the boat and spread the good news along the shore; stopped by Maire\\u2019s cottage to reassure her before heading to the pub.\", \"new_location\": 5, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.05}, {\"from\": 2, \"to\": 3, \"delta\": 0.08}]}, {\"npc_id\": 3, \"mood\": \"reassured\", \"activity_summary\": \"Received Brigid\\u2019s check-up and heard the good news; felt anxiety ease as neighbors\\u2019 joy reached her doorstep.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 4, \"delta\": 0.07}, {\"from\": 3, \"to\": 2, \"delta\": 0.06}]}, {\"npc_id\": 4, \"mood\": \"content\", \"activity_summary\": \"Completed Maire\\u2019s weekly check, offered herbal tea and encouragement; stayed longer than usual to share in the parish\\u2019s hopeful mood.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 3, \"delta\": 0.07}]}, {\"npc_id\": 5, \"mood\": \"boisterous\", \"activity_summary\": \"Celebrated the good news loudly at Darcy\\u2019s Pub, buying a round for those present; grew more talkative as the evening deepened.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 2, \"delta\": 0.04}]}]}"
+        },
+        {
+          "id": "tier3-0010",
+          "error": "HTTP Error 500: Internal Server Error",
+          "score": 0.0,
+          "schema_valid": false
+        },
+        {
+          "schema_valid": true,
+          "plausibility": 5,
+          "score": 1.0,
+          "id": "tier3-0012",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"relieved\", \"activity_summary\": \"Collected outstanding rents more easily than expected due to the good news; spent remaining hours updating ledgers with uncharacteristic patience.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.05}, {\"from\": 1, \"to\": 3, \"delta\": 0.05}]}, {\"npc_id\": 2, \"mood\": \"cautiously optimistic\", \"activity_summary\": \"Served pints to celebratory patrons while quietly negotiating an extension on his debt with Spencer; kept a wary eye on Whitcombe but allowed the festive mood to lighten his demeanor.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.05}, {\"from\": 2, \"to\": 7, \"delta\": -0.02}]}, {\"npc_id\": 3, \"mood\": \"hopeful\", \"activity_summary\": \"Sold his oats at a better price as buyers were buoyed by the news; shared a drink with Tommy and discussed how the wind might carry further prosperity.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 6, \"delta\": 0.04}, {\"from\": 3, \"to\": 1, \"delta\": 0.03}]}, {\"npc_id\": 4, \"mood\": \"content\", \"activity_summary\": \"Purchased herbs and lingered to exchange blessings with parishioners; offered quiet reassurance to anxious mothers about the positive tidings before returning home.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 5, \"delta\": 0.03}, {\"from\": 4, \"to\": 3, \"delta\": 0.02}]}, {\"npc_id\": 5, \"mood\": \"grateful\", \"activity_summary\": \"Led a special prayer of thanksgiving during afternoon Mass; spoke with Brigid afterward about organizing a parish celebration and observed Whitcombe from a distance without confrontation.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 5, \"to\": 4, \"delta\": 0.03}, {\"from\": 5, \"to\": 7, \"delta\": -0.01}]}, {\"npc_id\": 6, \"mood\": \"jubilant\", \"activity_summary\": \"Regaled marketplace crowds with tales linking the good news to old prophecies; bought rounds for listeners and debated the soldier politely but firmly about English intentions.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 6, \"to\": 3, \"delta\": 0.04}, {\"from\": 6, \"to\": 7, \"delta\": -0.03}]}, {\"npc_id\": 7, \"mood\": \"uneasy\", \"activity_summary\": \"Remained at the inn observing the celebratory atmosphere with suspicion; avoided direct engagement except for terse exchanges with Tommy and noted Father Cathal\\u2019s watchfulness before retiring to his room.\", \"new_location\": null, \"relationship_changes\": [{\"from\": 7, \"to\": 6, \"delta\": -0.03}, {\"from\": 7, \"to\": 5, \"delta\": -0.01}]}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 143.87867712974548,
+  "cost": {
+    "calls": 14,
+    "prompt_tokens": 9941,
+    "completion_tokens": 3600,
+    "usd": 0.00033985000000000005
+  }
+}
