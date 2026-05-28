@@ -342,7 +342,9 @@ def main() -> None:
                     choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"])
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
     ap.add_argument("--limit", type=int, default=10, help="prompts per slice")
-    ap.add_argument("--judge", default="judge_v1")
+    ap.add_argument("--judge", default="judge_sonnet_v1",
+                    help="judge config id; Sonnet-subagent ONLY (judge_v1 + other "
+                         "HTTP-API configs are refused at load time).")
     ap.add_argument("--headroom-gb", type=float, default=4.0,
                     help="GB of unified memory to leave free for OS/other apps")
     ap.add_argument("--dry-run", action="store_true",

@@ -12,12 +12,16 @@
         "slice": "dialogue",
         "records": 10,
         "non_latin_rate": 0.0,
-        "character": 4.7,
-        "authenticity": 4.7,
-        "language": 5.0,
-        "responsiveness": 4.9,
-        "craft": 4.5,
-        "overall": 4.720000000000001
+        "character": 3.7,
+        "authenticity": 3.4,
+        "language": 3.7,
+        "responsiveness": 3.7,
+        "craft": 1.9,
+        "overall": 3.28,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "judged": 9,
+        "bench_bug_count": 1
       },
       "results": [
         {

@@ -118,10 +118,41 @@ def utc_stamp() -> str:
 
 
 def load_judge(judge_id: str, suite: str) -> dict:
+    """Load a judge config and refuse any path that isn't a Sonnet subagent.
+
+    HARD INVARIANT: every rundale-bench judge must be scored by a
+    Claude Code subagent running Claude Sonnet 4.6. HTTP-API judges
+    (OpenRouter / Anthropic / DeepSeek / Qwen / Gemini / OpenAI) are
+    rejected at load time so they cannot silently slip into a sweep.
+
+    The invariant is enforced here — every code path that judges goes
+    through `load_judge`, so there is one chokepoint, not many.
+    """
     path = _BENCH_DIR / suite / f"{judge_id}.json"
     if not path.exists():
         raise FileNotFoundError(f"judge config not found: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    judge = json.loads(path.read_text(encoding="utf-8"))
+    via = judge.get("judge_via")
+    if via != "claude-code-subagent":
+        raise ValueError(
+            f"REFUSED: judge config '{judge_id}' has judge_via={via!r}; "
+            f"rundale-bench only accepts judge_via='claude-code-subagent' "
+            f"(Sonnet 4.6 in-session subagent). HTTP-API judges are "
+            f"forbidden. Use --judge judge_sonnet_v1 / judge_reaction_v1 / "
+            f"judge_sim_v1 / judge_gaeilge_v1."
+        )
+    if judge.get("model") != "claude-sonnet-4-6":
+        raise ValueError(
+            f"REFUSED: judge config '{judge_id}' has model={judge.get('model')!r}; "
+            f"rundale-bench only accepts model='claude-sonnet-4-6'."
+        )
+    if judge.get("api_key_env") is not None:
+        raise ValueError(
+            f"REFUSED: judge config '{judge_id}' carries api_key_env="
+            f"{judge.get('api_key_env')!r}; subagent path takes no API key. "
+            f"Set api_key_env=null."
+        )
+    return judge
 
 
 def judge_invoker(judge: dict, tracker: CostTracker):
@@ -1018,7 +1049,16 @@ def run_elo(targets: list[Target], tracker: CostTracker, args) -> dict:
     }
 
 
-_JUDGE_ALIASES = {"sonnet": "judge_sonnet_v1", "qwen": "judge_v1"}
+_JUDGE_ALIASES = {
+    "sonnet": "judge_sonnet_v1",
+    "dialogue": "judge_sonnet_v1",
+    "reaction": "judge_reaction_v1",
+    "sim": "judge_sim_v1",
+    "gaeilge": "judge_gaeilge_v1",
+    # "qwen" / "openrouter" / "http" aliases intentionally REMOVED.
+    # Judge MUST be a Claude Code subagent; see load_judge() for the
+    # hard refusal on judge_via != "claude-code-subagent".
+}
 
 
 def cmd_catalog(argv: list[str]) -> None:
@@ -1457,7 +1497,9 @@ def legacy_main(argv: list[str]) -> None:
     ap.add_argument("--mode", default="absolute", choices=["absolute", "elo"],
                     help="absolute: per-slice graders; elo: pairwise ELO over dialogue slice")
     ap.add_argument("--judge", default=None,
-                    help="judge config id or alias (sonnet|qwen); default judge_sonnet_v1 absolute, judge_pairwise_v1 elo")
+                    help="judge config id or alias (sonnet|dialogue|reaction|sim|gaeilge); "
+                         "default judge_sonnet_v1. Sonnet-subagent ONLY — HTTP-API judge "
+                         "configs are refused at load time.")
     ap.add_argument("--tier", default=None, choices=["screen", "contender", "finalist"],
                     help="filter prompts to a tier id set (<suite>/<tier>.ids.json)")
     ap.add_argument("--model-id", dest="model_id", default=None,

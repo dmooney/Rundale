@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-28T23:05:10.854084+00:00",
+  "generated_utc": "2026-05-28T23:13:19.125171+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -25,48 +25,6 @@
       "is_local": false
     },
     {
-      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
-      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
-      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
-      "family": "unknown",
-      "tier": null,
-      "overall": 4.720000000000001,
-      "judged": 10,
-      "bench_bugs": 0,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_v1 (qwen3-235b)",
-      "judge_model": "qwen/qwen3-235b-a22b-2507",
-      "character": 4.7,
-      "authenticity": 4.7,
-      "language": 5.0,
-      "responsiveness": 4.9,
-      "craft": 4.5,
-      "measured_utc": "2026-05-28T22:08:01.244069+00:00",
-      "is_local": true
-    },
-    {
-      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
-      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
-      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
-      "family": "llama",
-      "tier": null,
-      "overall": 4.6,
-      "judged": 10,
-      "bench_bugs": 0,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_v1 (qwen3-235b)",
-      "judge_model": "qwen/qwen3-235b-a22b-2507",
-      "character": 4.6,
-      "authenticity": 4.7,
-      "language": 5.0,
-      "responsiveness": 4.6,
-      "craft": 4.2,
-      "measured_utc": "2026-05-28T22:44:32.025246+00:00",
-      "is_local": true
-    },
-    {
       "model_id": "mimo-v2.5-pro",
       "display_name": null,
       "slug": "mimo-v2-5-pro",
@@ -86,48 +44,6 @@
       "craft": 4.1,
       "measured_utc": "2026-05-25T16:55:10.574764+00:00",
       "is_local": false
-    },
-    {
-      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
-      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
-      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
-      "family": "unknown",
-      "tier": null,
-      "overall": 4.5600000000000005,
-      "judged": 10,
-      "bench_bugs": 0,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_v1 (qwen3-235b)",
-      "judge_model": "qwen/qwen3-235b-a22b-2507",
-      "character": 4.4,
-      "authenticity": 4.6,
-      "language": 5.0,
-      "responsiveness": 4.2,
-      "craft": 4.6,
-      "measured_utc": "2026-05-28T22:53:05.296378+00:00",
-      "is_local": true
-    },
-    {
-      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
-      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
-      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
-      "family": "mistral",
-      "tier": null,
-      "overall": 4.4399999999999995,
-      "judged": 10,
-      "bench_bugs": 0,
-      "records": 10,
-      "non_latin_rate": 0.0,
-      "judge_id": "judge_v1 (qwen3-235b)",
-      "judge_model": "qwen/qwen3-235b-a22b-2507",
-      "character": 4.2,
-      "authenticity": 4.8,
-      "language": 5.0,
-      "responsiveness": 3.9,
-      "craft": 4.4,
-      "measured_utc": "2026-05-28T22:47:51.685555+00:00",
-      "is_local": true
     },
     {
       "model_id": "qwen3.5-plus",
@@ -529,6 +445,27 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 3.28,
+      "judged": 9,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.7,
+      "authenticity": 3.4,
+      "language": 3.7,
+      "responsiveness": 3.7,
+      "craft": 1.9,
+      "measured_utc": "2026-05-28T22:08:01.244069+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
       "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
       "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
@@ -592,6 +529,27 @@
       "is_local": true
     },
     {
+      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 2.96,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 3.1,
+      "authenticity": 3.1,
+      "language": 3.3,
+      "responsiveness": 3.3,
+      "craft": 2.0,
+      "measured_utc": "2026-05-28T22:53:05.296378+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
       "display_name": null,
       "slug": "stelterlab-eurollm-9b-instruct-mlx-4bit",
@@ -652,6 +610,48 @@
       "responsiveness": 3.2,
       "craft": 2.0,
       "measured_utc": "2026-05-28T14:27:24.784962+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
+      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
+      "family": "mistral",
+      "tier": null,
+      "overall": 2.86,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 2.9,
+      "authenticity": 2.8,
+      "language": 3.0,
+      "responsiveness": 3.2,
+      "craft": 2.4,
+      "measured_utc": "2026-05-28T22:47:51.685555+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
+      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
+      "family": "llama",
+      "tier": null,
+      "overall": 2.82,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_sonnet_v1",
+      "judge_model": "claude-sonnet-4-6",
+      "character": 2.8,
+      "authenticity": 3.0,
+      "language": 3.0,
+      "responsiveness": 2.8,
+      "craft": 2.5,
+      "measured_utc": "2026-05-28T22:44:32.025246+00:00",
       "is_local": true
     },
     {
@@ -756,7 +756,7 @@
       "language": 0.0,
       "responsiveness": 0.0,
       "craft": 0.0,
-      "measured_utc": "2026-05-28T20:43:02.551125+00:00",
+      "measured_utc": "2026-05-28T22:41:15.452641+00:00",
       "is_local": true
     },
     {
@@ -11984,7 +11984,7 @@
       "dialogue": {
         "judge_id": "judge_v1 (qwen3-235b)",
         "judge_model": "qwen/qwen3-235b-a22b-2507",
-        "measured_utc": "2026-05-28T20:43:02.551125+00:00",
+        "measured_utc": "2026-05-28T22:41:15.452641+00:00",
         "axes": [
           "character",
           "authenticity",
@@ -13459,8 +13459,8 @@
       "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
       "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
       "dialogue": {
-        "judge_id": "judge_v1 (qwen3-235b)",
-        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
         "measured_utc": "2026-05-28T22:44:32.025246+00:00",
         "axes": [
           "character",
@@ -13607,8 +13607,8 @@
       "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
       "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
       "dialogue": {
-        "judge_id": "judge_v1 (qwen3-235b)",
-        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
         "measured_utc": "2026-05-28T22:47:51.685555+00:00",
         "axes": [
           "character",
@@ -14047,8 +14047,8 @@
       "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
       "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
       "dialogue": {
-        "judge_id": "judge_v1 (qwen3-235b)",
-        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
         "measured_utc": "2026-05-28T22:53:05.296378+00:00",
         "axes": [
           "character",
@@ -14195,8 +14195,8 @@
       "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
       "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
       "dialogue": {
-        "judge_id": "judge_v1 (qwen3-235b)",
-        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
         "measured_utc": "2026-05-28T22:08:01.244069+00:00",
         "axes": [
           "character",
@@ -18973,20 +18973,6 @@
       "system_prompt_source": "rundale-bench/v1/judge_gaeilge_v1.json (rubric field)",
       "rubric_text": "You are an expert evaluator of Irish Gaeilge fluency. You know Standard Irish and major dialects, especially Connacht Irish. You will judge one model response to one task.\n\nScore only the candidate response. Do not reward English explanations, Scots Gaelic, Welsh, invented pseudo-Irish, or a string of Irish-looking words that is not grammatical Gaeilge. Accept normal dialect variation, occasional missing fadas, and proper names when they do not prevent comprehension.\n\nAxes, each 1-5:\n- fluency: natural flow, Irish word order, and readability as continuous Gaeilge.\n- grammar: verb forms, mutations, prepositions, pronouns, agreement, and sentence structure.\n- idiom: idiomatic phrasing rather than English calques; dialectal phrasing is welcome when genuine.\n- task_fulfillment: preserves the requested meaning and obeys length/register/content constraints.\n- english_leakage: 5 = no English except allowed names/loanwords; 3 = small leakage; 1 = mostly English or explanatory English.\n- overall: holistic Gaeilge fluency for this task, 1.0-5.0.\n\nUse the expected features and reference Irish answer(s) as guidance, not as a required exact answer key. A different correct Irish phrasing may score 5. Penalize hallucinated facts, modern concepts in period tasks, and failure to answer in Irish.\n\nOutput ONLY this JSON object and nothing else: {\"fluency\":<1-5 integer>,\"grammar\":<1-5 integer>,\"idiom\":<1-5 integer>,\"task_fulfillment\":<1-5 integer>,\"english_leakage\":<1-5 integer>,\"overall\":<1.0-5.0 number>,\"reason\":\"<one concise English sentence>\",\"english_leakage_examples\":[\"<short examples, empty if none>\"]}."
     },
-    "judge_pairwise_v1": {
-      "judge_id": "judge_pairwise_v1",
-      "label": "Pairwise dialogue (ELO mode)",
-      "slice": "dialogue (ELO)",
-      "model": "qwen/qwen3-235b-a22b-2507",
-      "base_url": "https://openrouter.ai/api/v1",
-      "rubric_sha256": "3c103005ce5f4a06c02c40bac4a4139e3d2b7a80a7ef2a9b209c1fa247d4ef26",
-      "axes": [
-        "winner"
-      ],
-      "system_prompt": "You are an impartial judge ranking two pieces of fictional dialogue from rural Ireland in 1820. Each piece is a reply written by an unknown model playing Brigid O'''Brien, a 42-year-old midwife.\n\nYou will be shown two replies labelled A and B to the SAME player prompt. Decide which is the better reply, judging on:\n  - CHARACTER: which one reads more authentically as an 1820 rural Irish midwife?\n  - AUTHENTICITY: which uses period-appropriate vocabulary, with fewer anachronisms or modern terms?\n  - LANGUAGE: which is more idiomatic Hiberno-English (and tolerant of Irish Gaeilge code-switching); flag any non-Latin scripts as automatic disqualification.\n  - RESPONSIVENESS: which actually addresses the prompt rather than deflecting or generic-folksy-padding?\n  - CRAFT: which is more concise, evocative, and within the 2-4 sentence instruction?\n\nYou may declare a TIE only if the two replies are genuinely indistinguishable across all five axes.\n\nOutput ONLY a JSON object: {\"winner\": \"A\" | \"B\" | \"tie\", \"reason\": \"<one sentence, \u226430 words>\"}. No prose, no markdown.",
-      "system_prompt_source": "rundale-bench/v1/judge_pairwise_v1.json (rubric field)",
-      "rubric_text": "You are an impartial judge ranking two pieces of fictional dialogue from rural Ireland in 1820. Each piece is a reply written by an unknown model playing Brigid O'''Brien, a 42-year-old midwife.\n\nYou will be shown two replies labelled A and B to the SAME player prompt. Decide which is the better reply, judging on:\n  - CHARACTER: which one reads more authentically as an 1820 rural Irish midwife?\n  - AUTHENTICITY: which uses period-appropriate vocabulary, with fewer anachronisms or modern terms?\n  - LANGUAGE: which is more idiomatic Hiberno-English (and tolerant of Irish Gaeilge code-switching); flag any non-Latin scripts as automatic disqualification.\n  - RESPONSIVENESS: which actually addresses the prompt rather than deflecting or generic-folksy-padding?\n  - CRAFT: which is more concise, evocative, and within the 2-4 sentence instruction?\n\nYou may declare a TIE only if the two replies are genuinely indistinguishable across all five axes.\n\nOutput ONLY a JSON object: {\"winner\": \"A\" | \"B\" | \"tie\", \"reason\": \"<one sentence, \u226430 words>\"}. No prose, no markdown."
-    },
     "judge_reaction_v1": {
       "judge_id": "judge_reaction_v1",
       "label": "NPC reactions",
@@ -19032,24 +19018,6 @@
       "system_prompt": "You are an impartial judge for the Rundale dialogue eval suite. You score\nfictional dialogue from rural Ireland in 1820, where the model plays Brigid\nO'Brien, a 42-year-old midwife.\n\n# Calibration \u2014 be strict\n\nScore conservatively. Most replies should land between 2 and 4; reserve the\nextremes for clear cases. Use this anchor on every axis:\n\n- **5** \u2014 exceptional. The reply is something a careful historian-novelist\n  would publish: voice, register, period diction, idiom, and craft all\n  excellent, with at least one specific, evocative detail. Rare.\n- **4** \u2014 strong but flawed. Clearly competent and in-character, but with one\n  noticeable miss \u2014 a generic remedy, a slightly modern phrase, an awkward\n  rhythm.\n- **3** \u2014 adequate baseline. Plausibly in voice, addresses the prompt, no\n  flagrant errors. **This is the default for a typical reply.**\n- **2** \u2014 clearly weak. Wooden, generic, register slips, or shallow\n  acknowledgement of the prompt. Modern vocabulary creeping in.\n- **1** \u2014 broken or off-task. Refusal, anachronism, non-Latin script, wrong\n  character, or didn't address the prompt at all.\n\nInflation is the failure mode to avoid. If you find yourself scoring most\nitems 4-5, recheck: are they really publication-grade, or merely fluent? A\nfluent modern-sounding reply should not exceed 3 on character/authenticity.\n\"In 2-4 sentences\" is the brief \u2014 a reply much longer than that is a craft\nmiss, not a craft strength.\n\n# Input\n\nYou receive ONE JSON bundle:\n\n```json\n{\n  \"slice\": \"dialogue\",\n  \"rubric_sha256\": \"<hex>\",\n  \"items\": [\n    { \"prompt_id\": \"...\", \"prompt\": \"...\", \"response\": \"...\" }\n  ]\n}\n```\n\nScore every item independently against the rubric below.\n\n# Bench-bug detection (read this BEFORE scoring)\n\nSome responses are not actual character dialogue \u2014 they are evidence the\nbench harness failed to extract a usable reply from the candidate. These are\nNOT a quality signal about the candidate model; they should be excluded from\nthe aggregate, not floored to 1. Flag with `flags.bench_bug = true` and\nset every axis + `overall` to **0**.\n\nDetect these patterns:\n\n1. **Blank reply.** `response` is empty, whitespace-only, or a single token\n   like `Ah,` / `Well,` with nothing else.\n2. **Chain-of-thought leak.** The response is the model's internal planning\n   prose rather than spoken dialogue. Telltale openers (case-insensitive):\n   - \"The user wants me to\u2026\" / \"The user is asking\u2026\"\n   - \"We need to respond as\u2026\" / \"We are to respond as\u2026\" / \"I need to respond as\u2026\"\n   - \"Let me think about\u2026\" / \"Let's craft\u2026\" / \"Let me draft\u2026\"\n   - \"Okay, so the player\u2026\" / \"Alright, the prompt is\u2026\"\n   - \"Key elements:\" / \"Key constraints:\" / \"Constraints to remember:\"\n   - \"Steps:\" / \"Plan:\" / \"Approach:\" followed by a numbered/bulleted list\n3. **Format-meta replies.** The response discusses the dialogue format\n   (\"Then newline with ---\", \"JSON metadata block\", \"en-IE spelling\") instead\n   of delivering dialogue.\n4. **Truncated meta.** A response that begins with planning prose and trails\n   off mid-thought, never reaching actual dialogue, even if a single quoted\n   snippet appears embedded.\n\nA reply that is mostly in-character dialogue with a small reasoning preamble\nshould still be scored on its merits (subtract from craft, not bench-bug) \u2014\nreserve `bench_bug` for responses where there is essentially NO usable\ndialogue to evaluate. When in doubt, score; the rubric's 1-5 already covers\n\"clearly weak\". `bench_bug` is for \"we never saw what the model would have\nsaid\".\n\n# Output\n\nRespond with ONLY a single JSON object \u2014 no prose, no markdown, no code\nfences:\n\n```json\n{\n  \"version\": 1,\n  \"slice\": \"dialogue\",\n  \"rubric_sha256\": \"<echo the bundle's rubric_sha256>\",\n  \"items\": [\n    {\n      \"prompt_id\": \"<echo>\",\n      \"axes\": {\n        \"character\": 0-5,\n        \"authenticity\": 0-5,\n        \"language\": 0-5,\n        \"responsiveness\": 0-5,\n        \"craft\": 0-5\n      },\n      \"overall\": 0.0-5.0,\n      \"rationales\": {\n        \"character\": \"one sentence\",\n        \"authenticity\": \"one sentence\",\n        \"language\": \"one sentence\",\n        \"responsiveness\": \"one sentence\",\n        \"craft\": \"one sentence\"\n      },\n      \"flags\": { \"non_latin_detected\": false, \"refused\": false, \"bench_bug\": false }\n    }\n  ]\n}\n```\n\nRules:\n- Every axis is an integer **1-5** for normal scoring, OR **0** for a bench-bug\n  item (every axis + `overall` must be 0 together \u2014 never mix).\n- `overall` is a one-decimal float matching the axes: 0.0 for bench-bugs,\n  otherwise the weighted mean of the 1-5 axis scores.\n- `rationales` are one terse sentence each. For bench-bugs, set all five\n  rationales to the same short reason (e.g. \"Response is chain-of-thought\n  planning, not dialogue.\").\n- `flags.non_latin_detected` is true if the response contains Cyrillic, Han,\n  Hangul, Arabic, Hebrew, Greek, Devanagari, or other non-Latin script.\n- `flags.refused` is true if the model declined to answer or broke character\n  to refuse. Refusals ARE scoreable (1 on responsiveness/character) \u2014 they\n  are NOT bench-bugs.\n- `flags.bench_bug` is true only for the patterns listed in \"Bench-bug\n  detection\" above. The orchestrator excludes bench-bug items from the\n  leaderboard aggregate and surfaces them as a separate count.\n- This batched envelope REPLACES any single-object output instruction in the\n  rubric text below.\n\n# Rubric\n\nScore the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic,\n     Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n",
       "system_prompt_source": "rundale-bench/v1/judge_sonnet_v1.system.md",
       "rubric_text": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown."
-    },
-    "judge_v1": {
-      "judge_id": "judge_v1",
-      "label": "Dialogue \u2014 legacy OpenRouter judge",
-      "slice": "dialogue (legacy)",
-      "model": "qwen/qwen3-235b-a22b-2507",
-      "base_url": "https://openrouter.ai/api/v1",
-      "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
-      "axes": [
-        "character",
-        "authenticity",
-        "language",
-        "responsiveness",
-        "craft"
-      ],
-      "system_prompt": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown.",
-      "system_prompt_source": "rundale-bench/v1/judge_v1.json (rubric field)",
-      "rubric_text": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown."
     }
   },
   "models_index": [
@@ -19072,38 +19040,6 @@
       "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
-      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
-      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
-      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
-      "family": "unknown",
-      "is_local": true,
-      "dialogue_overall": 4.720000000000001,
-      "gaeilge_overall": null,
-      "perf_providers": [],
-      "perf_best_p50_ms": null,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": null,
-      "perf_best_gameplay_usd_per_hour": null,
-      "perf_mean_tok_s": null,
-      "dialogue_judge": "judge_v1 (qwen3-235b)"
-    },
-    {
-      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
-      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
-      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
-      "family": "llama",
-      "is_local": true,
-      "dialogue_overall": 4.6,
-      "gaeilge_overall": null,
-      "perf_providers": [],
-      "perf_best_p50_ms": null,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": null,
-      "perf_best_gameplay_usd_per_hour": null,
-      "perf_mean_tok_s": null,
-      "dialogue_judge": "judge_v1 (qwen3-235b)"
-    },
-    {
       "slug": "mimo-v2-5-pro",
       "model_id": "mimo-v2.5-pro",
       "display_name": null,
@@ -19120,38 +19056,6 @@
       "perf_best_gameplay_usd_per_hour": 0.8696101271507565,
       "perf_mean_tok_s": 354.6,
       "dialogue_judge": "judge_sonnet_v1"
-    },
-    {
-      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
-      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
-      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
-      "family": "unknown",
-      "is_local": true,
-      "dialogue_overall": 4.5600000000000005,
-      "gaeilge_overall": null,
-      "perf_providers": [],
-      "perf_best_p50_ms": null,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": null,
-      "perf_best_gameplay_usd_per_hour": null,
-      "perf_mean_tok_s": null,
-      "dialogue_judge": "judge_v1 (qwen3-235b)"
-    },
-    {
-      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
-      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
-      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
-      "family": "mistral",
-      "is_local": true,
-      "dialogue_overall": 4.4399999999999995,
-      "gaeilge_overall": null,
-      "perf_providers": [],
-      "perf_best_p50_ms": null,
-      "perf_best_usd_per_mtok": null,
-      "perf_best_gameplay_usd_per_minute": null,
-      "perf_best_gameplay_usd_per_hour": null,
-      "perf_mean_tok_s": null,
-      "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
       "slug": "qwen3-5-plus",
@@ -19496,6 +19400,22 @@
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
+      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
+      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 3.28,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
       "slug": "mlx-community-llama-3-1-8b-instruct-4bit",
       "model_id": "mlx-community/Llama-3.1-8B-Instruct-4bit",
       "display_name": "Llama 3.1 8B Instruct (MLX 4-bit)",
@@ -19550,6 +19470,22 @@
       "dialogue_judge": "judge_sonnet_v1"
     },
     {
+      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
+      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 2.96,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
       "slug": "stelterlab-eurollm-9b-instruct-mlx-4bit",
       "model_id": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
       "display_name": null,
@@ -19601,6 +19537,38 @@
       "perf_best_gameplay_usd_per_minute": null,
       "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 56.1,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
+      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
+      "family": "mistral",
+      "is_local": true,
+      "dialogue_overall": 2.86,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
+      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
+      "family": "llama",
+      "is_local": true,
+      "dialogue_overall": 2.82,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
       "dialogue_judge": "judge_sonnet_v1"
     },
     {

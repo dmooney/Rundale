@@ -41,6 +41,23 @@
 - [ ] **Bench-site model-detail page**: add "bench-bug rate" column. Reading "DS-R1-Llama-8B: 0.00 overall" doesn't communicate WHY (chain-of-thought leak). Surfacing "10/10 bench-bugs" makes the failure mode legible.
 - [ ] **Reproducibility manifest.** Per-sweep, capture (`harness_sha`, `mlx_lm version`, `vllm-mlx version`, `MLX runtime version`, model SHA from HF) into a single file alongside `local_<stamp>.json`. Right now `harness_sha` alone isn't enough to reproduce a run year-over-year.
 
+## 2026-05-28 hardening: Sonnet-only judging enforced
+
+User caught that `local_runner.py` was defaulting `--judge judge_v1` (= Qwen3-235B via OpenRouter), inflating round-4 dialogue scores by ~1.5 points vs Sonnet's strict calibration. Round 4 OLMo-2-7B was 4.78 under Qwen; Sonnet scored 3.28 on the same replies. Other round-4 deltas: Tulu-3 4.60 → 2.82, Ministral-8B 4.44 → 2.86, OLMo-2-13B 4.56 → 2.96.
+
+Locked down to make it impossible:
+
+- `rundale_bench.load_judge` HARD-FAILS at load time if `judge_via != "claude-code-subagent"` OR `model != "claude-sonnet-4-6"` OR `api_key_env != null`. Every code path that judges goes through `load_judge`. One chokepoint.
+- `local_runner.py --judge` default now `judge_sonnet_v1`.
+- `_JUDGE_ALIASES` map dropped the `qwen → judge_v1` alias; added `dialogue|reaction|sim|gaeilge` aliases that all resolve to Sonnet-subagent configs.
+- HTTP-API judge configs `judge_v1.json` and `judge_pairwise_v1.json` renamed to `.disabled-2026-05-28-sonnet-only` so they can't be loaded even if someone re-types the id.
+- Round-4 dialogue run files patched in-place: Sonnet axes overwrite the inline Qwen scores. Older redundant dialogue runs for the same model deleted.
+
+Tests added (informal — run from `python -c`):
+- `load_judge('judge_sonnet_v1', 'v1')` → OK
+- `load_judge('judge_v1', 'v1')` → FileNotFoundError (file disabled)
+- A synthetic non-subagent config with `judge_via='http'` → ValueError REFUSED.
+
 ## Done — rounds 1-4 reference
 
 - [x] **Round 1** — first 9-model MLX sweep, set up the pipeline (commit a20c9fad).
