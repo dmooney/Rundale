@@ -95,6 +95,7 @@ REASONING_MODEL_PREFIXES = (
     "kimi-k2.6",
     "qwen3.5-plus",
     "qwen3.6-plus",
+    "qwen3.7-max",
     "glm-5",
     "glm-5.1",
     "deepseek-v4-flash",
@@ -242,6 +243,321 @@ def _default_reasoning_for(model_id: str) -> dict:
     return {"enabled": False}
 
 
+# opencode-go exposes some models *only* via the Anthropic Messages format
+# (POST /v1/messages with x-api-key). Calling /v1/chat/completions returns
+# 401 "Model X is not supported for format oa-compat". Route these through
+# `_call_messages_anthropic` below. Extend the set as the gateway adds more
+# Anthropic-only models.
+OPENCODE_GO_ANTHROPIC_ONLY: set[str] = {
+    "qwen3.7-max",
+}
+
+
+def _is_opencode_go_anthropic_only(target: "Target") -> bool:
+    return (
+        "opencode.ai" in target.base_url
+        and target.model in OPENCODE_GO_ANTHROPIC_ONLY
+    )
+
+
+def _anthropic_headers(target: "Target") -> dict:
+    headers = {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "User-Agent": "rundale-bench/1.0 (+https://github.com/davidmooney/Rundale)",
+    }
+    key = target.api_key()
+    if key:
+        headers["x-api-key"] = key
+    return headers
+
+
+def _anthropic_body(
+    target: "Target",
+    system: Optional[str],
+    user: str,
+    *,
+    max_tokens: Optional[int],
+    temperature: float,
+    schema: Optional[dict] = None,
+    stream: bool = False,
+) -> dict:
+    """Build a /v1/messages request body. When `schema` is given, enforce the
+    JSON shape via Anthropic tool_use (forced tool_choice on a single tool
+    whose input_schema is the requested JSON schema). The caller extracts
+    the tool input as a JSON string from the response."""
+    body: dict = {
+        "model": target.model,
+        "messages": [{"role": "user", "content": user}],
+        "max_tokens": max_tokens if max_tokens is not None else 1024,
+        "temperature": temperature,
+    }
+    if system:
+        body["system"] = system
+    if stream:
+        body["stream"] = True
+    if schema is not None:
+        tool_name = schema.get("name") or "respond"
+        body["tools"] = [{
+            "name": tool_name,
+            "description": "Emit the response as structured JSON matching the input_schema.",
+            "input_schema": schema.get("schema") or schema,
+        }]
+        body["tool_choice"] = {"type": "tool", "name": tool_name}
+        # opencode-go (Alibaba DashScope upstream) rejects forced tool_choice
+        # when the model is in thinking mode: "The tool_choice parameter does
+        # not support being set to required or object in thinking mode". Drop
+        # the thinking trace when we're enforcing structured output — the
+        # tool_use input is the answer; chain-of-thought is wasted tokens here.
+        body["thinking"] = {"type": "disabled"}
+    return body
+
+
+def _coerce_nullable_empty_strings(value, schema):
+    """Walk a tool_use input alongside its schema and replace `""` with `None`
+    on properties whose type list includes "null". Models on opencode-go's
+    Anthropic route emit `""` for absent nullable fields even when the system
+    prompt asks for `null`; downstream consumers (graders, parsers) treat
+    `""` and `None` differently, costing partial credit. This restores the
+    semantic intent of the schema's `["string", "null"]` typing."""
+    if not isinstance(value, dict) or not isinstance(schema, dict):
+        return value
+    props = schema.get("properties") or {}
+    for key, val in list(value.items()):
+        prop_schema = props.get(key) or {}
+        ptype = prop_schema.get("type")
+        nullable = isinstance(ptype, list) and "null" in ptype
+        if nullable and val == "":
+            value[key] = None
+        elif isinstance(val, dict):
+            _coerce_nullable_empty_strings(val, prop_schema)
+    return value
+
+
+def _unwrap_raw_arguments(payload):
+    """opencode-go's gateway returns `{"raw_arguments": "<partial-JSON>"}` when
+    the underlying model's tool_use call produced invalid JSON (usually mid-
+    truncation at max_tokens). When `raw_arguments` *does* parse as valid
+    JSON — sometimes the gateway wraps a fully-formed payload despite no
+    truncation — unwrap it so downstream graders see the intended structure.
+    Truly truncated payloads fail to parse here and the raw shape is returned
+    unchanged so the grader can flag the failure."""
+    if (isinstance(payload, dict)
+            and set(payload.keys()) == {"raw_arguments"}
+            and isinstance(payload["raw_arguments"], str)):
+        try:
+            return json.loads(payload["raw_arguments"])
+        except json.JSONDecodeError:
+            return payload
+    return payload
+
+
+def _extract_anthropic_text(data: dict, schema: Optional[dict] = None) -> str:
+    """Pull a single text payload from a non-streaming /v1/messages response.
+
+    - For tool_use responses: stringify the `input` field of the tool_use block,
+      after unwrapping `raw_arguments` (gateway wrap-around) and coercing
+      empty strings to null on schema-nullable properties.
+    - Otherwise: concatenate every `text` block, dropping `thinking` blocks.
+    """
+    blocks = data.get("content") or []
+    for b in blocks:
+        if b.get("type") == "tool_use":
+            payload = _unwrap_raw_arguments(b.get("input", {}))
+            if schema is not None:
+                inner = schema.get("schema") or schema
+                payload = _coerce_nullable_empty_strings(payload, inner)
+            return json.dumps(payload)
+    return "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+
+
+def _call_messages_anthropic(
+    target: "Target",
+    system: Optional[str],
+    user: str,
+    *,
+    schema: Optional[dict],
+    max_tokens: Optional[int],
+    temperature: float,
+    timeout: float,
+    max_retries: int,
+) -> Tuple[str, dict]:
+    """POST /v1/messages in Anthropic Messages format. Returns `(text, usage)`.
+
+    Used for opencode-go models that refuse the OpenAI-compat path. Maps the
+    Anthropic response shape (content blocks + input_tokens/output_tokens)
+    back to the (text, {prompt_tokens, completion_tokens}) contract that the
+    rest of eval_lib expects. When `schema` is given, enforces JSON output
+    via forced tool_use and returns the tool input as a JSON string.
+    """
+    body = _anthropic_body(
+        target, system, user,
+        max_tokens=max_tokens, temperature=temperature, schema=schema,
+    )
+    headers = _anthropic_headers(target)
+    url = f"{target.base_url.rstrip('/')}/messages"
+
+    attempt = 0
+    while True:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.load(resp)
+            break
+        except urllib.error.HTTPError as e:
+            # opencode-go's Anthropic route returns transient 500s ~10-30% of
+            # the time on complex tool_use schemas (tier3-sim batches);
+            # retrying clears most. Treat 500 like 503 for retry purposes.
+            if e.code in (429, 500, 503) and attempt < max_retries:
+                retry_after = e.headers.get("Retry-After")
+                wait = min(float(retry_after), 60.0) if retry_after else 2 ** attempt
+                attempt += 1
+                print(f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
+                time.sleep(wait)
+                continue
+            raise
+
+    try:
+        text = _extract_anthropic_text(data, schema=schema)
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(
+            f"unexpected anthropic-messages response shape ({type(e).__name__}: {e}). "
+            f"Full response: {data}"
+        ) from e
+    usage = data.get("usage") or {}
+    return text, {
+        "prompt_tokens": int(usage.get("input_tokens", 0)),
+        "completion_tokens": int(usage.get("output_tokens", 0)),
+    }
+
+
+def _stream_messages_anthropic(
+    target: "Target",
+    system: Optional[str],
+    user: str,
+    *,
+    schema: Optional[dict],
+    max_tokens: Optional[int],
+    temperature: float,
+    timeout: float,
+) -> dict:
+    """Streaming /v1/messages. Returns the same shape as `call_chat_streaming`.
+
+    SSE event grammar (Anthropic):
+      event: message_start    → message envelope with usage.input_tokens
+      event: content_block_start  → block has type=text | tool_use | thinking
+      event: content_block_delta  → delta.type=text_delta|input_json_delta|thinking_delta
+      event: content_block_stop
+      event: message_delta    → delta + usage.output_tokens
+      event: message_stop
+    """
+    body = _anthropic_body(
+        target, system, user,
+        max_tokens=max_tokens, temperature=temperature, schema=schema, stream=True,
+    )
+    headers = _anthropic_headers(target)
+    headers["Accept"] = "text/event-stream"
+    url = f"{target.base_url.rstrip('/')}/messages"
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    text_parts: list[str] = []
+    tool_parts: list[str] = []
+    block_types: dict[int, str] = {}
+    current_event = ""
+    ttft_ms: Optional[int] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    start = time.time()
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+            if not line:
+                current_event = ""
+                continue
+            if line.startswith("event:"):
+                current_event = line[6:].strip()
+                continue
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].lstrip()
+            try:
+                evt = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            etype = evt.get("type") or current_event
+            if etype == "message_start":
+                msg = evt.get("message") or {}
+                usage = msg.get("usage") or {}
+                if "input_tokens" in usage:
+                    prompt_tokens = int(usage["input_tokens"])
+            elif etype == "content_block_start":
+                idx = evt.get("index", 0)
+                block_types[idx] = (evt.get("content_block") or {}).get("type", "text")
+            elif etype == "content_block_delta":
+                idx = evt.get("index", 0)
+                btype = block_types.get(idx, "text")
+                delta = evt.get("delta") or {}
+                dtype = delta.get("type")
+                if dtype == "text_delta" and btype == "text":
+                    chunk = delta.get("text", "")
+                    if chunk:
+                        if ttft_ms is None:
+                            ttft_ms = int((time.time() - start) * 1000)
+                        text_parts.append(chunk)
+                elif dtype == "input_json_delta" and btype == "tool_use":
+                    chunk = delta.get("partial_json", "")
+                    if chunk:
+                        if ttft_ms is None:
+                            ttft_ms = int((time.time() - start) * 1000)
+                        tool_parts.append(chunk)
+                # thinking_delta intentionally ignored
+            elif etype == "message_delta":
+                usage = evt.get("usage") or {}
+                if "output_tokens" in usage:
+                    completion_tokens = int(usage["output_tokens"])
+            elif etype == "message_stop":
+                break
+
+    total_ms = int((time.time() - start) * 1000)
+    if tool_parts:
+        text = "".join(tool_parts)
+        if schema is not None:
+            try:
+                parsed = json.loads(text)
+                parsed = _unwrap_raw_arguments(parsed)
+                inner = schema.get("schema") or schema
+                parsed = _coerce_nullable_empty_strings(parsed, inner)
+                text = json.dumps(parsed)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+    else:
+        text = "".join(text_parts)
+    tps: Optional[float] = None
+    if completion_tokens and ttft_ms is not None and total_ms > ttft_ms:
+        gen_seconds = (total_ms - ttft_ms) / 1000.0
+        if gen_seconds > 0:
+            tps = completion_tokens / gen_seconds
+    return {
+        "text": text,
+        "ttft_ms": ttft_ms,
+        "total_ms": total_ms,
+        "completion_tokens": completion_tokens,
+        "prompt_tokens": prompt_tokens,
+        "tokens_per_second": tps,
+    }
+
+
 def call_chat(
     target: Target,
     system: Optional[str],
@@ -266,6 +582,22 @@ def call_chat(
     model, we default to ``{"enabled": False}`` so cached replies are
     the actual answer rather than truncated mid-thought.
     """
+    if _is_opencode_go_anthropic_only(target):
+        # opencode-go Anthropic-only models can't speak OpenAI-compat. Route
+        # to the /messages adapter, which returns the same (text, usage) tuple.
+        # When a schema is provided, the adapter enforces JSON output via
+        # forced tool_use and serialises the tool input as the returned text.
+        return _call_messages_anthropic(
+            target,
+            system,
+            user,
+            schema=schema,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+
     msgs: list[dict] = []
     if system:
         msgs.append({"role": "system", "content": system})
@@ -453,6 +785,14 @@ def call_chat_streaming(
 
     No retry — for perf measurement we want to see failure modes raw.
     """
+    if _is_opencode_go_anthropic_only(target):
+        return _stream_messages_anthropic(
+            target, system, user,
+            schema=schema,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+        )
     msgs: list[dict] = []
     if system:
         msgs.append({"role": "system", "content": system})
@@ -580,6 +920,7 @@ COSTS: dict[str, Tuple[float, float]] = {
     "x-ai/grok-4-fast": (0.20, 0.50),
     # OpenCode Go (flat-rate subscription — opencode.ai/go).
     # Per-call cost reported as $0 since the platform doesn't bill per-token.
+    "qwen3.7-max": (0.0, 0.0),
     "qwen3.6-plus": (0.0, 0.0),
     "qwen3.5-plus": (0.0, 0.0),
     "kimi-k2.6": (0.0, 0.0),

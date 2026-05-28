@@ -381,7 +381,7 @@ def run_simulation(slice_name: str, target: Target, records: list[dict], tracker
             reply, usage = call_chat(
                 target, None, rec["prompt"],
                 schema=rec["schema"],
-                max_tokens=600 if slice_name == "tier3-sim" else 200,
+                max_tokens=1500 if slice_name == "tier3-sim" else 200,
             )
             tracker.record(target, usage)
         except Exception as e:
