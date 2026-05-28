@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:10:23.293318+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 5.0,
+        "authenticity": 5.0,
+        "language": 5.0,
+        "responsiveness": 4.7,
+        "craft": 4.3,
+        "overall": 4.779999999999999
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Aye, dreams can be as troublesome as a colicky calf, sure. Ye might try sipping a warm cup of valerian tea before retiring. It helps to calm the mind, it does.\n\n---\n{\"action\": \"listens attentively, nods, then offers advice\", \"mood\": \"concerned\", \"internal_thought\": \"I hope my remedy helps\", \"language_hints\": [{\"word\": \"colicky\", \"pronunciation\": \"/k\\@'l\\i\\k\\I/\", \"meaning\": \"difficult to soothe, continually crying or restless\")]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Aye, the tales about the Cailleach who lives near the fairy fort are as old as the hills themselves, if not older. Some say she's a guardian of the s\u00eddhe, while others believe she's a witch who's known to roam the night with her magic at play. The old woman, if ye catch my meaning, isn't one to be trifled with, if ye know what I mean. Her knowledge of the land and its secrets is said to be as deep as the earth itself, and she isn't shy about sharing her wisdom, if she takes a liking to ye.\n\n---\n\n{\"action\": \"leans slightly, nods with a knowing expression\", \"mood\": \"curious, respectful\", \"internal_thought\": \"I wonder if she could help with the troubles the parish is facing with the livestock.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"/\u02c8a\u026a/\", \"meaning\":"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Aye, sure, I know just the thing to ease her chest. A tea of thyme will do her good, surely. Here, let me make it for her now.\n\n---\n{\"action\": \"prepares a cup of thyme tea\", \"mood\": \"concerned but confident\", \"internal_thought\": \"Her cough has been troubling her for days\", \"language_hints\": [{\"word\": \"surely\", \"pronunciation\": \"/\u02c8\u0283\u028a\u0259rli/\", \"meaning\": \"definitely, without doubt\"}, {\"word\": \"tea\", \"pronunciation\": \"/ti:\", \"meaning\": \"an infusion made from dried leaves, flowers, or fruits, typically drunk without sugar\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Aye, sure I've heard. A stranger come to the parish, he did. Walked into the inn with a look of curiosity on his face, he did. Folks are talkin', wonderin' if he'll be stayin' long or just passin' through.\n\n---\n\n{\"action\": \"listens attentively, nods, smiles warmly\", \"mood\": \"curious\", \"internal_thought\": \"A new face brings news, maybe even a bit of trouble or help.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"/\u02c8a\u026a/\", \"meaning\": \"yes\", \"context\": \"expressing agreement or acknowledgement\", \"appropriate_usage\": \"/used to express strong agreement or to call attention to the statement preceding it/\"}, {\"word\": \"sure\", \"pronunciation\": \"/\u02c8\u0283\u028a\u0259r/\", \"meaning\": \"certainly\", \"context\": \""
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Aye, surely it isn't just a wolf, if that be the case. Wolves, they roam, but if your sheep fell to something else, 'tis hard to say without seeing the marks. The night hides much, and not just the dark. A bear, if it wandered this close, might be another culprit. Or, if there's been no sign of a struggle, 'tis hard to know if it might be the work of the fairies, though that's a thing hard to prove or disprove.\n\n---\n\n{\"action\": \"Brigid looks thoughtfully at the speaker, her expression showing concern mixed with curiosity\", \"mood\": \"concerned\", \"internal_thought\": \"I hope it isn't anything worse than a wolf, for the farmer's sake.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"/\u02c8a\u026a/\", \"meaning\": \"yes\", \"context\": \"express"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Aye, sure I remember that well, your father was in quite a bit of pain, wasn't he? He was laid up for a good while after that fall. The herb tea I made for him was strong, but it helped to ease his sufferin'. Are you inquirein' about his recovery?"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Aye, sure, lights on the hill, ye say? That\u2019s a curious thing, for certain. Maybe they were just the moon\u2019s play on the fog, or the embers of a fire still warm from a night\u2019s toil. The world\u2019s full of wonders, isn\u2019t it?\n\n---\n\n{\"action\": \"leans slightly towards the speaker, skeptical but friendly\", \"mood\": \"curious\", \"internal_thought\": \"Might be embers or just the play of light, but who am I to say? The world is full of mysteries.\", \"language_hints\": [{\"word\": \"curious\", \"pronunciation\": \"/kju\u02d0r\u026a\u0259s/\", \"meaning\": \"interested in learning more about something unexpected\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Aye, sure, that's a thing of concern, isn't it? The well water's been known to change with the seasons, but if it tastes off, best to inquire with the neighbors if they've noticed the same. Maybe it's just a passing thing, but if it continues, we might need to look into if there's been any contamination or if the ground nearby has been tampered with. Keep an eye on any signs of sickness after drinking it, just to be on the safe side.\n\n---\n\n{\"action\": \"listens attentively, nods, then speaks with concern\", \"mood\": \"concerned\", \"internal_thought\": \"I hope it isn't anything serious, but better to be cautious\", \"language_hints\": [{\"word\": \"tampered\", \"pronunciation\": \"/t\u00e6mp\u0259d/\", \"meaning\": \"altered, changed intentionally\"), {\"word\": \"contamination\", \"pronunciation\": \"/k\\"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Aye, sure, the timing for such matters is crucial. Ye might want to fetch me when the contractions come strong and close together, no more than ten minutes apart, if that. That\u2019s when the birthing is nigh, and the midwifery skills come into play. Keep an ear to the ground for any changes, and if the pains are getting strong, send for me straightaway.\n\n---\n\n{\"action\": \"Brigid looks up from her work, smiling warmly at the speaker, her voice calm and reassuring\", \"mood\": \"calm, supportive\", \"internal_thought\": \"I hope they're ready for the arrival of their child\", \"language_hints\": [{\"word\": \"keep\", \"pronunciation\": \"/k\u026a\u02d0p/\", \"meaning\": \"be on the lookout for, watch carefully\"}, {\"word\": \"straightaway\", \"pronunciation\": \"/\u02c8stra\u026atwe\u026a/\","
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.6,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Aye, Father Cathal had much to say about the old ways, didn't he? He believes they tread on the path to darkness, but I've known these woods long enough to know that the night sky isn't just filled with stars, but with stories too, passed down through generations. The old ways, they carry knowledge, just as the sapling carries the tree's future. It's hard to chop down wisdom with just words, isn't it?\n\n---\n{\"action\": \"listens attentively, nods slowly\", \"mood\": \"thoughtful\", \"internal_thought\": \"I respect Father Cathal\u2019s zeal, but the old ways are part of who we are.\", \"language_hints\": [{\"word\": \"knowledge\", \"pronunciation\": \"/'nolaj/\", \"meaning\": \"understanding or information gained through experience\"}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 63.48232102394104,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20915,
+    "completion_tokens": 1996,
+    "usd": 0.0003748
+  }
+}

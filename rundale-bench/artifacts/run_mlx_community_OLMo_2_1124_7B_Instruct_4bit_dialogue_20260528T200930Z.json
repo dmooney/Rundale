@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:08:36.094916+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 4.6,
+        "authenticity": 4.6,
+        "language": 5.0,
+        "responsiveness": 4.3,
+        "craft": 4.2,
+        "overall": 4.6
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Aye, sure and it's a trial when the night brings more than shadows. Dreams can be as heavy as the day's work, especially when they visit too often. Have ye tried sipping a warm tisane before bed? Valerian and chamomile can soothe the mind and ease the body into rest.\n\n---\n{\"action\": \"offers advice with a concerned tone, hands over a small pouch containing herbs\", \"mood\": \"concerned\", \"internal_thought\": \"The poor soul looks worn. I hope this helps them get a night's peace.\", \"language_hints\": [{\"word\": \"tisane\", \"pronunciation\": \"ti-zan\", \"meaning\": \"herbal tea\"), (\"word\": \"Valerian\", \"pronunciation\": \"VA-lar-i-an\", \"meaning\": \"a herb used as a sedative\"), (\"word\": \"chamomile\", \"pronunciation\": \"k"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Ah, the Cailleach yonder, she's a mystery wrapped in an enigma, sure. Some say she's as old as the hills and as wise as the ages. Her knowledge of herbs and the lay of the land is unmatched. There's a tale that she spoke with the s\u00edde themselves, and they blessed her with a tongue that can heal what ails ye.\n\n---\n{\"action\": \"leans slightly forward, hands resting on a basket of herbs, voice filled with respect\", \"mood\": \"curious and respectful\", \"internal_thought\": \"The Cailleach holds secrets, I'm sure.\", \"language_hints\": [{\"word\": \"s\u00edde\", \"pronunciation\": \"shee-de\", \"meaning\": \"fairy folk\"), {\"word\": \"enigma\", \"pronunciation\": \"en-ig-ma\", \"meaning\": \"mystery\"), {\"word\": \"herbs\", \"pronunciation\": \"hur"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Aye, sure and begorrah, your mother's health is a thing of concern. We must tend to her with all the care she deserves. Have ye any herbs I might know? Perhaps a tea of thyme will ease her chest, or a poultice made with blessed herbs could do the trick. We'll want to make sure she stays warm and nourished as well. Go raibh maith agat for bringin' this to my notice. I'll gather what I can and make a visit to your home posthaste.\n\n---\n\n{\"action\": \"reassuringly nods and begins to gather herbs\", \"mood\": \"concerned yet hopeful\", \"internal_thought\": \"Let's hope the herbs help your mother. Her strong spirit will see her through this.\", \"language_hints\": [{\"word\": \"begorrah\", \"pronunciation\": \"/b\u025bg\u0254r\u0259/\", \"meaning\": \"express"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Aye, sure I've heard. A stranger's news is like a gust of wind through the fields\u2014it'll carry far and wide. What sort of a stranger is this? Is he a man of learning, or a traveler?\n\n---\n{\"action\": \"leans slightly forward, shows interest\", \"mood\": \"curious\", \"internal_thought\": \"Newcomers bring news and questions\", \"language_hints\": [{\"word\": \"sure\", \"pronunciation\": \"shoor\", \"meaning\": \"certainly\"), {\"word\": \"gust\", \"pronunciation\": \"gust\", \"meaning\": \"a strong sudden current of air\")}]}"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Aye, sure and begorrah, it's a pity to lose a beast like that. There's more to consider than just a wolf, especially if it's gone without a trace. There might be other mysteries afoot.\n\n---\n\n{\"action\": \"Nods thoughtfully, resting hands on hips\", \"mood\": \"concerned\", \"internal_thought\": \"The poor man must be worried about his livelihood.\", \"language_hints\": [{\"word\": \"begorrah\", \"pronunciation\": \"/b\u025bg\u0254r\u0251:/\", \"meaning\": \"expresses mild surprise or concern\", \"Note: This phrase is a sprinkle of ga-IE used naturally in en-IE context.\"}, {\"word\": \"mysteries\", \"pronunciation\": \"mis-teer-ees\", \"meaning\": \"en-IE pronunciation and meaning, keeping the sentence understandable to an en-IE speaker\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Aye, sure I do, your father came in with a horrible pain in his leg, right after he'd been working the south field. We all thought it was a horrible twist, but Doctor Flynn tended to him and set it right as could be. He was laid up for a spell, but he's as strong as ever now.\n\n---\n{\"action\": \"Smiles warmly, nods\", \"mood\": \"nostalgic\", \"internal_thought\": \"Time passes, but memories remain strong\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"/\u02c8a\u026a/\", \"meaning\": \"yes\", \"context\": \"Affirmation\", \"placement\": \"Beginning of response\", \"Note\": \"A common and appropriate response in the context provided.\"}, {\"word\": \"sure\", \"pronunciation\": \"/\u02c8\u0283\u028a\u0259r/\", \"meaning\": \"certainly\", \"context\": \"Affirm"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Aye, sure and begorrah, I thought I caught a glimpse myself, but the mind plays tricks with the dark and the light. Might have been the lanterns of a traveler, or the flicker of a fire where the men gathered to talk and sing. There's no mysteries up there that I know of, though the hills hold their secrets tightly.\n\n---\n{\"action\": \"looks thoughtfully towards the hills, then back to the speaker\", \"mood\": \"curious\", \"internal_thought\": \"The hills do hold mysteries, especially at night.\", \"language_hints\": [{\"word\": \"begorrah\", \"pronunciation\": \"/b\u025bg\u0254r\u0251:/\", \"meaning\": \"expresses mild surprise or emphasis\", \"Note\": \"A colloquial expression used in Hiberno-English\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Aye, sure it's a thing of concern, that it is. The water's been a bit off since the heavy rains last Sunday. I spoke with Father Flynn about it, and he said he'd have a look at the spring tomorrow. We'll make sure it's safe for all to drink.\n\n---\n{\"action\": \"reassuringly\", \"mood\": \"concerned yet confident\", \"internal_thought\": \"The heavy rains could have stirred up the bottom where the pipes enter the well. Father Flynn knows a thing or two about such matters.\", \"language_hints\": [{\"word\": \"Aye\", \"pronunciation\": \"/\u02c8a\u026a/\", \"meaning\": \"yes\", \"context\": \"Affirmation\", \"placement\": \"Beginning\", \"Note\": \"A common Irish English expression used here as a strong affirmation.\"}, {\"word\": \"sure\", \"pronunciation\": \"/\u0283\u028a\u0259r/\", \"meaning\":"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Aye, sure and begorrah, the thought of your wife heavy with child brings a warmth to the heart. Ye'd want to get me as soon as the pains start strong and close together, no matter the hour. That's the sign to bring her to where I can make sure all goes smoothly.\n\n---\n{\"action\": \"Smiling warmly, hands resting on a basket of herbs\", \"mood\": \"calm and reassuring\", \"internal_thought\": \"The circle of life continues strong here\", \"language_hints\": [{\"word\": \"begorrah\", \"pronunciation\": \"/b\u025bg\u0254r\u0259/\", \"meaning\": \"expresses strong agreement or emphasis\", \"Note\": \"A colorful Irish expression used here to add character\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Aye, Father Cathal spoke strong words against the old ways, sure. He says they're ties to the past, keeping us chained to superstitions and the like. But I reckon, as sure as the day is long, that there's knowledge in the old ways too, knowledge passed down through the generations. They're not all folly, the stories and the herbs. They're a part of us, a part we shouldn't forget so easily.\n\n---\n{\"action\": \"nods thoughtfully, a wry smile playing on her lips\", \"mood\": \"thoughtful\", \"internal_thought\": \"The old ways hold truths and mysteries we ignore at our peril.\", \"language_hints\": [{\"word\": \"sure\", \"pronunciation\": \"/\u0283\u028a\u0259r/\", \"meaning\": \"certainly\"}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 54.66086292266846,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20190,
+    "completion_tokens": 2182,
+    "usd": 0.00032685
+  }
+}

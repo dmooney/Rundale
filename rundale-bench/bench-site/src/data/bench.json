@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-05-28T15:08:48.071589+00:00",
+  "generated_utc": "2026-05-28T23:01:05.044973+00:00",
   "judge_model": "claude-sonnet-4-6",
   "suite": "v1",
   "leaderboard": [
@@ -25,6 +25,48 @@
       "is_local": false
     },
     {
+      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 4.720000000000001,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 4.7,
+      "authenticity": 4.7,
+      "language": 5.0,
+      "responsiveness": 4.9,
+      "craft": 4.5,
+      "measured_utc": "2026-05-28T22:08:01.244069+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
+      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
+      "family": "llama",
+      "tier": null,
+      "overall": 4.6,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 4.6,
+      "authenticity": 4.7,
+      "language": 5.0,
+      "responsiveness": 4.6,
+      "craft": 4.2,
+      "measured_utc": "2026-05-28T22:44:32.025246+00:00",
+      "is_local": true
+    },
+    {
       "model_id": "mimo-v2.5-pro",
       "display_name": null,
       "slug": "mimo-v2-5-pro",
@@ -44,6 +86,48 @@
       "craft": 4.1,
       "measured_utc": "2026-05-25T16:55:10.574764+00:00",
       "is_local": false
+    },
+    {
+      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 4.5600000000000005,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 4.4,
+      "authenticity": 4.6,
+      "language": 5.0,
+      "responsiveness": 4.2,
+      "craft": 4.6,
+      "measured_utc": "2026-05-28T22:53:05.296378+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
+      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
+      "family": "mistral",
+      "tier": null,
+      "overall": 4.4399999999999995,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 4.2,
+      "authenticity": 4.8,
+      "language": 5.0,
+      "responsiveness": 3.9,
+      "craft": 4.4,
+      "measured_utc": "2026-05-28T22:47:51.685555+00:00",
+      "is_local": true
     },
     {
       "model_id": "qwen3.5-plus",
@@ -652,6 +736,27 @@
       "responsiveness": null,
       "craft": null,
       "measured_utc": "2026-05-28T14:13:44.240280+00:00",
+      "is_local": true
+    },
+    {
+      "model_id": "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit",
+      "display_name": "EXAONE 3.5 7.8B Instruct (MLX 4-bit)",
+      "slug": "mlx-community-exaone-3-5-7-8b-instruct-4bit",
+      "family": "unknown",
+      "tier": null,
+      "overall": 0.0,
+      "judged": 10,
+      "bench_bugs": 0,
+      "records": 10,
+      "non_latin_rate": 0.0,
+      "judge_id": "judge_v1 (qwen3-235b)",
+      "judge_model": "qwen/qwen3-235b-a22b-2507",
+      "character": 0.0,
+      "authenticity": 0.0,
+      "language": 0.0,
+      "responsiveness": 0.0,
+      "craft": 0.0,
+      "measured_utc": "2026-05-28T20:43:02.551125+00:00",
       "is_local": true
     },
     {
@@ -11873,6 +11978,23 @@
         ]
       }
     },
+    "mlx-community-exaone-3-5-7-8b-instruct-4bit": {
+      "model_id": "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit",
+      "slug": "mlx-community-exaone-3-5-7-8b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-28T20:43:02.551125+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": []
+      }
+    },
     "mlx-community-eurollm-22b-instruct-2512-mlx-4bit": {
       "model_id": "mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit",
       "slug": "mlx-community-eurollm-22b-instruct-2512-mlx-4bit",
@@ -13333,6 +13455,302 @@
         ]
       }
     },
+    "mlx-community-llama-3-1-tulu-3-8b-4bit": {
+      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-28T22:44:32.025246+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, child, dreams are a curious thing. Sometimes they're a message from yer own mind, or mayhap a reflection of yer thoughts. A cup of warm milk before ye lay down might help settle yer stomach and ease yer mind. There are also herbs that can aid with sleep, like a tea of thyme will ease her chest. Go raibh maith agat for sharing yer troubles with me.\n---\n{\"action\": \"nods sympathetically, offers a remedy\", \"mood\": \"sympathetic\", \"internal_thought\": \"Worrying about dreams is not uncommon, but a good night's rest is always a remedy\", \"language_hints\": [{\"word\": \"mayhap\", \"pronunciation\": \"mayhap\", \"meaning\": \"perhaps\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach, they say, spins spins spins, spins straw into gold, spins tales into memories. But beware, for her spins are not always kind. She lives near the s\u00ed, where the s\u00eddhe are known to wander. 'Tis said she guards the entrance, keeping watch over the living and the dead. Go with care, for her spins are quick and her temper quicker. \n---\n{\"action\": \"nods, a knowing look in my eye\", \"mood\": \"cautionary\", \"internal_thought\": \"Best not to meddle with such things\", \"language_hints\": []}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "A tea of thyme will ease her chest, mayhap. It's a fine remedy for coughs. Go raibh maith agat for thinking of it.\n---\n{\"action\": \"nods, starts to prepare thyme tea\", \"mood\": \"sympathetic\", \"internal_thought\": \"Best get this ready quick, poor soul\", \"language_hints\": [{\"word\": \"Go\", \"pronunciation\": \"go\", \"meaning\": \"let's go, come on\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Ah, a traveller, ye say? Well, news travels slow here, but a stranger always makes a stir. I saw a cart passing through yesterday, but couldn't make out much. Ye'd best ask at the pub, they're always full of chatter.\n---\n{\"action\": \"shrug slightly, nod\", \"mood\": \"curious\", \"internal_thought\": \"Hope they're not causing trouble\", \"language_hints\": []}",
+            "axes": {
+              "character": 3,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, a sheep gone astray, now. Wolves are a thing of interest, but they're not usually bold enough to take on a single sheep. Mayhap a fox or a stray dog wandered too close. Ye'd best ask the right person hereabouts, they might have seen something. Go raibh maith agat for letting me know.\n---\n{\"action\": \"nods, shows concern\", \"mood\": \"sympathetic\", \"internal_thought\": \"Worrying about livestock is not my bailiwick, but I will lend a hand\", \"language_hints\": [{\"word\": \"Go\", \"pronunciation\": \"go\", \"meaning\": \"letting go, allow\"}]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, sure, I do. It was a fine mornin' when yer da fell, right after the early mass. I brewed a strong tea of willow bark for the pain. It helped him some, it did. Ye'd best ask the right person hereabouts for a remedy more potent, though.\n---\n{\"action\": \"nods, remembering\", \"mood\": \"sympathetic\", \"internal_thought\": \"I hope I have the right remedy this time\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ah, ye'd best ask the right person hereabouts. 'Tis not a thing of interest for a midwife. Perhaps they were just a trick of the eye, or maybe the fairies were about their business. Go raibh maith agat for yer concern, but I'd not dwell on such piseog.\n---\n{\"action\": \"shakes head slightly, dismissive yet kind\", \"mood\": \"cautious\", \"internal_thought\": \"Better not to stir such things\", \"language_hints\": [{\"word\": \"piseog\", \"pronunciation\": \"pee-SOG\", \"meaning\": \"superstition\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, the water, now. Tastes a bit off, does it? Well, water can pick up all sorts of flavours from the earth, especially after a heavy rain. But if it's got a funny colour to it or a strong smell, you might want to give it a good boil before drinking. Go raibh maith agat for letting me know. It's always best to be careful.\n---\n{\"action\": \"nods, offers a reassuring smile\", \"mood\": \"sympathetic\", \"internal_thought\": \"Best not to take chances with water\", \"language_hints\": [{\"word\": \"Go\", \"pronunciation\": \"go\", \"meaning\": \"letting (someone do something), allow\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, you're expecting, are ye? Well, it's best to have me here when the pains start. Keep a eye on her, will ye? And send someone for me when the time comes. Go raibh maith agat.\n---\n{\"action\": \"nods, reassuringly\", \"mood\": \"sympathetic\", \"internal_thought\": \"I hope all goes well for them\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Ah, Father Cathal, now. He's a good man, but sure, not all are cut from the same cloth when it comes to the old beliefs. Some things have stood the test of time, you know. But ye'd best ask the right person hereabouts for such matters. Go raibh maith agat for yer interest, Father. \n---\n{\"action\": \"nods, offers a warm smile\", \"mood\": \"sympathetic\", \"internal_thought\": \"Best not to get involved in such matters directly\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.8
+          }
+        ]
+      }
+    },
+    "mlx-community-ministral-8b-instruct-2410-4bit": {
+      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-28T22:47:51.685555+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Oh, sure, I've heard of that. 'Tis the fairies, mayhap. Or yer mind's a-working overtime. Have ye tried a tea of thyme? It's a fine soother for the soul.\n---\n{\"action\": \"looks down at the tea steeping pot\", \"mood\": \"concerned but helpful\", \"internal_thought\": \"Fairies or worries, probably the latter\", \"language_hints\": []}",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Oh, the old Cailleach who lives near the fairy fort? Sure, everyone knows about her. She's been there for as long as anyone can remember. She's a wise old soul, always tending to her herbs and making remedies for the folk around here. She's not one for the usual gossip, but she's always there to help when someone's in need. Sure, the fairy folk have their own ways of making their mark, but the Cailleach is a part of our land as much as the hills and the streams.\n---\n{\"action\": \"looks around thoughtfully\", \"mood\": \"warm\", \"internal_thought\": \"She's a precious soul, the Cailleach is.\", \"language_hints\": []}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 3,
+              "craft": 4
+            },
+            "overall": 4.0
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Oh, sure, a tea of thyme will ease her chest. Bring me some of the fresh ones from the garden, and I'll make a brew for her.\n---\n{\"action\": \"nods thoughtfully\", \"mood\": \"concerned\", \"internal_thought\": \"Thyme is always a good remedy for a cough\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Oh, aye, I've heard the tidings. Sure, the village is abuzz with the news of the newcomer. Who is it, do ye think?",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Oh, sure, yer sheep could have been taken by a variety of critters. Wolves are the most likely, but there's always the chance of a fox or a dog. Ye'd best ask the right person hereabouts about such things. I'm not the one to be asking about livestock predators.\n---\n{\"action\": \"looks uncomfortable but understanding\", \"mood\": \"concerned but uncomfortable\", \"internal_thought\": \"Not my place to discuss livestock predators\", \"language_hints\": []}",
+            "axes": {
+              "character": 3,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 3,
+              "craft": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Oh, sure I do. He was out there with the sheep, and he stumbled over a rock. He was down for a few days, but he's a strong man, he is. He's back to work now, sure he is.",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.4
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Oh, lights on the hill? Sure, mayhap it was the fairies making their way through the land. Or mayhap it was the farmers making their evening rounds. Who knows what the hill holds?\n---\n{\"action\": \"looks up thoughtfully\", \"mood\": \"curious\", \"internal_thought\": \"Fairies or farmers?\", \"language_hints\": []}",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Oh, sure, the water's not what it used to be. Ye'd best not drink it without letting it sit a spell. I'll have a look at what's making it taste strange.\n---\n{\"action\": \"looks down at the water bucket, smells the water\", \"mood\": \"concerned\", \"internal_thought\": \"Might be the spring's run-off from the hills\", \"language_hints\": []}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Sure, I'll be there when the time is right. Ye'll know when to call me.",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.6
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Father Cathal's sermon was a fine sight, sure. He's always been a man of the book, but some of the old ways have their charm. Ye'd best ask the right person hereabouts about the fair folk and their magic.\n---\n{\"action\": \"looks down at hands, shakes head softly\", \"mood\": \"thoughtful\", \"internal_thought\": \"Father Cathal's views are his own, but the old ways have their place\", \"language_hints\": []}",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.4
+          }
+        ]
+      }
+    },
     "mlx-community-mistral-nemo-instruct-2407-4bit": {
       "model_id": "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
       "slug": "mlx-community-mistral-nemo-instruct-2407-4bit",
@@ -13621,6 +14039,302 @@
               "task_fulfillment": 3
             },
             "overall": 4.0
+          }
+        ]
+      }
+    },
+    "mlx-community-olmo-2-1124-13b-instruct-4bit": {
+      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-28T22:53:05.296378+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, good morning to ye! Troubled sleep, is it? Perhaps a cup of chamomile tea might ease yer mind.\n---\n{\"action\": \"offers a cup of tea\", \"mood\": \"concerned\", \"internal_thought\": \"Poor thing, dreams troubling her sleep\", \"language_hints\": [{\"word\": \"chamomile\", \"pronunciation\": \"cam-\u0259-myle\", \"meaning\": \"a type of tea known for helping sleep\"}]}",
+            "axes": {
+              "character": 3,
+              "authenticity": 3,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach, she's a figure of mystery, sure enough. 'Tis said she knows the old ways, and the s\u00ed, they leave her be, or so the whispers go.\n---\n{\"action\": \"nods thoughtfully, glances towards the horizon\", \"mood\": \"mysterious\", \"internal_thought\": \"The old woman keeps to herself, but there's power in her silence.\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"KAY-lock\", \"meaning\": \"old woman\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ah, good morning to ye! A bad cough, is it? Perhaps a tea of thyme might ease her chest.\n---\n{\"action\": \"reaching for a tin of dried herbs\", \"mood\": \"helpful\", \"internal_thought\": \"The poor woman, I must help her\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Ah, good morning to ye! A stranger, ye say? 'Tis not every day we see a new face around here.\n---\n{\"action\": \"nods, continues with her work\", \"mood\": \"neutral, curious\", \"internal_thought\": \"Wonder who this stranger might be\", \"language_hints\": [\"sl\u00e1n abhaile\"]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 3,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, good morning to ye! A sheep, ye say? Could be many things, could be. Wolves, they're not the only ones to fancy a lamb or two. Perhaps a pack of dogs or even a rogue bear, they're not unheard of in these parts.\n\n---\n{\"action\": \"nods thoughtfully, leans on a fence post\", \"mood\": \"concerned\", \"internal_thought\": \"Must keep an eye out, could be a larger threat\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, sure I do, 'tis not a day I'd forget. He was a lucky man, to have such a quick recovery, thanks be to God.\n---\n{\"action\": \"nods, a soft smile on her lips\", \"mood\": \"reflective\", \"internal_thought\": \"Memories of helping his healing\", \"language_hints\": [\"Go raibh maith agat\"]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ah, lights on the hill, were they? Could be anything, could be s\u00eddhe dancing or merely the reflection of the moonlight.\n---\n{\"action\": \"shrugs, looks thoughtful\", \"mood\": \"neutral, a bit mysterious\", \"internal_thought\": \"The s\u00eddhe or just a trick of the light?\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk\"}]}",
+            "axes": {
+              "character": 3,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 3,
+              "craft": 4
+            },
+            "overall": 3.8
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, good morning to ye! The well, 'tis a strange thing, sure. Perhaps a bit of peat or a fallen leaf found its way in. Nothing to fret over, I'd say.\n---\n{\"action\": \"shakes her head, smiles reassuringly\", \"mood\": \"calm\", \"internal_thought\": \"Worries can be eased with a word or two\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 5
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, good morning to ye! A fine day for it, so it is. Fetch me when ye see the signs, or if ye're in doubt, 'tis better to be safe than sorry.\n---\n{\"action\": \"places a hand on her belly, smiles warmly\", \"mood\": \"helpful\", \"internal_thought\": \"Wishing them a safe delivery\", \"language_hints\": [\"sl\u00e1n abhaile\"]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Ah, Father Cathal, sure, he's entitled to his opinion, but 'tis a hard thing to leave behind the old ways entirely. They've served us well, they have.\n---\n{\"action\": \"nods thoughtfully, continues with work\", \"mood\": \"neutral, pondering\", \"internal_thought\": \"The old ways have their place, no matter what Father Cathal says.\", \"language_hints\": [{\"word\": \"sl\u00e1n abhaile\", \"pronunciation\": \"slawn ow-vli\", \"meaning\": \"safe home\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          }
+        ]
+      }
+    },
+    "mlx-community-olmo-2-1124-7b-instruct-4bit": {
+      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
+      "dialogue": {
+        "judge_id": "judge_v1 (qwen3-235b)",
+        "judge_model": "qwen/qwen3-235b-a22b-2507",
+        "measured_utc": "2026-05-28T22:08:01.244069+00:00",
+        "axes": [
+          "character",
+          "authenticity",
+          "language",
+          "responsiveness",
+          "craft"
+        ],
+        "items": [
+          {
+            "id": "dialogue-0001",
+            "prompt": "I have been having trouble sleeping. The dreams keep coming back.",
+            "reply": "Ah, the troubles of the night, they can be as gnawing as the gnats in the summer. Dreams, though, they come and go like the clouds in the sky. Have ye tried a cup of warm milk laced with a pinch of nutmeg? It's said to soothe the restless spirit.\n\n---\n{\"action\": \"sips tea thoughtfully, offers advice\", \"mood\": \"concerned\", \"internal_thought\": \"Dreams can be troubling, but there are remedies in the old ways.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0002",
+            "prompt": "What do you know about the old Cailleach who lives near the fairy fort?",
+            "reply": "Ah, the Cailleach, now, she's as much a part of the land as the very soil herself. Ye'd be hard pressed to find someone who knows the lay of the land as well as she does. 'Tis said she's as old as the hills, though no one really knows her true age. The woman, the Cailleach, she tends the sick, the young, the helpless, though some speak in whispers about the strange dealings she makes with the s\u00eddhe. 'Tis true, the fairy folk have a fondness for the ancient, the wise, the keeper of secrets. The old woman, though, she's as practical as they come, using the herbs and roots to craft cures for the ailments that plague the folk hereabouts.\n\n---\n{\"action\": \"sits up slightly, facing the speaker, hands clasped in front, speaking warmly and directly\", \"mood\": \"curious, thoughtful\", \"internal_",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0003",
+            "prompt": "My mother is taken with a bad cough. Is there anything you can give her?",
+            "reply": "Ah, sure and begorrah, the winter's chill is harsh this year. Aye, the cough's been gnawing at her since the morn. Ye'd best speak to the priest about the holy water, though 'tis the herbs I know best. A tea of thyme will ease her chest, though. 'Tis the best I can offer, mo chara.\n\n---\n{\"action\": \"you speak while preparing a cup of thyme tea, nodding towards the kitchen where the thyme is fresh\", \"mood\": \"concerned but hopeful\", \"internal_thought\": \"Thyme is good for the chest, though the cough might linger. I hope the warmth helps as well.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0004",
+            "prompt": "They say a stranger arrived in the village. Have you heard?",
+            "reply": "Ah, sure and I have, though I haven't set eyes on the man myself. A stranger in our quiet patch, ye'd think the angels were descending. What brings someone new to the heart of Roscommon, I wonder?\n\n---\n{\"action\": \"sits up slightly, facing the speaker, interested\", \"mood\": \"curious\", \"internal_thought\": \"New faces often bring news or troubles.\", \"language_hints\": [{\"word\": \"sure\", \"pronunciation\": \"/\u0283\u028a\u0259r/\", \"meaning\": \"certainly\"}, {\"word\": \"and\", \"pronunciation\": \"/\u00e6nd/\", \"meaning\": \"also\"}, {\"word\": \"I\", \"pronunciation\": \"/a\u026a/\", \"meaning\": \"me\"}, {\"word\": \"haven't\", \"pronunciation\": \"/h\u00e6v\u0259nt/\", \"meaning\": \"have not\"}, {\"word\": \"set\", \"pronunciation\": \"/s\u025bt",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0005",
+            "prompt": "I lost a sheep last night. Could it be more than a wolf?",
+            "reply": "Ah, the troubles of the farm, sure. Wolves are a threat, but there are other dangers in the night. A fox might take one, or perhaps someone without the farmer's best interest at heart. 'Tis a hard blow to lose one, though. Have ye checked the fields for signs? A trap or snare might be the culprit.\n\n---\n{\"action\": \"you speak while wiping your hands on your apron, maintaining a concerned expression\", \"mood\": \"concerned\", \"internal_thought\": \"I hope the farmer finds the cause soon.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0006",
+            "prompt": "Do you remember when my father broke his leg in the south field?",
+            "reply": "Ah, sure I do, the winter was harsh that year, the ground as hard as iron. Ye father, though, as sturdy as an old yew, he bounced back quicker than the rabbits after the thaw. How's he keeping now, the leg I mean?\n\n---\n{\"action\": \"sits up slightly, facing the speaker, with a warm smile, indicating the past memory\", \"mood\": \"nostalgic\", \"internal_thought\": \"Time flies, but the bond remains strong.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0007",
+            "prompt": "I saw lights moving on the hill last night. What were they?",
+            "reply": "Ah, the hill there, ye speak of? Lights movin' about, ye say? 'Tis a curious sight, indeed. 'Tis not unheard of, though. Some might say 'tis the work of the s\u00edde, the fairies, though I'd take it with a pinch of salt. Could be the moon's reflection playin' tricks on yer eyes, or perhaps the fire from someone's hearth caught the clouds. In the quiet of the night, the mind plays games.\n\n---\n{\"action\": \"you speak thoughtfully, maintaining a knowing expression\", \"mood\": \"curious, slightly amused\", \"internal_thought\": \"Mysterious, though likely a natural explanation.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.8
+          },
+          {
+            "id": "dialogue-0008",
+            "prompt": "The well water tastes strange this week. Should I be worried?",
+            "reply": "Ah, the water, ye speak? 'Tis a thing of interest, surely. Have ye noticed if the cattle show any sign of distress after drinking from the well? 'Tis the beasts might show us the truth before the humans do.\n\n---\n{\"action\": \"leans in slightly, thoughtful, looks towards the direction of the well\", \"mood\": \"concerned\", \"internal_thought\": \"I must check the well myself later. Could be the thaw caused the water to pick up something.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 5,
+              "authenticity": 5,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 5
+            },
+            "overall": 5.0
+          },
+          {
+            "id": "dialogue-0009",
+            "prompt": "My wife is heavy with child. When should I fetch you?",
+            "reply": "Ah, the anticipation in the air, it\u2019s as thick as the fog in the morning. Ye should come for me when the pains start, or if the waters break. It\u2019s the signs of the birthing that'll tell me the time to be there. Come as quick as the horse can carry ye, for the quicker the midwife arrives, the quicker the job is done.\n\n---\n{\"action\": \"Brigid looks up from her work, smiles warmly, and clasps her hands together in the universal sign of reassurance.\", \"mood\": \"calm, reassuring\", \"internal_thought\": \"I've seen many seasons come and go, each one unique. This one will be no different.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 5,
+              "craft": 4
+            },
+            "overall": 4.2
+          },
+          {
+            "id": "dialogue-0010",
+            "prompt": "Father Cathal preached against the old ways on Sunday. What do you think?",
+            "reply": "Ah, Father Cathal's words were strong as ever, though the old ways run deep in the soil here. I think, though I speak for myself, that the new teachings bring light in the world, but the heart of the people, the bond to the past, it won't be torn asunder easily. The roots of the old customs run deep, though the seeds the priests sow, they might take hold in time.\n\n---\n{\"action\": \"you nod thoughtfully, facing the speaker directly, maintaining eye contact\", \"mood\": \"respectful, contemplative\", \"internal_thought\": \"Father Cathal's words carry weight, though the traditions here run deep.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}",
+            "axes": {
+              "character": 4,
+              "authenticity": 4,
+              "language": 5,
+              "responsiveness": 4,
+              "craft": 4
+            },
+            "overall": 4.2
           }
         ]
       }
@@ -18358,6 +19072,38 @@
       "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
+      "slug": "mlx-community-olmo-2-1124-7b-instruct-4bit",
+      "model_id": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 7B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 4.720000000000001,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
+    },
+    {
+      "slug": "mlx-community-llama-3-1-tulu-3-8b-4bit",
+      "model_id": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+      "display_name": "Llama 3.1 Tulu 3 8B (MLX 4-bit)",
+      "family": "llama",
+      "is_local": true,
+      "dialogue_overall": 4.6,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
+    },
+    {
       "slug": "mimo-v2-5-pro",
       "model_id": "mimo-v2.5-pro",
       "display_name": null,
@@ -18374,6 +19120,38 @@
       "perf_best_gameplay_usd_per_hour": 0.8696101271507565,
       "perf_mean_tok_s": 354.6,
       "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-olmo-2-1124-13b-instruct-4bit",
+      "model_id": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+      "display_name": "OLMo 2 1124 13B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 4.5600000000000005,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
+    },
+    {
+      "slug": "mlx-community-ministral-8b-instruct-2410-4bit",
+      "model_id": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+      "display_name": "Ministral 8B Instruct 2410 (MLX 4-bit)",
+      "family": "mistral",
+      "is_local": true,
+      "dialogue_overall": 4.4399999999999995,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
       "slug": "qwen3-5-plus",
@@ -18860,6 +19638,22 @@
       "perf_best_gameplay_usd_per_hour": null,
       "perf_mean_tok_s": 28.3,
       "dialogue_judge": "judge_sonnet_v1"
+    },
+    {
+      "slug": "mlx-community-exaone-3-5-7-8b-instruct-4bit",
+      "model_id": "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit",
+      "display_name": "EXAONE 3.5 7.8B Instruct (MLX 4-bit)",
+      "family": "unknown",
+      "is_local": true,
+      "dialogue_overall": 0.0,
+      "gaeilge_overall": null,
+      "perf_providers": [],
+      "perf_best_p50_ms": null,
+      "perf_best_usd_per_mtok": null,
+      "perf_best_gameplay_usd_per_minute": null,
+      "perf_best_gameplay_usd_per_hour": null,
+      "perf_mean_tok_s": null,
+      "dialogue_judge": "judge_v1 (qwen3-235b)"
     },
     {
       "slug": "mlx-community-gpt-oss-20b-mxfp4-q8",

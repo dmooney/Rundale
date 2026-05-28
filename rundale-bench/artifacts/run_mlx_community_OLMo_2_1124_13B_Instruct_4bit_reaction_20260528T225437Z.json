@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T22:54:28.259581+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.2,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Evenin', stranger. I'm Padraig, owner of this fine establishment. What'll it be?",
+          "response_sha256": "6ba7bfbdbf12f357981473e419c49de1a62d6f83d1c1b0e08bda4620881208d7",
+          "cache_key": "e9be4a269e7b5a3c7706439f68b25b08106010ec095a9336ea80fb1a35935048",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Ah, good morning, Michael. A wet day to be sure, come in and have a drop.",
+          "response_sha256": "42fbfa942cab5b0ae63726bf22667300b8587af52ca5c3604098672f2cafbf2b",
+          "cache_key": "ff43fac5b9a3369b1c05e7955c2a6b4b69f0ffb971889d4e0bc7a9d93034a0e8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Ah, Father O'Reilly, come in, come in. What brings you to leave the warmth of the church for the cold wet mist outside?",
+          "response_sha256": "cef3932926dd5b7079f0ba16d346d0352eafb5a1c19b7f34c113d48f14192df0",
+          "cache_key": "657c0e3ff8f6b14e4c14bfec67d69180e2daa07a06d4b72ab7de564f59a877fb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\"Evenin', I'm Brigid, tendin' to the young'uns. Welcome to Darcy's.\"",
+          "response_sha256": "5863d73bddca3ae12cce58fc1758822a2fc511fa841bd898229cd17e593086db",
+          "cache_key": "041a844d2c3cbf0bc6ba2c3d37c2fc8f0926f69781ea096a2db200234711fd2b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "Ah, good morning, P\u00e1draig. The rain's soft, isn't it?",
+          "response_sha256": "04a10d59936c0995c2982768420e0fceda5ac7df0b673efa1eceebebf9847744",
+          "cache_key": "bf450da10fcdca047da8c87f764d7e6f02763130d4d74362ab35a8e868ee41df",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Ah, Father Collins, come in, come in. It's a wet day, sure, but you're just in time for Mass.",
+          "response_sha256": "ce01dd30a5fe5d7c0d3f9de1a16752d75568116d558cf979cf61ef2886d3d5d0",
+          "cache_key": "f81354adda5dfb57ce377e98403ec0c7232858cf1c682d01657f3c7e9e9d48ee",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "God bless, and welcome to Darcy's. Father Cathal Donnellan, at your service.",
+          "response_sha256": "1b521db991ed0df4d4223587459a6e526f6d4028ecc53df5a40e403d782dcb89",
+          "cache_key": "ff52f3721143e6c7f74e0c97951c078ec7a302dbdf9e150cacd9962d1ec68b19",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Ah, S\u00e9amus, come in from the wet. What brings you to Brigid's hearth this fine morning?",
+          "response_sha256": "d3a59abc288149d58413fbf0142579f883eb6c20bb6d6a0014f1c6bf587bde77",
+          "cache_key": "690fa564d1520ceb0639c569725176328e2c6651c73f91c3d447b56cd50b112a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Ah, S\u00e9amus, come in from the mist, and be welcome.",
+          "response_sha256": "a5c1ffd82e7f0a0f375ba4d32460656ada16f9f963cf0aa5557ad1644ed7e22a",
+          "cache_key": "af1d959dd521914d55ee419e16602862c1ef400d9ff1c61641f8834883a90ced",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Evenin'. I'm Sean, work the bog. What's your business?",
+          "response_sha256": "75528f15c4c892a24fb8240a41a8a0db28b54c0feed8d5364693267a05bec745",
+          "cache_key": "a13f6783fea7d01a54845cf3dcd17f5e206302c5a2d4374adfa5bb900cfad065",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__OLMo_2_1124_13B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-13B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-13B-Instruct-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 9.51303219795227,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1367,
+    "completion_tokens": 230,
+    "usd": 0.0
+  }
+}

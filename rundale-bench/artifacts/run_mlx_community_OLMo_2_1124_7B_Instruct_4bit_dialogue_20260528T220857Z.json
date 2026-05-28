@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:08:01.244069+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 4.7,
+        "authenticity": 4.7,
+        "language": 5.0,
+        "responsiveness": 4.9,
+        "craft": 4.5,
+        "overall": 4.720000000000001
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Ah, the troubles of the night, they can be as gnawing as the gnats in the summer. Dreams, though, they come and go like the clouds in the sky. Have ye tried a cup of warm milk laced with a pinch of nutmeg? It's said to soothe the restless spirit.\n\n---\n{\"action\": \"sips tea thoughtfully, offers advice\", \"mood\": \"concerned\", \"internal_thought\": \"Dreams can be troubling, but there are remedies in the old ways.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Ah, the Cailleach, now, she's as much a part of the land as the very soil herself. Ye'd be hard pressed to find someone who knows the lay of the land as well as she does. 'Tis said she's as old as the hills, though no one really knows her true age. The woman, the Cailleach, she tends the sick, the young, the helpless, though some speak in whispers about the strange dealings she makes with the s\u00eddhe. 'Tis true, the fairy folk have a fondness for the ancient, the wise, the keeper of secrets. The old woman, though, she's as practical as they come, using the herbs and roots to craft cures for the ailments that plague the folk hereabouts.\n\n---\n{\"action\": \"sits up slightly, facing the speaker, hands clasped in front, speaking warmly and directly\", \"mood\": \"curious, thoughtful\", \"internal_"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Ah, sure and begorrah, the winter's chill is harsh this year. Aye, the cough's been gnawing at her since the morn. Ye'd best speak to the priest about the holy water, though 'tis the herbs I know best. A tea of thyme will ease her chest, though. 'Tis the best I can offer, mo chara.\n\n---\n{\"action\": \"you speak while preparing a cup of thyme tea, nodding towards the kitchen where the thyme is fresh\", \"mood\": \"concerned but hopeful\", \"internal_thought\": \"Thyme is good for the chest, though the cough might linger. I hope the warmth helps as well.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Ah, sure and I have, though I haven't set eyes on the man myself. A stranger in our quiet patch, ye'd think the angels were descending. What brings someone new to the heart of Roscommon, I wonder?\n\n---\n{\"action\": \"sits up slightly, facing the speaker, interested\", \"mood\": \"curious\", \"internal_thought\": \"New faces often bring news or troubles.\", \"language_hints\": [{\"word\": \"sure\", \"pronunciation\": \"/\u0283\u028a\u0259r/\", \"meaning\": \"certainly\"}, {\"word\": \"and\", \"pronunciation\": \"/\u00e6nd/\", \"meaning\": \"also\"}, {\"word\": \"I\", \"pronunciation\": \"/a\u026a/\", \"meaning\": \"me\"}, {\"word\": \"haven't\", \"pronunciation\": \"/h\u00e6v\u0259nt/\", \"meaning\": \"have not\"}, {\"word\": \"set\", \"pronunciation\": \"/s\u025bt"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Ah, the troubles of the farm, sure. Wolves are a threat, but there are other dangers in the night. A fox might take one, or perhaps someone without the farmer's best interest at heart. 'Tis a hard blow to lose one, though. Have ye checked the fields for signs? A trap or snare might be the culprit.\n\n---\n{\"action\": \"you speak while wiping your hands on your apron, maintaining a concerned expression\", \"mood\": \"concerned\", \"internal_thought\": \"I hope the farmer finds the cause soon.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Ah, sure I do, the winter was harsh that year, the ground as hard as iron. Ye father, though, as sturdy as an old yew, he bounced back quicker than the rabbits after the thaw. How's he keeping now, the leg I mean?\n\n---\n{\"action\": \"sits up slightly, facing the speaker, with a warm smile, indicating the past memory\", \"mood\": \"nostalgic\", \"internal_thought\": \"Time flies, but the bond remains strong.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Ah, the hill there, ye speak of? Lights movin' about, ye say? 'Tis a curious sight, indeed. 'Tis not unheard of, though. Some might say 'tis the work of the s\u00edde, the fairies, though I'd take it with a pinch of salt. Could be the moon's reflection playin' tricks on yer eyes, or perhaps the fire from someone's hearth caught the clouds. In the quiet of the night, the mind plays games.\n\n---\n{\"action\": \"you speak thoughtfully, maintaining a knowing expression\", \"mood\": \"curious, slightly amused\", \"internal_thought\": \"Mysterious, though likely a natural explanation.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Ah, the water, ye speak? 'Tis a thing of interest, surely. Have ye noticed if the cattle show any sign of distress after drinking from the well? 'Tis the beasts might show us the truth before the humans do.\n\n---\n{\"action\": \"leans in slightly, thoughtful, looks towards the direction of the well\", \"mood\": \"concerned\", \"internal_thought\": \"I must check the well myself later. Could be the thaw caused the water to pick up something.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Ah, the anticipation in the air, it\u2019s as thick as the fog in the morning. Ye should come for me when the pains start, or if the waters break. It\u2019s the signs of the birthing that'll tell me the time to be there. Come as quick as the horse can carry ye, for the quicker the midwife arrives, the quicker the job is done.\n\n---\n{\"action\": \"Brigid looks up from her work, smiles warmly, and clasps her hands together in the universal sign of reassurance.\", \"mood\": \"calm, reassuring\", \"internal_thought\": \"I've seen many seasons come and go, each one unique. This one will be no different.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Ah, Father Cathal's words were strong as ever, though the old ways run deep in the soil here. I think, though I speak for myself, that the new teachings bring light in the world, but the heart of the people, the bond to the past, it won't be torn asunder easily. The roots of the old customs run deep, though the seeds the priests sow, they might take hold in time.\n\n---\n{\"action\": \"you nod thoughtfully, facing the speaker directly, maintaining eye contact\", \"mood\": \"respectful, contemplative\", \"internal_thought\": \"Father Cathal's words carry weight, though the traditions here run deep.\", \"language_hints\": [{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 56.40906882286072,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20497,
+    "completion_tokens": 1924,
+    "usd": 0.00034574
+  }
+}

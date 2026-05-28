@@ -1,0 +1,143 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T22:53:05.296378+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 4.4,
+        "authenticity": 4.6,
+        "language": 5.0,
+        "responsiveness": 4.2,
+        "craft": 4.6,
+        "overall": 4.5600000000000005
+      },
+      "results": [
+        {
+          "character": 3,
+          "authenticity": 3,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 3.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Ah, good morning to ye! Troubled sleep, is it? Perhaps a cup of chamomile tea might ease yer mind.\n---\n{\"action\": \"offers a cup of tea\", \"mood\": \"concerned\", \"internal_thought\": \"Poor thing, dreams troubling her sleep\", \"language_hints\": [{\"word\": \"chamomile\", \"pronunciation\": \"cam-\u0259-myle\", \"meaning\": \"a type of tea known for helping sleep\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Ah, the Cailleach, she's a figure of mystery, sure enough. 'Tis said she knows the old ways, and the s\u00ed, they leave her be, or so the whispers go.\n---\n{\"action\": \"nods thoughtfully, glances towards the horizon\", \"mood\": \"mysterious\", \"internal_thought\": \"The old woman keeps to herself, but there's power in her silence.\", \"language_hints\": [{\"word\": \"Cailleach\", \"pronunciation\": \"KAY-lock\", \"meaning\": \"old woman\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Ah, good morning to ye! A bad cough, is it? Perhaps a tea of thyme might ease her chest.\n---\n{\"action\": \"reaching for a tin of dried herbs\", \"mood\": \"helpful\", \"internal_thought\": \"The poor woman, I must help her\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Ah, good morning to ye! A stranger, ye say? 'Tis not every day we see a new face around here.\n---\n{\"action\": \"nods, continues with her work\", \"mood\": \"neutral, curious\", \"internal_thought\": \"Wonder who this stranger might be\", \"language_hints\": [\"sl\u00e1n abhaile\"]}"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Ah, good morning to ye! A sheep, ye say? Could be many things, could be. Wolves, they're not the only ones to fancy a lamb or two. Perhaps a pack of dogs or even a rogue bear, they're not unheard of in these parts.\n\n---\n{\"action\": \"nods thoughtfully, leans on a fence post\", \"mood\": \"concerned\", \"internal_thought\": \"Must keep an eye out, could be a larger threat\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Ah, sure I do, 'tis not a day I'd forget. He was a lucky man, to have such a quick recovery, thanks be to God.\n---\n{\"action\": \"nods, a soft smile on her lips\", \"mood\": \"reflective\", \"internal_thought\": \"Memories of helping his healing\", \"language_hints\": [\"Go raibh maith agat\"]}"
+        },
+        {
+          "character": 3,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 3.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Ah, lights on the hill, were they? Could be anything, could be s\u00eddhe dancing or merely the reflection of the moonlight.\n---\n{\"action\": \"shrugs, looks thoughtful\", \"mood\": \"neutral, a bit mysterious\", \"internal_thought\": \"The s\u00eddhe or just a trick of the light?\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairy folk\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Ah, good morning to ye! The well, 'tis a strange thing, sure. Perhaps a bit of peat or a fallen leaf found its way in. Nothing to fret over, I'd say.\n---\n{\"action\": \"shakes her head, smiles reassuringly\", \"mood\": \"calm\", \"internal_thought\": \"Worries can be eased with a word or two\", \"language_hints\": [{\"word\": \"sl\u00e1n\", \"pronunciation\": \"slawn\", \"meaning\": \"goodbye\"}]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Ah, good morning to ye! A fine day for it, so it is. Fetch me when ye see the signs, or if ye're in doubt, 'tis better to be safe than sorry.\n---\n{\"action\": \"places a hand on her belly, smiles warmly\", \"mood\": \"helpful\", \"internal_thought\": \"Wishing them a safe delivery\", \"language_hints\": [\"sl\u00e1n abhaile\"]}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Ah, Father Cathal, sure, he's entitled to his opinion, but 'tis a hard thing to leave behind the old ways entirely. They've served us well, they have.\n---\n{\"action\": \"nods thoughtfully, continues with work\", \"mood\": \"neutral, pondering\", \"internal_thought\": \"The old ways have their place, no matter what Father Cathal says.\", \"language_hints\": [{\"word\": \"sl\u00e1n abhaile\", \"pronunciation\": \"slawn ow-vli\", \"meaning\": \"safe home\"}]}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 82.89011573791504,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 20726,
+    "completion_tokens": 1348,
+    "usd": 0.00036146999999999997
+  }
+}

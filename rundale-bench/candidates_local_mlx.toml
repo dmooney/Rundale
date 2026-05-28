@@ -728,3 +728,56 @@ quant = "4bit"
 params_b = 72.0
 peak_ram_gb_est = 52.0
 notes = "Magnum v4 72B 4-bit — OOMs 48 GB unified mid-inference (locked system 2026-05-19). Skipped by headroom check."
+
+# ----------------------------------------------------------------------------
+# Round 4 additions — 2026-05-28
+# Recent MLX 4-bit models from HF mlx-community, untested. Conservative
+# peak_ram_gb_est (overstated vs actual) to keep --headroom-gb 26 safe; user
+# can't recover Claude Code from OOM remotely so estimates lean high.
+# Preflight (architecture + chat_template) green-lit each repo.
+# Smallest first per file convention.
+# ----------------------------------------------------------------------------
+
+[[candidate]]
+hf_repo = "mlx-community/OLMo-2-1124-7B-Instruct-4bit"
+slot = "large"
+quant = "4bit"
+params_b = 7.0
+peak_ram_gb_est = 6.0
+notes = "AllenAI OLMo 2 7B (fully-open weights + training data)."
+
+[[candidate]]
+hf_repo = "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
+slot = "large"
+quant = "4bit"
+params_b = 7.8
+peak_ram_gb_est = 7.0
+notes = "LG EXAONE 3.5 7.8B. Korean/English bilingual."
+
+[[candidate]]
+hf_repo = "mlx-community/Llama-3.1-Tulu-3-8B-4bit"
+slot = "large"
+quant = "4bit"
+params_b = 8.0
+peak_ram_gb_est = 6.0
+notes = "AllenAI Tulu 3 — Llama-3.1-8B post-trained with full SFT+DPO+RLVR recipe."
+
+[[candidate]]
+hf_repo = "mlx-community/Ministral-8B-Instruct-2410-4bit"
+slot = "large"
+quant = "4bit"
+params_b = 8.0
+peak_ram_gb_est = 6.0
+notes = "Mistral Ministral-8B (October 2024 edge-tuned)."
+
+[[candidate]]
+hf_repo = "mlx-community/OLMo-2-1124-13B-Instruct-4bit"
+slot = "large"
+quant = "4bit"
+params_b = 13.0
+peak_ram_gb_est = 9.0
+notes = "AllenAI OLMo 2 13B (fully-open weights + training data)."
+
+# NOTE: Mistral-Small-24B-Instruct-2501-4bit considered but already listed
+# above (line ~144) with a known tokenizer-regex bug. Skipped from round 4 to
+# avoid wasting cycles on a known-broken upload.

@@ -1,0 +1,115 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:11:26.845865+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 10,
+        "errors": 0,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211",
+        "bundles_queued": 1,
+        "cache_hits": 0,
+        "pending_judge": true
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "\"Evenin', stranger. Name's Padraig Darcy, I run this here establishment. What brings ya to my humble corner of Ireland?\"",
+          "response_sha256": "cabfb12a5b24a4d09cbee836ed6698fd04deca889c35f77f0f30b548633a523d",
+          "cache_key": "04f136a2317a342d541256e6fe7be86dce438f219acdf112ee2d45d9c3c9e2df",
+          "judged": false
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "\"Ah, Molly, mornings like these make the heart glad, don't they? Come in, have a seat, and let me pour you a cup to warm the soul.\"",
+          "response_sha256": "7df894a848a8b9a3d27bd130a7f92afe3f86e03363705d44a5f6344a8f8e8bce",
+          "cache_key": "2f76003e14fb8656edc550b61ee957051b3a9c1768d0ea034dab9c423cfad617",
+          "judged": false
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "\"Ah, Molly, good to see you, as bright as the mornings themselves, aren't you?\"",
+          "response_sha256": "f701db9c6cd1b5273dbd362d4c930fa29b9f38952a997905e1124a2cce8b1583",
+          "cache_key": "5925953107cd0ca634377668aff2cad895b346baf9ea7bb160682bdb59ba1720",
+          "judged": false
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\"Evening to ya, stranger. I'm Brigid, the midwife hereabouts. What brings ya to our humble corner of Ireland?\"",
+          "response_sha256": "bffbc9881120b8201c683f2d1aa455a914b803bb5fe444f2f31e30519f67a41d",
+          "cache_key": "e453f72110a492e1e8aadd6bb1d3125701f41f434b167baa8f3ea6e7a2138335",
+          "judged": false
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "\"Aidan, isn't it? Morning to you, come in out of the drizzle.\"",
+          "response_sha256": "081cd4ad443753624059a0b74571c7eb7eff3612d85b97a17760c68246e9d33b",
+          "cache_key": "edcfbbbf0bcc586206245f0ddb1b93029df479e50ddb29e49ff29e8e9f05caa3",
+          "judged": false
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "\"Aidan, isn't it? It's good to see you at the porch, come in out of the mist, won't you?\"",
+          "response_sha256": "232bae22c2b4a53bfef0bcb232d4b2d0c1c76d2439736756ebcf07bcfd0c6431",
+          "cache_key": "10ecba9ae598e8794d5c323888d5f323ded415738f173f7ee4784ecab1f533fe",
+          "judged": false
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "\"Good evening to you, stranger. I am Father Cathal Donnellan, the parish priest of this parish. Pray, come in, and may your stay be as enlightening as your presence is unexpected.\"",
+          "response_sha256": "ad033692d0d7c6709e7e66ccdfd1b101df942b684a76c6dc0ac03ad30a3a054a",
+          "cache_key": "5d87820736eea7582496c27adef710e0f24f9fc282094a7cc57b52c71ede5278",
+          "judged": false
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Mornin', Seamus, isn't it a bit early for your usual wanderin'? The mornings here carry a cool bite, best to be hasty on your way.",
+          "response_sha256": "ed905767067a5d90e70e02a567b46ae68ac650fa4f340eb55c99fbd34081c4a1",
+          "cache_key": "46fe7e75ba69a63190378cb9c08d799f7ee7d25f1b290a5198c2790ef1618963",
+          "judged": false
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "\"Good day, Seamus, it's unexpected to see you here at this hour. Pray, what brings you to my doorstep?\"",
+          "response_sha256": "e28e808a09896f21c8c05f2f76d750e543fc2cd836f56978a500774891264dd7",
+          "cache_key": "8bae416b663809c82c39a3dba313642336fb0316aac42a55e5ab29412536c61b",
+          "judged": false
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "\"Evenin', stranger. Name's Sean Murphy, helps tend the land hereabouts. What brings ya to these parts?\"",
+          "response_sha256": "7bd7bc804a478e2ddb08d8ca76a401913f88c3017e41d8709f9ddc23fdb5ac14",
+          "cache_key": "498bc80d14442ca3b3d327a4748d932284e8c514121c099f2e7b534bebe3c87e",
+          "judged": false
+        }
+      ],
+      "bundles": [
+        "reaction__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 7.134778261184692,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1367,
+    "completion_tokens": 307,
+    "usd": 0.0
+  }
+}

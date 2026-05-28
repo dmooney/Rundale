@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T22:45:22.497255+00:00",
+  "slices": {
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 1.0,
+        "mean_score": 2.5,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"Padraig Darcy is serving pints to a quiet crowd.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "847ab70bf469d5c48c3a25f29d3ef881506be8a8c6150ea6423e1e0d8076b4bb",
+          "cache_key": "e6ba3192f83784dfa475eb8d4796289ae0a3a8b4d1061d598dc05cdf5d1d5de9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "{\"summary\": \"Padraig Darcy serves pints, Niamh Darcy wipes down tables, Sean Murphy eats stew\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "2de58ab9877f57ceff9e4f33e0f187302c23155d76f8ca612e4fdd58379f9b7c",
+          "cache_key": "7ca63c5711bf2c785bc984dc7611706ea1db103a2402d4646420d7432f61d492",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\"summary\": \"Padraig Darcy is serving pints to a sparse crowd.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "d548afa99ba7d49600911f2bb0fdf1760d84ef5db19c9e6d581c011025a386fe",
+          "cache_key": "958747195229c8799d36619c9cd60c0f022d61fde11554eb3c4df5fd52e1b52b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{\"summary\": \"Tommy Maguire spins yarns under the wind's lull, while Donal MacNamara tends to a smoldering forge.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "f1c47c272f07246ffd4b55845606ca8e7d63af955f441d89e8bc450b8d90eee3",
+          "cache_key": "ef30c783b16b484b5a37e9fe2b6e08bc57b26af1627d1be544628a746e003e06",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "{\"summary\": \"Tommy Maguire spins a yarn, while Donal MacNamara forges a horseshoe.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "f6d68916f3627668ff1657b409efaa4c6d0fe36ecad1481b9e9a0ce405eb1f92",
+          "cache_key": "fd43874b412dd5b403f430f95a0931d8ffbbfd03d1ed14f72edc97692a47a935",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "{\"summary\": \"Tommy Maguire spins a yarn, while Donal MacNamara forges a horseshoe.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "f6d68916f3627668ff1657b409efaa4c6d0fe36ecad1481b9e9a0ce405eb1f92",
+          "cache_key": "a2bf24dad2f60441f4ad3d526fdda0d67e3a5bb5a9ddfdba7a9994e2f4e5a77e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"Mary shows Brigid a letter from her husband.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "62271877891dcb360a55a02437f32a619c7ef131ca4ab3be48cd60a3382c387c",
+          "cache_key": "090d38daf5e2472aa7cd47e0b99682980627db1da2b90395490189f471160b62",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"Mary is explaining her morning sickness to Brigid.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "761fdb6f8ef16ab7a65ecda47101f03543f109b495ae4c71360f927be86e3e6d",
+          "cache_key": "09c1e65a59b93df1fe2a073d214fd77e6c532c5c2bee836faaee472a17a99d4e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"Mary is sharing her concerns with Brigid.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "5ab2bad76a4ba2be3212ff29e446342c6f7fa134fee140097a27d7402afee9f9",
+          "cache_key": "727fd157db452fdd7322cec5e65bbf4f8f90944f6b248d2b7dd6160d25c06deb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\"summary\": \"Father Cathal listens intently to Old Tommy's apologies.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "bc284dd15afaa850442580bb3ff52750532b1d8e920df3b2e5191e2bfa11caa1",
+          "cache_key": "397cef2aa23a5f06325f61a6b7434334327cd20fb57403563c6576f9b2afb80e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__Llama_3_1_Tulu_3_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Llama-3.1-Tulu-3-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Llama-3.1-Tulu-3-8B-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 8.042111158370972,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2626,
+    "completion_tokens": 329,
+    "usd": 0.0
+  }
+}

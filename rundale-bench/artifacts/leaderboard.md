@@ -11,8 +11,8 @@ Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html)
 | Cached candidates | 30 |
 | Judged candidates | 0 |
 | Unjudged backlog | 30 |
-| Distinct judges | 1 |
-| Quality rows | 28 |
+| Distinct judges | 2 |
+| Quality rows | 34 |
 | Perf rows | 63 |
 | Gaeilge rows | 33 |
 
@@ -62,7 +62,12 @@ Latest `--slice dialogue` (or `--slice all`) bench-it run per (candidate, judge,
 
 | Candidate | Judge | n | Overall | Char | Auth | Lang | Resp | Craft | File |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| mlx-community/OLMo-2-1124-7B-Instruct-4bit | ? | 10 | 4.78 | 5.00 | 5.00 | 5.00 | 4.70 | 4.30 | run_mlx_community_OLMo_2_1124_7B_Instruct_4bit_dialogue_20260528T201126Z.json |
+| mlx-community/OLMo-2-1124-7B-Instruct-4bit | ? | 10 | 4.72 | 4.70 | 4.70 | 5.00 | 4.90 | 4.50 | run_mlx_community_OLMo_2_1124_7B_Instruct_4bit_dialogue_20260528T220857Z.json |
+| mlx-community/Llama-3.1-Tulu-3-8B-4bit | ? | 10 | 4.60 | 4.60 | 4.70 | 5.00 | 4.60 | 4.20 | run_mlx_community_Llama_3_1_Tulu_3_8B_4bit_dialogue_20260528T224517Z.json |
 | mimo-v2.5-pro | claude-sonnet-4-6 | 10 | 4.58 | 4.50 | 4.40 | 4.90 | 5.00 | 4.10 | run_mimo_v2_5_pro_dialogue_20260525T165708Z.json |
+| mlx-community/OLMo-2-1124-13B-Instruct-4bit | ? | 10 | 4.56 | 4.40 | 4.60 | 5.00 | 4.20 | 4.60 | run_mlx_community_OLMo_2_1124_13B_Instruct_4bit_dialogue_20260528T225428Z.json |
+| mlx-community/Ministral-8B-Instruct-2410-4bit | ? | 10 | 4.44 | 4.20 | 4.80 | 5.00 | 3.90 | 4.40 | run_mlx_community_Ministral_8B_Instruct_2410_4bit_dialogue_20260528T224844Z.json |
 | qwen3.5-plus | claude-sonnet-4-6 | 10 | 4.38 | 4.00 | 4.00 | 5.00 | 4.90 | 4.00 | run_qwen3_5_plus_all_20260525T115946Z.json |
 | kimi-k2.5 | claude-sonnet-4-6 | 10 | 4.36 | 4.10 | 4.10 | 4.90 | 4.70 | 4.00 | run_kimi_k2_5_all_20260525T113604Z.json |
 | minimax-m2.5 | claude-sonnet-4-6 | 10 | 4.32 | 4.30 | 4.40 | 4.40 | 4.90 | 3.80 | run_minimax_m2_5_dialogue_20260525T165823Z.json |
@@ -90,6 +95,7 @@ Latest `--slice dialogue` (or `--slice all`) bench-it run per (candidate, judge,
 | mlx-community/aya-expanse-8b-4bit | claude-sonnet-4-6 | 10 | 2.86 | 3.10 | 2.80 | 3.20 | 3.20 | 2.00 | run_mlx_community_aya_expanse_8b_4bit_all_20260528T142822Z.json |
 | mlx-community/Violet-Lyra-Gutenberg-4bit | claude-sonnet-4-6 | 10 | 2.76 | 3.10 | 3.00 | 2.70 | 3.00 | 2.00 | run_mlx_community_Violet_Lyra_Gutenberg_4bit_all_20260528T031805Z.json |
 | mlx-community/internlm3-8b-instruct-4bit | claude-sonnet-4-6 | 6 | 1.93 | 2.17 | 2.17 | 2.00 | 2.17 | 1.17 | run_mlx_community_internlm3_8b_instruct_4bit_all_20260528T101746Z.json |
+| mlx-community/EXAONE-3.5-7.8B-Instruct-4bit | ? | 10 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | run_mlx_community_EXAONE_3_5_7_8B_Instruct_4bit_dialogue_20260528T211302Z.json |
 
 ## Quality scores: cross-judge average (1-5)
 
