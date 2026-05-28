@@ -60,24 +60,65 @@ def _markdown_table(headers: list[str], rows: list[list]) -> str:
 def build_data() -> dict:
     out: dict = {"quality": [], "perf": [], "gaeilge": [], "coverage": {}, "unjudged": []}
 
-    for f in sorted(glob.glob(str(_ARTIFACTS_DIR / "multiaxis_*.json"))):
-        d = json.loads(Path(f).read_text(encoding="utf-8"))
-        judge = (d.get("judge") or {}).get("model", "?")
-        for cand, ag in (d.get("aggregates") or {}).items():
-            if ":free" in cand:
-                continue
-            out["quality"].append({
-                "candidate": cand,
-                "judge": judge,
-                "file": Path(f).name,
-                "n": ag.get("total_n", 0),
-                "total": _round(ag.get("total_mean", 0.0)),
-                "character": _round(ag.get("character_mean", 0.0)),
-                "authenticity": _round(ag.get("authenticity_mean", 0.0)),
-                "language": _round(ag.get("language_mean", 0.0)),
-                "responsiveness": _round(ag.get("responsiveness_mean", 0.0)),
-                "craft": _round(ag.get("craft_mean", 0.0)),
-            })
+    # Quality scores come from `bench-it` dialogue runs (1-5 scale,
+    # Sonnet subagent judge). One row per (candidate, judge, base_url, split)
+    # — the freshest run wins for each tuple (mtime-sorted dedup).
+    #
+    # We read `run_*_all_*.json` (every bench-it dispatches all slices) and
+    # `run_*_dialogue_*.json` (a dialogue-only rerun): both carry the
+    # `slices.dialogue.summary` we need. The legacy `multiaxis_*.json`
+    # files (0-10 scale, cloud-LLM judge over cached samples) are read at
+    # the bottom of this function into `out["quality_legacy"]` for a
+    # separate "Quality (legacy 0-10)" section so the rebench transition
+    # doesn't erase historical context.
+    #
+    # IMPORTANT: This is the same pipeline for local and cloud targets —
+    # `bench-it` writes the same JSON shape regardless of base_url, so a
+    # local `mlx-community/Qwen2.5-14B-Instruct-4bit@localhost:8000` row
+    # sits next to `qwen3.6-plus@opencode.ai` with identical axes.
+    latest_quality: dict[tuple[str, str, str, str], dict] = {}
+    dialogue_run_files = sorted({
+        Path(f)
+        for pattern in ("run_*_all_*.json", "run_*_dialogue_*.json")
+        for f in glob.glob(str(_ARTIFACTS_DIR / pattern))
+    }, key=lambda p: p.stat().st_mtime)
+    for path in dialogue_run_files:
+        d = json.loads(path.read_text(encoding="utf-8"))
+        target = d.get("target") or {}
+        summary = ((d.get("slices") or {}).get("dialogue") or {}).get("summary") or {}
+        if not target or not summary:
+            continue
+        cand = target.get("model", "?")
+        if ":free" in cand:
+            continue
+        # A bundled summary with no judged items publishes axes as `None`
+        # plus `pending_judge: True`. Skip — the row appears once
+        # `ingest --finalize` folds the subagent scores back in.
+        if summary.get("pending_judge"):
+            continue
+        if summary.get("overall") is None:
+            continue
+        judge_model = summary.get("judge_model") or "?"
+        judge_id = summary.get("judge") or "?"
+        base_url = target.get("base_url", "?")
+        split = d.get("split", "?")
+        key = (cand, judge_id, base_url, split)
+        latest_quality[key] = {
+            "candidate": cand,
+            "judge": judge_model,
+            "judge_id": judge_id,
+            "base_url": base_url,
+            "split": split,
+            "file": path.name,
+            "n": summary.get("judged", summary.get("records", 0)),
+            "total": _round(summary.get("overall")),
+            "character": _round(summary.get("character")),
+            "authenticity": _round(summary.get("authenticity")),
+            "language": _round(summary.get("language")),
+            "responsiveness": _round(summary.get("responsiveness")),
+            "craft": _round(summary.get("craft")),
+        }
+    out["quality"] = list(latest_quality.values())
 
     # Keep only the latest perf measurement per candidate (perf files
     # are timestamped; later runs supersede earlier smoke probes).
@@ -104,12 +145,17 @@ def build_data() -> dict:
     # Keep only the latest Gaeilge measurement per candidate/base/split. Direct
     # Gaeilge runs and documented `--slice all` sweeps both carry
     # slices.gaeilge.summary, so ingest both filename shapes.
+    # Sort by mtime ascending so the freshest run wins the dedup
+    # (a sorted-by-filename loop falls into the trap where
+    # `run_<id>_all_<old-ts>.json` lexically precedes
+    # `run_<id>_gaeilge_<new-ts>.json` and the older file's gaeilge
+    # slice silently overwrites a newer `--slice all` rerun).
     latest_gaeilge: dict[tuple[str, str, str], dict] = {}
     gaeilge_run_files = sorted({
         Path(f)
         for pattern in ("run_*_gaeilge_*.json", "run_*_all_*.json")
         for f in glob.glob(str(_ARTIFACTS_DIR / pattern))
-    })
+    }, key=lambda p: p.stat().st_mtime)
     for path in gaeilge_run_files:
         d = json.loads(path.read_text(encoding="utf-8"))
         target = d.get("target") or {}
@@ -262,17 +308,27 @@ def build_markdown(data: dict) -> str:
             ["Candidate", "Split", "n", "Err", "Overall", "Fluency", "Grammar", "Idiom", "Task", "No Eng", "Cost", "File"],
             gaeilge_rows,
         ),
-        "## Quality scores: cross-judge average",
+        "## Quality scores: dialogue (1-5 rubric, Sonnet subagent judge)",
+        "",
+        "Latest `--slice dialogue` (or `--slice all`) bench-it run per "
+        "(candidate, judge, base_url, split). Same pipeline and scale for "
+        "local and cloud — `mlx-community/*@http://localhost` rows sit "
+        "next to `qwen3.6-plus@opencode.ai/zen` on the same rubric. "
+        "Higher is better; `Overall` is the holistic float from the judge "
+        "system prompt.",
         "",
         _markdown_table(
-            ["Candidate", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "Judges"],
-            averaged_rows,
-        ),
-        "## Quality scores: by judge",
-        "",
-        _markdown_table(
-            ["Candidate", "Judge", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "File"],
+            ["Candidate", "Judge", "n", "Overall", "Char", "Auth", "Lang", "Resp", "Craft", "File"],
             quality_rows,
+        ),
+        "## Quality scores: cross-judge average (1-5)",
+        "",
+        "Per-candidate mean across distinct judges. Empty until a "
+        "candidate has been scored by 2+ judges on the dialogue rubric.",
+        "",
+        _markdown_table(
+            ["Candidate", "n", "Overall", "Char", "Auth", "Lang", "Resp", "Craft", "Judges"],
+            averaged_rows,
         ),
         "## Perf probe",
         "",

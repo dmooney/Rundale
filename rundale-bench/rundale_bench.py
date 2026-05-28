@@ -340,8 +340,164 @@ def run_dialogue(target: Target, records: list[dict], tracker: CostTracker, args
     return {"summary": summary, "results": results}
 
 
+def _bundled_candidate(target: Target, args) -> dict:
+    """Common candidate-identity dict embedded in every queued bundle."""
+    return {
+        "model_id": getattr(args, "model_id", None) or target.label(),
+        "provider_id": getattr(args, "provider_id", None),
+        "resolved_target": f"{target.model}@{target.base_url}",
+    }
+
+
+def _queue_or_collect(
+    slice_name: str,
+    records: list[dict],
+    judge: dict,
+    candidate: dict,
+    generate,
+    item_extra_keys: tuple[str, ...] = (),
+) -> tuple[list[dict], list[str], int, int]:
+    """Shared bundled-path mechanics for non-dialogue slices.
+
+    `generate(rec) -> (reply, usage_dict)` produces the candidate reply for
+    one record (raises on HTTP failure). The helper hashes each (prompt,
+    response) into the judgment cache; cache hits fold their stored axes
+    back into the result entry, and misses go into a single pending bundle
+    queued for subagent judging.
+
+    Returns ``(results, bundle_ids, cache_hits, errors)``. Each result
+    entry carries ``judged``, ``judgment`` (if cached), ``cache_key``,
+    ``reply``, and a ``response_sha256`` so a re-run can short-circuit.
+
+    Item-extra-keys (e.g. ``("persona",)`` for reaction) are copied from
+    the source record into the bundle item so the subagent's system
+    prompt can use them.
+    """
+    rubric_sha = judge["rubric_sha256"]
+    judge_model = judge["model"]
+    results: list[dict] = []
+    pending_items: list[dict] = []
+    cache_hits = 0
+    errors = 0
+    for rec in records:
+        try:
+            reply, usage = generate(rec)
+        except Exception as e:
+            results.append({"id": rec["id"], "error": str(e)})
+            errors += 1
+            continue
+        # Note: usage is recorded by the caller's `generate` closure so the
+        # tracker still sees candidate-side tokens.
+        _ = usage
+        key = judgment_cache.cache_key(rec["id"], reply, rubric_sha, judge_model)
+        entry = {
+            "id": rec["id"],
+            "reply": reply,
+            "response_sha256": judgment_cache.response_sha256(reply),
+            "cache_key": key,
+        }
+        cached = judgment_cache.get(key)
+        if cached is not None:
+            entry["judged"] = True
+            entry["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
+            cache_hits += 1
+        else:
+            entry["judged"] = False
+            item = {"prompt_id": rec["id"], "prompt": rec.get("prompt", ""), "response": reply}
+            for k in item_extra_keys:
+                if k in rec:
+                    item[k] = rec[k]
+            pending_items.append(item)
+        results.append(entry)
+
+    bundle_ids: list[str] = []
+    if pending_items:
+        bundle = jb.assemble_bundle(
+            slice_name=slice_name,
+            candidate=candidate,
+            judge=judge,
+            items=pending_items,
+        )
+        path = jb.write_pending(bundle)
+        bundle_ids.append(bundle["bundle_id"])
+        print(f"[{slice_name}] wrote bundle {bundle['bundle_id']} ({len(pending_items)} item(s)) -> {path}")
+    print(
+        f"[{slice_name}] judge HTTP calls: 0; bundles queued: {len(bundle_ids)} "
+        f"({cache_hits} cache hits)"
+    )
+    return results, bundle_ids, cache_hits, errors
+
+
+def _reaction_aggregate(results: list[dict]) -> dict:
+    """Aggregate reaction `in_character` mean over judged results. Mirrors
+    `_dialogue_aggregate`: shared by the bundled runner (only cache hits
+    visible) and `ingest` (after subagent results land in the cache)."""
+    sum_score = 0.0
+    judged = 0
+    bench_bugs = 0
+    for r in results:
+        j = r.get("judgment")
+        if not r.get("judged") or not j or not j.get("axes"):
+            continue
+        flags = j.get("flags") or {}
+        if flags.get("bench_bug"):
+            bench_bugs += 1
+            continue
+        judged += 1
+        sum_score += j["axes"].get("in_character", 0)
+    n = max(1, judged)
+    summary = {
+        "slice": "reaction",
+        "records": len(results),
+        "judged": judged,
+        "bench_bugs": bench_bugs,
+        "judge_failures": len([r for r in results if not r.get("error") and not r.get("judged")]),
+        "errors": len([r for r in results if r.get("error")]),
+        "mean_score": sum_score / n,
+    }
+    if judged == 0:
+        summary["mean_score"] = None
+    return summary
+
+
+def run_reaction_bundled(target: Target, records: list[dict], tracker: CostTracker, args, judge: dict) -> dict:
+    """Subagent-judged variant of `run_reaction`. Mirrors dialogue's
+    bundled pattern: generate replies, write one bundle to the queue,
+    let `ingest --finalize` fold scores back after `/rundale-bench
+    drain-queue` runs."""
+    verify_judge_rubric(judge)
+    candidate = _bundled_candidate(target, args)
+
+    def gen(rec):
+        reply, usage = call_chat(
+            target,
+            rec["system_template"],
+            rec["prompt"],
+            max_tokens=rec.get("max_tokens", 100),
+        )
+        tracker.record(target, usage)
+        return reply, usage
+
+    results, bundle_ids, cache_hits, _errors = _queue_or_collect(
+        "reaction", records, judge, candidate, gen, item_extra_keys=("persona",)
+    )
+
+    summary = _reaction_aggregate(results)
+    summary["judge"] = judge["judge_id"]
+    summary["judge_model"] = judge["model"]
+    summary["rubric_sha256"] = judge["rubric_sha256"]
+    summary["bundles_queued"] = len(bundle_ids)
+    summary["cache_hits"] = cache_hits
+    if len(bundle_ids) > 0 and summary.get("judged", 0) < summary.get("records", 0):
+        summary["pending_judge"] = True
+        summary["mean_score"] = None
+    return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
+
+
 def run_reaction(target: Target, records: list[dict], tracker: CostTracker, args) -> dict:
     judge = load_judge("judge_reaction_v1", args.suite)
+    if _judge_is_subagent(judge):
+        return run_reaction_bundled(target, records, tracker, args, judge)
     invoke = judge_invoker(judge, tracker)
     results = []
     score_sum = 0.0
@@ -370,8 +526,116 @@ def run_reaction(target: Target, records: list[dict], tracker: CostTracker, args
     return {"summary": summary, "results": results}
 
 
+def _simulation_aggregate(results: list[dict], slice_name: str) -> dict:
+    """Aggregate simulation `plausibility` mean over judged results plus
+    the deterministic `schema_valid_rate` (which was computed at
+    response time, independent of the judge)."""
+    sum_score = 0.0
+    judged = 0
+    bench_bugs = 0
+    schema_valid = 0
+    for r in results:
+        if r.get("schema_valid"):
+            schema_valid += 1
+        j = r.get("judgment")
+        if not r.get("judged") or not j or not j.get("axes"):
+            continue
+        flags = j.get("flags") or {}
+        if flags.get("bench_bug"):
+            bench_bugs += 1
+            continue
+        judged += 1
+        sum_score += j["axes"].get("plausibility", 0)
+    n = max(1, judged)
+    summary = {
+        "slice": slice_name,
+        "records": len(results),
+        "judged": judged,
+        "bench_bugs": bench_bugs,
+        "judge_failures": len([r for r in results if not r.get("error") and not r.get("judged")]),
+        "errors": len([r for r in results if r.get("error")]),
+        "schema_valid_rate": schema_valid / max(1, len(results)),
+        "mean_score": sum_score / n,
+    }
+    if judged == 0:
+        summary["mean_score"] = None
+    return summary
+
+
+def run_simulation_bundled(slice_name: str, target: Target, records: list[dict], tracker: CostTracker, args, judge: dict) -> dict:
+    """Subagent-judged variant of `run_simulation`. Schema validity is
+    computed at response time (deterministic, no judge); plausibility
+    scoring defers to the bundled subagent."""
+    verify_judge_rubric(judge)
+    candidate = _bundled_candidate(target, args)
+
+    def gen(rec):
+        reply, usage = call_chat(
+            target, None, rec["prompt"],
+            schema=rec["schema"],
+            max_tokens=600 if slice_name == "tier3-sim" else 200,
+        )
+        tracker.record(target, usage)
+        return reply, usage
+
+    rubric_sha = judge["rubric_sha256"]
+    judge_model = judge["model"]
+    results: list[dict] = []
+    pending_items: list[dict] = []
+    cache_hits = 0
+    for rec in records:
+        try:
+            reply, _usage = gen(rec)
+        except Exception as e:
+            results.append({"id": rec["id"], "error": str(e), "schema_valid": False})
+            continue
+        # Inline schema-validation so the deterministic rate is captured even
+        # when the judge defers to a subagent. `grade_schema` is the same
+        # check the HTTP-judge path uses inside grade_simulation, factored
+        # out here so the bundled path can reuse it without invoking a judge.
+        schema_valid = grade_schema(reply, rec["schema"]).get("schema_valid", False)
+        key = judgment_cache.cache_key(rec["id"], reply, rubric_sha, judge_model)
+        entry = {
+            "id": rec["id"],
+            "reply": reply,
+            "schema_valid": schema_valid,
+            "response_sha256": judgment_cache.response_sha256(reply),
+            "cache_key": key,
+        }
+        cached = judgment_cache.get(key)
+        if cached is not None:
+            entry["judged"] = True
+            entry["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
+            cache_hits += 1
+        else:
+            entry["judged"] = False
+            pending_items.append({"prompt_id": rec["id"], "prompt": rec.get("prompt", ""), "response": reply})
+        results.append(entry)
+
+    bundle_ids: list[str] = []
+    if pending_items:
+        bundle = jb.assemble_bundle(slice_name=slice_name, candidate=candidate, judge=judge, items=pending_items)
+        path = jb.write_pending(bundle)
+        bundle_ids.append(bundle["bundle_id"])
+        print(f"[{slice_name}] wrote bundle {bundle['bundle_id']} ({len(pending_items)} item(s)) -> {path}")
+    print(f"[{slice_name}] judge HTTP calls: 0; bundles queued: {len(bundle_ids)} ({cache_hits} cache hits)")
+
+    summary = _simulation_aggregate(results, slice_name)
+    summary["judge"] = judge["judge_id"]
+    summary["judge_model"] = judge_model
+    summary["rubric_sha256"] = rubric_sha
+    summary["bundles_queued"] = len(bundle_ids)
+    summary["cache_hits"] = cache_hits
+    if len(bundle_ids) > 0 and summary.get("judged", 0) < summary.get("records", 0):
+        summary["pending_judge"] = True
+        summary["mean_score"] = None
+    return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
+
+
 def run_simulation(slice_name: str, target: Target, records: list[dict], tracker: CostTracker, args) -> dict:
     judge = load_judge("judge_sim_v1", args.suite)
+    if _judge_is_subagent(judge):
+        return run_simulation_bundled(slice_name, target, records, tracker, args, judge)
     invoke = judge_invoker(judge, tracker)
     results = []
     valid = 0
@@ -413,8 +677,99 @@ def _gaeilge_candidate_prompt(rec: dict) -> str:
     )
 
 
+_GAEILGE_AXES = ("fluency", "grammar", "idiom", "task_fulfillment", "english_leakage")
+
+
+def _gaeilge_aggregate(results: list[dict]) -> dict:
+    """Aggregate Gaeilge per-axis means + leakage flag rate over judged
+    results. Mirrors the dialogue/reaction shape: shared between the
+    bundled runner (partial: cache hits only) and `ingest` (after
+    subagent results land)."""
+    sums = {k: 0.0 for k in _GAEILGE_AXES}
+    overall_sum = 0.0
+    judged = 0
+    bench_bugs = 0
+    leakage_flags = 0
+    for r in results:
+        j = r.get("judgment")
+        if not r.get("judged") or not j or not j.get("axes"):
+            continue
+        flags = j.get("flags") or {}
+        if flags.get("bench_bug"):
+            bench_bugs += 1
+            continue
+        judged += 1
+        for k in _GAEILGE_AXES:
+            sums[k] += j["axes"].get(k, 0)
+        overall_sum += j.get("overall") or 0.0
+        if j["axes"].get("english_leakage", 5) < 4:
+            leakage_flags += 1
+    n = max(1, judged)
+    summary = {
+        "slice": "gaeilge",
+        "records": len(results),
+        "judged": judged,
+        "bench_bugs": bench_bugs,
+        "judge_failures": len([r for r in results if not r.get("error") and not r.get("judged")]),
+        "errors": len([r for r in results if r.get("error")]),
+        "english_leakage_flag_rate": leakage_flags / n,
+        **{f"{k}_mean": sums[k] / n for k in _GAEILGE_AXES},
+        "overall_mean": overall_sum / n,
+    }
+    if judged == 0:
+        for k in _GAEILGE_AXES:
+            summary[f"{k}_mean"] = None
+        summary["overall_mean"] = None
+        summary["english_leakage_flag_rate"] = None
+    return summary
+
+
+def run_gaeilge_bundled(target: Target, records: list[dict], tracker: CostTracker, args, judge: dict) -> dict:
+    """Subagent-judged variant of `run_gaeilge`. Mirrors dialogue's
+    bundled pattern: generate candidate Irish replies, write one bundle
+    to the queue, defer all axis scoring to `/rundale-bench
+    drain-queue` + `ingest --finalize`."""
+    verify_judge_rubric(judge)
+    candidate = _bundled_candidate(target, args)
+
+    def gen(rec):
+        reply, usage = call_chat(
+            target,
+            GAEILGE_SYS,
+            _gaeilge_candidate_prompt(rec),
+            max_tokens=rec.get("max_tokens", 300),
+            temperature=0.2,
+        )
+        tracker.record(target, usage)
+        return reply, usage
+
+    # gaeilge bundle items must also include the per-record corpus context
+    # (task_type, constraints, expected_features, reference_irish) so the
+    # subagent system prompt has the same grounding the HTTP judge used.
+    results, bundle_ids, cache_hits, _errors = _queue_or_collect(
+        "gaeilge", records, judge, candidate, gen,
+        item_extra_keys=("task_type", "constraints", "expected_features", "reference_irish"),
+    )
+
+    summary = _gaeilge_aggregate(results)
+    summary["judge"] = judge["judge_id"]
+    summary["judge_model"] = judge["model"]
+    summary["rubric_sha256"] = judge["rubric_sha256"]
+    summary["bundles_queued"] = len(bundle_ids)
+    summary["cache_hits"] = cache_hits
+    if len(bundle_ids) > 0 and summary.get("judged", 0) < summary.get("records", 0):
+        summary["pending_judge"] = True
+        for k in _GAEILGE_AXES:
+            summary[f"{k}_mean"] = None
+        summary["overall_mean"] = None
+        summary["english_leakage_flag_rate"] = None
+    return {"summary": summary, "results": results, "bundles": bundle_ids, "candidate": candidate}
+
+
 def run_gaeilge(target: Target, records: list[dict], tracker: CostTracker, args) -> dict:
     judge = load_judge("judge_gaeilge_v1", args.suite)
+    if _judge_is_subagent(judge):
+        return run_gaeilge_bundled(target, records, tracker, args, judge)
     invoke = judge_invoker(judge, tracker)
     results = []
     axis_sums = {
@@ -742,30 +1097,64 @@ def cmd_ingest(argv: list[str]) -> None:
           f"pending unjudged: {len(unjudged)}; run files refreshed: {refreshed}")
 
 
+_SLICE_AGGREGATORS = {
+    "dialogue": lambda results, slice_name: _dialogue_aggregate(results),
+    "reaction": lambda results, slice_name: _reaction_aggregate(results),
+    "tier2-sim": _simulation_aggregate,
+    "tier3-sim": _simulation_aggregate,
+    "gaeilge":   lambda results, slice_name: _gaeilge_aggregate(results),
+}
+
+
 def _refresh_run_aggregates() -> int:
-    """Re-read every artifacts/run_*.json dialogue slice and fold in any
-    judgments now present in the cache, recomputing the aggregate."""
+    """Re-read every artifacts/run_*.json bundled slice and fold in any
+    judgments now present in the cache, recomputing the slice aggregate.
+
+    Bundled slices are: dialogue, reaction, tier2-sim, tier3-sim, gaeilge.
+    Intent stays deterministic (no judge) and is skipped. The function
+    walks every slice with a registered aggregator, looks for results
+    entries with a cache_key and judged=False, and folds in any cache hit
+    that landed since the last `ingest`.
+    """
     refreshed = 0
     for run_path in sorted(_ARTIFACTS_DIR.glob("run_*.json")):
         out = json.loads(run_path.read_text(encoding="utf-8"))
-        dia = out.get("slices", {}).get("dialogue")
-        if not dia or "results" not in dia:
+        slices = out.get("slices", {})
+        if not slices:
             continue
-        changed = False
-        for r in dia["results"]:
-            key = r.get("cache_key")
-            if not key or r.get("judged"):
+        run_changed = False
+        for slice_name, agg in _SLICE_AGGREGATORS.items():
+            slc = slices.get(slice_name)
+            if not slc or "results" not in slc:
                 continue
-            cached = judgment_cache.get(key)
-            if cached is not None:
-                r["judged"] = True
-                r["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
-                changed = True
-        if changed:
-            new_summary = _dialogue_aggregate(dia["results"])
-            new_summary.update({k: dia["summary"][k] for k in ("judge", "judge_model", "rubric_sha256")
-                                if k in dia.get("summary", {})})
-            dia["summary"] = new_summary
+            slice_changed = False
+            for r in slc["results"]:
+                key = r.get("cache_key")
+                if not key or r.get("judged"):
+                    continue
+                cached = judgment_cache.get(key)
+                if cached is not None:
+                    r["judged"] = True
+                    r["judgment"] = {k: cached.get(k) for k in ("axes", "overall", "flags")}
+                    slice_changed = True
+            if slice_changed:
+                new_summary = agg(slc["results"], slice_name)
+                # Preserve identity fields (judge, judge_model, rubric_sha256,
+                # pending_judge → drop once judged) carried by the original
+                # bundled summary so the leaderboard's by-judge column stays
+                # accurate.
+                for k in ("judge", "judge_model", "rubric_sha256"):
+                    if k in slc.get("summary", {}):
+                        new_summary[k] = slc["summary"][k]
+                # pending_judge is dropped: if every result is judged, the
+                # slice is no longer pending.
+                pending = any(not r.get("judged") and not r.get("error")
+                              for r in slc["results"])
+                if pending:
+                    new_summary["pending_judge"] = True
+                slc["summary"] = new_summary
+                run_changed = True
+        if run_changed:
             run_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
             refreshed += 1
     return refreshed

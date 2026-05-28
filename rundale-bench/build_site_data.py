@@ -103,6 +103,150 @@ def slugify(model_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", model_id).strip("-").lower()
 
 
+# Quant suffixes the local runner appends to the HuggingFace repo basename.
+# Order matters: longer compound tags (`qat-4bit`, `optiq-4bit`, `dwq-4bit`,
+# `mxfp4-q8`) must match before the bare quant fragments.
+_LOCAL_QUANT_TAGS = (
+    "qat-4bit", "optiq-4bit", "dwq-4bit", "mxfp4-q8",
+    "mxfp4", "nvfp4", "bf16",
+    "4bit", "5bit", "6bit", "8bit",
+)
+
+
+def _local_quant_label(quant_token: str) -> str:
+    """Human-readable variant of a quant token (e.g. `qat-4bit` → `QAT 4-bit`)."""
+    if not quant_token:
+        return ""
+    pretty = (
+        quant_token
+        .replace("optiq-4bit", "OptiQ 4-bit")
+        .replace("qat-4bit", "QAT 4-bit")
+        .replace("dwq-4bit", "DWQ 4-bit")
+        .replace("mxfp4-q8", "MXFP4 Q8")
+        .replace("mxfp4", "MXFP4")
+        .replace("nvfp4", "NVFP4")
+        .replace("bf16", "bf16")
+    )
+    if pretty == quant_token:
+        # Bare `<n>bit` → `<n>-bit`.
+        m = re.fullmatch(r"(\d+)bit", quant_token)
+        if m:
+            pretty = f"{m.group(1)}-bit"
+    return pretty
+
+
+def _strip_quant_suffix(basename: str) -> tuple[str, str]:
+    """Return `(stem_without_quant, quant_token)` for an mlx-community repo
+    basename. `quant_token` is `""` when no recognised quant suffix is
+    present."""
+    lower = basename.lower()
+    for tag in _LOCAL_QUANT_TAGS:
+        if lower.endswith("-" + tag):
+            return basename[: -(len(tag) + 1)], tag
+    return basename, ""
+
+
+def enrich_local_row(model_id: str, catalog_family: str) -> tuple[str, Optional[str]]:
+    """Compute `(family, display_name)` for any row, layering local
+    metadata over the catalog's value when the row is a local target.
+
+    - Cloud targets pass through unchanged with `display_name=None` so
+      downstream code keeps falling back to `model_id`.
+    - Local targets pick up the heuristic `family` from
+      `derive_local_metadata` (only if the catalog returned "unknown"),
+      plus a human-readable `display_name`.
+    """
+    if not model_id or not model_is_local(model_id):
+        return catalog_family, None
+    meta = derive_local_metadata(model_id)
+    family = catalog_family if catalog_family and catalog_family != "unknown" else meta["family"]
+    return family, meta["display_name"]
+
+
+def derive_local_metadata(model_id: str) -> dict:
+    """Best-effort `family`, `display_name`, and `vendor_prefix` for a local
+    repo id like `mlx-community/Qwen2.5-14B-Instruct-4bit`.
+
+    Heuristic only — no catalog lookup, so unknown lineages return
+    `family='unknown'` (which Brand.svelte will render as a colored
+    initials chip rather than a logo). Used to label MLX rows in the
+    bench-site so they sit alongside cloud rows with a logo + proper
+    name instead of the raw HuggingFace slug.
+
+    Returns ``{family, display_name, vendor_prefix}``. `vendor_prefix` is
+    the leading repo namespace (`mlx-community`, `lmstudio`, …) the
+    Brand component can use as a tertiary badge.
+    """
+    if "/" not in model_id:
+        return {"family": "unknown", "display_name": model_id, "vendor_prefix": ""}
+    vendor_prefix, _, basename = model_id.partition("/")
+    stem, quant = _strip_quant_suffix(basename)
+    quant_label = _local_quant_label(quant)
+
+    # Family inference — keyed on the lower-cased stem so additions to
+    # FAMILY_TO_SLUG (in lib/brands.ts) map automatically.
+    lower = stem.lower()
+    family = "unknown"
+    if lower.startswith("qwen3.6"):    family = "qwen3.6"
+    elif lower.startswith("qwen3.5"):  family = "qwen3.5"
+    elif lower.startswith("qwen3-") or lower == "qwen3" or lower.startswith("qwen3-coder"):
+        family = "qwen3"
+    elif lower.startswith("qwen2.5"):  family = "qwen2.5"
+    elif lower.startswith("gemma-4") or lower.startswith("gemma-3"):
+        family = "gemma"
+    elif lower.startswith("llama-4") or lower.startswith("llama-3"):
+        family = "llama"
+    elif lower.startswith("mistral") or lower.startswith("ministral") or lower.startswith("devstral"):
+        family = "mistral"
+    elif lower.startswith("deepseek"):
+        family = "deepseek-flash" if "flash" in lower else "deepseek"
+    elif lower.startswith("phi-"):     family = "phi"
+    elif lower.startswith("glm-"):     family = "glm"
+    elif lower.startswith("lfm"):      family = "liquid"
+    elif lower.startswith("minimax"):  family = "minimax-m2.5"
+    elif lower.startswith("eurollm"):  family = "eurollm"
+
+    # Display name: split on dashes, drop noise tokens like "mlx" /
+    # date-code "2512" (the quant tag already announces it's an MLX
+    # build, and the dated tag is uploader scaffolding), pretty-print
+    # each token (parameter counts like "70b" → "70B", MoE tags like
+    # "A3B" stay intact, brand-name tokens like "DeepSeek" keep their
+    # casing), then expand glued version numbers (Qwen2.5 → Qwen 2.5)
+    # **only** on the first token so MoE tags ("A3B") and DeepSeek
+    # versioning ("V4") don't get over-split.
+    _NOISE_TOKENS = {"mlx"}
+
+    def _pretty_token(t: str) -> str:
+        if not t or t.lower() in _NOISE_TOKENS:
+            return ""
+        # Parameter-count tag: "70b" / "27B" → "70B".
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)([bBmM])", t)
+        if m:
+            return m.group(1) + m.group(2).upper()
+        # MoE active-param tag (A3B, A4B, A22B): keep verbatim.
+        if re.fullmatch(r"A\d+B", t, re.IGNORECASE):
+            return t.upper()
+        # All-caps tags (MXFP4, NVFP4, QAT, MoE letters) stay as-is.
+        if t.isupper():
+            return t
+        # Mixed-case brand tokens like "DeepSeek", "EuroLLM", "Qwen2.5"
+        # keep their author casing.
+        if any(c.isupper() for c in t) and any(c.islower() for c in t):
+            return t
+        return t[:1].upper() + t[1:].lower()
+
+    tokens = [_pretty_token(t) for t in stem.split("-")]
+    tokens = [t for t in tokens if t]
+    if tokens:
+        # Only expand glued version numbers on the leading brand token
+        # ("Qwen2.5" → "Qwen 2.5", "Llama3" → "Llama 3"). Trailing
+        # tokens like "A3B" or "V4" stay glued.
+        tokens[0] = re.sub(r"([A-Za-z]+)(\d)", r"\1 \2", tokens[0])
+    pretty_stem = " ".join(tokens).strip()
+    display_name = f"{pretty_stem} (MLX {quant_label})" if quant_label else pretty_stem
+    return {"family": family, "display_name": display_name, "vendor_prefix": vendor_prefix}
+
+
 def _infer_provider(candidate_id: str, model_to_provider: Optional[dict] = None) -> str:
     """Best-effort provider tag for legacy perf rows (no provider_id field).
 
@@ -366,10 +510,12 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
         if not model_id:
             continue
         ts = _run_ts(out, path)
+        fam, display_name = enrich_local_row(model_id, families.get(model_id, "unknown"))
         row = {
             "model_id": model_id,
+            "display_name": display_name,
             "slug": slugify(model_id),
-            "family": families.get(model_id, "unknown"),
+            "family": fam,
             "tier": out.get("tier"),
             "overall": s.get("overall"),
             "judged": s.get("judged", s.get("records")),
@@ -409,9 +555,10 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
             continue
         ts = row.get("measured_utc", "")
         if key not in latest or ts > latest[key][0]:
-            fam = (families or {}).get(row["model_id"], "unknown")
+            fam, display_name = enrich_local_row(row["model_id"], (families or {}).get(row["model_id"], "unknown"))
             latest[key] = (ts, {**row, "slug": slugify(row["model_id"]),
-                                 "family": fam, "source": "phase3"})
+                                 "family": fam, "display_name": display_name,
+                                 "source": "phase3"})
 
     # Legacy multi-target perf JSONs (one file holds many per_target entries)
     if legacy_dir and legacy_dir.exists():
@@ -426,10 +573,12 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
                 key = (cand, pid)
                 n_streamed = stats.get("n_streamed", 0) or 0
                 n_ok = stats.get("n_ok", 0) or 0
+                fam, display_name = enrich_local_row(cand, (families or {}).get(cand, "unknown"))
                 row = {
                     "model_id": cand,
+                    "display_name": display_name,
                     "slug": slugify(cand),
-                    "family": (families or {}).get(cand, "unknown"),
+                    "family": fam,
                     "provider_id": pid,
                     "model_name_at_provider": cand,
                     "n_ok": n_ok,
@@ -468,10 +617,12 @@ def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[
         if not model_id:
             continue
         ts = _run_ts(out, path)
+        fam, display_name = enrich_local_row(model_id, families.get(model_id, "unknown"))
         row = {
             "model_id": model_id,
+            "display_name": display_name,
             "slug": slugify(model_id),
-            "family": families.get(model_id, "unknown"),
+            "family": fam,
             "overall": s.get("overall_mean"),
             "records": s.get("records"),
             "errors": s.get("errors"),
@@ -644,8 +795,12 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
 
     def _ensure(slug: str, model_id: str) -> dict:
         if slug not in by_slug:
+            # Local rows pick up display_name + heuristic family even when
+            # the catalog doesn't carry the repo.
+            _, display_name = enrich_local_row(model_id, "unknown")
             by_slug[slug] = {
                 "slug": slug, "model_id": model_id,
+                "display_name": display_name,
                 "family": "unknown",
                 "is_local": model_is_local(model_id),
                 "dialogue_overall": None, "gaeilge_overall": None,

@@ -53,7 +53,7 @@
             {:else if brand?.kind === 'fallback'}
               <span class="brand-fallback" role="img" aria-label={brand.title} title={brand.title} style={`background:#${brand.hex}`}>{brand.initials}</span>
             {/if}
-            <a href={`${base}/models/${r.slug}`}>{r.model_id}</a>
+            <a href={`${base}/models/${r.slug}`} title={r.model_id}>{r.display_name ?? r.model_id}</a>
             {#if r.judge_id}<span class="badge" title="judge model" style="margin-left:0.3rem">⚖ {r.judge_id}</span>{/if}
             {#if r.bench_bugs > 0}<span class="badge" title="responses the judge flagged as bench-harness bugs (chain-of-thought leak / blank reply) and excluded from the score" style="margin-left:0.3rem;background:#fde68a;color:#92400e">🐛 {r.bench_bugs} bug{r.bench_bugs === 1 ? '' : 's'}</span>{/if}</td>
           <td class="num"><strong>{fmt(r.overall)}</strong></td>

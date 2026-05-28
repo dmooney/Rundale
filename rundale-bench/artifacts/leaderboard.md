@@ -9,12 +9,12 @@ Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html)
 | Metric | Count |
 | --- | --- |
 | Cached candidates | 30 |
-| Judged candidates | 29 |
-| Unjudged backlog | 1 |
-| Distinct judges | 2 |
-| Quality rows | 57 |
-| Perf rows | 30 |
-| Gaeilge rows | 1 |
+| Judged candidates | 0 |
+| Unjudged backlog | 30 |
+| Distinct judges | 1 |
+| Quality rows | 16 |
+| Perf rows | 48 |
+| Gaeilge rows | 18 |
 
 ## Gaeilge fluency (1-5 rubric)
 
@@ -22,113 +22,74 @@ Latest `--slice gaeilge` run per candidate/base/split. Higher is better; English
 
 | Candidate | Split | n | Err | Overall | Fluency | Grammar | Idiom | Task | No Eng | Cost | File |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| mlx-community/Qwen2.5-14B-Instruct-4bit | dev | 11 | 0 | 2.11 | 2.09 | 2.27 | 2.09 | 1.91 | 4.82 | $0.0529 | run_mlx_community_Qwen2_5_14B_Instruct_4bit_gaeilge_20260518T174855Z.json |
+| deepseek-v4-pro | dev | 10 | 0 | 5.00 | 5.00 | 5.00 | 5.00 | 5.00 | 5.00 | $0.0452 | run_deepseek_v4_pro_all_20260525T150557Z.json |
+| qwen3.6-plus | dev | 10 | 0 | 5.00 | 5.00 | 5.00 | 5.00 | 5.00 | 5.00 | $0.0453 | run_qwen3_6_plus_all_20260525T121550Z.json |
+| deepseek-v4-flash | dev | 10 | 0 | 4.98 | 5.00 | 5.00 | 4.90 | 5.00 | 5.00 | $0.0447 | run_deepseek_v4_flash_all_20260525T145235Z.json |
+| kimi-k2.5 | dev | 10 | 0 | 4.90 | 4.90 | 4.90 | 4.90 | 4.90 | 5.00 | $0.0459 | run_kimi_k2_5_all_20260525T113604Z.json |
+| kimi-k2.6 | dev | 10 | 0 | 4.90 | 4.90 | 4.90 | 4.90 | 4.90 | 5.00 | $0.0462 | run_kimi_k2_6_all_20260525T114701Z.json |
+| qwen3.5-plus | dev | 10 | 0 | 4.85 | 4.90 | 4.80 | 4.80 | 4.90 | 5.00 | $0.0457 | run_qwen3_5_plus_all_20260525T115946Z.json |
+| glm-5 | dev | 10 | 0 | 4.67 | 4.60 | 4.70 | 4.50 | 4.80 | 5.00 | $0.0468 | run_glm_5_all_20260525T123316Z.json |
+| glm-5.1 | dev | 10 | 0 | 4.55 | 4.60 | 4.50 | 4.40 | 4.70 | 5.00 | $0.0468 | run_glm_5_1_all_20260525T124235Z.json |
+| mimo-v2.5 | dev | 10 | 0 | 4.52 | 4.50 | 4.50 | 4.40 | 4.60 | 5.00 | $0.0471 | run_mimo_v2_5_all_20260525T131923Z.json |
+| mlx-community/gpt-oss-20b-MXFP4-Q8 | dev | 10 | 0 | 4.52 | 4.60 | 4.40 | 4.20 | 4.40 | 5.00 | $0.0000 | run_mlx_community_gpt_oss_20b_MXFP4_Q8_all_20260527T225840Z.json |
+| mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit | dev | 10 | 0 | 4.34 | 4.30 | 4.10 | 4.10 | 4.30 | 5.00 | $0.0000 | run_mlx_community_EuroLLM_22B_Instruct_2512_mlx_4bit_all_20260528T031409Z.json |
+| mlx-community/Qwen3.6-27B-4bit | dev | 10 | 0 | 3.90 | 4.20 | 4.00 | 3.70 | 3.60 | 5.00 | $0.0000 | run_mlx_community_Qwen3_6_27B_4bit_all_20260527T223515Z.json |
+| minimax-m2.5 | dev | 10 | 0 | 3.73 | 3.70 | 3.70 | 3.80 | 4.00 | 4.60 | $0.0480 | run_minimax_m2_5_all_20260525T133323Z.json |
+| minimax-m2.7 | dev | 10 | 0 | 3.15 | 3.10 | 3.00 | 3.10 | 3.40 | 3.80 | $0.0463 | run_minimax_m2_7_all_20260525T125502Z.json |
+| mimo-v2.5-pro | dev | 10 | 0 | 2.92 | 2.90 | 2.90 | 2.90 | 3.00 | 3.40 | $0.0498 | run_mimo_v2_5_pro_all_20260525T132812Z.json |
+| mlx-community/Violet-Lyra-Gutenberg-4bit | dev | 10 | 0 | 2.60 | 2.30 | 2.30 | 2.20 | 2.10 | 4.80 | $0.0000 | run_mlx_community_Violet_Lyra_Gutenberg_4bit_all_20260528T031805Z.json |
+| mlx-community/Qwen2.5-14B-Instruct-4bit | dev | 10 | 0 | 1.88 | 1.90 | 2.00 | 1.90 | 1.70 | 5.00 | $0.0000 | run_mlx_community_Qwen2_5_14B_Instruct_4bit_all_20260527T004903Z.json |
+| mlx-community/GLM-4.7-Flash-4bit | dev | 10 | 0 | - | - | - | - | - | - | $0.0000 | run_mlx_community_GLM_4_7_Flash_4bit_all_20260528T023151Z.json |
 
-## Quality scores: cross-judge average
+## Quality scores: dialogue (1-5 rubric, Sonnet subagent judge)
 
-| Candidate | n | Total | Char | Auth | Lang | Resp | Craft | Judges |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| openai/gpt-5.5 | 30 | 8.90 | 9.04 | 9.30 | 8.50 | 8.84 | 8.84 | 2 |
-| openai/gpt-5.4 | 30 | 8.86 | 8.87 | 9.37 | 8.73 | 8.66 | 8.66 | 2 |
-| anthropic/claude-opus-4.7 | 30 | 8.85 | 8.90 | 9.33 | 8.87 | 8.57 | 8.56 | 2 |
-| qwen/qwen3-max | 30 | 8.84 | 9.04 | 9.27 | 8.63 | 8.57 | 8.70 | 2 |
-| mistralai/mistral-medium-3.1 | 30 | 8.84 | 9.03 | 9.16 | 8.90 | 8.57 | 8.54 | 2 |
-| anthropic/claude-sonnet-4.6 | 30 | 8.83 | 9.07 | 9.27 | 8.36 | 8.93 | 8.54 | 2 |
-| openai/gpt-5.4-mini | 30 | 8.83 | 8.83 | 9.30 | 8.54 | 8.87 | 8.60 | 2 |
-| qwen/qwen3-235b-a22b-2507 | 29 | 8.79 | 9.06 | 9.37 | 8.34 | 8.59 | 8.61 | 2 |
-| moonshotai/kimi-k2.5 | 30 | 8.76 | 9.04 | 9.23 | 8.40 | 8.60 | 8.53 | 2 |
-| mistralai/mistral-large-2512 | 30 | 8.75 | 8.84 | 9.13 | 8.50 | 8.60 | 8.66 | 2 |
-| google/gemma-3-27b-it | 26 | 8.72 | 8.73 | 9.21 | 8.50 | 8.62 | 8.54 | 2 |
-| x-ai/grok-3-mini | 30 | 8.63 | 8.77 | 8.96 | 8.77 | 8.53 | 8.13 | 2 |
-| meta-llama/llama-4-scout | 30 | 8.59 | 8.66 | 8.96 | 8.83 | 8.37 | 8.13 | 2 |
-| google/gemini-2.5-pro | 30 | 8.54 | 8.57 | 9.04 | 7.83 | 8.73 | 8.57 | 2 |
-| x-ai/grok-4.3 | 30 | 8.53 | 8.53 | 9.10 | 8.03 | 8.34 | 8.63 | 2 |
-| anthropic/claude-haiku-4.5 | 30 | 8.52 | 8.60 | 9.07 | 8.06 | 8.54 | 8.37 | 2 |
-| google/gemini-2.5-flash | 30 | 8.48 | 8.46 | 9.00 | 8.20 | 8.40 | 8.37 | 2 |
-| meta-llama/llama-4-maverick | 30 | 8.41 | 8.43 | 9.10 | 8.60 | 7.73 | 8.20 | 2 |
-| meta-llama/llama-3.3-70b-instruct | 30 | 8.34 | 8.13 | 8.80 | 8.63 | 8.04 | 8.07 | 2 |
-| z-ai/glm-4.6 | 30 | 8.32 | 8.30 | 9.10 | 7.60 | 8.13 | 8.50 | 2 |
-| deepseek/deepseek-v3.2 | 28 | 8.25 | 8.25 | 8.98 | 7.46 | 8.06 | 8.48 | 2 |
-| mistralai/mistral-small-24b-instruct-2501 | 30 | 7.91 | 7.90 | 8.23 | 7.40 | 8.27 | 7.74 | 2 |
-| openai/gpt-oss-120b | 26 | 7.84 | 8.08 | 8.77 | 7.04 | 7.77 | 7.54 | 2 |
-| nousresearch/hermes-4-405b | 30 | 7.60 | 7.47 | 8.04 | 7.20 | 7.73 | 7.56 | 2 |
-| openai/gpt-4o-mini | 30 | 7.43 | 7.17 | 8.03 | 6.70 | 7.73 | 7.54 | 2 |
-| amazon/nova-pro-v1 | 30 | 7.38 | 7.04 | 8.23 | 7.04 | 6.83 | 7.77 | 2 |
-| microsoft/phi-4 | 28 | 7.29 | 6.95 | 7.97 | 6.34 | 8.24 | 6.93 | 2 |
+Latest `--slice dialogue` (or `--slice all`) bench-it run per (candidate, judge, base_url, split). Same pipeline and scale for local and cloud — `mlx-community/*@http://localhost` rows sit next to `qwen3.6-plus@opencode.ai/zen` on the same rubric. Higher is better; `Overall` is the holistic float from the judge system prompt.
 
-## Quality scores: by judge
-
-| Candidate | Judge | n | Total | Char | Auth | Lang | Resp | Craft | File |
+| Candidate | Judge | n | Overall | Char | Auth | Lang | Resp | Craft | File |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| openai/gpt-5.4 | mistralai/mistral-large-2512 | 15 | 9.17 | 9.33 | 9.73 | 8.80 | 9.00 | 9.00 | multiaxis_20260515T190416Z.json |
-| anthropic/claude-sonnet-4.6 | mistralai/mistral-large-2512 | 15 | 9.13 | 9.40 | 9.53 | 8.53 | 9.13 | 9.07 | multiaxis_20260515T190416Z.json |
-| mistralai/mistral-medium-3.1 | mistralai/mistral-large-2512 | 15 | 9.09 | 9.33 | 9.33 | 8.93 | 8.87 | 9.00 | multiaxis_20260515T190642Z.json |
-| anthropic/claude-opus-4.7 | mistralai/mistral-large-2512 | 15 | 9.05 | 9.20 | 9.53 | 8.93 | 8.67 | 8.93 | multiaxis_20260515T190416Z.json |
-| openai/gpt-5.5 | mistralai/mistral-large-2512 | 15 | 9.05 | 9.27 | 9.60 | 8.53 | 8.87 | 9.00 | multiaxis_20260515T190416Z.json |
-| google/gemma-3-27b-it | mistralai/mistral-large-2512 | 15 | 9.03 | 9.20 | 9.60 | 8.73 | 8.60 | 9.00 | multiaxis_20260514T172222Z.json |
-| qwen/qwen3-max | mistralai/mistral-large-2512 | 15 | 9.03 | 9.27 | 9.47 | 8.60 | 8.80 | 9.00 | multiaxis_20260514T174548Z.json |
-| openai/gpt-5.4-mini | mistralai/mistral-large-2512 | 15 | 9.03 | 9.13 | 9.53 | 8.60 | 8.93 | 8.93 | multiaxis_20260515T190642Z.json |
-| qwen/qwen3-235b-a22b-2507 | mistralai/mistral-large-2512 | 15 | 9.00 | 9.33 | 9.67 | 8.47 | 8.53 | 9.00 | multiaxis_20260514T172222Z.json |
-| google/gemini-2.5-pro | mistralai/mistral-large-2512 | 15 | 8.97 | 9.13 | 9.40 | 8.33 | 8.93 | 9.07 | multiaxis_20260515T191140Z.json |
-| moonshotai/kimi-k2.5 | mistralai/mistral-large-2512 | 15 | 8.96 | 9.20 | 9.33 | 8.40 | 8.73 | 9.13 | multiaxis_20260515T184612Z.json |
-| anthropic/claude-haiku-4.5 | mistralai/mistral-large-2512 | 15 | 8.93 | 9.13 | 9.27 | 8.33 | 9.00 | 8.93 | multiaxis_20260514T170413Z.json |
-| mistralai/mistral-large-2512 | mistralai/mistral-large-2512 | 15 | 8.88 | 9.07 | 9.27 | 8.40 | 8.67 | 9.00 | multiaxis_20260514T170413Z.json |
-| meta-llama/llama-4-scout | mistralai/mistral-large-2512 | 15 | 8.87 | 9.00 | 9.20 | 8.93 | 8.60 | 8.60 | multiaxis_20260515T190642Z.json |
-| x-ai/grok-3-mini | mistralai/mistral-large-2512 | 15 | 8.84 | 9.00 | 9.00 | 8.87 | 8.73 | 8.60 | multiaxis_20260514T170413Z.json |
-| meta-llama/llama-3.3-70b-instruct | mistralai/mistral-large-2512 | 15 | 8.84 | 8.87 | 9.20 | 8.87 | 8.60 | 8.67 | multiaxis_20260515T190642Z.json |
-| google/gemini-2.5-flash | mistralai/mistral-large-2512 | 15 | 8.81 | 8.93 | 9.20 | 8.40 | 8.53 | 9.00 | multiaxis_20260514T170413Z.json |
-| x-ai/grok-4.3 | mistralai/mistral-large-2512 | 15 | 8.80 | 8.93 | 9.33 | 8.33 | 8.47 | 8.93 | multiaxis_20260515T190416Z.json |
-| meta-llama/llama-4-maverick | mistralai/mistral-large-2512 | 15 | 8.80 | 8.87 | 9.33 | 8.87 | 8.27 | 8.67 | multiaxis_20260515T190642Z.json |
-| z-ai/glm-4.6 | mistralai/mistral-large-2512 | 15 | 8.76 | 8.87 | 9.47 | 8.13 | 8.47 | 8.87 | multiaxis_20260515T191118Z.json |
-| openai/gpt-5.5 | x-ai/grok-4.3 | 15 | 8.75 | 8.80 | 9.00 | 8.47 | 8.80 | 8.67 | multiaxis_20260515T190357Z.json |
-| qwen/qwen3-max | x-ai/grok-4.3 | 15 | 8.65 | 8.80 | 9.07 | 8.67 | 8.33 | 8.40 | multiaxis_20260514T184902Z.json |
-| anthropic/claude-opus-4.7 | x-ai/grok-4.3 | 15 | 8.64 | 8.60 | 9.13 | 8.80 | 8.47 | 8.20 | multiaxis_20260515T190357Z.json |
-| openai/gpt-5.4-mini | x-ai/grok-4.3 | 15 | 8.63 | 8.53 | 9.07 | 8.47 | 8.80 | 8.27 | multiaxis_20260515T190615Z.json |
-| mistralai/mistral-large-2512 | x-ai/grok-4.3 | 15 | 8.61 | 8.60 | 9.00 | 8.60 | 8.53 | 8.33 | multiaxis_20260514T184629Z.json |
-| deepseek/deepseek-v3.2 | mistralai/mistral-large-2512 | 15 | 8.59 | 8.73 | 9.27 | 8.00 | 8.20 | 8.73 | multiaxis_20260514T172222Z.json |
-| qwen/qwen3-235b-a22b-2507 | x-ai/grok-4.3 | 14 | 8.59 | 8.79 | 9.07 | 8.21 | 8.64 | 8.21 | multiaxis_20260514T182859Z.json |
-| mistralai/mistral-medium-3.1 | x-ai/grok-4.3 | 15 | 8.59 | 8.73 | 9.00 | 8.87 | 8.27 | 8.07 | multiaxis_20260515T190615Z.json |
-| moonshotai/kimi-k2.5 | x-ai/grok-4.3 | 15 | 8.56 | 8.87 | 9.13 | 8.40 | 8.47 | 7.93 | multiaxis_20260515T184523Z.json |
-| openai/gpt-oss-120b | mistralai/mistral-large-2512 | 13 | 8.55 | 8.85 | 9.23 | 8.15 | 8.00 | 8.54 | multiaxis_20260514T172222Z.json |
-| openai/gpt-5.4 | x-ai/grok-4.3 | 15 | 8.55 | 8.40 | 9.00 | 8.67 | 8.33 | 8.33 | multiaxis_20260515T190357Z.json |
-| anthropic/claude-sonnet-4.6 | x-ai/grok-4.3 | 15 | 8.53 | 8.73 | 9.00 | 8.20 | 8.73 | 8.00 | multiaxis_20260515T190357Z.json |
-| nousresearch/hermes-4-405b | mistralai/mistral-large-2512 | 15 | 8.51 | 8.47 | 9.07 | 7.87 | 8.53 | 8.60 | multiaxis_20260515T190642Z.json |
-| x-ai/grok-3-mini | x-ai/grok-4.3 | 15 | 8.43 | 8.53 | 8.93 | 8.67 | 8.33 | 7.67 | multiaxis_20260514T184629Z.json |
-| google/gemma-3-27b-it | x-ai/grok-4.3 | 11 | 8.42 | 8.27 | 8.82 | 8.27 | 8.64 | 8.09 | multiaxis_20260514T182859Z.json |
-| mistralai/mistral-small-24b-instruct-2501 | mistralai/mistral-large-2512 | 15 | 8.32 | 8.33 | 8.67 | 7.80 | 8.33 | 8.47 | multiaxis_20260514T172222Z.json |
-| meta-llama/llama-4-scout | x-ai/grok-4.3 | 15 | 8.32 | 8.33 | 8.73 | 8.73 | 8.13 | 7.67 | multiaxis_20260515T190615Z.json |
-| microsoft/phi-4 | mistralai/mistral-large-2512 | 15 | 8.28 | 8.20 | 8.87 | 7.53 | 8.40 | 8.40 | multiaxis_20260514T172222Z.json |
-| openai/gpt-4o-mini | mistralai/mistral-large-2512 | 15 | 8.27 | 8.27 | 8.93 | 7.67 | 8.00 | 8.47 | multiaxis_20260514T170413Z.json |
-| x-ai/grok-4.3 | x-ai/grok-4.3 | 15 | 8.25 | 8.13 | 8.87 | 7.73 | 8.20 | 8.33 | multiaxis_20260515T190357Z.json |
-| google/gemma-4-31b-it | x-ai/grok-4.3 | 15 | 8.19 | 8.00 | 8.67 | 7.67 | 8.40 | 8.20 | multiaxis_20260514T204402Z.json |
-| google/gemini-2.5-flash | x-ai/grok-4.3 | 15 | 8.16 | 8.00 | 8.80 | 8.00 | 8.27 | 7.73 | multiaxis_20260514T184629Z.json |
-| anthropic/claude-haiku-4.5 | x-ai/grok-4.3 | 15 | 8.12 | 8.07 | 8.87 | 7.80 | 8.07 | 7.80 | multiaxis_20260514T184629Z.json |
-| google/gemini-2.5-pro | x-ai/grok-4.3 | 15 | 8.12 | 8.00 | 8.67 | 7.33 | 8.53 | 8.07 | multiaxis_20260515T191136Z.json |
-| meta-llama/llama-4-maverick | x-ai/grok-4.3 | 15 | 8.03 | 8.00 | 8.87 | 8.33 | 7.20 | 7.73 | multiaxis_20260515T190615Z.json |
-| amazon/nova-pro-v1 | mistralai/mistral-large-2512 | 15 | 7.93 | 7.87 | 8.87 | 7.80 | 7.13 | 8.00 | multiaxis_20260515T190642Z.json |
-| deepseek/deepseek-v3.2 | x-ai/grok-4.3 | 13 | 7.91 | 7.77 | 8.69 | 6.92 | 7.92 | 8.23 | multiaxis_20260514T182859Z.json |
-| z-ai/glm-4.6 | x-ai/grok-4.3 | 15 | 7.89 | 7.73 | 8.73 | 7.07 | 7.80 | 8.13 | multiaxis_20260515T191114Z.json |
-| meta-llama/llama-3.3-70b-instruct | x-ai/grok-4.3 | 15 | 7.83 | 7.40 | 8.40 | 8.40 | 7.47 | 7.47 | multiaxis_20260515T190615Z.json |
-| deepseek/deepseek-v4-pro | x-ai/grok-4.3 | 14 | 7.79 | 7.79 | 8.21 | 7.21 | 7.79 | 7.93 | multiaxis_20260514T180815Z.json |
-| deepseek/deepseek-v4-pro | x-ai/grok-4.3 | 14 | 7.77 | 7.71 | 8.21 | 7.21 | 7.93 | 7.79 | multiaxis_20260514T185110Z.json |
-| mistralai/mistral-small-24b-instruct-2501 | x-ai/grok-4.3 | 15 | 7.49 | 7.47 | 7.80 | 7.00 | 8.20 | 7.00 | multiaxis_20260514T182859Z.json |
-| openai/gpt-oss-120b | x-ai/grok-4.3 | 13 | 7.12 | 7.31 | 8.31 | 5.92 | 7.54 | 6.54 | multiaxis_20260514T182859Z.json |
-| amazon/nova-pro-v1 | x-ai/grok-4.3 | 15 | 6.83 | 6.20 | 7.60 | 6.27 | 6.53 | 7.53 | multiaxis_20260515T190615Z.json |
-| nousresearch/hermes-4-405b | x-ai/grok-4.3 | 15 | 6.69 | 6.47 | 7.00 | 6.53 | 6.93 | 6.53 | multiaxis_20260515T190615Z.json |
-| openai/gpt-4o-mini | x-ai/grok-4.3 | 15 | 6.60 | 6.07 | 7.13 | 5.73 | 7.47 | 6.60 | multiaxis_20260514T184629Z.json |
-| microsoft/phi-4 | x-ai/grok-4.3 | 13 | 6.29 | 5.69 | 7.08 | 5.15 | 8.08 | 5.46 | multiaxis_20260514T182859Z.json |
+| mimo-v2.5-pro | claude-sonnet-4-6 | 10 | 4.58 | 4.50 | 4.40 | 4.90 | 5.00 | 4.10 | run_mimo_v2_5_pro_dialogue_20260525T165708Z.json |
+| qwen3.5-plus | claude-sonnet-4-6 | 10 | 4.38 | 4.00 | 4.00 | 5.00 | 4.90 | 4.00 | run_qwen3_5_plus_all_20260525T115946Z.json |
+| kimi-k2.5 | claude-sonnet-4-6 | 10 | 4.36 | 4.10 | 4.10 | 4.90 | 4.70 | 4.00 | run_kimi_k2_5_all_20260525T113604Z.json |
+| minimax-m2.5 | claude-sonnet-4-6 | 10 | 4.32 | 4.30 | 4.40 | 4.40 | 4.90 | 3.80 | run_minimax_m2_5_dialogue_20260525T165823Z.json |
+| mimo-v2.5 | claude-sonnet-4-6 | 10 | 4.26 | 4.10 | 4.00 | 4.70 | 4.60 | 3.90 | run_mimo_v2_5_dialogue_20260525T165510Z.json |
+| kimi-k2.6 | claude-sonnet-4-6 | 10 | 4.22 | 3.90 | 4.10 | 4.60 | 4.70 | 3.80 | run_kimi_k2_6_all_20260525T114701Z.json |
+| glm-5.1 | claude-sonnet-4-6 | 10 | 4.16 | 4.00 | 4.10 | 4.10 | 4.70 | 3.90 | run_glm_5_1_all_20260525T124235Z.json |
+| mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit | claude-sonnet-4-6 | 6 | 4.07 | 4.00 | 4.00 | 4.00 | 4.33 | 4.00 | run_mlx_community_EuroLLM_22B_Instruct_2512_mlx_4bit_all_20260528T031409Z.json |
+| glm-5 | claude-sonnet-4-6 | 10 | 4.06 | 4.00 | 4.00 | 4.00 | 4.50 | 3.80 | run_glm_5_all_20260525T123316Z.json |
+| minimax-m2.7 | claude-sonnet-4-6 | 10 | 4.06 | 4.10 | 4.10 | 4.30 | 4.10 | 3.70 | run_minimax_m2_7_dialogue_20260525T165932Z.json |
+| mlx-community/Qwen3.6-27B-4bit | claude-sonnet-4-6 | 10 | 4.04 | 4.20 | 4.20 | 4.00 | 4.20 | 3.60 | run_mlx_community_Qwen3_6_27B_4bit_all_20260527T223515Z.json |
+| deepseek-v4-flash | claude-sonnet-4-6 | 10 | 3.96 | 3.90 | 3.90 | 4.00 | 4.30 | 3.70 | run_deepseek_v4_flash_all_20260525T145235Z.json |
+| deepseek-v4-pro | claude-sonnet-4-6 | 10 | 3.92 | 4.00 | 4.00 | 4.00 | 4.10 | 3.50 | run_deepseek_v4_pro_all_20260525T150557Z.json |
+| qwen3.6-plus | claude-sonnet-4-6 | 10 | 3.86 | 3.80 | 3.80 | 4.00 | 4.20 | 3.50 | run_qwen3_6_plus_all_20260525T121550Z.json |
+| mlx-community/Qwen2.5-14B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.64 | 3.50 | 3.50 | 4.10 | 3.90 | 3.20 | run_mlx_community_Qwen2_5_14B_Instruct_4bit_all_20260527T004903Z.json |
+| mlx-community/Violet-Lyra-Gutenberg-4bit | claude-sonnet-4-6 | 10 | 2.76 | 3.10 | 3.00 | 2.70 | 3.00 | 2.00 | run_mlx_community_Violet_Lyra_Gutenberg_4bit_all_20260528T031805Z.json |
+
+## Quality scores: cross-judge average (1-5)
+
+Per-candidate mean across distinct judges. Empty until a candidate has been scored by 2+ judges on the dialogue rubric.
+
+_No rows yet._
 
 ## Perf probe
 
 | Candidate | n_ok | TTFT p50 ms | TTFT p90 ms | Total p50 ms | Tok/s p50 | Tok/s p90 | JSON free | JSON schema | File |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| minimax-m2.7 | 10 | 2741 | 6472 | 2781 | 4975.40 | 33363.60 | 90.0% | 90.0% | perf_20260525T125647Z.json |
+| qwen3.5-plus | 5 | 79646 | 166765 | 81710 | 2081.40 | 3724.30 | 100.0% | 100.0% | perf_20260525T121109Z.json |
+| qwen3.6-plus | 10 | 52666 | 65684 | 55809 | 961.30 | 1165.50 | 100.0% | 100.0% | perf_20260525T122541Z.json |
+| mimo-v2.5 | 10 | 3670 | 3928 | 4196 | 469.60 | 1182.80 | 10.0% | 100.0% | perf_20260525T132056Z.json |
+| mimo-v2.5-pro | 10 | 6314 | 6765 | 7714 | 354.60 | 1513.50 | 90.0% | 100.0% | perf_20260525T133003Z.json |
+| glm-5.1 | 10 | 6225 | 12159 | 7571 | 279.70 | 733.30 | 100.0% | 100.0% | perf_20260525T124438Z.json |
 | x-ai/grok-4.3 | 10 | 704 | 1561 | 3183 | 207.50 | 245.70 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | openai/gpt-4o-mini | 10 | 816 | 1280 | 1243 | 192.70 | 669.00 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
+| glm-5 | 10 | 6657 | 8412 | 7848 | 167.40 | 243.80 | 100.0% | 100.0% | perf_20260525T123506Z.json |
 | google/gemini-2.5-pro | 10 | 1925 | 2073 | 3331 | 143.30 | 165.30 | 0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | google/gemini-2.5-flash | 10 | 595 | 790 | 1032 | 99.50 | 197.10 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
+| mlx-community/gpt-oss-20b-MXFP4-Q8 | 10 | 671 | 676 | 3082 | 82.90 | 83.20 | 30.0% | 10.0% | perf_20260527T225921Z.json |
 | anthropic/claude-haiku-4.5 | 10 | 980 | 1399 | 1989 | 81.60 | 87.20 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | mistralai/mistral-small-24b-instruct-2501 | 10 | 250 | 290 | 838 | 77.40 | 93.40 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | openai/gpt-5.4-mini | 10 | 561 | 702 | 1389 | 75.50 | 88.40 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
+| mlx-community/GLM-4.7-Flash-4bit | 10 | 76 | 101 | 2970 | 69.30 | 69.60 | 80.0% | 10.0% | perf_20260528T023241Z.json |
 | microsoft/phi-4 | 10 | 364 | 727 | 1674 | 67.80 | 77.50 | 0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | amazon/nova-pro-v1 | 10 | 478 | 643 | 855 | 65.90 | 97.60 | 100.0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | openai/gpt-oss-120b | 10 | 427 | 816 | 3072 | 62.70 | 600.60 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
@@ -139,20 +100,29 @@ Latest `--slice gaeilge` run per candidate/base/split. Higher is better; English
 | mistralai/mistral-medium-3.1 | 10 | 390 | 521 | 2089 | 50.40 | 62.40 | 10.0% | 100.0% | perf_shardB_20260515T192852Z.json |
 | anthropic/claude-sonnet-4.6 | 10 | 1328 | 5300 | 3221 | 44.10 | 46.10 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | mistralai/mistral-large-2512 | 10 | 482 | 667 | 1714 | 44.10 | 51.70 | 100.0% | 100.0% | perf_shardB_20260515T192852Z.json |
+| minimax-m2.5 | 10 | 1392 | 4514 | 5504 | 43.30 | 1845.80 | 100.0% | 90.0% | perf_20260525T133608Z.json |
 | meta-llama/llama-3.3-70b-instruct | 10 | 516 | 1452 | 2339 | 43.20 | 55.80 | 90.0% | 90.0% | perf_shardD_20260515T192852Z.json |
 | nousresearch/hermes-4-405b | 10 | 333 | 641 | 5623 | 39.40 | 41.10 | 100.0% | 100.0% | perf_shardD_20260515T192852Z.json |
 | deepseek/deepseek-v4-pro | 10 | 1317 | 2125 | 6170 | 39.20 | 66.60 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | anthropic/claude-opus-4.7 | 10 | 1421 | 1557 | 3861 | 39.00 | 41.90 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | google/gemma-3-27b-it | 10 | 380 | 766 | 2328 | 37.90 | 48.50 | 100.0% | 100.0% | perf_20260514T202405Z.json |
+| mlx-community/Violet-Lyra-Gutenberg-4bit | 10 | 213 | 219 | 5435 | 37.70 | 37.90 | 100.0% | 10.0% | perf_20260528T031908Z.json |
 | moonshotai/kimi-k2.5 | 10 | 942 | 2073 | 7220 | 37.60 | 70.70 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | openai/gpt-5.4 | 10 | 715 | 843 | 2677 | 34.70 | 38.40 | 100.0% | 100.0% | perf_shardA_20260515T192852Z.json |
 | z-ai/glm-4.6 | 10 | 1442 | 2844 | 16883 | 34.70 | 53.30 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | qwen/qwen3-max | 10 | 1173 | 1410 | 2904 | 32.60 | 37.50 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
+| mlx-community/Qwen2.5-14B-Instruct-4bit | 10 | 315 | 336 | 4368 | 28.90 | 29.20 | 100.0% | 100.0% | perf_20260527T005000Z.json |
 | deepseek/deepseek-v3.2 | 10 | 691 | 1554 | 2704 | 22.20 | 50.90 | 100.0% | 100.0% | perf_shardC_20260515T192852Z.json |
 | google/gemma-4-31b-it | 10 | 1160 | 2111 | 3214 | 21.90 | 30.10 | 100.0% | 100.0% | perf_20260514T202405Z.json |
+| mlx-community/EuroLLM-22B-Instruct-2512-mlx-4bit | 10 | 426 | 767 | 3213 | 21.30 | 21.60 | 100.0% | 100.0% | perf_20260528T031520Z.json |
+| mlx-community/Qwen3.6-27B-4bit | 10 | 4123 | 4242 | 13072 | 17.90 | 17.90 | 100.0% | 100.0% | perf_20260527T223755Z.json |
 | qwen/qwen-2.5-72b-instruct | 1 | - | - | 5242 | - | - | 10.0% | 90.0% | perf_20260514T202405Z.json |
+| kimi-k2.5 | 10 | - | - | 6759 | - | - | 100.0% | 100.0% | perf_20260525T113759Z.json |
+| kimi-k2.6 | 10 | - | - | 7269 | - | - | 100.0% | 100.0% | perf_20260525T114843Z.json |
+| deepseek-v4-flash | 10 | - | - | 3799 | - | - | 100.0% | 0% | perf_20260525T145335Z.json |
+| deepseek-v4-pro | 10 | - | - | 6335 | - | - | 100.0% | 0% | perf_20260525T150732Z.json |
 | x-ai/grok-3-mini | 0 | - | - | - | - | - | 0% | 0% | perf_shardB_20260515T192852Z.json |
 
 ## Unjudged backlog
 
-`qwen/qwen-2.5-72b-instruct`
+`amazon/nova-pro-v1`, `anthropic/claude-haiku-4.5`, `anthropic/claude-opus-4.7`, `anthropic/claude-sonnet-4.6`, `deepseek/deepseek-v3.2`, `deepseek/deepseek-v4-pro`, `google/gemini-2.5-flash`, `google/gemini-2.5-pro`, `google/gemma-3-27b-it`, `google/gemma-4-31b-it`, `meta-llama/llama-3.3-70b-instruct`, `meta-llama/llama-4-maverick`, `meta-llama/llama-4-scout`, `microsoft/phi-4`, `mistralai/mistral-large-2512`, `mistralai/mistral-medium-3.1`, `mistralai/mistral-small-24b-instruct-2501`, `moonshotai/kimi-k2.5`, `nousresearch/hermes-4-405b`, `openai/gpt-4o-mini`, `openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/gpt-5.5`, `openai/gpt-oss-120b`, `qwen/qwen-2.5-72b-instruct`, `qwen/qwen3-235b-a22b-2507`, `qwen/qwen3-max`, `x-ai/grok-3-mini`, `x-ai/grok-4.3`, `z-ai/glm-4.6`
