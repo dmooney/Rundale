@@ -40,6 +40,49 @@ pub async fn handle_look(ctx: &GameLoopContext<'_>, transport: &TransportMode) {
     );
 }
 
+/// Result of `try_handle_move`.
+enum MoveDispatch {
+    /// Movement intent was fully handled (either travel succeeded or a system
+    /// "where to?" hint was emitted at an empty location). Caller should
+    /// return.
+    Handled,
+    /// Move intent had no resolvable target but at least one NPC is present.
+    /// The caller should fall through to NPC conversation routing so the
+    /// co-located NPC can respond (TODO #40/#56).
+    FallThroughToNpc,
+}
+
+/// Dispatches a parsed `Move` intent. Returns `FallThroughToNpc` only when the
+/// LLM (or local parser) classified the input as movement but supplied no
+/// target AND there is at least one co-located NPC who could respond — in
+/// that case the caller routes the input to `handle_npc_conversation` instead
+/// of emitting a silent system one-liner (TODO #40/#56).
+async fn try_handle_move(
+    ctx: &GameLoopContext<'_>,
+    move_target: Option<String>,
+    transport: &TransportMode,
+    reaction_templates: &ReactionTemplates,
+) -> MoveDispatch {
+    if let Some(target) = move_target {
+        handle_movement(ctx, &target, transport, reaction_templates).await;
+        return MoveDispatch::Handled;
+    }
+    let npc_present = {
+        let world = ctx.world.lock().await;
+        let npc_manager = ctx.npc_manager.lock().await;
+        !npc_manager.npcs_at(world.player_location).is_empty()
+    };
+    if npc_present {
+        return MoveDispatch::FallThroughToNpc;
+    }
+    ctx.emitter.emit_event(
+        "text-log",
+        serde_json::to_value(text_log("system", "And where would ye be off to?"))
+            .unwrap_or(serde_json::Value::Null),
+    );
+    MoveDispatch::Handled
+}
+
 // ── Game input dispatch ───────────────────────────────────────────────────────
 
 /// Handles free-form player input: parses intent (with LLM fallback) then
@@ -132,16 +175,14 @@ pub async fn handle_game_input(
         .and_then(|i| i.target.clone());
 
     if is_move {
-        if let Some(target) = move_target {
-            handle_movement(ctx, &target, transport, reaction_templates).await;
-        } else {
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", "And where would ye be off to?"))
-                    .unwrap_or(serde_json::Value::Null),
-            );
+        match try_handle_move(ctx, move_target, transport, reaction_templates).await {
+            MoveDispatch::Handled => return,
+            // TODO #40/#56: Move-no-target at a populated location falls through
+            // to the NPC conversation path below so the co-located NPC has a
+            // chance to reply instead of the player getting a silent system
+            // one-liner. Empty-location case is still handled inline above.
+            MoveDispatch::FallThroughToNpc => {}
         }
-        return;
     }
 
     if is_look {
@@ -289,6 +330,126 @@ mod tests {
         assert!(
             names.iter().any(|n| n == "text-log"),
             "expected text-log (idle message) when no NPC present; got {names:?}"
+        );
+    }
+
+    // ── TODO #40/#56: Move-no-target dispatch ─────────────────────────────────
+
+    #[tokio::test]
+    async fn move_no_target_at_empty_location_emits_system_message() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        let outcome = super::try_handle_move(&ctx, None, &transport, &templates).await;
+        assert!(
+            matches!(outcome, super::MoveDispatch::Handled),
+            "empty-location Move-no-target should be Handled (system message)"
+        );
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+        assert!(
+            logs.iter().any(|l| l.contains("where would ye be off to")),
+            "expected 'where would ye be off to?' system message; got {logs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn move_no_target_at_populated_location_falls_through_to_npc() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let world = tokio::sync::Mutex::new(world_state);
+
+        // One co-located NPC: the existing test fixture lives at LocationId(1)
+        // which matches the default WorldState::new() player location.
+        let mut npc = parish_npc::Npc::new_test_npc();
+        npc.location = player_loc;
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(npc);
+        let npc_manager = tokio::sync::Mutex::new(mgr);
+
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        let outcome = super::try_handle_move(&ctx, None, &transport, &templates).await;
+        assert!(
+            matches!(outcome, super::MoveDispatch::FallThroughToNpc),
+            "populated-location Move-no-target should fall through to NPC routing"
+        );
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+        assert!(
+            !logs.iter().any(|l| l.contains("where would ye be off to")),
+            "did not expect 'where would ye be off to?' at populated location; got {logs:?}"
         );
     }
 }
