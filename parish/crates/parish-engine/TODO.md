@@ -2,7 +2,10 @@
 
 ## Open
 
-*(none)*
+| ID | Category | Description |
+|----|----------|-------------|
+| TD-036 | Regression / Bug Risk (P1) | `src/testing.rs:144` — `run_script_mode` (`:1695`) builds via `build_with_mod()`, which hardcodes `Self::build(false)`, so `enable_character_logs` is `false` for every `parish --script …` run. The dedicated `new_with_character_logs()` (`:136`, docstring: "Only `run_script_mode` calls this") is now dead code with zero callers — proof the script-mode log wiring was lost in the `--game-mod` refactor (#1123). CLAUDE.md rules #10/#13 proof bundles depend on the `player.md` / location-log transcripts that script mode is documented to emit; those `.md` artifacts are now never written. Fix: thread `enable_character_logs: true` through `build_with_mod`, or have `run_script_mode` build the character-logs path then attach the mod. |
+| TD-037 | Bug Risk / Off-by-one (P3) | `src/headless.rs:967` — idle-message selection does `app.idle_counter += 1; let idx = app.idle_counter;` then `idx % IDLE_MESSAGES.len()`, so the first idle turn uses `idx = 1` and skips `IDLE_MESSAGES[0]` / `mod_msgs[0]`, shifting the whole cycle. The prior `HEADLESS_IDLE_COUNTER` `fetch_add` returned the pre-increment value (first idle = 0). (Also note: `idle_counter` is back on `App` here, despite TD-030/TD-034 recording its removal.) Read-then-increment or pre-decrement to restore the 0-based start. |
 
 ## In Progress
 
@@ -48,4 +51,6 @@
 | TD-034 | Dead State / Stale Docs | Audited `App` state fields; removed dead `input_buffer`, `sidebar_visible`, `debug_*`, `idle_counter`, and `loading_animation` fields; updated doc comment to reflect CLI-only usage. |
 | TD-035 | Stale Rename References | Refreshed all `parish-cli` / `parish` rename leftovers in `config.rs`, `headless.rs`, `eval_baselines.rs`, and `README.md` to use `parish-engine`. |
 
-(End of file - total 53 lines)
+## Discovery note
+
+- **2026-05-28**: Weekly review of `c59562a..HEAD` surfaced TD-036 (script-mode character/location logs silently disabled — high impact on the proof workflow) and TD-037 (idle-message off-by-one after `idle_counter` was re-introduced on `App`). TD-036 is a functional regression, not just navigation debt — fix it ahead of the cleanup items.

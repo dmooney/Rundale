@@ -4,6 +4,8 @@
 
 | ID | Category | Description |
 |----|----------|-------------|
+| TD-030 | Rule #12 Mode-Parity (P2) | The Tier-2 minting block — `apply_tier2_event_with_config` + `parish_core::npc::ticks::create_gossip_from_tier2_event` + `event_bus.publish(gossip_evt)` — is copy-pasted verbatim into two entry points (`parish-engine/src/headless.rs:1630` and `parish-tauri/src/setup.rs:1250`) and absent from `parish-server`. Rule #12 forbids duplicating orchestration bodies across entry-point crates. Extract a shared `mint_tier2_gossip(...)`-style helper here, parameterized over the `EventEmitter`/bus, so all three runtimes call one implementation. The new `GossipSpread` event (#1113) widened this divergence. Pairs with `parish-server` TD-040. |
+| TD-031 | Scaling / Hot-path IO (P3) | `src/location_log.rs:274-300` — `WeatherChanged` and `FestivalStarted` now loop over `world.graph.location_ids()` and append to every location's journal (≈22 filesystem writes per event for Rundale) instead of one. Behaviorally intended for world-wide events (#1023 F4), but it multiplies per-event IO on the event-bus subscriber task. Consider batching the appends or gating journal fan-out on a frequency/backpressure check before backends fire `WeatherChanged` often. |
 
 
 
@@ -46,5 +48,7 @@
 | TD-029 | 2026-05-25 | Split `src/debug_snapshot.rs` (1,593 LOC) into 4 sub-modules under `src/debug_snapshot/`: `types.rs` (28 DTO structs), `build.rs` (builder functions + helpers), `reexport.rs` (InferenceLogEntry re-export), `tests.rs` (14 tests). Public API preserved for all cross-crate consumers. |
 
 ## Discovery note
+
+2026-05-28 weekly review of `c59562a..HEAD` added TD-030 (Tier-2 gossip orchestration duplicated across entry points — rule #12; pairs with parish-server TD-040 mode-parity gap) and TD-031 (per-event journal fan-out IO amplification in `location_log.rs`).
 
 2026-05-26 scan of `parish/crates/parish-core/src/` — clean. All items from the 2026-05-25 discovery sweep (TD-023 through TD-029) are now resolved. `cargo test -p parish-core` (446 passed, 0 failures), `cargo test -p parish-core --test architecture_fitness` (3 passed), `cargo clippy -p parish-core --all-targets -- -D warnings` (clean), and cross-crate compilation (`parish-tauri`, `parish-server`, `parish-engine`, `parish-mcp`) all pass.
