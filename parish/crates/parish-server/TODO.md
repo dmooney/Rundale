@@ -11,6 +11,7 @@
 | TD-037 | API Shape | P2 | `src/state.rs:299-333` | `build_app_state()` takes seventeen parameters and needs `#[allow(clippy::too_many_arguments)]`. The comment documents why the flat state exists, but call sites still have a brittle positional constructor. Introduce a typed `AppStateParts`/builder object before adding more server-wide state. |
 | TD-038 | Rule 9 / Packaging | P2 | `src/main.rs:86-120`, `src/lib.rs:683-710` | Startup helpers still parent-walk from `current_dir()` to find `mods/rundale`, UI dist, and `.env` fallbacks. They are documented as legacy/dev behavior, but packaged and daemonized launches should resolve from explicit CLI/env/config inputs only. Gate cwd discovery to debug/dev or replace it with configured paths. |
 | TD-039 | Complexity | P2 | `src/session.rs:178-1448` | `session.rs` mixes registry persistence, session creation/restoration, inference queue initialization, autosave/tick scheduling, gossip budgeting, cloud-client construction, and tests. Split lifecycle, persistence, tick scheduling, and inference setup into narrower modules before more session orchestration lands. |
+| TD-040 | Mode Parity (Rule #2) | P1 | `src/session.rs:1252-1260` | The web server's tick only runs `propagate_gossip_at_location` (and only when `!gossip_network.is_empty()`); it never runs the Tier-2 group-dialogue loop and never calls `create_gossip_from_tier2_event`. So on the Axum/web backend the gossip network stays permanently empty, no `GossipSpread` event ever fires, and the gossip branches in `parish-core`'s `location_log.rs`/`character_log.rs` are dead code for web players. CLI and Tauri both mint Tier-2 gossip; the server does not — a rule #2 parity gap (pre-existing, widened by the #1113 `GossipSpread` feature). Either wire Tier-2 minting into the server tick or document the gap explicitly. Pairs with `parish-core` TD-030 (the shared helper this should call once extracted). |
 
 ## In Progress
 
@@ -62,6 +63,7 @@
 - **2026-05-07**: Phase 4.1 — resolved TD-011 and TD-012 (WebSocket + OAuth weak tests).
 - **2026-05-12**: Resolved TD-021 through TD-032. All changes verified with `cargo fmt`, `cargo clippy -p parish-server`, `cargo test -p parish-server`, and `cargo check --workspace`.
 - **2026-05-25**: Refreshed the debt scan against current source. Reopened the ledger with TD-033 through TD-039 after checking LOC hotspots, inline TODOs, duplicated helpers, and clippy allows. Verified with `cargo check -p parish-server --all-targets`, `cargo clippy -p parish-server --all-targets -- -D warnings`, and `cargo test -p parish-server` (full test needed non-sandbox execution because wiremock/websocket tests bind local ports).
+- **2026-05-28**: Weekly review of `c59562a..HEAD` added TD-040 — the server never mints Tier-2 gossip / emits `GossipSpread`, a rule #2 parity gap vs CLI + Tauri (pairs with parish-core TD-030).
 
 ## Follow-up
 

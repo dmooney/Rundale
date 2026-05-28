@@ -12,6 +12,9 @@
 | TD-028 | Stale Docs | P3 | `src/ticks.rs:244-350`, `src/lib.rs:788`, `src/quality.rs:391` | Inline comments use historical `TODO #NN` anchors as regression notes for fixed behavior, but those IDs do not map to this crate TODO ledger and look like unresolved work during scans. Normalize them to issue/PR/test references or plain regression comments so future sweeps do not rediscover already-guarded behavior. |
 | TD-029 | API Shape | P2 | `src/ticks.rs:473-489` | `build_enhanced_context_with_config()` takes nine parameters and needs `#[allow(clippy::too_many_arguments)]`. Introduce a `Tier1ContextParams`/builder struct or context object so call sites make ownership and optional anchors explicit, then remove the allow. |
 | TD-030 | Complexity | P2 | `src/manager.rs:93-713` | `NpcManager`'s main impl mixes collection storage, introduction tracking, reaction-emoji QA state, name/role lookup, tier grouping, in-flight tier tick state, tick dispatch, and file loading. Split into focused impl modules or helper types before adding more manager responsibilities. |
+| TD-031 | Weak Tests | P2 | `src/ticks.rs:1162`, `tests/gossip_integration.rs` | `create_gossip_from_tier2_event` now bails via `let &source = event.participants.first()?;` — the load-bearing guard that stops gossip being misattributed to `NpcId(0)` (the player) when participants is empty. The fix is correct but untested: `gossip_integration.rs` has no `participants: vec![]` case, so a regression back to `unwrap_or(&NpcId(0))` would not be caught. Add the empty-participants test. |
+| TD-032 | Metric Accuracy | P3 | `src/ticks.rs:903`, `:926` | When both the initial Tier-2 attempt and its retry fail to parse, `record_tier2_parse_failure()` fires twice for the one location that ultimately drops its off-screen update. The doc comment frames `tier2_parse_failures_total` as a per-location drop trend (would be 1), but it counts parse failures (2). Either count the drop once after the retry exhausts, or reword the comment so the metric isn't read as a drop counter. |
+| TD-033 | Design Gap | P3 | `src/ticks.rs:894`, `:910` | `try_tier2_inference` and its retry call `generate_stream_with_format(..., None /*response_format*/, ...)` even though TODO #27's premise is the small model emitting non-JSON. The fix added a strict-JSON prompt reminder but never sets a provider-side JSON `ResponseFormat` — the strongest lever the `_with_format` variant exists to pull. Not a regression (matches prior behavior), but the retry should set a JSON response format. |
 
 ## In Progress
 
@@ -49,6 +52,7 @@
 
 - **2026-05-11**: Completed TD-016 through TD-025. All changes behavior-safe; 400 parish-npc tests pass; clippy clean on parish-npc, parish-core, parish-tauri, and parish-cli.
 - **2026-05-25**: Refreshed the debt scan against current source. Narrowed stale TD-002/TD-010/TD-011 locations, added TD-026 through TD-030, and verified baseline with `cargo check -p parish-npc --all-targets`, `cargo clippy -p parish-npc --all-targets -- -D warnings`, and `cargo test -p parish-npc` (full test needed non-sandbox execution because wiremock binds local ports).
+- **2026-05-28**: Weekly review of `c59562a..HEAD` added TD-031 (untested empty-participants gossip bail), TD-032 (`tier2_parse_failures_total` double-counts on retry), and TD-033 (Tier-2 retry doesn't set a JSON response format). The week's parish-npc work was otherwise clean — no correctness regressions found.
 
 ## Follow-up
 
