@@ -23,6 +23,9 @@
   }
   const arrow = (key) => (sortKey === key ? (dir === 1 ? ' ▲' : ' ▼') : '');
   const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
+  // Peak RAM column shows the worst-case live-sampled RSS (in GB) from
+  // `local_*.json` sweeps. Cloud rows have no measurement → render an em-dash.
+  const fmtRam = (v, est) => (typeof v === 'number' ? (est ? '~' : '') + v.toFixed(1) + ' GB' : '—');
 </script>
 
 {#if rows.length === 0}
@@ -37,6 +40,7 @@
         {#each AXES as ax}
           <th class="num" onclick={() => sortBy(ax)}>{ax.slice(0, 4)}{arrow(ax)}</th>
         {/each}
+        <th class="num" onclick={() => sortBy('peak_ram_gb')} title="Worst-case peak RAM (live-sampled RSS, phys_footprint on macOS) observed across local MLX sweeps. Cloud rows: not applicable.">RAM{arrow('peak_ram_gb')}</th>
         <th class="num" onclick={() => sortBy('judged')}>n{arrow('judged')}</th>
       </tr>
     </thead>
@@ -58,6 +62,7 @@
             {#if r.bench_bugs > 0}<span class="badge" title="responses the judge flagged as bench-harness bugs (chain-of-thought leak / blank reply) and excluded from the score" style="margin-left:0.3rem;background:#fde68a;color:#92400e">🐛 {r.bench_bugs} bug{r.bench_bugs === 1 ? '' : 's'}</span>{/if}</td>
           <td class="num"><strong>{fmt(r.overall)}</strong></td>
           {#each AXES as ax}<td class="num">{fmt(r[ax])}</td>{/each}
+          <td class="num" title={r.peak_ram_is_estimate ? 'Estimated (from candidates_local_mlx.toml). Live measurements were not captured for this run.' : 'Live-measured peak RSS (phys_footprint on macOS) of the mlx_lm.server process and children.'}>{fmtRam(r.peak_ram_gb, r.peak_ram_is_estimate)}</td>
           <td class="num">{r.judged ?? '—'}</td>
         </tr>
       {/each}

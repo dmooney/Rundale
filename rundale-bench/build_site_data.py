@@ -493,8 +493,88 @@ def _run_ts(out: dict, path: Path) -> str:
     return out.get("run_started_utc") or path.stem
 
 
+_LEADERBOARD_LOCAL_ROW = re.compile(
+    r"^\|\s*(?P<date>\d{8}T\d{6}Z)\s*\|\s*(?P<repo>mlx-community/[^\s|]+)\s*\|"
+    r"\s*(?P<slot>tiny|large)\s*\|\s*(?P<quant>[^\s|]+)\s*\|"
+    r"\s*(?P<params>[\d.()A-Za-z ]+?)\s*\|\s*(?P<ram>[\d.]+)\s*\|"
+    r"\s*(?P<slice>[a-z\d-]+)\s*\|"
+)
+
+
+def _build_peak_ram_index(artifacts_dir: Path) -> dict[str, float]:
+    """Map model_id -> highest observed peak_ram_gb.
+
+    Two sources, both consulted (max wins so the worst-case budget is
+    surfaced):
+      1. `local_*.json` per-sweep summaries (round 4+ only — earlier sweeps
+         didn't persist this file shape).
+      2. The "Local MLX sweeps" table in `artifacts/leaderboard.md`
+         (every round since round 1 wrote rows there via
+         `local_runner.append_leaderboard_row`).
+    Cloud rows appear in neither source → return None and the UI shows
+    a dash.
+    """
+    by_model: dict[str, float] = {}
+
+    def _record(mid: str, ram_gb: float) -> None:
+        cur = by_model.get(mid, 0.0)
+        if ram_gb > cur:
+            by_model[mid] = ram_gb
+
+    # Source 1: per-sweep JSONs
+    for p in sorted(artifacts_dir.glob("local_*.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        for row in d.get("rows", []) or []:
+            mid = row.get("hf_repo")
+            ram = row.get("peak_ram_gb")
+            if mid and ram is not None:
+                _record(mid, float(ram))
+
+    # Source 2: `artifacts/local_leaderboard.md` (the per-sweep markdown
+    # that local_runner.append_leaderboard_row writes — separate from the
+    # main `leaderboard.md` page).
+    lb_path = artifacts_dir / "local_leaderboard.md"
+    if lb_path.exists():
+        for line in lb_path.read_text(encoding="utf-8").splitlines():
+            m = _LEADERBOARD_LOCAL_ROW.match(line.strip())
+            if m:
+                _record(m.group("repo"), float(m.group("ram")))
+
+    return by_model
+
+
+def _build_peak_ram_est_index() -> dict[str, float]:
+    """Map model_id -> declared peak_ram_gb_est from candidates_local_mlx.toml.
+
+    Estimates only — used as a fallback for rows where no live-measured
+    peak_ram_gb is available (rounds 1-3 didn't persist that data).
+    The UI distinguishes estimated values via the `peak_ram_is_estimate`
+    flag attached alongside the value.
+    """
+    try:
+        import tomllib  # py311+
+    except ImportError:  # pragma: no cover — runtime is py311
+        return {}
+    candidates_toml = Path(__file__).parent / "candidates_local_mlx.toml"
+    if not candidates_toml.exists():
+        return {}
+    data = tomllib.loads(candidates_toml.read_text(encoding="utf-8"))
+    out: dict[str, float] = {}
+    for c in data.get("candidate", []):
+        repo = c.get("hf_repo")
+        est = c.get("peak_ram_gb_est")
+        if repo and est is not None:
+            out[repo] = float(est)
+    return out
+
+
 def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
     families = families or {}
+    peak_ram_by_model = _build_peak_ram_index(artifacts_dir)
+    peak_ram_est_by_model = _build_peak_ram_est_index()
     latest: dict[str, tuple[str, dict]] = {}  # model_id -> (ts, row)
     for p in _run_paths(artifacts_dir):
         path = Path(p)
@@ -511,6 +591,13 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
             continue
         ts = _run_ts(out, path)
         fam, display_name = enrich_local_row(model_id, families.get(model_id, "unknown"))
+        measured_ram = peak_ram_by_model.get(model_id)
+        if measured_ram is not None:
+            ram_value, ram_is_est = measured_ram, False
+        elif model_id in peak_ram_est_by_model:
+            ram_value, ram_is_est = peak_ram_est_by_model[model_id], True
+        else:
+            ram_value, ram_is_est = None, False
         row = {
             "model_id": model_id,
             "display_name": display_name,
@@ -522,8 +609,14 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
             "bench_bugs": s.get("bench_bugs", 0),
             "records": s.get("records"),
             "non_latin_rate": s.get("non_latin_rate"),
-            "judge_id": s.get("judge") or s.get("judge_id") or "judge_v1 (qwen3-235b)",
-            "judge_model": s.get("judge_model") or ("qwen/qwen3-235b-a22b-2507" if not s.get("judge") else None),
+            # Sonnet-subagent is now the only allowed judge (see
+            # rundale_bench.load_judge). The legacy "qwen3-235b" fallback
+            # was stripped 2026-05-28 — fall back to "claude-sonnet-4-6"
+            # since that is the only judge that can produce a score now.
+            "judge_id": s.get("judge") or s.get("judge_id") or "judge_sonnet_v1",
+            "judge_model": s.get("judge_model") or "claude-sonnet-4-6",
+            "peak_ram_gb": ram_value,
+            "peak_ram_is_estimate": ram_is_est,
             **{a: s.get(a) for a in AXES},
             "measured_utc": ts,
         }
