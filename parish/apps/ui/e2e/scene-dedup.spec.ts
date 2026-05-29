@@ -42,9 +42,9 @@ test.describe('Scene description deduplication', () => {
 			location_description: worldUpdateScene
 		});
 
-		// The arrival scene shows exactly once...
+		// The arrival scene shows exactly once.
 		await expect(page.getByText(arrivalText, { exact: false })).toHaveCount(1);
-		// ...and the duplicate world-update scene line was suppressed.
+		// The duplicate, shorter world-update scene line was suppressed.
 		await expect(page.getByText(worldUpdateScene, { exact: false })).toHaveCount(0);
 	});
 
