@@ -281,6 +281,9 @@ pub struct GitHubBugConfig {
     pub asset_branch: Option<String>,
     /// Force dry-run (compose + write to disk, never touch the network).
     pub dry_run: bool,
+    /// GitHub REST API base (default [`GITHUB_API`]). Overridable via
+    /// `PARISH_BUG_REPORT_API_BASE` — primarily so tests can point at a mock.
+    pub api_base: String,
 }
 
 impl GitHubBugConfig {
@@ -290,12 +293,15 @@ impl GitHubBugConfig {
         let repo =
             non_empty_env("PARISH_BUG_REPORT_REPO").unwrap_or_else(|| DEFAULT_REPO.to_string());
         let asset_branch = non_empty_env("PARISH_BUG_REPORT_ASSET_BRANCH");
+        let api_base =
+            non_empty_env("PARISH_BUG_REPORT_API_BASE").unwrap_or_else(|| GITHUB_API.to_string());
         let dry_run = env_is_truthy("PARISH_BUG_REPORT_DRY_RUN");
         Self {
             token,
             repo,
             asset_branch,
             dry_run,
+            api_base,
         }
     }
 
@@ -454,8 +460,20 @@ pub async fn create_bug_report(
     }
 
     // Live path: upload screenshot (best-effort inline render), then file.
+    // The screenshot is best-effort — the issue itself is the core value, so a
+    // failed upload (e.g. an issues-only token, or a protected branch that
+    // rejects the Contents API commit) must not abort the report. Fall back to
+    // filing without an image.
     let screenshot_url = match screenshot_png {
-        Some(bytes) if !bytes.is_empty() => Some(upload_screenshot(http, cfg, &id, bytes).await?),
+        Some(bytes) if !bytes.is_empty() => match upload_screenshot(http, cfg, &id, bytes).await {
+            Ok(url) => Some(url),
+            Err(e) => {
+                tracing::warn!(
+                    "bug-report: screenshot upload failed, filing issue without image: {e}"
+                );
+                None
+            }
+        },
         _ => None,
     };
 
@@ -531,7 +549,7 @@ async fn upload_screenshot(
 ) -> Result<String, BugReportError> {
     let token = cfg.token.as_deref().unwrap_or_default();
     let path = format!("bug-reports/{id}.png");
-    let url = format!("{GITHUB_API}/repos/{}/contents/{path}", cfg.repo);
+    let url = format!("{}/repos/{}/contents/{path}", cfg.api_base, cfg.repo);
     let mut body = json!({
         "message": format!("chore(bug-report): screenshot {id}"),
         "content": base64::engine::general_purpose::STANDARD.encode(bytes),
@@ -578,7 +596,7 @@ async fn create_issue(
     body: &str,
 ) -> Result<(String, u64), BugReportError> {
     let token = cfg.token.as_deref().unwrap_or_default();
-    let url = format!("{GITHUB_API}/repos/{}/issues", cfg.repo);
+    let url = format!("{}/repos/{}/issues", cfg.api_base, cfg.repo);
     let payload = json!({
         "title": title,
         "body": body,
@@ -664,6 +682,26 @@ mod tests {
         }
     }
 
+    fn offline_cfg() -> GitHubBugConfig {
+        GitHubBugConfig {
+            token: None,
+            repo: DEFAULT_REPO.into(),
+            asset_branch: None,
+            dry_run: true,
+            api_base: GITHUB_API.into(),
+        }
+    }
+
+    fn live_cfg(api_base: &str) -> GitHubBugConfig {
+        GitHubBugConfig {
+            token: Some("test-token".into()),
+            repo: "acme/widgets".into(),
+            asset_branch: None,
+            dry_run: false,
+            api_base: api_base.into(),
+        }
+    }
+
     #[test]
     fn body_has_core_sections() {
         let body = compose_issue_body(&request(), &state(), None);
@@ -723,6 +761,7 @@ mod tests {
             "GH_TOKEN",
             "PARISH_BUG_REPORT_REPO",
             "PARISH_BUG_REPORT_DRY_RUN",
+            "PARISH_BUG_REPORT_API_BASE",
         ];
         let saved: Vec<_> = keys.iter().map(|k| (*k, std::env::var(k).ok())).collect();
         for k in keys {
@@ -737,6 +776,7 @@ mod tests {
         let cfg = GitHubBugConfig::from_env();
         assert_eq!(cfg.token.as_deref(), Some("from-parish"));
         assert_eq!(cfg.repo, DEFAULT_REPO);
+        assert_eq!(cfg.api_base, GITHUB_API);
         assert!(!cfg.dry_run);
         assert!(!cfg.is_offline());
 
@@ -762,12 +802,7 @@ mod tests {
     #[tokio::test]
     async fn dry_run_writes_bundle_without_network() {
         let tmp = tempfile::tempdir().unwrap();
-        let cfg = GitHubBugConfig {
-            token: None,
-            repo: DEFAULT_REPO.into(),
-            asset_branch: None,
-            dry_run: true,
-        };
+        let cfg = offline_cfg();
         let png = [0x89u8, 0x50, 0x4e, 0x47]; // PNG magic bytes
         let result = create_bug_report(
             &reqwest::Client::new(),
@@ -792,12 +827,7 @@ mod tests {
     #[tokio::test]
     async fn empty_title_is_rejected() {
         let tmp = tempfile::tempdir().unwrap();
-        let cfg = GitHubBugConfig {
-            token: None,
-            repo: DEFAULT_REPO.into(),
-            asset_branch: None,
-            dry_run: true,
-        };
+        let cfg = offline_cfg();
         let mut req = request();
         req.title = "  ".into();
         let err = create_bug_report(
@@ -819,5 +849,126 @@ mod tests {
         let url = format!("data:image/png;base64,{encoded}");
         assert_eq!(decode_data_url(&url).unwrap(), vec![1, 2, 3, 4]);
         assert!(decode_data_url("not-a-data-url").is_err());
+    }
+
+    #[tokio::test]
+    async fn live_path_uploads_then_files_issue() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Contents API: screenshot commit succeeds, returns a raw download_url.
+        // (Path carries a per-report UUID, so match on method.)
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "content": {"download_url": "https://raw.example/acme/widgets/bug-reports/x.png"}
+            })))
+            .mount(&server)
+            .await;
+        // Issues API: creation succeeds.
+        Mock::given(method("POST"))
+            .and(path("/repos/acme/widgets/issues"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "html_url": "https://github.com/acme/widgets/issues/42",
+                "number": 42
+            })))
+            .mount(&server)
+            .await;
+
+        let png = [0x89u8, 0x50, 0x4e, 0x47];
+        let result = create_bug_report(
+            &reqwest::Client::new(),
+            &live_cfg(&server.uri()),
+            &request(),
+            &state(),
+            Some(&png),
+            std::path::Path::new("/unused"),
+        )
+        .await
+        .expect("live filing should succeed");
+
+        assert!(result.created);
+        assert_eq!(result.issue_number, Some(42));
+        assert_eq!(
+            result.issue_url.as_deref(),
+            Some("https://github.com/acme/widgets/issues/42")
+        );
+        assert_eq!(
+            result.screenshot_url.as_deref(),
+            Some("https://raw.example/acme/widgets/bug-reports/x.png")
+        );
+    }
+
+    #[tokio::test]
+    async fn screenshot_upload_failure_still_files_issue() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Contents API rejects the commit (e.g. issues-only token / protected
+        // branch) — the report must still be filed, without an image.
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+                "message": "Resource not accessible by personal access token"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/repos/acme/widgets/issues"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "html_url": "https://github.com/acme/widgets/issues/7",
+                "number": 7
+            })))
+            .mount(&server)
+            .await;
+
+        let png = [0x89u8, 0x50, 0x4e, 0x47];
+        let result = create_bug_report(
+            &reqwest::Client::new(),
+            &live_cfg(&server.uri()),
+            &request(),
+            &state(),
+            Some(&png),
+            std::path::Path::new("/unused"),
+        )
+        .await
+        .expect("issue should still be filed when the screenshot upload fails");
+
+        assert!(
+            result.created,
+            "issue must be created despite upload failure"
+        );
+        assert_eq!(result.issue_number, Some(7));
+        assert!(
+            result.screenshot_url.is_none(),
+            "no screenshot URL when the upload failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn issue_creation_failure_surfaces_error() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // No screenshot, and the Issues API itself fails → error propagates.
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})),
+            )
+            .mount(&server)
+            .await;
+
+        let err = create_bug_report(
+            &reqwest::Client::new(),
+            &live_cfg(&server.uri()),
+            &request(),
+            &state(),
+            None,
+            std::path::Path::new("/unused"),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, BugReportError::GitHub { status: 422, .. }));
     }
 }
