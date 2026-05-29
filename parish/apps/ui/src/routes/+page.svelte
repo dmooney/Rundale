@@ -12,6 +12,7 @@
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
+	import BugReportModal from '../components/BugReportModal.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 
@@ -578,6 +579,7 @@
 	<DemoPanel />
 {/if}
 <SavePicker />
+<BugReportModal />
 <SetupOverlay />
 {#if $modSelectorVisible}
 	<ModSelectorOverlay onclose={() => modSelectorVisible.set(false)} required={$uiConfig?.base_mod_required} />

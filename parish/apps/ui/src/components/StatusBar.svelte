@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { worldState } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
+	import { openBugReport } from '../stores/bugReport';
 	import { savePickerVisible, modSelectorVisible } from '../stores/save';
 	import { onDestroy } from 'svelte';
 	import AuthStatus from './AuthStatus.svelte';
@@ -107,6 +108,7 @@
 		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
 		<a class="designer-link" href="/editor" title="Parish Designer — edit mod data">Designer</a>
 		<button type="button" class="debug-toggle" class:debug-active={$debugVisible} aria-pressed={$debugVisible} aria-label="Toggle debug panel" onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
+		<button type="button" class="bug-toggle" aria-label="Report a bug" onclick={() => void openBugReport()} title="Report a bug">🐛</button>
 		<AuthStatus />
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
@@ -221,6 +223,7 @@
 	}
 
 	.debug-toggle,
+	.bug-toggle,
 	.designer-link {
 		background: none;
 		border: 1px solid var(--color-border);
@@ -238,6 +241,8 @@
 
 	.debug-toggle:hover,
 	.debug-toggle:focus-visible,
+	.bug-toggle:hover,
+	.bug-toggle:focus-visible,
 	.designer-link:hover,
 	.designer-link:focus-visible {
 		color: var(--color-fg);

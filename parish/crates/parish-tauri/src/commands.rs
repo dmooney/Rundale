@@ -178,6 +178,14 @@ pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePa
 pub async fn get_debug_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<DebugSnapshot, String> {
+    Ok(build_app_debug_snapshot(&state).await)
+}
+
+/// Builds a [`DebugSnapshot`] from the live `AppState`.
+///
+/// Shared by the `get_debug_snapshot` command and the bug reporter so the two
+/// can never capture divergent views of the session.
+pub(crate) async fn build_app_debug_snapshot(state: &Arc<AppState>) -> DebugSnapshot {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let events = state.debug_events.lock().await;
@@ -202,14 +210,14 @@ pub async fn get_debug_snapshot(
         tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };
 
-    Ok(debug_snapshot::build_debug_snapshot(
+    debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &game_events,
         &inference,
         &AuthDebug::disabled(),
-    ))
+    )
 }
 
 /// Returns the UI configuration from the loaded game mod.
@@ -1676,6 +1684,91 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
         branch_id: *branch_id,
         branch_name: branch_name.clone(),
     })
+}
+
+// ── Bug reporting ─────────────────────────────────────────────────────────────
+
+/// Files a bug report — bundles a screenshot, recent logs, and current game
+/// state into a GitHub issue (or, in dry-run / no-token mode, a bundle on
+/// disk). Shared with the MCP bridge's `/api/submit-bug-report` route.
+#[tauri::command]
+pub async fn submit_bug_report(
+    title: String,
+    description: Option<String>,
+    screenshot_data_url: Option<String>,
+    context: Option<parish_core::ipc::BugContext>,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<parish_core::ipc::BugReportResult, String> {
+    let request = parish_core::ipc::BugReportRequest {
+        title,
+        description: description.unwrap_or_default(),
+        screenshot_data_url,
+        context,
+    };
+    do_submit_bug_report(&state, &app, request).await
+}
+
+/// Shared bug-report implementation (Tauri command + MCP bridge route).
+///
+/// Gathers a world + debug snapshot and a save summary from the live
+/// `AppState`, resolves the screenshot (decoding the frontend-supplied data
+/// URL, or triggering a live `request-screenshot` round-trip when absent),
+/// then delegates the GitHub work to `parish_core::ipc::bug_report`.
+pub(crate) async fn do_submit_bug_report(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    request: parish_core::ipc::BugReportRequest,
+) -> Result<parish_core::ipc::BugReportResult, String> {
+    use parish_core::ipc::bug_report;
+
+    // Feature flag (default-on kill switch, per AGENTS.md §6).
+    if state.config.lock().await.flags.is_disabled("bug-report") {
+        return Err(bug_report::BugReportError::Disabled.to_string());
+    }
+
+    let world_snapshot = {
+        let world = state.world.lock().await;
+        parish_core::ipc::snapshot_from_world(&world)
+    };
+    let debug = build_app_debug_snapshot(state).await;
+    let save_summary = {
+        let branch_id = *state.current_branch_id.lock().await;
+        let branch_name = state.current_branch_name.lock().await.clone();
+        match (branch_id, branch_name) {
+            (Some(id), Some(name)) => Some(format!("branch {id}: {name}")),
+            (Some(id), None) => Some(format!("branch {id}")),
+            (None, Some(name)) => Some(name),
+            (None, None) => None,
+        }
+    };
+    let report_state =
+        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary);
+
+    // Resolve screenshot bytes: prefer the frontend-supplied data URL, else
+    // trigger a live capture and read it back. A failed/timed-out capture is
+    // non-fatal — the report is still filed without an image.
+    let screenshot_png: Option<Vec<u8>> = match &request.screenshot_data_url {
+        Some(data_url) => Some(bug_report::decode_data_url(data_url).map_err(|e| e.to_string())?),
+        None => match do_take_screenshot(state, app).await {
+            Ok(info) => tokio::fs::read(&info.path).await.ok(),
+            Err(_) => None,
+        },
+    };
+
+    let cfg = bug_report::GitHubBugConfig::from_env();
+    let bundle_root = state.saves_dir.join("bug-reports");
+    let http = reqwest::Client::new();
+    bug_report::create_bug_report(
+        &http,
+        &cfg,
+        &request,
+        &report_state,
+        screenshot_png.as_deref(),
+        &bundle_root,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 // ── Screenshot capture (player-triggered, MCP-readable) ──────────────────────

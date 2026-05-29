@@ -95,6 +95,11 @@ fn build_router(bridge: BridgeState) -> Router {
         //   returns the resulting ScreenshotInfo.
         .route("/api/latest-screenshot", get(latest_screenshot))
         .route("/api/take-screenshot", post(take_screenshot_mcp))
+        // ── Bug reporting ─────────────────────────────────────────────────
+        // POST /api/submit-bug-report: bundle a screenshot (captured via the
+        // same round-trip as take-screenshot) + logs + game state into a
+        // GitHub issue. Backs the `parish_file_bug` MCP tool.
+        .route("/api/submit-bug-report", post(submit_bug_report))
         // ── BYOK setup-flow (#933) ────────────────────────────────────────
         // Real handlers backed by `parish_core::ipc::byok` — the Svelte
         // wizard and the MCP client share these. Routes match the schema
@@ -301,6 +306,16 @@ async fn take_screenshot_mcp(
         .await
         .map_err(AppError::from)?;
     Ok(Json(info))
+}
+
+async fn submit_bug_report(
+    State(b): State<BridgeState>,
+    Json(body): Json<parish_core::ipc::BugReportRequest>,
+) -> Result<Json<parish_core::ipc::BugReportResult>, AppError> {
+    let result = crate::commands::do_submit_bug_report(&b.state, &b.app, body)
+        .await
+        .map_err(AppError::from)?;
+    Ok(Json(result))
 }
 
 // ── BYOK setup-flow ──────────────────────────────────────────────────────────
@@ -737,6 +752,8 @@ mod tests {
             // Screenshot routes.
             "/api/latest-screenshot",
             "/api/take-screenshot",
+            // Bug reporting.
+            "/api/submit-bug-report",
             // BYOK setup-flow stubs (#933).
             "/api/setup-status",
             "/api/submit-byok",
@@ -768,6 +785,7 @@ mod tests {
             "load_branch",
             "get_latest_screenshot",
             "take_screenshot",
+            "submit_bug_report",
             "get_setup_status",
             "submit_byok",
         ] {

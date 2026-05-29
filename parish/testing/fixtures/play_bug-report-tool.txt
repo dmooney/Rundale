@@ -1,0 +1,42 @@
+# Bug-Report Tool — state-setup play-test
+# =======================================
+# This fixture builds up real game state (location, time, NPCs, dialogue,
+# inference + debug events) so that a bug report filed afterwards has
+# meaningful logs and world state to capture. The bug filing itself is
+# exercised live via the parish_file_bug MCP tool (dry-run) and the UI 🐛
+# button — see .proofs/bug-report-tool/acceptance-criteria.md.
+
+# 1. Baseline world + debug surfaces the report will snapshot
+/status
+/time
+/debug clock
+/debug here
+/npcs
+/debug npcs
+
+# 2. Generate some inference + conversation log entries (records that get
+#    their own per-record 🐛 button in the debug panel)
+look
+say Good morning to you.
+/debug events
+
+# 3. Move around to populate the text log and event bus
+go to The Crossroads
+look
+/npcs
+go to Darcy's Pub
+look
+say A fine evening, is it not?
+
+# 4. Advance time so the debug/event buffers have content
+/speed fast
+/wait 120
+/time
+/status
+
+# 5. Final debug snapshot — this is the state a bug report captures
+/debug clock
+/debug npcs
+/debug events
+/status
+/map

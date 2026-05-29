@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { DebugSnapshot } from '$lib/types';
+	import BugChip from './BugChip.svelte';
 
 	let { snap }: { snap: DebugSnapshot } = $props();
 </script>
@@ -10,7 +11,7 @@
 		<div class="field muted">(no game events captured)</div>
 	{:else}
 		{#each [...snap.event_bus.recent_events].reverse() as evt}
-			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.kind}]</span> {evt.summary}</div>
+			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.kind}]</span> {evt.summary}<BugChip kind="event" label={`${evt.kind} @ ${evt.timestamp}`} detail={evt} /></div>
 		{/each}
 	{/if}
 </div>
@@ -20,7 +21,7 @@
 		<div class="field muted">(no events yet)</div>
 	{:else}
 		{#each [...snap.events].reverse() as evt}
-			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.category}]</span> {evt.message}</div>
+			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.category}]</span> {evt.message}<BugChip kind="event" label={`${evt.category} @ ${evt.timestamp}`} detail={evt} /></div>
 		{/each}
 	{/if}
 </div>

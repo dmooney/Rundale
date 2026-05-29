@@ -108,6 +108,22 @@ fn translate_take_screenshot(_args: &Value) -> Result<(String, Value), String> {
     Ok(("take_screenshot".into(), json!({})))
 }
 
+fn translate_file_bug(args: &Value) -> Result<(String, Value), String> {
+    let title = require_string(args, "title")?.trim().to_string();
+    if title.is_empty() {
+        return Err("`title` must not be empty".into());
+    }
+    let mut out = json!({ "title": title });
+    if let Some(desc) = args.get("description").and_then(|v| v.as_str()) {
+        out["description"] = Value::String(desc.to_string());
+    }
+    // Optional structured context (e.g. a serialized debug-panel record).
+    if let Some(ctx) = args.get("context").filter(|c| !c.is_null()) {
+        out["context"] = ctx.clone();
+    }
+    Ok(("submit_bug_report".into(), out))
+}
+
 // ── BYOK setup-flow (#933) ───────────────────────────────────────────────────
 //
 // Real handlers in `parish-tauri/src/mcp_bridge.rs` back these tools — they
@@ -262,6 +278,41 @@ pub fn registry() -> Vec<ToolDef> {
             input_schema: empty_object_schema(),
             translate: translate_latest_screenshot,
         },
+        // ── Bug reporting ────────────────────────────────────────────────────
+        // Files a well-formed GitHub issue (screenshot + logs + game state) so
+        // an auto-QA agent can report a reproducible bug for a fix-agent. The
+        // backend captures the screenshot via the same round-trip as
+        // `parish_take_screenshot` when a live desktop window is attached;
+        // otherwise it proceeds without one. In dry-run / no-token mode the
+        // composed report is written to disk and `created` is false.
+        ToolDef {
+            name: "parish_file_bug",
+            description: "Files a bug report for the running game. Bundles a screenshot \
+                          (captured live from the desktop window when one is attached), \
+                          recent logs, and current game state into a GitHub issue on the \
+                          configured repository and returns the issue URL. In dry-run or \
+                          no-token mode the report is written to disk instead (created=false, \
+                          bundle_path set). Use during auto-QA to file reproducible bugs. \
+                          Attach a specific debug record via the optional `context` object.",
+            input_schema: json!({
+                "type": "object",
+                "required": ["title"],
+                "properties": {
+                    "title": {"type": "string", "minLength": 1, "maxLength": 500},
+                    "description": {"type": "string", "maxLength": 8000},
+                    "context": {
+                        "type": "object",
+                        "description": "Optional debug-panel record for extra context.",
+                        "properties": {
+                            "kind": {"type": "string"},
+                            "label": {"type": "string"},
+                            "detail": {}
+                        }
+                    }
+                }
+            }),
+            translate: translate_file_bug,
+        },
         // ── BYOK setup-flow ──────────────────────────────────────────────────
         ToolDef {
             name: "parish_byok_env_keys",
@@ -387,11 +438,41 @@ mod tests {
                 "parish_load_branch",
                 "parish_take_screenshot",
                 "parish_latest_screenshot",
+                "parish_file_bug",
                 "parish_byok_env_keys",
                 "parish_setup_status",
                 "parish_setup_byok",
             ]
         );
+    }
+
+    #[test]
+    fn file_bug_requires_title() {
+        let err = translate_file_bug(&json!({})).unwrap_err();
+        assert!(err.contains("title"));
+        let err = translate_file_bug(&json!({"title": "   "})).unwrap_err();
+        assert!(err.contains("title"));
+    }
+
+    #[test]
+    fn file_bug_maps_to_submit_bug_report() {
+        let (cmd, args) = translate_file_bug(&json!({
+            "title": "NPC stuck",
+            "description": "Seán never arrives.",
+            "context": {"kind": "inference", "label": "#3", "detail": {"id": 3}}
+        }))
+        .unwrap();
+        assert_eq!(cmd, "submit_bug_report");
+        assert_eq!(args["title"], "NPC stuck");
+        assert_eq!(args["description"], "Seán never arrives.");
+        assert_eq!(args["context"]["kind"], "inference");
+    }
+
+    #[test]
+    fn file_bug_omits_absent_optionals() {
+        let (_cmd, args) = translate_file_bug(&json!({"title": "x"})).unwrap();
+        assert!(args.get("description").is_none());
+        assert!(args.get("context").is_none());
     }
 
     #[test]
