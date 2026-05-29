@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen3-30B-A3B-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T23:26:22.957380+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 2.9,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Ah, welcome. I'm Darcy, the man who runs this place. Make yourself at home, and mind the hearth\u2014tis a bit warm tonight.",
+          "response_sha256": "82e7cc23c5b151cf69f39ccd800500b664f864a999edace017cfe5f145cf04bd",
+          "cache_key": "db0f624622f6f1e0fbf9adfa66a72d2d99fd3e58868c6553b9af9258261bb894",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "\"Ah, Seamus. A fine morn for a drop of ale, though the rain's nippin' at me bones.\"",
+          "response_sha256": "b61c2aa5a1c4b41cad9801c88f20aeb403a5fc9f7c21b41e6c6ffc5cd9c11ea8",
+          "cache_key": "90ba9c74a11324ef110b1f5c24e8f013322521c23f4b7dca94b58863a3c313d1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "\"Ah, Seamus. A fine mist for a Sunday. The pints are cold, but the stories are warm.\"",
+          "response_sha256": "266d12f6f45227b62dd7a21418305fb9d07a28b0673a8cfd7e0b68f63f6a5e9e",
+          "cache_key": "2e95bc5c6e334e358a890a9e896b7654fc0c6acf5b570f31e4ce7233c090b080",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "Good evening. I am Brigid O'Brien, the midwife. I am here to assist with the well-being of the women and children of this town.",
+          "response_sha256": "6eada0f9541227fdcb927a94eda9ee0c215a0d308fa282cdd1249f25345a8315",
+          "cache_key": "e04ff88c096992720548a6da0e272e2d9d4df08aa755144de854829964d3a868",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "\"Michael, come in out of the rain. What brings you here this morn?\"",
+          "response_sha256": "14113545e0c703a77c6f57bf29ef02508fda075df8ca01def696d1b7aad590bb",
+          "cache_key": "2c776579b620ea7f072aa4de6bbf59a62ca37132e7fe35c785fb7a3c592c0e65",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "\"Good noon, Seamus. Have you come for the blessing or the remedy?\"",
+          "response_sha256": "a2eedbaa5f4f0268e33a6f566cd8442f686e5a6edd02dedad47c33e5071d1b25",
+          "cache_key": "6a247d49220ec6ad4c1fe0f9b2778f960c9f5b2159b893fd6d8c7a43f3a356e9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "I am Father Donnellan. Speak not of the old ways here, but of the truth and the grace of God.",
+          "response_sha256": "1f41371de59f166426e2de6501452471a0c5a8a1bca550f31c412047e136012e",
+          "cache_key": "1b62e8d8df12d58e8a123a70e201b503f433ae14aa73e5b48a5b60a4f2918f92",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "\"Michael, you are early. The rain will not wait for the unready.\"",
+          "response_sha256": "891b5bc23df39ced3bc8fb5e31ea3fb8e3f41cad718e1d66d92ba79bb3b52a74",
+          "cache_key": "92b5899553a8b81814a283e9c18c22fabbad3d96ff9323573ca487a041c7ed45",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "\"Michael, you are late. The sermon has already begun.\"",
+          "response_sha256": "1b353355111394cc7ecc971b73ee4857f1dba6f21d6a817421332d023dfc47cd",
+          "cache_key": "9a0ada70652c212c9124112dacd48aa873b4bcf849817b507056aa98146b19b7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "\"Evenin', I'm Sean Murphy, from the bog. Got a bit o' beef an' a hungry stomach.\"",
+          "response_sha256": "a5aa6186fbdf39bce2002e8cdf72fe2e388b8325acb1960d2eb9d1970cfebe7b",
+          "cache_key": "9cacb765b069ca7dae07a6316327376a3c9dbfa9c4aa7d2af95c398f4486cb73",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Qwen3_30B_A3B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen3-30B-A3B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen3-30B-A3B-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 6.508949041366577,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1295,
+    "completion_tokens": 244,
+    "usd": 0.0
+  }
+}

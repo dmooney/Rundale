@@ -40,3 +40,27 @@ Local MLX runs via `local_runner.py`. `peak_RAM_GB` is the live-sampled RSS peak
 | 20260528T225045Z | mlx-community/OLMo-2-1124-13B-Instruct-4bit | large | 4bit | 13.0 | 11.13 | reaction | dev | mean_in_character=0.00 (pending_judge) | $0.0000 | judge_v1 | 444a2b53 |
 | 20260528T225045Z | mlx-community/OLMo-2-1124-13B-Instruct-4bit | large | 4bit | 13.0 | 11.13 | tier2-sim | dev | schema_valid=1.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_v1 | 444a2b53 |
 | 20260528T225045Z | mlx-community/OLMo-2-1124-13B-Instruct-4bit | large | 4bit | 13.0 | 11.13 | tier3-sim | dev | schema_valid=0.20 plausibility=0.00 (pending_judge) | $0.0000 | judge_v1 | 444a2b53 |
+| 20260528T231939Z | mlx-community/Qwen3-30B-A3B-4bit | large | 4bit | 30.0 (3.0 active) | 13.56 | intent | dev | label_match=0.700 | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T231939Z | mlx-community/Qwen3-30B-A3B-4bit | large | 4bit | 30.0 (3.0 active) | 13.56 | dialogue | dev | overall=0.00 (c=0.0/a=0.0/l=0.0/r=0.0/cr=0.0) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T231939Z | mlx-community/Qwen3-30B-A3B-4bit | large | 4bit | 30.0 (3.0 active) | 13.56 | reaction | dev | mean_in_character=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T231939Z | mlx-community/Qwen3-30B-A3B-4bit | large | 4bit | 30.0 (3.0 active) | 13.56 | tier2-sim | dev | schema_valid=1.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T231939Z | mlx-community/Qwen3-30B-A3B-4bit | large | 4bit | 30.0 (3.0 active) | 13.56 | tier3-sim | dev | schema_valid=0.70 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T232742Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 14.03 | intent | dev | label_match=0.000 | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T232742Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 14.03 | dialogue | dev | overall=0.00 (c=0.0/a=0.0/l=0.0/r=0.0/cr=0.0) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T232742Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 14.03 | reaction | dev | mean_in_character=0.00 | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T232742Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 14.03 | tier2-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 992ad2a8 |
+| 20260528T235513Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 16.18 | intent | dev | label_match=0.000 | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260528T235513Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 16.18 | dialogue | dev | overall=0.00 (c=0.0/a=0.0/l=0.0/r=0.0/cr=0.0) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260528T235513Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 16.18 | reaction | dev | mean_in_character=0.00 | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260528T235513Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 16.18 | tier2-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260528T235513Z | mlx-community/gemma-2-27b-it-4bit | large | 4bit | 27.0 | 16.18 | tier3-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T000349Z | mlx-community/Yi-1.5-34B-Chat-4bit | large | 4bit | 34.0 | 17.32 | intent | dev | label_match=0.000 | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T000349Z | mlx-community/Yi-1.5-34B-Chat-4bit | large | 4bit | 34.0 | 17.32 | dialogue | dev | overall=0.00 (c=0.0/a=0.0/l=0.0/r=0.0/cr=0.0) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T000349Z | mlx-community/Yi-1.5-34B-Chat-4bit | large | 4bit | 34.0 | 17.32 | reaction | dev | mean_in_character=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T000349Z | mlx-community/Yi-1.5-34B-Chat-4bit | large | 4bit | 34.0 | 17.32 | tier2-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T000349Z | mlx-community/Yi-1.5-34B-Chat-4bit | large | 4bit | 34.0 | 17.32 | tier3-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T003123Z | mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | large | 4bit | 32.0 | 15.24 | intent | dev | label_match=0.800 | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T003123Z | mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | large | 4bit | 32.0 | 15.24 | dialogue | dev | overall=0.00 (c=0.0/a=0.0/l=0.0/r=0.0/cr=0.0) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T003123Z | mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | large | 4bit | 32.0 | 15.24 | reaction | dev | mean_in_character=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T003123Z | mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | large | 4bit | 32.0 | 15.24 | tier2-sim | dev | schema_valid=0.60 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |
+| 20260529T003123Z | mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | large | 4bit | 32.0 | 15.24 | tier3-sim | dev | schema_valid=0.00 plausibility=0.00 (pending_judge) | $0.0000 | judge_sonnet_v1 | 8b715111 |

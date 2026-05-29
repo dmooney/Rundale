@@ -1,0 +1,88 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/gemma-2-27b-it-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T23:55:15.695720+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "HTTP Error 404: Not Found",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 1.3796181678771973,
+  "cost": {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "usd": 0.0
+  }
+}

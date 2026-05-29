@@ -12,7 +12,7 @@ Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html)
 | Judged candidates | 0 |
 | Unjudged backlog | 30 |
 | Distinct judges | 2 |
-| Quality rows | 34 |
+| Quality rows | 36 |
 | Perf rows | 63 |
 | Gaeilge rows | 33 |
 
@@ -85,9 +85,11 @@ Latest `--slice dialogue` (or `--slice all`) bench-it run per (candidate, judge,
 | mlx-community/OLMo-2-1124-7B-Instruct-4bit | claude-sonnet-4-6 | 9 | 3.28 | 3.70 | 3.40 | 3.70 | 3.70 | 1.90 | run_mlx_community_OLMo_2_1124_7B_Instruct_4bit_dialogue_20260528T220857Z.json |
 | mlx-community/Llama-3.1-8B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.24 | 3.20 | 3.20 | 3.70 | 3.50 | 2.60 | run_mlx_community_Llama_3_1_8B_Instruct_4bit_all_20260528T100751Z.json |
 | mlx-community/Falcon3-10B-Instruct-4bit | claude-sonnet-4-6 | 10 | 3.20 | 3.00 | 3.10 | 3.50 | 3.60 | 2.80 | run_mlx_community_Falcon3_10B_Instruct_4bit_all_20260528T102818Z.json |
+| mlx-community/Qwen3-30B-A3B-4bit | claude-sonnet-4-6 | 10 | 3.20 | 3.40 | 3.40 | 3.40 | 3.30 | 2.50 | run_mlx_community_Qwen3_30B_A3B_4bit_dialogue_20260528T232622Z.json |
 | mlx-community/Mistral-Nemo-Instruct-2407-4bit | claude-sonnet-4-6 | 10 | 3.14 | 2.90 | 2.90 | 3.70 | 3.50 | 2.70 | run_mlx_community_Mistral_Nemo_Instruct_2407_4bit_all_20260528T103054Z.json |
 | mlx-community/OLMo-2-1124-13B-Instruct-4bit | claude-sonnet-4-6 | 10 | 2.96 | 3.10 | 3.10 | 3.30 | 3.30 | 2.00 | run_mlx_community_OLMo_2_1124_13B_Instruct_4bit_dialogue_20260528T225428Z.json |
 | stelterlab/EuroLLM-9B-Instruct-MLX-4bit | claude-sonnet-4-6 | 7 | 2.94 | 2.86 | 2.86 | 3.14 | 3.43 | 2.43 | run_stelterlab_EuroLLM_9B_Instruct_MLX_4bit_all_20260528T142145Z.json |
+| mlx-community/Qwen2.5-Coder-32B-Instruct-4bit | claude-sonnet-4-6 | 10 | 2.94 | 3.20 | 3.00 | 2.80 | 3.80 | 1.90 | run_mlx_community_Qwen2_5_Coder_32B_Instruct_4bit_dialogue_20260529T003835Z.json |
 | mlx-community/Phi-4-mini-instruct-4bit | claude-sonnet-4-6 | 6 | 2.93 | 2.83 | 3.00 | 3.00 | 3.33 | 2.50 | run_mlx_community_Phi_4_mini_instruct_4bit_all_20260528T100407Z.json |
 | mlx-community/aya-expanse-8b-4bit | claude-sonnet-4-6 | 10 | 2.86 | 3.10 | 2.80 | 3.20 | 3.20 | 2.00 | run_mlx_community_aya_expanse_8b_4bit_all_20260528T142822Z.json |
 | mlx-community/Ministral-8B-Instruct-2410-4bit | claude-sonnet-4-6 | 10 | 2.86 | 2.90 | 2.80 | 3.00 | 3.20 | 2.40 | run_mlx_community_Ministral_8B_Instruct_2410_4bit_dialogue_20260528T224844Z.json |
