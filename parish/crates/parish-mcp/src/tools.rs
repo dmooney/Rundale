@@ -118,10 +118,8 @@ fn translate_file_bug(args: &Value) -> Result<(String, Value), String> {
         out["description"] = Value::String(desc.to_string());
     }
     // Optional structured context (e.g. a serialized debug-panel record).
-    if let Some(ctx) = args.get("context") {
-        if !ctx.is_null() {
-            out["context"] = ctx.clone();
-        }
+    if let Some(ctx) = args.get("context").filter(|c| !c.is_null()) {
+        out["context"] = ctx.clone();
     }
     Ok(("submit_bug_report".into(), out))
 }

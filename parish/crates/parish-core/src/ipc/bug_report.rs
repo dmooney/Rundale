@@ -230,7 +230,11 @@ impl BugReportState {
             .skip(tail(debug.inference.call_log.len()))
             .map(|e| {
                 let status = if e.error.is_some() { "ERROR" } else { "ok" };
-                let err = e.error.as_deref().map(|x| format!(" — {x}")).unwrap_or_default();
+                let err = e
+                    .error
+                    .as_deref()
+                    .map(|x| format!(" — {x}"))
+                    .unwrap_or_default();
                 format!(
                     "[{}] #{} {} {} {}ms{}",
                     e.timestamp, e.request_id, e.model, status, e.duration_ms, err
@@ -282,8 +286,7 @@ pub struct GitHubBugConfig {
 impl GitHubBugConfig {
     /// Resolves configuration from the environment.
     pub fn from_env() -> Self {
-        let token =
-            first_non_empty_env(&["PARISH_BUG_REPORT_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]);
+        let token = first_non_empty_env(&["PARISH_BUG_REPORT_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]);
         let repo =
             non_empty_env("PARISH_BUG_REPORT_REPO").unwrap_or_else(|| DEFAULT_REPO.to_string());
         let asset_branch = non_empty_env("PARISH_BUG_REPORT_ASSET_BRANCH");
@@ -480,12 +483,10 @@ fn write_offline_bundle(
     std::fs::create_dir_all(&dir).map_err(|e| BugReportError::Io(e.to_string()))?;
 
     let mut screenshot_note = None;
-    if let Some(bytes) = screenshot_png {
-        if !bytes.is_empty() {
-            let png = dir.join("screenshot.png");
-            std::fs::write(&png, bytes).map_err(|e| BugReportError::Io(e.to_string()))?;
-            screenshot_note = Some(png.display().to_string());
-        }
+    if let Some(bytes) = screenshot_png.filter(|b| !b.is_empty()) {
+        let png = dir.join("screenshot.png");
+        std::fs::write(&png, bytes).map_err(|e| BugReportError::Io(e.to_string()))?;
+        screenshot_note = Some(png.display().to_string());
     }
 
     let body = compose_issue_body(req, state, None);
