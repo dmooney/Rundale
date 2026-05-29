@@ -25,6 +25,7 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     "new_save_file",
     "new_game",
     "get_save_state",
+    "submit_bug_report",
     "react_to_message",
     // ── demo commands ──────────────────────────────────────────────────────
     "get_demo_config",

@@ -3292,6 +3292,7 @@ name = "parish-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "parish-config",
  "parish-inference",
@@ -3312,6 +3313,7 @@ dependencies = [
  "tokio-util",
  "toml 0.8.2",
  "tracing",
+ "uuid",
  "wiremock",
 ]
 
@@ -3534,6 +3536,7 @@ dependencies = [
  "parish-palette",
  "png 0.18.1",
  "rand 0.9.4",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tauri",

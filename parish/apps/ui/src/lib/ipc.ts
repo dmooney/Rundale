@@ -25,7 +25,9 @@ import type {
 	SaveFileInfo,
 	SaveState,
 	DemoContextSnapshot,
-	DemoConfigPayload
+	DemoConfigPayload,
+	BugContext,
+	BugReportResult
 } from './types';
 
 // ── Transport detection ─────────────────────────────────────────────────────
@@ -145,6 +147,24 @@ export interface ScreenshotInfo {
  */
 export const saveScreenshot = (dataUrl: string) =>
 	command<ScreenshotInfo>('save_screenshot', { dataUrl });
+
+// ── Bug reporting ─────────────────────────────────────────────────────────────
+
+/**
+ * Files a bug report — bundles a screenshot, recent logs, and current game
+ * state into a GitHub issue (or an on-disk bundle in dry-run / no-token mode).
+ *
+ * Keys are camelCase so the single `command()` adapter works across both
+ * transports: Tauri maps `screenshotDataUrl` → the `screenshot_data_url`
+ * argument, and the web route's `BugReportRequest` uses `rename_all =
+ * "camelCase"`.
+ */
+export const submitBugReport = (args: {
+	title: string;
+	description: string;
+	screenshotDataUrl?: string;
+	context?: BugContext;
+}) => command<BugReportResult>('submit_bug_report', args);
 
 /**
  * Reads metadata for the most recently captured screenshot, or `null` if

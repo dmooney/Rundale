@@ -3,6 +3,7 @@
 	import type { DebugSnapshot } from '$lib/types';
 	import { Key, Check, WarningCircle } from 'phosphor-svelte';
 	import ByokOnboarding from './ByokOnboarding.svelte';
+	import BugChip from './BugChip.svelte';
 
 	const PRESET_PROVIDERS = [
 		'anthropic',
@@ -142,14 +143,17 @@
 			<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
 			{#each [...snap.inference.call_log].reverse() as entry}
 				{@const npcLabel = npcLabelFromEntry(entry)}
-				<button class="log-row" class:log-row-error={entry.error} onclick={() => onSelectLog(entry.request_id)}>
-					<span class="muted">[{entry.timestamp}]</span>
-					<span class="log-id">#{entry.request_id}</span>
-					{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{:else}<span class="log-model">{entry.model}</span>{/if}
-					{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
-					{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-					<span class="muted">{entry.duration_ms}ms{#if entry.ttft_ms != null} · ttft {entry.ttft_ms}ms{/if}{#if entry.output_tokens != null && entry.ttft_ms != null && entry.duration_ms > entry.ttft_ms} · {(entry.output_tokens / ((entry.duration_ms - entry.ttft_ms) / 1000)).toFixed(1)} tok/s{/if}</span>
-				</button>
+				<div class="log-row-wrap">
+					<button class="log-row" class:log-row-error={entry.error} onclick={() => onSelectLog(entry.request_id)}>
+						<span class="muted">[{entry.timestamp}]</span>
+						<span class="log-id">#{entry.request_id}</span>
+						{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{:else}<span class="log-model">{entry.model}</span>{/if}
+						{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
+						{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+						<span class="muted">{entry.duration_ms}ms{#if entry.ttft_ms != null} · ttft {entry.ttft_ms}ms{/if}{#if entry.output_tokens != null && entry.ttft_ms != null && entry.duration_ms > entry.ttft_ms} · {(entry.output_tokens / ((entry.duration_ms - entry.ttft_ms) / 1000)).toFixed(1)} tok/s{/if}</span>
+					</button>
+					<BugChip kind="inference" label={`call #${entry.request_id} (${entry.model})`} detail={entry} />
+				</div>
 			{/each}
 		{/if}
 	</div>
@@ -318,6 +322,16 @@
 
 	.role-table td.muted {
 		color: var(--color-muted);
+	}
+
+	.log-row-wrap {
+		display: flex;
+		align-items: center;
+		gap: 0.1rem;
+	}
+	.log-row-wrap .log-row {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.log-row {
