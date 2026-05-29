@@ -1382,6 +1382,7 @@ pub fn run() {
             commands::new_save_file,
             commands::new_game,
             commands::get_save_state,
+            commands::submit_bug_report,
             commands::react_to_message,
             commands::get_demo_config,
             commands::get_demo_context,
