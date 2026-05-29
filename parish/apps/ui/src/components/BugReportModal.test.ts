@@ -11,12 +11,12 @@ async function flush() {
 	await tick();
 }
 
-const mockSubmitBugReport = vi.fn<() => Promise<BugReportResult>>(() =>
+const mockSubmitBugReport = vi.fn<(args: unknown) => Promise<BugReportResult>>(() =>
 	Promise.resolve({ created: false, bundle_path: '/tmp/bug/issue.md', message: 'Dry-run: composed bug report' })
 );
 
 vi.mock('$lib/ipc', () => ({
-	submitBugReport: (args: unknown) => mockSubmitBugReport(args as never)
+	submitBugReport: (args: unknown) => mockSubmitBugReport(args)
 }));
 
 import BugReportModal from './BugReportModal.svelte';

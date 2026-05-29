@@ -450,7 +450,7 @@ pub async fn create_bug_report(
     let id = uuid::Uuid::new_v4().to_string();
 
     if cfg.is_offline() {
-        return write_offline_bundle(req, state, screenshot_png, bundle_root, &id);
+        return write_offline_bundle(req, state, screenshot_png, bundle_root, &id).await;
     }
 
     // Live path: upload screenshot (best-effort inline render), then file.
@@ -472,27 +472,36 @@ pub async fn create_bug_report(
     })
 }
 
-fn write_offline_bundle(
+async fn write_offline_bundle(
     req: &BugReportRequest,
     state: &BugReportState,
     screenshot_png: Option<&[u8]>,
     bundle_root: &Path,
     id: &str,
 ) -> Result<BugReportResult, BugReportError> {
+    // Async I/O so a dry-run filing never blocks the Tokio executor that runs
+    // the game loop / server (matches the tokio::fs convention used elsewhere
+    // in the runtime handlers).
     let dir = bundle_root.join(id);
-    std::fs::create_dir_all(&dir).map_err(|e| BugReportError::Io(e.to_string()))?;
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| BugReportError::Io(e.to_string()))?;
 
     let mut screenshot_note = None;
     if let Some(bytes) = screenshot_png.filter(|b| !b.is_empty()) {
         let png = dir.join("screenshot.png");
-        std::fs::write(&png, bytes).map_err(|e| BugReportError::Io(e.to_string()))?;
+        tokio::fs::write(&png, bytes)
+            .await
+            .map_err(|e| BugReportError::Io(e.to_string()))?;
         screenshot_note = Some(png.display().to_string());
     }
 
     let body = compose_issue_body(req, state, None);
     let issue_md = format!("# {}\n\n{body}", req.title.trim());
     let issue_path = dir.join("issue.md");
-    std::fs::write(&issue_path, &issue_md).map_err(|e| BugReportError::Io(e.to_string()))?;
+    tokio::fs::write(&issue_path, &issue_md)
+        .await
+        .map_err(|e| BugReportError::Io(e.to_string()))?;
 
     let message = match &screenshot_note {
         Some(p) => format!(
