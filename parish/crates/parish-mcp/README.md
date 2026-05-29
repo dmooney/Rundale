@@ -21,6 +21,7 @@ Exposes a small, curated set of MCP tools that map onto Parish's IPC surface:
 | `parish_setup_status` | Reads BYOK setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`. |
 | `parish_setup_byok` | Persists a BYOK provider config (writes key to OS keychain, rebuilds the live inference worker). |
 | `parish_latest_screenshot` | Reads metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
+| `parish_file_bug` | Files a bug report (`title`, optional `description`/`context`) — bundles a live screenshot + recent logs + game state into a GitHub issue and returns the URL. Dry-run / no-token mode writes the report to disk (`created:false`, `bundle_path` set). |
 | `tauri_invoke` | Generic escape hatch — call any backend command by name. |
 
 Behind the scenes these go through a [`TauriBackend`](src/backend.rs) trait. The
