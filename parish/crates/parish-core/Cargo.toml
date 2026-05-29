@@ -17,7 +17,7 @@ parish-persistence = { workspace = true }
 parish-input      = { workspace = true }
 tokio             = { workspace = true }
 tokio-util        = { workspace = true }
-reqwest           = { workspace = true }
+reqwest           = { workspace = true, features = ["json"] }
 serde             = { workspace = true }
 serde_json        = { workspace = true }
 serde_yaml        = { workspace = true }
@@ -26,6 +26,8 @@ thiserror         = { workspace = true }
 tracing           = { workspace = true }
 chrono            = { workspace = true }
 toml              = { workspace = true }
+base64            = "0.22"
+uuid              = { workspace = true }
 
 [dev-dependencies]
 tempfile   = { workspace = true }
