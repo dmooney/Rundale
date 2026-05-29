@@ -46,7 +46,14 @@ const LOG_TAIL: usize = 15;
 
 /// A bug report submitted from the toolbar button, a debug-panel record, or
 /// the `parish_file_bug` MCP tool.
+///
+/// Wire form is camelCase to match the frontend's `command()` payloads and the
+/// `parish-server` request-body convention. The MCP tool sends snake_case
+/// (`title`/`description`/`context`) which round-trips identically since those
+/// are single-word fields; only `screenshot_data_url` differs, and the MCP
+/// path never sends it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BugReportRequest {
     /// Short issue title.
     pub title: String,

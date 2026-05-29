@@ -536,3 +536,38 @@ export interface DemoConfigPayload {
 	turn_pause_secs: number;
 	max_turns: number | null;
 }
+
+// ── Bug reporting ─────────────────────────────────────────────────────────────
+
+/** A specific debug-panel record attached to a bug report for extra context. */
+export interface BugContext {
+	/** Record family: "inference", "event", "conversation", etc. */
+	kind: string;
+	/** Short human-readable label for the record. */
+	label: string;
+	/** The serialized record itself. */
+	detail: unknown;
+}
+
+/** A bug report submitted from the toolbar button, a debug record, or MCP. */
+export interface BugReportRequest {
+	title: string;
+	description: string;
+	/** `data:image/png;base64,…` screenshot captured by the frontend. */
+	screenshot_data_url?: string;
+	/** Optional debug-panel record this report was filed from. */
+	context?: BugContext;
+}
+
+/** Outcome of a bug-report submission. */
+export interface BugReportResult {
+	/** Whether a GitHub issue was actually created (false in dry-run/offline). */
+	created: boolean;
+	issue_url?: string;
+	issue_number?: number;
+	screenshot_url?: string;
+	/** On-disk path of the composed bundle, when written (dry-run/offline). */
+	bundle_path?: string;
+	/** Human-readable summary suitable for a toast. */
+	message: string;
+}

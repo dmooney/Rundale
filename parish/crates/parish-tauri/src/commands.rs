@@ -1693,10 +1693,19 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
 /// disk). Shared with the MCP bridge's `/api/submit-bug-report` route.
 #[tauri::command]
 pub async fn submit_bug_report(
-    request: parish_core::ipc::BugReportRequest,
+    title: String,
+    description: Option<String>,
+    screenshot_data_url: Option<String>,
+    context: Option<parish_core::ipc::BugContext>,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<parish_core::ipc::BugReportResult, String> {
+    let request = parish_core::ipc::BugReportRequest {
+        title,
+        description: description.unwrap_or_default(),
+        screenshot_data_url,
+        context,
+    };
     do_submit_bug_report(&state, &app, request).await
 }
 
