@@ -29,7 +29,10 @@ export class SceneDeduplicator {
 	shouldShowDescription(currentLocationName: string): boolean {
 		const changed = this.lastLocationName !== currentLocationName;
 		this.lastLocationName = currentLocationName;
-		if (this.suppressNext) {
+		// Only consume the suppression on the actual transition. Consuming it on
+		// an unchanged (idle) update would clear the flag early and let the real
+		// location-change update re-append the scene the text-log already showed.
+		if (changed && this.suppressNext) {
 			this.suppressNext = false;
 			return false;
 		}

@@ -79,6 +79,18 @@ describe('SceneDeduplicator', () => {
 		expect(dedup.shouldShowDescription('The Crossroads')).toBe(true);
 	});
 
+	it('keeps suppression armed across an unchanged update, then suppresses the real transition', () => {
+		const dedup = new SceneDeduplicator();
+		dedup.shouldShowDescription('Kilteevan');
+		// A `location` text-log armed suppression for the move's scene.
+		dedup.suppressNextDescription();
+		// An idle (unchanged-location) world-update slips in first — it must NOT
+		// consume the flag.
+		expect(dedup.shouldShowDescription('Kilteevan')).toBe(false);
+		// The real transition's world-update is still suppressed (text-log showed it).
+		expect(dedup.shouldShowDescription('The Crossroads')).toBe(false);
+	});
+
 	it('clears the suppression flag on reset', () => {
 		const dedup = new SceneDeduplicator();
 		dedup.suppressNextDescription();
