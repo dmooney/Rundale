@@ -5,7 +5,7 @@
 //! - `parish-tauri` uses `tauri::AppHandle::emit(name, payload)`.
 //! - `parish-server` uses `EventBus::emit_named(topic, name, &payload)` which
 //!   serialises via `serde_json::to_value` and broadcasts to WebSocket clients.
-//! - `parish-cli` headless mode uses `StdoutEmitter` which logs `text-log`
+//! - `parish-engine` headless mode uses `StdoutEmitter` which logs `text-log`
 //!   payloads to stdout and no-ops on all other event types.
 //!
 //! This trait is **object-safe** (no generic methods) so `Arc<dyn EventEmitter>`
@@ -22,7 +22,7 @@
 //!   each `(name, payload)` to the correct [`Topic`] and calls `emit_named`.
 //! - **`parish-tauri`**: `TauriEmitter(tauri::AppHandle)` → calls
 //!   `app.emit(name, payload)`.
-//! - **`parish-cli`**: `StdoutEmitter` → prints `text-log` content to stdout;
+//! - **`parish-engine`**: `StdoutEmitter` → prints `text-log` content to stdout;
 //!   no-ops on `world-update`, `stream-token`, `loading`, etc.
 
 /// Backend-agnostic event emission.

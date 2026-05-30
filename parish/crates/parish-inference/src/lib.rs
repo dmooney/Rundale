@@ -266,6 +266,13 @@ pub struct InferenceRequest {
     pub max_tokens: Option<u32>,
     /// Optional temperature for sampling (0.0 = deterministic, 1.0+ = creative).
     pub temperature: Option<f32>,
+    /// Optional OpenAI-compat `frequency_penalty`. Forwarded to vllm-mlx,
+    /// LM Studio, OpenAI, OpenRouter and any compatible backend; ignored
+    /// by Anthropic and the Simulator (no equivalent). Tier 1 dialogue
+    /// sets `Some(0.5)` to break Qwen2.5-14B-4bit's degenerate
+    /// repetition loops (TODO #10 / #23 / #34). Tier 2 / Tier 3 / intent
+    /// / reaction callers leave it at `None`.
+    pub frequency_penalty: Option<f32>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
     /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
@@ -360,6 +367,43 @@ impl InferenceQueue {
         .await
     }
 
+    /// Convenience variant that carries a `frequency_penalty` knob without
+    /// requiring callers to drop down to [`Self::send_full`]. Used by the
+    /// Tier 1 dialogue call site to set the penalty for repetition-loop
+    /// suppression (TODO #10 / #23 / #34) while keeping the legacy
+    /// `[`Self::send`] signature stable for the rest of the codebase.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_with_penalty(
+        &self,
+        id: u64,
+        model: String,
+        prompt: String,
+        system: Option<String>,
+        token_tx: Option<mpsc::Sender<String>>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
+        priority: InferencePriority,
+        json_mode: bool,
+    ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
+    {
+        self.send_full(
+            id,
+            model,
+            prompt,
+            system,
+            token_tx,
+            max_tokens,
+            temperature,
+            frequency_penalty,
+            priority,
+            json_mode,
+            None,
+            None,
+        )
+        .await
+    }
+
     /// Schema-aware variant of [`Self::send`].
     ///
     /// Pass `json_schema = Some(...)` to forward a strict structured-output
@@ -390,6 +434,7 @@ impl InferenceQueue {
             token_tx,
             max_tokens,
             temperature,
+            None,
             priority,
             json_mode,
             json_schema,
@@ -416,6 +461,7 @@ impl InferenceQueue {
         token_tx: Option<mpsc::Sender<String>>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
         priority: InferencePriority,
         json_mode: bool,
         json_schema: Option<JsonSchemaSpec>,
@@ -432,6 +478,7 @@ impl InferenceQueue {
             token_tx,
             max_tokens,
             temperature,
+            frequency_penalty,
             priority,
             json_mode,
             json_schema,
@@ -575,6 +622,7 @@ pub async fn submit_json_streaming<T: serde::de::DeserializeOwned>(
             Some(sink_tx),
             max_tokens,
             None,
+            None,
             priority,
             false,
             None,
@@ -694,6 +742,11 @@ impl AnyClient {
     }
 
     /// Generates plain text (non-streaming).
+    ///
+    /// `frequency_penalty` is the OpenAI-compat sampling knob; on
+    /// `Anthropic` / `Simulator` it is accepted and ignored (no
+    /// equivalent on the Messages API; the simulator is deterministic).
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate(
         &self,
         model: &str,
@@ -701,17 +754,27 @@ impl AnyClient {
         system: Option<&str>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
-                c.generate(model, prompt, system, max_tokens, temperature)
-                    .await
+                c.generate(
+                    model,
+                    prompt,
+                    system,
+                    max_tokens,
+                    temperature,
+                    frequency_penalty,
+                )
+                .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -719,6 +782,7 @@ impl AnyClient {
     }
 
     /// Generates text with token streaming.
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate_stream(
         &self,
         model: &str,
@@ -727,17 +791,28 @@ impl AnyClient {
         token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
-                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
-                    .await
+                c.generate_stream(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    max_tokens,
+                    temperature,
+                    frequency_penalty,
+                )
+                .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
@@ -749,6 +824,7 @@ impl AnyClient {
     /// Like [`generate_stream`] but constrains the provider to emit valid JSON.
     /// Used for Tier 1 NPC responses where dialogue is embedded in a JSON
     /// structure and extracted incrementally during streaming.
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate_stream_json(
         &self,
         model: &str,
@@ -757,17 +833,28 @@ impl AnyClient {
         token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
-                c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
-                    .await
+                c.generate_stream_json(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    max_tokens,
+                    temperature,
+                    frequency_penalty,
+                )
+                .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
@@ -775,6 +862,7 @@ impl AnyClient {
     }
 
     /// Generates a structured JSON response and deserializes it into `T`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate_json<T: serde::de::DeserializeOwned>(
         &self,
         model: &str,
@@ -782,17 +870,27 @@ impl AnyClient {
         system: Option<&str>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<T, ParishError> {
         match self {
             Self::OpenAi(c) => {
-                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
-                    .await
+                c.generate_json::<T>(
+                    model,
+                    prompt,
+                    system,
+                    max_tokens,
+                    temperature,
+                    frequency_penalty,
+                )
+                .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -807,6 +905,7 @@ impl AnyClient {
     /// `T`. Anthropic and Simulator backends ignore `response_format`
     /// (they don't speak OpenAI's structured-outputs wire shape) and fall
     /// back to plain `generate`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate_with_format(
         &self,
         model: &str,
@@ -815,6 +914,7 @@ impl AnyClient {
         response_format: Option<ResponseFormat>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
@@ -825,14 +925,17 @@ impl AnyClient {
                     response_format,
                     max_tokens,
                     temperature,
+                    frequency_penalty,
                 )
                 .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -854,6 +957,7 @@ impl AnyClient {
         response_format: Option<ResponseFormat>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        frequency_penalty: Option<f32>,
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
@@ -865,14 +969,17 @@ impl AnyClient {
                     response_format,
                     max_tokens,
                     temperature,
+                    frequency_penalty,
                 )
                 .await
             }
             Self::Anthropic(c) => {
+                let _ = frequency_penalty;
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
                 // When the caller expects JSON (either schema or json_mode),
                 // the Markov stream the simulator would otherwise produce
                 // never parses and the caller logs a JSON-parse error every
@@ -1070,6 +1177,7 @@ pub fn spawn_inference_worker(
                             response_format.clone(),
                             request.max_tokens,
                             request.temperature,
+                            request.frequency_penalty,
                         ),
                         streaming_timeout,
                         timeout_config.streaming_timeout_secs,
@@ -1093,6 +1201,7 @@ pub fn spawn_inference_worker(
                             response_format.clone(),
                             request.max_tokens,
                             request.temperature,
+                            request.frequency_penalty,
                         ),
                         blocking_timeout,
                         timeout_config.timeout_secs,
@@ -1280,6 +1389,65 @@ mod tests {
         assert_eq!(received.id, 1);
         assert_eq!(received.text, "world");
         assert!(received.error.is_none());
+    }
+
+    /// TODO #10 / #23 / #34 — `send_with_penalty` must carry
+    /// `frequency_penalty` onto the `InferenceRequest` so the worker can
+    /// forward it to the underlying client. Regressing this field to
+    /// `None` would silently disable the Tier 1 repetition-loop fix.
+    #[tokio::test]
+    async fn test_inference_queue_send_with_penalty_carries_field() {
+        let (queue, mut irx, _brx, _batrx) = make_queue();
+        let _rx = queue
+            .send_with_penalty(
+                42,
+                "dialogue-model".to_string(),
+                "prompt".to_string(),
+                Some("system".to_string()),
+                None,
+                Some(256),
+                Some(0.7),
+                Some(0.5),
+                InferencePriority::Interactive,
+                true,
+            )
+            .await
+            .unwrap();
+
+        let request = irx.recv().await.unwrap();
+        assert_eq!(request.id, 42);
+        assert_eq!(request.frequency_penalty, Some(0.5));
+        assert_eq!(request.temperature, Some(0.7));
+        assert_eq!(request.max_tokens, Some(256));
+        assert!(request.json_mode);
+    }
+
+    /// `send` / `send_with_schema` callers leave the penalty implicit;
+    /// the request must carry `None` so non-dialogue tiers don't
+    /// accidentally pick up the Tier 1 sampling override.
+    #[tokio::test]
+    async fn test_inference_queue_send_default_omits_frequency_penalty() {
+        // Send into the Interactive lane and receive on `irx` so the
+        // request actually surfaces. The original Background-into-irx
+        // mismatch hung this test forever and stalled CI's quality
+        // gate at the 30-minute timeout (#1127 follow-up).
+        let (queue, mut irx, _brx, _batrx) = make_queue();
+        let _rx = queue
+            .send(
+                43,
+                "m".to_string(),
+                "p".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Interactive,
+                false,
+            )
+            .await
+            .unwrap();
+        let request = irx.recv().await.unwrap();
+        assert_eq!(request.frequency_penalty, None);
     }
 
     #[tokio::test]
@@ -1703,6 +1871,7 @@ mod tests {
             response_tx: resp_tx,
             max_tokens: None,
             temperature: None,
+            frequency_penalty: None,
             priority: InferencePriority::Interactive,
             json_mode: false,
             json_schema: None,
@@ -1750,6 +1919,7 @@ mod tests {
                 response_tx: resp_tx,
                 max_tokens: None,
                 temperature: None,
+                frequency_penalty: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -1822,6 +1992,7 @@ mod tests {
                 response_tx: resp_tx,
                 max_tokens: None,
                 temperature: None,
+                frequency_penalty: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -1896,6 +2067,7 @@ mod tests {
                 response_tx: resp_tx,
                 max_tokens: None,
                 temperature: None,
+                frequency_penalty: None,
                 priority: InferencePriority::Interactive,
             })
             .await
@@ -1923,6 +2095,7 @@ mod tests {
                 response_tx: resp_tx2,
                 max_tokens: None,
                 temperature: None,
+                frequency_penalty: None,
                 priority: InferencePriority::Interactive,
             })
             .await
@@ -2074,6 +2247,7 @@ mod tests {
                 tx,
                 response_format,
                 Some(120),
+                None,
                 None,
             );
             let drain = tokio::spawn(async move {

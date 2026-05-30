@@ -91,6 +91,7 @@ available as `mcp__parish__*`:
 | `parish_setup_status` | Reads first-run setup state: `{implemented, complete, provider, model, base_url, has_api_key, has_env_key}`. |
 | `parish_setup_byok` | Submits a BYOK provider config (`provider`, `api_key`, optional `base_url`/`model`). Persists to keychain + `parish.toml`, rebuilds the inference worker, emits `setup-done`. |
 | `parish_latest_screenshot` | Read metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
+| `parish_file_bug` | File a bug report (`title`, optional `description`/`context`). Bundles a live screenshot + recent logs + game state into a GitHub issue on the configured repo (`dmooney/rundale` by default) and returns the issue URL. In dry-run / no-token mode writes the composed report to disk (`created:false`, `bundle_path` set). For auto-QA agents. |
 | `tauri_invoke` | Generic escape hatch — call any backend command (e.g. `editor_*`, `get_debug_snapshot`) by name. |
 
 The MCP server is a *bridge*: it speaks HTTP to a running Parish backend on

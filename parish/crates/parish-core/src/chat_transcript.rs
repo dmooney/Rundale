@@ -278,6 +278,9 @@ impl ChatTranscriptLog {
             | GameEvent::RelationshipChanged { .. }
             | GameEvent::NpcArrived { .. }
             | GameEvent::NpcDeparted { .. }
+            | GameEvent::NpcActivity { .. }
+            | GameEvent::GossipSpread { .. }
+            | GameEvent::AddressedAbsentNpc { .. }
             | GameEvent::LifeEvent { .. } => {}
         }
     }

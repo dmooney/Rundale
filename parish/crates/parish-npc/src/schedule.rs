@@ -174,6 +174,17 @@ pub fn tick_schedules(
                         .get(desired)
                         .map(|d| d.name.clone())
                         .unwrap_or_else(|| "?".to_string());
+                    // Capture the authored activity for this trip only
+                    // when the trip is heading to the *scheduled*
+                    // location — cuaird/weather-shelter reroutes mean
+                    // the authored activity no longer matches the
+                    // destination and should be suppressed.
+                    let scheduled_activity = npc
+                        .schedule_entry(current_hour, season, day_type)
+                        .filter(|entry| {
+                            entry.location == desired && !entry.activity.trim().is_empty()
+                        })
+                        .map(|entry| entry.activity.clone());
                     events.push(ScheduleEvent {
                         npc_id: id,
                         npc_name,
@@ -187,6 +198,7 @@ pub fn tick_schedules(
                     event_bus.publish(GameEvent::NpcDeparted {
                         npc_id: id,
                         location: from,
+                        to: desired,
                         timestamp: now,
                     });
                     tracing::debug!(
@@ -203,12 +215,19 @@ pub fn tick_schedules(
                         from,
                         to: desired,
                         arrives_at,
+                        activity: scheduled_activity,
                     };
                 }
             }
-            NpcState::InTransit { to, arrives_at, .. } => {
+            NpcState::InTransit {
+                to,
+                arrives_at,
+                activity,
+                ..
+            } => {
                 if now >= *arrives_at {
                     let destination = *to;
+                    let activity = activity.clone();
                     let dest_name = graph
                         .get(destination)
                         .map(|d| d.name.clone())
@@ -226,6 +245,14 @@ pub fn tick_schedules(
                         location: destination,
                         timestamp: now,
                     });
+                    if let Some(activity) = activity {
+                        event_bus.publish(GameEvent::NpcActivity {
+                            npc_id: id,
+                            location: destination,
+                            activity,
+                            timestamp: now,
+                        });
+                    }
                     tracing::debug!(npc = %npc.name, location = destination.0, "NPC arrived");
                     let Some(npc_mut) = npcs.get_mut(&id) else {
                         continue;

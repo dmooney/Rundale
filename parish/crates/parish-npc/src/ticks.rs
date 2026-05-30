@@ -200,9 +200,112 @@ pub fn build_enhanced_system_prompt_with_config(
     prompt
 }
 
+/// Runs a single Tier 2 inference attempt: streams via `client`, sinks
+/// tokens to discard, races against `cancel`, and parses the assembled
+/// string into a [`Tier2Response`]. Errors are returned for the caller
+/// to classify (parse failure → retry; cancellation → bail; transport
+/// → bail with diagnostic).
+async fn try_tier2_inference(
+    client: &parish_inference::AnyClient,
+    model: &str,
+    prompt: &str,
+    cancel: Option<parish_inference::CancellationToken>,
+) -> Result<Tier2Response, ParishError> {
+    // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
+    // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
+    // Streaming path: discards chunks (the assembled string returns from
+    // generate_stream_with_format) but enables mid-flight cancellation (#9).
+    let (sink_tx, mut sink_rx) =
+        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+
+    let stream_fut = client.generate_stream_with_format(
+        model,
+        prompt,
+        None,
+        sink_tx,
+        None,
+        Some(200),
+        None,
+        None,
+    );
+
+    let raw = match cancel {
+        Some(tok) => tokio::select! {
+            biased;
+            () = tok.cancelled() => Err(ParishError::Inference(
+                "Tier 2 cancelled mid-stream".to_string(),
+            )),
+            res = stream_fut => res,
+        },
+        None => stream_fut.await,
+    };
+
+    raw.and_then(|s| {
+        serde_json::from_str::<Tier2Response>(&s)
+            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
+    })
+}
+
+/// Strict-JSON reminder appended to a Tier 2 prompt on retry.
+///
+/// TODO #27: the 1.5B simulation-tier model occasionally emits
+/// malformed JSON (unquoted keys, trailing prose, markdown fences),
+/// which surfaces as `"Tier 2 JSON parse failed: ..."` and silently
+/// drops the location's off-screen update for that tick. The retry
+/// re-invokes inference with this reminder appended so the model
+/// has a second, sharper push toward strict JSON.
+pub(crate) const TIER2_STRICT_JSON_REMINDER: &str = "\n\n\
+    IMPORTANT — your previous reply was not valid JSON. Return STRICT \
+    JSON ONLY. No markdown fences, no commentary before or after the \
+    object, no trailing prose. All keys must be double-quoted strings. \
+    The envelope shape is exactly:\n\
+    {\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}";
+
+/// Returns true when the error string represents a JSON parse
+/// failure produced by [`run_tier2_for_group`]. Used to gate the
+/// one-shot retry — non-parse failures (cancellation, transport,
+/// timeout) should not retry.
+pub(crate) fn is_tier2_json_parse_failure(msg: &str) -> bool {
+    msg.contains("Tier 2 JSON parse failed")
+}
+
+/// Cumulative Tier 2 JSON parse failure count since process start
+/// (TODO #29). Surfaced in `parish_core::debug_snapshot::InferenceDebug`
+/// so an operator can trend silent off-screen sim drops across a demo
+/// run. Per-location detail still lives in `parish_npc::ticks` WARN
+/// logs — the counter is a coarse trend signal, not a replacement.
+static TIER2_PARSE_FAILURES_TOTAL: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Returns the cumulative Tier 2 JSON parse failure count since process
+/// start. Used by `build_debug_snapshot` to populate
+/// `InferenceDebug::tier2_parse_failures_total`.
+pub fn tier2_parse_failures_total() -> u64 {
+    TIER2_PARSE_FAILURES_TOTAL.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Records a Tier 2 JSON parse failure. Internal — callers reach
+/// the counter through the WARN log path that already classifies
+/// the error.
+fn record_tier2_parse_failure() {
+    TIER2_PARSE_FAILURES_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Returns true when an inference error string represents a graceful
+/// cancellation (shutdown, `sim_cancel` on player input, demo turn cap)
+/// rather than a real failure. Both Tier 2 and Tier 3 paths construct
+/// their cancellation errors as `"Tier {N} cancelled mid-stream"`, so
+/// the substring `"cancelled mid-stream"` is the discriminator (TODO
+/// #54 — Tier 3 was emitting these at WARN instead of the lower-level
+/// the Tier 2 path already uses).
+fn is_intentional_cancellation(msg: &str) -> bool {
+    msg.contains("cancelled mid-stream")
+}
+
 /// "Already introduced" anchor — fires only on the second and later
 /// turns with a given NPC (when the NPC's name has already been
-/// surfaced to the player). TODO #39 captured this failure mode:
+/// surfaced to the player). This failure mode was captured:
 /// Roisin Connolly's reply on turn 7 included "...ye share yer
 /// plans with me, Roisin Connolly, of Connolly's Shop, and a keen
 /// eye for opportunity?" — mid-reply self-introduction that
@@ -779,53 +882,67 @@ pub async fn run_tier2_for_group(
     let prompt = build_tier2_prompt(group, time_desc, weather, language);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
-    // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
-    // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
-    // Streaming path: discards chunks (the assembled string returns from
-    // generate_stream_with_format) but enables mid-flight cancellation (#9).
-    let (sink_tx, mut sink_rx) =
-        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
-    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
-
-    let stream_fut =
-        client.generate_stream_with_format(model, &prompt, None, sink_tx, None, Some(200), None);
-
-    let raw = match cancel {
-        Some(tok) => tokio::select! {
-            biased;
-            () = tok.cancelled() => Err(ParishError::Inference(
-                "Tier 2 cancelled mid-stream".to_string(),
-            )),
-            res = stream_fut => res,
-        },
-        None => stream_fut.await,
-    };
-
-    match raw.and_then(|s| {
-        serde_json::from_str::<Tier2Response>(&s)
-            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
-    }) {
-        Ok(resp) => Some(Tier2Event {
-            location: group.location,
-            summary: resp.summary,
-            participants: participant_ids,
-            mood_changes: resp.mood_changes,
-            relationship_changes: resp.relationship_changes,
-        }),
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("cancelled mid-stream") {
-                // Graceful cancellation (shutdown, demo turn cap). Not a failure.
-                tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
-            } else {
-                tracing::error!(
-                    "Tier 2 inference failed at {}: {}",
-                    group.location_name,
-                    msg
-                );
+    let mut last_err: ParishError =
+        match try_tier2_inference(client, model, &prompt, cancel.clone()).await {
+            Ok(resp) => {
+                return Some(Tier2Event {
+                    location: group.location,
+                    summary: resp.summary,
+                    participants: participant_ids,
+                    mood_changes: resp.mood_changes,
+                    relationship_changes: resp.relationship_changes,
+                });
             }
-            None
+            Err(e) => e,
+        };
+
+    // Retry exactly once on JSON parse failure (TODO #27). Cancellation
+    // and non-parse errors fall through to the diagnostic block below.
+    let msg = last_err.to_string();
+    if !is_intentional_cancellation(&msg) && is_tier2_json_parse_failure(&msg) {
+        record_tier2_parse_failure(); // TODO #29
+        tracing::debug!(
+            "Tier 2 JSON parse failed at {}, retrying once with strict-JSON reminder: {}",
+            group.location_name,
+            msg
+        );
+        let retry_prompt = format!("{}{}", prompt, TIER2_STRICT_JSON_REMINDER);
+        match try_tier2_inference(client, model, &retry_prompt, cancel).await {
+            Ok(resp) => {
+                tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
+                return Some(Tier2Event {
+                    location: group.location,
+                    summary: resp.summary,
+                    participants: participant_ids,
+                    mood_changes: resp.mood_changes,
+                    relationship_changes: resp.relationship_changes,
+                });
+            }
+            Err(e) => {
+                // Retry also failed — count again if it was another parse
+                // failure (TODO #29). Cancellation between attempts will
+                // fall through to the diagnostic block without counting.
+                if is_tier2_json_parse_failure(&e.to_string()) {
+                    record_tier2_parse_failure();
+                }
+                last_err = e;
+            }
         }
+    }
+
+    {
+        let msg = last_err.to_string();
+        if is_intentional_cancellation(&msg) {
+            // Graceful cancellation (shutdown, demo turn cap). Not a failure.
+            tracing::debug!("Tier 2 cancelled at {}: {}", group.location_name, msg);
+        } else {
+            tracing::error!(
+                "Tier 2 inference failed at {}: {}",
+                group.location_name,
+                msg
+            );
+        }
+        None
     }
 }
 
@@ -1040,27 +1157,37 @@ pub fn create_gossip_from_tier2_event(
     event: &Tier2Event,
     gossip_network: &mut GossipNetwork,
     game_time: chrono::DateTime<Utc>,
-) {
+) -> Option<parish_types::events::GameEvent> {
+    // Tier-2 events without participants are degenerate (no group, no
+    // speaker). Defaulting the source to NpcId(0) — the player — would
+    // mint gossip falsely attributed to the player. Bail out instead.
+    let &source = event.participants.first()?;
+
     // Create gossip from large relationship changes
     for rc in &event.relationship_changes {
         if rc.delta.abs() > 0.3 {
-            gossip_network.create(
-                event.summary.clone(),
-                *event.participants.first().unwrap_or(&NpcId(0)),
-                game_time,
-            );
-            return; // One gossip item per event is enough
+            gossip_network.create(event.summary.clone(), source, game_time);
+            return Some(parish_types::events::GameEvent::GossipSpread {
+                source,
+                location: event.location,
+                content: event.summary.clone(),
+                timestamp: game_time,
+            });
         }
     }
 
     // Create gossip from non-trivial dialogue summaries (>30 chars suggests substance)
     if event.summary.len() > 30 {
-        gossip_network.create(
-            event.summary.clone(),
-            *event.participants.first().unwrap_or(&NpcId(0)),
-            game_time,
-        );
+        gossip_network.create(event.summary.clone(), source, game_time);
+        return Some(parish_types::events::GameEvent::GossipSpread {
+            source,
+            location: event.location,
+            content: event.summary.clone(),
+            timestamp: game_time,
+        });
     }
+
+    None
 }
 
 /// Propagates gossip between NPCs during a Tier 2 group interaction.
@@ -1304,6 +1431,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             None,
             Some(600),
             None,
+            None,
         );
 
         let raw = match ctx.cancel.clone() {
@@ -1325,7 +1453,15 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
                 all_updates.extend(resp.updates);
             }
             Err(e) => {
-                tracing::warn!("Tier 3 batch inference failed: {}", e);
+                let msg = e.to_string();
+                if is_intentional_cancellation(&msg) {
+                    // Graceful cancellation (shutdown, sim_cancel on player
+                    // input). Not a failure — match the Tier 2 path's
+                    // distinction (TODO #54).
+                    tracing::debug!("Tier 3 batch cancelled: {}", msg);
+                } else {
+                    tracing::warn!("Tier 3 batch inference failed: {}", msg);
+                }
                 // Continue with other batches rather than failing entirely
             }
         }
@@ -1408,6 +1544,7 @@ pub fn apply_tier3_updates(
                     event_bus.publish(parish_types::events::GameEvent::NpcDeparted {
                         npc_id: update.npc_id,
                         location: from,
+                        to: new_loc,
                         timestamp: game_time,
                     });
                     event_bus.publish(parish_types::events::GameEvent::NpcArrived {
@@ -1443,14 +1580,26 @@ pub fn apply_tier3_updates(
     debug_events
 }
 
-/// Truncates a string to a maximum length, adding "..." if truncated.
+/// Truncates a string to a maximum length, adding `…` (single
+/// codepoint, 3-byte UTF-8) if truncated.
+///
+/// TODO #7: the previous suffix `...` (three ASCII dots) doubled as a
+/// truncation signal but was indistinguishable from a model-emitted
+/// ellipsis-as-punctuation in the recent-events buffer fed to
+/// subsequent NPC turns. The single `…` codepoint is unambiguously
+/// "the system trimmed this" and is also 0 bytes cheaper in the
+/// prompt budget (3 vs 3 bytes for `...` but 1 vs 3 visual chars).
 fn truncate_for_memory(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        let boundary = crate::floor_char_boundary(s, max_len.saturating_sub(3));
+        // `…` is 3 bytes UTF-8 (`0xE2 0x80 0xA6`); reserve that many
+        // so the resulting string still satisfies the caller's
+        // `max_len` byte cap.
+        const ELLIPSIS_BYTES: usize = 3;
+        let boundary = crate::floor_char_boundary(s, max_len.saturating_sub(ELLIPSIS_BYTES));
         let safe_boundary = boundary.min(s.len());
-        format!("{}...", &s[..safe_boundary])
+        format!("{}…", &s[..safe_boundary])
     }
 }
 
@@ -1556,9 +1705,84 @@ mod tests {
         );
     }
 
+    /// TODO #27 — JSON parse failures discriminate cleanly from other
+    /// error shapes so the retry only fires for the intended failure
+    /// mode.
+    #[test]
+    fn test_is_tier2_json_parse_failure_discriminator() {
+        // Positive cases — the exact string `run_tier2_for_group`
+        // constructs via `format!("Tier 2 JSON parse failed: {e}")`.
+        assert!(is_tier2_json_parse_failure(
+            "Tier 2 JSON parse failed: key must be a string at line 2 column 3"
+        ));
+        assert!(is_tier2_json_parse_failure(
+            "inference error: Tier 2 JSON parse failed: expected value"
+        ));
+
+        // Negative cases — every other error path must NOT trigger the
+        // retry.
+        assert!(!is_tier2_json_parse_failure("Tier 2 cancelled mid-stream"));
+        assert!(!is_tier2_json_parse_failure(
+            "Tier 3 JSON parse failed: ..." // different tier
+        ));
+        assert!(!is_tier2_json_parse_failure("connection refused"));
+        assert!(!is_tier2_json_parse_failure("timeout after 600s"));
+        assert!(!is_tier2_json_parse_failure(""));
+    }
+
+    #[test]
+    fn test_tier2_strict_json_reminder_carries_required_anchors() {
+        // The reminder must explicitly disable common 1.5B failure
+        // modes the demo audit observed: unquoted keys, markdown
+        // fences, prose around the JSON object.
+        let r = TIER2_STRICT_JSON_REMINDER;
+        assert!(r.contains("STRICT JSON ONLY"), "missing strict-only:\n{r}");
+        assert!(
+            r.contains("No markdown fences"),
+            "missing fence guard:\n{r}"
+        );
+        assert!(
+            r.contains("double-quoted strings"),
+            "missing quoted-key guard:\n{r}"
+        );
+        // The exact envelope shape must appear so the model has a
+        // concrete target.
+        assert!(
+            r.contains(r#"{"summary": "...", "mood_changes": [], "relationship_changes": []}"#),
+            "missing envelope template:\n{r}"
+        );
+    }
+
+    /// TODO #54 — Tier 3 cancellation discriminator. The Tier 2 path
+    /// has long distinguished "cancelled mid-stream" (graceful preempt)
+    /// from real failures; this test pins the shared helper used by
+    /// both tiers so neither regresses to WARN-on-cancel.
+    #[test]
+    fn test_is_intentional_cancellation_recognises_cancel_messages() {
+        assert!(is_intentional_cancellation(
+            "inference error: Tier 3 cancelled mid-stream"
+        ));
+        assert!(is_intentional_cancellation(
+            "inference error: Tier 2 cancelled mid-stream"
+        ));
+        assert!(is_intentional_cancellation("Tier 3 cancelled mid-stream"));
+    }
+
+    #[test]
+    fn test_is_intentional_cancellation_rejects_real_failures() {
+        assert!(!is_intentional_cancellation(
+            "Tier 3 JSON parse failed: expected value at line 2 column 3"
+        ));
+        assert!(!is_intentional_cancellation(
+            "connection refused (os error 61)"
+        ));
+        assert!(!is_intentional_cancellation("timeout after 600s"));
+        assert!(!is_intentional_cancellation(""));
+    }
+
     #[test]
     fn test_introduced_anchor_block_fires_only_when_previously_introduced() {
-        // TODO #39 — first contact: anchor must NOT render so the NPC
+        // First contact: anchor must NOT render so the NPC
         // can introduce themselves on turn 1.
         let npc = make_test_npc(1, "Padraig", 1);
         assert!(
@@ -1865,11 +2089,27 @@ mod tests {
 
     #[test]
     fn test_truncate_for_memory() {
+        // Under cap: passes through unchanged.
         assert_eq!(truncate_for_memory("short", 10), "short");
+
+        // At cap exactly: passes through unchanged.
+        let at_cap = "a".repeat(20);
+        assert_eq!(truncate_for_memory(&at_cap, 20), at_cap);
+
+        // Over cap: clips and appends single-codepoint `…`.
+        // TODO #7: suffix changed from "..." to "…" so the trim
+        // marker is unambiguous vs model-emitted ellipsis.
         let long = "a".repeat(100);
         let truncated = truncate_for_memory(&long, 20);
         assert!(truncated.len() <= 20);
-        assert!(truncated.ends_with("..."));
+        assert!(
+            truncated.ends_with('…'),
+            "truncation must end with single-codepoint ellipsis, got {truncated:?}"
+        );
+        assert!(
+            !truncated.ends_with("..."),
+            "truncation must not use legacy three-dot suffix"
+        );
     }
 
     #[test]
@@ -2039,21 +2279,23 @@ mod tests {
     #[test]
     fn test_truncate_for_memory_one_over() {
         let result = truncate_for_memory("123456", 5);
-        assert!(result.ends_with("..."));
+        assert!(result.ends_with('…'));
+        // `…` is 3 bytes UTF-8; result fits in the byte cap.
         assert!(result.len() <= 5);
     }
 
     #[test]
     fn test_truncate_for_memory_max_len_zero() {
+        // max_len=0 leaves no room — result is the bare ellipsis (3 bytes).
         let result = truncate_for_memory("hello", 0);
-        assert_eq!(result, "...");
+        assert_eq!(result, "…");
     }
 
     #[test]
     fn test_truncate_for_memory_max_len_three() {
-        // max_len=3 means only room for "..."
+        // max_len=3 means only room for `…` (3 bytes).
         let result = truncate_for_memory("hello world", 3);
-        assert_eq!(result, "...");
+        assert_eq!(result, "…");
     }
 
     #[test]
@@ -2061,7 +2303,7 @@ mod tests {
         // Ensure truncation doesn't split multi-byte characters
         let irish = "Dia dhuit, a chara. Cén chaoi a bhfuil tú?";
         let result = truncate_for_memory(irish, 15);
-        assert!(result.ends_with("..."));
+        assert!(result.ends_with('…'));
         assert!(result.len() <= 18); // slightly over due to char boundary
         // Should be valid UTF-8 (no panic)
         let _ = result.chars().count();
@@ -2072,7 +2314,7 @@ mod tests {
         let long = "x".repeat(10000);
         let result = truncate_for_memory(&long, 50);
         assert!(result.len() <= 50);
-        assert!(result.ends_with("..."));
+        assert!(result.ends_with('…'));
     }
 
     // --- apply_tier2_event edge cases ---

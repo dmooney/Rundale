@@ -12,7 +12,7 @@
 //! - **`parish-server`**: additionally updates the `inference_client` trait
 //!   slot and emits a URL warning via the event bus.
 //! - **`parish-tauri`**: emits a URL warning via `app.emit`.
-//! - **`parish-cli`**: continues to use its own inline implementation (the
+//! - **`parish-engine`**: continues to use its own inline implementation (the
 //!   headless `App` struct is not yet on `Arc<Mutex<T>>`; deferred to a future
 //!   slice — see module-level comment in `game_loop/mod.rs`).
 //!

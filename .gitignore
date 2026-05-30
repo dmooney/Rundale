@@ -83,5 +83,14 @@ rundale-bench/artifacts/local_logs/
 # docs/proofs/rundale-bench/judgments/ is durable.
 rundale-bench/.bench-queue/
 
+# Worktree metadata files (gitdir overlapping worktree root) — never track
+COMMIT_EDITMSG
+HEAD
+ORIG_HEAD
+commondir
+gitdir
+index
+index.lock
+
 # cargo-tarpaulin coverage artifacts
 *.profraw

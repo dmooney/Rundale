@@ -57,7 +57,7 @@ Shared rule: **mode parity**. Every gameplay feature behaves identically across 
 
 - **Location graph** with fuzzy (Jaro-Winkler) name resolution, prose-described edges, and per-edge traversal counts that drive a "worn paths" map visualization.
 - **Hybrid geography**: locations can be real-world (geocoded from OSM), author-pinned, or fully fictional, with relative anchors that let fictional clusters subordinate to a real place.
-- **Game clock** with seven time-of-day phases (Midnight → Evening) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
+- **Game clock** with seven time-of-day phases (Midnight → Night) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
 - **Four seasons** with seasonal NPC schedules, weather biases, and Tier 4 life-event rates.
 - **Weather state machine** — seven states (Clear → PartlyCloudy → Overcast → LightRain → HeavyRain → Storm, plus Fog), adjacent-state-only transitions, 2-hour minimum dwell, season-biased probabilities. NPCs seek shelter in heavy rain.
 - **Weather-gated travel** — hazard-tagged routes can become impassable in storms or slower in heavy rain and fog, with alternate-route pathfinding where available.
@@ -83,7 +83,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### LLM inference
 
-- **14 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
+- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, and others.) On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
 - **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
@@ -121,6 +121,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Status bar** — location, time-of-day label, weather, season, festival indicator, pause indicator, digital clock animated client-side.
 - **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
 - **Debug panel** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) dockable to the side or bottom.
+- **Bug reporter** (🐛) — a toolbar button (and a 🐛 next to every record in the debug panel) captures a screenshot, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Also available to auto-QA agents via the `parish_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `PARISH_BUG_REPORT_TOKEN` / `PARISH_BUG_REPORT_REPO`, with `PARISH_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
 - **Save picker** (F5) with a DAG visualization of branches and inline fork form.
 - **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
 - **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.

@@ -155,6 +155,6 @@ Start at [docs/index.md](../index.md) for the full hub. Key paths:
 - **Status tracking**: `docs/requirements/roadmap.md`
 - **Implementation plans**: `docs/plans/`
 - **Testing harness**: `docs/design/testing.md`
-- **Dev journal**: `docs/journal.md`
-- **Known issues**: `docs/known-issues.md`
+- **Dev journal**: `docs/archive/journal.md`
+- **Known issues**: `docs/archive/known-issues.md`
 - **Original design**: `docs/archive/DESIGN.md` (superseded)

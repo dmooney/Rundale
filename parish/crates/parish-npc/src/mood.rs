@@ -57,8 +57,19 @@ pub fn mood_emoji(mood: &str) -> &'static str {
         || m.contains("frustrat")
         || m.contains("annoyed")
         || m.contains("grumpy")
+        || m.contains("sharp")
+        || m.contains("caustic")
+        || m.contains("acerbic")
+        || m.contains("curt")
     {
         return "😤";
+    }
+    if m.contains("bitter")
+        || m.contains("resentful")
+        || m.contains("embittered")
+        || m.contains("sour")
+    {
+        return "😒";
     }
     if m.contains("suspicious") || m.contains("wary") || m.contains("distrustful") {
         return "🤨";
@@ -184,6 +195,15 @@ mod tests {
         assert_eq!(mood_emoji("irritated"), "😤");
         assert_eq!(mood_emoji("frustrated"), "😤");
         assert_eq!(mood_emoji("melancholy"), "😔");
+        // TODO #3: `bitter` and `sharp` previously fell through to the 🙂
+        // fallback. Sean Ruadh Kelly ships with mood "bitter", Peig Hannigan
+        // with mood "sharp" in mods/rundale/npcs.json.
+        assert_eq!(mood_emoji("bitter"), "😒");
+        assert_eq!(mood_emoji("resentful"), "😒");
+        assert_eq!(mood_emoji("sour"), "😒");
+        assert_eq!(mood_emoji("sharp"), "😤");
+        assert_eq!(mood_emoji("caustic"), "😤");
+        assert_eq!(mood_emoji("curt"), "😤");
     }
 
     #[test]
@@ -219,6 +239,8 @@ mod tests {
         // More specific/intense emotions should win over milder ones
         assert_eq!(mood_emoji("restlessly angry"), "😡");
         assert_eq!(mood_emoji("anxiously sad"), "😰");
+        // The `angry` arm precedes the new `bitter` arm, so explicit anger wins.
+        assert_eq!(mood_emoji("bitterly angry"), "😡");
     }
 
     #[test]
@@ -238,6 +260,7 @@ mod tests {
             ("sad", "😢"),
             ("melancholy", "😔"),
             ("irritated", "😤"),
+            ("bitter", "😒"),
             ("suspicious", "🤨"),
             ("joyful", "😄"),
             ("cheerful", "😊"),

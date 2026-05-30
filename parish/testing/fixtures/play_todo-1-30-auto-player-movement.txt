@@ -1,0 +1,17 @@
+# Live-proof fixture for TODO #1 / #30 — auto-player movement directive.
+#
+# The auto-player LLM lives in `parish_tauri::commands::get_llm_player_action`
+# (only callable from the Tauri/server entry points). The headless harness
+# does not drive it. This fixture instead exercises the engine loop with
+# the simulator backend so the updated demo-prompt file and updated
+# `build_demo_system_prompt` template load end-to-end without panics —
+# regression cover for prompt-template changes.
+#
+# Real-world auto-player movement validation happens in a follow-up
+# `just demo 2 8` cycle against a real LLM.
+
+look
+go to the forge
+look
+go to the holy well
+look

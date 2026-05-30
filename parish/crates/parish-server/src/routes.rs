@@ -290,6 +290,7 @@ pub async fn get_debug_snapshot(
         call_log: raw_call_log.clone(),
         categories,
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+        tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };
     let linked = global.identity_store.get_account(&session_id.0);
     let auth = AuthDebug {
@@ -324,6 +325,132 @@ pub async fn get_debug_snapshot(
     snapshot.inference.base_url = String::new();
 
     Ok(Json(snapshot))
+}
+
+// ── Bug reporting ─────────────────────────────────────────────────────────────
+
+/// Builds a full (un-redacted) debug snapshot for embedding in a bug report.
+///
+/// Unlike [`get_debug_snapshot`], this is not session-scoped or redacted: the
+/// reporter is filing their own session for diagnosis, so the prompts/logs are
+/// theirs to share. Uses [`AuthDebug::disabled`] since auth detail is not
+/// useful in a bug report.
+async fn build_full_debug_snapshot(state: &Arc<AppState>) -> debug_snapshot::DebugSnapshot {
+    let has_inference_queue = state.inference_queue.lock().await.is_some();
+    let (
+        provider_name,
+        model_name,
+        base_url,
+        cloud_provider,
+        cloud_model,
+        improv_enabled,
+        categories,
+    ) = {
+        let config = state.config.lock().await;
+        (
+            config.provider_name.clone(),
+            config.model_name.clone(),
+            config.base_url.clone(),
+            config.cloud_provider_name.clone(),
+            config.cloud_model_name.clone(),
+            config.improv_enabled,
+            parish_core::debug_snapshot::build_inference_categories(&config),
+        )
+    };
+    let events_snapshot: std::collections::VecDeque<parish_core::debug_snapshot::DebugEvent> =
+        state.debug_events.lock().await.iter().cloned().collect();
+    let game_events_snapshot: std::collections::VecDeque<parish_core::world::events::GameEvent> =
+        state.game_events.lock().await.iter().cloned().collect();
+    let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+        state.inference_log.lock().await.iter().cloned().collect();
+
+    let inference = InferenceDebug {
+        provider_name,
+        model_name,
+        base_url,
+        cloud_provider,
+        cloud_model,
+        has_queue: has_inference_queue,
+        reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
+        improv_enabled,
+        call_log,
+        categories,
+        configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+        tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
+    };
+
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    debug_snapshot::build_debug_snapshot(
+        &world,
+        &npc_manager,
+        &events_snapshot,
+        &game_events_snapshot,
+        &inference,
+        &AuthDebug::disabled(),
+    )
+}
+
+/// `POST /api/submit-bug-report` — bundle screenshot + logs + game state into a
+/// GitHub issue (or an on-disk bundle in dry-run / no-token mode).
+///
+/// Shares the orchestration in `parish_core::ipc::bug_report` with the Tauri
+/// command and the MCP bridge (rule #12). The browser supplies the screenshot
+/// as a data URL; there is no server-side capture round-trip.
+pub async fn submit_bug_report(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(request): Json<parish_core::ipc::BugReportRequest>,
+) -> Result<Json<parish_core::ipc::BugReportResult>, (StatusCode, String)> {
+    use parish_core::ipc::bug_report;
+
+    if state.config.lock().await.flags.is_disabled("bug-report") {
+        return Err((
+            StatusCode::FORBIDDEN,
+            bug_report::BugReportError::Disabled.to_string(),
+        ));
+    }
+
+    let world_snapshot = {
+        let world = state.world.lock().await;
+        parish_core::ipc::snapshot_from_world(&world)
+    };
+    let debug = build_full_debug_snapshot(&state).await;
+    let save_summary = {
+        let branch_id = *state.current_branch_id.lock().await;
+        let branch_name = state.current_branch_name.lock().await.clone();
+        match (branch_id, branch_name) {
+            (Some(id), Some(name)) => Some(format!("branch {id}: {name}")),
+            (Some(id), None) => Some(format!("branch {id}")),
+            (None, Some(name)) => Some(name),
+            (None, None) => None,
+        }
+    };
+    let report_state =
+        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary);
+
+    let screenshot_png: Option<Vec<u8>> = match &request.screenshot_data_url {
+        Some(data_url) => Some(
+            bug_report::decode_data_url(data_url)
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
+        ),
+        None => None,
+    };
+
+    let cfg = bug_report::GitHubBugConfig::from_env();
+    let bundle_root = state.saves_dir.join("bug-reports");
+    let http = reqwest::Client::new();
+    let result = bug_report::create_bug_report(
+        &http,
+        &cfg,
+        &request,
+        &report_state,
+        screenshot_png.as_deref(),
+        &bundle_root,
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+
+    Ok(Json(result))
 }
 
 // ── Input endpoint ──────────────────────────────────────────────────────────

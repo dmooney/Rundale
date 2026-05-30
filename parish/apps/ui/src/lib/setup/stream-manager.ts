@@ -79,6 +79,15 @@ export function createStreamManager(): StreamManager {
 	// clearing `streamingActive` — handle_npc_conversation cancels and
 	// re-spawns the loading animation per addressed NPC turn (#991).
 	let chainInProgress = false;
+	// TODO #45: serialise reveal across multiple in-flight NPC turns.
+	// The backend spawns NPC replies in parallel (`tokio::spawn` per
+	// addressee), so two streams can land at once. Only the head turn
+	// pumps tokens; non-head turns buffer in `PendingNpcTurn.buffer`
+	// (set by appendStreamToken on the parked entry's stream_turn_id
+	// — the textLog entry still updates so the placeholder advances
+	// silently, but the visible reveal stays single-threaded by
+	// gating `pumpTurn` on activeTurnId).
+	let activeTurnId: number | null = null;
 
 	function findPendingTurn(turnId: number) {
 		return pendingNpcTurns.get(turnId);
@@ -114,6 +123,12 @@ export function createStreamManager(): StreamManager {
 			pumpHandle: null
 		};
 		pendingNpcTurns.set(turnId, turn);
+		// TODO #45: first turn into an empty pool becomes the head.
+		// Later arrivals park until the head finalises and promotes the
+		// next FIFO entry.
+		if (activeTurnId === null) {
+			activeTurnId = turnId;
+		}
 		return turn;
 	}
 
@@ -200,17 +215,45 @@ export function createStreamManager(): StreamManager {
 		stopTurnPump(turn);
 		finalizeStreamingEntry(turnId);
 		pendingNpcTurns.delete(turnId);
+		// TODO #45: if the head finalises, promote the next parked turn
+		// (insertion order). Non-head finalises don't disturb the head.
+		if (activeTurnId === turnId) {
+			activeTurnId = nextParkedTurnId();
+			if (activeTurnId !== null) {
+				const next = pendingNpcTurns.get(activeTurnId);
+				if (next) {
+					pumpTurn(next.turnId);
+				}
+			}
+		}
 		maybeFinishNpcStream();
+	}
+
+	function nextParkedTurnId(): number | null {
+		const iter = pendingNpcTurns.keys().next();
+		return iter.done ? null : iter.value;
 	}
 
 	function startTurnPumpIfNeeded(turn: PendingNpcTurn) {
 		if (turn.pumpHandle !== null) return;
+		// TODO #45: only the head turn pumps. Parked turns accumulate
+		// tokens in their buffer; they'll be drained when promoted by
+		// the head's `finalizePendingTurn`.
+		if (turn.turnId !== activeTurnId) return;
 		pumpTurn(turn.turnId);
 	}
 
 	function pumpTurn(turnId: number) {
 		const turn = findPendingTurn(turnId);
 		if (!turn) return;
+		// TODO #45: gate visible reveal on activeTurnId. A late timer
+		// firing for an already-demoted turn (race between scheduleTurnPump
+		// and finalizePendingTurn) must not draw chunks for a non-head
+		// turn — would resurrect the parallel-reveal bug.
+		if (turn.turnId !== activeTurnId) {
+			stopTurnPump(turn);
+			return;
+		}
 
 		if (turn.buffer.length === 0) {
 			stopTurnPump(turn);
@@ -260,6 +303,7 @@ export function createStreamManager(): StreamManager {
 		pendingNpcTurns.clear();
 		pendingStreamEndHints = null;
 		chainInProgress = false;
+		activeTurnId = null;
 	}
 
 	return {

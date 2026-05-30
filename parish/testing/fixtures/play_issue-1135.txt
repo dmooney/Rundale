@@ -1,0 +1,11 @@
+# F9 / #1135 — AddressedAbsentNpc event
+# ======================================
+# Player at Kilteevan Village addresses "Padraig" — who is at
+# Darcy's Pub, not here. Engine emits the system "Padraig is not
+# here." text-log AND publishes a GameEvent::AddressedAbsentNpc
+# to the bus. Character + location log writers render journal
+# entries on player.md and the location log.
+
+/status
+@Padraig hello there
+/status

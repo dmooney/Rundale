@@ -310,6 +310,13 @@ pub struct GameSnapshot {
     /// Set of location IDs the player has visited (fog-of-war map).
     #[serde(default)]
     pub visited_locations: HashSet<LocationId>,
+    /// First-visit order, parallel to `visited_locations`. Used by
+    /// `character_log` to render `player.md`'s visited section in
+    /// playthrough order instead of by numeric id (#1130). Defaults to
+    /// empty for older saves; in that case the player profile falls
+    /// back to id order until the next visit appends a fresh entry.
+    #[serde(default)]
+    pub visited_order: Vec<LocationId>,
     /// Edge traversal counts for "worn path" footprints on the map.
     #[serde(default, with = "edge_traversals_serde")]
     pub edge_traversals: HashMap<(LocationId, LocationId), u32>,
@@ -352,6 +359,7 @@ impl GameSnapshot {
             last_tier4_game_time: npc_manager.last_tier4_game_time(),
             introduced_npcs: npc_manager.introduced_set(),
             visited_locations: world.visited_locations.clone(),
+            visited_order: world.visited_order.clone(),
             edge_traversals: world.edge_traversals.clone(),
             gossip_network: world.gossip_network.clone(),
             conversation_log: world.conversation_log.clone(),
@@ -388,6 +396,7 @@ impl GameSnapshot {
         world: &mut parish_world::WorldState,
         player_location: parish_types::LocationId,
         visited_locations: std::collections::HashSet<parish_types::LocationId>,
+        visited_order: Vec<parish_types::LocationId>,
         edge_traversals: std::collections::HashMap<
             (parish_types::LocationId, parish_types::LocationId),
             u32,
@@ -420,7 +429,37 @@ impl GameSnapshot {
                 lon: 0.0,
             });
         world.visited_locations = visited_locations;
-        world.visited_locations.insert(player_location);
+        // Restore first-visit order from the snapshot, retaining only ids
+        // also present in the set. Legacy saves carry an empty
+        // `visited_order` even when `visited_locations` is populated; in
+        // that case backfill from the set (sorted by id for determinism)
+        // so that a subsequent `mark_visited(new_id)` doesn't shrink the
+        // renderer's output to only the freshly-visited locations
+        // (#1130 / codex review).
+        let mut restored: Vec<parish_types::LocationId> = visited_order
+            .into_iter()
+            .filter(|id| world.visited_locations.contains(id))
+            .collect();
+        if restored.is_empty() && !world.visited_locations.is_empty() {
+            restored = world.visited_locations.iter().copied().collect();
+            restored.sort_by_key(|id| id.0);
+        } else {
+            // Append any visited-set entries the order vector missed
+            // (mismatched save). Sorted by id for determinism.
+            let mut missing: Vec<parish_types::LocationId> = world
+                .visited_locations
+                .iter()
+                .copied()
+                .filter(|id| !restored.contains(id))
+                .collect();
+            missing.sort_by_key(|id| id.0);
+            restored.extend(missing);
+        }
+        world.visited_order = restored;
+        // The player's current location must always be marked visited.
+        // `mark_visited` updates both fields, preserving the no-op
+        // contract when already present.
+        world.mark_visited(player_location);
         world.edge_traversals = edge_traversals;
     }
 
@@ -472,6 +511,7 @@ impl GameSnapshot {
             world,
             self.player_location,
             self.visited_locations,
+            self.visited_order,
             self.edge_traversals,
         );
         Self::restore_npcs(

@@ -178,6 +178,14 @@ pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePa
 pub async fn get_debug_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<DebugSnapshot, String> {
+    Ok(build_app_debug_snapshot(&state).await)
+}
+
+/// Builds a [`DebugSnapshot`] from the live `AppState`.
+///
+/// Shared by the `get_debug_snapshot` command and the bug reporter so the two
+/// can never capture divergent views of the session.
+pub(crate) async fn build_app_debug_snapshot(state: &Arc<AppState>) -> DebugSnapshot {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let events = state.debug_events.lock().await;
@@ -199,16 +207,17 @@ pub async fn get_debug_snapshot(
         call_log,
         categories: parish_core::debug_snapshot::build_inference_categories(&config),
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+        tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };
 
-    Ok(debug_snapshot::build_debug_snapshot(
+    debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &game_events,
         &inference,
         &AuthDebug::disabled(),
-    ))
+    )
 }
 
 /// Returns the UI configuration from the loaded game mod.
@@ -1677,6 +1686,91 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
     })
 }
 
+// ── Bug reporting ─────────────────────────────────────────────────────────────
+
+/// Files a bug report — bundles a screenshot, recent logs, and current game
+/// state into a GitHub issue (or, in dry-run / no-token mode, a bundle on
+/// disk). Shared with the MCP bridge's `/api/submit-bug-report` route.
+#[tauri::command]
+pub async fn submit_bug_report(
+    title: String,
+    description: Option<String>,
+    screenshot_data_url: Option<String>,
+    context: Option<parish_core::ipc::BugContext>,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<parish_core::ipc::BugReportResult, String> {
+    let request = parish_core::ipc::BugReportRequest {
+        title,
+        description: description.unwrap_or_default(),
+        screenshot_data_url,
+        context,
+    };
+    do_submit_bug_report(&state, &app, request).await
+}
+
+/// Shared bug-report implementation (Tauri command + MCP bridge route).
+///
+/// Gathers a world + debug snapshot and a save summary from the live
+/// `AppState`, resolves the screenshot (decoding the frontend-supplied data
+/// URL, or triggering a live `request-screenshot` round-trip when absent),
+/// then delegates the GitHub work to `parish_core::ipc::bug_report`.
+pub(crate) async fn do_submit_bug_report(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    request: parish_core::ipc::BugReportRequest,
+) -> Result<parish_core::ipc::BugReportResult, String> {
+    use parish_core::ipc::bug_report;
+
+    // Feature flag (default-on kill switch, per AGENTS.md §6).
+    if state.config.lock().await.flags.is_disabled("bug-report") {
+        return Err(bug_report::BugReportError::Disabled.to_string());
+    }
+
+    let world_snapshot = {
+        let world = state.world.lock().await;
+        parish_core::ipc::snapshot_from_world(&world)
+    };
+    let debug = build_app_debug_snapshot(state).await;
+    let save_summary = {
+        let branch_id = *state.current_branch_id.lock().await;
+        let branch_name = state.current_branch_name.lock().await.clone();
+        match (branch_id, branch_name) {
+            (Some(id), Some(name)) => Some(format!("branch {id}: {name}")),
+            (Some(id), None) => Some(format!("branch {id}")),
+            (None, Some(name)) => Some(name),
+            (None, None) => None,
+        }
+    };
+    let report_state =
+        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary);
+
+    // Resolve screenshot bytes: prefer the frontend-supplied data URL, else
+    // trigger a live capture and read it back. A failed/timed-out capture is
+    // non-fatal — the report is still filed without an image.
+    let screenshot_png: Option<Vec<u8>> = match &request.screenshot_data_url {
+        Some(data_url) => Some(bug_report::decode_data_url(data_url).map_err(|e| e.to_string())?),
+        None => match do_take_screenshot(state, app).await {
+            Ok(info) => tokio::fs::read(&info.path).await.ok(),
+            Err(_) => None,
+        },
+    };
+
+    let cfg = bug_report::GitHubBugConfig::from_env();
+    let bundle_root = state.saves_dir.join("bug-reports");
+    let http = reqwest::Client::new();
+    bug_report::create_bug_report(
+        &http,
+        &cfg,
+        &request,
+        &report_state,
+        screenshot_png.as_deref(),
+        &bundle_root,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
 // ── Screenshot capture (player-triggered, MCP-readable) ──────────────────────
 
 /// Metadata describing the most-recently-saved screenshot.
@@ -2420,6 +2514,106 @@ fn strip_thinking_block(text: &str) -> &str {
     trimmed
 }
 
+/// Truncate `s` to at most `max_chars` characters, suffixing `...` when
+/// truncation occurs. Used to keep tracing previews bounded for the
+/// `raw_preview` field on the empty-action retry path (TODO #18).
+fn truncate_for_log(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max_chars).collect();
+    out.push_str("...");
+    out
+}
+
+/// Builds the demo-turn system prompt for the LLM-as-player.
+///
+/// Extracted from `get_llm_player_action` so the role anchor (TODO #51)
+/// is unit-testable without driving the full Tauri command flow. The
+/// optional `extra_prompt` is appended verbatim after the "Explore
+/// naturally" paragraph — usually loaded from
+/// `mods/rundale/demo-prompt.txt`.
+fn build_demo_system_prompt(extra_prompt: Option<&str>) -> String {
+    let extra_section = extra_prompt
+        .map(|p| format!("\n\n{}", p))
+        .unwrap_or_default();
+
+    format!(
+        "You are playing Rundale, an Irish living-world simulation set in 1820. You are a \
+wandering stranger named Aiden Carney exploring the townlands of east Roscommon. The world \
+is populated by historical Irish villagers — farmers, priests, weavers, matchmakers — each \
+living their own life.\n\
+\n\
+ROLE: You are ALWAYS Aiden Carney. Speak ONLY in Aiden's voice — never as a priest, miller, \
+shopkeeper, schoolmaster, or any other local NPC. If the previous turn in the prompt ends \
+with your own line and no NPC reply, that means the NPC's reply is still in flight; you \
+still speak as Aiden on the next turn — do NOT take the NPC's side of the exchange. Do not \
+answer your own questions on the NPC's behalf, and do not roleplay an answer from a \
+villager.\n\
+\n\
+Date: 1820. Catholic Emancipation: 1829 (not yet). Famine: 1845 (not yet).\n\
+\n\
+Speak as a 1820 traveller would: plain, short, period-appropriate. Avoid modern words \
+like: fascinating, amazing, definitely, totally, decided to visit, taking in the sights, \
+healing properties.\n\
+\n\
+Explore naturally: talk to people, learn their stories, travel between locations, and \
+respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
+\n\
+Respond with a JSON object containing a single field \"action\" — the text the player \
+would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
+words or command directly.\n\
+\n\
+NO NARRATION (TODO #47): The engine has no narrative parser. Do NOT describe what \
+you are doing in past tense, third person, or participial style. Inputs like \
+\"Walking up to the cabin, I knock gently on the door\", \"Sittin' here, I \
+notice a book half-open on the table\", or \"I'll take a seat on the bench\" \
+vanish into the dialogue path and produce no game-state change. Legal action \
+shapes are: (a) spoken dialogue in first-person present tense (\"Good \
+mornin'. Have ye news from the road?\"), (b) movement commands (\"go to The \
+Mill\"), or (c) a bare command verb the engine recognises (\"look\"). If you \
+want to do something physical, say what you would say aloud — never narrate \
+the action.\n\
+\n\
+Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
+\"Recent events\" block of the user prompt, pick a different action — try a different \
+greeting, ask a different question, or travel somewhere new. The location description \
+is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
+\n\
+Do NOT mirror NPC catchphrases. The \"Recent events\" block carries NPC replies in \
+their own voice — they may use stock tags like \"Just askin', mind ye\", \"so it is\", \
+\"sure\", or \"mayhap\" as their personal vocal habits. Aiden has his own voice: use \
+plain Hiberno-English without adopting another character's verbal tics. If an NPC \
+ends every line with \"so it is\", do not start ending yours with it too.\n\
+\n\
+MOVEMENT CADENCE (TODO #1/#30): A traveller does not loiter. After 3–5 turns \
+at one location, move to a new place — pick a name from the \"You can go to: \
+...\" line in the user prompt and emit a movement command on its own (no \
+spoken line wrapped around it). Bare \"go to X\" / \"walk to X\" / \"head to X\" \
+is the correct shape: the engine parses these as movement, not dialogue. If \
+you have visited only one location in the last 5 turns, your next action \
+should be a movement command.\n\
+\n\
+WHEN ALONE (TODO #12): If the user prompt's status block contains the line \
+\"NPCs here: none\", there is nobody to hear you. Do NOT speak, ask questions, \
+roleplay knocking on doors, or wait around. Your ONLY useful action at an \
+empty location is to move. Pick a destination from the \"You can go to: ...\" \
+line and emit a bare movement command (\"go to X\" / \"walk to X\" / \"head \
+to X\"). Speaking at an empty location burns a turn and accomplishes nothing.\n\
+\n\
+Examples:\n\
+  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
+  {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
+  {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
+  {{\"action\": \"go to The Mill\"}}\n\
+  {{\"action\": \"walk to St. Brigid's Church\"}}\n\
+  {{\"action\": \"head to Connolly's Shop\"}}\n\
+\n\
+Your entire response must be a single JSON object — nothing before or after it.",
+        extra = extra_section,
+    )
+}
+
 /// Asks the LLM to choose the next player action given the current game context.
 ///
 /// The frontend fills `ctx.recent_log` from the text log store before calling
@@ -2449,45 +2643,7 @@ pub async fn get_llm_player_action(
         return Err("No LLM client configured.".to_string());
     };
 
-    let extra_section = ctx
-        .extra_prompt
-        .as_deref()
-        .map(|p| format!("\n\n{}", p))
-        .unwrap_or_default();
-
-    let system_prompt = format!(
-        "You are playing Rundale, an Irish living-world simulation set in 1820. You are a \
-wandering stranger exploring the townlands of east Roscommon. The world is populated by \
-historical Irish villagers — farmers, priests, weavers, matchmakers — each living their \
-own life.\n\
-\n\
-Date: 1820. Catholic Emancipation: 1829 (not yet). Famine: 1845 (not yet).\n\
-\n\
-Speak as a 1820 traveller would: plain, short, period-appropriate. Avoid modern words \
-like: fascinating, amazing, definitely, totally, decided to visit, taking in the sights, \
-healing properties.\n\
-\n\
-Explore naturally: talk to people, learn their stories, travel between locations, and \
-respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
-\n\
-Respond with a JSON object containing a single field \"action\" — the text the player \
-would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
-words or command directly.\n\
-\n\
-Do NOT repeat yourself: if your last action appears in the \"Your last actions\" or \
-\"Recent events\" block of the user prompt, pick a different action — try a different \
-greeting, ask a different question, or travel somewhere new. The location description \
-is already shown to you in the prompt; you do not need to issue a bare \"look\" command.\n\
-\n\
-Examples:\n\
-  {{\"action\": \"Good mornin' to ye. A fair day for the road.\"}}\n\
-  {{\"action\": \"I've come from up the road. What news do ye have hereabouts?\"}}\n\
-  {{\"action\": \"Might I ask about the harvest, then?\"}}\n\
-  {{\"action\": \"go to the mill\"}}\n\
-\n\
-Your entire response must be a single JSON object — nothing before or after it.",
-        extra = extra_section,
-    );
+    let system_prompt = build_demo_system_prompt(ctx.extra_prompt.as_deref());
 
     // Issue #998: render via the shared `parish_core::ipc::demo` helper so the
     // prompt format stays in lockstep with the typed snapshot (no
@@ -2509,6 +2665,7 @@ Your entire response must be a single JSON object — nothing before or after it
             Some(&system_prompt),
             Some(200),
             Some(0.9),
+            None,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -2516,13 +2673,58 @@ Your entire response must be a single JSON object — nothing before or after it
     // Primary: extract the "action" field from JSON output.
     // The system prompt asks for {"action": "..."}, which is robust against
     // any amount of preamble or reasoning text the model emits before it.
-    let action_text = extract_action_from_response(&raw);
+    let mut action_text = extract_action_from_response(&raw);
     tracing::info!(
         location = %ctx.location_name,
         raw_len = raw.len(),
         action = %action_text,
         "demo turn: LLM chose action"
     );
+
+    // TODO #18 — bounded single retry on empty action. Cycle 3 of the
+    // demo audit logged two consecutive turns where the LLM returned
+    // 137/139 chars but the parser surfaced an empty action; the
+    // player input was recorded as nothing and no NPC turn fired.
+    // Common cause: model emitted {"action": ""} or completion lacking
+    // the `action` key. Retry once at temperature 1.0 with the same
+    // prompt — most retries succeed on the bump. Bounded to one extra
+    // call so a wedged model can't pin the slot.
+    if action_text.is_empty() && !raw.trim().is_empty() {
+        tracing::warn!(
+            location = %ctx.location_name,
+            raw_len = raw.len(),
+            raw_preview = %truncate_for_log(&raw, 200),
+            "demo turn: parsed action empty despite non-empty completion; retrying once"
+        );
+        let retry_raw = client
+            .generate(
+                &model,
+                &user_prompt,
+                Some(&system_prompt),
+                Some(200),
+                Some(1.0),
+                None,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let retry_action = extract_action_from_response(&retry_raw);
+        if !retry_action.is_empty() {
+            tracing::info!(
+                location = %ctx.location_name,
+                raw_len = retry_raw.len(),
+                action = %retry_action,
+                "demo turn: retry produced non-empty action"
+            );
+            action_text = retry_action;
+        } else {
+            tracing::warn!(
+                location = %ctx.location_name,
+                raw_len = retry_raw.len(),
+                raw_preview = %truncate_for_log(&retry_raw, 200),
+                "demo turn: retry also produced empty action; skipping turn"
+            );
+        }
+    }
 
     // Quality sensors — emit WARN on any structural issue in the parsed
     // player action. These don't gate execution; they surface bugs in the
@@ -2541,7 +2743,176 @@ Your entire response must be a single JSON object — nothing before or after it
 
 #[cfg(test)]
 mod demo_tests {
-    use super::{extract_action_from_response, strip_thinking_block};
+    use super::{
+        build_demo_system_prompt, extract_action_from_response, strip_thinking_block,
+        truncate_for_log,
+    };
+
+    /// TODO #18 — pin the failure shapes where the parser returns
+    /// empty so the retry path's gate (`action_text.is_empty()`) is
+    /// well-defined.
+    #[test]
+    fn extract_action_returns_empty_on_action_field_set_to_empty_string() {
+        // {"action": ""} — model emitted the envelope but with an
+        // empty action. Parser returns "" → retry fires.
+        assert_eq!(extract_action_from_response(r#"{"action": ""}"#), "");
+    }
+
+    #[test]
+    fn extract_action_returns_empty_on_bare_empty_input() {
+        // Bare empty string — nothing to recover. Retry would still
+        // fire on a non-empty raw completion in the actual loop.
+        assert_eq!(extract_action_from_response(""), "");
+    }
+
+    #[test]
+    fn truncate_for_log_short_string_passes_through() {
+        assert_eq!(truncate_for_log("hello", 200), "hello");
+    }
+
+    #[test]
+    fn truncate_for_log_long_string_is_clipped_with_ellipsis() {
+        let long: String = "x".repeat(500);
+        let truncated = truncate_for_log(&long, 200);
+        assert_eq!(truncated.chars().filter(|&c| c == 'x').count(), 200);
+        assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn demo_system_prompt_names_aiden_carney() {
+        // TODO #51 — AC1: system prompt must explicitly name the
+        // auto-player so the model has a role anchor stronger than
+        // the generic "wandering stranger" phrasing.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Aiden Carney"),
+            "system prompt missing player name anchor:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_speaking_as_npc() {
+        // TODO #51 — AC2: prompt must direct the model to speak only
+        // in Aiden's voice and not roleplay an NPC's reply, even when
+        // the prior turn lacks an NPC line.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Speak ONLY in Aiden's voice"),
+            "system prompt missing speak-only-as-Aiden directive:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("never as a priest, miller, shopkeeper"),
+            "system prompt missing never-as-NPC list:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("NPC's reply is still in flight"),
+            "system prompt missing in-flight-reply guidance:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("do NOT take the NPC's side"),
+            "system prompt missing don't-flip-roles directive:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_mirroring_npc_catchphrases() {
+        // TODO #26: the auto-player was adopting NPC stock tags
+        // ("Just askin', mind ye") from the recent-events buffer.
+        // Prompt must explicitly tell the model not to mirror NPC
+        // verbal tics.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("Do NOT mirror NPC catchphrases"),
+            "system prompt missing catchphrase-mirror guard:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Aiden has his own voice"),
+            "system prompt missing own-voice anchor:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Just askin', mind ye"),
+            "system prompt should name the canonical example phrase:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_carries_movement_cadence_directive() {
+        // TODO #1/#30: auto-player produced exactly 1 movement in 38+
+        // turns because the prompt has no explicit cadence rule and
+        // movement is 1 of 4 few-shot examples. Prompt must (a) name
+        // movement as a first-class action, (b) carry a "move after
+        // N turns" cadence rule, (c) show ≥ 2 movement few-shots
+        // alongside the dialogue ones, and (d) cite all three canonical
+        // movement verbs so the model picks across them.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("MOVEMENT CADENCE"),
+            "system prompt missing movement-cadence header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("After 3–5 turns"),
+            "system prompt missing 3-5 turn cadence rule:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("go to The Mill"),
+            "system prompt missing 'go to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("walk to St. Brigid's Church"),
+            "system prompt missing 'walk to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("head to Connolly's Shop"),
+            "system prompt missing 'head to' movement example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("the engine parses these as movement"),
+            "system prompt must distinguish movement commands from \
+             dialogue so the model emits bare 'go to X' rather than \
+             wrapping it in a spoken line:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_forbids_narrative_action_style() {
+        // TODO #47: cycle 9 caught 8/18 turns in narrative form
+        // ("Walking up to the cabin, I knock gently on the door";
+        // "Sittin' here, I notice a book half-open on the table";
+        // "I'll take a seat on the bench") — all silently dropped by
+        // the engine. The prompt must (a) name the failure mode, (b)
+        // cite at least one concrete negative example so the model
+        // pattern-matches, and (c) enumerate the legal action shapes.
+        let prompt = build_demo_system_prompt(None);
+        assert!(
+            prompt.contains("NO NARRATION"),
+            "system prompt missing no-narration header:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Walking up to the cabin"),
+            "system prompt missing participial-narration negative example:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("vanish into the dialogue path"),
+            "system prompt must spell out the engine's failure mode so the \
+             model has a reason to obey:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Legal action shapes are"),
+            "system prompt must enumerate the legal action shapes:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn demo_system_prompt_layers_extra_prompt() {
+        // TODO #51 — AC3: operator extra prompt must still appear.
+        let prompt = build_demo_system_prompt(Some("RUNDALE-SPECIFIC: stay east of the river."));
+        assert!(
+            prompt.contains("RUNDALE-SPECIFIC: stay east of the river."),
+            "extra prompt missing from layered system prompt:\n{prompt}"
+        );
+        // And the anchor still appears alongside the extra content.
+        assert!(prompt.contains("Speak ONLY in Aiden's voice"));
+    }
 
     #[test]
     fn extracts_action_from_json() {

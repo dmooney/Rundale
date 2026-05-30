@@ -20,7 +20,7 @@
 //!
 //! ## Wiring
 //!
-//! Every entry point (`parish-tauri`, `parish-server`, `parish-cli`) is
+//! Every entry point (`parish-tauri`, `parish-server`, `parish-engine`) is
 //! responsible for:
 //! 1. Constructing a [`CharacterLogManager`] at startup with the active
 //!    mod's `app_name` and the loaded branch id.
@@ -265,17 +265,72 @@ impl CharacterLogManager {
                 }
             }
             GameEvent::NpcDeparted {
-                npc_id, location, ..
+                npc_id,
+                location,
+                to,
+                ..
             } => {
-                let loc = loc_of(*location);
                 if let Some(npc) = npc_manager.get(*npc_id) {
+                    let loc = loc_of(*location);
+                    let to_name = loc_of(*to);
+                    let body = format!("*Headed to {}*\n", to_name);
                     append_journal_entry(
                         &self.npc_log_path(npc),
                         ts,
                         Some(&format!("Departed from {}", loc)),
-                        "",
+                        &body,
                     )?;
                 }
+            }
+            GameEvent::NpcActivity {
+                npc_id,
+                location,
+                activity,
+                ..
+            } => {
+                if activity.trim().is_empty() {
+                    return Ok(());
+                }
+                if let Some(npc) = npc_manager.get(*npc_id) {
+                    let loc = loc_of(*location);
+                    let body = format!("*{}*\n", activity);
+                    append_journal_entry(
+                        &self.npc_log_path(npc),
+                        ts,
+                        Some(&format!("Activity at {}", loc)),
+                        &body,
+                    )?;
+                }
+            }
+            GameEvent::GossipSpread {
+                source,
+                location,
+                content,
+                ..
+            } => {
+                if content.trim().is_empty() {
+                    return Ok(());
+                }
+                if let Some(npc) = npc_manager.get(*source) {
+                    let loc = loc_of(*location);
+                    let body = format!("*{}*\n", content);
+                    append_journal_entry(
+                        &self.npc_log_path(npc),
+                        ts,
+                        Some(&format!("Gossip at {}", loc)),
+                        &body,
+                    )?;
+                }
+            }
+            GameEvent::AddressedAbsentNpc { name, location, .. } => {
+                let loc = loc_of(*location);
+                let body = format!("*Addressed {} — they were not present.*\n", name);
+                append_journal_entry(
+                    &self.player_log_path(),
+                    ts,
+                    Some(&format!("Missed introduction at {}", loc)),
+                    &body,
+                )?;
             }
             GameEvent::PlayerMoved { from, to, .. } => {
                 let to_n = loc_of(*to);
@@ -443,9 +498,18 @@ pub fn format_player_profile(world: &WorldState) -> String {
     if world.visited_locations.is_empty() {
         out.push_str("*(none yet)*\n\n");
     } else {
-        let mut visited: Vec<&LocationId> = world.visited_locations.iter().collect();
-        visited.sort_by_key(|id| id.0);
-        for id in visited {
+        // Iterate first-visit order so the player's playthrough route
+        // is visible. Older saves loaded before #1130 land with an
+        // empty `visited_order`; fall back to sorted-by-id in that
+        // case so the section is never empty when locations exist.
+        let order: Vec<LocationId> = if world.visited_order.is_empty() {
+            let mut v: Vec<LocationId> = world.visited_locations.iter().copied().collect();
+            v.sort_by_key(|id| id.0);
+            v
+        } else {
+            world.visited_order.clone()
+        };
+        for id in &order {
             let n = world
                 .graph
                 .get(*id)
@@ -818,6 +882,46 @@ mod tests {
     }
 
     #[test]
+    fn player_profile_visited_locations_use_first_visit_order() {
+        // #1130 / F14: visited locations render in the order
+        // `mark_visited` recorded them, not by numeric LocationId.
+        // WorldState::new()'s graph is empty, so the renderer falls
+        // back to `format!("location {}", id.0)` for each id — the
+        // ordering check is what's under test, not the rendered
+        // names.
+        let mut world = WorldState::new();
+        // WorldState::new() seeds visited with LocationId(1). Visit
+        // three more in a deliberately-out-of-order sequence: 5, 3, 2.
+        world.mark_visited(LocationId(5));
+        world.mark_visited(LocationId(3));
+        world.mark_visited(LocationId(2));
+
+        let profile = format_player_profile(&world);
+        let visited_section = profile
+            .split("## Visited locations\n\n")
+            .nth(1)
+            .expect("profile must have the Visited locations section");
+        let p1 = visited_section
+            .find("- location 1")
+            .expect("LocationId(1) missing from visited section");
+        let p5 = visited_section
+            .find("- location 5")
+            .expect("LocationId(5) missing from visited section");
+        let p3 = visited_section
+            .find("- location 3")
+            .expect("LocationId(3) missing from visited section");
+        let p2 = visited_section
+            .find("- location 2")
+            .expect("LocationId(2) missing from visited section");
+        assert!(
+            p1 < p5 && p5 < p3 && p3 < p2,
+            "visited locations must render in first-visit order \
+             (1, 5, 3, 2), got positions 1@{p1} 5@{p5} 3@{p3} 2@{p2}.\n\
+             section:\n{visited_section}",
+        );
+    }
+
+    #[test]
     fn profile_section_lists_relationships_with_names() {
         let mut npc = make_npc(7, "Padraig Darcy");
         npc.relationships
@@ -983,6 +1087,122 @@ mod tests {
             npc_log.contains("**I:** Ah, God bless ye."),
             "npc line missing or wrong POV: {}",
             npc_log,
+        );
+    }
+
+    #[test]
+    fn npc_activity_event_writes_authored_activity_to_npc_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let npc_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::NpcActivity {
+            npc_id,
+            location: crate::world::LocationId(1),
+            activity: "tending bar".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(npc_id).unwrap())).unwrap();
+        assert!(
+            log.contains("Activity at"),
+            "activity heading missing: {}",
+            log,
+        );
+        assert!(
+            log.contains("*tending bar*"),
+            "activity body missing or wrong italic marker: {}",
+            log,
+        );
+    }
+
+    #[test]
+    fn npc_activity_event_with_empty_text_is_noop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let npc_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let path = mgr.npc_log_path(npcs.get(npc_id).unwrap());
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let event = GameEvent::NpcActivity {
+            npc_id,
+            location: crate::world::LocationId(1),
+            activity: "   ".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let after = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            before, after,
+            "empty/whitespace activity must not append a journal entry"
+        );
+    }
+
+    #[test]
+    fn gossip_spread_event_writes_source_npc_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc = make_npc(7, "Padraig Darcy");
+        let source_id = npc.id;
+        npcs.add_npc(npc);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::GossipSpread {
+            source: source_id,
+            location: crate::world::LocationId(1),
+            content: "the landlord raised the rent again".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.npc_log_path(npcs.get(source_id).unwrap())).unwrap();
+        assert!(log.contains("Gossip at"), "gossip heading missing: {}", log,);
+        assert!(
+            log.contains("*the landlord raised the rent again*"),
+            "gossip body missing: {}",
+            log,
+        );
+    }
+
+    #[test]
+    fn addressed_absent_npc_event_writes_player_log() {
+        // F9 / #1135: player addresses an NPC who isn't here — event
+        // lands in player.md so a post-session scan captures the
+        // missed introduction.
+        let tmp = tempfile::tempdir().unwrap();
+        let npcs = NpcManager::new();
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::AddressedAbsentNpc {
+            name: "Mrs. Hannigan".to_string(),
+            location: crate::world::LocationId(1),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+        let log = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        assert!(
+            log.contains("Missed introduction at"),
+            "heading missing from player log: {}",
+            log,
+        );
+        assert!(
+            log.contains("Mrs. Hannigan"),
+            "absent npc name missing from player log: {}",
+            log,
         );
     }
 

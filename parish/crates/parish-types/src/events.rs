@@ -99,7 +99,61 @@ pub enum GameEvent {
         npc_id: NpcId,
         /// Where they departed from.
         location: LocationId,
+        /// Where they are heading.
+        to: LocationId,
         /// When they departed.
+        timestamp: DateTime<Utc>,
+    },
+    /// The player addressed a named NPC who is not at their current
+    /// location.
+    ///
+    /// Fired by the engine's input router when the absent-aware target
+    /// resolver returns a non-empty `absent` list. Logging consumers
+    /// (`character_log`, `location_log`) render a journal entry so a
+    /// post-session scan captures missed introductions — the existing
+    /// system text-log message is UI-only (#1135).
+    AddressedAbsentNpc {
+        /// The literal name (or alias) the player used.
+        name: String,
+        /// Where the player was when they made the attempt.
+        location: LocationId,
+        /// When the attempt happened.
+        timestamp: DateTime<Utc>,
+    },
+    /// Gossip propagated from a Tier-2 group dialogue.
+    ///
+    /// Fired when `create_gossip_from_tier2_event` would add a new
+    /// rumor to `world.gossip_network` — either because a
+    /// relationship delta exceeded the threshold or because the
+    /// dialogue summary was substantive (> 30 chars). Carries the
+    /// originating NPC, the gossip text, and the location where the
+    /// conversation took place so subscribers (logs, UI hints) can
+    /// render the gossip-spreading moment.
+    GossipSpread {
+        /// NPC who originated the gossip (the first participant of
+        /// the Tier-2 event).
+        source: NpcId,
+        /// Where the originating conversation happened.
+        location: LocationId,
+        /// The dialogue summary that became gossip.
+        content: String,
+        /// When the gossip was minted.
+        timestamp: DateTime<Utc>,
+    },
+    /// An NPC's authored schedule activity at a location.
+    ///
+    /// Distinct from tier-3 LLM-summarised `last_activity`: this carries
+    /// the authored `ScheduleEntry::activity` text (e.g. "tending bar",
+    /// "praying", "cuaird visiting") fired deterministically when the
+    /// NPC arrives at the location for that schedule window.
+    NpcActivity {
+        /// Which NPC.
+        npc_id: NpcId,
+        /// Where they are.
+        location: LocationId,
+        /// Authored activity text from the NPC's schedule.
+        activity: String,
+        /// When the activity began.
         timestamp: DateTime<Utc>,
     },
     /// The weather changed.
@@ -171,6 +225,9 @@ impl GameEvent {
             | GameEvent::RelationshipChanged { timestamp, .. }
             | GameEvent::NpcArrived { timestamp, .. }
             | GameEvent::NpcDeparted { timestamp, .. }
+            | GameEvent::NpcActivity { timestamp, .. }
+            | GameEvent::GossipSpread { timestamp, .. }
+            | GameEvent::AddressedAbsentNpc { timestamp, .. }
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
             | GameEvent::PlayerMoved { timestamp, .. }
@@ -187,6 +244,9 @@ impl GameEvent {
             GameEvent::RelationshipChanged { .. } => "RelationshipChanged",
             GameEvent::NpcArrived { .. } => "NpcArrived",
             GameEvent::NpcDeparted { .. } => "NpcDeparted",
+            GameEvent::NpcActivity { .. } => "NpcActivity",
+            GameEvent::GossipSpread { .. } => "GossipSpread",
+            GameEvent::AddressedAbsentNpc { .. } => "AddressedAbsentNpc",
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::PlayerMoved { .. } => "PlayerMoved",
@@ -380,6 +440,7 @@ mod tests {
         let event = GameEvent::NpcDeparted {
             npc_id: NpcId(3),
             location: LocationId(7),
+            to: LocationId(8),
             timestamp: test_timestamp(),
         };
         let json = serde_json::to_string(&event).unwrap();

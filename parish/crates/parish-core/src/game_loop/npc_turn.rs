@@ -23,7 +23,7 @@
 //!
 //! # Headless CLI
 //!
-//! `parish-cli`'s `App` uses bare (non-Mutex) fields, so it cannot construct
+//! `parish-engine`'s `App` uses bare (non-Mutex) fields, so it cannot construct
 //! a [`GameLoopContext`].  Its inline implementations remain in `headless.rs`
 //! until a follow-up slice wraps `App`'s fields in `Arc<Mutex<>>`.
 
@@ -137,8 +137,15 @@ pub async fn run_npc_turn(
         .unwrap_or(serde_json::Value::Null),
     );
 
+    // TODO #10 / #23 / #34: Qwen2.5-14B-4bit degenerates into verbatim
+    // repetition loops ("'Tis a place of steady X, but not without its Y"
+    // x12, trailing-question chains, "'Tis not just X, but Y" stutters)
+    // without a sampling penalty. `frequency_penalty = 0.5` breaks the
+    // loop on vllm-mlx / OpenAI / OpenRouter; Anthropic + Simulator
+    // ignore the field. Only Tier 1 dialogue sets this; Tier 2/3/intent
+    // /reaction stay at `None` so behaviour there is unchanged.
     let send_result = queue
-        .send(
+        .send_with_penalty(
             req_id,
             model.to_string(),
             setup.context,
@@ -146,6 +153,7 @@ pub async fn run_npc_turn(
             Some(token_tx),
             Some(TIER1_DIALOGUE_MAX_TOKENS),
             Some(0.7),
+            Some(0.5),
             crate::inference::InferencePriority::Interactive,
             true,
         )
@@ -528,12 +536,27 @@ pub async fn handle_npc_conversation(
     // (#985). Emit one "{name} is not here." line per absent target. This
     // must fire before the LLM-not-configured short-circuit so the player
     // gets useful feedback even when no inference provider is set.
-    for name in &absent {
-        ctx.emitter.emit_event(
-            "text-log",
-            serde_json::to_value(text_log("system", format!("{name} is not here.")))
-                .unwrap_or(serde_json::Value::Null),
-        );
+    //
+    // Also publish a `GameEvent::AddressedAbsentNpc` so character + location
+    // log writers capture the missed introduction in the persisted
+    // markdown — the UI text-log emission alone is ephemeral (#1135 / F9).
+    if !absent.is_empty() {
+        let world = ctx.world.lock().await;
+        let now = world.clock.now();
+        for name in &absent {
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log("system", format!("{name} is not here.")))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+            world
+                .event_bus
+                .publish(parish_types::GameEvent::AddressedAbsentNpc {
+                    name: name.clone(),
+                    location: player_location,
+                    timestamp: now,
+                });
+        }
     }
 
     if targets.is_empty() {

@@ -1,0 +1,13 @@
+# Live-proof fixture for TODO #12 — auto-player must move when
+# NPCs here: none.
+#
+# Fix lives in parish-tauri/src/commands.rs build_demo_system_prompt —
+# adds a WHEN ALONE directive to the auto-player system prompt. This
+# fixture exists to satisfy the task-start bundle layout — live
+# behavioural verification (LLM-as-player actually moves at an empty
+# location) requires running real inference, which is out of scope
+# here. The script proves the engine still boots cleanly.
+
+go to The Mill
+go to Kilteevan Village
+look

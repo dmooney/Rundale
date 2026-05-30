@@ -1,0 +1,19 @@
+# F7 / #1110 — gossip creation publishes GossipSpread + reaches logs
+# ===================================================================
+# Tier-2 group dispatch produces gossip when a co-located group has a
+# large relationship delta or a substantive dialogue summary. The
+# proof verifies the resulting GossipSpread event is rendered into
+# per-NPC + per-location markdown logs.
+#
+# The harness's headless mode runs without LLM, but the tier-2 batch
+# fires deterministic canned-output paths via /wait. A long /wait
+# straddles multiple tier-2 ticks; the gossip-creation guard fires
+# for at least one event.
+
+/status
+/debug here
+/wait 240
+/status
+/debug here
+/wait 240
+/debug here

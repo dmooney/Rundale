@@ -567,6 +567,7 @@ async fn run_one(
         response_tx: rtx,
         max_tokens: sample.max_tokens,
         temperature: None,
+        frequency_penalty: None,
         priority: InferencePriority::Interactive,
         // schema wins over json_mode in the worker; setting json_mode true
         // when schema is also Some is harmless.

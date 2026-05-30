@@ -12,6 +12,7 @@
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
+	import BugReportModal from '../components/BugReportModal.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 
@@ -217,11 +218,23 @@
 		// Frontend auto-pause tracker — fires /pause after `auto_pause_timeout_seconds` of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
+		// TODO #6 / #31a — track OS-level window focus so the tracker
+		// only fires /pause when the user is actively in the parish
+		// window. Without this guard the idle timer fires every time
+		// attention shifts to another app and produces a burst of
+		// /pause + /resume toggles.
+		let windowFocused = typeof document !== 'undefined' ? document.hasFocus() : true;
+		const onWindowFocus = () => { windowFocused = true; };
+		const onWindowBlur = () => { windowFocused = false; };
+		window.addEventListener('focus', onWindowFocus);
+		window.addEventListener('blur', onWindowBlur);
+
 		const tracker = createAutoPauseTracker({
 			idleMs: () => get(uiConfig).auto_pause_timeout_seconds * 1000,
 			mousemoveThrottleMs: MOUSEMOVE_THROTTLE_MS,
 			submitInput,
-			isWorldPaused: () => get(worldState)?.paused ?? false
+			isWorldPaused: () => get(worldState)?.paused ?? false,
+			isWindowFocused: () => windowFocused
 		});
 
 		const onTrackerKey = () => tracker.recordActivity();
@@ -352,6 +365,13 @@
 				) {
 					sm.queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
 					return;
+				}
+
+				// Movement renders the full arrival scene here (with NPCs + exits).
+				// Suppress the shorter scene line the imminent world-update would
+				// otherwise append, so the location prints once, not twice.
+				if (payload.subtype === 'location') {
+					sceneDedup.suppressNextDescription();
 				}
 
 				// Strip "> " prefix from player messages — bubble alignment shows speaker
@@ -485,6 +505,8 @@
 			window.removeEventListener('mousedown', onTrackerMousedown);
 			window.removeEventListener('touchstart', onTrackerTouch);
 			window.removeEventListener('mousemove', onTrackerMousemove);
+			window.removeEventListener('focus', onWindowFocus);
+			window.removeEventListener('blur', onWindowBlur);
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			tracker.dispose();
 			sm.dispose();
@@ -564,6 +586,7 @@
 	<DemoPanel />
 {/if}
 <SavePicker />
+<BugReportModal />
 <SetupOverlay />
 {#if $modSelectorVisible}
 	<ModSelectorOverlay onclose={() => modSelectorVisible.set(false)} required={$uiConfig?.base_mod_required} />

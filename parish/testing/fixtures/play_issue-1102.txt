@@ -1,0 +1,21 @@
+# F5 / #1102 — schedule activity text reaches the bus + logs
+# ============================================================
+# Before the fix, ScheduleEntry::activity is loaded from
+# mods/rundale/world.json but never published. After the fix,
+# tick_schedules emits GameEvent::NpcActivity on arrival, and both
+# character_log and location_log render the authored activity text
+# as a journal body.
+#
+# `/wait 90` straddles a full schedule tick — Rundale's morning
+# schedule has multiple Tier-1 NPCs starting transit at 08:00 and
+# arriving in the 8:00-9:30 window.
+
+/status
+/debug clock
+/debug npcs
+
+/wait 90
+
+/status
+/debug clock
+/debug npcs

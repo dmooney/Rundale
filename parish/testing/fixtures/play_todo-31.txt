@@ -1,0 +1,18 @@
+# TODO #6 / #31 — pause/resume must only announce on a real state edge
+# ====================================================================
+# Before the fix, every /pause and /resume emitted its system line even when
+# the clock state didn't change, producing duplicate "Time stirs again" lines
+# with no intervening "stand still" (demo audit cycle 6).
+#
+# Expected after the fix:
+#   /pause   -> "The clocks of the parish stand still."   (edge: running->paused)
+#   /pause   -> empty response                            (no edge; already paused)
+#   /resume  -> "Time stirs again in the parish."         (edge: paused->running)
+#   /resume  -> empty response                            (no edge; already running)
+
+/status
+/pause
+/pause
+/resume
+/resume
+/status

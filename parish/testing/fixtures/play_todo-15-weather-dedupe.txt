@@ -1,0 +1,7 @@
+# Live-proof fixture for TODO #15 — dedupe Weather line in demo prompt.
+#
+# Fix lives in parish-core/src/ipc/demo.rs::render_user_prompt — pure
+# prompt-builder change. cargo test covers all 521 cases including the
+# new render_user_prompt_drops_standalone_weather_line assertion.
+
+look

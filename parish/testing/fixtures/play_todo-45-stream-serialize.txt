@@ -1,0 +1,13 @@
+# Live-proof fixture for TODO #45 — UI stream serialisation.
+#
+# The change is frontend-only: `parish/apps/ui/src/lib/setup/stream-manager.ts`
+# now drives `pumpTurn` only for the active head turn; parked turns buffer
+# tokens until the head finalises. This fixture exists for regression
+# coverage of the engine harness — no UI is involved here.
+#
+# Verification for the actual serialisation lives in
+# `stream-manager.test.ts` (vitest, frontend).
+
+look
+go to The Mill
+look

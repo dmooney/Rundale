@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { DebugSnapshot } from '$lib/types';
+	import BugChip from './BugChip.svelte';
 
 	let { snap }: { snap: DebugSnapshot } = $props();
 </script>
@@ -11,7 +12,7 @@
 	{:else}
 		{#each [...snap.conversations.exchanges].reverse() as ex}
 			<div class="conv-entry">
-				<div class="field muted">[{ex.timestamp}] @ {ex.location_name}</div>
+				<div class="field muted">[{ex.timestamp}] @ {ex.location_name}<BugChip kind="conversation" label={`${ex.speaker_name} @ ${ex.timestamp}`} detail={ex} /></div>
 				<div class="field">Player: {ex.player_input}</div>
 				<div class="field accent">{ex.speaker_name}: {ex.npc_dialogue}</div>
 			</div>

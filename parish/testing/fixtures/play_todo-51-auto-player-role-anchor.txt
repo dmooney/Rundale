@@ -1,0 +1,9 @@
+# Live-proof fixture for TODO #51 — auto-player role anchor.
+#
+# Boots Rundale headless to confirm the parish-tauri demo-turn code
+# path still compiles after the system-prompt edit. The actual role
+# anchor lives in the system prompt; behaviour proof is via the unit
+# test asserting "Aiden Carney" and the role-anchor directive both
+# appear in the assembled string.
+
+look

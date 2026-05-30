@@ -1245,12 +1245,15 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                             &world.event_bus,
                                         );
                                     // Push gossip so it can propagate to other NPCs.
-                                    if summary_clean {
-                                        parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                            event,
-                                            &mut world.gossip_network,
-                                            game_time,
-                                        );
+                                    if summary_clean
+                                        && let Some(gossip_evt) =
+                                            parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                                event,
+                                                &mut world.gossip_network,
+                                                game_time,
+                                            )
+                                    {
+                                        world.event_bus.publish(gossip_evt);
                                     }
                                 }
                                 npc_mgr.record_tier2_tick(game_time);
@@ -1374,6 +1377,7 @@ pub(crate) fn spawn_debug_tick(handle: AppHandle, state: Arc<AppState>) {
                 call_log,
                 categories,
                 configured_providers: parish_core::debug_snapshot::build_configured_providers(),
+                tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
             };
 
             // 6. Acquire world and npc_manager (canonical order)

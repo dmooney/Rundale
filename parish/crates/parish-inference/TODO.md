@@ -2,7 +2,13 @@
 
 ## Open
 
-*(none)*
+| ID | Category | Severity | Location | Description |
+|----|----------|----------|----------|-------------|
+| TD-031 | Complexity | P1 | `src/setup.rs:1-3150` | Largest file in the crate. It combines Ollama/vLLM/vLLM-MLX process management, GPU detection for three OS families, model selection, pull/delete progress streaming, setup orchestration, provider-client selection, and ~1,250 lines of tests. Split process management, GPU probing, model download, and provider setup before adding more local-runtime support. |
+| TD-032 | Complexity | P2 | `src/lib.rs:1-2157` | Crate root still mixes exports, queue types, bounded logs, await/submit helpers, client aggregation, `AnyClient`, worker spawning, timeout helpers, and ~900 lines of tests. Move queue/log/client-worker concerns into focused modules so `lib.rs` becomes the stable facade. |
+| TD-033 | API Shape | P2 | `src/lib.rs:334`, `src/lib.rs:370`, `src/lib.rs:409`, `src/lib.rs:847`, `src/lib.rs:993`, `src/inference_client.rs:376`, `src/openai_client.rs:404`, `src/openai_client.rs:434` | Several public or central constructors/request builders need `#[allow(clippy::too_many_arguments)]`. Introduce typed request/config structs for queue submission, streaming, metrics emission, and OpenAI-compatible request construction so call sites stop depending on long positional parameter lists. |
+| TD-034 | Complexity | P2 | `src/anthropic_client.rs:54-543`, `src/openai_client.rs:50-659` | Provider clients still contain request schema structs, request builders, retry/stream logic, SSE parsing, response extraction, structural-tag hardening, and tests in the same module. Split wire types, builders, streaming, and safety helpers per provider to make provider drift easier to review. |
+| TD-035 | Stale Comments | P3 | `src/openai_client.rs:22`, `src/openai_client.rs:675` | Historical comments mention previous `.expect()` panic behavior as regression notes. They are useful context, but they read like unfinished cleanup in debt scans. Convert to issue/test references or plain regression comments during the next adjacent edit. |
 
 ## In Progress
 
@@ -42,3 +48,7 @@
 | TD-028 | 2026-05-11 | Added four unit tests for `submit_json` async helper in `lib.rs`. |
 | TD-029 | 2026-05-11 | Fixed OpenAI trailing-buffer SSE error propagation in `read_sse_stream` to match Anthropic pattern. |
 | TD-030 | 2026-05-11 | Tightened `ChatCompletionChunk`, `StreamChoice`, and `Delta` visibility from `pub(crate)` to private in `openai_client.rs`.
+
+## Progress Log
+
+- **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-031 through TD-035 after checking LOC hotspots, clippy allows, and inline TODO/regression comments.

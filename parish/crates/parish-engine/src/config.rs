@@ -378,7 +378,7 @@ mod tests {
     /// `std::env::remove_var` and `set_var` unsafe precisely because
     /// concurrent access is UB.
     fn clear_parish_env() {
-        // Provider mods now live under mods/<id>/. parish-cli tests reference
+        // Provider mods now live under mods/<id>/. parish-engine tests reference
         // cloud providers (openrouter, anthropic, ...) that the registry only
         // knows about after this helper walks them in from the workspace.
         parish_core::config::ensure_mods_loaded();

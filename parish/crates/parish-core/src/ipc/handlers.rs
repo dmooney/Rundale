@@ -782,11 +782,11 @@ pub fn prepare_npc_conversation_turn(
     language: &LanguageSettings,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
-    // Capture introduced state BEFORE marking — the dialogue context
-    // builder needs to know whether this is the first turn (no anchor)
-    // or a follow-up (anchor forbids reciting full name + occupation).
-    // TODO #39 (mid-reply self-introduction): mark_introduced makes
-    // is_introduced unconditionally true from this point on.
+    // Capture introduced state BEFORE marking. The dialogue context builder
+    // uses was_introduced to decide: first turn (no anchor, NPC introduces
+    // themselves naturally) vs follow-up (anchor injected, forbids mid-reply
+    // self-recitation). mark_introduced is called before the context builder
+    // so display_name returns the real name, not the anonymous description.
     let was_introduced = npc_manager.is_introduced(speaker_id);
     // Mark NPC as introduced before computing display_name so first conversation
     // shows their name, not their anonymous description.
@@ -852,6 +852,14 @@ pub fn prepare_npc_conversation_turn(
         context.push_str(&alert);
     }
 
+    // Modern-register echo guard (TODO #55) — separate from the
+    // technology/slang anachronism path. Fires when the player uses a
+    // 21st-century phrase from MODERN_REGISTER_TERMS so the NPC doesn't
+    // echo it back and trip the post-reply validator.
+    if let Some(alert) = crate::npc::quality::format_player_register_alert(player_input) {
+        context.push_str(&alert);
+    }
+
     // Current player input — comes after conversation history as the triggering line.
     context.push_str("\n\n");
     context.push_str(&parish_npc::build_named_action_line(
@@ -859,7 +867,11 @@ pub fn prepare_npc_conversation_turn(
         player_name_for_npc,
     ));
     context.push_str(
-        "\n\nRespond to the live exchange above. You may answer the player or another nearby NPC by name when it feels natural.\n",
+        "\n\nRespond to the live exchange above. Address ONLY ONE person in your \
+         reply — either the player or one specific co-located NPC by name. Do NOT \
+         say goodbye to one person and then continue speaking to another in the \
+         same reply, and do NOT mix farewells with ongoing chat. One addressee, \
+         one tone, one beat.\n",
     );
 
     Some(NpcConversationSetup {

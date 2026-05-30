@@ -187,7 +187,7 @@ async fn run_headless_repl_loop(
 /// config, feature flags, mod content, data location, interactivity mode,
 /// and TOML-configured inference timeouts) that cannot be collapsed into a
 /// struct without creating a spurious coupling layer.
-#[allow(clippy::too_many_arguments)] // known debt: tracked in parish-cli/TODO.md (TD-019)
+#[allow(clippy::too_many_arguments)] // known debt: tracked in parish-engine/TODO.md (TD-019)
 pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,
@@ -503,10 +503,6 @@ async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::Async
     }
 }
 
-/// Headless idle message counter.
-static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(0);
-
 /// Drains every `GameEvent` queued on `app.character_log_rx` and feeds it
 /// to the character-log writer. Runs synchronously at the tail of each
 /// REPL iteration — the CLI's `App` is not `Send` enough for a tokio
@@ -632,21 +628,9 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
         if let Some(new_path) =
             crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
         {
-            if let Some(ref db) = app.db {
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-            }
-            if let Some(ref gm) = app.game_mod {
-                if let Ok(world) = parish_core::game_mod::world_state_from_mod(gm) {
-                    app.world = world;
-                }
-                let npcs_path = gm.npcs_path();
-                if npcs_path.exists()
-                    && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
-                {
-                    app.npc_manager = mgr;
-                }
+            let _ = app.capture_and_save_async(app.active_branch_id).await;
+            if let Err(e) = app.reload_mod_world_and_npcs() {
+                eprintln!("Failed to reload world: {}", e);
             }
             // Release old lock and acquire lock on the new save file.
             // Mirror the startup policy (#608): in script mode a lock failure is
@@ -691,9 +675,7 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
             Ok(Some(branch)) => {
                 let db = db.clone();
                 if branch.id != app.active_branch_id {
-                    let snapshot =
-                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                    let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                    let _ = app.capture_and_save_async(app.active_branch_id).await;
                 }
                 match load_and_restore_snapshot(app, &db, branch.id).await {
                     Ok(()) => {
@@ -717,37 +699,80 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
 
 /// Handles /new in headless mode — resets world and NPCs.
 pub(crate) async fn handle_headless_new_game(app: &mut App) {
-    if let Some(ref gm) = app.game_mod {
-        match parish_core::game_mod::world_state_from_mod(gm) {
-            Ok(world) => app.world = world,
-            Err(e) => {
-                eprintln!("Failed to reset world: {}", e);
-                return;
-            }
-        }
-        let npcs_path = gm.npcs_path();
-        if npcs_path.exists() {
-            match NpcManager::load_from_file(&npcs_path) {
-                Ok(mgr) => app.npc_manager = mgr,
-                Err(e) => eprintln!("Warning: Failed to reload NPCs: {}", e),
-            }
-        }
+    if let Err(e) = app.reload_mod_world_and_npcs() {
+        eprintln!("{}", e);
+        return;
     }
-    app.npc_manager.assign_tiers(&app.world, &[]);
     if let Some(ref db) = app.db
         && let Ok(branch_id) = db.create_branch("main", None).await
+        && let Some(_snap_id) = app.capture_and_save_async(branch_id).await
     {
-        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-        if let Ok(snap_id) = db.save_snapshot(branch_id, &snapshot).await {
-            app.active_branch_id = branch_id;
-            app.latest_snapshot_id = snap_id;
-            app.last_autosave = Some(std::time::Instant::now());
-        }
+        app.active_branch_id = branch_id;
     }
     println!("A new day dawns in the parish.");
     println!();
     print_location_arrival(app);
     print_arrival_reactions(app).await;
+}
+
+/// Applies a parsed NPC dialogue response — tier-1 state update, conversation
+/// log entry, and witness memory recording. Extracted from
+/// [`stream_headless_npc_dialogue`] to flatten control flow.
+#[allow(clippy::too_many_arguments)]
+fn apply_npc_response(
+    app: &mut App,
+    npc_id: crate::npc::NpcId,
+    response_text: &str,
+    player_input: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: parish_core::world::LocationId,
+    npc_display_name: &str,
+    npc_actual_name: String,
+) {
+    let parsed = parse_npc_stream_response(response_text);
+    if let Some(meta) = &parsed.metadata {
+        tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
+    }
+    let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
+        app.world.player_name.clone()
+    } else {
+        None
+    };
+    if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
+        let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
+            npc_mut,
+            &parsed,
+            player_input,
+            game_time,
+            &Default::default(),
+            player_name_for_mem.as_deref(),
+        );
+        for event in &debug_events {
+            app.debug_event(event.clone());
+        }
+    }
+    app.world
+        .conversation_log
+        .add(parish_core::npc::conversation::ConversationExchange {
+            timestamp: game_time,
+            speaker_id: npc_id,
+            speaker_name: npc_actual_name,
+            player_input: player_input.to_string(),
+            npc_dialogue: parsed.dialogue.clone(),
+            location,
+        });
+    let witness_events = parish_core::npc::ticks::record_witness_memories(
+        app.npc_manager.npcs_mut(),
+        npc_id,
+        npc_display_name,
+        player_input,
+        &parsed.dialogue,
+        game_time,
+        location,
+    );
+    for event in &witness_events {
+        app.debug_event(event.clone());
+    }
 }
 
 /// Streams NPC dialogue to stdout with loading animation, then applies
@@ -797,8 +822,12 @@ async fn stream_headless_npc_dialogue(
             std::io::stdout().flush().ok();
         });
 
+        // TODO #10 / #23 / #34: pair with the parish-core dialogue call
+        // site — both Tier 1 entry points must set frequency_penalty so
+        // the headless CLI exhibits the same loop-suppression behaviour
+        // as the Tauri / server runtimes (mode parity, rule #2).
         match queue
-            .send(
+            .send_with_penalty(
                 *request_id,
                 app.dialogue_model.clone(),
                 context,
@@ -806,6 +835,7 @@ async fn stream_headless_npc_dialogue(
                 Some(token_tx),
                 None,
                 Some(0.7),
+                Some(0.5),
                 parish_core::inference::InferencePriority::Interactive,
                 true,
             )
@@ -831,60 +861,18 @@ async fn stream_headless_npc_dialogue(
                         if let Some(err) = &response.error {
                             println!("[The parish storyteller has lost the thread: {}]", err);
                         } else {
-                            let parsed = parse_npc_stream_response(&response.text);
-                            if let Some(meta) = &parsed.metadata {
-                                tracing::debug!(
-                                    "NPC metadata: action={}, mood={}",
-                                    meta.action,
-                                    meta.mood
-                                );
-                            }
-
                             let game_time = app.world.clock.now();
-                            let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
-                                app.world.player_name.clone()
-                            } else {
-                                None
-                            };
-                            if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-                                let debug_events =
-                                    parish_core::npc::ticks::apply_tier1_response_with_config(
-                                        npc_mut,
-                                        &parsed,
-                                        text,
-                                        game_time,
-                                        &Default::default(),
-                                        player_name_for_mem.as_deref(),
-                                    );
-                                for event in &debug_events {
-                                    app.debug_event(event.clone());
-                                }
-                            }
-
                             let location = app.world.player_location;
-                            app.world.conversation_log.add(
-                                parish_core::npc::conversation::ConversationExchange {
-                                    timestamp: game_time,
-                                    speaker_id: npc_id,
-                                    speaker_name: npc_actual_name.clone(),
-                                    player_input: text.to_string(),
-                                    npc_dialogue: parsed.dialogue.clone(),
-                                    location,
-                                },
-                            );
-
-                            let witness_events = parish_core::npc::ticks::record_witness_memories(
-                                app.npc_manager.npcs_mut(),
+                            apply_npc_response(
+                                app,
                                 npc_id,
-                                &npc_display_name,
+                                &response.text,
                                 text,
-                                &parsed.dialogue,
                                 game_time,
                                 location,
+                                &npc_display_name,
+                                npc_actual_name.clone(),
                             );
-                            for event in &witness_events {
-                                app.debug_event(event.clone());
-                            }
                         }
                     }
                     Err(_) => {
@@ -976,7 +964,8 @@ async fn handle_headless_game_input(
 
                 stream_headless_npc_dialogue(app, text, setup, request_id).await;
             } else {
-                let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                app.idle_counter += 1;
+                let idx = app.idle_counter;
                 let mod_msgs = app
                     .game_mod
                     .as_ref()
@@ -1636,12 +1625,15 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                         &NpcConfig::default(),
                         &app.world.event_bus,
                     );
-                    if summary_clean {
-                        parish_core::npc::ticks::create_gossip_from_tier2_event(
-                            event,
-                            &mut app.world.gossip_network,
-                            game_time,
-                        );
+                    if summary_clean
+                        && let Some(gossip_evt) =
+                            parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                event,
+                                &mut app.world.gossip_network,
+                                game_time,
+                            )
+                    {
+                        app.world.event_bus.publish(gossip_evt);
                     }
                 }
                 app.npc_manager.record_tier2_tick(game_time);
@@ -1660,19 +1652,18 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
 /// Periodic autosave — triggered every `AUTOSAVE_INTERVAL_SECS` wall-clock
 /// seconds since the last save.
 async fn dispatch_headless_autosave(app: &mut App) {
-    if let Some(ref db) = app.db {
+    if app.db.is_some() {
         let should_autosave = app
             .last_autosave
             .map(|t| t.elapsed().as_secs() >= AUTOSAVE_INTERVAL_SECS)
             .unwrap_or(true);
         if should_autosave {
-            let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-            if let Ok(snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
-                let _ = db
-                    .clear_journal(app.active_branch_id, app.latest_snapshot_id)
-                    .await;
-                app.latest_snapshot_id = snap_id;
-                app.last_autosave = Some(std::time::Instant::now());
+            let old_snap = app.latest_snapshot_id;
+            let branch_id = app.active_branch_id;
+            if let Some(_snap_id) = app.capture_and_save_async(branch_id).await {
+                if let Some(ref db) = app.db {
+                    let _ = db.clear_journal(branch_id, old_snap).await;
+                }
                 tracing::debug!("Autosave complete");
             }
         }

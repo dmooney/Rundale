@@ -2,7 +2,12 @@
 
 ## Open
 
-*(none — all items resolved)*
+| ID | Category | Description |
+|----|----------|-------------|
+| TD-030 | Rule #12 Mode-Parity (P2) | The Tier-2 minting block — `apply_tier2_event_with_config` + `parish_core::npc::ticks::create_gossip_from_tier2_event` + `event_bus.publish(gossip_evt)` — is copy-pasted verbatim into two entry points (`parish-engine/src/headless.rs:1630` and `parish-tauri/src/setup.rs:1250`) and absent from `parish-server`. Rule #12 forbids duplicating orchestration bodies across entry-point crates. Extract a shared `mint_tier2_gossip(...)`-style helper here, parameterized over the `EventEmitter`/bus, so all three runtimes call one implementation. The new `GossipSpread` event (#1113) widened this divergence. Pairs with `parish-server` TD-040. |
+| TD-031 | Scaling / Hot-path IO (P3) | `src/location_log.rs:274-300` — `WeatherChanged` and `FestivalStarted` now loop over `world.graph.location_ids()` and append to every location's journal (≈22 filesystem writes per event for Rundale) instead of one. Behaviorally intended for world-wide events (#1023 F4), but it multiplies per-event IO on the event-bus subscriber task. Consider batching the appends or gating journal fan-out on a frequency/backpressure check before backends fire `WeatherChanged` often. |
+
+
 
 ## In Progress
 
@@ -23,6 +28,7 @@
 | TD-009 | 2026-05-07 | Rewrote no-op `apply_arrival_reactions_empty_location` test — removed dead `mgr.npcs_at()` call and suppressed result, renamed to `apply_arrival_reactions_does_not_panic` |
 | TD-010 | 2026-05-07 | Removed dead variable assignments (`let _ = target; let _ = start;`) from `apply_movement_already_here` test |
 | TD-011 | 2026-05-07 | Extracted 8 sub-functions from 434-line `handle_command` match: `handle_time_control_command`, `handle_info_command`, `handle_sidebar_improv_command`, `handle_provider_command`, `handle_cloud_provider_command`, `handle_category_provider_command`, `handle_preset_command`, `handle_flag_command`, `handle_theme_command`. Match reduced to dispatch calls grouped by category. |
+| TD-028 | 2026-05-25 | Split `src/ipc/commands.rs` (2,278 LOC) into 14 sub-modules under `src/ipc/commands/`: `types` (enums, struct), `help`, `dispatch` (master `handle_command`), `time`, `info`, `toggles`, `provider` (4 handlers), `flags`, `theme`, `weather`, `session`, `map`, `look`, `tests` (87 tests). Public API unchanged. |
 | TD-012 | 2026-05-07 | Extracted 6 sub-builders from 184-line `build_npc_debug_list`: `build_npc_schedule_debug`, `build_npc_relationship_debug`, `build_npc_memory_debug`, `build_npc_long_term_memory_debug`, `build_npc_reaction_debug`, `build_npc_deflated_summary_debug`. |
 | TD-013 | 2026-05-07 | Updated `SessionStore` trait doc to acknowledge single-user `session_id = ""` convention alongside multi-user UUID v4 convention |
 | TD-014 | 2026-05-07 | Updated `lib.rs` module doc to accurately describe parish-core as orchestration layer that composes leaf crates, not the owner of leaf-crate systems |
@@ -34,7 +40,15 @@
 | TD-020 | 2026-05-12 | Fixed `prepare_npc_conversation` doc to describe it as active single-target convenience wrapper used by headless CLI |
 | TD-021 | 2026-05-12 | Extracted `run_autonomous_chain` helper from Phase 2 chain in `npc_turn.rs`, replacing duplicated loop in `run_idle_banter` |
 | TD-022 | 2026-05-12 | Added Rule 9 warning docs to `find_mods_root` and `LocalDiskModSource::new`, noting cwd-walk is dev fallback only |
+| TD-023 | 2026-05-25 | Replaced all 12 stale `parish-cli` doc-comment references with `parish-engine` |
+| TD-024 | 2026-05-25 | Replaced 3 stale TODO #39 comments in `ipc/handlers.rs` and `parish-npc/src/ticks.rs` with design notes; `was_introduced` snapshot + `introduced_anchor_block` guard were already correct and test-covered |
+| TD-025 | 2026-05-25 | Removed unused `tokio-test` dev-dependency from Cargo.toml |
+| TD-026 | 2026-05-26 | Moved destructive maintenance test out of library source: deleted `src/editor/maintenance_tool.rs`, created `tests/normalize_mod.rs` (env-var-gated integration test) and `parish/scripts/normalize-mod-source.sh` (safety-gated shell wrapper) |
+| TD-027 | 2026-05-26 | Split `src/game_mod.rs` (2,075 LOC) into 7 sub-modules under `src/game_mod/`: `mod.rs` (re-exports), `types.rs` (runtime data structs), `manifest.rs` (manifest schema), `discovery.rs` (mod discovery), `world.rs` (world loading), `assets.rs` (asset resolution), `tests.rs` (tests). Public API unchanged. |
+| TD-029 | 2026-05-25 | Split `src/debug_snapshot.rs` (1,593 LOC) into 4 sub-modules under `src/debug_snapshot/`: `types.rs` (28 DTO structs), `build.rs` (builder functions + helpers), `reexport.rs` (InferenceLogEntry re-export), `tests.rs` (14 tests). Public API preserved for all cross-crate consumers. |
 
 ## Discovery note
 
-Discovery scan of `parish/crates/parish-core/src/` found no additional credible debt beyond the items already tracked.
+2026-05-28 weekly review of `c59562a..HEAD` added TD-030 (Tier-2 gossip orchestration duplicated across entry points — rule #12; pairs with parish-server TD-040 mode-parity gap) and TD-031 (per-event journal fan-out IO amplification in `location_log.rs`).
+
+2026-05-26 scan of `parish/crates/parish-core/src/` — clean. All items from the 2026-05-25 discovery sweep (TD-023 through TD-029) are now resolved. `cargo test -p parish-core` (446 passed, 0 failures), `cargo test -p parish-core --test architecture_fitness` (3 passed), `cargo clippy -p parish-core --all-targets -- -D warnings` (clean), and cross-crate compilation (`parish-tauri`, `parish-server`, `parish-engine`, `parish-mcp`) all pass.

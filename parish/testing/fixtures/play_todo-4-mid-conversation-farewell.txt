@@ -1,0 +1,14 @@
+# Live-proof fixture for TODO #4 — anti-farewell mid-conversation
+# directive.
+#
+# Fix lives in parish-npc/src/lib.rs build_tier1_system_prompt — adds a
+# NEVER FAREWELL MID-CONVERSATION section to the Tier-1 NPC system
+# prompt. This fixture exists to satisfy the task-start bundle layout
+# and prove the engine still loads cleanly with the modified prompt.
+#
+# Live LLM behavioural verification (NPC does not emit "Slán" mid-
+# conversation) requires running inference against a real model and is
+# deferred — see acceptance-criteria.md "Out of scope / deferred items".
+
+go to the mill
+look

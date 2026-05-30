@@ -215,6 +215,103 @@ fn dialogue_context_carries_time_of_day_cue() {
     );
 }
 
+/// TODO #55: when the player input contains a modern-register
+/// phrase (e.g. "taking in the sights"), the assembled context must
+/// carry an alert telling the NPC not to echo it back. Pre-fix the
+/// alert path only fired for technology/slang anachronisms, so
+/// modern-register phrases reached the NPC unchallenged and tripped
+/// a post-reply WARN once the LLM mirrored them.
+#[test]
+fn dialogue_context_alerts_on_player_modern_register_echo() {
+    use parish_core::npc::LanguageSettings;
+
+    let (mut world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+    world.player_name = Some("Aiden Carney".to_string());
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "I'm just taking in the sights",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+    )
+    .expect("turn setup");
+    assert!(
+        setup.context.contains("MODERN-REGISTER ALERT"),
+        "missing alert header:\n{}",
+        setup.context
+    );
+    assert!(
+        setup.context.contains("taking in the sights"),
+        "alert must surface the matched phrase:\n{}",
+        setup.context
+    );
+    assert!(
+        setup.context.contains("Do NOT echo"),
+        "missing echo guard:\n{}",
+        setup.context
+    );
+}
+
+/// AC2: no register alert when the player input is clean.
+#[test]
+fn dialogue_context_no_register_alert_on_clean_input() {
+    use parish_core::npc::LanguageSettings;
+
+    let (mut world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+    world.player_name = Some("Aiden Carney".to_string());
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "good morning to ye",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+    )
+    .expect("turn setup");
+    assert!(
+        !setup.context.contains("MODERN-REGISTER ALERT"),
+        "alert must not fire on clean input:\n{}",
+        setup.context
+    );
+}
+
+/// TODO #14: the assembled context must instruct the NPC to address
+/// only one person per reply. Brendan was mixing multiple Slán*
+/// farewells in a single message because the prompt tail invited
+/// "may answer the player or another nearby NPC" with no upper limit.
+#[test]
+fn dialogue_context_carries_single_addressee_anchor() {
+    let context = build_dialogue_context_with_first_npc(Some("Aiden Carney"), true);
+
+    assert!(
+        context.contains("Address ONLY ONE person"),
+        "missing single-addressee directive:\n{context}"
+    );
+    assert!(
+        context.contains("do NOT mix farewells with ongoing chat"),
+        "missing mixed-farewell guard:\n{context}"
+    );
+    assert!(
+        context.contains("Do NOT say goodbye to one person"),
+        "missing goodbye-then-continue guard:\n{context}"
+    );
+}
+
 /// TODO #21: the assembled context must pin the NPC to the player's
 /// current location with a directive forbidding substitution of any
 /// nearby canonical settlement. The bug surfaced at The Mill near

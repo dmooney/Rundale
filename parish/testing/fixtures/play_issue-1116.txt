@@ -1,0 +1,11 @@
+# F4 / #1116 — Weather / Festival events log to every location
+# ==============================================================
+# Force a weather change, then sample a few different player
+# locations to confirm the entry landed in every loc-*.md file.
+
+/status
+/weather Storm
+/wait 5
+go to The Crossroads
+/wait 5
+/status

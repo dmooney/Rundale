@@ -114,6 +114,18 @@ providers = [
 ]
 
 [[model]]
+id = "qwen3.7-max"
+display_name = "Qwen3.7 Max"
+family = "qwen3.7"
+# opencode-go exposes qwen3.7-max only via the Anthropic Messages format
+# (/v1/messages + x-api-key); /v1/chat/completions returns 401 with
+# "Model qwen3.7-max is not supported for format oa-compat". Routed via
+# _call_messages_anthropic in parish/scripts/local-eval/eval_lib.py.
+providers = [
+  { provider_id = "opencode-go", model_name_at_provider = "qwen3.7-max", base_url = "https://opencode.ai/zen/go/v1", api_key_env = "OPENCODE_API_KEY", price_in_per_mtok = 1.00, price_out_per_mtok = 5.00, max_context = 262144 },
+]
+
+[[model]]
 id = "glm-5"
 display_name = "GLM-5"
 family = "glm"

@@ -58,6 +58,11 @@ pub struct WorldState {
     pub event_bus: EventBus,
     /// Set of location IDs the player has visited (for fog-of-war map).
     pub visited_locations: HashSet<LocationId>,
+    /// First-visit order, parallel to `visited_locations`. Each id appears
+    /// at most once, in the order [`mark_visited`] first inserted it. Used
+    /// by `character_log`'s player-profile renderer to list visited
+    /// locations in playthrough order rather than by numeric id (#1130).
+    pub visited_order: Vec<LocationId>,
     /// Edge traversal counts for "worn path" footprints on the map.
     ///
     /// Keys are canonically ordered `(min_id, max_id)` pairs. The count
@@ -127,6 +132,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([player_location]),
+            visited_order: vec![player_location],
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
@@ -180,8 +186,13 @@ impl WorldState {
     }
 
     /// Marks a location as visited for the fog-of-war map.
+    ///
+    /// Idempotent: a second call with the same id is a no-op for both
+    /// the set and the first-visit-order vector (#1130).
     pub fn mark_visited(&mut self, id: LocationId) {
-        self.visited_locations.insert(id);
+        if self.visited_locations.insert(id) {
+            self.visited_order.push(id);
+        }
     }
 
     /// Records a traversal along a path of locations, incrementing edge counts.

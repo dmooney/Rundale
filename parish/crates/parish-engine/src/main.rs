@@ -42,6 +42,10 @@ struct Cli {
     #[arg(long)]
     config: Option<String>,
 
+    /// Path to engine config (parish-flags.json). Default: platform user-data dir.
+    #[arg(long, env = "PARISH_ENGINE_CONFIG")]
+    engine_config: Option<String>,
+
     /// Enable improv craft mode for NPC dialogue
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
@@ -111,10 +115,17 @@ struct Cli {
 /// The engine binary is process-local; OpenTelemetry export lives in the
 /// `parish-server` binary alongside the request-scoped span machinery that
 /// actually populates the spans.
-fn setup_tracing() {
-    std::fs::create_dir_all("logs").ok();
-    let file_appender = tracing_appender::rolling::daily("logs", "parish-engine.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+///
+/// Returns a [`tracing_appender::non_blocking::WorkerGuard`] that must be
+/// held for the lifetime of the process — dropping it drops pending logs.
+fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
+    let log_dir = parish_core::persistence::paths::resolve_user_data_dir(
+        parish_core::persistence::paths::DEFAULT_APP_NAME,
+    )
+    .join("logs");
+    std::fs::create_dir_all(&log_dir).ok();
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "parish-engine.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
@@ -124,6 +135,8 @@ fn setup_tracing() {
                 .with_ansi(false),
         )
         .init();
+
+    guard
 }
 
 /// Resolves provider config, cloud config, and per-category configs from CLI.
@@ -185,12 +198,13 @@ async fn resolve_configs(
         );
     }
 
-    let engine_config_path = match &cli.config {
-        Some(p) => PathBuf::from(p),
-        None => {
-            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            parish_core::config::resolve_config_path(&cwd)
-        }
+    let engine_config_path = if let Some(p) = cli.engine_config.as_deref() {
+        PathBuf::from(p)
+    } else {
+        let user_data = parish_core::persistence::paths::resolve_user_data_dir(
+            parish_core::persistence::paths::DEFAULT_APP_NAME,
+        );
+        parish_core::config::resolve_config_path(&user_data)
     };
     let engine_config = parish_core::config::load_engine_config(&engine_config_path);
 
@@ -232,16 +246,19 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    setup_tracing();
-    tracing::info!("Starting Parish...");
     let cli = Cli::parse();
 
+    let game_mod = load_game_mod(&cli);
+
     if let Some(script_path) = &cli.script {
-        return parish_engine::testing::run_script_mode(Path::new(script_path));
+        return parish_engine::testing::run_script_mode(Path::new(script_path), game_mod);
     }
 
+    // tracing after script check — in script mode, no file logging needed
+    let _tracing_guard = setup_tracing();
+    tracing::info!("Starting Parish...");
+
     let (cfg, mut runtime_processes) = resolve_configs(&cli).await?;
-    let game_mod = load_game_mod(&cli);
 
     use std::io::IsTerminal as _;
     let script_mode = !std::io::stdin().is_terminal();

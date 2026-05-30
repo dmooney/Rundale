@@ -1,0 +1,8 @@
+# Live-proof fixture for TODO #18 — auto-player empty-action retry.
+#
+# Fix lives in parish-tauri/src/commands.rs get_llm_player_action.
+# This fixture exists to satisfy the task-start bundle layout — live
+# verification via cargo test demo_tests (pins extract_action_from_response
+# malformed-input behaviour).
+
+look

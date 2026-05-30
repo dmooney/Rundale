@@ -4,6 +4,7 @@
 //! any UI layer (Tauri desktop, axum web server, etc.), plus pure functions
 //! that build those types from game state.
 
+pub mod bug_report;
 pub mod byok;
 pub mod commands;
 pub mod config;
@@ -15,6 +16,10 @@ pub mod state;
 pub mod streaming;
 pub mod types;
 
+pub use bug_report::{
+    BugContext, BugReportError, BugReportRequest, BugReportResult, BugReportState, GitHubBugConfig,
+    create_bug_report,
+};
 pub use commands::{
     CommandEffect, CommandResult, TextPresentation, handle_command, render_look_text,
 };

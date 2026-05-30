@@ -57,6 +57,9 @@ pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
         | GameEvent::LifeEvent { .. }
         | GameEvent::NpcArrived { .. }
         | GameEvent::NpcDeparted { .. }
+        | GameEvent::NpcActivity { .. }
+        | GameEvent::GossipSpread { .. }
+        | GameEvent::AddressedAbsentNpc { .. }
         | GameEvent::PlayerMoved { .. }
         | GameEvent::NpcInteraction { .. } => None,
     }
@@ -199,6 +202,7 @@ mod tests {
         let event = GameEvent::NpcDeparted {
             npc_id: NpcId(5),
             location: LocationId(10),
+            to: LocationId(11),
             timestamp: test_time(),
         };
         assert!(to_journal_event(&event).is_none());
