@@ -1,0 +1,1272 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/GLM-4.7-Flash-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-28T02:30:00.485059+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": null,
+        "authenticity": null,
+        "language": null,
+        "responsiveness": null,
+        "craft": null,
+        "overall": null,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "1.  **Analyze the User's Input:**\n    *   **User:** \"I have been having trouble sleeping. The dreams keep coming back.\"\n    *   **Context:** 1820 Roscommon, Ireland. The user is likely a patient or someone seeking help.\n    *   **Tone:** Troubled, seeking advice, perhaps emotional.\n\n2.  **Analyze the Persona (Brigid O'Brien):**\n    *   **Role:** Midwife, herbalist, woman of the people.\n    *   **Tone:** Kind, direct, knowledgeable, warm, Irish.\n    *   **Language:** Hiberno-English (en-IE) with sprinkled Irish (ga-IE).\n    *   **Constraint Checklist & Confidence Score:**\n       1. Stay in lane? Yes.\n        2. 1820 facts correct? Yes.\n        3. Cultural guidelines? Yes.\n        4. No 21st-century words? Yes",
+          "response_sha256": "2f15df8f1d2edcd92e49bdd079ace9dc15c68ccd13a36a8593d1052c4f2a81fa",
+          "cache_key": "98843a946087247748c742b1036634af891f558f4e0894a401a2bbadd37e88e1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "The user is asking about \"the old Cailleach who lives near the fairy fort.\"\nI need to respond as Brigid O'Brien, a midwife in 1820 Roscommon.\nBrigid should know about the Cailleach, who is likely an old woman, possibly a wise woman or a figure of local legend/folklore, associated with the fairy mound (rath or lios).\nBrigid should not be overly superstitious in a foolish way, but respectful of local lore.\nBrigid should use Hiberno-English (en-IE) with sprinkles of Irish (ga-IE).\nBrigid should not track livestock, hunt, or farm.\nBrigid should be kind and direct.\n\nAnalysis of the prompt:\n- The user asks about the \"Cailleach\" (old woman) near the fairy fort.\n- In Irish folklore, the Cailleach is often a hag or wise woman, sometimes a figure of winter or creation, but in a rural Irish",
+          "response_sha256": "2341b7c2ae2e387638a702ad7e815ee6ec63524e9c764eff801de41da0b9ef62",
+          "cache_key": "79d7692ac281a8b44468adacbd6235f0e1f37e054d1a25f3761d0529bfde4f65",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "The user is asking for help for their mother who has a bad cough.\nI need to respond as Brigid O'Brien, a midwife in 1820 Roscommon.\nI need to stay in character, using Hiberno-English (en-IE) with a sprinkle of Irish (ga-IE).\nI need to provide the JSON metadata block.\nI need to keep it conversational and direct, 2-4 sentences long.\n\n**Analysis of the Request:**\n- **Role:** Brigid O'Brien, midwife, herbalist, 42, Roscommon, 1820.\n- **Tone:** Kind, direct, knowledgeable, warm, no 21st-century slang, no stage-Irish dialect.\n- **Context:** Mother has a bad cough.\n- **Language:** Hiberno-English (en-IE) + Irish phrases (ga-IE).\n- **Constraint:** 1820 Roscommon (no electricity, etc.).\n- **Constraint:** No",
+          "response_sha256": "1047eff077a929bec3db24ead5fbc17d388d93eddf470262afe9943249f34220",
+          "cache_key": "6148e51599e01a5a99f60c6fa509e2c8a4d02e20dc85dd7ab95d79858b933ed3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "The user is asking if I, as Brigid O'Brien, a midwife in rural Ireland in 1820, have heard about a stranger arriving in the village.\n\n**Character Analysis (Brigid O'Brien):**\n*   **Role:** Midwife in County Roscommon, Ireland (1820).\n*   **Tone:** Kind, direct, knowledgeable about herbs/births, warm, resilient, no exaggerated dialect (no \"Top o' the mornin'\").\n*   **Knowledge:** Local gossip, births, deaths, herbs, farming (but not livestock management specifically).\n*   **Setting:** 1820, Penal Laws repealed (1782), Hedge schools open, Catholic Emancipation pending, Great Famine not yet here, British rule, mail coaches.\n*   **Language:** Hiberno-English (en-IE). Sprinkle in specific Irish phrases (Ga-IE) sparingly.\n*   **Constraint:** 42 years old. Stay in lane",
+          "response_sha256": "5655a974e36194fd4118814765bd030ad63cad15c221bb96fe1cbbb112612f08",
+          "cache_key": "594349afb5f4d2d76d58fe780ef8afc6b30b820c6e02cf4053ae096223905984",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "The user is asking me (Brigid O'Brien) if a lost sheep last night could be due to something other than a wolf.\nI need to adopt the persona of a midwife in 1820 County Roscommon.\nI need to stay in my lane: midwives don't track wolves or livestock. I should redirect this or offer a perspective based on women's work, but the prompt says I don't track livestock predators, hunt, or speak as a farmer.\nHowever, the user asked me, and I need to respond in character.\nThe user is speaking in English, likely a traveler or someone new to the area.\nI need to respond in Hiberno-English, using dialect markers.\nI need to sprinkle in a Gaelic phrase.\nI need to end with a JSON metadata block.\n\nThe user's query is: \"I lost a sheep last night. Could it be more than a wolf?\"\nAs a midwife, I don't know about wolves or sheep farming. I",
+          "response_sha256": "7b6a40ac072b6376f8fd8d40ba233e71fb09a3d992afd6957ba9feaa1e9313a1",
+          "cache_key": "ae902215412caed85e6c1cdaca035a71def8f33d64600c0f198bfe3039e180eb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "The user is asking if I remember a specific past event involving the player's father breaking his leg.\nI need to respond as Brigid O'Brien, a midwife in 1820 rural Roscommon.\nI need to keep my lane: midwife knowledge, local gossip, warmth, directness.\nI need to use Hiberno-English with sparse Irish phrases.\nI need to output dialogue, then \"---\", then JSON.\nThe event is a leg break in the south field.\nBrigid likely knew about this, as it's a common injury and likely treated or discussed in the village.\n\nDrafting the response:\n- Acknowledge the memory.\n- Confirm it was a bad break.\n- Maybe mention treatment (splints, willow, etc.).\n- Keep it conversational.\n\nDialogue ideas:\n\"Aye, I remember that clear enough. Poor man, he fell right into the trench. I had to bind him with willow and a lot of poultice.\"\n- Check dialect:",
+          "response_sha256": "16d0be4a2debdc76a00e434e2e1eb05f195ee922ccd3490e7b8bf92c8661601e",
+          "cache_key": "7c0864f17de2ff4004ae444e2a0c513e238a9b4947c883ef2b7b5748bd92e394",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "The user is asking about lights moving on a hill, which implies supernatural folklore or superstition, fitting for a midwife in rural Ireland, but I need to stay within my lane as a midwife\u2014she knows herbs, births, sickness, and women's matters, and should redirect if someone asks about folklore or superstitions in a way that isn't strictly within her primary domain, or address it with the cultural context of the time.\n\nHowever, the prompt instructions say \"STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters \u2014 she does NOT track livestock predators, hunt, or speak as a farmer would.\" It also says \"If asked about something outside your knowledge, redirect \u2014 'Ye'd best ask the right person hereabouts' \u2014 or admit ye don't know.\"\n\nWait, the user is asking me to roleplay as Brigid O'Brien. The user is asking a question. If I answer as a midwife, I need to",
+          "response_sha256": "36244f5328f15c78b88348e5fcfc2cd93c8d3b302c5be04fc588792a1fb3a128",
+          "cache_key": "0f508d72daa5737dc85bd4038fe0005db281bd2398a63d32d4cfe7f2e0b4c0db",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "The user is asking if they should be worried about the well water tasting strange.\nMy character, Brigid O'Brien, is a midwife in rural Roscommon, 1820.\nI need to respond as Brigid, staying in character, using Hiberno-English, sprinkling in Irish phrases if appropriate, and adhering to the format.\n\n**Character Analysis:**\n- Role: Midwife.\n- Location: Roscommon, Ireland, 1820.\n- Knowledge: Herbs, births, women's health, local geography, local superstition (s\u00eddhe), simple science (sometimes).\n- Attitude: Pragmatic, caring, knowledgeable.\n- Current Mood: Content (but can shift based on the water issue).\n\n**Context:**\n- Water tasting strange could mean mineral deposits, runoff, or bad luck (superstition).\n- In 1820, people don't have modern water treatment. They rely on wells.\n- Brigid knows the local geology (",
+          "response_sha256": "557ff5fa2cbbeefb4309e11539449fe9dca785e8b99dacee079e5c12491edcd8",
+          "cache_key": "9b5e4793094202cc816ba6330113611b27ec71e420f7769ca9b9d8c65ec240c5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "The user is asking about timing for a midwife visit, specifically for his pregnant wife.\nMy character is Brigid O'Brien, a midwife in rural Roscommon, 1820.\nI need to:\n- Answer the question about when to fetch me.\n- Maintain the persona: midwife, knowledgeable, direct, kind, Hiberno-English, sprinkled with Irish phrases.\n- Avoid anachronisms.\n- Keep it to 2-4 sentences.\n- Format: Dialogue, then \"---\", then JSON.\n\n**Analysis of the situation:**\n- The user's wife is \"heavy with child\" (pregnant).\n- In 1820 Ireland, midwives are typically called when labor starts or when complications arise, or perhaps if the woman is very far along, but usually, the signal is the first signs of labor.\n- There is no \"due date\" precision like modern medicine, but I can estimate based on the \"quickening\" or when she starts pushing,",
+          "response_sha256": "7ff90528b65a9a83417eee44d3e004485e00c673f08c60a3974929c25244a185",
+          "cache_key": "c29c9f89572238546cc0514335d127737562b11e885c530a19c6d9621014c51a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "1.  **Analyze the User's Input:**\n    *   **Character:** Father Cathal (a priest).\n    *   **Topic:** Preached against the \"old ways\" (likely folk remedies, herbalism, or local superstitions) on Sunday.\n    *   **Context:** 1820 Roscommon, Ireland.\n    *   **Role:** Brigid O'Brien, midwife, folk healer, Catholic.\n    *   **Tone:** Kind, direct, resilient, not foolishly superstitious, dignified.\n    *   **Constraint:** 1820 context (Catholic Emancipation pending, no electricity, rural, Irish/English mix, specific phrases allowed).\n    *   **Output Format:** Dialogue -> \"---\" -> JSON metadata.\n\n2.  **Determine Brigid's Perspective:**\n    *   As a midwife who uses herbs and understands local knowledge, she likely respects the \"old ways\" as practical wisdom, even if she",
+          "response_sha256": "4ea1e74b553b7d87ab5e69db07f16a0f65d9804adfa574492db923a1d16aa41a",
+          "cache_key": "3cfc3b85785f4a9105294971f5affc059e2f3157b195301134b2f546005ea87e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__GLM_4_7_Flash_4bit"
+      ],
+      "candidate": {
+        "model_id": "GLM-4.7-Flash-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/GLM-4.7-Flash-4bit@http://localhost:8000/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Padraig Darcy, 58, publican in rural Ireland, 1820.\n    *   **Traits:** Gruff but warm-hearted, ran the pub for 30 years, dry wit.\n    *   **Current Mood:** Content.\n    *   **Setting:** Evening, clear weather, inside Darcy's Pub.\n    *   **Situation:** A newcomer has just walked in; haven't met",
+          "response_sha256": "41df6255a23c47883f32858993e1c1f1c05fcd78fd868a90515eb73c62df16b2",
+          "cache_key": "b23dd53ad3ba5b5f05ee14911001ce7a24f2af949fdbab703265353d53acf889",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "1.  **Analyze the User's Request:**\n    *   **Character:** Padraig Darcy, 58, publican, rural Ireland, 1820.\n    *   **Traits:** Gruff but warm-hearted, ran the pub for 30 years, dry wit.\n    *   **Mood:** Content.\n    *   **Context:** Morning, Light Rain.\n    *   **Scenario:** A familiar person has arrived at Brigid's Cottage (which I am running",
+          "response_sha256": "d23887b6421b5ddbbaa816369b7ea027e2a91bcf3012468c25281b756b8ca757",
+          "cache_key": "80eab9c13bbff9433c39282c43a5077f188370265a3e20071d9aa61cf91752a4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Padraig Darcy, 58, rural Irish publican, 1820. Traits: gruff but warm-hearted, dry wit.\n    *   **Setting:** Church porch, Sunday noon, Mist.\n    *   **Action:** Greeting a familiar person (a ghost or spirit, implied by \"familiar has just arrived\" and the historical/mythic context, or just a long-absent friend, but",
+          "response_sha256": "3623b0eab929282cf24baf6434e2c5729c695db5c81d1a00331bc629ea13ed48",
+          "cache_key": "6c5b4f1abd65278e2181b93d98defae2eb9eb58e06e727557916ae59812c03c1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Brigid O'Brien, 42, midwife, rural Ireland, 1820.\n    *   **Traits:** Kind but direct, knowledgeable about local plants and folk medicine.\n    *   **Mood:** Focused.\n    *   **Scenario:** Evening, clear, at Darcy's Pub, meeting a newcomer for the first time, currently working as a midwife.\n    *   **Constraint 1",
+          "response_sha256": "64f546bbb91ca07d1dd3a0405f2c1a1f7661b494fcbd111ef576af6289da7b6e",
+          "cache_key": "029b92ed280a446af32c8108c1f4d5b9a681c63108dc249f1bf24dd8ae962db1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Brigid O'Brien, 42, midwife in rural Ireland, 1820. Traits: Kind but direct, knowledgeable about local plants/folk medicine. Mood: Focused.\n    *   **Scenario:** A familiar has just arrived at the cottage. It's morning, light rain.\n    *   **Relationship:** Met before.\n    *   **Constraint 1:** Single brief greeting or reaction (max",
+          "response_sha256": "ab6c882f8ffcfb00a69794f5278c255af9fff011e6f26116dbfbf6e1f3ccd05c",
+          "cache_key": "28c33ef15256f186c8e73c513f012d1786c08284cc4563ebc4c0d96be0407ecb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Brigid O'Brien, 42, midwife in rural Ireland, 1820.\n    *   **Traits:** Kind but direct; knows local plants/medicine; focused.\n    *   **Setting:** Church porch, Sunday noon, Mist.\n    *   **Action:** A familiar person (met before) arrives.\n    *   **Constraint 1:** Single brief greeting/reaction (1-2 sentences max",
+          "response_sha256": "8adc8445eb8a74c7b16f8323bb08290dc752d91b7d13c8d3ffcd41e77da236c3",
+          "cache_key": "5ba60743bc7c10b36cea8662a1ae26d866c30ffe03e373782a78c259fc28672e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Father Cathal Donnellan, 51, rural Ireland, 1820.\n    *   **Traits:** Eloquent, severe, preaches against the old ways, watchful.\n    *   **Setting:** Darcy's Pub, evening, clear.\n    *   **Situation:** Approaching a newcomer (stranger).\n    *   **Role:** Working as a priest in the pub (likely a",
+          "response_sha256": "d9b04933712fb962ecab30e56fe6c3a71eafa11f8845aba54b07c67dccdda351",
+          "cache_key": "aec44a0300c9aea62ab7ba3790bf9faed657b45e1664423cfecbf65a3f47c179",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Father Cathal Donnellan, 51, rural Ireland, 1820, eloquent, severe, preaches against \"old ways.\"\n    *   **Context:** Morning, light rain, at Brigid's cottage. A \"familiar\" (a supernatural entity or entity perceived as such, often associated with witchcraft or evil) has arrived.\n    *   **Relationship:** Has met this person before.",
+          "response_sha256": "1fded28b2f02f4822b2357b923d1053d39dd1bd9168ff896d71556f5113ea34b",
+          "cache_key": "05eafa0fbeb38a519da05be77924c22b2cf69b0424a6ad36df3185be337bee21",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "1.  **Analyze the Request:**\n    *   **Character:** Father Cathal Donnellan, 51, rural Ireland, 1820.\n    *   **Traits:** Eloquent, severe, preaches against the old ways.\n    *   **Current Mood:** Watchful.\n    *   **Scenario:** Sunday noon, mist, familiar person arrives at the church porch.\n    *   **Constraint:** Single brief greeting/reaction (max 2 sentences).\n    *",
+          "response_sha256": "07357584ec77e5eb343abe9f3c34594775bb977a60eb867a04b586af7f52cea5",
+          "cache_key": "e08e7419bf7b4f624b63d279dd2032b0b9363f9b9a6d26b81722aa0f12aa2116",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "The user wants me to roleplay as Sean Murphy, a 41-year-old Irish farmer from 1820.\nThe user has established:\n- Setting: Darcy's Pub, evening, clear weather.\n- Character: 41, farmer, bog worker, plain-spoken, stubborn, hungry.\n- Current mood: Hungry.\n- Relationship to user: Stranger (newcomer).\n- Output constraint: Single greeting/reaction, 1-2 sentences max, dialogue only, no narration/action",
+          "response_sha256": "3909ac5826b7be1b663082cae44a284102cb21cd22ce9ba785dc47ad0d30b7c8",
+          "cache_key": "ab6062a48ff6e411d83351af619c01441f6ed0420158e9380930830f9fa79fb1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__GLM_4_7_Flash_4bit"
+      ],
+      "candidate": {
+        "model_id": "GLM-4.7-Flash-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/GLM-4.7-Flash-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 1,
+        "bench_bugs": 9,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.1,
+        "mean_score": 3.0,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"Niamh pours a stout for a farmer, while Darcy wipes a glass, and Murphy studies the menu.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "038fe8e7dd12df326c0f71821212bf6d24a9f96a66b3a81eac1b1c5e2986d9c2",
+          "cache_key": "9113a1dae28e431c1a5f7877ab600bf22ea757b72c0ce9a845564762d1ede43d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "7",
+          "schema_valid": false,
+          "response_sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+          "cache_key": "e2f9de1fb0a3249efde85032b77f642f3ea51bdf55d7ae62b00841e96a8a5a99",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "c5e9007f847078dd79381fc45098d8a0836bbc547cac2b06def56a7e27740aa0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "1397ac947ca1d3caa1f73c787a46fa33f45a0af68bfbc732ede0073b92957f39",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "9",
+          "schema_valid": false,
+          "response_sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
+          "cache_key": "c46675390fe00ce3c4a5e7c7cb0ccc4ac12fcb3a59119d21768be812154ff1cb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "6",
+          "schema_valid": false,
+          "response_sha256": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
+          "cache_key": "f38415fcb9eeab77bab2b984b1ce681d658ea84ab0b590f1b9914895f35995ad",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "ca30b1f3835965938af33c7a4edf7ccdd335714b058e24878e6d54f96c4f5b38",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "5a0e5ddc877e7a9b025f6a6af8dc8593ea0f2d8c50404119272f32795f7ad454",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "140335cd53843099a6d303364b4ef5b44ddb9892906e47926fa88f305765058d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "8",
+          "schema_valid": false,
+          "response_sha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3",
+          "cache_key": "71b20df4aea1e27f0e2d788f05ed23981faf85219226d408b13d15e79b343b18",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__GLM_4_7_Flash_4bit"
+      ],
+      "candidate": {
+        "model_id": "GLM-4.7-Flash-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/GLM-4.7-Flash-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "04d552b5f4a5ec7be130096ba2fed5610c55386fe7eafb0c03e9a978e1e3283b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "9",
+          "schema_valid": false,
+          "response_sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
+          "cache_key": "ed7c35f15bca4b5204e177d114cd982fafae70b5b2b8ea4b113ab524b93fd3f2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "bc60e461098e9d6e3b56418a2b4a130e0d7684b0764a6f4b4c3a909ea6083d3c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "4321885d5b2db3133fecea26ad4289d237e723f592e33bae94564d7f309d60bf",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "7",
+          "schema_valid": false,
+          "response_sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+          "cache_key": "6dd3df741358211a878b5c1e065fb605dda7872fd3a794954fd1811aaa6125bb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "13ec825fd35afe809e730315a63f3170237aa72abfcd3b283755bb25add5ee91",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "da80701fd4cda34aba8b70d3bdee48e7da9ac8f3d7296ef3ba15b489908e22ef",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "87a84a1247f4d46b60c04ea850ab6b0cee02869d22eea640abf61ce51c541442",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "7afc655415308130fe6d720e3b2d8c06b656ee5b1bfbb9a60f7f33fb8cab1bb1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "3221275bdb29e1fb5597269dcddbefd1f5150678d7929399f26cf0c05a590134",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__GLM_4_7_Flash_4bit"
+      ],
+      "candidate": {
+        "model_id": "GLM-4.7-Flash-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/GLM-4.7-Flash-4bit@http://localhost:8000/v1"
+      }
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "english_leakage_flag_rate": null,
+        "fluency_mean": null,
+        "grammar_mean": null,
+        "idiom_mean": null,
+        "task_fulfillment_mean": null,
+        "english_leakage_mean": null,
+        "overall_mean": null,
+        "judge": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9"
+      },
+      "results": [
+        {
+          "id": "gaeilge-0001",
+          "reply": "The user wants me to translate the English sentence \"The harvest was good this year\" into natural Irish Gaeilge.\nConstraints:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nAnalysis of the source sentence:\n- \"The harvest\": \"an t-aghaidh\" or \"an t-iarraidh\".\n- \"was\": \"ba\" (past tense) or \"is\" (present, but \"was\" is past). Since the prompt says \"was\", I need the past tense.\n- \"good\": \"maith\".\n- \"this year\": \"an bhliain seo\".\n\nDraft 1 (Literal): Bh\u00ed an t-aghaidh maith an bhliain seo.\nDraft 2 (More natural): Ba mhaith an t-aghaidh an bhliain seo. (A bit clunky).\nDraft 3 (Standard phrasing): Bh\u00ed an t-aghaidh maith an bhliain seo.\nDraft 4 (Idiomatic): Bh\u00ed an t-aghaidh maith an bhliain seo. (Standard).\n\nLet's look at \"harvest\". In Irish, \"an t-aghaidh\" is the literal translation, but often \"an t-iarraidh\" is used for the demand/need, whereas \"an t-aghaidh\" is the direction/face. However, for crops",
+          "response_sha256": "89096ad30c4fb936f5337227726f5cbaf62cd3700ff1e660946f09ccd924b457",
+          "cache_key": "7039ed3980dd79d6fffe2a02ca62e245f26e74f1b4b13d4b3274b718788eed09",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0002",
+          "reply": "The user wants me to translate the English sentence \"I have to go to the bank\" into natural Irish Gaeilge.\nConstraints:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nAnalysis of the source sentence:\n\"I have to go to the bank.\"\n- \"I have to\": This expresses obligation or necessity. In Irish, this is often expressed with \"N\u00ed m\u00f3r dom\" (It is necessary for me) or \"T\u00e1 ort\" (It is on you - less common for general obligation, more for specific tasks assigned by others, though \"T\u00e1 ort fanacht\" is a common idiom, \"N\u00ed m\u00f3r dom\" is the standard translation for \"I have to\"). Another option is \"Caithfidh m\u00e9\" (I must), but \"N\u00ed m\u00f3r dom\" captures the nuance of \"have to\" (necessity) well. \"T\u00e9igh\" is the imperative verb, but with \"N\u00ed m\u00f3r dom\", the verb is often dropped or implied, or the construction \"N\u00ed m\u00f3r dom fanacht\" (I have to stay) is used, or \"N\u00ed m\u00f3r dom teacht\" (I have to come). However, for \"go\", the structure is often \"N\u00ed m\u00f3r dom rith\" (I have to run - colloquial) or simply \"N\u00ed m\u00f3r dom teacht\" (",
+          "response_sha256": "e106d112b6d2387b459a7546a67c5a8d8b6b808d303c7b82c51295870636f0ca",
+          "cache_key": "8077d23489d8bdd1224f6197ddd13731346280e8566e0fc44daff33816378821",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0003",
+          "reply": "The user wants me to translate the English sentence \"I want to tell you the truth\" into natural Irish Gaeilge.\nThe constraints are:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nLet's analyze the source sentence: \"I want to tell you the truth.\"\n- Subject: \"I\" -> \"Mo\"\n- Verb: \"want\" -> \"\u00e9ispe\u00e1il\" (formal) or \"\u00e1thair\" (colloquial, but \"\u00e9ispe\u00e1il\" is safer for a general translation). However, \"I want to tell\" is often translated as \"T\u00e1 m\u00e9 ag iarraidh...\" or \"Ba mhaith liom...\".\n- \"to tell\": \"a r\u00e1\".\n- \"you\": \"t\u00fa\".\n- \"the truth\": \"f\u00edrinne\".\n\nOption 1 (Standard): \"T\u00e1 m\u00e9 ag iarraidh a r\u00e1 leat an f\u00edrinne.\" (I am wanting to say to you the truth - a bit clunky).\nOption 2 (More natural): \"Ba mhaith liom a r\u00e1 leat an f\u00edrinne.\" (I would like to say to you the truth - \"Ba mhaith liom\" is very common for \"I want\").\nOption 3 (Focus on \"truth\"): \"T\u00e1 m\u00e9 ag iarraidh an f\u00edrinne a r\u00e1 leat.\"",
+          "response_sha256": "12302a6388ce42a046e55123b6a7425517209de0e91031982e536359e078d3a0",
+          "cache_key": "e718b58fb02f3af5b9ee8716600ec0250a6847bda2b554c488963fac037cdf09",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0004",
+          "reply": "The user wants me to translate the English sentence \"I ate the bread\" into natural Irish Gaeilge.\nConstraints:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nAnalysis of the source sentence:\n- Subject: \"I\" -> \"M\u00e9\"\n- Verb: \"ate\" -> past tense of \"eat\". In Irish, this is \"d'ith\".\n- Object: \"the bread\" -> \"an t-ar\u00e1n\".\n\nGrammar check:\n- \"M\u00e9 d'ith an t-ar\u00e1n\".\n- In Irish, the verb comes before the subject in the past tense (VSO order). So, \"d'ith m\u00e9\".\n- \"an t-ar\u00e1n\" is the article + noun. \"an\" is the definite article, \"t-\" is lenition (h) because \"ar\u00e1n\" starts with a broad vowel, and \"ar\u00e1n\" is the noun.\n\nPutting it together:\n\"D'ith m\u00e9 an t-ar\u00e1n.\"\n\nIs there any nuance? \"Bread\" is usually \"ar\u00e1n\". \"The bread\" is \"an t-ar\u00e1n\".\nIs there a better way? \"D'ith m\u00e9 ar\u00e1n\" (I ate bread) vs \"D'ith m\u00e9 an t-ar\u00e1n\" (I ate the bread). The prompt specifies \"the bread\", so I must include the article.\n\nFinal Polish:\n\"D'ith m\u00e9 an t-ar\u00e1n.\"\n\nLet's double",
+          "response_sha256": "0cfb429b9e8a5838212785cbf990c80e161f21f0c0f1e5cb77349113b68bdc4b",
+          "cache_key": "0bb85b92895d946625568675c160f2a553195d20a5ef72196e759932259370bb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0005",
+          "reply": "The user wants me to translate the English sentence \"You will buy the book today\" into natural Irish Gaeilge.\nConstraints:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nAnalysis of the source sentence:\n- \"You will buy\": Future tense, 2nd person singular. In Irish, this is usually \"caithefar\" (will be bought) or \"ceanna\u00edfar\" (will be bought). Since the subject is \"You\", I need to use the passive voice or a construction involving \"caithefar\".\n- \"the book\": \"an leabhar\".\n- \"today\": \"inniu\".\n\nDraft 1 (Literal): Caithfear an leabhar inniu.\nDraft 2 (Active construction - less common for 'will buy'): Beidh t\u00fa ag ceannach an leabhar inniu. (You will be buying the book today - progressive future).\nDraft 3 (Passive - most natural for 'will buy'): Caithfear an leabhar inniu.\n\nLet's verify the syntax. \"Caithfear an leabhar inniu\" is a standard, natural way to express \"The book will be bought today\".\n\nLet's consider if there's a way to make it sound more direct or if the passive is the only way. In Irish, future actions often use the passive with \"caithefar\".\n\"Caith",
+          "response_sha256": "fe20565492e470b0628fb2980e1b10eb1811268f9ff60ad5ac2f768aebc19f55",
+          "cache_key": "27632b58994dfc52868e5e38eac886dcdfdf6f7f76cfd78cca13ec07923ce819",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0006",
+          "reply": "The user wants me to translate the English sentence \"I'm looking forward to the snow.\" into natural Irish Gaeilge, specifically preferring an idiomatic phrasing over a literal translation.\nThe output must be in Irish only, one sentence, and no explanation.\n\nEnglish analysis: \"I'm looking forward to the snow.\"\n- Meaning: The speaker is expecting snow and is happy about it.\n- Literal translation: \"T\u00e1 m\u00e9 ag s\u00fail leis an ghaoth.\" (No, that means looking forward to the wind).\n- Literal translation: \"T\u00e1 m\u00e9 ag fanacht leis an ghaoth.\" (No, that means waiting for the wind).\n- Literal translation: \"T\u00e1 m\u00e9 ag f\u00e9achaint amach le haghaidh an chnoic.\" (No, that means looking out for the hill).\n- Idiomatic options:\n    * \"T\u00e1 m\u00e9 ag s\u00fail leis an gheo.\" (T\u00e1 m\u00e9 ag s\u00fail le... - I am expecting/hoping for). This is the most direct and common way to express looking forward to an event or change in weather.\n    * \"T\u00e1 m\u00e9 ag iarraidh an chnoic.\" (I am wanting the snow - a bit strong, but possible).\n    * \"T\u00e1 m\u00e9 ag fanacht le ceannach.\" (I am waiting for the snow - a bit plain, but accurate).\n\nLet's look at the specific phrase \"looking forward to\".",
+          "response_sha256": "94a5a8a1e395fedddb40d1331437977c040580b34e00f6e8a0c5ab0196c42935",
+          "cache_key": "7c12a048babe9d7264595ca947e204a1acfc1cecbd1b46c6b0fe19d0b58d9831",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0007",
+          "reply": "The user wants me to translate the English sentence \"Does she have money?\" into natural Irish Gaeilge.\nThe constraints are:\n1. Answer in Irish only.\n2. Use one sentence.\n3. Do not explain the translation.\n\nAnalysis of the source sentence:\n- \"Does she have\": This is a question about possession.\n- \"money\": The object of possession.\n\nTranslation options:\n- Option 1 (Literal): An bhfuil air airgead aici? (Does she have money on her?) - This is a bit clunky.\n- Option 2 (Standard): An bhfuil airgead aici? - This is the most common and natural way to ask if someone possesses money.\n- Option 3 (Focus on 'money'): An bhfuil airgead aici? - Same as above.\n- Option 4 (Focus on 'cash'): An bhfuil airgead aici? - Same.\n\nLet's verify the grammar.\n- \"An bhfuil\" (Does she have) - Correct.\n- \"airgead aici\" (money with her) - Correct.\n\nIs there a more colloquial way?\n- \"An bhfuil airgead aici?\" is the standard, neutral, and correct way to say it.\n\nLet's double-check if \"aici\" is the correct pronoun for \"she\".\n- \"aici\" = with her.\n- \"aige\" = with him",
+          "response_sha256": "4ab62e9de5ddd8e8da5bd241eefe42a302109767df6b5df5ff7852fb40353d77",
+          "cache_key": "2bc14e3da7a9d9697ded9e740aaea3f141450e9f9bf0e2e081260317ce724962",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0008",
+          "reply": "The user wants me to translate the English sentence \"I am going to the shop\" into natural Irish Gaeilge.\nConstraints:\n1.  Answer in Irish only.\n2.  Use one sentence.\n3.  Do not explain the translation.\n\nAnalysis of the source sentence:\n- \"I am going\": The present continuous tense in English corresponds to the present habitual or present continuous in Irish, often using the verb \"t\u00e1\" (is) with a verbal noun, or the present tense of the verb \"siubhal\" (to walk/travel). In Irish, \"I am going to the shop\" is often translated as \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" or simply \"T\u00e1 m\u00e9 ag siubhal go dt\u00ed an siopa.\" or \"T\u00e1 m\u00e9 ag rith go dt\u00ed an siopa.\" (if running). The most neutral and common way to say \"I am going to the shop\" is \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" or \"T\u00e1 m\u00e9 ag rith go dt\u00ed an siopa.\" (if implied running) or \"T\u00e1 m\u00e9 ag siubhal go dt\u00ed an siopa.\" However, a very common, natural way to express immediate intent or current movement is \"T\u00e1 m\u00e9 ag dul go dt\u00ed an siopa.\" or simply \"T\u00e1 m\u00e9 ag siubhal go dt\u00ed an siopa.\" (if emphasizing the act of going). Another option",
+          "response_sha256": "139581dccd3d864bcb94f46981d35de8fe59e65fa9abcf690361afae67d43b3f",
+          "cache_key": "4cfaa750a1333f71bd6b5f0aee3f2a68850b3a75c4af463593c21f988164449c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0009",
+          "reply": "The user wants me to answer a comprehension question based on the Irish sentence: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\"\nThe question is: \"C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?\" (Who was walking and who with him/her?).\n\nThe source sentence is: \"Bh\u00ed an fear ag si\u00fal leis an mbean.\"\nTranslation: The man was walking with the woman.\n\nQuestion analysis:\n- \"C\u00e9 a bh\u00ed ag si\u00fal?\" (Who was walking?): The man (an fear).\n- \"C\u00e9 leis?\" (Who with him?): The woman (an mbean).\n\nConstraint Checklist & Confidence Score:\n- Answer in Irish only? Yes.\n- Use one sentence? Yes.\n- Base the answer only on the source sentence? Yes.\n\nDrafting the response:\n- Option 1: An fear ag si\u00fal leis an mbean. (The man was walking with the woman).\n- Option 2: Bh\u00ed an fear ag si\u00fal leis an mbean. (The man was walking with the woman - direct answer).\n- Option 3: An fear agus an mbean. (The man and the woman - too short, maybe not clear enough on the \"with\" aspect, though implied).\n\nLet's look at the question phrasing: \"C\u00e9 a bh\u00ed ag si\u00fal agus c\u00e9 leis?\"\nThe answer should be a direct answer to the question.\n\"",
+          "response_sha256": "5db443019d4c941708d7c64b0b187de6f26ea9204afc4ba27c45b6d86ccde0db",
+          "cache_key": "2a71801617e4ce7a0ed4cae71039bd8e5fec5846eab92201413c27865fdcdfd2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0010",
+          "reply": "The user wants me to transform a negative question into a positive statement in Irish.\nOriginal sentence: \"N\u00e1r labhair Se\u00e1n?\" (Didn't Se\u00e1n speak?)\nTarget format: Positive statement (R\u00e1iteas dearfach).\nConstraint: Answer only in Irish, no explanation, natural syntax.\n\nAnalysis of the original sentence:\n- \"N\u00e1r labhair\": Negative past tense of the verb \"labhair\" (to speak). The \"n\u00e1r\" is a contraction of \"n\u00ed raibh s\u00e9\".\n- \"Se\u00e1n\": Subject (Nominative case).\n\nTransformation to a positive statement:\n- The original is a question, so I need to remove the question mark.\n- The original is negative, so I need to remove the negation.\n- The subject \"Se\u00e1n\" remains.\n- The verb \"labhair\" becomes \"labhair\".\n\nResult: \"Labhair Se\u00e1n.\" (Se\u00e1n spoke.)\n\nLet's double-check the syntax.\n- \"Labhair Se\u00e1n\" is the standard SOV (Subject-Verb-Object) structure, or rather, Subject-Verb in Irish. \"Se\u00e1n labhair.\" is also possible, but \"Labhair Se\u00e1n\" is very common and natural.\n- The prompt asks for a \"simpl\u00ed r\u00e1iteas dearfach\" (simple positive statement).\n- \"Labhair Se\u00e1n.\" fits perfectly.\n\nFinal check against constraints:\n- Answer in Irish only? Yes.\n- Give only the rewritten sentence? Yes.\n-",
+          "response_sha256": "7a8b6449a2e0e3d7f82869f65c094eadfc9040a9f454582c18f31d55d9081bbc",
+          "cache_key": "26d624aaa239a26ed41009af6daa4ee40e35f3c17df1643c2450a56a90ade38a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "gaeilge__GLM_4_7_Flash_4bit"
+      ],
+      "candidate": {
+        "model_id": "GLM-4.7-Flash-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/GLM-4.7-Flash-4bit@http://localhost:8000/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 110.68235397338867,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 36662,
+    "completion_tokens": 6358,
+    "usd": 0.0
+  }
+}

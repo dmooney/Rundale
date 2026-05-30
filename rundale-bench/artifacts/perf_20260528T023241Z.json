@@ -1,0 +1,156 @@
+{
+  "ran_at_utc": "2026-05-28T02:32:41.949846+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/GLM-4.7-Flash-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 76,
+      "ttft_ms_p90": 101,
+      "total_ms_median": 2970,
+      "tokens_per_second_median": 69.3,
+      "tokens_per_second_p90": 69.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 8,
+        "rate": 0.8,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=I need to calculate 7 times 8, which is 0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 99,
+          "total_ms": 2974,
+          "completion_tokens": 200,
+          "prompt_tokens": 1521,
+          "tokens_per_second": 69.56521739130434,
+          "reply_len": 743,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 75,
+          "total_ms": 2947,
+          "completion_tokens": 200,
+          "prompt_tokens": 1525,
+          "tokens_per_second": 69.63788300835655,
+          "reply_len": 722,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 75,
+          "total_ms": 2948,
+          "completion_tokens": 200,
+          "prompt_tokens": 1525,
+          "tokens_per_second": 69.61364427427775,
+          "reply_len": 726,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 75,
+          "total_ms": 2957,
+          "completion_tokens": 200,
+          "prompt_tokens": 1521,
+          "tokens_per_second": 69.39625260235947,
+          "reply_len": 472,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 75,
+          "total_ms": 2948,
+          "completion_tokens": 200,
+          "prompt_tokens": 1523,
+          "tokens_per_second": 69.61364427427775,
+          "reply_len": 869,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 76,
+          "total_ms": 2966,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": 69.20415224913495,
+          "reply_len": 725,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 77,
+          "total_ms": 2983,
+          "completion_tokens": 200,
+          "prompt_tokens": 1522,
+          "tokens_per_second": 68.82312456985547,
+          "reply_len": 853,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 126,
+          "total_ms": 3017,
+          "completion_tokens": 200,
+          "prompt_tokens": 1521,
+          "tokens_per_second": 69.18021445866482,
+          "reply_len": 694,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 85,
+          "total_ms": 3049,
+          "completion_tokens": 200,
+          "prompt_tokens": 1521,
+          "tokens_per_second": 67.47638326585695,
+          "reply_len": 762,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/GLM-4.7-Flash-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 78,
+          "total_ms": 2984,
+          "completion_tokens": 200,
+          "prompt_tokens": 1524,
+          "tokens_per_second": 68.82312456985547,
+          "reply_len": 768,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 50.70820093154907,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

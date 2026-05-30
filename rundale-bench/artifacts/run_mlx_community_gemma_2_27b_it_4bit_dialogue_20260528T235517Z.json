@@ -1,0 +1,88 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/gemma-2-27b-it-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T23:55:17.119943+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 10,
+        "non_latin_rate": 0.0,
+        "character": null,
+        "authenticity": null,
+        "language": null,
+        "responsiveness": null,
+        "craft": null,
+        "overall": null,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+        "bundles_queued": 0,
+        "cache_hits": 0
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0002",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0003",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0004",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0005",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0006",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0007",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0008",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0009",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "dialogue-0010",
+          "error": "HTTP Error 404: Not Found"
+        }
+      ],
+      "bundles": [],
+      "candidate": {
+        "model_id": "gemma-2-27b-it-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/gemma-2-27b-it-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 0.011924266815185547,
+  "cost": {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "usd": 0.0
+  }
+}

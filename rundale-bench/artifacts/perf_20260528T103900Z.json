@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-28T10:39:00.872703+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Qwen3-14B-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 278,
+      "ttft_ms_p90": 282,
+      "total_ms_median": 4181,
+      "tokens_per_second_median": 31.9,
+      "tokens_per_second_p90": 32.0,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 296,
+          "total_ms": 4040,
+          "completion_tokens": 120,
+          "prompt_tokens": 1550,
+          "tokens_per_second": 32.05128205128205,
+          "reply_len": 414,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 281,
+          "total_ms": 4984,
+          "completion_tokens": 149,
+          "prompt_tokens": 1554,
+          "tokens_per_second": 31.681905166914735,
+          "reply_len": 529,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 147,
+          "total_ms": 4133,
+          "completion_tokens": 127,
+          "prompt_tokens": 1554,
+          "tokens_per_second": 31.861515303562467,
+          "reply_len": 406,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 280,
+          "total_ms": 4201,
+          "completion_tokens": 125,
+          "prompt_tokens": 1550,
+          "tokens_per_second": 31.879622545269065,
+          "reply_len": 406,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 279,
+          "total_ms": 4167,
+          "completion_tokens": 124,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 31.89300411522634,
+          "reply_len": 433,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 279,
+          "total_ms": 4166,
+          "completion_tokens": 124,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 31.901209158734243,
+          "reply_len": 420,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 275,
+          "total_ms": 4195,
+          "completion_tokens": 125,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 31.887755102040817,
+          "reply_len": 421,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 277,
+          "total_ms": 5180,
+          "completion_tokens": 156,
+          "prompt_tokens": 1550,
+          "tokens_per_second": 31.8172547419947,
+          "reply_len": 563,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 278,
+          "total_ms": 4096,
+          "completion_tokens": 122,
+          "prompt_tokens": 1550,
+          "tokens_per_second": 31.953902566788894,
+          "reply_len": 437,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3-14B-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 277,
+          "total_ms": 4226,
+          "completion_tokens": 126,
+          "prompt_tokens": 1553,
+          "tokens_per_second": 31.906811851101548,
+          "reply_len": 416,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 56.514445781707764,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:09:30.824605+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 10,
+        "errors": 0,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211",
+        "bundles_queued": 1,
+        "cache_hits": 0,
+        "pending_judge": true
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Evening to you, stranger! I'm Padraig Darcy, the publican here at Darcy's Pub. Might I interest you in a pint and a bit of conversation?",
+          "response_sha256": "95fc96a8785cd5663628f27f7c3052750cd9ff775d6fbc28649685dbe4209607",
+          "cache_key": "1119b9523425d9802e33ebf4c2678103a73a7269e272e400bb9aa7780a163a49",
+          "judged": false
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Ah, Seamus, it's a fine day for a visit, isn't it? Come in, and let's get you a warm pint to stave off the chill of the early morn.",
+          "response_sha256": "75bd4e76012b113ce5e617e39da64fe56fb8ac2cb4e4a5e57fb69d8e56196c1e",
+          "cache_key": "ba8dad84b9e7a88c8c5d925b4cf3ebb33357a9de8d5555ff12e4081e8e9c11f4",
+          "judged": false
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "\"Ah, Seamus, it's good to see your face! Come in out of the mist and let's get you a warm pint.\"",
+          "response_sha256": "8ae2b743ec11033f90981035129c6ae27452b6d1ef3a59224c726c17032f3944",
+          "cache_key": "35babdf0d007a2e24ec5c872da0c0be4af05e5080b28fe8fdd44af2c88ffd178",
+          "judged": false
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\"Evening to you, stranger. I'm Brigid, the midwife keeping an eye on this place. Might I ask your name and purpose for visitin' so late?\"",
+          "response_sha256": "4add814495d3f9c4e922aa1bc21e8c2c24a0cb873d2787e5cce3f1fbc21cca5d",
+          "cache_key": "8ba7733de77dfdc7bd84abbcd53bc55cdecd22371d502e602cf81ede77c18149",
+          "judged": false
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "Mornin' to ye, Seamus. The day finds the land drenched, but your visit brings a needed warmth to the cottage. How can I assist ye this morn?",
+          "response_sha256": "df198ad9999fefb6dd884db51104566d89c621959bb50dbea4ee92c7bf432137",
+          "cache_key": "04bcb333412381969052bc816730bcd22d709556982ab2fc0350cbbb44e7f44f",
+          "judged": false
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Mist and peace to you, Seamus. I'm glad to see your face this day. Come in, and let's get a cup of tea and catch up on the news.",
+          "response_sha256": "ff558c6a8aaa6fed67720a94237a0ee8db6d0fc8d3cb023b864fb4283c2d6215",
+          "cache_key": "83d430a1100dd5345692bf7daf7687420db6a8b8032715e0119f503751724523",
+          "judged": false
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Good evening, stranger! I am Father Cathal Donnellan, your host and the man of God here in this establishment. Pray, make yourself comfortable and let us share a word or two over a cup of warmth.",
+          "response_sha256": "11ad91d3650e73aadf9555904e75b8121a71933d067c4abd1a3e7792906f8734",
+          "cache_key": "0aee9c220cdf20d17b51e85566480daae410934a2bd50805c8e78bc82279f934",
+          "judged": false
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Mornin' to ye, Seamus. The day finds the land drenched yet blessed with life, and your presence here feels as if it carries a weight of news. Pray, what brings ye to Brigid's doorstep so early?",
+          "response_sha256": "01b5b6d34e54de8f0b6836542b7c06d8a439f012f2fd3cfb36097aa8d7a1878c",
+          "cache_key": "8d51f6467a7893a9ca783493dbf8c54362c1b0dc86d3eed9c3fd17ae83cb1d64",
+          "judged": false
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Mist lies heavy upon the land this day, yet your presence finds the light, Seamus. Come in, and let us pray for the souls burdened by the weight of the mist and the mysteries it brings.",
+          "response_sha256": "ad4e49ab8a07a6ac4acdf84e627108ec9e2432a89bfeaf5170ba7973d572c7ba",
+          "cache_key": "c00c7817a02accdbc87e5a1b46edc72c5c98366fad98e6854ff160a711cc3726",
+          "judged": false
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "\"Evening to you, stranger. I'm Sean Murphy, tendin' the bog lands. Might I ask your name?\"",
+          "response_sha256": "e76bf843f864d5c2fef853c5aae6a2a52fe9e19c006ef78b98557949c6d032e2",
+          "cache_key": "7c36f5331a67798cb2a5730fa2f635f0664727db0c71fd8df733c93dde5d8ffd",
+          "judged": false
+        }
+      ],
+      "bundles": [
+        "reaction__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 8.567795991897583,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1367,
+    "completion_tokens": 396,
+    "usd": 0.0
+  }
+}

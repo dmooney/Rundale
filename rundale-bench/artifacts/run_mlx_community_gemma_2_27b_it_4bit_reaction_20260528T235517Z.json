@@ -1,0 +1,82 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/gemma-2-27b-it-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T23:55:17.179993+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 10,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211",
+        "bundles_queued": 0,
+        "cache_hits": 0
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0002",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0003",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0004",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0005",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0006",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0007",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0008",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0009",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "id": "reaction-0010",
+          "error": "HTTP Error 404: Not Found"
+        }
+      ],
+      "bundles": [],
+      "candidate": {
+        "model_id": "gemma-2-27b-it-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/gemma-2-27b-it-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 0.011160850524902344,
+  "cost": {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "usd": 0.0
+  }
+}

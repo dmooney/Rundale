@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T03:19:08.335421+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Violet-Lyra-Gutenberg-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 213,
+      "ttft_ms_p90": 219,
+      "total_ms_median": 5435,
+      "tokens_per_second_median": 37.7,
+      "tokens_per_second_p90": 37.9,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 133,
+          "total_ms": 5342,
+          "completion_tokens": 200,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 38.395085429065084,
+          "reply_len": 710,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 212,
+          "total_ms": 5490,
+          "completion_tokens": 200,
+          "prompt_tokens": 1579,
+          "tokens_per_second": 37.893141341417206,
+          "reply_len": 712,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 126,
+          "total_ms": 5427,
+          "completion_tokens": 200,
+          "prompt_tokens": 1578,
+          "tokens_per_second": 37.72873042822109,
+          "reply_len": 731,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 121,
+          "total_ms": 5443,
+          "completion_tokens": 200,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 37.579857196542655,
+          "reply_len": 792,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 219,
+          "total_ms": 5578,
+          "completion_tokens": 200,
+          "prompt_tokens": 1576,
+          "tokens_per_second": 37.32039559619332,
+          "reply_len": 702,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 218,
+          "total_ms": 5518,
+          "completion_tokens": 200,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 37.735849056603776,
+          "reply_len": 723,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 215,
+          "total_ms": 4072,
+          "completion_tokens": 146,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 37.85325382421571,
+          "reply_len": 542,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 216,
+          "total_ms": 5539,
+          "completion_tokens": 200,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 37.572797294758594,
+          "reply_len": 700,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 122,
+          "total_ms": 5168,
+          "completion_tokens": 188,
+          "prompt_tokens": 1574,
+          "tokens_per_second": 37.2572334522394,
+          "reply_len": 661,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Violet-Lyra-Gutenberg-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 222,
+          "total_ms": 4921,
+          "completion_tokens": 174,
+          "prompt_tokens": 1578,
+          "tokens_per_second": 37.029155139391364,
+          "reply_len": 622,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 62.65306234359741,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "ran_at_utc": "2026-05-28T10:20:20.392624+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/internlm3-8b-instruct-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 175,
+      "ttft_ms_p90": 257,
+      "total_ms_median": 7263,
+      "tokens_per_second_median": 28.3,
+      "tokens_per_second_p90": 28.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 2,
+        "rate": 0.2,
+        "errors": [
+          "json_decode: Unterminated string starting at: line 1 column 12 (char 11) | text={\"answer\": \"The boiling point of water in Celsius is 100. However, this answer i",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Unterminated string starting at: line 1 column 12 (char 11) | text={\"answer\": \"The boiling point of water in Celsius is 100. However, this answer i"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 6,
+        "rate": 0.6,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 184,
+          "total_ms": 7264,
+          "completion_tokens": 200,
+          "prompt_tokens": 1733,
+          "tokens_per_second": 28.248587570621467,
+          "reply_len": 656,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 164,
+          "total_ms": 7262,
+          "completion_tokens": 200,
+          "prompt_tokens": 1736,
+          "tokens_per_second": 28.176951253874332,
+          "reply_len": 704,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 166,
+          "total_ms": 7245,
+          "completion_tokens": 200,
+          "prompt_tokens": 1736,
+          "tokens_per_second": 28.25257804774686,
+          "reply_len": 684,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 257,
+          "total_ms": 7311,
+          "completion_tokens": 200,
+          "prompt_tokens": 1733,
+          "tokens_per_second": 28.35270768358378,
+          "reply_len": 488,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 255,
+          "total_ms": 7306,
+          "completion_tokens": 200,
+          "prompt_tokens": 1734,
+          "tokens_per_second": 28.36477095447454,
+          "reply_len": 741,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 164,
+          "total_ms": 7230,
+          "completion_tokens": 0,
+          "prompt_tokens": 0,
+          "tokens_per_second": null,
+          "reply_len": 544,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 256,
+          "total_ms": 7306,
+          "completion_tokens": 0,
+          "prompt_tokens": 0,
+          "tokens_per_second": null,
+          "reply_len": 432,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 167,
+          "total_ms": 7233,
+          "completion_tokens": 200,
+          "prompt_tokens": 1733,
+          "tokens_per_second": 28.304557033682425,
+          "reply_len": 681,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 165,
+          "total_ms": 7224,
+          "completion_tokens": 200,
+          "prompt_tokens": 1732,
+          "tokens_per_second": 28.33262501770789,
+          "reply_len": 782,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/internlm3-8b-instruct-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 261,
+          "total_ms": 7305,
+          "completion_tokens": 200,
+          "prompt_tokens": 1736,
+          "tokens_per_second": 28.392958546280525,
+          "reply_len": 711,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 153.5231649875641,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

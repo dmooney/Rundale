@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:08:57.726053+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 6,
+        "bench_bugs": 4,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.0,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Evening to you, stranger. I'm <PRESIDIO_ANONYMIZED_PERSON>, the one in charge 'round these parts. Welcome to Darcy's, the heart of the village. What brings you to our neck of the woods?",
+          "response_sha256": "6d3fcac52ac437145f82cf5a00e90b14115661bf5b117f9bd53397a761ad5204",
+          "cache_key": "78e64d755988484d2078dee54b010259fb97a7f5b9aee4e1482448b3deaa8d4f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Ah, there you are, Michael. Welcome to the warmth of the pub, though the rain seems to follow you as though it were your shadow. A cup of tea or perhaps something stronger to brace against the damp?",
+          "response_sha256": "47f6705d37334912984e26433d764569216aa71f63e6e8079406c4b95500f703",
+          "cache_key": "a2b8cb0dd7a5f7ada717dcfdd67c5ca6eb28c6c01a5bc720ecc0b6f88464022a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Ah, there you are, Father Murphy. Welcome to the warmth of the pub, though the pints might be colder than the air outside today. A fine mist it is, isn't it? Come in out of the damp, the fire's blazing, and the ale's as warm as the heart of the land.",
+          "response_sha256": "38603f8dabc5ba9624a547c2b12c93132e3b99d0767a0be09b7180b4df03d7ef",
+          "cache_key": "b88bb56532c908e8cc518b8f667f9f5d7a8b490c4e632071090917956a1005c1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\"Evening to you, stranger. I'm Brigid, the midwife hereabouts. Welcome to Darcy's, though the night's young yet for tales.\"",
+          "response_sha256": "14e8305a05c838ee4a355e2e7d7d179f0d6177c238a930327f06ae7ef69f0883",
+          "cache_key": "be6a1bd2c486722d324bb0821a35dd8f6c60d015ac893c594054fc7035ee0e5f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "M\u00e1ith gn\u00e1th agat, S\u00e9amus. T\u00e1 an l\u00e1 gn\u00f3th\u00fail ann, ach t\u00e1 mo theach gn\u00f3th\u00fail le f\u00e1il. C\u00e9n f\u00e1th gn\u00e1ch t\u00fa lena n-\u00e1ir\u00edtear?",
+          "response_sha256": "24c823df94f8d66d18514f27f9fc8811049b2d38dfb4287a822717ebeef63c4d",
+          "cache_key": "597146fceb1c35d64d81d512d857f59ea0d1ca489610b6232fcd9ed10f0c049f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Misture gn\u00edomhach, a M\u00e1ire, is gn\u00e1ch duit gn\u00f3th\u00fa ar an aois. T\u00e1 f\u00e1ilte romhat i mo theachta\u00ed f\u00e9in.",
+          "response_sha256": "1f9cd4809c7a4edd63ac7de1d34fc954c6b9687a7eb493a5e179de75f38f5e45",
+          "cache_key": "7ba2ab58a3ef5abe5383530c5db070bfe45ca49ed0ce9f540a81ca11caea9978",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Good evening, stranger. I am Father Cathal Donnellan, the priest of this parish. Welcome to Darcy's, though I hope your visit brings forth more than the company of the tavern. Pray, speak true, for the shadows here speak more than the truth.",
+          "response_sha256": "427b64a993fab4feb06a44ac0d7eeb5ab8a0424f321c39fb7280a1a3da738dfe",
+          "cache_key": "381a31fd87a035738916437a9bbee0cf57fae5033f2ffcc66d2e9f9bfa4545e1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "M\u00e1thair Br\u00edd, a th\u00e1inig t\u00fa ar\u00eds i mo th\u00edr f\u00e9in. T\u00e1 an l\u00e1 gn\u00f3th\u00fail agus an gn\u00edomh dubh gn\u00f3th\u00fail ann.",
+          "response_sha256": "8bcf0c04daca0c77e87a21ab15bf8ea4fe1920e7d824fca6b2cf4aab42333cf8",
+          "cache_key": "ab04ff3eaabeada67d284607aa6b65e69ed7a9f5823d07c2b7218a853ae98c77",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Misture gn\u00edomhach, a M\u00e1irin, is gn\u00e1ch duit gn\u00f3th\u00fa gn\u00e1thach i dtaispe\u00e1ntais ar an aois. T\u00e1 an t-\u00e1ir\u00edocht duit gn\u00e1thu gn\u00f3th\u00fa gn\u00e1thach i dtaispe\u00e1ntais ar Chraobh an Ch\u00e1irde\u00e1in.",
+          "response_sha256": "dd2c9ac1a0a80baf71d9b6b6b1bbf049ba2c2716baaa2c1b1b43a4edb20bd55d",
+          "cache_key": "9faff9f736d85c60d3a94d123200701fcbfdb6afb4a5d5d84d2f95f76fababc5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Evening to you, stranger. I'm Sean Murphy, the farmer workin' the bog lands. Welcome to Darcy's, though you might find the company more enjoyable than the soil. What brings you to the remote parts?",
+          "response_sha256": "0ecb4f814dc53b9c0a254c1e2ecb38cca9606cb9e041e856cb2e5f68dec89ba0",
+          "cache_key": "2fef512c454de0826bd57976e3e81604954ddf557faff8c330348ec0ed5e634d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8767/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 11.247143030166626,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1367,
+    "completion_tokens": 542,
+    "usd": 0.0
+  }
+}

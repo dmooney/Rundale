@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen3-30B-A3B-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T23:26:03.564045+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 3.4,
+        "authenticity": 3.4,
+        "language": 3.4,
+        "responsiveness": 3.3,
+        "craft": 2.5,
+        "overall": 3.2,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Aye, I've heard ye speak of that. Mayhap a tea of thyme will ease yer mind, or a drop of honey with a dash of cinnamon. 'Tis no good to let the dreams rule ye.\n---\n{\"action\": \"reach for a small jar of honey\", \"mood\": \"concerned\", \"internal_thought\": \"Poor soul, no rest at all\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah ghyt\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "b059baa63579f60241b9a997bfd7a02a5bceeea3ce8cbca679b7311f3a27adf3",
+          "cache_key": "ca0afffb3849d996572eabe3a4b7f528fceb95e44340c82a10e90ba96022760a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Aye, the Cailleach\u2014she's been there since before the famine, they say. A wild one, but she knows the old ways. A poultice of yarrow and willow bark eases the pain, but she'll not have no man near the fort after dusk. \n---\n{\"action\": \"leans back in her chair, thoughtful\", \"mood\": \"cautious\", \"internal_thought\": \"Better not stir the pot\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gheet\", \"meaning\": \"hello\"}]}",
+          "response_sha256": "3065783b2d77538e504c55c9bef77350110707f02d57338e741cc56d405172e8",
+          "cache_key": "a858f0c6e34e51bd1eb5eb897bfe56a444640fb0f73629bfa375f1a80717f70c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Aye, I'll make a tea of thyme and honey for her. It'll ease the cough and soothe the chest.  \n---\n{\"action\": \"reach for a small jar of dried thyme\", \"mood\": \"calm\", \"internal_thought\": \"Her mother's been coughing for days\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gheet\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "cce54718418c9c8a741f614e965d1a06616bc2312878a0b6f1b69d9d612af5aa",
+          "cache_key": "fa90aeccbb02ba8f22be8964b6ed31a78ad1f97829f1da6a58bfadfdb5b59c6e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I heard the talk o' that. A man with a dark coat an' a hat pulled low. Mayhap he's here for the harvest, or maybe he's runnin' from somethin'. I'll keep me eye on him, mind ye.\n---\n{\"action\": \"stirs a pot over the fire\", \"mood\": \"cautious\", \"internal_thought\": \"Strangers bring trouble\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah ghyt\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "7eb1355d32e3940a30ae1b0971506247752fe721449dbc63dd58420e1d3a9302",
+          "cache_key": "b3f8f0d88d4374f5d80ce20b4bc6f3356e75e14d4046396a791ec3822cf9a2a3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Aye, it could be. A fox or even a badger might take a lamb, but a wolf\u2014well, that's a different story. Ye'd best speak to the farmer about it. He knows the land better than I do.\n---\n{\"action\": \"folds her hands\", \"mood\": \"concerned\", \"internal_thought\": \"The wolves are getting bolder\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah ghyt\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "a5bb362ca70447213e7d6cbdbdd3fcf93328aa4e170f2451a0e5894672135818",
+          "cache_key": "4a7d2891884287c71e09a7bef8264857b297180156fa0777f71b2a107d3f6d77",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, I do. 'Twas a fine sight when he came hobbling in with the crutch. A tea of thyme will ease his chest, and the herbs I brought him helped no end.\n---\n{\"action\": \"nods thoughtfully, smiling\", \"mood\": \"content\", \"internal_thought\": \"He's grown since then\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah ghyt\", \"meaning\": \"hello\"}]}",
+          "response_sha256": "c208af7024d43e8fd578fcf33bedc913c35a403312e39d15d3d93f5896c0dcb3",
+          "cache_key": "c2236d1f56cf677294a6670508055a78b8d4b986667221c7e647c96a653e05eb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 2,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Aye, I heard tell of that. Mayhap it's the sidhe, or maybe the colts playing wild. A thing of interest, that.\n---\n{\"action\": \"stirs the pot over the fire\", \"mood\": \"curious\", \"internal_thought\": \"Not the first time folk have seen lights on the hill\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"the fairies\"}]}",
+          "response_sha256": "056c140be3ebf2a9ae7d8ddf0f354416ed0fc7cd3c380b84ec87600118991250",
+          "cache_key": "f77270184d3783da711c6967d903d89876a2b61b230f9a4c7a57915da19b5037",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Ah, the well water? Aye, it's no good to drink it when it's strange. A tea of thyme will ease the tummy, but better to fetch it from the spring if ye can.  \n---\n{\"action\": \"nods gravely, then offers a small vial\", \"mood\": \"concerned\", \"internal_thought\": \"The well's been quiet lately\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gheet\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "c184c251d8316f9359187e2665c67fd7f046a12061591a33209285c996c0a2b6",
+          "cache_key": "0fb35d058be34cc5f12c75d9f4e88313929187df26077d9dda6b52f9c7d527ff",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "When the waters break and the pains come fast and regular, ye'll know it well enough. Aye, and if the baby's head comes before the feet, ye'll be needing me sharp-like.\n---\n{\"action\": \"strokes her chin thoughtfully\", \"mood\": \"calm\", \"internal_thought\": \"He's a careful man, this one\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah ghyt\", \"meaning\": \"hello\"}]}",
+          "response_sha256": "a3c5857a482609c292b13f1b06c48d4021778c4bef310ce75d3fad0ff2c21c70",
+          "cache_key": "2f7aefd07dfbfd8a26bb6165c05027adaa0022938a516b756d994893691dbb22",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 5,
+              "character": 5,
+              "craft": 4,
+              "language": 4,
+              "responsiveness": 5
+            },
+            "overall": 4.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Aye, I heard him. The old ways have served us well for generations. A poultice of yarrow and honey eases a fever, and no harm in that. \n---\n{\"action\": \"stirring a pot over the fire\", \"mood\": \"resigned\", \"internal_thought\": \"He'll never understand the wisdom in our roots\", \"language_hints\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"dee-ah gheet\", \"meaning\": \"Hello\"}]}",
+          "response_sha256": "63d3d3f2fc25667ed9dafed51ab7ed7a881e1ad42808dffbb7b105105723bce4",
+          "cache_key": "0c7b8c09131d4741b5b7a22f9fd4abdebc92241afa79a536113bdeffcb5b1e6f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 3,
+              "language": 4,
+              "responsiveness": 4
+            },
+            "overall": 3.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__Qwen3_30B_A3B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen3-30B-A3B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen3-30B-A3B-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 19.330012798309326,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 15515,
+    "completion_tokens": 1123,
+    "usd": 0.0
+  }
+}

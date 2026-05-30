@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-29T00:39:06.414253+00:00",
+  "slices": {
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.6,
+        "mean_score": 3.0,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\n  \"summary\": \"[1] Padraig Darcy is serving pints, [2] Niamh Darcy is wiping glasses, [3] Sean Murphy is waiting for his meal.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}",
+          "schema_valid": true,
+          "response_sha256": "55a6f229710511d678671abae4ef2fb85f36eef8ddfa18b847aba40900f90396",
+          "cache_key": "313dff265e43b981f1802c9e9b4a27a94edc72434936589d9295c02c17399978",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "{\n  \"summary\": \"Padraig oversees the bar, Niamh serves drinks, Sean waits for his meal.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}",
+          "schema_valid": true,
+          "response_sha256": "2b34461ceb8bd343023131179c7c574edf8ccd8c9dbcd5c842446d65b44f061c",
+          "cache_key": "622ac577e395b207ed464715db6f643531585c79740f8b44eb6bd93510bb7755",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\n  \"summary\": \"Padraig sighs as Niamh serves Sean another pint, eyeing him with a mix of exasperation and affection.\",\n  \"mood_changes\": [{\"npc_id\": \"[1]\", \"new_mood\": \"irritable\"}],\n  \"relationship_changes\": [{\"from\": \"[1]\", \"to\": \"[2]\", \"delta\": -0.05}]\n}",
+          "schema_valid": false,
+          "response_sha256": "10a947d08da82ceaa781e8003929496fee27bd5e5c9bb9da9625772af043c8ba",
+          "cache_key": "17a4e7f52debc28eaa36859528592f7cdaee04d4c9c008e3315fd79217ee5105",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{\n  \"summary\": \"[1] Tommy Maguire leans against the wooden rail, recounting tales while [2] Donal MacNamara polishes his hammer, listening with half-closed eyes.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}",
+          "schema_valid": true,
+          "response_sha256": "bc03ff70a9f370cd659a1f780ebb4f66c5632af618b8e104143caa53ed6eb139",
+          "cache_key": "7804873c898d87135aacd89ed532d1d3d69041a66d0dea150f77763630d12587",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "{\n  \"summary\": \"[1] Tommy Maguire leans against the wooden rail, sighing, while [2] Donal MacNamara polishes his hammer under the fading light.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}",
+          "schema_valid": true,
+          "response_sha256": "42565ad708fdff0b655616dc8538cbe1f87a35b19ed0eef5960947caec7d9121",
+          "cache_key": "8746fecfe0c7ad6fa7dbdf58f5db9a1ce0bb9a2eedf72aa9adeb79a7431f92f8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "{\"summary\": \"[1] Tommy Maguire leans on his wooden staff, sighing, while [2] Donal MacNamara polishes his hammer under the fading light.\", \"mood_changes\": [{\"npc_id\": \"[1]\", \"new_mood\": \"somber\"}], \"relationship_changes\": []}",
+          "schema_valid": false,
+          "response_sha256": "9ec9de5817fb5370f84e71f13304f643d9968f1d09febc020499c9505a38cd0e",
+          "cache_key": "e81a32a1a32112fcc96ebc23c1e69e0bb93e18e8d74dc10175ab0da04eed628d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"[1] Brigid O'Brien is gathering herbs from the garden while [2] Mary Geraghty paces inside, worried about her pregnancy.\", \"mood_changes\": [{\"npc_id\": \"[2]\", \"new_mood\": \"anxious\"}], \"relationship_changes\": []}",
+          "schema_valid": false,
+          "response_sha256": "5869cc060fca05d59568a5ed46473eb2259b5f498ba0e2bb94464f7fb7286f1b",
+          "cache_key": "d3951e13bafa0ea42ece43d65bfed7b3658ae96b8396cf100b092632437138fc",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"[1] Brigid O'Brien is gathering herbs while [2] Mary Geraghty paces nervously inside the cottage.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "3f3ecb12cc0f6b170690cd874b6784d7c2b74493a0d2622ca9a842d708be6d15",
+          "cache_key": "ac9292999fd38f9713908a43b757756485d24ee0158b0e9d5950cc61f5ca4a40",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"[1] Brigid O'Brien tends to [2] Mary Geraghty's discomfort with light rain falling outside.\", \"mood_changes\": [{\"npc_id\": \"[2]\", \"new_mood\": \"somewhat relieved\"}], \"relationship_changes\": [{\"from\": \"[1]\", \"to\": \"[2]\", \"delta\": 0.1}]}",
+          "schema_valid": false,
+          "response_sha256": "edb99f376b91965c6d3a878e8511ed42338bb5085da404ae3d07f48d42a505de",
+          "cache_key": "d86bdcd1c4ce4f8efc7e93e0579c1b8547aeb8c0db15d58fae812a5bdab733b8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\n  \"summary\": \"Father Cathal watches over Widow Kelleher, who clutches her son's rosary, while Old Tommy kneels, his head low in contrite silence.\",\n  \"mood_changes\": [],\n  \"relationship_changes\": []\n}",
+          "schema_valid": true,
+          "response_sha256": "2a92a2845249f54ebfd4c71f90f7d2f91c115357c5313820ae34397b664b69ec",
+          "cache_key": "77e6862a33c638d87870b06851ec20ab49d3d775c0fcaeb143b1ccba3c270e7f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__Qwen2_5_Coder_32B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen2.5-Coder-32B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 57.32685089111328,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2846,
+    "completion_tokens": 588,
+    "usd": 0.0
+  }
+}

@@ -296,26 +296,40 @@ def available_memory_gb() -> float:
 
 
 def metric_from_summary(summary: dict) -> str:
-    """Compact one-cell metric for the leaderboard row, per slice family."""
+    """Compact one-cell metric for the leaderboard row, per slice family.
+
+    Bundled-judge slices (reaction, tier2-sim, tier3-sim, gaeilge) return
+    None for score fields when their pending_judge flag is set. Coalesce
+    None → 0 so the format string below doesn't TypeError mid-sweep.
+    """
+    def _f(key: str, default: float = 0.0) -> float:
+        v = summary.get(key, default)
+        return v if v is not None else default
+
     s = summary.get("slice")
     if s == "intent":
-        return f"label_match={summary.get('label_match_rate', 0):.3f}"
+        return f"label_match={_f('label_match_rate'):.3f}"
     if s == "dialogue":
         return (
-            f"overall={summary.get('overall', 0):.2f} "
-            f"(c={summary.get('character',0):.1f}/"
-            f"a={summary.get('authenticity',0):.1f}/"
-            f"l={summary.get('language',0):.1f}/"
-            f"r={summary.get('responsiveness',0):.1f}/"
-            f"cr={summary.get('craft',0):.1f})"
+            f"overall={_f('overall'):.2f} "
+            f"(c={_f('character'):.1f}/"
+            f"a={_f('authenticity'):.1f}/"
+            f"l={_f('language'):.1f}/"
+            f"r={_f('responsiveness'):.1f}/"
+            f"cr={_f('craft'):.1f})"
         )
     if s == "reaction":
-        return f"mean_in_character={summary.get('mean_score', 0):.2f}"
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
+        return f"mean_in_character={_f('mean_score'):.2f}{pending}"
     if s in ("tier2-sim", "tier3-sim"):
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
         return (
-            f"schema_valid={summary.get('schema_valid_rate', 0):.2f} "
-            f"plausibility={summary.get('mean_score', 0):.2f}"
+            f"schema_valid={_f('schema_valid_rate'):.2f} "
+            f"plausibility={_f('mean_score'):.2f}{pending}"
         )
+    if s == "gaeilge":
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
+        return f"gaeilge_overall={_f('overall'):.2f}{pending}"
     return "n/a"
 
 
@@ -328,7 +342,9 @@ def main() -> None:
                     choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"])
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
     ap.add_argument("--limit", type=int, default=10, help="prompts per slice")
-    ap.add_argument("--judge", default="judge_v1")
+    ap.add_argument("--judge", default="judge_sonnet_v1",
+                    help="judge config id; Sonnet-subagent ONLY (judge_v1 + other "
+                         "HTTP-API configs are refused at load time).")
     ap.add_argument("--headroom-gb", type=float, default=4.0,
                     help="GB of unified memory to leave free for OS/other apps")
     ap.add_argument("--dry-run", action="store_true",

@@ -1,0 +1,151 @@
+{
+  "ran_at_utc": "2026-05-28T10:24:47.135001+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Hermes-3-Llama-3.1-8B-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 129,
+      "ttft_ms_p90": 166,
+      "total_ms_median": 2395,
+      "tokens_per_second_median": 54.1,
+      "tokens_per_second_p90": 55.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 7,
+        "rate": 0.7,
+        "errors": [
+          "json_decode: Extra data: line 2 column 1 (char 37) | text={\"answer\": \"100\", \"confidence\": 1.0}\n<|end_of_text|><|begin_of_text|>://",
+          "json_decode: Extra data: line 2 column 1 (char 41) | text={\"answer\": \"January\", \"confidence\": 1.0}\n<|end_of_text|><|begin_of_text|>://",
+          "json_decode: Extra data: line 2 column 1 (char 36) | text={\"answer\": \"Au\", \"confidence\": 1.0}\n<|end_of_text|><|begin_of_text|>://\n\n<|end_o"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 98,
+          "total_ms": 1135,
+          "completion_tokens": 59,
+          "prompt_tokens": 1531,
+          "tokens_per_second": 56.89488910318226,
+          "reply_len": 199,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 88,
+          "total_ms": 2709,
+          "completion_tokens": 144,
+          "prompt_tokens": 1535,
+          "tokens_per_second": 54.94086226631057,
+          "reply_len": 501,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 89,
+          "total_ms": 2055,
+          "completion_tokens": 109,
+          "prompt_tokens": 1535,
+          "tokens_per_second": 55.442522889114954,
+          "reply_len": 426,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 88,
+          "total_ms": 2216,
+          "completion_tokens": 116,
+          "prompt_tokens": 1531,
+          "tokens_per_second": 54.51127819548872,
+          "reply_len": 436,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 160,
+          "total_ms": 3867,
+          "completion_tokens": 199,
+          "prompt_tokens": 1533,
+          "tokens_per_second": 53.6822228216887,
+          "reply_len": 703,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 166,
+          "total_ms": 3913,
+          "completion_tokens": 200,
+          "prompt_tokens": 1532,
+          "tokens_per_second": 53.37603416066187,
+          "reply_len": 701,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 166,
+          "total_ms": 927,
+          "completion_tokens": 42,
+          "prompt_tokens": 1532,
+          "tokens_per_second": 55.19053876478318,
+          "reply_len": 150,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 166,
+          "total_ms": 2575,
+          "completion_tokens": 129,
+          "prompt_tokens": 1531,
+          "tokens_per_second": 53.54919053549191,
+          "reply_len": 489,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 91,
+          "total_ms": 1820,
+          "completion_tokens": 93,
+          "prompt_tokens": 1531,
+          "tokens_per_second": 53.78831694621168,
+          "reply_len": 333,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Hermes-3-Llama-3.1-8B-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 173,
+          "total_ms": 2792,
+          "completion_tokens": 139,
+          "prompt_tokens": 1534,
+          "tokens_per_second": 53.073692248949975,
+          "reply_len": 489,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 31.99691891670227,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

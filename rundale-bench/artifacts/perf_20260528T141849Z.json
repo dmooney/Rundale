@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T14:18:49.162335+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 72,
+      "ttft_ms_p90": 74,
+      "total_ms_median": 3210,
+      "tokens_per_second_median": 63.7,
+      "tokens_per_second_p90": 64.0,
+      "json_freeform": {
+        "n": 10,
+        "valid": 5,
+        "rate": 0.5,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Okay, so I need to figure out the boiling point of water in Celsius. Hmm, I reme",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Okay, so I need to figure out what 7 times 8 is. Hmm, I remember learning multip",
+          "json_decode: Unterminated string starting at: line 1 column 12 (char 11) | text={\"answer\": \"William",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Okay, so I need to figure out the boiling point of water in Celsius. I remember ",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Okay, so I need to figure out what 7 times 8 is. Hmm, I remember from multiplica"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 88,
+          "total_ms": 3238,
+          "completion_tokens": 200,
+          "prompt_tokens": 1539,
+          "tokens_per_second": 63.492063492063494,
+          "reply_len": 871,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 70,
+          "total_ms": 3214,
+          "completion_tokens": 200,
+          "prompt_tokens": 1543,
+          "tokens_per_second": 63.613231552162844,
+          "reply_len": 868,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 71,
+          "total_ms": 3212,
+          "completion_tokens": 200,
+          "prompt_tokens": 1543,
+          "tokens_per_second": 63.67398917542184,
+          "reply_len": 811,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 72,
+          "total_ms": 3210,
+          "completion_tokens": 200,
+          "prompt_tokens": 1539,
+          "tokens_per_second": 63.73486297004462,
+          "reply_len": 846,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 72,
+          "total_ms": 3210,
+          "completion_tokens": 200,
+          "prompt_tokens": 1541,
+          "tokens_per_second": 63.73486297004462,
+          "reply_len": 870,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 72,
+          "total_ms": 3211,
+          "completion_tokens": 200,
+          "prompt_tokens": 1540,
+          "tokens_per_second": 63.71455877668048,
+          "reply_len": 888,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 72,
+          "total_ms": 3204,
+          "completion_tokens": 200,
+          "prompt_tokens": 1540,
+          "tokens_per_second": 63.85696040868454,
+          "reply_len": 821,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 72,
+          "total_ms": 3198,
+          "completion_tokens": 200,
+          "prompt_tokens": 1539,
+          "tokens_per_second": 63.97952655150352,
+          "reply_len": 853,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 73,
+          "total_ms": 3197,
+          "completion_tokens": 200,
+          "prompt_tokens": 1539,
+          "tokens_per_second": 64.02048655569781,
+          "reply_len": 894,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 70,
+          "total_ms": 3196,
+          "completion_tokens": 200,
+          "prompt_tokens": 1542,
+          "tokens_per_second": 63.97952655150352,
+          "reply_len": 945,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 63.01378798484802,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}
