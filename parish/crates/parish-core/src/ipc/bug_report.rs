@@ -289,7 +289,11 @@ pub struct GitHubBugConfig {
 impl GitHubBugConfig {
     /// Resolves configuration from the environment.
     pub fn from_env() -> Self {
-        let token = first_non_empty_env(&["PARISH_BUG_REPORT_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]);
+        // Token precedence: explicit env vars, then a best-effort fall back to the
+        // `gh` CLI credential so a logged-in developer files real issues without
+        // exporting a token by hand. (`is_offline()` still forces dry-run mode.)
+        let token = first_non_empty_env(&["PARISH_BUG_REPORT_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"])
+            .or_else(gh_cli_token);
         let repo =
             non_empty_env("PARISH_BUG_REPORT_REPO").unwrap_or_else(|| DEFAULT_REPO.to_string());
         let asset_branch = non_empty_env("PARISH_BUG_REPORT_ASSET_BRANCH");
@@ -331,6 +335,28 @@ fn env_is_truthy(key: &str) -> bool {
         ),
         Err(_) => false,
     }
+}
+
+/// Best-effort GitHub token from the `gh` CLI (`gh auth token`).
+///
+/// Returns `None` when `gh` is absent from `PATH`, the user is not
+/// authenticated, or the command otherwise fails — callers treat that as
+/// "no token" and fall back to offline mode.
+fn gh_cli_token() -> Option<String> {
+    let output = std::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_gh_token(&output.stdout)
+}
+
+/// Extracts a non-empty, trimmed token from `gh auth token` stdout.
+fn parse_gh_token(stdout: &[u8]) -> Option<String> {
+    let token = String::from_utf8_lossy(stdout).trim().to_string();
+    if token.is_empty() { None } else { Some(token) }
 }
 
 // ── Issue-body composition (pure) ─────────────────────────────────────────────
@@ -751,6 +777,17 @@ mod tests {
         req.description = "   ".into();
         let body = compose_issue_body(&req, &state(), None);
         assert!(body.contains("_No description provided._"));
+    }
+
+    #[test]
+    fn gh_token_parsing_trims_and_rejects_empty() {
+        assert_eq!(
+            parse_gh_token(b"gho_abc123\n"),
+            Some("gho_abc123".to_string())
+        );
+        assert_eq!(parse_gh_token(b"  gho_xyz  "), Some("gho_xyz".to_string()));
+        assert_eq!(parse_gh_token(b"\n\n  \n"), None);
+        assert_eq!(parse_gh_token(b""), None);
     }
 
     #[test]
