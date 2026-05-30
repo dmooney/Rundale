@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-28T10:08:18.866828+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Llama-3.1-8B-Instruct-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 138,
+      "ttft_ms_p90": 142,
+      "total_ms_median": 1854,
+      "tokens_per_second_median": 59.6,
+      "tokens_per_second_p90": 60.0,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 97,
+          "total_ms": 1772,
+          "completion_tokens": 100,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 59.701492537313435,
+          "reply_len": 362,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 140,
+          "total_ms": 3004,
+          "completion_tokens": 168,
+          "prompt_tokens": 1556,
+          "tokens_per_second": 58.659217877094974,
+          "reply_len": 604,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 80,
+          "total_ms": 1714,
+          "completion_tokens": 98,
+          "prompt_tokens": 1556,
+          "tokens_per_second": 59.975520195838435,
+          "reply_len": 341,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 80,
+          "total_ms": 2404,
+          "completion_tokens": 138,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 59.38037865748709,
+          "reply_len": 486,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 142,
+          "total_ms": 1520,
+          "completion_tokens": 83,
+          "prompt_tokens": 1554,
+          "tokens_per_second": 60.2322206095791,
+          "reply_len": 310,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 142,
+          "total_ms": 1742,
+          "completion_tokens": 96,
+          "prompt_tokens": 1553,
+          "tokens_per_second": 60.0,
+          "reply_len": 324,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 140,
+          "total_ms": 2120,
+          "completion_tokens": 118,
+          "prompt_tokens": 1553,
+          "tokens_per_second": 59.5959595959596,
+          "reply_len": 456,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 79,
+          "total_ms": 1654,
+          "completion_tokens": 94,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 59.682539682539684,
+          "reply_len": 347,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 137,
+          "total_ms": 1936,
+          "completion_tokens": 107,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 59.4774874930517,
+          "reply_len": 357,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Llama-3.1-8B-Instruct-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 141,
+          "total_ms": 2322,
+          "completion_tokens": 129,
+          "prompt_tokens": 1555,
+          "tokens_per_second": 59.147180192572215,
+          "reply_len": 473,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 27.00695300102234,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

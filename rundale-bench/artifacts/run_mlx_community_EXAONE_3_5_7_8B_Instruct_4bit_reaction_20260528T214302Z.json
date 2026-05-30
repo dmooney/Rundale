@@ -1,0 +1,82 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T21:13:02.652509+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 10,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211",
+        "bundles_queued": 0,
+        "cache_hits": 0
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0002",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0003",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0004",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0005",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0006",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0007",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0008",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0009",
+          "error": "timed out"
+        },
+        {
+          "id": "reaction-0010",
+          "error": "timed out"
+        }
+      ],
+      "bundles": [],
+      "candidate": {
+        "model_id": "EXAONE-3.5-7.8B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 1800.1122760772705,
+  "cost": {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "usd": 0.0
+  }
+}

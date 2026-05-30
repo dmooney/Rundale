@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-28T14:26:21.529182+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 117,
+      "ttft_ms_p90": 141,
+      "total_ms_median": 3506,
+      "tokens_per_second_median": 59.0,
+      "tokens_per_second_p90": 59.1,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊĊTheĠboilingĠpointĠofĠwaterĠatĠstandardĠatmosphericĠpressureĠisĠ100Â°C.",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊĊ{\"answer\":\"January\",\"confidence\":1.0}",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊĊ```jsonĊ{ĊĠĠ\"answer\":Ġ\"56\",ĊĠĠ\"confidence\":Ġ1.0Ċ}Ċ```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊĊ{\"answer\":\"WilliamĠShakespeare\",\"confidence\":1.0}",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊOkay,ĠsoĠIĠneedĠtoĠfigureĠoutĠtheĠchemicalĠsymbolĠforĠgold.ĠHmm,ĠIĠrememberĠtha"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=ĊOkay,ĠsoĠIĠneedĠtoĠfigureĠoutĠtheĠboilingĠpointĠofĠwaterĠinĠCelsius.ĠHmm,ĠIĠrem",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Ċ",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Ċ",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Ċ",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=Ċ"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 96,
+          "total_ms": 3482,
+          "completion_tokens": 200,
+          "prompt_tokens": 1564,
+          "tokens_per_second": 59.06674542232723,
+          "reply_len": 868,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 80,
+          "total_ms": 3462,
+          "completion_tokens": 200,
+          "prompt_tokens": 1567,
+          "tokens_per_second": 59.13660555884092,
+          "reply_len": 912,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 79,
+          "total_ms": 3461,
+          "completion_tokens": 200,
+          "prompt_tokens": 1566,
+          "tokens_per_second": 59.13660555884092,
+          "reply_len": 850,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 79,
+          "total_ms": 3467,
+          "completion_tokens": 200,
+          "prompt_tokens": 1563,
+          "tokens_per_second": 59.031877213695395,
+          "reply_len": 895,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 138,
+          "total_ms": 3529,
+          "completion_tokens": 200,
+          "prompt_tokens": 1564,
+          "tokens_per_second": 58.97965202005308,
+          "reply_len": 948,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 80,
+          "total_ms": 3483,
+          "completion_tokens": 200,
+          "prompt_tokens": 1563,
+          "tokens_per_second": 58.77167205406994,
+          "reply_len": 933,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 142,
+          "total_ms": 3538,
+          "completion_tokens": 200,
+          "prompt_tokens": 1561,
+          "tokens_per_second": 58.89281507656066,
+          "reply_len": 910,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 139,
+          "total_ms": 3537,
+          "completion_tokens": 200,
+          "prompt_tokens": 1564,
+          "tokens_per_second": 58.85815185403178,
+          "reply_len": 874,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 141,
+          "total_ms": 3545,
+          "completion_tokens": 200,
+          "prompt_tokens": 1561,
+          "tokens_per_second": 58.75440658049354,
+          "reply_len": 903,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 140,
+          "total_ms": 3530,
+          "completion_tokens": 200,
+          "prompt_tokens": 1565,
+          "tokens_per_second": 58.99705014749262,
+          "reply_len": 946,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 63.51306700706482,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

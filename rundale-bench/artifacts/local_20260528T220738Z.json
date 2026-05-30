@@ -1,0 +1,30 @@
+{
+  "host": {
+    "platform": "darwin",
+    "memory_gb": 51.539607552
+  },
+  "harness_sha": "444a2b53",
+  "split": "dev",
+  "limit": 3,
+  "judge": "judge_v1",
+  "rows": [
+    {
+      "date": "20260528T220733Z",
+      "hf_repo": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+      "slot": "large",
+      "quant": "4bit",
+      "params_b": 7.0,
+      "moe_active_b": null,
+      "peak_ram_gb": 4.5887488,
+      "slice": "intent",
+      "split": "dev",
+      "metric": "label_match=1.000",
+      "cost_usd": 0.0,
+      "judge": "judge_v1",
+      "harness_sha": "444a2b53",
+      "ram_samples": 8,
+      "elapsed_s": 1.8908209800720215,
+      "run_path": "rundale-bench/artifacts/run_mlx_community_OLMo_2_1124_7B_Instruct_4bit_intent_20260528T220737Z.json"
+    }
+  ]
+}

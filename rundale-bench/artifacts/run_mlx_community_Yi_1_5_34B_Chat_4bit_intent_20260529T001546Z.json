@@ -1,0 +1,88 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Yi-1.5-34B-Chat-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-29T00:03:51.975223+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "timed out",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "timed out",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "Extra data: line 1 column 53 (char 52)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "Extra data: line 1 column 64 (char 63)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "Extra data: line 1 column 64 (char 63)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "Extra data: line 1 column 63 (char 62)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "Extra data: line 1 column 82 (char 81)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "Extra data: line 1 column 67 (char 66)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "Extra data: line 1 column 70 (char 69)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "Extra data: line 1 column 63 (char 62)",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 714.4777178764343,
+  "cost": {
+    "calls": 8,
+    "prompt_tokens": 3429,
+    "completion_tokens": 4096,
+    "usd": 0.0
+  }
+}

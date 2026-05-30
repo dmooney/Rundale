@@ -12,21 +12,27 @@ export function getStaticPaths() {
   // they never 404. Union of every data source (leaderboard, gaeilge,
   // samples, perf, models_index).
   const slugs = new Map();
-  for (const row of data.models_index ?? []) slugs.set(row.slug, { model_id: row.model_id, is_local: row.is_local, family: row.family });
+  for (const row of data.models_index ?? []) slugs.set(row.slug, { model_id: row.model_id, display_name: row.display_name, is_local: row.is_local, family: row.family });
   for (const row of data.leaderboard ?? []) {
     const e = slugs.get(row.slug) ?? { model_id: row.model_id };
-    e.dialogue = row; e.family = e.family ?? row.family; slugs.set(row.slug, e);
+    e.dialogue = row;
+    e.family = e.family ?? row.family;
+    e.display_name = e.display_name ?? row.display_name;
+    slugs.set(row.slug, e);
   }
   for (const row of data.gaeilge ?? []) {
     const e = slugs.get(row.slug) ?? { model_id: row.model_id };
-    e.gaeilge_row = row; e.family = e.family ?? row.family; slugs.set(row.slug, e);
+    e.gaeilge_row = row;
+    e.family = e.family ?? row.family;
+    e.display_name = e.display_name ?? row.display_name;
+    slugs.set(row.slug, e);
   }
   for (const [slug, s] of Object.entries(data.samples ?? {})) {
     const e = slugs.get(slug) ?? { model_id: s.model_id };
     slugs.set(slug, e);
   }
   for (const row of data.perf ?? []) {
-    if (!slugs.has(row.slug)) slugs.set(row.slug, { model_id: row.model_id, is_local: row.is_local, family: row.family });
+    if (!slugs.has(row.slug)) slugs.set(row.slug, { model_id: row.model_id, display_name: row.display_name, is_local: row.is_local, family: row.family });
   }
   return [...slugs.entries()].map(([slug, view]) => ({ params: { slug }, props: { slug, view } }));
 }
@@ -99,9 +105,12 @@ const perfRows = perf.map((r) => ({
   },
 }));
 ---
-<Base title={`Rundale Bench — ${view.model_id}`}>
+<Base title={`Rundale Bench — ${view.display_name ?? view.model_id}`}>
   <p><a href={`${base}/models`}>← all models</a> · <a href={base}>leaderboard</a></p>
-  <h2><BrandIcon family={view.family} size={28} />{view.model_id} <span class="badge" title={view.is_local ? 'local runtime' : 'cloud-hosted'}>{typeBadge}</span></h2>
+  <h2><BrandIcon family={view.family} size={28} />{view.display_name ?? view.model_id} <span class="badge" title={view.is_local ? 'local runtime' : 'cloud-hosted'}>{typeBadge}</span></h2>
+  {view.display_name && view.display_name !== view.model_id && (
+    <p class="muted" style="margin-top:-0.5em;font-family:monospace;font-size:0.85em">{view.model_id}</p>
+  )}
 
   <div class="stat-grid">
     <div class="stat">

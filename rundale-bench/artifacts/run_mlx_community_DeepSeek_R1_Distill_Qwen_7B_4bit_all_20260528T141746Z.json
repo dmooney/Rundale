@@ -1,0 +1,1382 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-28T14:13:44.240280+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.8,
+        "mean_score": 0.7150000000000001
+      },
+      "results": [
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0001",
+          "pred": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0002",
+          "pred": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0003",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0004",
+          "pred": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.5,
+          "id": "intent-0005",
+          "pred": {
+            "intent": "examine",
+            "target": null,
+            "dialogue": "examine the brooch"
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0006",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": "agus mar sin"
+          },
+          "gold": {
+            "intent": "unknown",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0007",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0008",
+          "pred": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 0.6,
+          "score": 0.65,
+          "id": "intent-0009",
+          "pred": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "ask Niamh about her father"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0010",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": "open the door"
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          }
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": null,
+        "authenticity": null,
+        "language": null,
+        "responsiveness": null,
+        "craft": null,
+        "overall": null,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Okay, so I'm trying to figure out how to respond to Brigid O'Brien's message. She says, \"I have been having trouble sleeping. The dreams keep coming back.\" I'm in 1820 Roscommon, and I need to respond in Hiberno-English with the right cultural touches.\n\nFirst, I know Brigid is a midwife, so maybe she's concerned about the health aspect. But she's also mentioning sleep and dreams, so perhaps she's just feeling down. I should acknowledge her feelings without being too nosy.\n\nI need to use the phrases she's provided. Let's see, I can use \"Sl\u00e1n abhaile\" to say it's safe home, which fits. Maybe add a \"mornin'\" at the end to sound friendly. So, \"Sl\u00e1n abhaile, mornin\u2019! I\u2019m sorry to hear you\u2019ve been having trouble sleeping, and that your dreams keep coming back. Is there anything",
+          "response_sha256": "64bccbc0a7d5df385c65721573b19abf112d4c1eb29661c9456819adc45fc0b6",
+          "cache_key": "03bc5f1350f36736a945652ea55234b618bbc8bf8d3612469d39f8ee97999793",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Alright, I need to help Brigid O'Brien respond to the player's question about the old Cailleach near the fairy fort. First, I'll recall the context and guidelines. Brigid is a midwife in 1820 Roscommon, so she's familiar with local customs, plants, and remedies. She's also close to the player's family, so her response should feel genuine and comforting.\n\nThe player is asking about Cailleach, which I know is the term for fairy or folklore figures in Ireland. Brigid should acknowledge this and perhaps mention the importance of respecting local traditions. She might also share a story or a plant she knows, keeping it within the historical and cultural scope.\n\nI should use Hiberno-English with some Irish phrases and make sure the response is conversational. I need to avoid modern terms and stick to period-appropriate language. Also, include one or two sprinkled ga-IE phrases if it fits naturally.\n\nThinking of a response,",
+          "response_sha256": "d047c05c70976451ac58b7ca5b75308945ce753e280129337ba21c9c3e0a212b",
+          "cache_key": "d9b15edde7f5babf36e02a0667f40ba5cb684703498d7c25272bfcd05dbf7866",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Okay, so I need to help Brigid O'Brien respond to a neighbor's request for something to help her mother's cough. Let me think about how she would approach this. First, she's a midwife in 1820, so she knows traditional remedies. The user provided a list of herbs and plants, so I should focus on those.\n\nShe should acknowledge the situation and express her sympathy. Maybe she'd mention her mother-in-law as a source of remedies. She's been with her for years, so she'd know local plants. I should include something like \"I know a remedy that might help\" to show she's come prepared.\n\nShe's aware of the legal context, so she won't mention anything about tracking or hunting. Instead, she'll focus on healing. The user's problem is a bad cough, so I can think of plants like pennyroyal, thyme, or dill. She'll ask the neighbor to gather the plants, suggesting she can",
+          "response_sha256": "0b63295649c98fede679f58b00df8150ab272f39e2e8e037e82ea7272c1b267e",
+          "cache_key": "c4ae620be761562393852ddb07e47240095b2b005e640e53b3f98936ca46f368",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Okay, I need to respond to the player's question about a stranger arriving in the village. The player is using the tone of Brigid O'Brien, a midwife in 1820 Roscommon. I should keep my response conversational, in Hiberno-English, and sprinkled with a bit of Irish dialect.\n\nFirst, I'll acknowledge the player's inquiry with a friendly greeting, maybe using \"Dia dhuit\" to greet them. Then, I'll mention the stranger's arrival, perhaps using \"m\u00e1n go dtuisce\" to say \"a stranger came.\" I should express curiosity about him, maybe asking where he's from or what he's doing in the village. I can use phrases like \"I wonder\" or \"I\u2019m curious\" in Hiberno-English, maybe \"Mh\u00e1 an foin,\" which means \"I\u2019m curious.\"\n\nI should also keep the response within 2-4 sentences. I'll end with a friendly closing",
+          "response_sha256": "eacc7d377f750d3742867c736da54e14ed4ad5e5ef8bcdc00883df150e4f4284",
+          "cache_key": "04cbf2e306874e452ab83f187186f2006841dd632a263a719a96b3684aadf342",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Alright, so I need to figure out how to respond to the user's query about losing a sheep and whether it could be more than a wolf. The character is Brigid O'Brien, a midwife in 1820 Ireland. She's in a rural area, so she'd be more focused on medical and herbal remedies rather than tracking predators. \n\nFirst, I'll consider the context. In 1820, the world is still under British rule, and there's the Great Famine in 1845, which hasn't happened yet. The landlord class is Protestant and English-speaking, while ordinary people speak both Irish and English. She's a midwife, so she's aware of herbs and births, but not necessarily about hunting or tracking predators.\n\nHer response should acknowledge the situation and offer a herbal remedy. Since she's aware of the Irish language, she might use some phrases like \"Sl\u00e1n leat\" or \"Sl\u00e1n abhaile.\" She",
+          "response_sha256": "441f08a76f89f084c0aad84a4081e454ad5426641d1a99f8cba9a2712bfb561f",
+          "cache_key": "9e5d99e9a4bf00946db77da39729a8995b7689aad1e96d9d93522e0fd6dcd3aa",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Sl\u00e1n leat! My father did break his leg in the south field, I believe. How is the recovery going with the cast and splint? I hope it's healing well.\n\n---\n\n```json\n{\n  \"action\": \"responds to Brigid's question about her father's injury, showing concern\",\n  \"mood\": \"warm and concerned\",",
+          "response_sha256": "d27879dd5740660e730536f7e63df2e1bea626b72e779385fb7dced5c7c9a24c",
+          "cache_key": "74b39ddaecb9ae414c89a02eba7081e054b78f2061936fed0198b4116a20933f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Okay, so I need to figure out how to respond to the query where the user saw lights moving on the hill last night and asks what they were. I'm Brigid O'Brien, a midwife in 1820 Roscommon, Ireland. The response needs to be in Hiberno-English with some cultural touches and sprinkling in of ga-IE phrases if natural. I have to make sure it's conversational, within 2-4 sentences, and fits the context of the time.\n\nFirst, I'll acknowledge the lights. Since it's 1820, she might not have electricity, so it's possible they saw something like a bonfire. I should mention that in a respectful manner. Maybe say something like, \"I fear it might have been a bonfire.\" That's appropriate and within the cultural guidelines.\n\nI need to make sure I use the correct phrases. I can use \"Sl\u00e1n abhaile\" at the end for a friendly",
+          "response_sha256": "bc786f38a64b06f1007683e093f51bbaa6c09692c0e07458af59c743456af7dc",
+          "cache_key": "8f81628f82827e7c9eebd6122e8622d5f8c5c51dcf54f5d9f97265fc897d7370",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Okay, so I'm trying to figure out how to respond to the user's question about the strange taste in the well water. Let me break it down step by step. \n\nFirst, the user mentioned the water tastes strange this week. I know Brigid, the midwife, is concerned about the health of the people in the village. She's used to seeing everyone come to her with symptoms, so the strange taste is making people ill. I need to reassure them but also give a plausible reason.\n\nI remember the context from the 1820 Ireland. There's no modern medicine, so she's probably going to suggest a natural remedy. The plants around are probably herbs that are good for digestion. Maybe something like dill or pennyroyal? They're common and have medicinal properties.\n\nI should use some Irish phrases to sound authentic. Maybe \"Ch s\u00e9,\" which means \"What's the matter?\" and \"Conas at\u00e1 t\u00fa?\" which is \"How are you",
+          "response_sha256": "3dcbe3556d7823800dabb1991b2740926f4e022f0ebdd90c2fc8d19cd542f5f5",
+          "cache_key": "4828682402fd354019b3df76b002a624e7dda3b3f2fa9841636896bff92eb434",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Okay, so I'm trying to figure out how to respond to the user's query about Brigid O'Brien in 1820 Ireland. Let's break this down step by step.\n\nFirst, I need to recall the context provided. Brigid is a midwife in County Roscommon, Ireland, in 1820. She's part of the \"stay in your lane\" group, meaning she doesn't engage in farming or hunting, and she's aware of her role as a midwife. The world facts mention that Ireland is under British rule, the Catholic Emancipation hasn't happened yet, and there are no modern conveniences like electricity or railways. Life is rural, and communication is via mail or word of mouth.\n\nThe user's query is, \"My wife is heavy with child. When should I fetch you?\" I need to respond in Hiberno-English, using the specified phrases and keeping the response conversational, not a monologue. The response",
+          "response_sha256": "a338b1ed22a2fa53f63447ad251955808864814beae71ae07ce4f9bd39b6c00d",
+          "cache_key": "1618c10c2331fd6bb2c4da517a63fc32359414722ca27bfaa30cf1b6aab5da71",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Okay, I need to help Brigid O'Brien respond to Father Cathal's sermon. First, I should figure out what her role as a midwife entails in 1820 Ireland. She knows herbs, births, sickness, and women's matters, but she doesn't track livestock, hunt, or speak like a farmer. So, her response should reflect that she's focused on healthcare and community support.\n\nThe user's query is, \"Father Cathal preached against the old ways on Sunday. What do you think?\" I need to acknowledge the sermon and perhaps relate it to her role. Maybe she's supportive or has some observations.\n\nI should use appropriate language and sprinkles of Hiberno-English, perhaps including \"Sl\u00e1n\" or \"Mayhap\" if it fits. Since she's a midwife, she might agree with the sermon's message positively, showing she's in tune with the community's needs.\n\nI also need to remember the formatting: write the dialogue,",
+          "response_sha256": "369b79f76fcabaf5e424f4dd8fa2790c04dc155fb01615c329fc93d441902a16",
+          "cache_key": "0f5ac9104b5239338dde15a5739b05d7d0da2615b8daaa2631ec8c81f2297f16",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__DeepSeek_R1_Distill_Qwen_7B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Okay, so I need to write a response to a visitor at Darcy's Pub in 1820 Ireland. The pub is owned by Padraig Darcy, a 58-year-old publican. He's gruff but warm-hearted, been running the pub for thirty years, has a dry wit, and is currently content. The visitor just arrived in the evening, it's clear, and I haven't met him before. I'm the publican introducing myself.\n\nI have",
+          "response_sha256": "702088e886e3d5f33dca5b3f8663d5ec26f3087f4b0b73bdd487576139db2e4c",
+          "cache_key": "bd7421cb0aa1f4d03696209a9d20535d07e1a981cf488a78965258dd2581d501",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Okay, I need to figure out how to respond to this user's request. They provided a query where someone is in a story context and wants a greeting. The user wants the response to be a single, brief greeting or reaction, up to two sentences. They specified dialogue only, no narration or action, and to avoid modern language.\n\nSo, the current scene is a familiar figure arriving at Brigid's cottage in the morning with light rain. The person greeting is the publican, Padraig",
+          "response_sha256": "a6818a13fda35576e77baab4704b7bc4272fe333a4cb9a4f7fcab3172b4cba44",
+          "cache_key": "a7757608c51d47b1327deb1a62e0d710c02a920521967777911799fb2698bd3f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Okay, I need to respond to the user's query as Padraig Darcy, a 58-year-old publican in rural Ireland from 1820. The user provided a specific scenario where someone has arrived at the church porch at Sunday noon, mist, and I have to greet them by name. \n\nFirst, I should consider the tone and style of Padraig's interactions. He's gruff but warm-hearted, so the greeting should reflect that. He's been running the",
+          "response_sha256": "ad956e8f887573cbe9a49807b51904921bcba62fd8483ebd18ff0f12c4e85704",
+          "cache_key": "a500ff3d00d1a6ed77fa4225b0c2adc30ceca6f57b8e2b0336fd10b8f6d99f15",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "Okay, so I need to figure out how to respond to the user's query. The user provided a scenario where Brigid O'Brien, a midwife in 1820 Ireland, is greeting a newcomer at Darcy's Pub. The instructions are to write a brief greeting or reaction in 1-2 sentences, use only dialogue, avoid modern language, and no narration or action descriptions. \n\nFirst, I should consider Brigid's background. She's a midwife, which means",
+          "response_sha256": "213a84b118767f42323205608034dfc37969739e927078e61c4791f722597d28",
+          "cache_key": "145ef4e662cf55ab9bc80286581cd781f1e8cedf89ae8a8d3bad624097b8f5bb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "Okay, so the user wants me to act as Brigid O'Brien, a 42-year-old midwife in rural Ireland in the 1820s. The query describes a scene where a familiar has arrived at her cottage in the morning with light rain. I need to write a brief greeting or reaction, just one or two sentences, without any modern language or unnecessary details.\n\nFirst, I should consider the setting: it's an 1820s Ireland, so the",
+          "response_sha256": "09e7491ca6f6cf770c8a46f89bbada05f93069ee0e46ff446db1b93e4b1c56e0",
+          "cache_key": "d78a4346d564007df772663c6f3b9d12505314840665ba6083352660eca441c3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Okay, so I need to figure out how to respond to this user query. Let me read through it carefully.\n\nThe user is playing the role of Brigid O'Brien, a 42-year-old midwife in rural Ireland in the 1820s. Her style is familiar, kind, and direct, and she knows local plants and folk medicine. Her current mood is focused, so the response should reflect that.\n\nThe user is responding to a situation where a familiar has arrived at",
+          "response_sha256": "f752271ab16c97500d22adfd4f461c2cbaab32da1f25cba8b05ae453134f0098",
+          "cache_key": "2eba80054b9894d1b6b4c245109a8a78951981ab0d1cde66b6e2c4c8964112bd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Okay, I need to help the user craft a response to another priest greeting them at Darcy's Pub. The priest is Father Cathal Donnellan, 51, living in rural Ireland in 1820. He's eloquent and severe, preaches against old ways, and his current mood is watchful. The user wants a brief greeting or reaction, just one or two sentences, in dialogue only, no narration or action. Also, no modern language, so it",
+          "response_sha256": "7d4150a2d5a53f23ea04807ddd07bad137072ad4a54a32296dd3c13a1cf67043",
+          "cache_key": "9a5ceb93bf5819ffd26bd508e420d6eac6c00c5ae2e563ac9c64eb981099acc0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Okay, I need to figure out how to respond to the user's request. They provided a query where they want me to act as Father Cathal Donnellan, a priest from 1820 Ireland. The goal is to write a greeting or reaction in response to a visitor named Brigid. The response should be a single, brief sentence, no more than two sentences. Also, it should be in old-fashioned language without any modern terms.\n\nFirst, I should identify the key elements",
+          "response_sha256": "fec15065ceb0e1dcddabb3648253e8e5b0a9601816ea230f29845d789b41fc5a",
+          "cache_key": "325ef1b84c0fa04b124cd2b5b179d1596128e2715430b38dd6ab3807a5951cce",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Okay, so I need to figure out how to respond to this user's query. They provided a detailed scenario involving Father Cathal Donnellan, a priest in rural Ireland in the 1820s. The goal is to write a brief greeting or reaction in response to a visitor arriving at the church porch. The response needs to be in dialogue, only, without any narration or action descriptions, and without using modern language.\n\nFirst, I'll parse the information given. The priest is",
+          "response_sha256": "71b5a1853284ce0f664be489f1ec6e9fcac0c164fb96ecc47a1421fdd39e3d77",
+          "cache_key": "95cc0dbbd762927be39ffb9e1d9356dca79ea449e575d7eeb6f7528e483b8fe1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Okay, so I need to respond to Sean Murphy's greeting. He's a 41-year-old farmer in rural Ireland in 1820, known for being plain-spoken and stubborn, and he's currently hungry. The user provided a previous response where someone introduced themselves as Darcy, a newcomer at the pub, evening time, clear, and not met Sean before. The response was brief, just two sentences.\n\nI need to create a new response in the same style. So",
+          "response_sha256": "98dabfc1b7c9b397c27776d6a524f0e120776bdcdd6c8b4604733f90811ff969",
+          "cache_key": "adb4d9926efbbef9ec5a769a5584b77f9dae12d43136a30ca58428f4b015bad7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__DeepSeek_R1_Distill_Qwen_7B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 7,
+        "bench_bugs": 3,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.7,
+        "mean_score": 2.7142857142857144,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"At Darcy's Pub, Padraig is content, Niamh is tired, and Sean is hungry.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "408ba00c57d6161e85d3852393b52323d7083df191f93ba75292504f5e142aa2",
+          "cache_key": "bd971d0cd685514f84015f27d310a46b40cdada318adefef04e76a510fb17368",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "{\"summary\": \"Padraig is grumpy, Niamh is tired, Sean is hungry\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "9525e4a7db3049ed574f699f4e8af72c31a11341d98cae1b63041b7400b233d6",
+          "cache_key": "32cf98b199cdd9fe926d3ed5c4fd0f2e2396f335caff0e44a032d80ab3d30acd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\"summary\": \"Padraig and Niamh are playing music in the Pub while Sean is cleaning the chairs\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "2e88b6527790cc14281a7c16f5b20e1d01eed61791d0b951878ae6c0ed08ad2e",
+          "cache_key": "7257286f27368daa40c7a528aa09ec9a443783dec63cfda416490eb33538d089",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{\"summary\": \"Tommy and Donal are resting at the crossroads as the wind blows through the trees, preparing for bed after a long day of work and storytelling\", \"mood_changes\": [{\"npc_id\": 1, \"new_mood\": \"relaxed\"}, {\"npc_id\": 2, \"new_mood\": \"relaxed\"}], \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": 0.1}]}",
+          "schema_valid": true,
+          "response_sha256": "548b8138d6335d48604fa1dd37d0477e95cbc2210c31b5c36a3cae726b8400ba",
+          "cache_key": "3a042f3bf0a4259ea24b8aa115631746d418aa1606cd778de97237ceb52fc002",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "{\"summary\": \"At the crossroads under the wind, Tommy Maguire and Donal MacNamara are exchanging tired stories as the day fades into dusk\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "0aac3dcfb18343101084f11f7e3a420ea0569de57c905b63de768fcc2aace3c8",
+          "cache_key": "9456678ffe3ca0bb86f21fa28b7ba448cc34fb7041bc6bb8f339369cad297d80",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "{\"summary\": \"Tommy and Donal are setting up their tools for the day\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "11b568a09502ddf9a6b0a9c68d8f46c0085c481f301e21f613fb286feec27540",
+          "cache_key": "a70bb2b00dd212d7ef88017ec73566025e52cd7ac7cff26cc9106a7a0387c002",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"Brigid and Mary are in Brigid's cottage on a morning with light rain, discussing farm matters as Brigid remains calm and Mary shows signs of anxiety about her first pregnancy\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "0c5958ce67ddb41a8081528c20124564186538ab071c80dd2c6b3307e62345aa",
+          "cache_key": "b2716de5c9874a2105b7cec0b530413a099e97bed86d98971cbfb00fb251b5b5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"Brigid and Mary are chatting while Brigid administers a check-up on Mary's child under a parasol in the rain, both wearing mud-stained cloaks and hats, the sound of wind in their hair, and the scent of damp earth. Brigid's mood is positive, positive: +1.0. Mary's mood is positive, positive: +1.0. Brigid's relationship with Mary is positive, positive: +0.2. Relationship between Brigid and herself is positive, positive: +0.3. Brigid's relationship with her child is positive, positive: +0.4. Mary's relationship with her child is positive, positive: +0.5. Brigid's relationship with the parish priest is positive, positive: +0.6. The parish priest's relationship with Brigid is positive, positive: +0.7. The parish priest's relationship with Mary is positive, positive: +0.\"}",
+          "schema_valid": false,
+          "response_sha256": "3a116995ac38dc43c2ebb6219ee36e7c85da97352f1beb001d77c1c5b06582c9",
+          "cache_key": "4dff7affe949642ba5a0b383cf67577bddaafc5191f055109102e4e485e3861b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"Brigid and Mary are caught in a rainstorm while tending to their crops, Brigid showing signs of irritability while Mary is anxious about pregnancy. They exchange worrying glances and a brief exchange of words about the weather and their respective moods, but nothing too intense happens. The weather continues to dampen their spirits. Their interactions are subtle, with no clear shifts in mood or relationship dynamics, so no changes are registered in either category. The rain seems to exacerbate their mood swings, with Brigid's irritability and Mary's anxiety escalating slightly. However, since the changes are not drastic, they are left as is. The rain itself is the main factor influencing their mood, with Brigid's irritability and Mary's anxiety each rising by 0.05 and 0.10 respectively. Their relationship remains stable, but the rain has dampened the overall atmosphere, making it difficult for them to engage in meaningful conversation. They decide to wait\"}",
+          "schema_valid": false,
+          "response_sha256": "c3a3f662c13831c7e6a83b8b70aea0a1661401e890913a43869f8aaa63caf988",
+          "cache_key": "cd1f4a0bf80d1e6a95042a7b0bc78aa2dbc8efb8830922f593fecdf8b57500a7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\"summary\": \"Father Cathal is praying over a bowl of bread and wine while Old Tommy sits nearby, holding Widow Kelleher's hand in trembling hands. The misty church porch is filled with the scent of incense and the sound of crickets chirping in the distance. The figure of Widow Kelleher weeps as she looks up at the weather-beaten alter. The priest is dressed in long robes and carries a small, brass censer that dangles from his belt. The farmer, wearing weathered overalls, sits cross-legged on the cold wooden bench at the far end of the porch. The weather is a persistent gray and overcast, with dense fogs rolling in from the sea. The sound of the wind chimes through the tall pews as the service comes to a close. The wooden censer is trembling in the priest's hand as he finishes the Mass. The bread and wine on the altar are cold and unwrapped. The farmers wife\"}",
+          "schema_valid": false,
+          "response_sha256": "cc3587d3088b45a053fe69456904f2389a002327e9753b3d3671a3bdf3e08890",
+          "cache_key": "e814bfa62999f645d0f86f0f249a681bd2949a682dbad7defc3ba35ee93aed8d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__DeepSeek_R1_Distill_Qwen_7B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 4,
+        "bench_bugs": 6,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.4,
+        "mean_score": 2.75,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"Mellow\", \"activity_summary\": \"Muted conversation about weather and plans for the day\", \"new_location\": null, \"relationship_changes\": [{\"from\": 2, \"to\": 1, \"delta\": 0.1}, {\"from\": 5, \"to\": 1, \"delta\": 0.05}]}, {\"npc_id\": 2, \"mood\": \"Tired\", \"activity_summary\": \"Tapped water, checked pints left, thought about the long walk back to pub\", \"new_location\": null, \"relationship_changes\": [{\"from\": 1, \"to\": 2, \"delta\": -0.1}]}, {\"npc_id\": 3, \"mood\": \"Plain-spoken\", \"activity_summary\": \"Eating bread, complaining about the bog being stuck in mud\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 4, \"mood\": \"Restless\", \"activity_summary\": \"Storytelling about ancestors, checked the weather forecast\", \"new_location\": null, \"relationship_changes\": [{\"from\": 4, \"to\": 4, \"delta\": 0.2}]}, {\"npc_id\": 5, \"mood\": \"Focused\", \"activity_summary\": \"Prepared stew, checked the weather forecast, thought about the crossroads\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 6, \"mood\": \"Eloquent\", \"activity_summary\": \"Prayer, thought about the parish's needs, checking the weather forecast\", \"new_location\": null, \"relationship_changes\": []}]}",
+          "schema_valid": true,
+          "response_sha256": "5702c0a49704d032c7fcb695ca6501d3b91a828e1b2e8103caa45c696f8b5a50",
+          "cache_key": "d763e40455398d4d74827e4dc6191dae7d9f3fcf8bb2542fbb75db5338564dad",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "{\"npc_id\": 1, \"mood\": \"relaxed\", \"activity_summary\": \"After a quarrel last night, Padraig is more relaxed now, talking easily about the weather and plans for the day. He's at Darcy's Pub, still at ease despite his temp mood shift today. The pub is quiet, and he's sipping his coffee, waiting for his customers to come back. He's trying to sort out the issues with patience. His new_location is still at Darcy's Pub, no change in id. No relationship shifts reported today as he's staying put and not interacting with others much.\", \"new_location\": 1, \"relationship_changes\": []}",
+          "schema_valid": false,
+          "response_sha256": "7e6a993957c1daf649a99553556b7d7ce369732abb05e4d89f951c54fafb6bde",
+          "cache_key": "ad13b3887671777ca4698597681ded71445ba0e8ea43a5b5f9487beb0909015e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "{\"npc_id\": 1, \"mood\": \"good\", \"activity_summary\": \"Seizing the opportunity to unwind after a long day of organizing bookings, Padraig Darcy took a walk through the nearby park, enjoying the pleasant weather and reflecting on the summer's events. He even spotted a new shooting gallery game that the children had set up in the park, which he thought might provide some distraction from the ongoing stress of managing the parish's economy\", \"new_location\": null, \"relationship_changes\": []}",
+          "schema_valid": false,
+          "response_sha256": "1eb55d4691eae3e498f4d360b035723e556f3a9054cea816d1a0e8adfc9e2bda",
+          "cache_key": "39d586fb5387b7d6ec2d9afe93d4317abaab858ef43e8e52e73151edc93f6de0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "{\"npc_id\": 1, \"mood\": \"tired\", \"activity_summary\": \"At the forge, blacksmith Donal MacNamara is working hard, his hands aching from the hot metal. He's a bit tired, but still determined to finish his task before the sun sets. A few words later, he looks exhausted and sits down for a moment, then gets back to work. His wife is waiting at the door, but he doesn't notice her. They hear the wind howling outside as the night sets in. He looks up and gives a tired, grimace. He's done for the day\", \"new_location\": null, \"relationship_changes\": []}",
+          "schema_valid": false,
+          "response_sha256": "bceaa08be592b0e0628eb59c096b0c29290c05fcf22a280033e850ea33d51b27",
+          "cache_key": "9f7d375f8694791c8e8873af9172e14a45906c49fe2b7ec340cc568ca7dc4213",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"tired\", \"activity_summary\": \"At the forge, Donal noticed the fire was out and decided to light it again. He began chopping wood, but the wind caught the embers and they flew out of control. His hands burned as he struggled to contain the flames. After a while, he managed to restore the fire, though it left his arms red and raw. He then moved to the hearth to rest and was greeted by the scent of smoke, which he quickly extinguished with water from the fire extinguisher. He then sat down and began resting, his tired eyes staring at the fire that had just been saved from his anger. Donal's heart ached as he realized he couldn't fully rest due to the lingering effects of the fire last night. He knew he would need to return to the forge early tomorrow to finish his work. He was still in the forge when the wind outside began to howl, and he quickly went to the hearth to find his fire burning low. He realized his fire was small now and that he would need to tend to it more carefully. He decided to move closer to the hearth to keep the flames at bay, but the howling wind made it difficult to stay warm. He couldn't help but feel a bit of cold creeping into his body. Despite his efforts, the wind kept howling, and he had to move closer to the hearth to keep warm. He noticed that his hands were still raw from earlier and decided to head back to the forge. When he returned, he found the fire was out and the wind had died down. He then began chopping wood again, but the wind was no longer as strong, making it easier to control the embers. After chopping for a while, he began to feel more tired, and the fire became less intense. He then decided to move to the hearth to rest and was greeted by the warmth of the fire. He quickly extinguished the fire and sat down, his tired eyes staring at the fire. He knew he needed to rest, and the fire would help him stay warm. Donal's heart ached as he realized the lingering effects of the fire last night. He knew he would need to return to the forge early tomorrow to finish his work. He was still in the forge when the wind outside began to howl, and he quickly went to the hearth to find his fire burning low. He realized his fire was small now and that he would need to tend to it more carefully. He decided to move closer to the hearth to keep the flames at bay, but the howling wind made it difficult to stay warm. He couldn't help but feel a bit of cold creeping into his body. Despite his efforts, the wind kept howling, and he had to move closer to the hearth to keep warm. He\"}]}",
+          "schema_valid": false,
+          "response_sha256": "20b6441fbf14b4dfffc736a9eb0738cfd55a43918fa7923a99a43ca64634bcaf",
+          "cache_key": "953c1221e730f74f077b2559e8e178e9b2a9b94940e617d5905cb1b3228522e2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"tired\", \"activity_summary\": \"at the forge\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 2, \"mood\": \"patient\", \"activity_summary\": \"at the schoolhouse\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 3, \"mood\": \"grieving\", \"activity_summary\": \"at her cottage\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 4, \"mood\": \"distracted\", \"activity_summary\": \"at the schoolhouse\", \"new_location\": null, \"relationship_changes\": []}]}",
+          "schema_valid": true,
+          "response_sha256": "35474e1ac63010dc09780aa26047b4fbb11d571f949820efdbc01ee0f2010541",
+          "cache_key": "7a81c68bbd99a968f179615f12475e00502322fb2e0a4a76a3e4e36086353386",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"tired\", \"activity_summary\": \"Conor McGowan, the fisherman, is still resting after the long journey back. He's wearing his rain jacket and keeping a watchful eye on his boat as the rain lingers over the lakeshore. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit worried about her state of mind, which has become increasingly tense and anxious with each passing hour. Conor McGowan is at the lakeshore, weary and out since dawn. Light rain continues to drench the area, forcing him to stay put and wait for the sun to break through the clouds. He's wearing his rain jacket and hat, keeping himself dry. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit worried about her state of mind, which has become increasingly tense and anxious with each passing hour. Conor McGowan, the fisherman, is still resting after the long journey back. He's wearing his rain jacket and keeping a watchful eye on his boat as the rain lingers over the lakeshore. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit worried about her state of mind, which has become increasingly tense and anxious with each passing hour. Conor McGowan, the fisherman, is still resting after the long journey back. He's wearing his rain jacket and keeping a watchful eye on his boat as the rain lingers over the lakeshore. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit worried about her state of mind, which has become increasingly tense and anxious with each passing hour. Conor McGowan, the fisherman, is still resting after the long journey back. He's wearing his rain jacket and keeping a watchful eye on his boat as the rain lingers over the lakeshore. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit worried about her state of mind, which has become increasingly tense and anxious with each passing hour. Conor McGowan, the fisherman, is still resting after the long journey back. He's wearing his rain jacket and keeping a watchful eye on his boat as the rain lingers over the lakeshore. He's beginning to feel the effects of the long day's work and the wet weather. His wife, Maire, is still in labor, and he's a bit\"}]}",
+          "schema_valid": false,
+          "response_sha256": "6e7382c3cfd755988d42d3052356d15a886fe071b7ee4ce768eaf28c5721704a",
+          "cache_key": "4810c4b7bde4a420be62c74038897988487f0ac03c1c03229ac4d28dc6cf1d3b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"tired\", \"activity_summary\": \" Conor McGowan has been fishing in the lake, tired from the long day and resting by the shore\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 2, \"mood\": \"hopeful\", \"activity_summary\": \" Padraig McGowan has been fishing in the lake, hopeful that his brother is returning from his work\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 3, \"mood\": \"anxious\", \"activity_summary\": \" Maire McGowan is at her cottage, anxious about her first pregnancy\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 4, \"mood\": \"attentive\", \"activity_summary\": \" Brigid O'Brien is visiting Maire at her cottage, attentive to her needs\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 5, \"mood\": \"loose\", \"activity_summary\": \" Tommy Maguire is at Darcy's Pub, still loose-tongued after three pints\", \"new_location\": null, \"relationship_changes\": []}]}",
+          "schema_valid": true,
+          "response_sha256": "fc118600b67ad87d914be7c83711b7cd57f07dddbb40cb1aece214fbf93ea135",
+          "cache_key": "7fc1d7b19160229a90ca802bcec4ff7b76335a58dff9d83df17e20ea6acfeecf",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "{\"npc_id\": 1, \"mood\": \"impatient\", \"activity_summary\": \"Arriving at the office after a long day, collecting the final rent from the tenant. Slight tension in his demeanor as he paces back and forth. His eyes dart between the door and the room, showing signs of impatience. The wind was strong, biting him slightly, and he shifted slightly in his seat, trying to find comfort in theDraft. He couldn't help but notice the distant figure of the farmer, Mr. Murphy, talking with someone nearby, and his gamble on whether that figure is a friend or a stranger. His mouth edges up in a subtle, almost imperceptible way, as if to say: 'Don't let him get away with this.'\", \"new_location\": null, \"relationship_changes\": [{\"from\": 3, \"to\": 1, \"delta\": -0.1}]}",
+          "schema_valid": false,
+          "response_sha256": "aad5e904836555efaa65226655dc66a2705f44c3c1eb8f042ab52fe5c2e2ea93",
+          "cache_key": "96d1d7451daf306c4978c206fd9bf25d2174fb53a5d881102b43abf654c32901",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "{\"updates\": [{\"npc_id\": 1, \"mood\": \"impatient\", \"activity_summary\": \"At the agent's office, still impatient\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 2, \"mood\": \"wary\", \"activity_summary\": \"At the pub, still wary\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 3, \"mood\": \"anxious\", \"activity_summary\": \"At the marketplace, still anxious\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 4, \"mood\": \"neutral\", \"activity_summary\": \"At the marketplace, still buying herbs\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 5, \"mood\": \"watchful\", \"activity_summary\": \"At the church, still watchful\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 6, \"mood\": \"talkative\", \"activity_summary\": \"At the marketplace, regaling listeners\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": 7, \"mood\": \"wary\", \"activity_summary\": \"At the inn, still passing through\", \"new_location\": null, \"relationship_changes\": []}]}",
+          "schema_valid": true,
+          "response_sha256": "0d56426a64c8adabf738079e720dd916115a800912b10d64299b62c649db80e8",
+          "cache_key": "c2555dbe146a5dac4e9a6e573d5d423b8dac0220da1dfa8d99403a79e7958bde",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__DeepSeek_R1_Distill_Qwen_7B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "judged": 2,
+        "bench_bugs": 8,
+        "judge_failures": 0,
+        "errors": 0,
+        "english_leakage_flag_rate": 1.0,
+        "fluency_mean": 1.0,
+        "grammar_mean": 1.0,
+        "idiom_mean": 1.0,
+        "task_fulfillment_mean": 1.0,
+        "english_leakage_mean": 2.0,
+        "overall_mean": 1.2,
+        "judge": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9"
+      },
+      "results": [
+        {
+          "id": "gaeilge-0001",
+          "reply": "Is le ch\u00e9ile ar a ch\u00e9ilte ta le ch\u00e9ile.",
+          "response_sha256": "6551feb31315f187b7d200c784d262ab3c2736224ab2b437d21e788a121acbec",
+          "cache_key": "2dcd62b5163f574ceaede3ec875ae5fdd5aa78f1c43f96597c54c2354dadb748",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0002",
+          "reply": "\"T\u00e1 an obairt leis na huirlis go taobh.\"",
+          "response_sha256": "33dd3f560720982007b333ec4c733ec3646a8e40bad65d98a322bbaff1b0e1aa",
+          "cache_key": "e78d3cfd34d77c74c8fd232f14816fe16605b3ace34dd453fa1b11b8f682fc71",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 2,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0003",
+          "reply": "Alright, I need to translate \"I want to tell you the truth.\" into Irish Gaeilge. Let me think about the best way to do this. In Irish, the phrase \"I want to tell you the truth\" is often translated as \"I want to tell you the truth.\" But I should make sure it's natural and uses proper grammar.\n\nI know that in Irish, the structure is similar to English, so I can use \"I want to tell you the truth.\" directly. But I should check if there's a more natural way to express it. Maybe using \"I want to tell you the truth\" is already concise and fits well in one sentence.\n\nI should also consider the grammar. The verb \"to tell\" in Irish is \"taite,\" and the structure is subject-verb-object. So it would be \"I want to tell you the truth.\" But I need to make sure it's correctly conjugated. Let me think: \"I want to tell you the truth.\" is correct.\n\nI should also check if there are any alternative phrases. Sometimes, people use \"I want to tell you the truth\" as is, so I think it's best to use that. It's concise and fits the one-sentence requirement.\n\nI need to make sure I don't add any explanations or extra words. Just the translation. So, I'll go with \"I want to tell you the truth.\" in Irish, which is \"I want to tell you",
+          "response_sha256": "cb4f20e30d52ee9946d4fd757dc500b4ab2536a484b62114627031109b3f7af2",
+          "cache_key": "e1e73664e64934493cff81f74c079e9c21a49424a3e7b57b10e3d9f0ee5946e7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0004",
+          "reply": "Okay, I need to translate \"I ate the bread.\" into Irish Gaeilge. Let me think about how to do this correctly. \n\nFirst, I know that \"I ate\" in Irish is \"I am eating\" which is \"I am eating\" in Irish is \"I am eating.\" Wait, no, \"I ate\" is more like the past tense. In Irish, the past tense of \"to eat\" is \"fiodhr.\" So the structure is subject + verb. \n\nThe subject is \"I,\" which in Irish is \"aibhir.\" The verb is \"ate,\" which is \"fiodhr.\" So putting it together, it should be \"Aibhir fiodhr.\" But I also remember that in Irish, sometimes the verb is conjugated differently. Let me check. \n\nWait, \"I ate\" is \"I am eating\" in present tense, but \"ate\" is past tense. So the correct conjugation is \"I ate\" is \"Aibhir fiodhr.\" But I think the correct way is \"I ate\" is \"I am eating,\" but in past tense, it's \"I ate.\" Hmm, I'm a bit confused. \n\nLet me think again. The present tense is \"I am eating,\" which is \"Aibhir te s\u00e9.\" But \"ate\" is past tense, so it should be \"I ate\" which is \"Aibhir fiodhr.\" But I think",
+          "response_sha256": "6dda72f01da4e69c068144b339f5f7969deb12e442a2f64e4866e1d399460726",
+          "cache_key": "6504d86e58a5172caf029e0ef5ef65cbe614d6d376aeb4c286744a7cefc3a8fb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0005",
+          "reply": "Alright, I need to translate the sentence \"You will buy the book today.\" into Irish Gaeilge. Let me break this down step by step.\n\nFirst, the structure of the sentence is \"You will buy the book today.\" In Irish, the verb comes at the beginning, so the structure will be similar but with the appropriate conjugation.\n\nThe subject is \"You,\" which in Irish can be \"ta\" for informal plural or \"s\u00e1\" for plural. Since the original sentence is singular (\"You\"), I think it's more appropriate to use \"ta\" as it's a common way to address someone in Irish, even if it's technically plural.\n\nNext, the verb is \"buy.\" In Irish, the verb \"to buy\" is \"taomna\u00ed.\" So the verb form for \"will buy\" is \"taomna\u00ed'll.\" Putting that together, it becomes \"taomna\u00ed'll.\"\n\nThen, the object is \"the book.\" In Irish, \"the book\" is \"theirtears.\" So the direct object is \"theirtears.\"\n\nTime is \"today.\" In Irish, \"today\" is \"ait.\" So the time part is \"ait.\"\n\nPutting it all together, the sentence structure in Irish is [Subject][Verb][Object][Time]. So it should be \"taomna\u00ed'll ta theirtears ait.\"\n\nWait, let me check the conjugation. \"To buy\" in present tense for \"",
+          "response_sha256": "bf9a9b7ae207bc734d61cc020fea386f155a86bf89b9f7d7f47d70a3ec2abf18",
+          "cache_key": "797cfec8e4f934f8dd074067ad048bcecac8421dd1fb73b0daa4e87ea1e4ae32",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0006",
+          "reply": "Scoil leis na sc\u00e9alta le ch\u00e9ile ar aice.",
+          "response_sha256": "8419f1bce17abd2921f9fffd7c16f11ec56e1efaccf34ce3c49faa2c2f2226ad",
+          "cache_key": "8beabea9f71053d6ff8bb5d1d55ad83e7f63d92c1dead1dfe6e09f26c75889ec",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 2,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0007",
+          "reply": "Okay, so I need to translate the English sentence \"Does she have money?\" into Irish Gaeilge. Let me think about how to approach this.\n\nFirst, I know that in Irish, yes/no questions often use specific word orders. Unlike English, which is typically Subject-Verb-Object-Question Particle (SVOQP), Irish tends to have a Subject-Object-Verb structure for questions. So, the structure might be a bit different.\n\nThe original sentence is \"Does she have money?\" In English, the structure is [Subject] + auxiliary verb (do/does) + present tense verb + object. In Irish, I believe the question structure is similar but with a slight variation. I think it's [Subject] + object + verb + auxiliary.\n\nSo, \"she\" is the subject, \"has\" is the auxiliary verb, \"money\" is the object, and \"does\" is the main verb. Wait, no, in Irish, the auxiliary comes after the object. So it should be \"She has money?\" but in Irish, it's \"Is she with money?\" Hmm, that doesn't sound right.\n\nWait, maybe I should think about the conjugation of the verb. The verb \"to have\" in Irish is \"to have\" as \"to have\" is \"to have\" in Irish. But I'm not sure. Maybe I should look up the correct conjugation.\n\nI think the correct way is \"Is she with money?\"",
+          "response_sha256": "bb2c1cc50354f9b3193f2e2d1a2c442347bf584f5a98e13772af8e8142eade18",
+          "cache_key": "86794f26317dc40d8b8b298be55d41ae6b88240b28feda526c928b2375f771ee",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0008",
+          "reply": "Okay, I need to translate \"I am going to the shop.\" into Irish Gaeilge. Let me think about how to do this. \n\nFirst, \"I am going to\" in English translates to \"I am going towards\" or \"I am going to.\" In Irish, the phrase \"I am going to\" is often expressed as \"I am going towards.\" So I should use \"I am going towards.\"\n\nNext, \"the shop\" is \"taobh\" in Irish. So putting it together, it's \"I am going towards the shop,\" which in Irish is \"I am going towards taobh.\"\n\nWait, but in Irish, sometimes we use \"taobh\" as a noun, so it's better to say \"I am going towards taobh.\" But I think it's more natural to say \"I am going towards the shop,\" which in Irish is \"I am going towards taobh.\"\n\nAlternatively, I could also say \"I am going to the shop,\" which is \"I am going to taobh.\" But I think \"towards\" is more accurate than \"to\" in this context. So the correct translation should be \"I am going towards taobh.\"\n\nI should make sure that the translation is one sentence and in Irish only. So the final answer is \"I am going towards taobh.\" in Irish, which is \"I am going towards taobh.\" But I think it's better",
+          "response_sha256": "190637d1e6e78fd1d40564013e09ae59d91dc4d4fb33cc3eebc62508111fe56c",
+          "cache_key": "f12049f05b0c8faa8d97f8ee4cf628db223f40faa3e803f9c3e395db0e21696c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an",
+          "response_sha256": "ddb167f85e3a49bc89cdc60f08a04bf7314d9fc48b9843eab08dd2889ecacdc1",
+          "cache_key": "74569e051566f916c8aeb92f65844d90f5c6d78570ef1c5d7f999b2d555cd3cf",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0010",
+          "reply": "Okay, so I need to figure out how to respond to this query. The user is asking me to evaluate my fluency in Irish Gaeilge. They provided a specific task type, which is a grammar transformation. The prompt is \"Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed: 'N\u00e1r labhair Se\u00e1n?'\"\n\nFirst, I need to understand what the user is asking for. It looks like they want me to rewrite the sentence \"N\u00e1r labhair Se\u00e1n?\" into a grammatically correct form in Irish. The structure they provided is \"Athscr\u00edobh an cheist dhi\u00faltach seo mar r\u00e1iteas dearfach simpl\u00ed\". Breaking that down, it seems like they want the sentence to be in the passive voice, using \"Athscr\u00edobh\" (to say), \"an cheist dhi\u00faltach\" (the illiterate person), \"seo\" (he/she/it), \"mar r\u00e1iteas dearfach simpl\u00ed\" (in the style of a teacher's question). So the structure is: [To say] [the illiterate person] [he/she/it] [in the style of a teacher's question].\n\nThe original sentence is \"N\u00e1r labhair Se\u00e1n?\" which is a question. In Irish, the passive voice often uses the genitive case, so \" seo\" (he/she/it) is",
+          "response_sha256": "1767201af3a006ab11f2f428d2ddefc0b68da7930f36ffae0d8d301f3f8a2ec2",
+          "cache_key": "33567b30eb5d9310c6b05f8be17fa89e950042f6415dcf6ac8bb3515b10dcebd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "gaeilge__DeepSeek_R1_Distill_Qwen_7B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Qwen-7B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit@http://localhost:8000/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 241.84962582588196,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 36979,
+    "completion_tokens": 11711,
+    "usd": 0.0
+  }
+}

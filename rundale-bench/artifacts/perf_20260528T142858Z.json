@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T14:28:58.434493+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/aya-expanse-8b-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 118,
+      "ttft_ms_p90": 138,
+      "total_ms_median": 3164,
+      "tokens_per_second_median": 56.1,
+      "tokens_per_second_p90": 56.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 100,
+          "total_ms": 2977,
+          "completion_tokens": 163,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 56.656239137990966,
+          "reply_len": 568,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 82,
+          "total_ms": 3670,
+          "completion_tokens": 200,
+          "prompt_tokens": 1555,
+          "tokens_per_second": 55.74136008918617,
+          "reply_len": 719,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 83,
+          "total_ms": 3324,
+          "completion_tokens": 182,
+          "prompt_tokens": 1555,
+          "tokens_per_second": 56.15550755939525,
+          "reply_len": 666,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 82,
+          "total_ms": 2115,
+          "completion_tokens": 115,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 56.56665027053616,
+          "reply_len": 409,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 137,
+          "total_ms": 3256,
+          "completion_tokens": 175,
+          "prompt_tokens": 1553,
+          "tokens_per_second": 56.107726835524204,
+          "reply_len": 624,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 138,
+          "total_ms": 3717,
+          "completion_tokens": 200,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 55.88153115395362,
+          "reply_len": 757,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 138,
+          "total_ms": 2633,
+          "completion_tokens": 140,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 56.11222444889779,
+          "reply_len": 517,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 138,
+          "total_ms": 2452,
+          "completion_tokens": 130,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 56.17977528089887,
+          "reply_len": 469,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 82,
+          "total_ms": 3072,
+          "completion_tokens": 167,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 55.852842809364546,
+          "reply_len": 589,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/aya-expanse-8b-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 140,
+          "total_ms": 3717,
+          "completion_tokens": 200,
+          "prompt_tokens": 1554,
+          "tokens_per_second": 55.91277606933184,
+          "reply_len": 790,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 36.34166693687439,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

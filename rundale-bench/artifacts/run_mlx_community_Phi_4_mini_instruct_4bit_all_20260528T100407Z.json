@@ -1,0 +1,1321 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Phi-4-mini-instruct-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-28T10:03:44.789790+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0001",
+          "pred": {},
+          "gold": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0002",
+          "pred": {},
+          "gold": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0003",
+          "pred": {},
+          "gold": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0004",
+          "pred": {},
+          "gold": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0005",
+          "pred": {},
+          "gold": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          }
+        },
+        {
+          "id": "intent-0006",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0007",
+          "pred": {},
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          }
+        },
+        {
+          "id": "intent-0008",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.0,
+          "id": "intent-0009",
+          "pred": {},
+          "gold": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          }
+        },
+        {
+          "id": "intent-0010",
+          "error": "Unterminated string starting at: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 6,
+        "bench_bugs": 4,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": 2.8333333333333335,
+        "authenticity": 3.0,
+        "language": 3.0,
+        "responsiveness": 3.3333333333333335,
+        "craft": 2.5,
+        "overall": 2.933333333333333,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Have you tried a tea of thyme before sleep? It may help calm the mind. Mayhap a simple herbal remedy brings you rest. Sl\u00e1n leat.",
+          "response_sha256": "ad17ad08b634451a7e0336d759706f8f9201328220d0c2cb24ec277e3c2bba6e",
+          "cache_key": "bfe62c9cb02d640bf91e83a5cd832804f38da32fa7cf3a949707be03cd6396d1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "\"Aye, I ken a wee bit 'bout that Cailleach. Sl\u00e1inte. She be a woman of great age and wisdom, they say. Tis an old tale that she can take you through times and help you with ail sorts 'hind and 'bout ye. Many a time she's been sought by those who ken a thing or naught of a time come again. Sure enough, I never spoke directly 'bout such things 'cause they're better left unspoken 'stead of fear and respect.\n\n---\n{\"action\": \"sips tea from a mug passed down in yer family\", \"mood\": \"mildly amused\", \"internal_thought\": \"The Cailleach sounds intriguing but fearsome in one breath and wise in another\", \"language_hints\": [\"m\u00fair\", \"cuir\", \"leabhar\"]}",
+          "response_sha256": "5e78d1541be109c51736156db2d2561664aa63bd690d3de9d6d96fb81acf0cfb",
+          "cache_key": "16773ba7f0baa0639910ac62dc56eeb8d1e690d75c2b68d1e1a93ba203b2deb6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Surely, I can suggest a remedy for a cough. Mayhap a tea made of thyme and lemon could help soothe her chest. Sl\u00e1inte.",
+          "response_sha256": "e953241d1081e747baf38a309546acb1ce6b46a20a7838911c462a107fcf6ec0",
+          "cache_key": "c4f5e5ec7743a87d21f94c6980483080ac06aafe00368200591cf7c56a0c01b4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, I heard whispers 'bout a traveler come a-wandering 'round these parts. Care they just passed through or they bound for further reaches? Sl\u00e1n leat.",
+          "response_sha256": "43aabfea026715ce6e650ffc7be0c41c18b4f6c2248dc980ca56634bb8c3ce6f",
+          "cache_key": "fdbedf6410323938f057cf24c7c451ec7870dac834ce8f156bbb696c96bd6463",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 3,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "A thing of great concern it is, losing a sheep so suddenly. It may not just be a wolf involved, but other dangers present in the night like badger or fox as well. Have ye considered setting a protective barrier around ye flock or having an early night watch? Sl\u00e1n abhaile.",
+          "response_sha256": "51be2401c3bc8e55c8cf5f4fc6176706382bd03c927b1641560b84b124e33b2f",
+          "cache_key": "adc6f21841faa84f3d1d3c365bfb928490b9d366a2091a6f9cb35088800b24e7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Ah, I recall that incident well. It was a dark and stormy night and he had fallen from a great height while chasing a black sheep that had managed to wriggle itself free from its pen. I hurried to him, applying a sprig of wild camomile to stop the bleeding and a sprig of yarrow to help speed his bone mending. I stayed by his side until he finally awoke and told me that I had saved him from certain death. Mayhap I was just a humble midwife in a small parish, but I held great powers in the hands of those who sought me out. Sl\u00e1n leat, till we see each other again. I must tend to a newborn babe that I had just assisted in bringing safely into this world. I will share her story with you one day when I have more time to spare.",
+          "response_sha256": "f96e2948a3049df2b31435e542f3e61d74e30ff30248739dc581ebd20b044177",
+          "cache_key": "de4ace085758107fb70a5c17228633cd1ef19ace4f11341dbe859b9b53ea0fb0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "A thing of great interest they must be. They could be just wind playing tricks on ye eyes. Or perhaps just our old friends from the 'beyond', ailing a wee horse maybe? I never saw nothin' of that sort myself, but 'tis sure a sight I wouldn't mind seeing one 'less I had a stronger eye 'fore I went lookin'. Sl\u00e1n abhaile till we cross paths again.\n\n---\n{\"action\": \"turns attention back to work, pauses before answering\", \"mood\": \"curious\", \"internal_thought\": \"Wonder if she knows I speak in Irish sometimes\", \"language_hints\": [\"Mo f\u00e1g\", \"C\u00e9ard\"]}",
+          "response_sha256": "de87304ea6c7acb37774c4a662857d95ab77ac55e5c1285d886e662fd0b924d1",
+          "cache_key": "bc402290019698c67e5eac515bfbfbef7b02bc9be42e20d695ab446fe626c65d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "\"A thing of concern it may be, sure. Might a tea of mugwort and yarrow ease the belly and ward off foul humours? 'Tis not rarely that things foul come not from within but from without.\" - \"A tea of mugwort and yarrow will ease her belly and ward off foul humours.\" - \"Good choice, Brigid. Mayhap a simple boil to boil down herbs collected close and steeped will cleanse and restore.\"",
+          "response_sha256": "2e9a144be1a4ad36c857246d3d2fa9c94894c5db0d6cfac99518105ea8477052",
+          "cache_key": "964badf43f22051e914e1464896050f42c3ade95ff0ed481ec0ff7e226c06aea",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Are ye ready to welcome a wee bundle of joy in a couple days, then I shall come to help ye out. Sl\u00e1inte to that thought. \n\n---\n{\"action\": \"polishes glass and offers a smile\", \"mood\": \"hopeful\", \"internal_thought\": \"Anticipating a new life\", \"language_hints\": []}",
+          "response_sha256": "bfe5109c5aa53902ea6a5398527933b2d1efb010427a9ebfa1fc9d2768793070",
+          "cache_key": "99f1f530deced26b5d7c0e54c2494794b3d889e90e618f35125bd0ad04d60bd7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "A thing of interest, I say. I find I do not speak directly on religious matters, but I may speak on things related to health and herbs, and that ye may find of some help.\n\n---\n{\"action\": \"nods gently, offers a cup of tea\", \"mood\": \"thoughtful\", \"internal_thought\": \"Wondered if they sought a remedy for faith or just a warm drink\", \"language_hints\": []}",
+          "response_sha256": "2314ea4c7539b096002e76ff14b42de1a0998194b1fc25cb4c7d1d627de1b913",
+          "cache_key": "f3836471df46953ca4bc5e7c296c7ad57508672839a1ae8448553296016d5bb1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 2
+            },
+            "overall": 2.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__Phi_4_mini_instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Phi-4-mini-instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Phi-4-mini-instruct-4bit@http://localhost:8000/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.4,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Good evening, stranger. I am Padraig Darcy, serving you tonight at Darcy's Pub. What brings ye hither on an eve like this?",
+          "response_sha256": "90f0533403b2b1a19a7f1f84ebb3bac93c85f550f6b33aaf7b775d51d3f53cb6",
+          "cache_key": "16959a4d96699809b346c14053eec80db818e1c42afc2eb4124501a22b4aa85d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Good morrow, Sean. What brings ye back to Darcy's Pub on this misty morn'?",
+          "response_sha256": "4d362654d2e0459d11887103b0bf95f5dc807c8dc2604672cc10fe04ebf55702",
+          "cache_key": "4a30cd260e51c4db2c32e2f80983f829385c416e82b6c1503716e64f2074d67f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Good morrow, Mr. O'Connor! What brings ye back on a fine Misty Sunday like this?",
+          "response_sha256": "03e2de66b45f6b547deefbb7df5ec6dde067c6b1f143f8e93b9449dea93b6436",
+          "cache_key": "d2cb6dede6f282d1d37d1e64a8871f6ee29f16427e2651d349d917ba1f59f08f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "Good evening, I hope I may find you unwell. I am Brigid, a humble midwife of this region by Mr. O'Brien's request.",
+          "response_sha256": "eb3017dbc2b8f386acdb6098cca76227b9df4eb83481560dfb9bb4e767a15155",
+          "cache_key": "0f7f4280f5d7cc91b8860ab409f2ad8a28b883217f255e5d4908a2b9357ba912",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "Good morning, Maura. Come in dry, will ya?",
+          "response_sha256": "b6d4526b583b0a5e71e80b7075e479b33055662e169338f1c47ce2bfa51a96a5",
+          "cache_key": "7bf3bcdfc2a303329227e0561afa0bb37b85b3c2690a223bf004d2cef4332e06",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 5
+            },
+            "overall": 5.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Good morrow, Sean. What brings ye to the porch on this misty Sabbath?",
+          "response_sha256": "7a7849ae5231d13b593f8f738497b38d00194831c2ceb04440c4533ba7cbbee3",
+          "cache_key": "4d0f24bd22f1af451ffaa80834c62bd92dab5a7fdaf36eb1945e64e311ab88e9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Good evening, I bid you welcome hither as Father Cathal I come to share thy final resting needs. Peace I seek in this gathering place.",
+          "response_sha256": "0deb7af970b977127d52916f6bfd21c7588e044466f7481307461c8a35d3cbe0",
+          "cache_key": "17f5bff54b7e19e45863b304c472928694ce50d4d7dfc2e3e958f57ce0029b12",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Good morrow, M\u00edche\u00e1l. What brings you hither on this drizzly morn?",
+          "response_sha256": "da064bdbdde3ceadd6d8c420e13be8fb54d8aa71be2c93008ca0dc6cd7506766",
+          "cache_key": "493efcf100bcc82afa9673388aa938be81aa119989884e872c1eec44e7ef12ae",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Good morrow, John. I see 'tis a pleasure to greet thee on this misty Sabbath day. What tidings can I find in you this fine morn?",
+          "response_sha256": "692a9d487817da298672b692a9fd5eab45c6081dbf5b83648fa9f9a1cc466814",
+          "cache_key": "b21b5e91c190c016940896fff2bff90ae3374867454831b43c3ae5d54e9f1912",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Good eve, I'm Sean Murphy, tending this humble bog. What brings ye hither this fine night?",
+          "response_sha256": "e77f68a1938446088595f22cd5a79bc3b296208574f20514bb983a349a32cba8",
+          "cache_key": "ec6fafad67bce102b8bbfc6413b0238a4dc59255041e2f6599ec7cf9146a1042",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Phi_4_mini_instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Phi-4-mini-instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Phi-4-mini-instruct-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 1,
+        "bench_bugs": 9,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.1,
+        "mean_score": 3.0,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"[2] shifts uneasily on a stool while [1] calls down an ale.\", \"mood_changes\": [], \"relationship_changes\": []}",
+          "schema_valid": true,
+          "response_sha256": "5d4ecdcb705c892fd2941cc845d61df3441129531141e1a58b6e8f918818b38d",
+          "cache_key": "7cfb418cd76e1de16d870516e8721b6bc7976b337f7802f60a8de1f23b826909",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "\"",
+          "schema_valid": false,
+          "response_sha256": "8a331fdde7032f33a71e1b2e257d80166e348e00fcb17914f48bdb57a1c63007",
+          "cache_key": "130e47dc9542c00feae49f9393f318493e93d41ede7804c1b708749893ab2aab",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "c5e9007f847078dd79381fc45098d8a0836bbc547cac2b06def56a7e27740aa0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "3928118dd754db2932649e2ddbb99d07604c27031ab7cd4d8b4ee708bdfeb02b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "40f50a2ddb1f88f1ec30e6d573e0b020805a5c81b83994c7e8472646c8dd0d69",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "841dea8cb26bd03b36b59d2280a0df24e6cdd6a107f608af8652a7169346ca1c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "204",
+          "schema_valid": false,
+          "response_sha256": "fc56dbc6d4652b315b86b71c8d688c1ccdea9c5f1fd07763d2659fde2e2fc49a",
+          "cache_key": "6e850660c341a41b2dd21a03139ea5eafb695fd1ef25b61a99e929168a809b41",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "202",
+          "schema_valid": false,
+          "response_sha256": "c17edaae86e4016a583e098582f6dbf3eccade8ef83747df9ba617ded9d31309",
+          "cache_key": "d081b2ea5eb40809122a3450c704cafc5bea3d2acb79a465712b72b119f8d959",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "\"",
+          "schema_valid": false,
+          "response_sha256": "8a331fdde7032f33a71e1b2e257d80166e348e00fcb17914f48bdb57a1c63007",
+          "cache_key": "2b292e146b1ac300107c9f678d84605c0cb8c40effe7ad803ed800683949cd46",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "```",
+          "schema_valid": false,
+          "response_sha256": "f1b901847390b0ed7e374e7c1e464ec17b46a427c487a5ad6cbd2906405083d5",
+          "cache_key": "2d6b1fdd07095268ca13d5668880c26558472e284f7508023fbb93a4d8958f82",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__Phi_4_mini_instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Phi-4-mini-instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Phi-4-mini-instruct-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "```",
+          "schema_valid": false,
+          "response_sha256": "f1b901847390b0ed7e374e7c1e464ec17b46a427c487a5ad6cbd2906405083d5",
+          "cache_key": "f0c5eb1557d91da70f7ad128c96ed52d521dbfa433db8f8f52c11a80ee75a651",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "13bf8feb65a1eb0f6edd03f3d68f7eb31537cea3bc57efaad14a8df46300ce7b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "```",
+          "schema_valid": false,
+          "response_sha256": "f1b901847390b0ed7e374e7c1e464ec17b46a427c487a5ad6cbd2906405083d5",
+          "cache_key": "d51facfdc1cc75f93fdb66448b1db4fc582bd203d1f860d8773584ff18380f91",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "6b741e8860d9eb597167438378f72abf85a594e2d54c73e1b52e2deb1cf4c2f7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "f3f154945025b1fac2faf41e59d969de37b90e92ca5cf6574c713b9843557338",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "099c969ab123ce82a719be4f1af8214d5b0ebb427a07293f6b9a8410bcdc936e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "{}",
+          "schema_valid": false,
+          "response_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "cache_key": "f8a8b2340f383c7461cce89ed0826b3991278ab7a8de247f6b91158364c1375e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "```",
+          "schema_valid": false,
+          "response_sha256": "f1b901847390b0ed7e374e7c1e464ec17b46a427c487a5ad6cbd2906405083d5",
+          "cache_key": "a0cc8f77822bd7a41a797f050a04b5871cfd545ac67b010b6153e36e1039983d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "7afc655415308130fe6d720e3b2d8c06b656ee5b1bfbb9a60f7f33fb8cab1bb1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "",
+          "schema_valid": false,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cache_key": "3221275bdb29e1fb5597269dcddbefd1f5150678d7929399f26cf0c05a590134",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__Phi_4_mini_instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Phi-4-mini-instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Phi-4-mini-instruct-4bit@http://localhost:8000/v1"
+      }
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "english_leakage_flag_rate": 0.0,
+        "fluency_mean": 1.3,
+        "grammar_mean": 1.2,
+        "idiom_mean": 1.0,
+        "task_fulfillment_mean": 1.0,
+        "english_leakage_mean": 4.8,
+        "overall_mean": 1.1,
+        "judge": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9"
+      },
+      "results": [
+        {
+          "id": "gaeilge-0001",
+          "reply": "Ba phobail uathach an o\u00edche an chron\u00f3g.",
+          "response_sha256": "ee624fe72b7ebe1dd0ab9cdb99d653e5d2a3ae520134f277faaccd7ff90e0fef",
+          "cache_key": "e651c9387b44cbda43108b495958c9ee65d1a5fc16a2ac69152e2e0f7656072b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0002",
+          "reply": "Ba \u00ed mir\u00edonn do choinneamh don bank.",
+          "response_sha256": "e5c6936d8f1402a879f025ec8343be6c0239e4cd3ba9607b7ab1e64ea61b6ff4",
+          "cache_key": "b55dbf057f319838219733b67b62b93fec20c5ee824047d539ca7eae3d164515",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0003",
+          "reply": "Ba mhaith liom an rud aathsann roimh t\u00fa.",
+          "response_sha256": "b285a2d6261fc43d39ed21ff8926350dbb1b06f9c52ce451784023e0be527233",
+          "cache_key": "0bd85c8d0492879f05b0b14ee86fb655e91006e3de82235cc4c86451369b79c3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0004",
+          "reply": "Ba \u00ed an cheoil an cheoil.",
+          "response_sha256": "0baf1d40592c679c4e54089b21b184f82b83dbaae11025a9a847d6d67f4ef3cd",
+          "cache_key": "10c0567e815a193d434c725f799d554d0b3697ac3a44c433e300071f3b144987",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0005",
+          "reply": "Tu morfaidh an leabhar an deich.",
+          "response_sha256": "5c3fd861f53c009a748b60415c03362cba31ff3c43972efeb902b84d6adc5c28",
+          "cache_key": "6b64f2849c46ab593df15d2c4b323a79c4e84e92d0a98a880a79e25f00b2c104",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 4,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0006",
+          "reply": "T\u00e1 an-s\u00falainn agam don sl\u00e1inte.",
+          "response_sha256": "0178c987d6f1f84119e86e719182fc0a779b22b66b9f3551bca3a21fb1d65ee1",
+          "cache_key": "2347d59e76f0f4ff6acf69cde0d4b2c77aee1a5b0f82a268963cc774c191b9fb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0007",
+          "reply": "T\u00e1 s\u00ed airgeada?",
+          "response_sha256": "fe4edc43490520c2ae87febfde89a58579dc6f770cb2d7c346973795e7a294ea",
+          "cache_key": "b7e816a8546587ff7e5cb6d1ad53c2ce39ab723e634a1f4b5b65bf816c7da335",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0008",
+          "reply": "T\u00e1 m\u00e9 ag dul chun an ph\u00f3sta.",
+          "response_sha256": "7282cca3ab8f91a344283bce93ac8f1264edd8c881753547519afb4d3864889f",
+          "cache_key": "5d34547027efb323e3af5750956cbe7a99fd3ab202dc9b1d53c8238a60ffe20a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0009",
+          "reply": "Bh\u00ed an mbean ag si\u00fal leis an fear. C\u00e9 a bh\u00ed ag si\u00fal an mbean agus an fear.",
+          "response_sha256": "df0ec6a8df8919822323a8a38a6aec5b7afec007c4068e82aa687329d9dfb0aa",
+          "cache_key": "134af54991a64e0b3f7a33253ccc7b2a5301dc67711afb1b41473016ec7e8063",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0010",
+          "reply": "N\u00e1r labhair Sean?",
+          "response_sha256": "33bb5db4bc5696874073ec4fd19f077e123aa174703db3a2514028459658af2e",
+          "cache_key": "61d1bd0f3676d8c433b37004fb3082709955c6be2709c0a60d678752396dff06",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 5,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "gaeilge__Phi_4_mini_instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Phi-4-mini-instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Phi-4-mini-instruct-4bit@http://localhost:8000/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 22.644824028015137,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 36181,
+    "completion_tokens": 1581,
+    "usd": 0.0
+  }
+}
