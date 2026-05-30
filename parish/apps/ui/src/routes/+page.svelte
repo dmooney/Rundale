@@ -367,6 +367,13 @@
 					return;
 				}
 
+				// Movement renders the full arrival scene here (with NPCs + exits).
+				// Suppress the shorter scene line the imminent world-update would
+				// otherwise append, so the location prints once, not twice.
+				if (payload.subtype === 'location') {
+					sceneDedup.suppressNextDescription();
+				}
+
 				// Strip "> " prefix from player messages — bubble alignment shows speaker
 				const content =
 					payload.source === 'player' && payload.content.startsWith('> ')
