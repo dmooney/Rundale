@@ -221,6 +221,25 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 		await assertion;
 	});
 
+	it('does NOT time out POST mutations (e.g. submit_input with a slow NPC turn)', async () => {
+		vi.useFakeTimers();
+		let aborted = false;
+		// A slow POST that resolves only after 60s and records any abort.
+		vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
+			new Promise<Response>((resolve) => {
+				init?.signal?.addEventListener('abort', () => {
+					aborted = true;
+				});
+				setTimeout(() => resolve(new Response('')), 60_000);
+			})
+		);
+		const ipc = await loadIpc();
+		const p = ipc.command('submit_input', { text: 'hello', addressedTo: [] });
+		await vi.advanceTimersByTimeAsync(60_000);
+		await expect(p).resolves.toBeUndefined();
+		expect(aborted).toBe(false);
+	});
+
 	it('getAuthStatus returns parsed status in web mode', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ oauth_enabled: true, logged_in: false }))

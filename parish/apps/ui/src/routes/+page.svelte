@@ -504,10 +504,14 @@
 				for (const r of [snapRes, mapRes, npcsRes]) {
 					if (r.status === 'rejected') console.warn('Reconnect resync partial failure:', r.reason);
 				}
-				// If a stream-end was dropped during the gap, nothing else clears this.
-				if (!sm.isChainInProgress() && sm.pendingTurnCount() === 0) {
-					streamingActive.set(false);
-				}
+				// Any turn that was streaming when the socket dropped is now
+				// orphaned — its remaining tokens and stream-end were lost during
+				// the gap, so pendingTurnCount()/chainInProgress would otherwise
+				// stay non-zero forever and leave the input disabled. The refetched
+				// snapshot is authoritative, so discard the stale stream state and
+				// clear the streaming flag unconditionally.
+				sm.reset();
+				streamingActive.set(false);
 			}));
 
 		} catch (e) {

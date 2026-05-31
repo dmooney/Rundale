@@ -36,14 +36,20 @@ import type {
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /**
- * Hard ceiling for a single HTTP command in web mode.
+ * Hard ceiling for a single HTTP **read** in web mode.
  *
- * The synchronous `/api/*` endpoints are all fast reads or fire-and-forget
- * posts (NPC inference streams back over the WebSocket, not the POST body), so
- * a request that runs this long means the server is wedged. Without a bound a
- * hung server leaves the mount-time `Promise.allSettled` pending forever and
- * the UI shows a permanent partial load with no error (audit M6). On abort we
- * reject so the caller's error path runs.
+ * Bounds only argless GET reads (world snapshot, map, npcs, theme, ui-config,
+ * debug snapshot — the mount-time load). Without a bound a hung server leaves
+ * the mount `Promise.allSettled` pending forever and the UI shows a permanent
+ * partial load with no error (audit M6). On abort we reject so the caller's
+ * error path runs.
+ *
+ * POST mutations are deliberately NOT bounded: `submit_input` awaits the full
+ * server-side game loop (NPC inference can legitimately run far longer than
+ * this even though tokens stream over the WebSocket), and provider-config /
+ * bug-report posts dial external services. Aborting those mid-flight would
+ * surface a spurious "timeout", re-enable the input, and risk duplicate turns
+ * while the backend is still working.
  */
 const COMMAND_TIMEOUT_MS = 30_000;
 
@@ -56,23 +62,24 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	}
 	// Web mode: REST API
 	const endpoint = `/api/${name.replace(/^get_/, '').replace(/_/g, '-')}`;
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS);
+	// Bound reads only (see COMMAND_TIMEOUT_MS): a GET has no args, a mutation does.
+	const controller = args ? null : new AbortController();
+	const timer = controller ? setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS) : null;
 	let resp: Response;
 	try {
 		resp = await fetch(endpoint, {
 			method: args ? 'POST' : 'GET',
 			headers: args ? { 'Content-Type': 'application/json' } : {},
 			body: args ? JSON.stringify(args) : undefined,
-			signal: controller.signal
+			signal: controller?.signal
 		});
 	} catch (e) {
-		if (controller.signal.aborted) {
+		if (controller?.signal.aborted) {
 			throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
 		}
 		throw e;
 	} finally {
-		clearTimeout(timer);
+		if (timer) clearTimeout(timer);
 	}
 	if (!resp.ok) {
 		throw new Error(`API error: ${resp.status} ${resp.statusText}`);

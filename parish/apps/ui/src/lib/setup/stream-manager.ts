@@ -67,6 +67,10 @@ export interface StreamManager {
 	pendingTurnCount: () => number;
 	hasPendingEndHints: () => boolean;
 	isChainInProgress: () => boolean;
+	/** Discards all in-flight stream state without tearing the manager down.
+	 *  Used on WebSocket reconnect, where any pending turn is orphaned (the
+	 *  remaining tokens / stream-end were lost during the gap). */
+	reset: () => void;
 	dispose: () => void;
 }
 
@@ -298,12 +302,16 @@ export function createStreamManager(): StreamManager {
 		return chainInProgress;
 	}
 
-	function dispose() {
+	function reset() {
 		pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 		pendingNpcTurns.clear();
 		pendingStreamEndHints = null;
 		chainInProgress = false;
 		activeTurnId = null;
+	}
+
+	function dispose() {
+		reset();
 	}
 
 	return {
@@ -322,6 +330,7 @@ export function createStreamManager(): StreamManager {
 		pendingTurnCount,
 		hasPendingEndHints,
 		isChainInProgress,
+		reset,
 		dispose
 	};
 }
