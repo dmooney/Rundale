@@ -309,6 +309,18 @@ impl GitHubBugConfig {
         }
     }
 
+    /// Async resolver for use on a Tokio runtime. Identical to [`from_env`],
+    /// but the blocking `gh auth token` subprocess (via [`gh_cli_token`]) runs
+    /// on the blocking pool so it never stalls an async worker thread. Prefer
+    /// this from IPC/request handlers; keep [`from_env`] for sync callers/tests.
+    ///
+    /// [`from_env`]: Self::from_env
+    pub async fn from_env_async() -> Self {
+        tokio::task::spawn_blocking(Self::from_env)
+            .await
+            .unwrap_or_else(|_| Self::from_env())
+    }
+
     /// Whether this submission will avoid the network — either because dry-run
     /// is forced or because no token is available to authenticate with.
     pub fn is_offline(&self) -> bool {
