@@ -536,6 +536,7 @@ fn apply_festival_detected(festival: &Festival, timestamp: DateTime<Utc>) -> Vec
     vec![GameEvent::FestivalStarted {
         name: festival.to_string(),
         timestamp,
+        location: None,
     }]
 }
 

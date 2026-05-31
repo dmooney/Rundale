@@ -281,7 +281,9 @@ impl LocationLogManager {
                     let Some(path) = path_for(loc_id) else {
                         continue;
                     };
-                    append_journal_entry(&path, ts, Some("Weather"), &body)?;
+                    if let Err(e) = append_journal_entry(&path, ts, Some("Weather"), &body) {
+                        tracing::warn!(?loc_id, "failed to write weather to location journal: {e}");
+                    }
                 }
             }
             GameEvent::FestivalStarted { name, .. } => {
@@ -295,7 +297,12 @@ impl LocationLogManager {
                     let Some(path) = path_for(loc_id) else {
                         continue;
                     };
-                    append_journal_entry(&path, ts, Some(&heading), &body)?;
+                    if let Err(e) = append_journal_entry(&path, ts, Some(&heading), &body) {
+                        tracing::warn!(
+                            ?loc_id,
+                            "failed to write festival to location journal: {e}"
+                        );
+                    }
                 }
             }
             GameEvent::LifeEvent {
@@ -1179,6 +1186,7 @@ mod tests {
         let event = GameEvent::FestivalStarted {
             name: "Bealtaine".to_string(),
             timestamp: ts(),
+            location: None,
         };
         mgr.process_event(&event, &world, &npcs).unwrap();
 

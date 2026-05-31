@@ -1,0 +1,147 @@
+# PR #1155 — WeatherChanged fan-out to NPC diaries
+# Goal: trigger at least one natural weather transition and confirm
+# that NPC diary files receive a Weather entry alongside player.md.
+# FestivalStarted is verified via unit tests (no /festival command exists).
+
+# 1. Baseline
+/status
+/time
+/debug clock
+/npcs
+
+# 2. Enable fast mode and advance in 120-minute increments
+/speed fast
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+# 3. Check after ~20 hrs game time
+/debug clock
+/npcs
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+# 4. Check after ~40 hrs game time
+/debug clock
+/npcs
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+# 5. Final check after ~60 hrs game time
+/debug clock
+/status
+/npcs
+/map
