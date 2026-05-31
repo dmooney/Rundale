@@ -1,4 +1,7 @@
 {
+  "env": {
+    "MCP_TIMEOUT": "900000"
+  },
   "hooks": {
     "PreToolUse": [
       {
