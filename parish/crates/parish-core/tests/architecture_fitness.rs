@@ -265,6 +265,89 @@ fn minute_counts_pluralize_through_helper() {
     );
 }
 
+/// `(src-relative path, Command variant)` pairs that are knowingly handled
+/// inside an entry-point crate instead of delegating to the shared
+/// `parish_core::ipc::commands::handle_command`. Every entry MUST cite why
+/// the local handling exists and a tracking issue for its removal.
+///
+/// The synchronous CLI/script/test harness in `parish-engine` has no async
+/// background game loop, so it inlines the world-advance pump (weather tick,
+/// schedule→narration, banshee, gossip, tier-4) that `parish-server` and
+/// `parish-tauri` drive from a continuous loop. Removing these arms requires
+/// extracting that pump into a shared `EventEmitter`-parameterized core
+/// helper — tracked in #1159.
+const ALLOWED_LOCAL_COMMAND_HANDLERS: &[(&str, &str)] = &[
+    ("crates/parish-engine/src/testing.rs", "Wait"),
+    ("crates/parish-engine/src/testing.rs", "Tick"),
+];
+
+/// Rule #12 structural sensor: cross-runtime orchestration belongs in
+/// `parish-core`, parameterized over runtime concerns via traits — entry-point
+/// crates are limited to thin wiring.
+///
+/// The canonical player-command dispatcher is
+/// `parish_core::ipc::commands::handle_command`, which exhaustively matches
+/// every `Command` variant once. Any `Command::<Variant> =>` match arm in an
+/// entry-point crate (`parish-engine`, `parish-server`, `parish-tauri`) is a
+/// second, divergent implementation of an orchestration body — the exact
+/// copy-paste drift that let #1156's "1 minutes" survive in the headless
+/// harness and that #687/#696 warn about. Entry points must call the shared
+/// handler and dispatch its returned effects, not re-handle commands inline.
+#[test]
+fn entry_point_crates_do_not_reimplement_shared_commands() {
+    let ws = workspace_root();
+    const ENTRY_POINTS: &[&str] = &["parish-engine", "parish-server", "parish-tauri"];
+
+    // `Command::Variant` optionally with a tuple/struct payload, then `=>` on
+    // the same arm — i.e. a match arm, not a `Command::Wait(60)` construction
+    // (those terminate in `;`/`,`/`)` before any `=>`).
+    let re = regex::Regex::new(r"Command::([A-Z][A-Za-z0-9_]*)[^;\n]*=>")
+        .expect("static regex compiles");
+
+    let mut violations: Vec<String> = Vec::new();
+    for crate_name in ENTRY_POINTS {
+        let src = ws.join("crates").join(crate_name).join("src");
+        let mut files = Vec::new();
+        walk_rs_files(&src, &mut files);
+        for f in files {
+            let rel = f
+                .strip_prefix(&ws)
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| f.display().to_string());
+            let body = fs::read_to_string(&f).unwrap_or_default();
+            for (i, raw_line) in body.lines().enumerate() {
+                let line = raw_line.split("//").next().unwrap_or("");
+                for cap in re.captures_iter(line) {
+                    let variant = &cap[1];
+                    if ALLOWED_LOCAL_COMMAND_HANDLERS
+                        .iter()
+                        .any(|(p, v)| rel.replace('\\', "/") == *p && v == &variant)
+                    {
+                        continue;
+                    }
+                    violations.push(format!("{rel}:{} — Command::{variant}", i + 1));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Rule #12 violation — entry-point crate(s) re-implement a shared \
+         command handler instead of delegating:\n  - {}\n\n\
+         FIX: route the command through \
+         `parish_core::ipc::commands::handle_command` and dispatch the returned \
+         `CommandEffect`s; put any shared orchestration body, constant, or \
+         payload struct in `parish-core` parameterized over `EventEmitter`. \
+         Copy-pasting an orchestration arm into a second entry point produces \
+         invisible drift (#687, #696; it is how #1156 reached the headless \
+         harness). If the local handling is genuinely unavoidable, add it to \
+         ALLOWED_LOCAL_COMMAND_HANDLERS with a justification and a tracking \
+         issue. See CLAUDE.md rule #12 and docs/agent/architecture.md.",
+        violations.join("\n  - "),
+    );
+}
+
 fn list_top_level_modules(src: &Path) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     if !src.is_dir() {
