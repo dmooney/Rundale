@@ -1,11 +1,13 @@
 {
   "judge_id": "judge_sim_v1",
-  "model": "qwen/qwen3-235b-a22b-2507",
-  "base_url": "https://openrouter.ai/api/v1",
-  "api_key_env": "OPENROUTER_API_KEY",
+  "model": "claude-sonnet-4-6",
+  "judge_via": "claude-code-subagent",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": null,
+  "system_prompt_file": "judge_sim_v1.system.md",
   "temperature": 0,
   "seed": null,
-  "rubric": "You are an impartial judge scoring background-NPC simulation output for a game set in rural Ireland, 1820. The model returned JSON describing a scene or batch of NPC activity. Schema-validity has already been checked separately \u2014 your job is plausibility.\n\nScore 1-5 on PLAUSIBILITY (5 = best). Penalise:\n- mood transitions that don't follow from the scene (sudden rage with no trigger),\n- relationship deltas outside the -0.1..0.1 band the prompt allows,\n- activity summaries with modern vocabulary or anachronisms,\n- summaries that ignore the dramatis personae or location,\n- batch outputs missing NPCs the prompt named.\n\nOutput ONLY a JSON object: {\"plausibility\": <int 1-5>}. No prose.",
+  "rubric": "You are an impartial judge scoring background-NPC simulation output for a game set in rural Ireland, 1820. The model returned JSON describing a scene or batch of NPC activity. Schema-validity has already been checked separately — your job is plausibility.\n\nScore 1-5 on PLAUSIBILITY (5 = best). Penalise:\n- mood transitions that don't follow from the scene (sudden rage with no trigger),\n- relationship deltas outside the -0.1..0.1 band the prompt allows,\n- activity summaries with modern vocabulary or anachronisms,\n- summaries that ignore the dramatis personae or location,\n- batch outputs missing NPCs the prompt named.\n\nOutput ONLY a JSON object: {\"plausibility\": <int 1-5>}. No prose.",
   "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a",
   "axes": [
     "plausibility"
@@ -14,6 +16,6 @@
     1,
     5
   ],
-  "snapshot_date": "2026-05-13",
-  "notes": "Qwen3-235B-A22B via OpenRouter ($0.07/$0.10 per M; ~\\$0.0001/call). Chosen for: low spend, large capacity, qwen family (cross-vendor from Anthropic/OpenAI targets), reliable response_format support, no upstream Venice-class rate-limit pool. Swap to deepseek/* or another OpenRouter model by editing model + recomputing rubric_sha256 if rubric text also changes."
+  "snapshot_date": "2026-05-26",
+  "notes": "Simulation judge migrated 2026-05-26 from qwen/qwen3-235b-a22b-2507@OpenRouter HTTP to claude-sonnet-4-6 via claude-code-subagent. Rubric text + rubric_sha256 unchanged. Cross-judge comparability: pre-migration runs (judged by Qwen3-235B-A22B) and post-migration runs (judged by Sonnet) score the same rubric but with different graders; the leaderboard groups by judge for direct comparison. base_url/api_key_env recorded for provenance only; subagent path uses neither."
 }

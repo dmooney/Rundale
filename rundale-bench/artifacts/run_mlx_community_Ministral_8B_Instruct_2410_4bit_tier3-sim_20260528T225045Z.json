@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:49:00.838216+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 3,
+        "bench_bugs": 7,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": 3.6666666666666665,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "```json\n{\n  \"updates\": [\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Served drinks to regulars and newcomers alike.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Served drinks and cleaned the pub.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Collected peat from the bog.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Shared stories with travelers at the crossroads.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Visited a neighbor's cottage to check on their health.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Spend time in prayer and reflection.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Played a game of chess with a regular.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Served a round of drinks to a group of farmers.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Heard a story from a traveler about a nearby fair.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Heard a story from a traveler about a nearby fair.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Visited another neighbor to check on their health.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Spend time in prayer and reflection.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Played a game of chess with a regular.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"n",
+          "schema_valid": false,
+          "response_sha256": "9fc24c7ab3e058b0f3e5bacb2b4ae118bc5fa182cb7bf2259e55a2088413cb85",
+          "cache_key": "69f9cd3cb6b161f6240999f4464097897f6014ddd7a0bf596c59caad79f59e4c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "```json\n{\n  \"updates\": [\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Served drinks to regulars and tourists alike, making sure to diffuse the tension from the previous night's quarrel.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Assisted Padraig with the evening rush, making sure to keep the atmosphere light and avoid any uncomfortable conversations.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Finished his work at the bog and headed back to his farmhouse for lunch.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Continued telling stories to anyone who would listen at the crossroads, trying to spread some levity after the quarrel.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Finished her morning visits and returned to her cottage to rest and prepare for evening duties.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Spent the afternoon in prayer and reflection, trying to make sense of the recent unrest in the parish.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Served evening meals to the locals and tourists, making sure to spread some warmth and hospitality.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Assisted with evening cleanup and restocking of the pub.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"satisfied\", \"activity_summary\": \"Finished his evening chores and relaxed with a cup of tea.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"content\", \"activity_summary\": \"Finished his evening stories and headed home for the night.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Prepared for evening duties and attended to any urgent requests from the community.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6",
+          "schema_valid": false,
+          "response_sha256": "b2b44dd34667ffb33f5cfe9c6a98e15c6810cdcee6c5fdfc2df75f2f560d1766",
+          "cache_key": "e42f3ff294de089157d077d4768c2cf08fb58228b7e1eae1113ff200dd9ec023",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "```json\n{\n  \"updates\": [\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Served drinks to regulars and newcomers alike, enjoying the good tidings of the day.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Assisted Padraig with the evening rush of customers, making sure everyone was well-served.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"hungry\", \"activity_summary\": \"Finished his work at the bog and headed back to the farmhouse for lunch.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"restless\", \"activity_summary\": \"Shared stories with the few travelers who stopped at the crossroads, making a few new acquaintances.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"focused\", \"activity_summary\": \"Visited the widowed Mrs. O'Connor to check on her health and provide some comfort.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"contemplative\", \"activity_summary\": \"Spent time in prayer and reflection, preparing for the evening Mass.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"content\", \"activity_summary\": \"Closed the pub for the evening, making sure the premises were tidy for the next day.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"tired\", \"activity_summary\": \"Help Padraig clean the pub and restock the supplies for the next day.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"satisfied\", \"activity_summary\": \"Finished his evening meal and relaxed with his family.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"content\", \"activity_summary\": \"Heard the evening Mass and socialized with the other parishioners.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"kind\", \"activity_summary\": \"Visited the elderly Mrs. Kennedy to check on her health and provide some comfort.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"contemplative\", \"",
+          "schema_valid": false,
+          "response_sha256": "12229a083f1b41e5ff5a56825cecf01041c411bd3b8c3980f1e6df0d85012fc7",
+          "cache_key": "b453880875ec6bd760e85ac65746737d5b2f0a3866b46e59d68a9995c218d4fa",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Tired\",\n      \"activity_summary\": \"Spends the morning at the forge, making repairs to the village's tools and equipment.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient\",\n      \"activity_summary\": \"Teaches the pupils at the schoolhouse, making sure to help Eamon Kelleher stay focused despite his distraction.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 2, \"delta\": 0.1}\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Grieving\",\n      \"activity_summary\": \"Sits by the hearth in her cottage, lost in thought and memories of her lost son.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted\",\n      \"activity_summary\": \"Sits in the back of the schoolhouse, trying to focus on the lesson but often looking out the window.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 1, \"delta\": -0.1}\n      ]\n    }\n  ]\n}\n```",
+          "schema_valid": false,
+          "response_sha256": "6ce660810b75f348fd29fb34bd27aed2f6814ce3d35502a1dac605ab5a976046",
+          "cache_key": "12daecba89aa6e0696027051dff1ba4ca6218545658599c7661d4fb90d2f7f21",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Tense\",\n      \"activity_summary\": \"Sits at the forge, making repairs to the tools he used last night during the quarrel.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 2, \"to\": 1, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 1, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Concerned\",\n      \"activity_summary\": \"Sits at the schoolhouse, trying to teach but is distracted by the tension in the village.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 3, \"to\": 2, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Sad\",\n      \"activity_summary\": \"Sits at her cottage, lost in thought about her lost son.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 1, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 3, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted\",\n      \"activity_summary\": \"Sits at the schoolhouse, not fully engaged in the lesson.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 3, \"to\": 4, \"delta\": -0.1}\n      ]\n    }\n  ]\n}\n```",
+          "schema_valid": false,
+          "response_sha256": "03cfd48c7040913087b0891eb1050ae81903ccae0bd4ea13397958d5cf2b4219",
+          "cache_key": "c68eb8551abba976f2013725f166a6b711e7ce603b8c3e774c70befaed907c09",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Slightly content\",\n      \"activity_summary\": \"He worked diligently at the forge, making a few repairs for the widows of the parish.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 3, \"to\": 1, \"delta\": 0.1},\n        {\"from\": 4, \"to\": 1, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Encouraging\",\n      \"activity_summary\": \"He taught the pupils diligently, making sure to include the widows' son in the lesson.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 2, \"delta\": 0.1},\n        {\"from\": 1, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 3, \"to\": 2, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Slightly hopeful\",\n      \"activity_summary\": \"She tidied her cottage and made a small effort to bake some bread for the widows' son.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 3, \"delta\": 0.1},\n        {\"from\": 1, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 3, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted but content\",\n      \"activity_summary\": \"He attended the lesson but seemed uncomfortable, probably thinking about his father.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 3, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 4, \"delta\": -0.1}\n      ]\n    }\n  ]\n}\n```",
+          "schema_valid": false,
+          "response_sha256": "9d81dc04f89f4801b0e504e38d4338a4695fb9326bf00c2418ebe7269242b04d",
+          "cache_key": "f401e39a6ba4f09506326f2fdf4ee2ccf7a4ad64265425c52c1ecc8907735d7e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Weary but content\",\n      \"activity_summary\": \"Conor returns home after a long day of fishing, unloading his catch and tidying up his boat.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 2, \"to\": 1, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 1, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 1, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Hopeful but tired\",\n      \"activity_summary\": \"Padraig returns home after a day of fishing, eager to rest but excited about the day's catch.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 4, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 2, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Anxious but relieved\",\n      \"activity_summary\": \"Maire visits the local midwife for her weekly check-up, feeling some relief but still nervous about the pregnancy.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 1, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 3, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Attentive but worn down\",\n      \"activity_summary\": \"Brigid returns home after her visit to Maire, worn down but satisfied with the check-up.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 3, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 1, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 4, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"Loose-tongued",
+          "schema_valid": false,
+          "response_sha256": "833bd6aebe893c371ddabccdc345b475009d04c4add17697f9ba49e375cfb806",
+          "cache_key": "c2e472e750c37badbf1b2f6617e37f3225ed254c9729d92af1437d3bdd3e02da",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Relieved\",\n      \"activity_summary\": \"Heard the good news and decided to rest for the evening.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 2, \"to\": 1, \"delta\": 0.1},\n        {\"from\": 4, \"to\": 1, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 1, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Encouraged\",\n      \"activity_summary\": \"Heard the good news and decided to rest for the evening.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 2, \"delta\": 0.1},\n        {\"from\": 4, \"to\": 2, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 2, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Calm\",\n      \"activity_summary\": \"Heard the good news and relaxed for the evening.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 4, \"to\": 3, \"delta\": 0.1},\n        {\"from\": 5, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 1, \"to\": 3, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 3, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Satisfied\",\n      \"activity_summary\": \"Finished her weekly check and left for home.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 2, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 3, \"to\": 4, \"delta\": -0.1},\n        {\"from\": 5, \"to\": 4, \"delta\": -0.1}\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"Mellow\",\n      \"activity_summary\": \"Heard the good news and continued drinking but slowed down.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\"from\": 1, \"to\": 5, \"delta\": -0.1",
+          "schema_valid": false,
+          "response_sha256": "977d55cf10e4195441fca24c2ba67a765635488c998308db67f6213c815ad3fb",
+          "cache_key": "69063cd2e40fa421cf62634d5241bb0d5bf2ecbfae6ca3bb242a7b01a49b3a08",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "```json\n{\n  \"updates\": [\n    {\"npc_id\": 1, \"mood\": \"Impatient\", \"activity_summary\": \"Mister Spencer is collecting rents and is growing increasingly uncomfortable with the slow pace of the farmers' arrivals.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"Wary\", \"activity_summary\": \"Padraig Darcy is tending to the pub but is uncomfortable with the quarter he owes to the land agent.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"Anxious\", \"activity_summary\": \"Sean Murphy is selling oats at the marketplace but is nervous about the prices he is getting.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"Neutral\", \"activity_summary\": \"Brigid O'Brien is shopping for herbs at the marketplace without any particular urgency.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"Watchful\", \"activity_summary\": \"Father Cathal is preparing for the Mass after lunch but is vigilant about the windy conditions.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"Talkative\", \"activity_summary\": \"Tommy Maguire is regaling listeners with stories at the marketplace but is uncomfortable with the wind.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 7, \"mood\": \"Wary\", \"activity_summary\": \"Sergeant Whitcombe is staying at the inn but is uncomfortable with the quarter he owes to the land agent.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"Impatient\", \"activity_summary\": \"Mister Spencer is collecting rents and is growing increasingly uncomfortable with the slow pace of the farmers' arrivals.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"Wary\", \"activity_summary\": \"Padraig Darcy is tending to the pub but is uncomfortable with the quarter he owes to the land agent.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"Anxious\", \"activity_summary\": \"Sean Murphy is selling oats at the marketplace but is nervous about the prices he is getting.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"Neutral\", \"activity_summary\": \"Brigid",
+          "schema_valid": false,
+          "response_sha256": "4aafac75147c2b8a036ab8d5e3645c527c1e684abbebe59450b15bbf5c324b0c",
+          "cache_key": "2d4a78008f8b0b2f2295ec6ee6d1b001579cdfa975407c9c290fc3f2dd7f2fa6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "```json\n{\n  \"updates\": [\n    {\"npc_id\": 1, \"mood\": \"Impatient\", \"activity_summary\": \"Mister Spencer is collecting rents and is growing increasingly uncomfortable with the farmers' slow payment.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"Wary\", \"activity_summary\": \"Padraig Darcy is tending to his pub but is uncomfortable with the quarter he owes.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"Anxious\", \"activity_summary\": \"Sean Murphy is selling his oats at the marketplace but is nervous about the prices he's getting.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"Neutral\", \"activity_summary\": \"Brigid O'Brien is shopping for herbs at the marketplace without any particular worries.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 5, \"mood\": \"Watchful\", \"activity_summary\": \"Father Cathal is preparing for the Mass after lunch and is attentive to the parishioners' needs.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 6, \"mood\": \"Talkative\", \"activity_summary\": \"Tommy Maguire is regaling listeners with stories at the marketplace and is enjoying the attention.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 7, \"mood\": \"Wary\", \"activity_summary\": \"Sergeant Whitcombe is staying at the inn but is uncomfortable with the rumors he's hearing about the quarter he owes.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 1, \"mood\": \"Impatient\", \"activity_summary\": \"Mister Spencer is collecting rents and is growing increasingly uncomfortable with the farmers' slow payment.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 2, \"mood\": \"Wary\", \"activity_summary\": \"Padraig Darcy is tending to his pub but is uncomfortable with the quarter he owes.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 3, \"mood\": \"Anxious\", \"activity_summary\": \"Sean Murphy is selling his oats at the marketplace but is nervous about the prices he's getting.\", \"new_location\": null, \"relationship_changes\": []},\n    {\"npc_id\": 4, \"mood\": \"Neutral\", \"activity_summary\": \"Brigid O'Brien is shopping for herbs at the marketplace without any",
+          "schema_valid": false,
+          "response_sha256": "916d70b9c31ad54c556cf8be8b9d24e676b5f88b0b4045b4860426e1b2a88a5f",
+          "cache_key": "6674002ec8f1eec4038fb30516581ca35064a4bf6e7ce532fdfdb46642dc8c90",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__Ministral_8B_Instruct_2410_4bit"
+      ],
+      "candidate": {
+        "model_id": "Ministral-8B-Instruct-2410-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Ministral-8B-Instruct-2410-4bit@http://127.0.0.1:8767/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 104.39336800575256,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2968,
+    "completion_tokens": 5554,
+    "usd": 0.0
+  }
+}

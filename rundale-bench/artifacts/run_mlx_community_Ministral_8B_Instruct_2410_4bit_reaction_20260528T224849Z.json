@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:48:44.098130+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 7,
+        "bench_bugs": 3,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.5714285714285716,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Ah, welcome to Darcy's. I'm Padraig. What can I get ya?",
+          "response_sha256": "0f07c68ca36f8ffa064e950d338282a82238241aacbfe7a4538a46f29158457c",
+          "cache_key": "bcb34b2dc0c7b527a0a47e7e254ae7c290fde9aac14235fd6c2950fb5869bc2e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Ah, welcome back, M\u00e1ire! 'Tis a fine mornin', but not without its damp.",
+          "response_sha256": "e21310c3c9b047cca15a85d8855ea81294638607f4566176c962b0068fd10c41",
+          "cache_key": "ec0f2167a05c15b7c9ee802efd267afc85cfc3f9de91302b5f1b1f708d5b8174",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Mist, what brings ya down to the church porch this fine day?",
+          "response_sha256": "a8ac956e3f955daf09c6e56b09653265f56129234a75d2bea1f1c4c0cffc4c37",
+          "cache_key": "db7c3020146e731ac4ad361aa28fc09953e2a3c451b78d3f11f819627acb9df5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\"Welcome, traveler. I'm Brigid, the midwife here. How can I assist you this evening?\"",
+          "response_sha256": "655e090ff53f9983a102609c050da8c50f909c6042bf3603d05e1809e3091681",
+          "cache_key": "bf7d06f014042c991c4982d87f09d3d7714e7eae8ed14710b5aa7fc225e84831",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "\"Morning, M\u00e1ire. Come in out of the rain.\"",
+          "response_sha256": "d763518544d428626355477d5482039f7800808111159ffeca649fbc8b480e01",
+          "cache_key": "139787d7171b85ab40207f414da2aebb3a528102a905f3a985ac59f73696a439",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Mist, what brings you to the church porch this fine day?",
+          "response_sha256": "724e2e0aea0a5c0a82ae0a813c7cd8c238f0b881c02b499ec99fe8080c7e8322",
+          "cache_key": "5044636735c5184ffeffa84fe1beb881c380d3e5bad4eca0a2f3c265eab14110",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "\"Welcome, traveler. I am Father Cathal Donnellan, the priest of this parish. How may I serve you this evening?\"",
+          "response_sha256": "eeca9ffd8816d0dcf9e7c2ae87d247e31fa0085891e8fe9c919d1261b9043c43",
+          "cache_key": "e9e70628ff736737b672cd8f94995803a770e66d7b6163e6b6994ae83f621ae2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Ah, welcome back, M\u00e1ire.",
+          "response_sha256": "8364d41974fe184c71523656cb39f76bf1cb2f6bcccc1d9e3d12ef7ff9e23b83",
+          "cache_key": "00a3da9524ad1396e7fe07ed440d1e9e741566fbbf5dd6556c67e7bf96d6d4e1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Mist, what brings you to the house of the Lord on this fine day?",
+          "response_sha256": "d2f2394e8e4c4e9049b01a76ad15757905b8fd95efee3915a48c60150a4255e7",
+          "cache_key": "d598f2761211da60b142823e6271ac2ad8a9292509674fe51b2a5805be9fe0a1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "\"Evening to ya. I'm Sean Murphy, the farmer. What brings ya to these parts?\"",
+          "response_sha256": "ff131f248bca6edc3114a67f784fa5d60a10d723bb245638253183b41e877c02",
+          "cache_key": "5281008b92627aa9454ef81ed7854ee52e25bde2ae299bc681e59c9eea9a9d2d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Ministral_8B_Instruct_2410_4bit"
+      ],
+      "candidate": {
+        "model_id": "Ministral-8B-Instruct-2410-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Ministral-8B-Instruct-2410-4bit@http://127.0.0.1:8767/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 5.5309669971466064,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1165,
+    "completion_tokens": 194,
+    "usd": 0.0
+  }
+}

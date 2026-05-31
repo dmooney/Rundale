@@ -1,0 +1,278 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-29T00:37:10.177367+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.1,
+        "character": 3.2,
+        "authenticity": 3.0,
+        "language": 2.8,
+        "responsiveness": 3.8,
+        "craft": 1.9,
+        "overall": 2.9400000000000004,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "Ah, that's a thing of worry. Dreams can be restless. Have ye tried a tea of valerian root before bed? It helps many with rest. ---\n{\"action\": \"nods\", \"mood\": \"thoughtful\", \"internal_thought\": \"Hope the valerian brings sweet dreams\", \"language_hints\": []}",
+          "response_sha256": "b1bf6a4243825b2e20e0ebc9aefa3e0ad09e7df4f02a7f9e3efd52c005c89c50",
+          "cache_key": "a8dd5ad170bafcefdfa7ed4b971ef369ed1514498f95a30066e7399f89015318",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "Ah, the Cailleach. She's a strong one, that old woman. Lives by the s\u00ed, they say. Guarding secrets of the s\u00eddh\u00e9. Don't ye go near her lair at night. ---\n{\"action\": \"nods wisely\", \"mood\": \"cautious\", \"internal_thought\": \"Better to keep the old ways\", \"language_hints\": [{\"word\": \"s\u00ed\", \"pronunciation\": \"shee\", \"meaning\": \"fairy mound\"}, {\"word\": \"s\u00eddh\u00e9\", \"pronunciation\": \"shee-de\", \"meaning\": \"fairies\"}]}",
+          "response_sha256": "d3c809142486235442397ca15dafb606e5a0d07f65e234c94e4083da7ab832cb",
+          "cache_key": "7d46b4fe5ffdac586bae746437ddd5c8eea8bc194e959355cd3a41b90b7817ab",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 4,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "Aye, I can make a tea of thyme will ease her chest. Steep it well and let her drink it warm. ---\n{\"action\": \"nods\", \"mood\": \"content\", \"internal_thought\": \"Hope it helps\", \"language_hints\": []}",
+          "response_sha256": "10c3d4e16facfb75f23c3cc2c55dd0c74494dd45b3995c2b9818171408a59383",
+          "cache_key": "dd2f8e0054c4f2007f346b7511c17dce4c9e5899339c5c7b51e637aaa214e6e1",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "Aye, heard talk of it. A new face among us. Mayhap he's come to see the sights or find work. ---\n{\"action\": \"nods\", \"mood\": \"curious\", \"internal_thought\": \"Wonder what brings him here\", \"language_hints\": []}",
+          "response_sha256": "6a8c5cd308cb8b94b332f178d37db57011dfdc33f2c70c91925debdb4200f199",
+          "cache_key": "4d2fa6dc4999cbabd94bc49dd66cf63e6055b0faa4ceb9d8bc6abd0841f7e4c6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 2,
+              "character": 2,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "Ye'd best ask the right person hereabouts. I know naught of beasts takin' sheep. ---\n{\"action\": \"nods\", \"mood\": \"neutral\", \"internal_thought\": \"That's a matter for the farmer\", \"language_hints\": []}",
+          "response_sha256": "bc2b08ab6e6e48b8c95200ac04a6e7ad89476faa60d7b8857737606053cca5e9",
+          "cache_key": "fd56f776c140996316ab5a4260909a15951c5f397a3574ba27a86914d3c30d65",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 3
+            },
+            "overall": 2.8,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "Aye, I remember that. He was gathering stones, and the ground was uneven. Poor man, it took him a good while to recover. ---\n{\"action\": \"nods\", \"mood\": \"sympathetic\", \"internal_thought\": \"He's still walking with that limp\", \"language_hints\": []}",
+          "response_sha256": "9abbe4f640cfa4af16c59b17671557e27026aa3be06130ac42d9fee043b32118",
+          "cache_key": "bca8c48f5d938248387837f32b0781974ce00f3044d27e7e2da26ca38afac295",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 4,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "Did ye see piseog then? S\u00eddhe \u00e1it \u00e1lainn \u00e1 dh\u00e9anamh. Maith th\u00fa leat \u00e9 sin. ---\n{\"action\": \"nods\", \"mood\": \"curious\", \"internal_thought\": \"Folk talk of the fairies is always intriguing\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairies\"}, {\"word\": \"\u00e1lainn\", \"pronunciation\": \"AW-lin\", \"meaning\": \"beautiful\"}]}",
+          "response_sha256": "7942123738fdc8c9b0b0834f97bdea784284523452db02f5a8947267afc96263",
+          "cache_key": "0c7c271c7ace3be110aaebf18d80374c3d48dbaea22aaf9666eadccaec7c1c67",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 1,
+              "character": 1,
+              "craft": 1,
+              "language": 1,
+              "responsiveness": 2
+            },
+            "overall": 1.2,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "Well, it could be a sign of something. Have ye noticed any changes in the surrounding land or livestock? A tea of thyme or mint might help clear yer throat if it's the water that's causing the odd taste. ---\n{\"action\": \"wrinkles brow, then nods\", \"mood\": \"concerned\", \"internal_thought\": \"Strange waters can be a sign of deeper issues\", \"language_hints\": []}",
+          "response_sha256": "f8736bc6f3e471f7e635b57a334569f502ba487a8bdd9f417d1242516b66ce12",
+          "cache_key": "2b78b8e274bdb8e67548a6c1f39221b6d9b6225e8f69503c3810f1205a49ab9a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 3,
+              "character": 3,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 4
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "Well now, that's good news. Fetch me when she's near the time. Signs will be strong labour pains, waters broke, or if she's showing signs of discomfort that won't ease. Don't wait too long though. ---\n{\"action\": \"nods\", \"mood\": \"content\", \"internal_thought\": \"Hope she's well\", \"language_hints\": []}",
+          "response_sha256": "1b6f0edd6c1727bdd1b53c3542838d434ecc7916b7d1968d70baeb18225494b2",
+          "cache_key": "da9748c28003afe4663aebbd385d710c0bf1098fd5b401035af7ea84fa499419",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 5
+            },
+            "overall": 3.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "Well, the priest has his ways of seein' things. Mayhap he's right that the ways of the old gods are not for these times. But the ways of the s\u00eddhe have always been with us, havin' guided us through many a harsh winter. ---\n{\"action\": \"shrugs\", \"mood\": \"thoughtful\", \"internal_thought\": \"The old ways hold a truth of their own\", \"language_hints\": [{\"word\": \"s\u00eddhe\", \"pronunciation\": \"shee\", \"meaning\": \"fairies\"}]}",
+          "response_sha256": "24de8d7d6494b95a09449019773bfba40154ce717f27fc88808c53870f4c00ee",
+          "cache_key": "321220413c709f3dba803d9163b0cf1ce215f1110d777560ae4b54f265919140",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 4,
+              "character": 4,
+              "craft": 2,
+              "language": 3,
+              "responsiveness": 5
+            },
+            "overall": 3.6,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__Qwen2_5_Coder_32B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen2.5-Coder-32B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 85.54388093948364,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 15475,
+    "completion_tokens": 862,
+    "usd": 0.0
+  }
+}

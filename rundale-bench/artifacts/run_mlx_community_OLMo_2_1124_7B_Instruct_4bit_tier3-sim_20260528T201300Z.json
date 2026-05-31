@@ -1,0 +1,126 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:11:47.342984+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 10,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a",
+        "bundles_queued": 1,
+        "cache_hits": 0,
+        "pending_judge": true
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"content\",\"activity_summary\":\"Served drinks to locals, engaged in friendly banter, did not move\",\"new_location\":1,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"tired\",\"activity_summary\":\"Managed influx of villagers, served meals, stood for long periods, moved to the backyard to take a breather\",\"new_location\":2,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"plain-spoken\",\"activity_summary\":\"Worked on planting potatoes, took a short break to eat lunch, moved to the fields\",\"new_location\":3,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"restless\",\"activity_summary\":\"Sat at the crossroads, spinning tales to passersby, moved to the marketplace to share stories\",\"new_location\":4,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"focused\",\"activity_summary\":\"Delivered a baby, received a grateful hug from the mother, moved to her own cottage to continue her workload\",\"new_location\":5,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":6,\"mood\":\"contemplative\",\"activity_summary\":\"Prayed in the church, listened to confessions, did not move much, stayed at the church\",\"new_location\":6,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "dae0525021ee2a6f20313b0ff11fdc241e89c656d942ac42c6109cf3da897bb8",
+          "cache_key": "2f7a3fc8c5f5e574255cc8a7c341f6b5f8e47e0af7ee6f5105f0208672986d48",
+          "judged": false
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"content\",\"activity_summary\":\"Served drinks to locals, maintained a peaceful atmosphere despite last night's quarrel.\",\"new_location\":1,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"tired\",\"activity_summary\":\"Managed the influx of parishioners seeking refuge from the summer heat, listened to gossip about last night's quarrel.\",\"new_location\":2,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"plain-spoken\",\"activity_summary\":\"Worked intensely on planting potatoes, stopped for a short break to eat a modest lunch at the bog.\",\"new_location\":3,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"restless\",\"activity_summary\":\"Shared old tales to pass the time at the crossroads, noticed the tension from last night's quarrel affecting the parish mood.\",\"new_location\":4,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"focused\",\"activity_summary\":\"Delivered a newborn, offered supportive words to the mother amidst the summer heat, her skills respected by the parish.\",\"new_location\":5,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":6,\"mood\":\"contemplative\",\"activity_summary\":\"Prepared for the evening mass, reflected on the recent discord within the parish, aiming to restore peace.\",\"new_location\":6,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "e3ecd5354143c23eb1282ad840dc601eef3a13998f497fda23c91d6c55183d29",
+          "cache_key": "32a1b451256b3d5cf4a8744de7317c2894d73a8b75e8fdb01844f1911f5affe2",
+          "judged": false
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"content\",\"activity_summary\":\"Served drinks to locals, engaged in friendly banter, did not move\",\"new_location\":1,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"tired\",\"activity_summary\":\"Managed influx of parishioners with good news, served meals, did not move\",\"new_location\":2,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"plain-spoken\",\"activity_summary\":\"Harvested crops, took a short break to eat lunch at the bog, moved to the fields\",\"new_location\":3,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"restless\",\"activity_summary\":\"Shared stories with travelers at the crossroads, did not move much\",\"new_location\":4,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"focused\",\"activity_summary\":\"Cared for expectant mothers, received unexpected visit from parishioners, moved to her cottage for privacy\",\"new_location\":5,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":6,\"mood\":\"contemplative\",\"activity_summary\":\"Prayed at the church, received visitors with good news, did not move\",\"new_location\":6,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "761d4cdf5cc062057d5c67c1128a94becc9a4df6e60b7d4f6d0d3ec880d863de",
+          "cache_key": "6f95d282dc298d8e9b5295433f579bc07b78ba0c01bb280c82c0188c802ec33d",
+          "judged": false
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"tired\",\"activity_summary\":\"Continues to work at the forge, shaping metal parts for the coming season despite the frost.\",\"new_location\":1,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"patient\",\"activity_summary\":\"Teaching reading and writing to the children at the schoolhouse, making sure to be gentle with Eamon who is still mourning his father.\",\"new_location\":2,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"grieving\",\"activity_summary\":\"Sits alone at her cottage, occasionally peeking outside where her son used to play, her heart heavy with loss.\",\"new_location\":3,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"distracted\",\"activity_summary\":\"Listens to Mister Lyons at the schoolhouse but his mind keeps wandering to thoughts of his father, occasionally shedding a tear unnoticed.\",\"new_location\":4,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"slightly less tired\",\"activity_summary\":\"A short break at the forge, sharing a bit of bread with Eamon Kelleher who stopped by, feeling a bit of companionship amidst the cold mornings.\",\"new_location\":1,\"relationship_changes\":{\"from\":4,\"to\":1,\"delta\":0.05}}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"more patient\",\"activity_summary\":\"Notices Eamon's distraction and takes a moment to talk to him gently about his father, helping him to feel a bit better.\",\"new_location\":2,\"relationship_changes\":{\"from\":4,\"to\":2,\"delta\":0.1}}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"still grieving intensely\",\"activity_summary\":\"Her grief hasn\u2019t diminished, and she finds no comfort in the day, her heart feeling as if it\u2019s stuck in winter.\",\"new_location\":3,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"somewhat less distracted\",\"activity_summary\":\"After speaking with Mister Lyons, he helps Eamon with his lessons, feeling a bit more focused and less alone.\",\"new_location\":4,\"relationship_changes\":{\"from\":2,\"to\":4,\"delta\":0.1}}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "942064f16e2ca338a6362a79bb52354fd278883a8a4e4513dbeb52c17ff44eb0",
+          "cache_key": "51a9e00a2a828708c7c5a6fc9bf7c165458672f65a5d985c0c9e78129f28649d",
+          "judged": false
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"tired\",\"activity_summary\":\"Continues to work at the forge, shaping metal parts for the coming day despite the frost on the ground.\",\"new_location\":1,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"patient\",\"activity_summary\":\"Teaching at the schoolhouse, focusing on keeping the children engaged despite Eamon's distraction.\",\"new_location\":2,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"grieving\",\"activity_summary\":\"Sits alone at her cottage, occasionally peeking outside where her son used to play, her heart heavy with loss.\",\"new_location\":3,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"distracted\",\"activity_summary\":\"Listens to Mister Lyons at the schoolhouse but is frequently lost in thoughts about his father, occasionally needing a pat on the shoulder to refocus.\",\"new_location\":4,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"slightly less tired\",\"activity_summary\":\"Received a small, comforting gift from Widow Kelleher, which helps to lighten his mood slightly as he continues his work.\",\"new_location\":1,\"relationship_changes\":{\"from\":3,\"to\":1,\"delta\":0.1}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"more patient\",\"activity_summary\":\"Noticed Eamon's distraction, he gently redirects his focus to the lesson, showing understanding and patience.\",\"new_location\":2,\"relationship_changes\":{\"from\":4,\"to\":2,\"delta\":0.1}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"still grieving\",\"activity_summary\":\"Her grief remains unchanged, but she finds a small moment of comfort in the supportive presence of Donal, who brings her a hot drink from the forge.\",\"new_location\":3,\"relationship_changes\":{\"from\":1,\"to\":3,\"delta\":0.1}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"less distracted\",\"activity_summary\":\"With the day progressing, Eamon finds a bit more focus, though he still misses his father dearly, his mood slightly uplifted by the supportive atmosphere at the schoolhouse.\",\"new_location\":4,\"relationship_changes\":{\"from\":2,\"to\":4,\"delta\":0.1}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "f06f9bf79e153a53cbac86959acdb2302f35d360b1609baa9bb9ba073464d3db",
+          "cache_key": "ba8de5f19e7091445ecafa4621c6bd2b0a8605aa1861a07d7f1d85ae813c26cb",
+          "judged": false
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"somewhat better\",\"activity_summary\":\"Continued working at the forge, shaping metal parts for the coming season\",\"new_location\":1,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"calm but supportive\",\"activity_summary\":\"Taught a lesson on history to the children, focusing on recent events that brought good news\",\"new_location\":2,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"somewhat uplifted but still grieving\",\"activity_summary\":\"Cried alone at her cottage, then knitted a small comfort item for another widow\",\"new_location\":3,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"distracted but curious\",\"activity_summary\":\"Listened to Mister Lyons but was daydreaming about his father, occasionally asking simple questions\",\"new_location\":4,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"more content\",\"activity_summary\":\"Shared a bit of good news with Donal, who smiled briefly for the first time in days\",\"new_location\":1,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"slightly more optimistic\",\"activity_summary\":\"Received a letter from a family member, reading it with a small smile\",\"new_location\":2,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"barely stable\",\"activity_summary\":\"Was visited by Eamon, who tried to cheer her up with stories of his father, which brought her some comfort\",\"new_location\":3,\"relationship_changes\":[]}]}\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"more focused\",\"activity_summary\":\"Asked Mister Lyons about his own family, listening intently, feeling a bit closer to the teacher\",\"new_location\":4,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "e167ea30c54cfa42270b09718ba7c64b5c37e3b5d8ad2276cb4ee1098d6a1ffc",
+          "cache_key": "4b55c8c59f1f0f9f0681f38113f2f49eb32494e1f5070baacee5a2991a01d058",
+          "judged": false
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"weary\",\"activity_summary\":\"Still at the lakeshore, casting nets despite the light rain, hoping for a good catch to secure his family's sustenance.\",\"new_location\":1,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"hopeful\",\"activity_summary\":\"Helping Conor at the lakeshore, optimistic about the day's prospects despite the challenging weather.\",\"new_location\":1,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"anxious\",\"activity_summary\":\"Inside her cottage, preparing for the upcoming birth while also feeling the nerves of her first pregnancy, occasionally glances at the calendar anxiously.\",\"new_location\":3,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"attentive\",\"activity_summary\":\"Present at Maire's cottage, providing reassurance and necessary checks during her first pregnancy, her skills and calm presence easing Maire's anxieties.\",\"new_location\":3,\"relationship_changes\":[]}],\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"loose-tongued\",\"activity_summary\":\"Still at Darcy's Pub, continues to drink and share tales, his voice carrying further with each pint, making new acquaintances and spinning yarns about the parish.\",\"new_location\":5,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "eb7df208639593a4f4a1a59e654c694ed918200e097e7dc9271c0903f809d6ed",
+          "cache_key": "d32a937897078598f85c0d0ec815b2f134ad49fffaf9cf3aaa5b2dfd6a337c27",
+          "judged": false
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"weary\",\"activity_summary\":\"Spent the day fishing at the lakeshore, starting early mornings.\",\"new_location\":1,\"relationship_changes\":[]}],\"\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"hopeful\",\"activity_summary\":\"Jointly fished at the lakeshore with brother Conor, feeling optimistic about the catch.\",\"new_location\":2,\"relationship_changes\":[]}],\"\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"anxious\",\"activity_summary\":\"Cared for the farm at her cottage, frequently checking on her own health and the unborn child.\",\"new_location\":3,\"relationship_changes\":[]}],\"\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"attentive\",\"activity_summary\":\"Visited Maire to conduct her weekly pregnancy check, offering support and advice.\",\"new_location\":4,\"relationship_changes\":[]}],\"\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"lighthearted\",\"activity_summary\":\"Drank at Darcy's Pub, sharing news and jokes with other patrons.\",\"new_location\":5,\"relationship_changes\":[]}]}\n]\n```",
+          "schema_valid": false,
+          "response_sha256": "daa53011d0d3a71c9095f1584c09aa8d0a576ce8775dc93e0d5089d5d21e4758",
+          "cache_key": "89148459dff9b8126ed493f0ae5b9df2f2d43ea4be44f3dcfedb54f72f4d9a95",
+          "judged": false
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"impatient\",\"activity_summary\":\"Collecting rents at the agent's office, checks the clock frequently.\",\"new_location\":1,\"relationship_changes\":[]}},{\"npc_id\":2,\"mood\":\"wary\",\"activity_summary\":\"At the pub, receives an unexpected visitor, pays off a quarter debt.\",\"new_location\":2,\"relationship_changes\":[]},{\"npc_id\":3,\"mood\":\"anxious\",\"activity_summary\":\"At the marketplace, negotiates intensely with buyers, sells oats, and heads home after making a good deal.\",\"new_location\":3,\"relationship_changes\":[]},{\"npc_id\":4,\"mood\":\"neutral\",\"activity_summary\":\"At the marketplace, exchanges pleasantries with Padraig, buys herbs, and continues to the bakery next door.\",\"new_location\":4,\"relationship_changes\":[]},{\"npc_id\":5,\"mood\":\"watchful\",\"activity_summary\":\"At the church, prepares for Mass, greets parishioners, and checks the clock for the right time.\",\"new_location\":5,\"relationship_changes\":[]},{\"npc_id\":6,\"mood\":\"talkative\",\"activity_summary\":\"At the marketplace, tells stories to an attentive crowd, receives a compliment, and heads to the local bakery for a snack.\",\"new_location\":6,\"relationship_changes\":[]},{\"npc_id\":7,\"mood\":\"wary\",\"activity_summary\":\"At the inn, orders a meal, keeps an eye on the locals, and exchanges a polite but cautious conversation with Sergeant Whitcombe.\",\"new_location\":7,\"relationship_changes\":[]}]}\n```",
+          "schema_valid": false,
+          "response_sha256": "029994f523fa51bd8cb51c38c82123aedef661f3d91277ba95c896c071c1ae3f",
+          "cache_key": "a4a60e833bc1b662bab1df273acdfdb2b0067de52cf5cfed6e7e246c7ecb87b0",
+          "judged": false
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "```json\n[\n    {\"updates\":[{\"npc_id\":1,\"mood\":\"impatient\",\"activity_summary\":\"Collecting rents at the agent's office, checks if any have arrived early with good news.\",\"new_location\":1,\"relationship_changes\":[]}],\"mood\":\"calmer\",\"activity_summary\":\"Received unexpected good news, checks if rents can be adjusted positively.\",\"new_location\":1,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":2,\"mood\":\"wary\",\"activity_summary\":\"At the pub, nervously awaits news to settle an outstanding debt.\",\"new_location\":2,\"relationship_changes\":[]}],\"mood\":\"less anxious\",\"activity_summary\":\"Received news might help settle debt, slightly more at ease.\",\"new_location\":2,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":3,\"mood\":\"anxious\",\"activity_summary\":\"Selling oats at the marketplace, hoping for good news to secure his livelihood.\",\"new_location\":3,\"relationship_changes\":[]}],\"mood\":\"hopeful\",\"activity_summary\":\"Received good news, mood lifts, continues selling oats with renewed confidence.\",\"new_location\":3,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":4,\"mood\":\"neutral\",\"activity_summary\":\"Buying herbs at the marketplace, unaffected by the news.\",\"new_location\":4,\"relationship_changes\":[]}],\"mood\":\"curious\",\"activity_summary\":\"News might affect her herb prices, pays closer attention to marketplace buzz.\",\"new_location\":4,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":5,\"mood\":\"watchful\",\"activity_summary\":\"At the church, preparing for Mass after lunch, keeps an ear to the ground for parish news.\",\"new_location\":5,\"relationship_changes\":[]}],\"mood\":\"more at ease\",\"activity_summary\":\"Received good news, mood lifts, continues preparations for Mass with lighter heart.\",\"new_location\":5,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":6,\"mood\":\"talkative\",\"activity_summary\":\"Regaling listeners at the marketplace with tales, shares the good news to lighten the mood.\",\"new_location\":6,\"relationship_changes\":[]}],\"mood\":\"more sociable\",\"activity_summary\":\"Shares good news, becomes the life of the marketplace, making new acquaintances.\",\"new_location\":6,\"relationship_changes\":[]},\n    {\"updates\":[{\"npc_id\":7,\"mood\":\"wary\",\"activity_summary\":\"At the inn, skeptical of the good news, keeps to himself.\",\"new_location\":7,\"relationship_changes\":[]}],\"mood\":\"slightly less skeptical\",\"activity_summary\":\"Received good news, mood slightly lifts, engages more with the locals at the inn.\",\"",
+          "schema_valid": false,
+          "response_sha256": "8c73c3846888a171cf84d738dd12356ac816be7ae1f0ad15239a8a52f60f740b",
+          "cache_key": "9b9eace2f5d02d917549a8df3ae0bf1ba6abe91f9e020570afcf8b0df971a65f",
+          "judged": false
+        }
+      ],
+      "bundles": [
+        "tier3-sim__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 72.93470096588135,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 3103,
+    "completion_tokens": 4069,
+    "usd": 0.0
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:09:09.018811+00:00",
+  "slices": {
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 2,
+        "bench_bugs": 8,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": 3.5,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"Padraig serves Sean a warm pint while Niamh cleans the glasses behind the bar, maintaining the pub's comforting ambiance.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "e222981c6de71231578b352635563d2b8669b7ca33bc08683690a91b96fb9299",
+          "cache_key": "64bf5d1f9438d7603c702b6f1aae60c6ca7ba05df340cef1d7dbff44843412ec",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "{\"summary\": \"Padraig serves ale to Sean, Niamh cleans the glasses behind the bar.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "6500bd165bf0e7bdac42cddf1defb20523ff3f703b7dd150ee8f01ad41b10944",
+          "cache_key": "7e44ff15459d701b28a0506b5331dd8717a66ab7e10da62ccb9dad0d22eddc11",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\"summary\": \"Padraig Darcy serves Sean Murphy a pint amid the quiet chatter of the pub.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [3], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "c8351644a83cdfd64e77f791c3215197559c26c28bff30ffa214d1ab49d61b42",
+          "cache_key": "28d7c7179017d4850835561f6d3b925e8fa6d66d3d1e7fea7dee8e284e96a608",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "{\"summary\": \"Tommy Maguire leans against the signpost, sharing tales to entertain the weary Donal MacNamara, who listens, albeit half-heartedly, as the wind tousles his hair.\", \"mood_changes\": {\"1\": \"restless\"}, \"relationship_changes\": {\"1\": \"2\", \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "71455af5af7f533c9214e7f639f602dfd3630ed55cb8d99388de760a482ce780",
+          "cache_key": "bf9260fbdb4b727953bde2a822660765538e00d39d8b705007b58daadb72af19",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "{\"summary\": \"Tommy and Donal stand at the crossroads, the wind tousling their hair, neither speaking, the shadows lengthening.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.0}}",
+          "schema_valid": false,
+          "response_sha256": "c0ee09837788b9036ba2ee4830583ff9ae7ae3c73912b98d416bca9ef44ded2a",
+          "cache_key": "da4607002b2856eb6fd9a0712c3bc3e1269f2fce6d6a0ffb7adf7630907c59f2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "{\"summary\": \"Tommy Maguire and Donal MacNamara stand at the crossroads, the farmer gnawing on a gnarled stick, the blacksmith wiping his hands on an apron.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "f82cb57eacb27c85376a1ded000a61766a51cc035c4d434d30a0fadfbba7a1cf",
+          "cache_key": "c55d115a01e2eef9d5a07562747f1d6ce47bade1713f4dedfb83263acdeaa42e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"Brigid O'Brien is comforting anxious Mary Geraghty about her pregnancy.\", \"mood_changes\": {\"2\": \"anxious\"}, \"relationship_changes\": {\"1\": \"2\", \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "d46556541e6cf2ecfd95612853f5cdd9289986910b558874f2841add80baa1bb",
+          "cache_key": "7066a328b2d800237c89708a82e39e86cdf833c39792b09ef20719da2d4e2125",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"Brigid is soothing Mary amid the light rain, explaining the normalcy of her pregnancy anxieties.\", \"mood_changes\": {\"Mary\": \"calm\"}, \"relationship_changes\": {\"Brigid\": \"Mary\", \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "bdc48fc4e64ebb01f19621ec1212d28946a90a286410d342202c2e08e6605be9",
+          "cache_key": "12d4e4c4dd57471743225f4c46e5627bfb53355e9dee9a3836a4520d16a9edb4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"Brigid O'Brien, the midwife, is soothing anxious Mary Geraghty, the farmwife, amid the light rain.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "7416262fad15f808c94266184a5d6f977f7fd405ce2906ddb04b183fbd0c7436",
+          "cache_key": "d46f68c99c01514d7202e8cdfe05013d19dde8ba78ac37b7bd48fb9dd3fa4ed9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\"summary\": \"Father Cathal stands solemnly, offering silent comfort to the tearful Widow Kelleher as Old Tommy nods in the background, the mist clinging to the church.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [3], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "d880da90e7d2784f42adaecb57a13c2a5f52d5c9d50133a017675d213f9562c7",
+          "cache_key": "389c90e007b9b767f93c801ff7617f88cb5b0c8704270d35723f6a581a57557c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8767/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 13.31875991821289,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2912,
+    "completion_tokens": 636,
+    "usd": 0.0
+  }
+}
