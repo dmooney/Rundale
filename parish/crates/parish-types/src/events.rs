@@ -169,6 +169,9 @@ pub enum GameEvent {
         name: String,
         /// When the festival started.
         timestamp: DateTime<Utc>,
+        /// Where the festival is centred, if location-specific. `None` for parish-wide festivals.
+        #[serde(default)]
+        location: Option<LocationId>,
     },
     /// The player successfully moved between two locations.
     ///
@@ -416,6 +419,7 @@ mod tests {
             GameEvent::FestivalStarted {
                 name: "May Day".into(),
                 timestamp: ts,
+                location: None,
             }
             .event_type(),
             "FestivalStarted"
