@@ -298,7 +298,10 @@ impl LocationLogManager {
                         continue;
                     };
                     if let Err(e) = append_journal_entry(&path, ts, Some(&heading), &body) {
-                        tracing::warn!(?loc_id, "failed to write festival to location journal: {e}");
+                        tracing::warn!(
+                            ?loc_id,
+                            "failed to write festival to location journal: {e}"
+                        );
                     }
                 }
             }

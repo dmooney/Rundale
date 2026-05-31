@@ -346,7 +346,9 @@ impl CharacterLogManager {
                 let body = format!("*Weather: {}*\n", new_weather);
                 append_journal_entry(&self.player_log_path(), ts, Some("Weather"), &body)?;
                 for npc in npc_manager.all_npcs() {
-                    if let Err(e) = append_journal_entry(&self.npc_log_path(npc), ts, Some("Weather"), &body) {
+                    if let Err(e) =
+                        append_journal_entry(&self.npc_log_path(npc), ts, Some("Weather"), &body)
+                    {
                         tracing::warn!(npc_id = ?npc.id, "failed to write weather to npc diary: {e}");
                     }
                 }
@@ -354,14 +356,11 @@ impl CharacterLogManager {
             GameEvent::FestivalStarted { name, .. } => {
                 let body = format!("*Festival begins: {}*\n", name);
                 let heading = format!("Festival: {}", name);
-                append_journal_entry(
-                    &self.player_log_path(),
-                    ts,
-                    Some(&heading),
-                    &body,
-                )?;
+                append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
                 for npc in npc_manager.all_npcs() {
-                    if let Err(e) = append_journal_entry(&self.npc_log_path(npc), ts, Some(&heading), &body) {
+                    if let Err(e) =
+                        append_journal_entry(&self.npc_log_path(npc), ts, Some(&heading), &body)
+                    {
                         tracing::warn!(npc_id = ?npc.id, "failed to write festival to npc diary: {e}");
                     }
                 }
