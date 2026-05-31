@@ -1275,8 +1275,11 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
             let adjusted_minutes = apply_multiplier(minutes, weather_effect.multiplier);
             if adjusted_minutes > minutes {
                 println!(
-                    "{} (slowed by the weather from {} to {} minutes)",
-                    narration, minutes, adjusted_minutes
+                    "{} (slowed by the weather from {} to {} {})",
+                    narration,
+                    minutes,
+                    adjusted_minutes,
+                    parish_core::world::time::minute_word(adjusted_minutes)
                 );
             } else {
                 println!("{}", narration);

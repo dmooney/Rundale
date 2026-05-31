@@ -201,6 +201,70 @@ fn no_orphaned_source_files() {
     );
 }
 
+/// Sensor for the narration-drift class behind #1156.
+///
+/// Player-facing minute counts must be pluralized through the shared
+/// helper `parish_types::minute_word` (or, for the dependency-free
+/// `parish-client`, its local equivalent) rather than hand-written as a
+/// `format!("... {} minutes ...")` literal with no singular branch. The
+/// original bug shipped *four* independent hand-rolled copies of
+/// "{} minutes" — one of them in `parish-engine`'s headless harness, a
+/// copy that had silently diverged from the shared `/wait` command. Each
+/// copy is a place a "1 minutes on foot" defect can reappear, exactly the
+/// copy-paste drift CLAUDE.md rule #12 forbids.
+///
+/// The check is a cheap textual sensor: it flags any format-placeholder
+/// (`{}`, `{:>2}`, `{n}`, …) immediately followed by the word
+/// `minute`/`minutes` in a workspace `src/` file. Routing the count
+/// through a `minute_word(n)`-style helper (which emits `{} {}`) clears it.
+#[test]
+fn minute_counts_pluralize_through_helper() {
+    let ws = workspace_root();
+
+    // A format placeholder directly followed by the bare unit word — the
+    // hand-rolled-pluralization smell. `{}min` (the abbreviated exits
+    // hint) and `minute_word` itself are deliberately not matched.
+    let re = regex::Regex::new(r"\{[^{}]*\}\s+minutes?\b").expect("static regex compiles");
+
+    let mut violations: Vec<String> = Vec::new();
+    for entry in fs::read_dir(ws.join("crates")).expect("read crates/") {
+        let src = entry.expect("entry").path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        walk_rs_files(&src, &mut files);
+        for f in files {
+            let body = fs::read_to_string(&f).unwrap_or_default();
+            for (i, raw_line) in body.lines().enumerate() {
+                // Strip line/doc comments — the common false-positive source.
+                let line = raw_line.split("//").next().unwrap_or("");
+                if re.is_match(line) {
+                    let pretty = f
+                        .strip_prefix(&ws)
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|_| f.display().to_string());
+                    violations.push(format!("{pretty}:{}", i + 1));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Hand-rolled minute pluralization — `{{}} minutes` literal(s) with no \
+         singular branch (the #1156 defect class):\n  - {}\n\n\
+         FIX: pluralize through `parish_types::minute_word(n)` (re-exported as \
+         `parish_core::world::time::minute_word`), which returns \"minute\" for \
+         1 and \"minutes\" otherwise — emit `({{}} {{}})` with the count and \
+         `minute_word(count)`. `parish-client` is dependency-free by design and \
+         carries its own private `minute_word`. Duplicating the format literal \
+         instead lets a \"1 minutes on foot\" bug reappear in each copy. See \
+         CLAUDE.md rule #12 (no copy-pasted narration across entry points).",
+        violations.join("\n  - "),
+    );
+}
+
 fn list_top_level_modules(src: &Path) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     if !src.is_dir() {
