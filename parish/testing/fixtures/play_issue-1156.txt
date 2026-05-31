@@ -1,0 +1,13 @@
+# Verification fixture for issue 1156 — singular pluralization of minutes.
+#
+# Criteria proven by this script's output:
+#   1. Direct 1-minute leg prints "(1 minute on foot)" (singular).
+#   2. A multi-minute leg still prints "(N minutes on foot)".
+#   3. /wait 1 prints "You wait for 1 minute...".
+#   4. /wait 5 prints "You wait for 5 minutes...".
+look
+go to darcy's pub
+go to the crossroads
+go to st. brigid's church
+/wait 1
+/wait 5

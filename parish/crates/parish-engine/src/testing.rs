@@ -681,8 +681,9 @@ impl GameTestHarness {
                 let now = self.app.world.clock.now();
                 let tod = self.app.world.clock.time_of_day();
                 let msg = format!(
-                    "Waited {} minutes. Now {:02}:{:02} {}.",
+                    "Waited {} {}. Now {:02}:{:02} {}.",
                     minutes,
+                    parish_core::world::time::minute_word(minutes),
                     now.hour(),
                     now.minute(),
                     tod

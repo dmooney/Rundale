@@ -20,7 +20,9 @@ pub use ids::{
     DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, Weather,
     extract_dialogue_from_partial_json, floor_char_boundary,
 };
-pub use time::{DayType, Festival, GameClock, GameSpeed, Season, SpeedConfig, TimeOfDay};
+pub use time::{
+    DayType, Festival, GameClock, GameSpeed, Season, SpeedConfig, TimeOfDay, minute_word,
+};
 
 /// A single anachronism term entry loaded from mod JSON data.
 ///

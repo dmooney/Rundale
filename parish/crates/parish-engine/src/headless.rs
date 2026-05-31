@@ -1264,8 +1264,9 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
                 app.world.clock.advance(lost as i64);
                 println!(
                     "You turn back. The storm has the better of it; you'll try again later. \
-                     ({} minutes lost to the attempt.)",
-                    lost
+                     ({} {} lost to the attempt.)",
+                    lost,
+                    parish_core::world::time::minute_word(lost)
                 );
                 println!();
                 return;

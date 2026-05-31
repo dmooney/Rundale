@@ -524,10 +524,41 @@ pub fn time_of_day_from_hour(hour: u32) -> TimeOfDay {
     }
 }
 
+/// Returns the correctly pluralized word for a count of minutes:
+/// `"minute"` for exactly 1, `"minutes"` otherwise.
+///
+/// Generic over the integer type so callers can pass `u16` (travel legs),
+/// `u32` (`/wait` minutes), etc. without casts. Centralizes the
+/// singular/plural branch shared by travel-arrival and `/wait` narration
+/// so a 1-minute leg reads "1 minute on foot" rather than "1 minutes on
+/// foot" (#1156).
+pub fn minute_word<T>(minutes: T) -> &'static str
+where
+    T: PartialEq + From<u8>,
+{
+    if minutes == T::from(1u8) {
+        "minute"
+    } else {
+        "minutes"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn test_minute_word_singular_plural() {
+        // #1156: a 1-minute leg must read "1 minute", not "1 minutes".
+        assert_eq!(minute_word(0u16), "minutes");
+        assert_eq!(minute_word(1u16), "minute");
+        assert_eq!(minute_word(2u16), "minutes");
+        assert_eq!(minute_word(11u16), "minutes");
+        // Generic over the integer type used by `/wait` (u32).
+        assert_eq!(minute_word(1u32), "minute");
+        assert_eq!(minute_word(15u32), "minutes");
+    }
 
     fn game_time(year: i32, month: u32, day: u32, hour: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(year, month, day, hour, 0, 0).unwrap()
