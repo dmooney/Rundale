@@ -56,6 +56,7 @@
 		onOpenDesigner,
 		onNpcReaction,
 		onTravelStart,
+		onReconnect,
 		submitInput,
 		saveScreenshot,
 		disposeTransport,
@@ -476,6 +477,33 @@
 
 			listeners.push(await onSavePicker(() => {
 				savePickerVisible.set(true);
+			}));
+
+			// Resync authoritative state after a WebSocket reconnect: events
+			// emitted during the gap (e.g. a terminal stream-end) are lost, so
+			// re-fetch snapshot/map/npcs and clear any stuck streaming flag so
+			// the input field and demo loop don't hang (audit M4). No-op in
+			// Tauri (the desktop transport never disconnects).
+			listeners.push(onReconnect(async () => {
+				try {
+					const [snap, map, npcs] = await Promise.all([
+						getWorldSnapshot(),
+						getMap(),
+						getNpcsHere()
+					]);
+					worldState.set(snap);
+					palette.applyGameHour(snap.hour);
+					if (snap.name_hints) nameHints.set(snap.name_hints);
+					mapData.set(map);
+					npcsHere.set(npcs);
+				} catch (e) {
+					console.warn('Reconnect resync failed:', e);
+				} finally {
+					// If a stream-end was dropped, nothing else will clear this.
+					if (!sm.isChainInProgress() && sm.pendingTurnCount() === 0) {
+						streamingActive.set(false);
+					}
+				}
 			}));
 
 		} catch (e) {

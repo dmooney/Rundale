@@ -1,0 +1,22 @@
+# Fixture for task gui-audit-fixes.
+#
+# These are frontend-only fixes (parish/apps/ui/src/**): type-drift removal,
+# a memory-leak trim, a URL-scheme guard, an IPC-seam reroute, an HTTP timeout,
+# and a WS-reconnect resync. None changes a gameplay rule, so the bulk of
+# verification is vitest, not the CLI harness:
+#
+#   pnpm --dir parish/apps/ui run test     # H3, security, M6, M4 unit tests
+#   pnpm --dir parish/apps/ui run check    # C1, H2 type-seam (svelte-check + tsc)
+#
+# The live tier (rule #10) is a real browser session + screenshot proving the
+# map still renders the player marker after the C1 type change — captured to
+# .proofs/gui-audit-fixes/.
+#
+# The commands below exist so the CLI harness exercises the *backend* MapData /
+# world-snapshot serialization the frontend consumes, confirming the wire format
+# carries player_location + locations[] and never player_lat / player_lon (C1).
+look
+/status
+go to the crossroads
+look
+/status

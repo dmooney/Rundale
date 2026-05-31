@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import type { WorldSnapshot, MapData, NpcInfo, LanguageHint, TextLogEntry, UiConfig } from '$lib/types';
 
 export const worldState = writable<WorldSnapshot | null>(null);
@@ -76,6 +76,40 @@ export function syncFocailOnViewportChange(matches: boolean): void {
 
 /** Maps message ID → Irish word hints for that completed NPC response. */
 export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
+
+/**
+ * Drops hint entries whose message is no longer present in `log`.
+ *
+ * `messageHints` is keyed by message id and was previously only ever added to
+ * (`finishNpcStream` calls `messageHints.set` on every NPC turn) with no
+ * eviction, so it grew without bound over a long session while the `textLog`
+ * it keys into is capped at MAX_TEXT_LOG_SIZE (audit finding H3). Pruning to
+ * the live log keeps it bounded by the same cap. Only notifies subscribers
+ * when something is actually removed, so it can be wired to every `textLog`
+ * change without churning `ChatPanel` reactivity.
+ */
+export function pruneMessageHints(log: TextLogEntry[]): void {
+	const current = get(messageHints);
+	if (current.size === 0) return;
+	const live = new Set<string>();
+	for (const entry of log) {
+		if (entry.id) live.add(entry.id);
+	}
+	let toDelete: string[] | null = null;
+	for (const key of current.keys()) {
+		if (!live.has(key)) (toDelete ??= []).push(key);
+	}
+	if (!toDelete) return;
+	messageHints.update((map) => {
+		for (const key of toDelete) map.delete(key);
+		return map;
+	});
+}
+
+// Keep messageHints bounded to messages still present in the log: every time
+// the log changes (including when trimTextLog drops old entries) prune the
+// orphaned hint keys. This is the single chokepoint for all trim sites.
+textLog.subscribe((log) => pruneMessageHints(log));
 
 /**
  * Appends a user-visible error entry to the text log.

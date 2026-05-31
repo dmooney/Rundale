@@ -54,8 +54,8 @@ const testMap = {
 	],
 	edges: [['loc1', 'loc2']] as [string, string][],
 	player_location: 'loc1',
-	player_lat: 53.8,
-	player_lon: -8.15,
+	transport_label: 'on foot',
+	transport_id: 'walking',
 };
 
 describe('FullMapOverlay', () => {

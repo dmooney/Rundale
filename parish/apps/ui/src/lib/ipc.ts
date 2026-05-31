@@ -27,12 +27,25 @@ import type {
 	DemoContextSnapshot,
 	DemoConfigPayload,
 	BugContext,
-	BugReportResult
+	BugReportResult,
+	AuthStatus
 } from './types';
 
 // ── Transport detection ─────────────────────────────────────────────────────
 
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/**
+ * Hard ceiling for a single HTTP command in web mode.
+ *
+ * The synchronous `/api/*` endpoints are all fast reads or fire-and-forget
+ * posts (NPC inference streams back over the WebSocket, not the POST body), so
+ * a request that runs this long means the server is wedged. Without a bound a
+ * hung server leaves the mount-time `Promise.allSettled` pending forever and
+ * the UI shows a permanent partial load with no error (audit M6). On abort we
+ * reject so the caller's error path runs.
+ */
+const COMMAND_TIMEOUT_MS = 30_000;
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
@@ -43,11 +56,24 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	}
 	// Web mode: REST API
 	const endpoint = `/api/${name.replace(/^get_/, '').replace(/_/g, '-')}`;
-	const resp = await fetch(endpoint, {
-		method: args ? 'POST' : 'GET',
-		headers: args ? { 'Content-Type': 'application/json' } : {},
-		body: args ? JSON.stringify(args) : undefined
-	});
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS);
+	let resp: Response;
+	try {
+		resp = await fetch(endpoint, {
+			method: args ? 'POST' : 'GET',
+			headers: args ? { 'Content-Type': 'application/json' } : {},
+			body: args ? JSON.stringify(args) : undefined,
+			signal: controller.signal
+		});
+	} catch (e) {
+		if (controller.signal.aborted) {
+			throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+		}
+		throw e;
+	} finally {
+		clearTimeout(timer);
+	}
 	if (!resp.ok) {
 		throw new Error(`API error: ${resp.status} ${resp.statusText}`);
 	}
@@ -94,6 +120,29 @@ export const switchMod = (modId: string): Promise<{ ok: boolean; error?: string 
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ mod_id: modId })
 	}).then((r) => r.json());
+};
+
+// ── Auth status (web-only OAuth UI) ──────────────────────────────────────────
+
+/**
+ * Fetches OAuth status for the web server's optional Google sign-in indicator.
+ *
+ * Forks inside the seam (like getMods/switchMod): Tauri desktop has no auth
+ * server, so it resolves to `null`; web mode hits `GET /api/auth/status` — a
+ * slash route that doesn't fit `command()`'s kebab-cased `/api/<name>` mapping.
+ * Returns `null` on any failure; the auth indicator is non-critical chrome.
+ * Centralising it here keeps AuthStatus.svelte off the raw transport (the
+ * "don't fork transports in components" seam rule).
+ */
+export const getAuthStatus = async (): Promise<AuthStatus | null> => {
+	if (IS_TAURI) return null;
+	try {
+		const resp = await fetch('/api/auth/status');
+		return resp.ok ? ((await resp.json()) as AuthStatus) : null;
+	} catch {
+		// Non-critical — auth UI is optional.
+		return null;
+	}
 };
 
 // ── Persistence commands ────────────────────────────────────────────────────
@@ -217,6 +266,30 @@ let ws: WebSocket | null = null;
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const wsListeners = new Map<string, Set<EventCallback<unknown>>>();
 
+// Reconnect-resync hooks. Any event emitted while the socket was down is lost
+// (unlike Tauri's `listen`, which never disconnects), so a dropped
+// `stream-end` could leave the HUD desynced — e.g. `streamingActive` stuck
+// true. Callers register here to re-fetch authoritative state when the socket
+// re-opens after a drop (audit M4). The very first connection does NOT fire
+// these — the mount already loads initial state.
+const wsReconnectListeners = new Set<() => void>();
+let wsHasConnected = false;
+
+/**
+ * Registers a callback fired after the browser WebSocket reconnects following a
+ * drop (never on the initial connection). Use it to re-fetch world snapshot /
+ * map / npcs so events missed during the gap can't leave the UI out of sync.
+ * No-op in Tauri (the desktop transport never disconnects). Returns an
+ * unsubscribe function.
+ */
+export function onReconnect(cb: () => void): UnlistenFn {
+	if (IS_TAURI) return () => {};
+	wsReconnectListeners.add(cb);
+	return () => {
+		wsReconnectListeners.delete(cb);
+	};
+}
+
 function clearReconnectTimer(): void {
 	if (wsReconnectTimer !== null) {
 		clearTimeout(wsReconnectTimer);
@@ -274,12 +347,30 @@ function ensureWebSocket(): void {
 }
 
 function attachHandlers(socket: WebSocket): void {
+	socket.onopen = () => {
+		if (wsHasConnected) {
+			// This is a reconnect, not the first connection — replay-resync any
+			// state lost during the gap. Snapshot the set so a callback that
+			// unsubscribes mid-flush can't perturb iteration.
+			for (const cb of [...wsReconnectListeners]) {
+				try {
+					cb();
+				} catch (e) {
+					console.warn('Reconnect resync callback failed:', e);
+				}
+			}
+		}
+		wsHasConnected = true;
+	};
+
 	socket.onmessage = (event) => {
 		try {
 			const data = JSON.parse(event.data) as { event: string; payload: unknown };
 			const callbacks = wsListeners.get(data.event);
 			if (callbacks) {
-				for (const cb of callbacks) {
+				// Snapshot before iterating: a callback may unlisten (and thus
+				// mutate this Set) during dispatch.
+				for (const cb of [...callbacks]) {
 					cb(data.payload);
 				}
 			}
@@ -321,6 +412,7 @@ export function disposeTransport(): void {
 	clearReconnectTimer();
 	if (ws) {
 		// Detach handlers so the `onclose` reconnect path doesn't fire.
+		ws.onopen = null;
 		ws.onclose = null;
 		ws.onerror = null;
 		ws.onmessage = null;
@@ -331,6 +423,8 @@ export function disposeTransport(): void {
 		}
 		ws = null;
 	}
+	// Reset so the next mount's first connection isn't treated as a reconnect.
+	wsHasConnected = false;
 }
 
 async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<UnlistenFn> {

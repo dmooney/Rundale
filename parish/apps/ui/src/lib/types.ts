@@ -34,14 +34,15 @@ export interface MapData {
 	locations: MapLocation[];
 	edges: [string, string][];
 	player_location: string;
-	player_lat: number;
-	player_lon: number;
-	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count]. */
+	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count].
+	 *  Rust skips this when empty (`skip_serializing_if = "Vec::is_empty"`). */
 	edge_traversals?: [string, string, number][];
-	/** Human-readable transport mode label (e.g. "on foot"). */
-	transport_label?: string;
-	/** Machine identifier for the active transport mode (e.g. "walking"). */
-	transport_id?: string;
+	/** Human-readable transport mode label (e.g. "on foot").
+	 *  Always serialized by Rust `MapData` (`pub transport_label: String`). */
+	transport_label: string;
+	/** Machine identifier for the active transport mode (e.g. "walking").
+	 *  Always serialized by Rust `MapData` (`pub transport_id: String`). */
+	transport_id: string;
 }
 
 /** Tooltip data shown when hovering a map location marker.
@@ -163,7 +164,10 @@ export interface StreamEndPayload {
 }
 
 export interface TextLogPayload {
-	id?: string;
+	/** Unique message id for reaction targeting. Rust always serializes this
+	 *  (`#[serde(default)] pub id: String`); `#[serde(default)]` only affects
+	 *  deserialization, so the wire payload always carries a (possibly empty) id. */
+	id: string;
 	stream_turn_id?: number;
 	source: string;
 	content: string;
@@ -207,6 +211,20 @@ export interface AuthDebug {
 	provider: string | null;
 	display_name: string | null;
 	session_id: string | null;
+}
+
+/**
+ * Response body for `GET /api/auth/status` (web server only).
+ *
+ * Mirrors `parish_server::auth::AuthStatus` — keep in sync with that struct.
+ * Distinct from {@link AuthDebug} (the debug-snapshot shape, which also carries
+ * `session_id`); this is the narrower public auth-status payload.
+ */
+export interface AuthStatus {
+	oauth_enabled: boolean;
+	logged_in: boolean;
+	provider?: string | null;
+	display_name?: string | null;
 }
 
 export interface ClockDebug {

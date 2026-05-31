@@ -27,12 +27,31 @@ export interface ByokProviderMeta {
 	keyless: boolean;
 }
 
+/**
+ * Returns `url` only if it is a safe `http:`/`https:` link, else `''`.
+ *
+ * `signup_url` is sourced from `mods/<id>/providers/<id>.toml`, so a hostile or
+ * compromised mod could set `javascript:...` (or `data:`/`file:`). Svelte does
+ * not sanitize URL-attribute bindings, so binding such a value to the "Get a
+ * key" `<a href>` in ByokOnboarding would execute script on click. Dropping any
+ * non-http(s) scheme here closes that vector at the boundary (audit security).
+ */
+function safeSignupUrl(url: string | null | undefined): string {
+	if (!url) return '';
+	try {
+		const scheme = new URL(url, 'https://example.invalid').protocol;
+		return scheme === 'http:' || scheme === 'https:' ? url : '';
+	} catch {
+		return '';
+	}
+}
+
 export function toByokMeta(p: AvailableProviderInfo): ByokProviderMeta {
 	return {
 		id: p.id,
 		label: p.display_name,
 		blurb: p.blurb ?? '',
-		signupUrl: p.signup_url ?? '',
+		signupUrl: safeSignupUrl(p.signup_url),
 		needsBaseUrl: p.needs_base_url,
 		keyless: p.keyless
 	};
