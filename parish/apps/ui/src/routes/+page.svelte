@@ -485,24 +485,28 @@
 			// the input field and demo loop don't hang (audit M4). No-op in
 			// Tauri (the desktop transport never disconnects).
 			listeners.push(onReconnect(async () => {
-				try {
-					const [snap, map, npcs] = await Promise.all([
-						getWorldSnapshot(),
-						getMap(),
-						getNpcsHere()
-					]);
+				// allSettled (matching the mount-time fetch): a transient failure
+				// on one endpoint right after reconnect must not discard the
+				// other successful updates.
+				const [snapRes, mapRes, npcsRes] = await Promise.allSettled([
+					getWorldSnapshot(),
+					getMap(),
+					getNpcsHere()
+				]);
+				if (snapRes.status === 'fulfilled') {
+					const snap = snapRes.value;
 					worldState.set(snap);
 					palette.applyGameHour(snap.hour);
 					if (snap.name_hints) nameHints.set(snap.name_hints);
-					mapData.set(map);
-					npcsHere.set(npcs);
-				} catch (e) {
-					console.warn('Reconnect resync failed:', e);
-				} finally {
-					// If a stream-end was dropped, nothing else will clear this.
-					if (!sm.isChainInProgress() && sm.pendingTurnCount() === 0) {
-						streamingActive.set(false);
-					}
+				}
+				if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
+				if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
+				for (const r of [snapRes, mapRes, npcsRes]) {
+					if (r.status === 'rejected') console.warn('Reconnect resync partial failure:', r.reason);
+				}
+				// If a stream-end was dropped during the gap, nothing else clears this.
+				if (!sm.isChainInProgress() && sm.pendingTurnCount() === 0) {
+					streamingActive.set(false);
 				}
 			}));
 

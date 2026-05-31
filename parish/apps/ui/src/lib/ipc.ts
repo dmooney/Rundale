@@ -136,12 +136,18 @@ export const switchMod = (modId: string): Promise<{ ok: boolean; error?: string 
  */
 export const getAuthStatus = async (): Promise<AuthStatus | null> => {
 	if (IS_TAURI) return null;
+	// Bound the fetch like command() does (M6): a wedged server must not hang
+	// the mount flow on this optional call. Any failure (including abort)
+	// resolves to null rather than throwing — the auth UI is non-critical.
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS);
 	try {
-		const resp = await fetch('/api/auth/status');
+		const resp = await fetch('/api/auth/status', { signal: controller.signal });
 		return resp.ok ? ((await resp.json()) as AuthStatus) : null;
 	} catch {
-		// Non-critical — auth UI is optional.
 		return null;
+	} finally {
+		clearTimeout(timer);
 	}
 };
 
