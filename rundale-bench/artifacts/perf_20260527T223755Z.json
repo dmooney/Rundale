@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-27T22:37:55.137413+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Qwen3.6-27B-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 4123,
+      "ttft_ms_p90": 4242,
+      "total_ms_median": 13072,
+      "tokens_per_second_median": 17.9,
+      "tokens_per_second_p90": 17.9,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 3529,
+          "total_ms": 11951,
+          "completion_tokens": 151,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 17.929232961291852,
+          "reply_len": 551,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 4090,
+          "total_ms": 13656,
+          "completion_tokens": 172,
+          "prompt_tokens": 1579,
+          "tokens_per_second": 17.980347062513065,
+          "reply_len": 641,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 3993,
+          "total_ms": 14385,
+          "completion_tokens": 186,
+          "prompt_tokens": 1579,
+          "tokens_per_second": 17.89838337182448,
+          "reply_len": 640,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 4052,
+          "total_ms": 14465,
+          "completion_tokens": 186,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 17.862287525208874,
+          "reply_len": 647,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 4095,
+          "total_ms": 11629,
+          "completion_tokens": 135,
+          "prompt_tokens": 1577,
+          "tokens_per_second": 17.918768250597292,
+          "reply_len": 517,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 4151,
+          "total_ms": 13665,
+          "completion_tokens": 170,
+          "prompt_tokens": 1576,
+          "tokens_per_second": 17.86840445659029,
+          "reply_len": 628,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 4181,
+          "total_ms": 11598,
+          "completion_tokens": 133,
+          "prompt_tokens": 1576,
+          "tokens_per_second": 17.931778347040584,
+          "reply_len": 487,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 4219,
+          "total_ms": 12488,
+          "completion_tokens": 148,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 17.89817390252751,
+          "reply_len": 556,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 4239,
+          "total_ms": 11385,
+          "completion_tokens": 128,
+          "prompt_tokens": 1575,
+          "tokens_per_second": 17.912118667786174,
+          "reply_len": 483,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Qwen3.6-27B-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 4272,
+          "total_ms": 14266,
+          "completion_tokens": 178,
+          "prompt_tokens": 1578,
+          "tokens_per_second": 17.810686411847108,
+          "reply_len": 661,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 159.8934850692749,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

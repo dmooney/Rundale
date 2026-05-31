@@ -1756,7 +1756,7 @@ pub(crate) async fn do_submit_bug_report(
         },
     };
 
-    let cfg = bug_report::GitHubBugConfig::from_env();
+    let cfg = bug_report::GitHubBugConfig::from_env_async().await;
     let bundle_root = state.saves_dir.join("bug-reports");
     let http = reqwest::Client::new();
     bug_report::create_bug_report(

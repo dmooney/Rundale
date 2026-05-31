@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-05-28T14:22:26.480592+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "stelterlab/EuroLLM-9B-Instruct-MLX-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 171,
+      "ttft_ms_p90": 174,
+      "total_ms_median": 3243,
+      "tokens_per_second_median": 50.0,
+      "tokens_per_second_p90": 50.3,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 196,
+          "total_ms": 4225,
+          "completion_tokens": 200,
+          "prompt_tokens": 1710,
+          "tokens_per_second": 49.64010920824026,
+          "reply_len": 768,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 172,
+          "total_ms": 4207,
+          "completion_tokens": 200,
+          "prompt_tokens": 1715,
+          "tokens_per_second": 49.56629491945477,
+          "reply_len": 693,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 172,
+          "total_ms": 2043,
+          "completion_tokens": 94,
+          "prompt_tokens": 1714,
+          "tokens_per_second": 50.240513094601816,
+          "reply_len": 336,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 172,
+          "total_ms": 1694,
+          "completion_tokens": 77,
+          "prompt_tokens": 1710,
+          "tokens_per_second": 50.59132720105125,
+          "reply_len": 238,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 97,
+          "total_ms": 3580,
+          "completion_tokens": 173,
+          "prompt_tokens": 1712,
+          "tokens_per_second": 49.66982486362331,
+          "reply_len": 601,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 170,
+          "total_ms": 4203,
+          "completion_tokens": 200,
+          "prompt_tokens": 1711,
+          "tokens_per_second": 49.590875278948666,
+          "reply_len": 701,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 170,
+          "total_ms": 2563,
+          "completion_tokens": 120,
+          "prompt_tokens": 1711,
+          "tokens_per_second": 50.146259924780615,
+          "reply_len": 422,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 170,
+          "total_ms": 2400,
+          "completion_tokens": 112,
+          "prompt_tokens": 1711,
+          "tokens_per_second": 50.224215246636774,
+          "reply_len": 435,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 170,
+          "total_ms": 3009,
+          "completion_tokens": 142,
+          "prompt_tokens": 1711,
+          "tokens_per_second": 50.017611835153225,
+          "reply_len": 473,
+          "error": null
+        },
+        {
+          "candidate": "stelterlab/EuroLLM-9B-Instruct-MLX-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 172,
+          "total_ms": 3478,
+          "completion_tokens": 165,
+          "prompt_tokens": 1714,
+          "tokens_per_second": 49.9092558983666,
+          "reply_len": 536,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 40.864816188812256,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

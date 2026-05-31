@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-28T14:32:36.161950+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/Phi-4-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 253,
+      "ttft_ms_p90": 259,
+      "total_ms_median": 4800,
+      "tokens_per_second_median": 32.2,
+      "tokens_per_second_p90": 32.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 2,
+        "rate": 0.2,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"100\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"January\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"56\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"William Shakespeare\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"Au\",\n  \"confidence\": 1.0\n}\n```"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}",
+          "parsed but missing keys: {}"
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 268,
+          "total_ms": 4484,
+          "completion_tokens": 136,
+          "prompt_tokens": 1528,
+          "tokens_per_second": 32.25806451612903,
+          "reply_len": 466,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 252,
+          "total_ms": 6451,
+          "completion_tokens": 200,
+          "prompt_tokens": 1532,
+          "tokens_per_second": 32.26326826907566,
+          "reply_len": 700,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 141,
+          "total_ms": 4043,
+          "completion_tokens": 127,
+          "prompt_tokens": 1532,
+          "tokens_per_second": 32.547411583803175,
+          "reply_len": 464,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 251,
+          "total_ms": 5529,
+          "completion_tokens": 170,
+          "prompt_tokens": 1528,
+          "tokens_per_second": 32.20917014020463,
+          "reply_len": 564,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 249,
+          "total_ms": 3131,
+          "completion_tokens": 94,
+          "prompt_tokens": 1530,
+          "tokens_per_second": 32.61623872310895,
+          "reply_len": 329,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 249,
+          "total_ms": 4770,
+          "completion_tokens": 146,
+          "prompt_tokens": 1529,
+          "tokens_per_second": 32.2937403229374,
+          "reply_len": 482,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 254,
+          "total_ms": 5540,
+          "completion_tokens": 170,
+          "prompt_tokens": 1529,
+          "tokens_per_second": 32.16042376087779,
+          "reply_len": 591,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 258,
+          "total_ms": 5639,
+          "completion_tokens": 172,
+          "prompt_tokens": 1528,
+          "tokens_per_second": 31.964318899832744,
+          "reply_len": 622,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 254,
+          "total_ms": 4831,
+          "completion_tokens": 146,
+          "prompt_tokens": 1528,
+          "tokens_per_second": 31.898623552545335,
+          "reply_len": 475,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/Phi-4-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 259,
+          "total_ms": 4561,
+          "completion_tokens": 137,
+          "prompt_tokens": 1531,
+          "tokens_per_second": 31.84565318456532,
+          "reply_len": 514,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 67.98599696159363,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

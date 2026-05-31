@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:09:22.382910+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 4,
+        "bench_bugs": 6,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": 2.75,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Served ale to the afternoon crowd, maintaining the pub's lively atmosphere. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Managed the bar during the busy afternoon, though the constant chatter was tiring. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"plain-spoken\",\n      \"activity_summary\": \"Worked the bog, harvested crops, and is now returning home for lunch. Did not move.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Sat at the crossroads, sharing tales with passersby, though the stories left him longing for the past. Did not move.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Continued her midwifery duties, tending to the latest childbirth in the parish. Did not move.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Spent the afternoon in the church, deep in thought, perhaps preparing for the next mass or reflecting on the community's well-being. Did not move.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**NPC Update Breakdown:**\n\n1. **Padraig Darcy** - At Darcy's Pub, continues to serve the afternoon crowd maintaining the pub's lively atmosphere. He remains in the same location as he did not move during the update period. His mood remains positive, indicating he handled the crowd well without any significant mood shift.\n\n2. **Niamh Darcy** - At Darcy's Pub, continues to manage the bar despite the tiring chatter. Her location remains the same as she did not move during the update period. Her mood indicates she handled the situation albeit being tired, indicating resilience.\n\n3",
+          "schema_valid": false,
+          "response_sha256": "f1fb9dd7ae1bca9d85d0f32f0b6d0f7e2abfd53ddd409e4077aea0ee19e503e5",
+          "cache_key": "3b5569141a59d7735792e176453cf01ef0b3e07164a77b50321310c1a792986f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Served ale to the afternoon crowd, maintaining the peace after last night's quarrel.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Managed the bar, diffusing tension with her sharp wit, though the atmosphere remains slightly charged.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"plain-spoken\",\n      \"activity_summary\": \"Worked the bog, though the gnawing hunger distracts him. He heads towards the pub for a quick bite.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Sat at the crossroads, sharing tales to pass the time, though the stories have a tinge of the quarrel's tension.\",\n      \"new_location\": 4,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Delivered a healthy baby, her mind is on the well-being of the child and the mother, the quarrel distant.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Prayed in the church, the quiet offering solace amid the community's tensions. He plans to speak with the parishioners later.\",\n      \"new_location\": 6,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**NPC Update Breakdown:**\n\n1. **Padraig Darcy** - At the pub, continues to serve the afternoon crowd maintaining the peace. He remains in the same location as the tension requires someone to keep the atmosphere civil.\n\n2. **Niamh Darcy** - At the pub, using her wit to deflect the subtle undercurrents left from the quarrel. She stays put as the barmaid, albeit slightly more vigilant.\n\n3. **Sean Murphy** - At the bog, working hard but the gnawing hunger distracts him. He heads towards the pub for a quick",
+          "schema_valid": false,
+          "response_sha256": "b1c8e7a124699354302057901265179363f5a8c455b693b04fb41ce0ae60bad6",
+          "cache_key": "97134835ee79304de698756adfc3f42d7eaa8218b23fcd7965fc1c6e6b97664a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Served ale to the afternoon crowd, maintaining the warm atmosphere in Darcy's Pub. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Managed the busy afternoon serving drinks. Talked briefly with Padraig about the good news. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"plain-spoken\",\n      \"activity_summary\": \"Worked the bog, though the heat was oppressive. Upon returning, plans to visit the pub for a cool drink. Did not move.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Sat at the crossroads, sharing tales with passersby about the good news. Afterward, plans to head to the pub. Did not move.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Continued her essential work as a midwife, though the thought of the good news brought a subtle smile. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Spent the afternoon in the quiet of the church, reflecting on the positive news. Plans to greet the community warmly during the evening service. Did not move.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**Summary:**\n\n- **Padraig Darcy** (NPC 1) remains content in the pub, serving the afternoon crowd.\n- **Niamh Darcy** (NPC 2) continues her barmaid duties, albeit feeling tired, but the good news brings a spark in her conversation.\n- **Sean Murphy** (NPC 3) labors in the bog, plans to refresh himself at the pub due to the heat.\n- **Tommy Maguire** (NPC 4) sits at the crossroads, sharing",
+          "schema_valid": false,
+          "response_sha256": "bfee73cab9c6a6819531d8c04209f956b92697a5dea4277d351c791d53c65bb6",
+          "cache_key": "2c1806587aeb709d44253d7419a3b817fe85c7517f98e1344b58b1b301374b62",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Fatigued but focused\",\n      \"activity_summary\": \"Worked diligently at the forge, shaping horseshoes for the winter. Showed brief signs of weariness but remained committed to the task.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient yet empathetic\",\n      \"activity_summary\": \"Taught the children at the schoolhouse, paying special attention to Eamon who was clearly distracted. Attempted to lighten the mood with stories from Galway.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Heartbroken but finding solace in the community\",\n      \"activity_summary\": \"Spent the morning in her cottage, reflecting on the loss of her son. Later, joined the townsfolk for the weekly market, finding comfort in the company.\",\n      \"new_location\": 3,\n      \"relationship_changes\": [{ \"from\": 4, \"to\": 5, \"delta\": -0.1 }]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Sad but finding strength in the community\",\n      \"activity_summary\": \"Attended the schoolhouse, though he was often lost in thought. The teacher's stories helped him slightly, though the absence of his father was ever-present.\",\n      \"new_location\": 2,\n      \"relationship_changes\": [{ \"from\": 5, \"to\": 2, \"delta\": -0.1 }]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"Concerned but maintaining composure\",\n      \"activity_summary\": \"Managed the local shop, ensuring the shelves were stocked for the winter. Spoke briefly with the widow, offering support though knowing well the depth of her grief.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"Cold but determined\",\n      \"activity_summary\": \"Worked outdoors, ensuring the farm animals were fed and the paths were clear of snow. Bundled up warmly, though the frost gnawed at the skin.\",\n      \"new_location\": 6,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**NPC Update Breakdown:**\n\n1. **Donal",
+          "schema_valid": false,
+          "response_sha256": "c6c2f73bd3e73981908c2c299e3a441a1815a1992519699732158e619df84428",
+          "cache_key": "b6cbc2d5b888862c77f94b331218d1723a97740a2b55b461b954b06b2d618ecd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"distracted, though trying to focus on the forge work\",\n      \"activity_summary\": \"Worked at the forge, shaping metal, though his mind was elsewhere due to the frost and the unresolved quarrel.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"patient, though slightly anxious about the children's well-being due to the frost and the quarrel\",\n      \"activity_summary\": \"Taught the children at the schoolhouse, paying extra attention to Eamon who seemed distracted.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"deeply sorrowful, the cold winter only amplifying her grief for the loss of her son\",\n      \"activity_summary\": \"Spent the morning in her cottage, tending to the small fire and the meager food left, her mind lost in thoughts of her son.\",\n      \"new_location\": 3,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"lonely and confused, the absence of his father leaving a void he struggles to fill\",\n      \"activity_summary\": \"Attended the schoolhouse, though he was more lost in thought than the lessons, staring out the window at the winter landscape.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 1,\n      \"mood\": \"somewhat relieved the forge work distracts him from the quarrel, though the tension remains unresolved\",\n      \"activity_summary\": \"Continued the forge work, the rhythmic pounding on the anvil providing a semblance of peace though the quarrel gnaws at the back of his mind.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"increasingly concerned about the community tension, the quarrel threatening the harmony of the parish\",\n      \"activity_summary\": \"After the school session, visited Donal at the forge, attempting to mediate the ongoing dispute in hopes of maintaining the community's peace.\",\n      \"new_location\": 2,\n      \"relationship_changes\": {\n        \"from\": 1,\n        \"to\": 2,\n        \"delta\": -0.1\n      }",
+          "schema_valid": false,
+          "response_sha256": "997cdc39d1374b52e494d3512610aa8fdcbf38afbfd604730dd9db108979bf2a",
+          "cache_key": "e9214abdb16fbd1bfab21de160ed6bbb14d66461f412a015f3890230a5eaeac8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"somewhat relieved\",\n      \"activity_summary\": \"Continued working at the forge, the good news about the parish has lifted his spirits slightly.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"calm yet thoughtful\",\n      \"activity_summary\": \"Taught the children at the schoolhouse, the good news has sparked interest in the students.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"sorrowful but slightly hopeful\",\n      \"activity_summary\": \"Spent the morning at her cottage, the good news brought a glimmer of hope, though her heart remains heavy.\",\n      \"new_location\": 3,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"distracted but slightly more engaged\",\n      \"activity_summary\": \"Unable to focus due to the recent loss, the good news caused him to think about the future albeit briefly.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**Explanation:**\n\n- **Donal MacNamara (ID 1)**: At the forge, the good news has slightly improved his mood. He continues working, albeit less fatigued than before. He remains in the forge as the location. There are no significant relationship changes noted for this update.\n\n- **Mister Lyons (ID 2)**: At the schoolhouse, the good news has a positive albeit subtle effect on his mood. His patient demeanor continues as he educates the children. He stays at the schoolhouse, maintaining the same location. There are no relationship changes mentioned for this update.\n\n- **Widow Kelleher (ID 3)**: At her cottage, the good news barely penetrates the veil of her grief. Her mood remains sorrowful, though the prospect of better times ahead offers a subtle glimmer of hope. She stays in her cottage, indicating no movement. There are no relationship changes noted for this update.\n\n- **Eamon Kelleher (ID 4)**: At the schoolhouse, the good news distracts him slightly from his grief, albeit briefly. His mood oscillates between distraction and a subtle engagement due to the positive news. He moves from the cottage to the schoolhouse, indicating a subtle shift in his activity pattern influenced by the good news. There are no",
+          "schema_valid": false,
+          "response_sha256": "245c4550a7f9ceefbd21007cf0e9472873ccd00affcd5b0e299c043b044e4a12",
+          "cache_key": "9c17129cd05525170856942b69dc076d3dfb3afee063ef6f325f20c9b783ce72",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"weary\",\n      \"activity_summary\": \"Still at the lakeshore, casting nets one last time before the rain becomes too heavy. Hasn't moved much due to the persistent light rain.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"hopeful\",\n      \"activity_summary\": \"Still at the lakeshore, chatting with Conor about the potential catch. Attempted to set one more trap before the rain picks up.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"anxious\",\n      \"activity_summary\": \"Still at her cottage, waiting for Brigid's arrival. Attempted to tidy the place though the anxiousness makes her fidgety.\",\n      \"new_location\": 3,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"attentive\",\n      \"activity_summary\": \"Just left Maire's cottage, heading towards the pub. Brigid plans to stop by Darcy's for a quick pint before returning home.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"tipsy\",\n      \"activity_summary\": \"Still at Darcy's Pub, though he mentioned plans to head home soon. Has been sharing stories, though the details are getting fuzzy.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"hopeful\",\n      \"activity_summary\": \"Left the lakeshore as the rain started to pick up, headed towards the pub to meet the others.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    }\n  ]\n}\n```\n\n**NPC Update Summary:**\n\n- **Conor McGowan** (ID 1): At the lakeshore, continues to fish despite the light rain, showing no signs of moving due to the persistent rain.\n  \n- **Padraig McGowan** (ID 2): At the lakeshore, maintaining hope for a good catch, though the rain might hinder the fishing. Hasn't moved from the lakeshore.\n  \n- **Maire McGowan** (ID",
+          "schema_valid": false,
+          "response_sha256": "cbd1470c9f5d94771514471114d2b682f38ee3808469806869de512b8ded3952",
+          "cache_key": "4c3861304f3fad144fa41974f72f440bd926ea96065d5878eefb4d1ca780aa53",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"weary but slightly uplifted\",\n      \"activity_summary\": \"Still at the lakeshore, casting nets one last time before the rain becomes too heavy. Noticed the light rain and mentioned it might be good for the fish, though he's more focused on getting home due to the fatigue.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"hopeful and slightly more energetic\",\n      \"activity_summary\": \"Began the day at the lakeshore, but the news of good fortune has him scouting the nearby paths for signs of the fish moving in. He plans to move to the nearby bog if the fishing here proves unfruitful.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"anxious but relieved\",\n      \"activity_summary\": \"Still at the cottage, though she's been pacing back and forth due to the anxiousness. Brigid's arrival brought some relief as the weekly check began, though the anticipation of the pregnancy weighs heavily.\",\n      \"new_location\": 3,\n      \"relationship_changes\": [{\n        \"from\": 4,\n        \"to\": 5,\n        \"delta\": -0.1\n      }]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"focused and reassuring\",\n      \"activity_summary\": \"At Maire's cottage, providing the much-needed medical attention and reassurance during the pregnancy check. Brigid's presence is calming, though the anxiousness in the air is palpable.\",\n      \"new_location\": 3,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"more jovial and slightly inebriated\",\n      \"activity_summary\": \"Still at Darcy's Pub, though he's started to show signs of the evening's alcohol intake. Shares the good news with anyone willing to listen, though his stories are getting more exaggerated as the pints accumulate.\",\n      \"new_location\": 5,\n      \"relationship_changes\": [{\n        \"from\": 4,\n        \"to\": 2,\n        \"delta\": -0.1\n      }, {\n        \"from\": 3,\n        \"to\": 5,\n        \"delta\": -0.1\n      }]\n    }]\n}\n```\n\n**NPC Update",
+          "schema_valid": false,
+          "response_sha256": "ea67e99ff4021c9ec417b060329d340780515a36185c1885e4a7e6ff677b57a7",
+          "cache_key": "f6e85d996f8723639e49ad08ec847fd8f1a9d9b87ee4543bc01686b6ca3d85d5",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"increasingly impatient\",\n      \"activity_summary\": \"Stays put in the office, continues to collect rents, though becomes more terse with each transaction.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"growing anxious\",\n      \"activity_summary\": \"Stays at the pub, tries to deflect inquiries about the owed quarter, though becomes more evasive as the afternoon progresses.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"increasingly anxious\",\n      \"activity_summary\": \"Still at the marketplace, though now hurriedly wrapping up the sale of oats, fearing a bad yield might affect his finances.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"remains neutral\",\n      \"activity_summary\": \"Buys the needed herbs from Sean Murphy, maintaining her neutral stance though the transaction is brief.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"watchful, becomes slightly more concerned as the afternoon progresses\",\n      \"activity_summary\": \"Stays at the church, continues his preparations for the afternoon Mass, though he keeps glancing at the clock.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"talkative, becomes slightly more animated as the afternoon continues\",\n      \"activity_summary\": \"Moves to the marketplace to regale listeners with tales, drawing a small crowd, though he becomes slightly more animated as the afternoon continues.\",\n      \"new_location\": 3,\n      \"relationship_changes\": [{ \"from\": 7, \"to\": 6, \"delta\": -0.1 }]\n    },\n    {\n      \"npc_id\": 7,\n      \"mood\": \"remains wary, though slightly more at ease due to the benign nature of the locale\",\n      \"activity_summary\": \"Stays at the inn, though becomes more relaxed as the afternoon continues, noticing the peacefulness of the parish.\",\n      \"new_location\": 5,\n      \"relationship_changes\": [{ \"from\": 5, \"to\": 7, \"",
+          "schema_valid": false,
+          "response_sha256": "5929189ca7ed6768bd45feed4a8e62aae6b490a78c96a13a3b642ea07a04ef85",
+          "cache_key": "35e28456ed550bd2b73744461f8d2b58294d9cd5cde30b130bffae5c3c25f74d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "```json\n{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"increasingly impatient\",\n      \"activity_summary\": \"Still at the agent's office, continues to collect rents, shows signs of impatience as the hours pass without resolution.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"increasingly anxious\",\n      \"activity_summary\": \"Moves from the pub to the marketplace, seeking someone to speak to about settling the owed quarter.\",\n      \"new_location\": 3,\n      \"relationship_changes\": [{ \"from\": 2, \"to\": 3, \"delta\": -0.1 }]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"becoming more relieved\",\n      \"activity_summary\": \"Successfully sells the oats, receives positive feedback, and begins to feel relieved about the financial burden lifted.\",\n      \"new_location\": 5,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"remains neutral, though slightly more content after the successful purchase of needed herbs\",\n      \"activity_summary\": \"Finishes the purchase at the marketplace, heads back to the pub, perhaps to speak with Padraig about the good news.\",\n      \"new_location\": 2,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"increasingly watchful, though the good news brings a subtle smile\",\n      \"activity_summary\": \"Continues the Mass, though the anticipation of the good news influences the tone of the service slightly more positively.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"becoming more jovial as the good news spreads\",\n      \"activity_summary\": \"Moves from the marketplace to the inn, regaling listeners with the positive news, lifting the spirits of the English soldier.\",\n      \"new_location\": 4,\n      \"relationship_changes\": [{ \"from\": 6, \"to\": 7, \"delta\": 0.1 }]\n    },\n    {\n      \"npc_id\": 7,\n      \"mood\": \"slightly less wary, though still cautious due to being a stranger in the parish\",\n      \"activity_summary\": \"Hears the good news from Tommy, becomes more relaxed, though the wariness remains due to",
+          "schema_valid": false,
+          "response_sha256": "072d24b9a45e5e78e712bbeaf7c65f94d90ceb3025d1324c6d34f7910947ac0c",
+          "cache_key": "a1e4e05fbc1410e95f7ed086687c135265eb6131cb53bc42124c90119409c08f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8767/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 110.82305312156677,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 3103,
+    "completion_tokens": 6000,
+    "usd": 0.0
+  }
+}

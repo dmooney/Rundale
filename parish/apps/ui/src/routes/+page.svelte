@@ -131,8 +131,8 @@
 					.catch(() => {});
 			}
 		}
-		// Toggle full map with M key, but only when not typing in an input/contenteditable
-		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && !(document.activeElement as HTMLElement)?.isContentEditable) {
+		// Toggle full map with M key, but only when not typing in an input/textarea/contenteditable
+		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && !(document.activeElement as HTMLElement)?.isContentEditable) {
 			e.preventDefault();
 			fullMapOpen.update((v) => !v);
 		}
@@ -365,6 +365,13 @@
 				) {
 					sm.queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
 					return;
+				}
+
+				// Movement renders the full arrival scene here (with NPCs + exits).
+				// Suppress the shorter scene line the imminent world-update would
+				// otherwise append, so the location prints once, not twice.
+				if (payload.subtype === 'location') {
+					sceneDedup.suppressNextDescription();
 				}
 
 				// Strip "> " prefix from player messages — bubble alignment shows speaker

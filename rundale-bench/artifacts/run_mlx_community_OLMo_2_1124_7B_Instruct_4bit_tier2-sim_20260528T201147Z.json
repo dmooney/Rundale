@@ -1,0 +1,126 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-7B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-28T20:11:34.023882+00:00",
+  "slices": {
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 0,
+        "judge_failures": 10,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a",
+        "bundles_queued": 1,
+        "cache_hits": 0,
+        "pending_judge": true
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "{\"summary\": \"Padraig serves Sean a plate of stew while Niamh wipes down the bar, exchanging a brief, friendly banter.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [3], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "9d19b4187034fe0eeaeee09caf04ab7e2e9da5a80d7db34bea53000bfb06890f",
+          "cache_key": "d09684023aa65064c2a945be6aaab8fef0b607f12ecaefe4e5655841d4a4b7d0",
+          "judged": false
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "```json\n{\"summary\": \"Padraig serves Sean a plate of stew while Niamh checks if the till is balanced, with no mood or relationship changes noted.\", \"mood_changes\": [], \"relationship_changes\": {\"\": {\"from\": 3, \"to\": 1, \"delta\": 0}}}\n```",
+          "schema_valid": false,
+          "response_sha256": "1f81fe034618c7072dbabb52cb458ae45ae29a4a11a5478e3a4bbf3c6e9ae36f",
+          "cache_key": "71f3dd20f075db72e9f5a8a9c06386b30a150d36795dec9c179cf83c4f87d9d8",
+          "judged": false
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "{\"summary\": \"Padraig serves Sean a plate of stew while Niamh wipes down the bar, exchanging a weary but affectionate glance.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [3], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "7b1be9170c986ae7e4c3fa665979c7aa193fe7541fe604aa59e5b7e00b2b955f",
+          "cache_key": "9a3dd7c641016d9a97e883f0945d8411180755a96a690a5e820f7b09ee186a22",
+          "judged": false
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "```json\n{\"summary\": \"Tommy Maguire and Donal MacNamara stand at the crossroads, sheltering from the wind, sharing a story about the old priest.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}\n```",
+          "schema_valid": false,
+          "response_sha256": "733e11453c2e083c6bbb78b3729fd083cd1ebe8636b723ae9858df01c6fe360c",
+          "cache_key": "b3311aef76221c19c79d29034d45190a70f1d78f916287ea40ddc752d7d963f8",
+          "judged": false
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "```json\n{\"summary\": \"Tommy and Donal stand at the crossroads, the wind rustling their clothes, both lost in their own thoughts after a recent misunderstanding.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.0}}\n```",
+          "schema_valid": false,
+          "response_sha256": "1835f4a6ccec91fbf60ea8f3b87d2c5356512e3f52086439d8322942f230bfc3",
+          "cache_key": "7811462e08520fc8d4e81c40e4797e43a1d97cf8b7246a0bb8bec8dd266d6ad3",
+          "judged": false
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "```json\n{\"summary\": \"Tommy Maguire and Donal MacNamara stand at the crossroads, sheltering from the wind, exchanging a few words.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.0}}\n```",
+          "schema_valid": false,
+          "response_sha256": "7692e5b621449f392f467ebd15e44e2f9a25233fc8756d97107fabdfc093474a",
+          "cache_key": "b959189f31b17060569099d1dc8668706e7b8d8a87236fcfc8fbbe0dd130db4a",
+          "judged": false
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "{\"summary\": \"Brigid is comforting Mary, reassuring her about her upcoming birth.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "17395977831cb757601349ea5d385f7baaca814426214ae98a0d56ed1d01c0cd",
+          "cache_key": "dc8171940409db146df420675ab0565e6963daa7dfea6dc773718495f51befc4",
+          "judged": false
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "{\"summary\": \"Brigid is comforting Mary amidst a light rain, explaining the normalcy of her symptoms to ease her anxieties.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "e9eec91c7c071f0b7c01ea44c175ae1e4f6bb3a86f427d4c41fa804aa781b584",
+          "cache_key": "31c374f2bc0e0d459e3d9e4f30b29ac7c5db637116a9d6e510713af2e3dbb18b",
+          "judged": false
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "{\"summary\": \"Brigid is listening to Mary's concerns about her pregnancy amidst the gentle patter of rain on the cottage window.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [2], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "0814bf6805286d11575c34ce3f72b9b91d1601c298a597618386ce698eff518e",
+          "cache_key": "15c4a4796453506f1db0bac0e5a8e19965e44d6a6586248c803786634bfb3375",
+          "judged": false
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "{\"summary\": \"Father Cathal stands solemnly at the entrance, observing the parishioners as they file into the church, offering silent comfort to the tearful Widow Kelleher with a gentle pat on the shoulder.\", \"mood_changes\": [], \"relationship_changes\": {\"from\": [1], \"to\": [3], \"delta\": 0.1}}",
+          "schema_valid": false,
+          "response_sha256": "024cd80600be24c39aa2be11e7210498614a7371614f8bbac4598d89f4af6a05",
+          "cache_key": "2f5a54bdbd395e3d5a3cdf74ff10384f4362742401d57642b444ee999164a6f3",
+          "judged": false
+        }
+      ],
+      "bundles": [
+        "tier2-sim__OLMo_2_1124_7B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-7B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-7B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 13.27530312538147,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2912,
+    "completion_tokens": 653,
+    "usd": 0.0
+  }
+}

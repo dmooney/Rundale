@@ -1,0 +1,147 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Ministral-8B-Instruct-2410-4bit",
+    "base_url": "http://127.0.0.1:8767/v1"
+  },
+  "run_started_utc": "2026-05-28T22:47:51.685555+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "non_latin_rate": 0.0,
+        "character": 2.9,
+        "authenticity": 2.8,
+        "language": 3.0,
+        "responsiveness": 3.2,
+        "craft": 2.4,
+        "overall": 2.86,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "judged": 10,
+        "bench_bug_count": 0
+      },
+      "results": [
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Oh, sure, I've heard of that. 'Tis the fairies, mayhap. Or yer mind's a-working overtime. Have ye tried a tea of thyme? It's a fine soother for the soul.\n---\n{\"action\": \"looks down at the tea steeping pot\", \"mood\": \"concerned but helpful\", \"internal_thought\": \"Fairies or worries, probably the latter\", \"language_hints\": []}"
+        },
+        {
+          "character": 4,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 4.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Oh, the old Cailleach who lives near the fairy fort? Sure, everyone knows about her. She's been there for as long as anyone can remember. She's a wise old soul, always tending to her herbs and making remedies for the folk around here. She's not one for the usual gossip, but she's always there to help when someone's in need. Sure, the fairy folk have their own ways of making their mark, but the Cailleach is a part of our land as much as the hills and the streams.\n---\n{\"action\": \"looks around thoughtfully\", \"mood\": \"warm\", \"internal_thought\": \"She's a precious soul, the Cailleach is.\", \"language_hints\": []}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Oh, sure, a tea of thyme will ease her chest. Bring me some of the fresh ones from the garden, and I'll make a brew for her.\n---\n{\"action\": \"nods thoughtfully\", \"mood\": \"concerned\", \"internal_thought\": \"Thyme is always a good remedy for a cough\", \"language_hints\": []}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Oh, aye, I've heard the tidings. Sure, the village is abuzz with the news of the newcomer. Who is it, do ye think?"
+        },
+        {
+          "character": 3,
+          "authenticity": 4,
+          "language": 5,
+          "responsiveness": 3,
+          "craft": 4,
+          "overall": 3.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Oh, sure, yer sheep could have been taken by a variety of critters. Wolves are the most likely, but there's always the chance of a fox or a dog. Ye'd best ask the right person hereabouts about such things. I'm not the one to be asking about livestock predators.\n---\n{\"action\": \"looks uncomfortable but understanding\", \"mood\": \"concerned but uncomfortable\", \"internal_thought\": \"Not my place to discuss livestock predators\", \"language_hints\": []}"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0006",
+          "reply": "Oh, sure I do. He was out there with the sheep, and he stumbled over a rock. He was down for a few days, but he's a strong man, he is. He's back to work now, sure he is."
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.2,
+          "non_latin_chars": {},
+          "id": "dialogue-0007",
+          "reply": "Oh, lights on the hill? Sure, mayhap it was the fairies making their way through the land. Or mayhap it was the farmers making their evening rounds. Who knows what the hill holds?\n---\n{\"action\": \"looks up thoughtfully\", \"mood\": \"curious\", \"internal_thought\": \"Fairies or farmers?\", \"language_hints\": []}"
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0008",
+          "reply": "Oh, sure, the water's not what it used to be. Ye'd best not drink it without letting it sit a spell. I'll have a look at what's making it taste strange.\n---\n{\"action\": \"looks down at the water bucket, smells the water\", \"mood\": \"concerned\", \"internal_thought\": \"Might be the spring's run-off from the hills\", \"language_hints\": []}"
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 5,
+          "overall": 4.6,
+          "non_latin_chars": {},
+          "id": "dialogue-0009",
+          "reply": "Sure, I'll be there when the time is right. Ye'll know when to call me."
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.4,
+          "non_latin_chars": {},
+          "id": "dialogue-0010",
+          "reply": "Father Cathal's sermon was a fine sight, sure. He's always been a man of the book, but some of the old ways have their charm. Ye'd best ask the right person hereabouts about the fair folk and their magic.\n---\n{\"action\": \"looks down at hands, shakes head softly\", \"mood\": \"thoughtful\", \"internal_thought\": \"Father Cathal's views are his own, but the old ways have their place\", \"language_hints\": []}"
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 52.33122396469116,
+  "cost": {
+    "calls": 20,
+    "prompt_tokens": 19718,
+    "completion_tokens": 1135,
+    "usd": 0.0003086700000000001
+  }
+}
