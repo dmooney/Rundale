@@ -221,6 +221,27 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 		await assertion;
 	});
 
+	it('times out when the response body stalls after headers arrive', async () => {
+		vi.useFakeTimers();
+		// Headers resolve immediately, but resp.text() only settles on abort.
+		vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
+			Promise.resolve({
+				ok: true,
+				text: () =>
+					new Promise<string>((_resolve, reject) => {
+						init?.signal?.addEventListener('abort', () =>
+							reject(new DOMException('aborted', 'AbortError'))
+						);
+					})
+			} as unknown as Response)
+		);
+		const ipc = await loadIpc();
+		const p = ipc.command('get_map');
+		const assertion = expect(p).rejects.toThrow(/timeout/);
+		await vi.advanceTimersByTimeAsync(31_000);
+		await assertion;
+	});
+
 	it('does NOT time out POST mutations (e.g. submit_input with a slow NPC turn)', async () => {
 		vi.useFakeTimers();
 		let aborted = false;

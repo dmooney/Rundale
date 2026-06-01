@@ -399,6 +399,13 @@
 			}));
 
 			listeners.push(await onStreamToken((payload) => {
+				// Re-assert the busy flag whenever tokens actually flow. Normally
+				// loading{active:true} already set it, but after a mid-turn
+				// reconnect (where we cleared it to recover from a possibly-dead
+				// stream) a resumed stream would otherwise leave input enabled
+				// mid-turn, allowing a duplicate send. finishNpcStream clears it
+				// authoritatively once the pump drains. (Codex reconnect-resume.)
+				streamingActive.set(true);
 				const turn = sm.queuePendingTurn(payload.turn_id, payload.source);
 				turn.buffer += payload.token;
 				sm.startTurnPumpIfNeeded(turn);

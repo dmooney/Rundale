@@ -65,30 +65,43 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	// Bound reads only (see COMMAND_TIMEOUT_MS): a GET has no args, a mutation does.
 	const controller = args ? null : new AbortController();
 	const timer = controller ? setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS) : null;
-	let resp: Response;
 	try {
-		resp = await fetch(endpoint, {
-			method: args ? 'POST' : 'GET',
-			headers: args ? { 'Content-Type': 'application/json' } : {},
-			body: args ? JSON.stringify(args) : undefined,
-			signal: controller?.signal
-		});
-	} catch (e) {
-		if (controller?.signal.aborted) {
-			throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+		let resp: Response;
+		try {
+			resp = await fetch(endpoint, {
+				method: args ? 'POST' : 'GET',
+				headers: args ? { 'Content-Type': 'application/json' } : {},
+				body: args ? JSON.stringify(args) : undefined,
+				signal: controller?.signal
+			});
+		} catch (e) {
+			if (controller?.signal.aborted) {
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+			}
+			throw e;
 		}
-		throw e;
+		if (!resp.ok) {
+			throw new Error(`API error: ${resp.status} ${resp.statusText}`);
+		}
+		// Read the body under the same timer: if headers arrive but the body
+		// stalls (proxy / partially-hung response), the abort signal cancels
+		// resp.text() too, so the timeout bounds the whole read — not just the
+		// headers. submit_input returns 200 with no body; the two-step cast
+		// makes the unsoundness explicit and searchable rather than hiding it (#755).
+		let text: string;
+		try {
+			text = await resp.text();
+		} catch (e) {
+			if (controller?.signal.aborted) {
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+			}
+			throw e;
+		}
+		if (!text) return undefined as unknown as T;
+		return JSON.parse(text) as T;
 	} finally {
 		if (timer) clearTimeout(timer);
 	}
-	if (!resp.ok) {
-		throw new Error(`API error: ${resp.status} ${resp.statusText}`);
-	}
-	// submit_input returns 200 with no body; the two-step cast makes the
-	// unsoundness explicit and searchable rather than hiding it (#755).
-	const text = await resp.text();
-	if (!text) return undefined as unknown as T;
-	return JSON.parse(text) as T;
 }
 
 export const getWorldSnapshot = () => command<WorldSnapshot>('get_world_snapshot');
