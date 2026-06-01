@@ -1969,7 +1969,93 @@ fn resolve_late_screenshot(
     }
 }
 
-/// Shared implementation for agent-triggered screenshot capture.
+/// True when a captured OS window belongs to the Parish/Rundale desktop app.
+///
+/// Matched on the owning application name: the dev binary reports
+/// `parish-tauri`, a packaged build reports its bundle name (`Rundale`).
+/// Pure for unit testing the window-selection rule.
+fn is_app_window(app_name: &str) -> bool {
+    let a = app_name.to_lowercase();
+    a.contains("parish") || a.contains("rundale")
+}
+
+/// Captures the Parish/Rundale desktop window as PNG bytes using native OS
+/// screen capture (`xcap`).
+///
+/// This is the primary capture path because the gameplay MapLibre minimap is a
+/// WebGL canvas that `html-to-image` cannot read — it draws cross-origin tiles,
+/// which taint the canvas and block `toDataURL()`, so the map serialises blank
+/// (#1160 follow-up). Native capture reads the real composited pixels, map
+/// included. Picks the largest non-minimised app window. Blocking — call from
+/// `spawn_blocking`.
+fn capture_app_window_png() -> Result<Vec<u8>, String> {
+    let windows = xcap::Window::all().map_err(|e| format!("enumerate windows: {e}"))?;
+    let mut best: Option<(u64, xcap::Window)> = None;
+    for w in windows {
+        if w.is_minimized().unwrap_or(false) {
+            continue;
+        }
+        if !is_app_window(&w.app_name().unwrap_or_default()) {
+            continue;
+        }
+        let area = u64::from(w.width().unwrap_or(0)) * u64::from(w.height().unwrap_or(0));
+        if best.as_ref().is_none_or(|(a, _)| area > *a) {
+            best = Some((area, w));
+        }
+    }
+    let (_, win) = best.ok_or("no Parish/Rundale window found to capture")?;
+    let img = win
+        .capture_image()
+        .map_err(|e| format!("capture window: {e}"))?;
+    let mut buf = Vec::new();
+    img.write_to(
+        &mut std::io::Cursor::new(&mut buf),
+        xcap::image::ImageFormat::Png,
+    )
+    .map_err(|e| format!("encode png: {e}"))?;
+    if buf.is_empty() {
+        return Err("captured image encoded to 0 bytes".into());
+    }
+    Ok(buf)
+}
+
+/// Native-capture path: grab the window pixels, write them under
+/// `<saves_dir>/screenshots/`, and update `latest_screenshot_path` so it
+/// behaves identically to the frontend round-trip from the caller's view.
+async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotInfo, String> {
+    let png = tokio::task::spawn_blocking(capture_app_window_png)
+        .await
+        .map_err(|e| format!("capture task join: {e}"))??;
+    let now = chrono::Utc::now();
+    let info = write_screenshot_to_disk(&state.saves_dir, &png, now)?;
+    *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
+    Ok(info)
+}
+
+/// Agent-triggered screenshot capture.
+///
+/// Tries native window capture first ([`do_take_screenshot_native`]) so the
+/// WebGL minimap appears in the image. If native capture is unavailable (no
+/// window, missing screen-recording permission, headless), it falls back to the
+/// frontend `html-to-image` round-trip in [`do_take_screenshot_frontend`]
+/// (which carries the #1160 deadline + late-capture handling). The map may be
+/// blank in the fallback, but a screenshot is still produced.
+pub(crate) async fn do_take_screenshot(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) -> Result<ScreenshotInfo, String> {
+    match do_take_screenshot_native(state).await {
+        Ok(info) => return Ok(info),
+        Err(e) => {
+            tracing::warn!(
+                "native screenshot failed ({e}); falling back to frontend html-to-image capture"
+            );
+        }
+    }
+    do_take_screenshot_frontend(state, app).await
+}
+
+/// Frontend `html-to-image` round-trip — the fallback capture path.
 ///
 /// Generates a UUID request ID, stashes a `oneshot::Sender` in
 /// `AppState::pending_screenshots`, emits `request-screenshot` to the live
@@ -1982,7 +2068,7 @@ fn resolve_late_screenshot(
 /// [`resolve_late_screenshot`] rather than erroring (#1160).
 /// The frontend delivers the result via `notify_screenshot_captured` (success)
 /// or `notify_screenshot_error` (failure).
-pub(crate) async fn do_take_screenshot(
+async fn do_take_screenshot_frontend(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
@@ -3697,6 +3783,19 @@ mod cmd_tests {
         assert!(resolve_late_screenshot(started, None).is_none());
         // Unparseable timestamp → treated as not eligible.
         assert!(resolve_late_screenshot(started, Some(info_at("not-a-date"))).is_none());
+    }
+
+    #[test]
+    fn is_app_window_matches_parish_and_rundale_only() {
+        // Dev binary and packaged bundle names (case-insensitive).
+        assert!(is_app_window("parish-tauri"));
+        assert!(is_app_window("Parish"));
+        assert!(is_app_window("Rundale"));
+        assert!(is_app_window("RUNDALE"));
+        // Unrelated apps are ignored so we never capture the wrong window.
+        assert!(!is_app_window("Safari"));
+        assert!(!is_app_window("Terminal"));
+        assert!(!is_app_window(""));
     }
 
     // ── #9 sim-cancel preemption ─────────────────────────────────────────────

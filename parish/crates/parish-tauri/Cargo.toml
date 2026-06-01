@@ -45,6 +45,7 @@ keyring        = { version = "3", default-features = false, features = ["apple-n
 # version + defaults so the workspace shares one resolved version.
 axum           = "0.8"
 tower          = "0.5"
+xcap = "0.9.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gdk  = "0.18"
