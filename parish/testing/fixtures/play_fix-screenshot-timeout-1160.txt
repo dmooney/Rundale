@@ -1,0 +1,16 @@
+# play_fix-screenshot-timeout-1160.txt
+#
+# NOTE: Issue #1160 is a Tauri-desktop screenshot round-trip bug
+# (do_take_screenshot oneshot deadline vs html-to-image capture time).
+# The headless parish-cli harness has no frontend, no window, and no
+# html-to-image, so it CANNOT exercise or observe the screenshot path.
+#
+# The proof of record is a LIVE MCP transcript against the running desktop
+# (parish_take_screenshot + parish_file_bug) plus Rust/vitest unit tests for
+# the extracted pure helpers. See .proofs/fix-screenshot-timeout-1160/.
+#
+# This script only confirms the engine still boots and plays normally after
+# the change (no regression in the shared command path).
+/status
+look
+/time

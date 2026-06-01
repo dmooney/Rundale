@@ -24,11 +24,13 @@ export async function captureScreen(): Promise<string> {
 	if (!target) {
 		throw new Error('No DOM target available to screenshot.');
 	}
-	// `cacheBust: true` works around `<img>` re-use across captures (map tiles
-	// in particular). `pixelRatio: window.devicePixelRatio` keeps the output
-	// crisp on HiDPI displays without hardcoding 1x or 2x.
+	// Keep the capture cheap so it completes within the backend deadline even
+	// under live local-inference load (#1160). `cacheBust` is deliberately NOT
+	// set: it appends a unique query to every `<img>`, forcing html-to-image to
+	// re-fetch and inline each cross-origin map tile, which is the dominant cost
+	// and pushed captures past the timeout. `pixelRatio` is capped at 2 so HiDPI
+	// displays (devicePixelRatio 3+) don't multiply the pixels to encode.
 	return await toPng(target, {
-		cacheBust: true,
-		pixelRatio: window.devicePixelRatio || 1
+		pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
 	});
 }

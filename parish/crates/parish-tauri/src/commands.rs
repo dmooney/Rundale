@@ -1925,14 +1925,61 @@ pub async fn take_screenshot(
     do_take_screenshot(&state, &app).await
 }
 
+/// Capture deadline for the agent screenshot round-trip.
+///
+/// Reads `PARISH_SCREENSHOT_TIMEOUT_SECS` (whole seconds); defaults to 45 and
+/// ignores unparseable or zero values. The full `.app-shell` `html-to-image`
+/// pass can exceed the old hardcoded 15 s under live local-inference load
+/// (#1160), so the deadline is configurable and longer by default.
+fn screenshot_timeout() -> std::time::Duration {
+    let secs = std::env::var("PARISH_SCREENSHOT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(45);
+    std::time::Duration::from_secs(secs)
+}
+
+/// Decides whether a late-completing capture can still be returned after the
+/// oneshot deadline expired.
+///
+/// The frontend may finish `html-to-image` and write the PNG just after the
+/// backend gave up waiting; without this, that image is orphaned and the
+/// caller gets a hard error even though a valid screenshot exists (#1160).
+/// Returns the newest on-disk screenshot only when it was taken at or after
+/// the request started — i.e. it is THIS request landing late, not a stale
+/// image from an earlier capture. `taken_at` is second-precision, so the
+/// start is floored to the second to keep a same-second capture eligible.
+///
+/// Pure on `(started_at, latest)` for unit testing.
+fn resolve_late_screenshot(
+    started_at: chrono::DateTime<chrono::Utc>,
+    latest: Option<ScreenshotInfo>,
+) -> Option<ScreenshotInfo> {
+    let info = latest?;
+    let taken = chrono::NaiveDateTime::parse_from_str(&info.taken_at, "%Y-%m-%dT%H:%M:%SZ")
+        .ok()?
+        .and_utc();
+    let start_floor =
+        chrono::DateTime::from_timestamp(started_at.timestamp(), 0).unwrap_or(started_at);
+    if taken >= start_floor {
+        Some(info)
+    } else {
+        None
+    }
+}
+
 /// Shared implementation for agent-triggered screenshot capture.
 ///
 /// Generates a UUID request ID, stashes a `oneshot::Sender` in
 /// `AppState::pending_screenshots`, emits `request-screenshot` to the live
-/// frontend window, and awaits the result for up to 15 seconds.
+/// frontend window, and awaits the result for up to [`screenshot_timeout`]
+/// (default 45 s, `PARISH_SCREENSHOT_TIMEOUT_SECS`).
 ///
 /// On emit failure the pending entry is cleaned up immediately so the map
-/// does not grow unbounded. On timeout the entry is also removed.
+/// does not grow unbounded. On timeout the entry is removed; if a capture
+/// from this request landed on disk just after the deadline we return it via
+/// [`resolve_late_screenshot`] rather than erroring (#1160).
 /// The frontend delivers the result via `notify_screenshot_captured` (success)
 /// or `notify_screenshot_error` (failure).
 pub(crate) async fn do_take_screenshot(
@@ -1940,6 +1987,8 @@ pub(crate) async fn do_take_screenshot(
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
     use tokio::sync::oneshot;
+    let started_at = chrono::Utc::now();
+    let timeout = screenshot_timeout();
     let request_id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
     {
@@ -1954,13 +2003,24 @@ pub(crate) async fn do_take_screenshot(
         pending.remove(&request_id);
         return Err(e.to_string());
     }
-    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
+    match tokio::time::timeout(timeout, rx).await {
         Ok(Ok(result)) => result,
         Ok(Err(_)) => Err("screenshot request cancelled".into()),
         Err(_) => {
-            let mut pending = state.pending_screenshots.lock().await;
-            pending.remove(&request_id);
-            Err("screenshot capture timed out after 15 s".into())
+            {
+                let mut pending = state.pending_screenshots.lock().await;
+                pending.remove(&request_id);
+            }
+            // The capture may have completed just after the deadline; if a
+            // fresh PNG landed on disk, return it instead of a hard error.
+            let latest = do_get_latest_screenshot(state).await.ok().flatten();
+            match resolve_late_screenshot(started_at, latest) {
+                Some(info) => Ok(info),
+                None => Err(format!(
+                    "screenshot capture timed out after {} s",
+                    timeout.as_secs()
+                )),
+            }
         }
     }
 }
@@ -3578,6 +3638,65 @@ mod cmd_tests {
             Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
         let info = do_get_latest_screenshot(&state).await.unwrap();
         assert!(info.is_none(), "missing file on disk → None");
+    }
+
+    // ── #1160 screenshot deadline + late-capture fallback ────────────────────
+
+    #[test]
+    fn screenshot_timeout_default_env_and_garbage() {
+        // One test (not several) so the shared process env var is mutated
+        // sequentially and cannot race a sibling test running in parallel.
+        // SAFETY: edition-2024 env mutation; confined to this single test.
+        unsafe { std::env::remove_var("PARISH_SCREENSHOT_TIMEOUT_SECS") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "default is 45 s");
+
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "90") };
+        assert_eq!(screenshot_timeout().as_secs(), 90, "env override honoured");
+
+        // Zero and non-numeric values fall back to the default.
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "0") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "zero ignored");
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "soon") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "garbage ignored");
+
+        unsafe { std::env::remove_var("PARISH_SCREENSHOT_TIMEOUT_SECS") };
+    }
+
+    fn info_at(taken_at: &str) -> ScreenshotInfo {
+        ScreenshotInfo {
+            path: "/tmp/parish-shot.png".into(),
+            taken_at: taken_at.into(),
+            size_bytes: 1234,
+        }
+    }
+
+    #[test]
+    fn resolve_late_screenshot_returns_capture_from_this_request() {
+        let started = chrono::DateTime::parse_from_rfc3339("2026-05-31T23:59:33Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        // Same second (taken_at is floored to the second) → eligible.
+        let info = resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:33Z")));
+        assert!(
+            info.is_some(),
+            "same-second late capture should be returned"
+        );
+        // Strictly newer → eligible.
+        let info = resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:40Z")));
+        assert!(info.is_some(), "newer capture should be returned");
+    }
+
+    #[test]
+    fn resolve_late_screenshot_rejects_stale_or_missing() {
+        let started = chrono::DateTime::parse_from_rfc3339("2026-05-31T23:59:33Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        // Older than the request start → stale, must not be returned.
+        assert!(resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:10Z"))).is_none());
+        // No screenshot on disk at all.
+        assert!(resolve_late_screenshot(started, None).is_none());
+        // Unparseable timestamp → treated as not eligible.
+        assert!(resolve_late_screenshot(started, Some(info_at("not-a-date"))).is_none());
     }
 
     // ── #9 sim-cancel preemption ─────────────────────────────────────────────
