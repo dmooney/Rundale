@@ -27,8 +27,8 @@ function buildMap(overrides: Partial<MapData> = {}): MapData {
 			['b', 'c']
 		],
 		player_location: 'a',
-		player_lat: 53.59,
-		player_lon: -8.15,
+		transport_label: 'on foot',
+		transport_id: 'walking',
 		edge_traversals: [['a', 'b', 4]],
 		...overrides
 	};

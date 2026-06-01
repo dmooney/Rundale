@@ -7,7 +7,13 @@ import {
 	loadingColor,
 	focailOpen,
 	syncFocailOnViewportChange,
+	messageHints,
+	pruneMessageHints,
+	trimTextLog,
 } from './game';
+import type { LanguageHint } from '$lib/types';
+
+const hint: LanguageHint[] = [{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' }];
 
 describe('pushErrorLog', () => {
 	beforeEach(() => {
@@ -114,5 +120,51 @@ describe('syncFocailOnViewportChange (regression #600)', () => {
 		expect(get(focailOpen)).toBe(false);
 		syncFocailOnViewportChange(false);
 		expect(get(focailOpen)).toBe(false);
+	});
+});
+
+describe('messageHints eviction (audit H3)', () => {
+	beforeEach(() => {
+		messageHints.set(new Map());
+		textLog.set([]);
+	});
+
+	it('drops hint entries whose message is no longer in the log', () => {
+		messageHints.set(new Map([['m1', hint], ['m2', hint]]));
+		// Only m2 survives in the log.
+		pruneMessageHints([{ id: 'm2', source: 'Saoirse', content: 'hi' }]);
+		const m = get(messageHints);
+		expect(m.has('m1')).toBe(false);
+		expect(m.has('m2')).toBe(true);
+	});
+
+	it('keeps all entries when every keyed message is still present', () => {
+		messageHints.set(new Map([['m1', hint]]));
+		pruneMessageHints([{ id: 'm1', source: 'Saoirse', content: 'hi' }]);
+		expect(get(messageHints).size).toBe(1);
+	});
+
+	it('stays bounded once textLog is trimmed past its cap (no unbounded growth)', () => {
+		// Simulate a long session: 600 NPC turns, each appended to the log AND
+		// recorded in messageHints. The textLog subscriber prunes on every
+		// trimmed update, so messageHints must not exceed the surviving log.
+		for (let i = 0; i < 600; i++) {
+			const id = `turn-${i}`;
+			textLog.update((log) => trimTextLog([...log, { id, source: 'Saoirse', content: 'x' }]));
+			messageHints.update((m) => {
+				m.set(id, hint);
+				return m;
+			});
+		}
+		const hints = get(messageHints);
+		const log = get(textLog);
+		// Without eviction this would be 600; bounded to the live (trimmed) log.
+		expect(hints.size).toBeLessThanOrEqual(log.length);
+		expect(hints.size).toBeLessThan(600);
+		// Every retained hint key must correspond to a live log entry.
+		const liveIds = new Set(log.map((e) => e.id));
+		for (const key of hints.keys()) {
+			expect(liveIds.has(key)).toBe(true);
+		}
 	});
 });
