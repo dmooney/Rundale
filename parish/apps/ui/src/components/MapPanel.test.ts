@@ -29,8 +29,8 @@ const testMap = {
 	],
 	edges: [['loc1', 'loc2']] as [string, string][],
 	player_location: 'loc1',
-	player_lat: 53.35,
-	player_lon: -6.26,
+	transport_label: 'on foot',
+	transport_id: 'walking',
 };
 
 describe('MapPanel', () => {
