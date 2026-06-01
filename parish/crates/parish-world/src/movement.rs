@@ -11,7 +11,7 @@
 
 use super::graph::{Connection, Hazard, WorldGraph};
 use super::transport::TransportMode;
-use parish_types::{LocationId, Weather};
+use parish_types::{LocationId, Weather, minute_word};
 
 /// The result of resolving a movement command.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -314,8 +314,12 @@ fn build_travel_narration(
         // Direct connection
         if let Some(conn) = graph.connection_between(path[0], path[1]) {
             return format!(
-                "You {} along {}. ({} minutes {})",
-                verb, conn.path_description, total_minutes, transport.label
+                "You {} along {}. ({} {} {})",
+                verb,
+                conn.path_description,
+                total_minutes,
+                minute_word(total_minutes),
+                transport.label
             );
         }
     }
@@ -327,8 +331,12 @@ fn build_travel_narration(
         .unwrap_or("the road");
 
     format!(
-        "You set off along {} toward {}. ({} minutes {})",
-        first_desc, dest_name, total_minutes, transport.label
+        "You set off along {} toward {}. ({} {} {})",
+        first_desc,
+        dest_name,
+        total_minutes,
+        minute_word(total_minutes),
+        transport.label
     )
 }
 

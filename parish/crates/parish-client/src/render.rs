@@ -1,5 +1,13 @@
 use crate::client::CommandResponse;
 
+/// Singular/plural for a minute count: `"minute"` for exactly 1, else
+/// `"minutes"` (#1156). `parish-client` is a standalone thin HTTP client
+/// with no `parish-*` dependencies by design, so it carries its own copy
+/// rather than pull in `parish_types::minute_word`.
+fn minute_word(minutes: u64) -> &'static str {
+    if minutes == 1 { "minute" } else { "minutes" }
+}
+
 pub fn render_response(resp: &CommandResponse) -> String {
     let mut out = String::new();
 
@@ -46,8 +54,11 @@ pub fn render_response(resp: &CommandResponse) -> String {
         && resp.lines.is_empty()
     {
         out.push_str(&format!(
-            "You travel from {} to {} ({} minutes).\n",
-            travel.from, travel.to, travel.duration_minutes
+            "You travel from {} to {} ({} {}).\n",
+            travel.from,
+            travel.to,
+            travel.duration_minutes,
+            minute_word(travel.duration_minutes)
         ));
     }
 
@@ -56,4 +67,36 @@ pub fn render_response(resp: &CommandResponse) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::CommandResponse;
+
+    fn travel_response(minutes: u64) -> CommandResponse {
+        serde_json::from_value(serde_json::json!({
+            "outcome": "moved",
+            "kind": "moved",
+            "echo": "go",
+            "lines": [],
+            "travel": { "from": "The Crossroads", "to": "Darcy's Pub", "duration_minutes": minutes },
+            "elapsed_ms": 0,
+        }))
+        .expect("valid CommandResponse")
+    }
+
+    #[test]
+    fn travel_line_singular_for_one_minute() {
+        // #1156: a 1-minute leg must read "1 minute", not "1 minutes".
+        let out = render_response(&travel_response(1));
+        assert!(out.contains("(1 minute)"), "got: {out}");
+        assert!(!out.contains("(1 minutes)"), "got: {out}");
+    }
+
+    #[test]
+    fn travel_line_plural_for_many_minutes() {
+        let out = render_response(&travel_response(14));
+        assert!(out.contains("(14 minutes)"), "got: {out}");
+    }
 }

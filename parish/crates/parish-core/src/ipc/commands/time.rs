@@ -1,6 +1,7 @@
 //! Time-control commands: pause, resume, status, speed, wait, tick.
 
 use chrono::Timelike;
+use parish_types::minute_word;
 
 use crate::input::Command;
 use crate::npc::manager::NpcManager;
@@ -79,8 +80,9 @@ pub(super) fn handle_time_control_command(
             let now = world.clock.now();
             let tod = world.clock.time_of_day();
             CommandResult::text(format!(
-                "You wait for {} minutes...\nIt is now {:02}:{:02} {}.",
+                "You wait for {} {}...\nIt is now {:02}:{:02} {}.",
                 minutes,
+                minute_word(minutes),
                 now.hour(),
                 now.minute(),
                 tod

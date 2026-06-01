@@ -37,7 +37,7 @@
       "result": "moved",
       "to": "Darcy's Pub",
       "minutes": 1,
-      "narration": "You walk along a short lane past a row of cottages. (1 minutes on foot)"
+      "narration": "You walk along a short lane past a row of cottages. (1 minute on foot)"
     },
     "location": "Darcy's Pub",
     "time": "Morning",
@@ -59,7 +59,7 @@
       "result": "moved",
       "to": "The Crossroads",
       "minutes": 1,
-      "narration": "You walk along the lane back to the crossroads. (1 minutes on foot)"
+      "narration": "You walk along the lane back to the crossroads. (1 minute on foot)"
     },
     "location": "The Crossroads",
     "time": "Morning",
@@ -326,7 +326,7 @@
       "result": "moved",
       "to": "Connolly's Shop",
       "minutes": 1,
-      "narration": "You walk along a few steps across the road. (1 minutes on foot)"
+      "narration": "You walk along a few steps across the road. (1 minute on foot)"
     },
     "location": "Connolly's Shop",
     "time": "Midnight",
@@ -348,7 +348,7 @@
       "result": "moved",
       "to": "The Crossroads",
       "minutes": 1,
-      "narration": "You walk along a few steps back across the road to the crossroads. (1 minutes on foot)"
+      "narration": "You walk along a few steps back across the road to the crossroads. (1 minute on foot)"
     },
     "location": "The Crossroads",
     "time": "Midnight",
