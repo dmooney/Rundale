@@ -308,6 +308,29 @@ export function createStreamManager(): StreamManager {
 		pendingStreamEndHints = null;
 		chainInProgress = false;
 		activeTurnId = null;
+		// Finalize any half-streamed log entry orphaned by the reset (e.g. a
+		// reconnect after stream-token but before stream-end): without this the
+		// entry keeps `streaming: true`/`latest_chunk` forever — a frozen cursor
+		// bubble with reactions disabled. Clear the streaming flags (or drop an
+		// empty placeholder), mirroring finalizeStreamingEntry across all turns.
+		textLog.update((log) => {
+			let changed = false;
+			const out: typeof log = [];
+			for (const entry of log) {
+				const isStreaming =
+					entry.streaming ||
+					entry.latest_chunk !== undefined ||
+					entry.stream_chunk_id !== undefined;
+				if (!isStreaming) {
+					out.push(entry);
+					continue;
+				}
+				changed = true;
+				if (entry.content === '') continue; // drop empty placeholder
+				out.push({ ...entry, streaming: false, latest_chunk: undefined, stream_chunk_id: undefined });
+			}
+			return changed ? out : log;
+		});
 	}
 
 	function dispose() {

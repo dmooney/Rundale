@@ -221,3 +221,49 @@ describe('createStreamManager — chainInProgress (#991)', () => {
 		expect(get(streamingActive)).toBe(false);
 	});
 });
+
+describe('createStreamManager — reset() finalizes orphaned stream entries', () => {
+	it('clears streaming flags on a half-streamed entry (reconnect mid-turn)', () => {
+		const sm = createStreamManager();
+		// A partially-streamed NPC bubble: content present, still streaming.
+		textLog.set([
+			{ id: 'm1', source: 'Padraig', content: 'Dia dh', streaming: true, latest_chunk: 'dh', stream_chunk_id: 3 }
+		]);
+
+		sm.reset();
+
+		const log = get(textLog);
+		expect(log.length).toBe(1);
+		expect(log[0].content).toBe('Dia dh'); // partial text preserved
+		expect(log[0].streaming).toBe(false);
+		expect(log[0].latest_chunk).toBeUndefined();
+		expect(log[0].stream_chunk_id).toBeUndefined();
+	});
+
+	it('drops an empty streaming placeholder on reset', () => {
+		const sm = createStreamManager();
+		textLog.set([
+			{ id: 'p1', source: 'Siobhan', content: '', streaming: true, stream_turn_id: 7 },
+			{ id: 'm2', source: 'system', content: 'A scene line.' }
+		]);
+
+		sm.reset();
+
+		const log = get(textLog);
+		expect(log.length).toBe(1);
+		expect(log[0].id).toBe('m2'); // empty placeholder removed, real entry kept
+	});
+
+	it('leaves non-streaming entries untouched', () => {
+		const sm = createStreamManager();
+		const entries = [
+			{ id: 'a', source: 'player', content: '> hello' },
+			{ id: 'b', source: 'Padraig', content: 'Finished reply.' }
+		];
+		textLog.set(entries);
+
+		sm.reset();
+
+		expect(get(textLog)).toEqual(entries);
+	});
+});
