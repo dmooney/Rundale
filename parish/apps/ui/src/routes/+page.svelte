@@ -485,6 +485,18 @@
 			// the input field and demo loop don't hang (audit M4). No-op in
 			// Tauri (the desktop transport never disconnects).
 			listeners.push(onReconnect(async () => {
+				// Discard the orphaned pre-reconnect stream SYNCHRONOUSLY, before
+				// awaiting anything. The turn that was streaming when the socket
+				// dropped lost its remaining tokens / stream-end during the gap,
+				// so pendingTurnCount()/chainInProgress would otherwise stay
+				// non-zero forever and leave the input disabled. Doing this before
+				// the first await means it runs inside the onopen dispatch — ahead
+				// of any onmessage on the new socket — so a stream the backend
+				// resumes after reconnect queues a fresh turn that this reset can't
+				// clobber (the late-reset race Codex flagged).
+				sm.reset();
+				streamingActive.set(false);
+
 				// allSettled (matching the mount-time fetch): a transient failure
 				// on one endpoint right after reconnect must not discard the
 				// other successful updates.
@@ -504,14 +516,6 @@
 				for (const r of [snapRes, mapRes, npcsRes]) {
 					if (r.status === 'rejected') console.warn('Reconnect resync partial failure:', r.reason);
 				}
-				// Any turn that was streaming when the socket dropped is now
-				// orphaned — its remaining tokens and stream-end were lost during
-				// the gap, so pendingTurnCount()/chainInProgress would otherwise
-				// stay non-zero forever and leave the input disabled. The refetched
-				// snapshot is authoritative, so discard the stale stream state and
-				// clear the streaming flag unconditionally.
-				sm.reset();
-				streamingActive.set(false);
 			}));
 
 		} catch (e) {
