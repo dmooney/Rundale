@@ -45,11 +45,16 @@ keyring        = { version = "3", default-features = false, features = ["apple-n
 # version + defaults so the workspace shares one resolved version.
 axum           = "0.8"
 tower          = "0.5"
-xcap = "0.9.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gdk  = "0.18"
 glib = "0.22"
+
+# Native window capture for agent/MCP screenshots. macOS + Windows only: the
+# Linux xcap backend pulls libspa-sys/libpipewire-0.3 (a heavy system dep that
+# CI runners lack), and Linux desktop falls back to the html-to-image path.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+xcap = "0.9.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"

@@ -1974,6 +1974,7 @@ fn resolve_late_screenshot(
 /// Matched on the owning application name: the dev binary reports
 /// `parish-tauri`, a packaged build reports its bundle name (`Rundale`).
 /// Pure for unit testing the window-selection rule.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn is_app_window(app_name: &str) -> bool {
     let a = app_name.to_lowercase();
     a.contains("parish") || a.contains("rundale")
@@ -1988,6 +1989,10 @@ fn is_app_window(app_name: &str) -> bool {
 /// (#1160 follow-up). Native capture reads the real composited pixels, map
 /// included. Picks the largest non-minimised app window. Blocking — call from
 /// `spawn_blocking`.
+///
+/// macOS/Windows only — the Linux xcap backend needs PipeWire system libs, so
+/// Linux desktop uses the html-to-image fallback instead.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn capture_app_window_png() -> Result<Vec<u8>, String> {
     let windows = xcap::Window::all().map_err(|e| format!("enumerate windows: {e}"))?;
     let mut best: Option<(u64, xcap::Window)> = None;
@@ -2022,6 +2027,7 @@ fn capture_app_window_png() -> Result<Vec<u8>, String> {
 /// Native-capture path: grab the window pixels, write them under
 /// `<saves_dir>/screenshots/`, and update `latest_screenshot_path` so it
 /// behaves identically to the frontend round-trip from the caller's view.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotInfo, String> {
     let png = tokio::task::spawn_blocking(capture_app_window_png)
         .await
@@ -2044,6 +2050,7 @@ pub(crate) async fn do_take_screenshot(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     match do_take_screenshot_native(state).await {
         Ok(info) => return Ok(info),
         Err(e) => {
@@ -3785,6 +3792,7 @@ mod cmd_tests {
         assert!(resolve_late_screenshot(started, Some(info_at("not-a-date"))).is_none());
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[test]
     fn is_app_window_matches_parish_and_rundale_only() {
         // Dev binary and packaged bundle names (case-insensitive).
