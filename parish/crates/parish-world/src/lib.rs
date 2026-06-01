@@ -243,6 +243,40 @@ impl WorldState {
     pub fn increment_tick_generation(&mut self) {
         self.tick_generation = self.tick_generation.wrapping_add(1);
     }
+
+    /// Advances the weather engine for the given check time, and — on a
+    /// transition — updates [`Self::weather`] and publishes a
+    /// [`GameEvent::WeatherChanged`] on the world event bus. Returns the new
+    /// weather if it changed, else `None`.
+    ///
+    /// This is the single source of truth for "tick the weather and announce
+    /// it" that every runtime loop (server, Tauri, headless, and the script
+    /// harness) shares. Inlining the `weather_engine.tick` + publish pair at
+    /// each call site is how the harness silently drifted into ticking weather
+    /// without emitting the event (#1156 follow-up; tracked in #1159).
+    pub fn tick_weather_at(
+        &mut self,
+        check_time: chrono::DateTime<chrono::Utc>,
+        rng: &mut impl rand::Rng,
+    ) -> Option<Weather> {
+        let season = self.clock.season();
+        let new_weather = self.weather_engine.tick(check_time, season, rng)?;
+        self.weather = new_weather;
+        self.event_bus
+            .publish(parish_types::events::GameEvent::WeatherChanged {
+                new_weather: new_weather.to_string(),
+                timestamp: self.clock.now(),
+            });
+        Some(new_weather)
+    }
+
+    /// Convenience wrapper over [`Self::tick_weather_at`] that checks at the
+    /// current clock time. Used by the real-time loops, which tick once per
+    /// timer interval.
+    pub fn tick_weather(&mut self, rng: &mut impl rand::Rng) -> Option<Weather> {
+        let now = self.clock.now();
+        self.tick_weather_at(now, rng)
+    }
 }
 
 impl Default for WorldState {
@@ -283,6 +317,68 @@ mod tests {
         let world = WorldState::new();
         assert_eq!(world.player_location, LocationId(1));
         assert_eq!(world.current_location().name, "The Crossroads");
+    }
+
+    #[test]
+    fn tick_weather_publishes_on_transition() {
+        use parish_types::events::GameEvent;
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+
+        // The shared `tick_weather` helper must do both halves of the job every
+        // runtime used to inline: update `self.weather` AND publish a
+        // `WeatherChanged` event. (#1156 follow-up — the script harness used to
+        // tick weather without emitting; #1159.)
+        let mut transitioned = false;
+        for seed in 0..500u64 {
+            let mut world = WorldState::new();
+            // Arm the engine on Overcast (which has transitions in both
+            // directions) and step the clock past the min-duration gate.
+            world
+                .weather_engine
+                .force(Weather::Overcast, world.clock.now());
+            world.weather = Weather::Overcast;
+            world.clock.advance(3 * 60);
+
+            let mut rx = world.event_bus.subscribe();
+            let mut rng = StdRng::seed_from_u64(seed);
+
+            if let Some(new_weather) = world.tick_weather(&mut rng) {
+                // State updated to the returned weather.
+                assert_eq!(world.weather, new_weather);
+                // …and exactly that change was announced on the bus.
+                let evt = rx.try_recv().expect("WeatherChanged should be published");
+                match evt {
+                    GameEvent::WeatherChanged { new_weather: w, .. } => {
+                        assert_eq!(w, new_weather.to_string());
+                    }
+                    other => panic!("expected WeatherChanged, got {other:?}"),
+                }
+                transitioned = true;
+                break;
+            }
+        }
+        assert!(
+            transitioned,
+            "no seed in 0..500 produced a weather transition to exercise tick_weather"
+        );
+    }
+
+    #[test]
+    fn tick_weather_silent_when_no_transition() {
+        // No transition (engine just armed, clock not advanced) ⇒ no event,
+        // weather unchanged, returns None.
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+
+        let mut world = WorldState::new();
+        let before = world.weather;
+        let mut rx = world.event_bus.subscribe();
+        let mut rng = StdRng::seed_from_u64(0);
+
+        assert_eq!(world.tick_weather(&mut rng), None);
+        assert_eq!(world.weather, before);
+        assert!(rx.try_recv().is_err(), "no event should be published");
     }
 
     #[test]

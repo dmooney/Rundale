@@ -540,6 +540,12 @@ impl GameTestHarness {
 
         // Tick the weather engine for each hour that elapsed, so large time jumps
         // don't skip weather checks. The engine deduplicates by game-hour internally.
+        //
+        // This bulk catch-up advances weather *state* only — it intentionally
+        // does NOT publish a WeatherChanged per backfilled hour (unlike the
+        // single-step `WorldState::tick_weather` the real-time loops use). A
+        // 226-day jump would otherwise emit thousands of events and overflow the
+        // broadcast bus, evicting other events that tests drain for.
         let season = self.app.world.clock.season();
         let now = self.app.world.clock.now();
         let hours_elapsed = (minutes / 60).max(1) as u32;
@@ -692,17 +698,9 @@ impl GameTestHarness {
                 return ActionResult::SystemCommand { response: msg };
             }
             Command::Tick => {
-                // Tick weather engine (shared handler doesn't do this)
-                let season = self.app.world.clock.season();
-                let now = self.app.world.clock.now();
-                if let Some(new_weather) =
-                    self.app
-                        .world
-                        .weather_engine
-                        .tick(now, season, &mut self.rng)
-                {
-                    self.app.world.weather = new_weather;
-                }
+                // Tick weather engine (shared handler doesn't do this) via the
+                // shared WorldState helper so it matches every other runtime.
+                self.app.world.tick_weather(&mut self.rng);
 
                 self.app.npc_manager.assign_tiers(&self.app.world, &[]);
                 let events = self.app.npc_manager.tick_schedules(

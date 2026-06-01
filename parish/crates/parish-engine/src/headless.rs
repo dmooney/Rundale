@@ -1402,18 +1402,9 @@ fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager
 /// Ticks the weather engine and publishes a `WeatherChanged` event if the
 /// weather changes.
 fn dispatch_headless_weather(app: &mut App) {
-    let season = app.world.clock.season();
-    let now = app.world.clock.now();
+    let old = app.world.weather;
     let mut rng = rand::rng();
-    if let Some(new_weather) = app.world.weather_engine.tick(now, season, &mut rng) {
-        let old = app.world.weather;
-        app.world.weather = new_weather;
-        app.world
-            .event_bus
-            .publish(crate::world::events::GameEvent::WeatherChanged {
-                new_weather: new_weather.to_string(),
-                timestamp: app.world.clock.now(),
-            });
+    if let Some(new_weather) = app.world.tick_weather(&mut rng) {
         tracing::info!(old = %old, new = %new_weather, "Weather changed");
     }
 }
