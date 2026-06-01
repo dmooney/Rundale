@@ -35,12 +35,18 @@ describe('captureScreen()', () => {
 		expect(toPngMock.mock.calls[0]?.[0]).toBe(document.body);
 	});
 
-	it('forwards cacheBust and a sensible pixelRatio to html-to-image', async () => {
+	it('keeps the capture cheap: no cacheBust, pixelRatio capped at 2 (#1160)', async () => {
+		// cacheBust forces a refetch+inline of every cross-origin map tile, the
+		// dominant cost that pushed captures past the backend deadline. It must
+		// stay off, and pixelRatio must be capped so HiDPI displays don't blow up
+		// the pixel count.
+		Object.defineProperty(window, 'devicePixelRatio', { value: 3, configurable: true });
 		const { captureScreen } = await import('./screenshot');
 		await captureScreen();
 		const opts = toPngMock.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
-		expect(opts?.cacheBust).toBe(true);
+		expect(opts?.cacheBust).toBeUndefined();
 		expect(typeof opts?.pixelRatio).toBe('number');
 		expect(opts?.pixelRatio).toBeGreaterThan(0);
+		expect(opts?.pixelRatio).toBeLessThanOrEqual(2);
 	});
 });
