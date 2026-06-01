@@ -1215,18 +1215,8 @@ fn spawn_session_ticks(
                     let mut world = s.world.lock().await;
                     let mut npc_mgr = s.npc_manager.lock().await;
 
-                    let season = world.clock.season();
-                    let now = world.clock.now();
                     let mut rng = rand::rng();
-                    if let Some(new_weather) = world.weather_engine.tick(now, season, &mut rng) {
-                        world.weather = new_weather;
-                        world.event_bus.publish(
-                            parish_core::world::events::GameEvent::WeatherChanged {
-                                new_weather: new_weather.to_string(),
-                                timestamp: world.clock.now(),
-                            },
-                        );
-                    }
+                    world.tick_weather(&mut rng);
 
                     npc_mgr.tick_schedules(
                         &world.clock,

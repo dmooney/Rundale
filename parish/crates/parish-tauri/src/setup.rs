@@ -809,36 +809,29 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                 }
             }
             {
-                // Tick weather engine
-                let season = world.clock.season();
+                // `now`/`season` are reused by the Tier-4 dispatch further down.
                 let now = world.clock.now();
+                let season = world.clock.season();
+                // Tick weather engine via the shared WorldState helper so the
+                // tick+publish stays identical across all runtimes (#1159).
+                let old = world.weather;
                 // Scope thread_rng tightly so it is dropped before any await.
                 let new_weather_opt = {
                     let mut rng = rand::rng();
-                    world.weather_engine.tick(now, season, &mut rng)
+                    world.tick_weather(&mut rng)
                 };
-                {
-                    if let Some(new_weather) = new_weather_opt {
-                        let old = world.weather;
-                        world.weather = new_weather;
-                        world.event_bus.publish(
-                            parish_core::world::events::GameEvent::WeatherChanged {
-                                new_weather: new_weather.to_string(),
-                                timestamp: world.clock.now(),
-                            },
-                        );
-                        tracing::info!(old = %old, new = %new_weather, "Weather changed");
-                        // Emit weather debug event
-                        let mut debug_events = state.debug_events.lock().await;
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
-                        debug_events.push_back(DebugEvent {
-                            timestamp: String::new(),
-                            category: "weather".to_string(),
-                            message: format!("Weather: {} → {}", old, new_weather),
-                        });
+                if let Some(new_weather) = new_weather_opt {
+                    tracing::info!(old = %old, new = %new_weather, "Weather changed");
+                    // Emit weather debug event
+                    let mut debug_events = state.debug_events.lock().await;
+                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+                        debug_events.pop_front();
                     }
+                    debug_events.push_back(DebugEvent {
+                        timestamp: String::new(),
+                        category: "weather".to_string(),
+                        message: format!("Weather: {} → {}", old, new_weather),
+                    });
                 }
 
                 let schedule_events = npc_mgr.tick_schedules(
