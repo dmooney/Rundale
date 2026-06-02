@@ -267,3 +267,50 @@ describe('createStreamManager — reset() finalizes orphaned stream entries', ()
 		expect(get(textLog)).toEqual(entries);
 	});
 });
+
+describe('createStreamManager — resumed stream rebinds to a reactable id (#1164)', () => {
+	it('queuePendingTurn carries a message_id supplied by the resumed stream-token', () => {
+		const sm = createStreamManager();
+		// Reconnect dropped the placeholder text-log (and its id) during the gap,
+		// so the FIRST signal of this turn the client sees is a stream-token that
+		// now carries message_id. ensureTurnEntry must mint the bubble WITH that id.
+		const turn = sm.queuePendingTurn(42, 'Padraig', 'msg-42');
+		expect(turn.messageId).toBe('msg-42');
+
+		sm.ensureTurnEntry(turn);
+		const log = get(textLog);
+		expect(log.length).toBe(1);
+		expect(log[0].id).toBe('msg-42'); // reactable — id is keyed to the entry
+		expect(log[0].stream_turn_id).toBe(42);
+	});
+
+	it('appendStreamToken rebuilds a missing entry with the resumed message_id', async () => {
+		const sm = createStreamManager();
+		// Empty placeholder was dropped by reset(); a resumed token arrives. The
+		// onStreamToken path buffers then pumps; assert the rebuilt entry adopts
+		// the id so reactions + language hints can key to it.
+		const turn = sm.queuePendingTurn(9, 'Siobhan', 'msg-9');
+		turn.buffer += 'Dia dhuit';
+		turn.complete = true;
+		sm.startTurnPumpIfNeeded(turn);
+
+		// Drain the paced pump.
+		await vi.waitFor(() => {
+			const entry = get(textLog).find((e) => e.stream_turn_id === 9);
+			expect(entry?.content).toContain('Dia');
+		});
+		const entry = get(textLog).find((e) => e.stream_turn_id === 9);
+		expect(entry?.id).toBe('msg-9');
+	});
+
+	it('does not clobber an id already set by the placeholder', () => {
+		const sm = createStreamManager();
+		// Normal flow: placeholder arrived first and set the id; a later
+		// stream-token carrying a (redundant) id must not overwrite it.
+		const turn = sm.queuePendingTurn(5, 'Nora', 'placeholder-id');
+		sm.ensureTurnEntry(turn);
+		sm.queuePendingTurn(5, 'Nora', 'token-id'); // resumed/duplicate signal
+		expect(sm.findPendingTurn(5)?.messageId).toBe('placeholder-id');
+		expect(get(textLog)[0].id).toBe('placeholder-id');
+	});
+});
