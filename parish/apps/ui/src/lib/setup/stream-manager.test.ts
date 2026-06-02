@@ -314,3 +314,35 @@ describe('createStreamManager — resumed stream rebinds to a reactable id (#116
 		expect(get(textLog)[0].id).toBe('placeholder-id');
 	});
 });
+
+describe('reconnect re-asserts streamingActive from turn_in_flight (#1164 AC3)', () => {
+	// Models the +page.svelte onReconnect resync decision: after sm.reset() +
+	// streamingActive.set(false), the handler reads the authoritative snapshot
+	// and re-asserts streamingActive when the server says a turn is in flight.
+	// This locks the contract so the pre-token duplicate-turn window can't
+	// silently reopen if the guard is removed.
+	function applyReconnectResync(snap: { turn_in_flight?: boolean }) {
+		const sm = createStreamManager();
+		sm.reset();
+		streamingActive.set(false);
+		if (snap.turn_in_flight) streamingActive.set(true);
+	}
+
+	it('keeps streamingActive true when a turn is in flight across the gap', () => {
+		streamingActive.set(false);
+		applyReconnectResync({ turn_in_flight: true });
+		expect(get(streamingActive)).toBe(true);
+	});
+
+	it('clears streamingActive when the engine is idle on reconnect', () => {
+		streamingActive.set(true);
+		applyReconnectResync({ turn_in_flight: false });
+		expect(get(streamingActive)).toBe(false);
+	});
+
+	it('treats a missing turn_in_flight (older payload) as idle', () => {
+		streamingActive.set(true);
+		applyReconnectResync({});
+		expect(get(streamingActive)).toBe(false);
+	});
+});
