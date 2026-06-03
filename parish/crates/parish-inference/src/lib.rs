@@ -7,6 +7,7 @@ pub(crate) mod client_base;
 pub mod file_log;
 pub mod hf_downloader;
 pub mod inference_client;
+pub mod mock_client;
 pub mod openai_client;
 pub mod rate_limit;
 pub mod secret_scrub;
@@ -59,6 +60,7 @@ use std::time::{Duration, Instant};
 
 use openai_client::OpenAiClient;
 pub use openai_client::{JsonSchemaSpec, ResponseFormat};
+pub use mock_client::{MockClient, MockMatcher};
 use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -715,6 +717,7 @@ impl InferenceClients {
 /// - [`AnyClient::Anthropic`] wraps [`AnthropicClient`], the native client
 ///   for Anthropic's Messages API (distinct schema, auth, and SSE events).
 /// - [`AnyClient::Simulator`] is the built-in offline mock.
+/// - [`AnyClient::Mock`] is a scriptable, deterministic test stand-in.
 #[derive(Clone)]
 pub enum AnyClient {
     /// A real OpenAI-compatible HTTP client.
@@ -723,6 +726,9 @@ pub enum AnyClient {
     Anthropic(AnthropicClient),
     /// The built-in offline simulator (generates funny nonsense locally).
     Simulator(Arc<SimulatorClient>),
+    /// A scriptable mock returning caller-supplied completions verbatim.
+    /// Test-only; see [`MockClient`]. Never opens a socket.
+    Mock(Arc<MockClient>),
 }
 
 impl AnyClient {
@@ -739,6 +745,13 @@ impl AnyClient {
     /// Creates a new simulator client.
     pub fn simulator() -> Self {
         Self::Simulator(Arc::new(SimulatorClient::new()))
+    }
+
+    /// Creates an empty scriptable mock client, returning the shared
+    /// [`MockClient`] handle so the test can enqueue completions.
+    pub fn mock() -> (Self, Arc<MockClient>) {
+        let mock = Arc::new(MockClient::new());
+        (Self::Mock(mock.clone()), mock)
     }
 
     /// Generates plain text (non-streaming).
@@ -778,6 +791,11 @@ impl AnyClient {
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
+            Self::Mock(c) => {
+                let _ = frequency_penalty;
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
         }
     }
 
@@ -812,6 +830,11 @@ impl AnyClient {
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+            Self::Mock(c) => {
                 let _ = frequency_penalty;
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
@@ -858,6 +881,11 @@ impl AnyClient {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
+            Self::Mock(c) => {
+                let _ = frequency_penalty;
+                c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
         }
     }
 
@@ -890,6 +918,11 @@ impl AnyClient {
                     .await
             }
             Self::Simulator(c) => {
+                let _ = frequency_penalty;
+                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Mock(c) => {
                 let _ = frequency_penalty;
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
@@ -936,6 +969,13 @@ impl AnyClient {
             }
             Self::Simulator(c) => {
                 let _ = frequency_penalty;
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Mock(c) => {
+                // Mock ignores `response_format`; callers parse the returned
+                // text (or the dialogue envelope) themselves.
+                let _ = (frequency_penalty, response_format);
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -1003,6 +1043,26 @@ impl AnyClient {
                         .await
                 }
             }
+            Self::Mock(c) => {
+                let _ = frequency_penalty;
+                // Same JSON-vs-plain routing as the simulator arm: a scripted
+                // dialogue completion is wrapped in the JSON envelope only when
+                // the caller expects JSON, otherwise streamed as plain text.
+                let wants_json = response_format.is_some()
+                    || prompt.contains("Respond with a JSON")
+                    || prompt.contains("Respond with JSON")
+                    || prompt.contains("JSON object")
+                    || prompt.contains("\"updates\":")
+                    || prompt.contains("\"npc_id\":")
+                    || system.is_some_and(|s| s.contains("JSON") || s.contains("input parser"));
+                if wants_json {
+                    c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                        .await
+                } else {
+                    c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                        .await
+                }
+            }
         }
     }
 
@@ -1010,7 +1070,7 @@ impl AnyClient {
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
             Self::OpenAi(c) => Some(c),
-            Self::Anthropic(_) | Self::Simulator(_) => None,
+            Self::Anthropic(_) | Self::Simulator(_) | Self::Mock(_) => None,
         }
     }
 
@@ -1018,13 +1078,18 @@ impl AnyClient {
     pub fn as_anthropic(&self) -> Option<&AnthropicClient> {
         match self {
             Self::Anthropic(c) => Some(c),
-            Self::OpenAi(_) | Self::Simulator(_) => None,
+            Self::OpenAi(_) | Self::Simulator(_) | Self::Mock(_) => None,
         }
     }
 
     /// Returns `true` if this is the offline simulator.
     pub fn is_simulator(&self) -> bool {
         matches!(self, Self::Simulator(_))
+    }
+
+    /// Returns `true` if this is the scriptable test mock.
+    pub fn is_mock(&self) -> bool {
+        matches!(self, Self::Mock(_))
     }
 
     /// Returns `true` if the underlying client has a rate limiter attached.
@@ -1035,7 +1100,7 @@ impl AnyClient {
         match self {
             Self::OpenAi(c) => c.has_rate_limiter(),
             Self::Anthropic(c) => c.has_rate_limiter(),
-            Self::Simulator(_) => false,
+            Self::Simulator(_) | Self::Mock(_) => false,
         }
     }
 }
