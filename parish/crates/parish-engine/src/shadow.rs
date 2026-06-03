@@ -14,9 +14,16 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// Serialises all ledger appends within a process. `cargo test` runs tests on
+/// multiple threads by default, so without this two `execute()` calls could
+/// interleave their JSON lines (records can exceed the OS atomic-append size),
+/// corrupting the JSONL. The lock makes each record a single, whole line.
+static LEDGER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Environment variable that enables shadow mode. When set to a truthy value
 /// (`1`/`true`/`yes`), [`GameTestHarness::execute`] also runs the real
@@ -142,6 +149,8 @@ pub fn append_ledger(path: &Path, record: &DivergenceRecord) -> std::io::Result<
     let mut line = serde_json::to_string(record)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     line.push('\n');
+    // Serialise the open+write so parallel test threads can't interleave lines.
+    let _guard = LEDGER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
