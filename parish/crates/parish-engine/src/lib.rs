@@ -14,4 +14,5 @@ pub mod debug;
 pub mod emitter;
 pub mod headless;
 pub mod real_loop;
+pub mod shadow;
 pub mod testing;
