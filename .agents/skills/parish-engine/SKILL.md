@@ -179,6 +179,14 @@ fires), thinking blocks leaking into player actions, NPC saying nothing (429 rat
 typo), game clock paused throughout. Demo is **observational** — it surfaces live behaviour, it does not
 assert. It does not replace `just check`, the prove flow, or Playwright.
 
+`just demo` opens the MCP bridge on `--mcp-port 3030`, so while it runs (or after launching the Tauri app
+yourself with `cargo run -p parish-tauri -- --mcp-port 3030`) you can drive and inspect the live game with
+`mcp__parish__*`: `parish_world_snapshot` / `parish_npcs_here` / `parish_submit_input` to probe, and
+**`mcp__parish__parish_file_bug`** to file any bug as a GitHub issue that auto-bundles a screenshot (a native
+window capture — the minimap renders, #1160), recent logs, and game state. Dedup against open issues first
+(`gh issue list --search`); set `PARISH_BUG_REPORT_DRY_RUN=1` to write the report to disk instead of filing
+while testing. For the full bug-hunting loop see `/demo-audit`.
+
 ---
 
 ## Browser UI session
@@ -204,7 +212,8 @@ Test execution — take screenshots at key points, track pass/fail:
 - **If explicitly requested:** Debug Panel tabs; Speed Commands; Theme Updates over time.
 
 Reporting: print a pass/fail table; list bugs with repro steps; report console errors; check server logs.
-If bugs are found, ask whether to file GitHub issues. Write results to
+If bugs are found, file them with **`mcp__parish__parish_file_bug`** (auto-bundles screenshot + logs +
+state) — dedup against open issues first (`gh issue list --search`). Write results to
 `docs/reviews/chrome-testing-session.md` (append a dated section if it exists).
 
 ---
