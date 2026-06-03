@@ -748,7 +748,7 @@ pub(crate) async fn handle_headless_new_game(app: &mut App) {
 /// log entry, and witness memory recording. Extracted from
 /// [`stream_headless_npc_dialogue`] to flatten control flow.
 #[allow(clippy::too_many_arguments)]
-fn apply_npc_response(
+pub(crate) fn apply_npc_response(
     app: &mut App,
     npc_id: crate::npc::NpcId,
     response_text: &str,
@@ -762,44 +762,26 @@ fn apply_npc_response(
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
-    let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
-        app.world.player_name.clone()
-    } else {
-        None
-    };
-    if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-        let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
-            npc_mut,
-            &parsed,
+    // Run the shared per-turn chokepoint so the headless path emits the same
+    // GameEvent stream as the harness and live loop — including name detection
+    // and the DialogueOccurred publish it previously skipped (#1173, #1028).
+    let debug_events = parish_core::game_session::apply_npc_turn(
+        &mut app.world,
+        &mut app.npc_manager,
+        parish_core::game_session::NpcTurnInput {
+            npc_id,
+            parsed: &parsed,
             player_input,
+            player_said: player_input,
             game_time,
-            &Default::default(),
-            player_name_for_mem.as_deref(),
-        );
-        for event in &debug_events {
-            app.debug_event(event.clone());
-        }
-    }
-    app.world
-        .conversation_log
-        .add(parish_core::npc::conversation::ConversationExchange {
-            timestamp: game_time,
-            speaker_id: npc_id,
-            speaker_name: npc_actual_name,
-            player_input: player_input.to_string(),
-            npc_dialogue: parsed.dialogue.clone(),
             location,
-        });
-    let witness_events = parish_core::npc::ticks::record_witness_memories(
-        app.npc_manager.npcs_mut(),
-        npc_id,
-        npc_display_name,
-        player_input,
-        &parsed.dialogue,
-        game_time,
-        location,
+            display_name: npc_display_name,
+            actual_name: &npc_actual_name,
+            request_id: None,
+            config: &Default::default(),
+        },
     );
-    for event in &witness_events {
+    for event in &debug_events {
         app.debug_event(event.clone());
     }
 }

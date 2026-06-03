@@ -496,6 +496,20 @@ impl GameTestHarness {
             .push(response.to_string());
     }
 
+    /// Read access to the world event bus so parity tests can subscribe and
+    /// capture the `GameEvent` stream a dialogue turn publishes (#1172).
+    pub fn event_bus(&self) -> &parish_core::world::events::EventBus {
+        &self.app.world.event_bus
+    }
+
+    /// Mutable access to the underlying [`App`] for in-crate parity tests that
+    /// need to drive a second code path (e.g. the headless `apply_npc_response`)
+    /// against the same loaded world.
+    #[cfg(test)]
+    pub(crate) fn app_mut(&mut self) -> &mut App {
+        &mut self.app
+    }
+
     /// Returns the name of the player's current location.
     pub fn player_location(&self) -> &str {
         &self.app.world.current_location().name
@@ -1278,33 +1292,31 @@ impl GameTestHarness {
                     mentioned_people: Vec::new(),
                 }),
             };
-            // Learn the player's name from a self-introduction before
-            // recording memory, matching the server/Tauri (`npc_turn`) and
-            // headless paths so harness runs reach mode parity (#1028, rule #2).
-            parish_core::ipc::detect_and_record_player_name(
+            // Run the shared per-turn chokepoint so this addressed path emits
+            // the same GameEvent stream (name detection, tier-1 memory,
+            // conversation log, witness memories, DialogueOccurred) as every
+            // other entry point (#1173, rule #2).
+            let game_time = self.app.world.clock.now();
+            let location = self.app.world.player_location;
+            let player_line = strip_dialogue_verb(text);
+            let debug_events = parish_core::game_session::apply_npc_turn(
                 &mut self.app.world,
                 &mut self.app.npc_manager,
-                text,
-                speaker_id,
-            );
-            let game_time = self.app.world.clock.now();
-            let player_name_for_mem = if self.app.npc_manager.knows_player_name(speaker_id) {
-                self.app.world.player_name.clone()
-            } else {
-                None
-            };
-            if let Some(npc_mut) = self.app.npc_manager.get_mut(speaker_id) {
-                let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
-                    npc_mut,
-                    &response,
-                    text,
+                parish_core::game_session::NpcTurnInput {
+                    npc_id: speaker_id,
+                    parsed: &response,
+                    player_input: text,
+                    player_said: &player_line,
                     game_time,
-                    &Default::default(),
-                    player_name_for_mem.as_deref(),
-                );
-                for event in debug_events {
-                    self.app.debug_event(event);
-                }
+                    location,
+                    display_name: &name,
+                    actual_name: &name,
+                    request_id: None,
+                    config: &Default::default(),
+                },
+            );
+            for event in debug_events {
+                self.app.debug_event(event);
             }
 
             return ActionResult::NpcResponse {
@@ -1444,79 +1456,31 @@ impl GameTestHarness {
                 mentioned_people: Vec::new(),
             }),
         };
-        // Learn the player's name from a self-introduction before recording
-        // memory, matching the server/Tauri (`npc_turn`) and headless paths
-        // so harness runs reach mode parity (#1028, rule #2).
-        parish_core::ipc::detect_and_record_player_name(
+        // Run the shared per-turn chokepoint: name detection, tier-1 memory,
+        // conversation log, witness memories, and the verbatim
+        // DialogueOccurred publish — identical to every other path (#1173).
+        let game_time = self.app.world.clock.now();
+        let location = self.app.world.player_location;
+        let player_line = strip_dialogue_verb(text);
+        let debug_events = parish_core::game_session::apply_npc_turn(
             &mut self.app.world,
             &mut self.app.npc_manager,
-            text,
-            npc_id,
-        );
-        let game_time = self.app.world.clock.now();
-        let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
-            self.app.world.player_name.clone()
-        } else {
-            None
-        };
-        if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
-            let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
-                npc_mut,
-                &response,
-                text,
+            parish_core::game_session::NpcTurnInput {
+                npc_id,
+                parsed: &response,
+                player_input: text,
+                player_said: &player_line,
                 game_time,
-                &Default::default(),
-                player_name_for_mem.as_deref(),
-            );
-            for event in debug_events {
-                self.app.debug_event(event);
-            }
-        }
-
-        // Record conversation exchange for scene awareness
-        let location = self.app.world.player_location;
-        self.app
-            .world
-            .conversation_log
-            .add(crate::npc::conversation::ConversationExchange {
-                timestamp: game_time,
-                speaker_id: npc_id,
-                speaker_name: name.clone(),
-                player_input: text.to_string(),
-                npc_dialogue: dialogue.clone(),
                 location,
-            });
-
-        // Record witness memories for bystander NPCs
-        let witness_events = crate::npc::ticks::record_witness_memories(
-            self.app.npc_manager.npcs_mut(),
-            npc_id,
-            &name,
-            text,
-            &dialogue,
-            game_time,
-            location,
+                display_name: &name,
+                actual_name: &name,
+                request_id: None,
+                config: &Default::default(),
+            },
         );
-        for event in witness_events {
+        for event in debug_events {
             self.app.debug_event(event);
         }
-
-        // Mirror the live game-loop behaviour: publish a full-text
-        // DialogueOccurred so the character-log subscriber records both
-        // **You:** and **NPC:** lines for canned-response runs.
-        let player_line = strip_dialogue_verb(text);
-        self.app
-            .world
-            .event_bus
-            .publish(parish_core::world::events::GameEvent::DialogueOccurred {
-                npc_id,
-                location,
-                summary: dialogue.clone(),
-                player_said: Some(player_line),
-                npc_said: Some(dialogue.clone()),
-                request_id: None,
-                timestamp: game_time,
-            });
 
         Some(ActionResult::NpcResponse {
             npc: name,

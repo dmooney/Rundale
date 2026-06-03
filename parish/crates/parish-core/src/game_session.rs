@@ -652,6 +652,130 @@ pub async fn stream_reaction_texts(
     }
 }
 
+/// Inputs to [`apply_npc_turn`], the shared per-turn dialogue chokepoint.
+///
+/// Grouped into a struct so every entry point (script harness, headless CLI,
+/// live game loop) passes the same fields by name and the function stays
+/// under the `clippy::too_many_arguments` ceiling. See #1173.
+pub struct NpcTurnInput<'a> {
+    /// The NPC that just spoke.
+    pub npc_id: NpcId,
+    /// The parsed model/canned response (dialogue + metadata).
+    pub parsed: &'a crate::npc::NpcStreamResponse,
+    /// The player's raw utterance — used for name detection, the tier-1
+    /// memory entry, and the conversation-log exchange.
+    pub player_input: &'a str,
+    /// The player's utterance as it should appear in the published
+    /// `DialogueOccurred.player_said` (the harness strips the leading
+    /// `say`/`tell` verb; headless and live pass the same value as
+    /// `player_input`).
+    pub player_said: &'a str,
+    /// Event-time game clock.
+    pub game_time: chrono::DateTime<chrono::Utc>,
+    /// Location the dialogue is attributed to. Callers pass the speaker's
+    /// event-time location so the location-log subscriber routes correctly
+    /// (#1035); for co-located NPCs this equals `world.player_location`.
+    pub location: LocationId,
+    /// Display name (honorific-aware) used for witness "Overheard:" memories.
+    pub display_name: &'a str,
+    /// Canonical name recorded as the conversation-log speaker.
+    pub actual_name: &'a str,
+    /// Inference request id for log correlation — `Some` only on the live
+    /// LLM path; `None` for canned/headless turns.
+    pub request_id: Option<u64>,
+    /// NPC tuning config threaded into the tier-1 memory pipeline.
+    pub config: &'a crate::config::NpcConfig,
+}
+
+/// Applies the per-turn cross-cutting steps shared by every dialogue path.
+///
+/// This is the single chokepoint that the script harness
+/// (`consume_canned_npc_response`), the headless CLI (`apply_npc_response`),
+/// and the live game loop (`run_npc_turn`) all call, so the three paths can
+/// never drift again (#1173). It performs, in order:
+///
+/// 1. player-name detection (`detect_and_record_player_name`),
+/// 2. the tier-1 memory/mood update (`apply_tier1_response_with_config`),
+/// 3. the conversation-log exchange record,
+/// 4. witness "Overheard:" memories for co-located bystanders,
+/// 5. the verbatim `DialogueOccurred` publish on `world.event_bus`.
+///
+/// Returns the concatenated debug-event strings from steps 2 and 4 so the
+/// caller can forward them to its own debug sink.
+///
+/// The `DialogueOccurred` publish is skipped only when both the player line
+/// and the NPC reply are empty (no useful record), matching the live loop.
+pub fn apply_npc_turn(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    input: NpcTurnInput<'_>,
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
+    // 1. Learn the player's name from a self-introduction before recording
+    //    memory, so every path teaches the speaker the player's name (#1028).
+    crate::ipc::detect_and_record_player_name(world, npc_manager, input.player_input, input.npc_id);
+
+    let player_name_for_mem = if npc_manager.knows_player_name(input.npc_id) {
+        world.player_name.clone()
+    } else {
+        None
+    };
+
+    // 2. Tier-1 mood + memory update for the speaker.
+    if let Some(npc_mut) = npc_manager.get_mut(input.npc_id) {
+        debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
+            npc_mut,
+            input.parsed,
+            input.player_input,
+            input.game_time,
+            input.config,
+            player_name_for_mem.as_deref(),
+        ));
+    }
+
+    // 3. Conversation-log exchange for scene awareness.
+    world
+        .conversation_log
+        .add(crate::npc::conversation::ConversationExchange {
+            timestamp: input.game_time,
+            speaker_id: input.npc_id,
+            speaker_name: input.actual_name.to_string(),
+            player_input: input.player_input.to_string(),
+            npc_dialogue: input.parsed.dialogue.clone(),
+            location: input.location,
+        });
+
+    // 4. Witness memories for co-located bystander NPCs.
+    debug_events.extend(crate::npc::ticks::record_witness_memories(
+        npc_manager.npcs_mut(),
+        input.npc_id,
+        input.display_name,
+        input.player_input,
+        &input.parsed.dialogue,
+        input.game_time,
+        input.location,
+    ));
+
+    // 5. Publish the verbatim dialogue event so the character-/location-log
+    //    and chat-transcript subscribers record both sides of the exchange.
+    if !input.player_said.trim().is_empty() || !input.parsed.dialogue.trim().is_empty() {
+        world
+            .event_bus
+            .publish(crate::world::events::GameEvent::DialogueOccurred {
+                npc_id: input.npc_id,
+                location: input.location,
+                summary: input.parsed.dialogue.clone(),
+                player_said: Some(input.player_said.to_string()),
+                npc_said: Some(input.parsed.dialogue.clone()),
+                request_id: input.request_id,
+                timestamp: input.game_time,
+            });
+    }
+
+    debug_events
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
