@@ -57,3 +57,25 @@ These rules are still **convention only** — no test enforces them. If you find
 - No unexplained `#[allow]` — `AGENTS.md` §5
 - Feature flags for new engine/gameplay features — `AGENTS.md` §6
 - Mode-parity *wiring* (every IPC handler called from every entry point) — `AGENTS.md` §2 (the *dep-level* part is enforced; the wiring part isn't)
+
+## Turning a recurring mistake into a sensor
+
+The point of the harness (see the intro) is that a mistake should only cost a
+human once. Two feeders into "the next sensor":
+
+1. **LEARNINGS sweep.** When you read or append a `LEARNINGS.md` entry, ask:
+   *can this be a `cargo test` or CI check?* If a failure mode is mechanically
+   detectable (a struct-order rule, a "this code path must call X" rule, an
+   anachronism, a banned token), it belongs as a fitness/rubric test, not as
+   prose a future agent has to remember. Prefer a self-correcting failure
+   message that names the fix. Entries that resist automation (judgement calls,
+   environment quirks) stay as prose.
+2. **Demo-audit findings.** Before closing a TODO.md finding in the
+   `/todo-drain` loop, decide whether the *category* warrants a permanent guard.
+   A finding that has now been fixed more than once (e.g. auto-player movement,
+   mid-conversation farewells, mood→emoji sign) is a rubric candidate — add the
+   `rubric_*` test in `parish-engine/tests/eval_baselines.rs` in the same PR so
+   the regression cannot silently return. A one-off content tweak does not.
+
+If you find yourself working around any convention-only rule above, that is the
+signal to promote it to a sensor.
