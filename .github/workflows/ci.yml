@@ -261,6 +261,11 @@ jobs:
     name: Docs/data formatting (Prettier + markdownlint)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Root-scoped tooling (configs + package.json live at the repo root, not in
+    # parish/ which is this workflow's global default working-directory).
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -285,6 +290,10 @@ jobs:
     name: Python quality (ruff, mypy, yamllint, pytest)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Root-scoped: pyproject.toml + requirements-dev.txt live at the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -316,6 +325,10 @@ jobs:
     name: Shell quality (shellcheck + shfmt)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Root-scoped: `git ls-files '*.sh'` must run from the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -336,6 +349,10 @@ jobs:
     name: TOML quality (taplo fmt + lint)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Root-scoped: taplo.toml (with its exclude globs) lives at the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
