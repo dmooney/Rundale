@@ -7,16 +7,13 @@
  * a <textarea>) opened the map instead of inserting the character.
  */
 
-import { test, expect, installTauriMock } from './fixtures';
+import { test, expect } from './fixtures';
 
+// `parishPage` is the shared fixture: it installs the Tauri mock ('morning'),
+// navigates to '/', and waits for network idle — the same setup every other
+// e2e spec uses. Aliasing it to `page` keeps the bodies below unchanged.
 test.describe('Bug report modal — hotkey isolation', () => {
-	test.beforeEach(async ({ page }) => {
-		await installTauriMock(page, 'morning');
-		await page.goto('/');
-		await page.waitForLoadState('networkidle');
-	});
-
-	test('typing "m" in the description does not open the map', async ({ page }) => {
+	test('typing "m" in the description does not open the map', async ({ parishPage: page }) => {
 		// Open the bug-report modal from the status-bar 🐛 button.
 		const bugButton = page.locator('.bug-toggle');
 		await expect(bugButton).toBeVisible();
@@ -35,7 +32,7 @@ test.describe('Bug report modal — hotkey isolation', () => {
 		await expect(description).toHaveValue('Map breaks when I press m');
 	});
 
-	test('"m" still toggles the map when not typing in a field', async ({ page }) => {
+	test('"m" still toggles the map when not typing in a field', async ({ parishPage: page }) => {
 		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
 		// Ensure focus is not in any input/textarea.
 		await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
