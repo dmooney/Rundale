@@ -15,6 +15,7 @@ Examples::
         --output docs/proofs/local-perf/dialogue_flaw_scan_sonnet.md \\
         --prompts 25
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,11 +29,7 @@ from eval_lib import CostTracker, Target, call_chat, load_slice, parse_target  #
 
 DEFAULT_TARGET = "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1"
 DEFAULT_OUTPUT = (
-    Path(__file__).resolve().parents[3]
-    / "docs"
-    / "proofs"
-    / "local-perf"
-    / "dialogue_flaw_scan.md"
+    Path(__file__).resolve().parents[3] / "docs" / "proofs" / "local-perf" / "dialogue_flaw_scan.md"
 )
 
 SYSTEM = (
@@ -60,8 +57,8 @@ SYSTEM = (
 # corpus drives both this flaw-scan probe and the broader benchmark. Edit
 # rundale-bench/v1/dialogue.jsonl + rebuild MANIFEST.json to
 # add or change prompts; this script auto-loads any new records.
-_RECORDS = load_slice('dialogue', version='v1')
-PROMPTS = [r['prompt'] for r in _RECORDS]
+_RECORDS = load_slice("dialogue", version="v1")
+PROMPTS = [r["prompt"] for r in _RECORDS]
 assert len(PROMPTS) >= 100, len(PROMPTS)
 
 
@@ -120,15 +117,29 @@ def run_one(idx: int, prompt: str, target: Target) -> tuple[int, str, str, list[
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--target", default=DEFAULT_TARGET,
-                    help=f"Target spec (default: {DEFAULT_TARGET})")
-    ap.add_argument("--output", default=str(DEFAULT_OUTPUT),
-                    help=f"Markdown report path (default: {DEFAULT_OUTPUT})")
-    ap.add_argument("--prompts", type=int, default=100,
-                    help="Number of prompts to run (default: 100, max: %d)" % len(PROMPTS))
-    ap.add_argument("--workers", type=int, default=4,
-                    help="Concurrent requests (default: 4; lower for rate-limited cloud)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--target", default=DEFAULT_TARGET, help=f"Target spec (default: {DEFAULT_TARGET})"
+    )
+    ap.add_argument(
+        "--output",
+        default=str(DEFAULT_OUTPUT),
+        help=f"Markdown report path (default: {DEFAULT_OUTPUT})",
+    )
+    ap.add_argument(
+        "--prompts",
+        type=int,
+        default=100,
+        help=f"Number of prompts to run (default: 100, max: {len(PROMPTS)})",
+    )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Concurrent requests (default: 4; lower for rate-limited cloud)",
+    )
     args = ap.parse_args()
 
     target = parse_target(args.target)
@@ -151,7 +162,9 @@ def main() -> None:
     results.sort()
     flawed = [r for r in results if r[3]]
     print()
-    print(f"=== {len(flawed)}/{len(results)} ({len(flawed) * 100 / max(1, len(results)):.0f}%) flagged ===")
+    print(
+        f"=== {len(flawed)}/{len(results)} ({len(flawed) * 100 / max(1, len(results)):.0f}%) flagged ==="
+    )
     for idx, prompt, out, fs, _u in flawed:
         print(f"\n#{idx}  flaws: {fs}")
         print(f"  Q: {prompt}")

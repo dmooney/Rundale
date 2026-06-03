@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for rundale-bench graders. Run: `python3 test_grade.py`."""
+
 from __future__ import annotations
 
-import copy
 import hashlib
 import sys
 from pathlib import Path
@@ -21,10 +21,10 @@ from grade import (  # noqa: E402
     verify_judge_rubric,
 )
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _judge_fixture(rubric: str = "test rubric") -> dict:
     return {
@@ -48,6 +48,7 @@ def _stub_invoke(response: dict):
 # _jaccard
 # ---------------------------------------------------------------------------
 
+
 def test_jaccard():
     assert _jaccard(None, None) == 1.0
     assert _jaccard(None, "x") == 0.0
@@ -61,6 +62,7 @@ def test_jaccard():
 # ---------------------------------------------------------------------------
 # grade_intent
 # ---------------------------------------------------------------------------
+
 
 def test_intent_exact_match():
     r = grade_intent(
@@ -116,7 +118,10 @@ _INTENT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "intent": {"type": "string", "enum": ["move", "talk", "look", "interact", "examine", "unknown"]},
+        "intent": {
+            "type": "string",
+            "enum": ["move", "talk", "look", "interact", "examine", "unknown"],
+        },
         "target": {"type": ["string", "null"]},
         "dialogue": {"type": ["string", "null"]},
     },
@@ -141,7 +146,9 @@ def test_schema_bad_enum():
 
 
 def test_schema_extra_keys_rejected():
-    r = grade_schema({"intent": "move", "target": "x", "dialogue": None, "extra": 1}, _INTENT_SCHEMA)
+    r = grade_schema(
+        {"intent": "move", "target": "x", "dialogue": None, "extra": 1}, _INTENT_SCHEMA
+    )
     assert not r["schema_valid"]
 
 
@@ -151,13 +158,14 @@ def test_schema_parses_json_string():
 
 
 def test_schema_malformed_string():
-    r = grade_schema('{not json', _INTENT_SCHEMA)
+    r = grade_schema("{not json", _INTENT_SCHEMA)
     assert not r["schema_valid"]
 
 
 # ---------------------------------------------------------------------------
 # verify_judge_rubric
 # ---------------------------------------------------------------------------
+
 
 def test_judge_rubric_match():
     j = _judge_fixture("hello")
@@ -180,12 +188,19 @@ def test_judge_rubric_tamper_detected():
 # grade_dialogue
 # ---------------------------------------------------------------------------
 
+
 def test_dialogue_happy_path():
     j = _judge_fixture()
-    invoke = _stub_invoke({
-        "character": 5, "authenticity": 4, "language": 5,
-        "responsiveness": 4, "craft": 5, "overall": 4.6,
-    })
+    invoke = _stub_invoke(
+        {
+            "character": 5,
+            "authenticity": 4,
+            "language": 5,
+            "responsiveness": 4,
+            "craft": 5,
+            "overall": 4.6,
+        }
+    )
     r = grade_dialogue("'Tis a fine evening, lass.", j, invoke)
     assert r["overall"] == 4.6
     assert r["character"] == 5
@@ -194,10 +209,16 @@ def test_dialogue_happy_path():
 
 def test_dialogue_non_latin_detected():
     j = _judge_fixture()
-    invoke = _stub_invoke({
-        "character": 5, "authenticity": 5, "language": 5,
-        "responsiveness": 5, "craft": 5, "overall": 5.0,
-    })
+    invoke = _stub_invoke(
+        {
+            "character": 5,
+            "authenticity": 5,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 5,
+            "overall": 5.0,
+        }
+    )
     r = grade_dialogue("Привет, lass.", j, invoke)
     assert "Cyrillic" in r["non_latin_chars"]
 
@@ -217,6 +238,7 @@ def test_dialogue_rubric_tamper_blocks_call():
 # grade_gaeilge
 # ---------------------------------------------------------------------------
 
+
 def _gaeilge_record() -> dict:
     return {
         "id": "gaeilge-test",
@@ -233,16 +255,18 @@ def test_gaeilge_happy_path():
         "Rachaidh mé go dtí an t-aonach.",
         _gaeilge_record(),
         j,
-        _stub_invoke({
-            "fluency": 5,
-            "grammar": 5,
-            "idiom": 4,
-            "task_fulfillment": 5,
-            "english_leakage": 5,
-            "overall": 4.8,
-            "reason": "Natural Irish with the requested meaning.",
-            "english_leakage_examples": [],
-        }),
+        _stub_invoke(
+            {
+                "fluency": 5,
+                "grammar": 5,
+                "idiom": 4,
+                "task_fulfillment": 5,
+                "english_leakage": 5,
+                "overall": 4.8,
+                "reason": "Natural Irish with the requested meaning.",
+                "english_leakage_examples": [],
+            }
+        ),
     )
     assert r["overall"] == 4.8
     assert r["fluency"] == 5
@@ -255,16 +279,18 @@ def test_gaeilge_score_normalization():
         "bad",
         _gaeilge_record(),
         j,
-        _stub_invoke({
-            "fluency": 9,
-            "grammar": -1,
-            "idiom": "4",
-            "task_fulfillment": 5,
-            "english_leakage": 2,
-            "overall": 12.0,
-            "reason": "x",
-            "english_leakage_examples": ["hello"],
-        }),
+        _stub_invoke(
+            {
+                "fluency": 9,
+                "grammar": -1,
+                "idiom": "4",
+                "task_fulfillment": 5,
+                "english_leakage": 2,
+                "overall": 12.0,
+                "reason": "x",
+                "english_leakage_examples": ["hello"],
+            }
+        ),
     )
     assert r["fluency"] == 5
     assert r["grammar"] == 0
@@ -286,6 +312,7 @@ def test_gaeilge_rubric_tamper_blocks_call():
 # ---------------------------------------------------------------------------
 # grade_reaction
 # ---------------------------------------------------------------------------
+
 
 def test_reaction_happy():
     j = _judge_fixture()
@@ -313,9 +340,12 @@ def test_reaction_non_latin_zeros():
 # grade_pairwise
 # ---------------------------------------------------------------------------
 
+
 def test_pairwise_judge_picks_winner():
     j = _judge_fixture()
-    r = grade_pairwise("Reply A", "Reply B", "prompt", j, _stub_invoke({"winner": "A", "reason": "cleaner voice"}))
+    r = grade_pairwise(
+        "Reply A", "Reply B", "prompt", j, _stub_invoke({"winner": "A", "reason": "cleaner voice"})
+    )
     assert r["winner"] == "A"
     assert "cleaner" in r["reason"]
 
@@ -336,7 +366,9 @@ def test_pairwise_invalid_winner_falls_back_to_tie():
 def test_pairwise_non_latin_auto_disqualifies():
     j = _judge_fixture()
     # A has Cyrillic, B is clean → B wins automatically
-    r = grade_pairwise("Привет lass", "Aye lass", "p", j, _stub_invoke({"winner": "A", "reason": "ignored"}))
+    r = grade_pairwise(
+        "Привет lass", "Aye lass", "p", j, _stub_invoke({"winner": "A", "reason": "ignored"})
+    )
     assert r["winner"] == "B"
     assert r["auto_disqualified"] == "A"
 
@@ -370,7 +402,9 @@ _TIER2_SCHEMA_INNER = {
 
 def test_simulation_invalid_schema_zero():
     j = _judge_fixture()
-    r = grade_simulation({"summary": "x"}, _TIER2_SCHEMA_INNER, j, _stub_invoke({"plausibility": 5}))
+    r = grade_simulation(
+        {"summary": "x"}, _TIER2_SCHEMA_INNER, j, _stub_invoke({"plausibility": 5})
+    )
     assert not r["schema_valid"]
     assert r["score"] == 0.0
 
@@ -388,12 +422,13 @@ def test_simulation_valid_then_judge():
 # extract_dialogue_for_judging — strip runtime metadata envelope
 # ---------------------------------------------------------------------------
 
+
 def test_extract_dialogue_dash_marker():
     reply = (
         "Chew on a few cloves if you can get them, or make a warm poultice from "
         "willow bark to draw out the ache.\n"
         "---\n"
-        "{\"action\": \"reaches into her basket\", \"mood\": \"content\", \"language_hints\": []}"
+        '{"action": "reaches into her basket", "mood": "content", "language_hints": []}'
     )
     out = extract_dialogue_for_judging(reply)
     assert "---" not in out
@@ -403,7 +438,7 @@ def test_extract_dialogue_dash_marker():
 
 
 def test_extract_dialogue_dash_marker_trailing_whitespace():
-    reply = "dialogue line\n--- \n{\"action\": \"x\"}"
+    reply = 'dialogue line\n--- \n{"action": "x"}'
     assert extract_dialogue_for_judging(reply) == "dialogue line"
 
 
@@ -418,25 +453,22 @@ def test_extract_dialogue_dash_at_start_returns_empty():
     # Reply that opens with `---` has no preamble. Helper returns the
     # empty-string prefix (rstripped) so the judge sees the model emitted
     # nothing the player would have heard.
-    reply = "\n---\n{\"action\": \"x\"}"
+    reply = '\n---\n{"action": "x"}'
     assert extract_dialogue_for_judging(reply) == ""
 
 
 def test_extract_dialogue_json_first():
     reply = (
-        "{\"dialogue\": \"Ah, good morning to ye!\", "
-        "\"action\": \"looks up\", \"mood\": \"friendly\", "
-        "\"language_hints\": []}"
+        '{"dialogue": "Ah, good morning to ye!", '
+        '"action": "looks up", "mood": "friendly", '
+        '"language_hints": []}'
     )
     assert extract_dialogue_for_judging(reply) == "Ah, good morning to ye!"
 
 
 def test_extract_dialogue_json_first_with_escaped_quotes():
-    reply = (
-        "{\"dialogue\": \"She said \\\"hello\\\" to me.\", "
-        "\"action\": \"shrugs\"}"
-    )
-    assert extract_dialogue_for_judging(reply) == "She said \"hello\" to me."
+    reply = '{"dialogue": "She said \\"hello\\" to me.", "action": "shrugs"}'
+    assert extract_dialogue_for_judging(reply) == 'She said "hello" to me.'
 
 
 def test_extract_dialogue_json_first_missing_dialogue_field():
@@ -444,7 +476,7 @@ def test_extract_dialogue_json_first_missing_dialogue_field():
     # uses `#[serde(default)]`, so a parseable JSON envelope without
     # a `dialogue` field surfaces as `""` to the player. Bench must
     # mirror that — return empty string, not the raw envelope.
-    reply = "{\"action\": \"x\", \"mood\": \"y\"}"
+    reply = '{"action": "x", "mood": "y"}'
     assert extract_dialogue_for_judging(reply) == ""
 
 
@@ -470,7 +502,7 @@ def test_extract_dialogue_malformed_json_recovers():
     # Truncated mid-string: runtime's heuristic recovers the dialogue
     # prefix; bench mirrors that. Without recovery the judge would see
     # the raw JSON envelope.
-    reply = "{\"dialogue\": \"unterminated"
+    reply = '{"dialogue": "unterminated'
     assert extract_dialogue_for_judging(reply) == "unterminated"
 
 
@@ -487,7 +519,7 @@ def test_extract_dialogue_empty_input():
 def test_extract_dialogue_multiple_dash_lines():
     # Only the FIRST `\n---` ends the dialogue; later occurrences are
     # part of the metadata block.
-    reply = "first line\n---\n{\"action\": \"---\"}"
+    reply = 'first line\n---\n{"action": "---"}'
     assert extract_dialogue_for_judging(reply) == "first line"
 
 
@@ -495,7 +527,7 @@ def test_extract_dialogue_dash_at_very_start_no_newline():
     # Codex review #PRRT_kwDORqdnvs6CzukN: model emits metadata-only
     # output with no leading newline before `---`. Runtime splits on
     # `---` itself; bench must match.
-    reply = "--- \n{\"action\": \"shrugs\"}"
+    reply = '--- \n{"action": "shrugs"}'
     assert extract_dialogue_for_judging(reply) == ""
 
 
@@ -578,6 +610,7 @@ def test_extract_dialogue_dialogue_key_not_leading_falls_through():
 # ---------------------------------------------------------------------------
 # runner
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     tests = [v for k, v in globals().items() if k.startswith("test_") and callable(v)]

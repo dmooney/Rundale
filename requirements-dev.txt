@@ -1,0 +1,10 @@
+# Python dev tooling for Rundale (lint + format + type-check + test + YAML lint).
+# Install into a local venv (gitignored as .venv-dev):
+#   python3 -m venv .venv-dev
+#   .venv-dev/bin/pip install -r requirements-dev.txt
+# Config lives in pyproject.toml ([tool.ruff], [tool.mypy], [tool.pytest.ini_options])
+# and .yamllint.yml.
+ruff==0.15.15
+mypy==2.1.0
+pytest==9.0.3
+yamllint==1.38.0

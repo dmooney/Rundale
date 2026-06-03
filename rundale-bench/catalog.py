@@ -9,13 +9,14 @@ Provider ``base_url`` / ``api_key_env`` mirror the engine's provider presets
 in ``parish/crates/parish-config/providers/*.toml`` — the catalog is the
 eval-side view of the same provider set, annotated with prices.
 """
+
 from __future__ import annotations
 
 import hashlib
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+
+import tomllib
 
 _BENCH_DIR = Path(__file__).resolve().parent
 
@@ -25,10 +26,10 @@ class Provider:
     provider_id: str
     model_name_at_provider: str
     base_url: str
-    api_key_env: Optional[str]
+    api_key_env: str | None
     price_in_per_mtok: float
     price_out_per_mtok: float
-    max_context: Optional[int]
+    max_context: int | None
     notes: str
 
     def quality_cost_proxy(self) -> float:
@@ -53,8 +54,8 @@ class Model:
     id: str
     display_name: str
     family: str
-    params_b: Optional[float]
-    quant: Optional[str]
+    params_b: float | None
+    quant: str | None
     local_only: bool
     providers: tuple[Provider, ...]
 
@@ -106,7 +107,7 @@ def _model_from_toml(raw: dict) -> Model:
     )
 
 
-def load_catalog(path: Optional[Path] = None, *, version: str = "v1") -> Catalog:
+def load_catalog(path: Path | None = None, *, version: str = "v1") -> Catalog:
     """Parse ``models.toml`` into a Catalog. The catalog sha256 is hashed over
     the raw file bytes so a run can record exactly which catalog it used."""
     if path is None:

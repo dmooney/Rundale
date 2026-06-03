@@ -12,6 +12,7 @@ Usage::
     # cloud
     python3 gen_dlg.py 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' /tmp/cand_b.txt
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,7 +40,9 @@ assert len(PROMPTS) == 5, f"core tier must have 5 prompts, has {len(PROMPTS)}"
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("target", help="Target spec: 'model@base_url[#env:VAR]'")
     ap.add_argument("output", help="Output path for the transcript")
     args = ap.parse_args()

@@ -32,7 +32,6 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -41,13 +40,13 @@ class Target:
 
     model: str
     base_url: str
-    api_key_env: Optional[str] = None
+    api_key_env: str | None = None
 
     def label(self) -> str:
         """Short human label: bare model name without org prefix."""
         return self.model.split("/")[-1]
 
-    def api_key(self) -> Optional[str]:
+    def api_key(self) -> str | None:
         if not self.api_key_env:
             return None
         key = os.environ.get(self.api_key_env)
@@ -63,12 +62,12 @@ def parse_target(spec: str) -> Target:
     if "@" not in spec:
         raise ValueError(f"target spec must contain '@base_url': {spec!r}")
     model, rest = spec.split("@", 1)
-    api_key_env: Optional[str] = None
+    api_key_env: str | None = None
     if "#" in rest:
         base_url, suffix = rest.split("#", 1)
         if not suffix.startswith("env:"):
             raise ValueError(f"target suffix must start with 'env:': {suffix!r}")
-        api_key_env = suffix[len("env:"):]
+        api_key_env = suffix[len("env:") :]
     else:
         base_url = rest
     return Target(model=model.strip(), base_url=base_url.strip(), api_key_env=api_key_env)
@@ -179,7 +178,7 @@ _RESUMER_TOKENS = (
     r"Mayhap",
     r"Well now",
     r"Now,",
-    r"\"",                  # quoted dialogue
+    r"\"",  # quoted dialogue
     r"Brigid[:\s]",
     r"Dia dhuit",
     r"Mo chara",
@@ -216,14 +215,14 @@ def _scrub_chain_of_thought(text: str) -> str:
     # but we still need to inject one synthetic line start so a same-line
     # resumer that doesn't appear after a real newline is reachable —
     # do that by anchoring the search at the end of the CoT prefix.
-    tail = text[m_cot.end():]
+    tail = text[m_cot.end() :]
     m = _DIALOGUE_RESUMER_RE.search(tail)
     if not m:
         return ""  # never resumed in-character → bench-bug
     # group 1 is the marker itself; m.start(1) skips the boundary chars
     # (newline / sentence-end punctuation) so the returned text begins
     # at the in-character marker.
-    return tail[m.start(1):].lstrip()
+    return tail[m.start(1) :].lstrip()
 
 
 def _default_reasoning_for(model_id: str) -> dict:
@@ -253,14 +252,11 @@ OPENCODE_GO_ANTHROPIC_ONLY: set[str] = {
 }
 
 
-def _is_opencode_go_anthropic_only(target: "Target") -> bool:
-    return (
-        "opencode.ai" in target.base_url
-        and target.model in OPENCODE_GO_ANTHROPIC_ONLY
-    )
+def _is_opencode_go_anthropic_only(target: Target) -> bool:
+    return "opencode.ai" in target.base_url and target.model in OPENCODE_GO_ANTHROPIC_ONLY
 
 
-def _anthropic_headers(target: "Target") -> dict:
+def _anthropic_headers(target: Target) -> dict:
     headers = {
         "Content-Type": "application/json",
         "anthropic-version": "2023-06-01",
@@ -273,13 +269,13 @@ def _anthropic_headers(target: "Target") -> dict:
 
 
 def _anthropic_body(
-    target: "Target",
-    system: Optional[str],
+    target: Target,
+    system: str | None,
     user: str,
     *,
-    max_tokens: Optional[int],
+    max_tokens: int | None,
     temperature: float,
-    schema: Optional[dict] = None,
+    schema: dict | None = None,
     stream: bool = False,
 ) -> dict:
     """Build a /v1/messages request body. When `schema` is given, enforce the
@@ -298,11 +294,13 @@ def _anthropic_body(
         body["stream"] = True
     if schema is not None:
         tool_name = schema.get("name") or "respond"
-        body["tools"] = [{
-            "name": tool_name,
-            "description": "Emit the response as structured JSON matching the input_schema.",
-            "input_schema": schema.get("schema") or schema,
-        }]
+        body["tools"] = [
+            {
+                "name": tool_name,
+                "description": "Emit the response as structured JSON matching the input_schema.",
+                "input_schema": schema.get("schema") or schema,
+            }
+        ]
         body["tool_choice"] = {"type": "tool", "name": tool_name}
         # opencode-go (Alibaba DashScope upstream) rejects forced tool_choice
         # when the model is in thinking mode: "The tool_choice parameter does
@@ -370,9 +368,11 @@ def _unwrap_raw_arguments(payload):
     truncation — unwrap it so downstream graders see the intended structure.
     Truly truncated payloads fail to parse here and the raw shape is returned
     unchanged so the grader can flag the failure."""
-    if (isinstance(payload, dict)
-            and set(payload.keys()) == {"raw_arguments"}
-            and isinstance(payload["raw_arguments"], str)):
+    if (
+        isinstance(payload, dict)
+        and set(payload.keys()) == {"raw_arguments"}
+        and isinstance(payload["raw_arguments"], str)
+    ):
         try:
             return json.loads(payload["raw_arguments"])
         except json.JSONDecodeError:
@@ -380,7 +380,7 @@ def _unwrap_raw_arguments(payload):
     return payload
 
 
-def _extract_anthropic_text(data: dict, schema: Optional[dict] = None) -> str:
+def _extract_anthropic_text(data: dict, schema: dict | None = None) -> str:
     """Pull a single text payload from a non-streaming /v1/messages response.
 
     - For tool_use responses: stringify the `input` field of the tool_use block,
@@ -400,16 +400,16 @@ def _extract_anthropic_text(data: dict, schema: Optional[dict] = None) -> str:
 
 
 def _call_messages_anthropic(
-    target: "Target",
-    system: Optional[str],
+    target: Target,
+    system: str | None,
     user: str,
     *,
-    schema: Optional[dict],
-    max_tokens: Optional[int],
+    schema: dict | None,
+    max_tokens: int | None,
     temperature: float,
     timeout: float,
     max_retries: int,
-) -> Tuple[str, dict]:
+) -> tuple[str, dict]:
     """POST /v1/messages in Anthropic Messages format. Returns `(text, usage)`.
 
     Used for opencode-go models that refuse the OpenAI-compat path. Maps the
@@ -419,8 +419,12 @@ def _call_messages_anthropic(
     via forced tool_use and returns the tool input as a JSON string.
     """
     body = _anthropic_body(
-        target, system, user,
-        max_tokens=max_tokens, temperature=temperature, schema=schema,
+        target,
+        system,
+        user,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        schema=schema,
     )
     headers = _anthropic_headers(target)
     url = f"{target.base_url.rstrip('/')}/messages"
@@ -442,9 +446,11 @@ def _call_messages_anthropic(
             # the time on complex tool_use schemas (tier3-sim batches);
             # retrying clears most. Treat 500 like 503 for retry purposes.
             if e.code in (429, 500, 503) and attempt < max_retries:
-                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2 ** attempt), 60.0)
+                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2**attempt), 60.0)
                 attempt += 1
-                print(f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
+                print(
+                    f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})"
+                )
                 time.sleep(wait)
                 continue
             raise
@@ -464,12 +470,12 @@ def _call_messages_anthropic(
 
 
 def _stream_messages_anthropic(
-    target: "Target",
-    system: Optional[str],
+    target: Target,
+    system: str | None,
     user: str,
     *,
-    schema: Optional[dict],
-    max_tokens: Optional[int],
+    schema: dict | None,
+    max_tokens: int | None,
     temperature: float,
     timeout: float,
 ) -> dict:
@@ -484,8 +490,13 @@ def _stream_messages_anthropic(
       event: message_stop
     """
     body = _anthropic_body(
-        target, system, user,
-        max_tokens=max_tokens, temperature=temperature, schema=schema, stream=True,
+        target,
+        system,
+        user,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        schema=schema,
+        stream=True,
     )
     headers = _anthropic_headers(target)
     headers["Accept"] = "text/event-stream"
@@ -502,9 +513,9 @@ def _stream_messages_anthropic(
     tool_parts: list[str] = []
     block_types: dict[int, str] = {}
     current_event = ""
-    ttft_ms: Optional[int] = None
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
+    ttft_ms: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
     start = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         for raw_line in resp:
@@ -570,7 +581,7 @@ def _stream_messages_anthropic(
                 pass
     else:
         text = "".join(text_parts)
-    tps: Optional[float] = None
+    tps: float | None = None
     if completion_tokens and ttft_ms is not None and total_ms > ttft_ms:
         gen_seconds = (total_ms - ttft_ms) / 1000.0
         if gen_seconds > 0:
@@ -587,16 +598,16 @@ def _stream_messages_anthropic(
 
 def call_chat(
     target: Target,
-    system: Optional[str],
+    system: str | None,
     user: str,
     *,
-    schema: Optional[dict] = None,
-    max_tokens: Optional[int] = None,
+    schema: dict | None = None,
+    max_tokens: int | None = None,
     temperature: float = 0.7,
     timeout: float = 180.0,
     max_retries: int = 4,
-    reasoning: Optional[dict] = None,
-) -> Tuple[str, dict]:
+    reasoning: dict | None = None,
+) -> tuple[str, dict]:
     """POST a single chat-completion. Returns `(text, usage)`.
 
     Retries on HTTP 429 / 503 using the `Retry-After` header (capped at 60 s)
@@ -677,8 +688,9 @@ def call_chat(
         # have headroom to actually emit a reply. Cost trivial — even at
         # max output 12k tokens × $4/M = $0.05 per call worst case, real
         # usage is <$0.01 per slice.
-        if (mid.startswith(("deepseek-v4-", "mimo-v2", "minimax-m2"))
-                and (max_tokens is None or max_tokens < 3000)):
+        if mid.startswith(("deepseek-v4-", "mimo-v2", "minimax-m2")) and (
+            max_tokens is None or max_tokens < 3000
+        ):
             body["max_tokens"] = 3000
     elif reasoning is not None:
         body["reasoning"] = reasoning
@@ -714,9 +726,11 @@ def call_chat(
             break
         except urllib.error.HTTPError as e:
             if e.code in (429, 503) and attempt < max_retries:
-                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2 ** attempt), 60.0)
+                wait = min(_parse_retry_after(e.headers.get("Retry-After"), 2**attempt), 60.0)
                 attempt += 1
-                print(f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
+                print(
+                    f"  [{e.code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})"
+                )
                 time.sleep(wait)
                 continue
             raise
@@ -727,15 +741,24 @@ def call_chat(
         err = data.get("error") or {}
         err_code = err.get("code")
         if err_code in (429, 502, 503) and attempt < max_retries:
-            wait = 2 ** attempt
+            wait = 2**attempt
             attempt += 1
-            print(f"  [body-{err_code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
+            print(
+                f"  [body-{err_code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})"
+            )
             time.sleep(wait)
             # Re-issue request — break out of retry block via continue analogue.
             # Simplest: recurse. Recursion bounded by max_retries.
-            return call_chat(target, system, user, schema=schema, max_tokens=max_tokens,
-                             temperature=temperature, timeout=timeout,
-                             max_retries=max_retries - attempt)
+            return call_chat(
+                target,
+                system,
+                user,
+                schema=schema,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=timeout,
+                max_retries=max_retries - attempt,
+            )
 
     try:
         msg = data["choices"][0]["message"]
@@ -788,11 +811,11 @@ def call_chat(
 
 def call_chat_streaming(
     target: Target,
-    system: Optional[str],
+    system: str | None,
     user: str,
     *,
-    schema: Optional[dict] = None,
-    max_tokens: Optional[int] = None,
+    schema: dict | None = None,
+    max_tokens: int | None = None,
     temperature: float = 0.7,
     timeout: float = 180.0,
 ) -> dict:
@@ -813,7 +836,9 @@ def call_chat_streaming(
     """
     if _is_opencode_go_anthropic_only(target):
         return _stream_messages_anthropic(
-            target, system, user,
+            target,
+            system,
+            user,
             schema=schema,
             max_tokens=max_tokens,
             temperature=temperature,
@@ -857,9 +882,9 @@ def call_chat_streaming(
     )
 
     parts: list[str] = []
-    ttft_ms: Optional[int] = None
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
+    ttft_ms: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
     start = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         for raw_line in resp:
@@ -890,7 +915,7 @@ def call_chat_streaming(
                     completion_tokens = int(usage["completion_tokens"])
     total_ms = int((time.time() - start) * 1000)
     text = "".join(parts)
-    tps: Optional[float] = None
+    tps: float | None = None
     if completion_tokens and ttft_ms is not None and total_ms > ttft_ms:
         gen_seconds = (total_ms - ttft_ms) / 1000.0
         if gen_seconds > 0:
@@ -909,7 +934,7 @@ def call_chat_streaming(
 # are static reference values and providers change pricing without warning.
 # Keep entries keyed by exact `model` id used in API calls. Unknown ids
 # return 0.0 in `estimate_cost`.
-COSTS: dict[str, Tuple[float, float]] = {
+COSTS: dict[str, tuple[float, float]] = {
     # Anthropic (verify at console.anthropic.com)
     "claude-opus-4-7": (15.00, 75.00),
     "claude-sonnet-4-6": (3.00, 15.00),
@@ -1016,7 +1041,7 @@ def load_slice(
     slice_name: str,
     *,
     version: str = "v1",
-    tier: Optional[str] = None,
+    tier: str | None = None,
     split: str = "dev",
     verify: bool = True,
 ) -> list[dict]:
@@ -1090,22 +1115,22 @@ _RUNDALE_TIER1_TEMPLATE = _REPO_ROOT / "mods" / "rundale" / "prompts" / "tier1_s
 _GA_IE_PHRASE_GUIDE = (
     "\n    Preferred ga-IE phrases (use these where natural; do not confabulate "
     "other Irish): "
-    "Greetings: \"Dia dhuit\" (hello), \"Dia is Muire dhuit\" (reply), "
-    "\"Conas atá tú?\" (how are you), \"Slán\" (goodbye), "
-    "\"Slán abhaile\" (safe home). "
-    "Blessings / thanks: \"Go raibh maith agat\" (thank you), "
-    "\"Le cúnamh Dé\" (with God's help), \"Buíochas le Dia\" (thank God), "
-    "\"Beannacht Dé ort\" (God bless you), \"Go n-éirí leat\" (good luck to you). "
-    "Exclamations: \"Mo ghrá\" (my love), \"A chroí\" (dear, sweetheart), "
-    "\"A stór\" (treasure / dear), \"A leanbh\" (child), \"Mhuise\" (well, indeed), "
-    "\"Faith\", \"Bedad\", \"Bedambut\". "
-    "Concepts: \"sídhe\" (fairy folk), \"sí\" (fairy mound), "
-    "\"seanchaí\" (storyteller), \"céilí\" (gathering), "
-    "\"poitín\" (illicit spirits), \"piseog\" (superstition)."
+    'Greetings: "Dia dhuit" (hello), "Dia is Muire dhuit" (reply), '
+    '"Conas atá tú?" (how are you), "Slán" (goodbye), '
+    '"Slán abhaile" (safe home). '
+    'Blessings / thanks: "Go raibh maith agat" (thank you), '
+    '"Le cúnamh Dé" (with God\'s help), "Buíochas le Dia" (thank God), '
+    '"Beannacht Dé ort" (God bless you), "Go n-éirí leat" (good luck to you). '
+    'Exclamations: "Mo ghrá" (my love), "A chroí" (dear, sweetheart), '
+    '"A stór" (treasure / dear), "A leanbh" (child), "Mhuise" (well, indeed), '
+    '"Faith", "Bedad", "Bedambut". '
+    'Concepts: "sídhe" (fairy folk), "sí" (fairy mound), '
+    '"seanchaí" (storyteller), "céilí" (gathering), '
+    '"poitín" (illicit spirits), "piseog" (superstition).'
 )
 
 
-def _language_directive(player: str, native: Optional[str]) -> str:
+def _language_directive(player: str, native: str | None) -> str:
     """Python mirror of `parish_npc::language_directive`.
 
     Reproduces the locale clause the runtime appends to every Tier-1
@@ -1119,8 +1144,8 @@ def _language_directive(player: str, native: Optional[str]) -> str:
     player_lower = player.lower()
     if player_lower.startswith("en") and player_lower != "en-us":
         directive += (
-            f" Never use en-US spellings such as \"color\", \"realize\", "
-            f"\"favor\", \"neighbor\", or \"-ize\" verb endings "
+            f' Never use en-US spellings such as "color", "realize", '
+            f'"favor", "neighbor", or "-ize" verb endings '
             f"— use the spelling appropriate to {player}."
         )
     if native:
@@ -1170,7 +1195,7 @@ def build_dialogue_system_prompt(
     mood: str = "content",
     improv: bool = False,
     player_language: str = "en-IE",
-    native_language: Optional[str] = "ga-IE",
+    native_language: str | None = "ga-IE",
 ) -> str:
     """Render the rundale-bench dialogue system prompt.
 

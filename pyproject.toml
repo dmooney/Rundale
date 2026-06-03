@@ -1,0 +1,39 @@
+# Repo-wide Python tooling config (ruff + mypy + pytest).
+# Python here is dev/bench/eval tooling (rundale-bench/, parish/scripts/,
+# parish/testing/eval/), not shipped runtime code. Install the pinned tools with:
+#   python3 -m venv .venv-dev && .venv-dev/bin/pip install -r requirements-dev.txt
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = [".venv-dev", "target", "rundale-bench/artifacts", "docs/proofs"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import-sort, UP pyupgrade, B bugbear, SIM simplify.
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+# E501 (line length) is handled by the formatter, not the linter.
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+# Lenient baseline: this code was written untyped. We gate on "no NEW type
+# errors" today and ratchet strictness over time (enable disallow_untyped_defs
+# per-module as files get annotated). ignore_missing_imports avoids failing on
+# third-party libs without stubs (anthropic, requests, etc.).
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs']
+
+[tool.pytest.ini_options]
+# The bench has bespoke phase tests (test_phase*.py, test_grade.py) under
+# rundale-bench/. Collect those; do not recurse into vendored/generated trees.
+testpaths = ["rundale-bench"]
+python_files = ["test_*.py"]
+norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
+addopts = "-q"

@@ -13,6 +13,7 @@ matching manifest entry on every load — drift surfaces as a `RuntimeError`.
 Run this after intentional dataset edits and commit the new manifest in
 the same PR as the slice change so reviewers see the hash delta.
 """
+
 from __future__ import annotations
 
 import hashlib

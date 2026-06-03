@@ -15,6 +15,7 @@ The HTML page is fully static — no server required. Open it with::
 
     open rundale-bench/artifacts/leaderboard.html
 """
+
 from __future__ import annotations
 
 import glob
@@ -66,18 +67,20 @@ def build_data() -> dict:
         for cand, ag in (d.get("aggregates") or {}).items():
             if ":free" in cand:
                 continue
-            out["quality"].append({
-                "candidate": cand,
-                "judge": judge,
-                "file": Path(f).name,
-                "n": ag.get("total_n", 0),
-                "total": _round(ag.get("total_mean", 0.0)),
-                "character": _round(ag.get("character_mean", 0.0)),
-                "authenticity": _round(ag.get("authenticity_mean", 0.0)),
-                "language": _round(ag.get("language_mean", 0.0)),
-                "responsiveness": _round(ag.get("responsiveness_mean", 0.0)),
-                "craft": _round(ag.get("craft_mean", 0.0)),
-            })
+            out["quality"].append(
+                {
+                    "candidate": cand,
+                    "judge": judge,
+                    "file": Path(f).name,
+                    "n": ag.get("total_n", 0),
+                    "total": _round(ag.get("total_mean", 0.0)),
+                    "character": _round(ag.get("character_mean", 0.0)),
+                    "authenticity": _round(ag.get("authenticity_mean", 0.0)),
+                    "language": _round(ag.get("language_mean", 0.0)),
+                    "responsiveness": _round(ag.get("responsiveness_mean", 0.0)),
+                    "craft": _round(ag.get("craft_mean", 0.0)),
+                }
+            )
 
     # Keep only the latest perf measurement per candidate (perf files
     # are timestamped; later runs supersede earlier smoke probes).
@@ -105,11 +108,13 @@ def build_data() -> dict:
     # Gaeilge runs and documented `--slice all` sweeps both carry
     # slices.gaeilge.summary, so ingest both filename shapes.
     latest_gaeilge: dict[tuple[str, str, str], dict] = {}
-    gaeilge_run_files = sorted({
-        Path(f)
-        for pattern in ("run_*_gaeilge_*.json", "run_*_all_*.json")
-        for f in glob.glob(str(_ARTIFACTS_DIR / pattern))
-    })
+    gaeilge_run_files = sorted(
+        {
+            Path(f)
+            for pattern in ("run_*_gaeilge_*.json", "run_*_all_*.json")
+            for f in glob.glob(str(_ARTIFACTS_DIR / pattern))
+        }
+    )
     for path in gaeilge_run_files:
         d = json.loads(path.read_text(encoding="utf-8"))
         target = d.get("target") or {}
@@ -161,24 +166,28 @@ def build_data() -> dict:
     for cand, rows in by_cand.items():
         if len({r["judge"] for r in rows}) < 2:
             continue
+
         # Mean per axis across rows (one row per judge already).
-        def mean(key: str) -> float:
+        def mean(key: str, rows: list[dict] = rows) -> float:
             xs = [r[key] for r in rows if r.get(key) is not None]
             return round(sum(xs) / len(xs), 2) if xs else 0.0
+
         n_total = sum(r["n"] for r in rows)
-        averaged.append({
-            "candidate": cand,
-            "judge": "average",
-            "file": "(synthetic)",
-            "n": n_total,
-            "total": mean("total"),
-            "character": mean("character"),
-            "authenticity": mean("authenticity"),
-            "language": mean("language"),
-            "responsiveness": mean("responsiveness"),
-            "craft": mean("craft"),
-            "judge_count": len({r["judge"] for r in rows}),
-        })
+        averaged.append(
+            {
+                "candidate": cand,
+                "judge": "average",
+                "file": "(synthetic)",
+                "n": n_total,
+                "total": mean("total"),
+                "character": mean("character"),
+                "authenticity": mean("authenticity"),
+                "language": mean("language"),
+                "responsiveness": mean("responsiveness"),
+                "craft": mean("craft"),
+                "judge_count": len({r["judge"] for r in rows}),
+            }
+        )
     averaged.sort(key=lambda r: -r["total"])
     out["averaged"] = averaged
     return out
@@ -200,19 +209,34 @@ def build_markdown(data: dict) -> str:
 
     gaeilge_rows = [
         [
-            r["candidate"], r["split"], r["n"], r["errors"],
-            _fmt(r["overall"]), _fmt(r["fluency"]), _fmt(r["grammar"]),
-            _fmt(r["idiom"]), _fmt(r["task_fulfillment"]),
-            _fmt(r["english_leakage"]), f"${_fmt(r['usd'], 4)}", r["file"],
+            r["candidate"],
+            r["split"],
+            r["n"],
+            r["errors"],
+            _fmt(r["overall"]),
+            _fmt(r["fluency"]),
+            _fmt(r["grammar"]),
+            _fmt(r["idiom"]),
+            _fmt(r["task_fulfillment"]),
+            _fmt(r["english_leakage"]),
+            f"${_fmt(r['usd'], 4)}",
+            r["file"],
         ]
-        for r in sorted(data["gaeilge"], key=lambda r: (r["overall"] is not None, r["overall"]), reverse=True)
+        for r in sorted(
+            data["gaeilge"], key=lambda r: (r["overall"] is not None, r["overall"]), reverse=True
+        )
     ]
 
     averaged_rows = [
         [
-            r["candidate"], r["n"], _fmt(r["total"]), _fmt(r["character"]),
-            _fmt(r["authenticity"]), _fmt(r["language"]),
-            _fmt(r["responsiveness"]), _fmt(r["craft"]),
+            r["candidate"],
+            r["n"],
+            _fmt(r["total"]),
+            _fmt(r["character"]),
+            _fmt(r["authenticity"]),
+            _fmt(r["language"]),
+            _fmt(r["responsiveness"]),
+            _fmt(r["craft"]),
             r["judge_count"],
         ]
         for r in data.get("averaged", [])
@@ -220,71 +244,123 @@ def build_markdown(data: dict) -> str:
 
     quality_rows = [
         [
-            r["candidate"], r["judge"], r["n"], _fmt(r["total"]),
-            _fmt(r["character"]), _fmt(r["authenticity"]),
-            _fmt(r["language"]), _fmt(r["responsiveness"]), _fmt(r["craft"]),
+            r["candidate"],
+            r["judge"],
+            r["n"],
+            _fmt(r["total"]),
+            _fmt(r["character"]),
+            _fmt(r["authenticity"]),
+            _fmt(r["language"]),
+            _fmt(r["responsiveness"]),
+            _fmt(r["craft"]),
             r["file"],
         ]
-        for r in sorted(data["quality"], key=lambda r: (r["total"] is not None, r["total"]), reverse=True)
+        for r in sorted(
+            data["quality"], key=lambda r: (r["total"] is not None, r["total"]), reverse=True
+        )
     ]
 
     perf_rows = [
         [
-            r["candidate"], r["n_ok"], _fmt(r["ttft_p50"], 0),
-            _fmt(r["ttft_p90"], 0), _fmt(r["total_p50"], 0),
-            _fmt(r["tps_p50"]), _fmt(r["tps_p90"]),
-            f"{_fmt(r['json_freeform'], 1)}%", f"{_fmt(r['json_schema'], 1)}%",
+            r["candidate"],
+            r["n_ok"],
+            _fmt(r["ttft_p50"], 0),
+            _fmt(r["ttft_p90"], 0),
+            _fmt(r["total_p50"], 0),
+            _fmt(r["tps_p50"]),
+            _fmt(r["tps_p90"]),
+            f"{_fmt(r['json_freeform'], 1)}%",
+            f"{_fmt(r['json_schema'], 1)}%",
             r["file"],
         ]
-        for r in sorted(data["perf"], key=lambda r: (r["tps_p50"] is not None, r["tps_p50"]), reverse=True)
+        for r in sorted(
+            data["perf"], key=lambda r: (r["tps_p50"] is not None, r["tps_p50"]), reverse=True
+        )
     ]
 
     unjudged = ", ".join(f"`{c}`" for c in data["unjudged"]) if data["unjudged"] else "_None._"
 
-    return "\n".join([
-        "Evidence type: gameplay transcript",
-        "",
-        "# rundale-bench v1 leaderboard",
-        "",
-        "Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html). "
-        "GitHub Markdown strips the dashboard JavaScript/CSS, so this file is a static "
-        "Markdown snapshot and the HTML file is the interactive view.",
-        "",
-        "## Summary",
-        "",
-        _markdown_table(["Metric", "Count"], summary_rows),
-        "## Gaeilge fluency (1-5 rubric)",
-        "",
-        "Latest `--slice gaeilge` run per candidate/base/split. Higher is better; "
-        "English leakage is 5 when no English leaks.",
-        "",
-        _markdown_table(
-            ["Candidate", "Split", "n", "Err", "Overall", "Fluency", "Grammar", "Idiom", "Task", "No Eng", "Cost", "File"],
-            gaeilge_rows,
-        ),
-        "## Quality scores: cross-judge average",
-        "",
-        _markdown_table(
-            ["Candidate", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "Judges"],
-            averaged_rows,
-        ),
-        "## Quality scores: by judge",
-        "",
-        _markdown_table(
-            ["Candidate", "Judge", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "File"],
-            quality_rows,
-        ),
-        "## Perf probe",
-        "",
-        _markdown_table(
-            ["Candidate", "n_ok", "TTFT p50 ms", "TTFT p90 ms", "Total p50 ms", "Tok/s p50", "Tok/s p90", "JSON free", "JSON schema", "File"],
-            perf_rows,
-        ),
-        "## Unjudged backlog",
-        "",
-        unjudged,
-        "",
-    ])
+    return "\n".join(
+        [
+            "Evidence type: gameplay transcript",
+            "",
+            "# rundale-bench v1 leaderboard",
+            "",
+            "Generated from the same JSON artifacts as [`leaderboard.html`](leaderboard.html). "
+            "GitHub Markdown strips the dashboard JavaScript/CSS, so this file is a static "
+            "Markdown snapshot and the HTML file is the interactive view.",
+            "",
+            "## Summary",
+            "",
+            _markdown_table(["Metric", "Count"], summary_rows),
+            "## Gaeilge fluency (1-5 rubric)",
+            "",
+            "Latest `--slice gaeilge` run per candidate/base/split. Higher is better; "
+            "English leakage is 5 when no English leaks.",
+            "",
+            _markdown_table(
+                [
+                    "Candidate",
+                    "Split",
+                    "n",
+                    "Err",
+                    "Overall",
+                    "Fluency",
+                    "Grammar",
+                    "Idiom",
+                    "Task",
+                    "No Eng",
+                    "Cost",
+                    "File",
+                ],
+                gaeilge_rows,
+            ),
+            "## Quality scores: cross-judge average",
+            "",
+            _markdown_table(
+                ["Candidate", "n", "Total", "Char", "Auth", "Lang", "Resp", "Craft", "Judges"],
+                averaged_rows,
+            ),
+            "## Quality scores: by judge",
+            "",
+            _markdown_table(
+                [
+                    "Candidate",
+                    "Judge",
+                    "n",
+                    "Total",
+                    "Char",
+                    "Auth",
+                    "Lang",
+                    "Resp",
+                    "Craft",
+                    "File",
+                ],
+                quality_rows,
+            ),
+            "## Perf probe",
+            "",
+            _markdown_table(
+                [
+                    "Candidate",
+                    "n_ok",
+                    "TTFT p50 ms",
+                    "TTFT p90 ms",
+                    "Total p50 ms",
+                    "Tok/s p50",
+                    "Tok/s p90",
+                    "JSON free",
+                    "JSON schema",
+                    "File",
+                ],
+                perf_rows,
+            ),
+            "## Unjudged backlog",
+            "",
+            unjudged,
+            "",
+        ]
+    )
 
 
 def main() -> None:
@@ -299,6 +375,7 @@ def main() -> None:
         html = html.replace(_MARKER, payload)
     else:
         import re
+
         html = re.sub(
             r'(<script type="application/json" id="bench-data">)[\s\S]*?(</script>)',
             lambda m: m.group(1) + "\n" + payload + "\n" + m.group(2),
@@ -307,11 +384,13 @@ def main() -> None:
         )
     _TEMPLATE.write_text(html, encoding="utf-8")
     _MARKDOWN_PAGE.write_text(build_markdown(data), encoding="utf-8")
-    print(f"wrote {_TEMPLATE.relative_to(_REPO_ROOT)} "
-          f"+ {_MARKDOWN_PAGE.relative_to(_REPO_ROOT)} "
-          f"(quality={len(data['quality'])} perf={len(data['perf'])} "
-          f"gaeilge={len(data['gaeilge'])} "
-          f"cached={len(data['coverage'])} unjudged={len(data['unjudged'])})")
+    print(
+        f"wrote {_TEMPLATE.relative_to(_REPO_ROOT)} "
+        f"+ {_MARKDOWN_PAGE.relative_to(_REPO_ROOT)} "
+        f"(quality={len(data['quality'])} perf={len(data['perf'])} "
+        f"gaeilge={len(data['gaeilge'])} "
+        f"cached={len(data['coverage'])} unjudged={len(data['unjudged'])})"
+    )
 
 
 if __name__ == "__main__":
