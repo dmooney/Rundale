@@ -1,0 +1,21 @@
+# Verification fixture for issue 1159 — single shared world-advance pump.
+#
+# Criteria proven by this script's output:
+#   1. /wait 1 prints the canonical "You wait for 1 minute..." (singular)
+#      shared narration — proving the harness Wait arm now delegates to the
+#      shared parish_core::ipc::commands::handle_command instead of its old
+#      drifted "Waited 1 minute." copy.
+#   2. /wait 90 prints "You wait for 90 minutes..." (plural).
+#   3. /tick reports schedule activity via the shared handler.
+#   4. /status and look keep rendering after waits — the per-turn pump
+#      (weather/schedules/banshee/tier-4) still advances the world through the
+#      single core helper, NPCs still move on schedule, nothing panics.
+/status
+look
+/wait 1
+/wait 90
+/tick
+go to the crossroads
+look
+/status
+/quit

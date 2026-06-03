@@ -14,6 +14,10 @@ default:
 setup:
     cd parish && just setup
 
+# Install the language servers Claude Code uses for Svelte/TS symbol navigation
+setup-lsp:
+    cd parish && just setup-lsp
+
 # ─── Parish Engine Proxies ──────────────────────────────────────────────────
 
 # Build the workspace

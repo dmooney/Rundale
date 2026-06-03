@@ -131,25 +131,54 @@ async fn run_headless_repl_loop(
             }
         }
 
-        let tier_transitions = app.npc_manager.assign_tiers(&app.world, &[]);
-        for tt in &tier_transitions {
-            let direction = if tt.promoted { "promoted" } else { "demoted" };
-            app.debug_event(format!(
-                "[tier] {} {} {:?} → {:?}",
-                tt.npc_name, direction, tt.old_tier, tt.new_tier,
-            ));
-        }
+        // Advance the world one pump through the single shared helper (rule
+        // #12): weather (single check) + schedules + tier reassignment +
+        // banshee + tier-4. The headless REPL never propagated gossip, so it
+        // stays skipped here. Then render the report to stdout / the debug log.
+        {
+            use parish_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
 
-        dispatch_headless_weather(app);
-        let schedule_events = app.npc_manager.tick_schedules(
-            &app.world.clock,
-            &app.world.graph,
-            app.world.weather,
-            &app.world.event_bus,
-        );
-        process_headless_schedule_events(app, &schedule_events);
-        dispatch_headless_banshee(app);
-        dispatch_headless_tier4_tick(app);
+            let banshee_lines_start = app.world.text_log.len();
+            let report = advance_world(
+                &mut app.world,
+                &mut app.npc_manager,
+                &mut rand::rng(),
+                AdvanceOptions {
+                    weather: WeatherMode::Single,
+                    run_banshee: !app.flags.is_disabled("banshee"),
+                    gossip: GossipMode::Skip,
+                    run_tier4: true,
+                },
+            );
+
+            for tt in &report.tier_transitions {
+                let direction = if tt.promoted { "promoted" } else { "demoted" };
+                app.debug_event(format!(
+                    "[tier] {} {} {:?} → {:?}",
+                    tt.npc_name, direction, tt.old_tier, tt.new_tier,
+                ));
+            }
+            if let Some(new_weather) = report.weather_change {
+                tracing::info!(new = %new_weather, "Weather changed");
+            }
+            process_headless_schedule_events(app, &report.schedule_events);
+            // The banshee tick appends its herald/death prose to the world text
+            // log; surface the new lines to stdout (the REPL has no event bus
+            // subscriber for them).
+            for line in app.world.text_log.iter().skip(banshee_lines_start) {
+                println!("{line}");
+            }
+            if !report.banshee.is_empty() {
+                app.debug_event(format!(
+                    "[banshee] {} wail(s), {} death(s)",
+                    report.banshee.wails.len(),
+                    report.banshee.deaths.len()
+                ));
+            }
+            if report.tier4_event_count > 0 {
+                app.debug_event(format!("[tier4] {} events", report.tier4_event_count));
+            }
+        }
         dispatch_headless_tier3_tick(app).await;
         dispatch_headless_tier2_tick(app).await;
         dispatch_headless_autosave(app).await;
@@ -1396,75 +1425,6 @@ pub(crate) fn process_schedule_events_generic(
 fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager::ScheduleEvent]) {
     for msg in process_schedule_events_generic(app, events) {
         println!("{msg}");
-    }
-}
-
-/// Ticks the weather engine and publishes a `WeatherChanged` event if the
-/// weather changes.
-fn dispatch_headless_weather(app: &mut App) {
-    let old = app.world.weather;
-    let mut rng = rand::rng();
-    if let Some(new_weather) = app.world.tick_weather(&mut rng) {
-        tracing::info!(old = %old, new = %new_weather, "Weather changed");
-    }
-}
-
-/// Ticks the banshee — herald and finalise doomed NPCs. Default-on; the
-/// `banshee` flag kill-switches it.
-fn dispatch_headless_banshee(app: &mut App) {
-    if !app.flags.is_disabled("banshee") {
-        let player_loc = app.world.player_location;
-        let before_len = app.world.text_log.len();
-        let report = app.npc_manager.tick_banshee(
-            &app.world.clock,
-            &app.world.graph,
-            &mut app.world.text_log,
-            &app.world.event_bus,
-            player_loc,
-        );
-        for line in app.world.text_log.iter().skip(before_len) {
-            println!("{}", line);
-        }
-        if !report.is_empty() {
-            app.debug_event(format!(
-                "[banshee] {} wail(s), {} death(s)",
-                report.wails.len(),
-                report.deaths.len()
-            ));
-        }
-    }
-}
-
-/// Dispatches Tier 4 rules engine if enough game time has elapsed.
-///
-/// Extracted from the REPL loop for TD-011: tick_tier4 is sub-ms CPU work.
-fn dispatch_headless_tier4_tick(app: &mut App) {
-    let now = app.world.clock.now();
-    if app.npc_manager.needs_tier4_tick(now) {
-        let tier4_ids: std::collections::HashSet<crate::npc::NpcId> = app
-            .npc_manager
-            .npcs_in_tier(crate::npc::types::CogTier::Tier4)
-            .into_iter()
-            .collect();
-        let events = {
-            let mut tier4_refs: Vec<&mut crate::npc::Npc> = app
-                .npc_manager
-                .npcs_mut()
-                .values_mut()
-                .filter(|n| tier4_ids.contains(&n.id))
-                .collect();
-            let season = app.world.clock.season();
-            let game_date = now.date_naive();
-            let mut rng = rand::rng();
-            crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
-        };
-        let banshee_on = !app.flags.is_disabled("banshee");
-        let game_events = app.npc_manager.apply_tier4_events(&events, now, banshee_on);
-        for evt in game_events {
-            app.world.event_bus.publish(evt);
-        }
-        app.npc_manager.record_tier4_tick(now);
-        app.debug_event(format!("[tier4] {} events", events.len()));
     }
 }
 

@@ -12,6 +12,14 @@ on:
     branches:
       - main
       - develop
+  # Re-run the full suite when a PR enters the merge queue, so semantic
+  # conflicts between independently-green PRs are caught against latest main
+  # before landing (F1).
+  merge_group:
+  schedule:
+    # Nightly full run: catches toolchain drift, coverage regressions, and
+    # flaky tests that per-PR path-filtering would otherwise let slip.
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -30,9 +38,44 @@ permissions:
   contents: read
 
 jobs:
+  # Detect which areas a PR changed so doc/chore/CI-agent PRs can skip the
+  # heavy Rust/UI jobs (E1). The filter runs ONLY on pull_request; on
+  # push / merge_group / schedule the outputs default to 'true' so nothing is
+  # skipped at the merge gate or on the nightly run.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    outputs:
+      rust: ${{ steps.filter.outputs.rust || 'true' }}
+      ui: ${{ steps.filter.outputs.ui || 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Path filter
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            rust:
+              - 'parish/crates/**'
+              - 'parish/Cargo.toml'
+              - 'parish/Cargo.lock'
+              - 'parish/testing/**'
+              - 'mods/**'
+              - '.github/workflows/ci.yml'
+            ui:
+              - 'parish/apps/ui/**'
+              - '.github/workflows/ci.yml'
+
   agent-check:
     name: Agent proof gate
-    runs-on: ubuntu-latest
     # Proof bundles are attached to PRs as structured comments (see
     # `just attach-proof`), so the gate only has a comment to read on
     # pull_request events. Push events to main/develop are post-merge —
@@ -40,6 +83,7 @@ jobs:
     # bumps Cargo.lock / Cargo.toml without touching engine logic; the
     # proof gate has no useful signal there.
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
@@ -62,6 +106,9 @@ jobs:
 
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
+    needs: changes
+    # Run on code PRs (rust changed) and always on push / merge_group / schedule.
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -108,6 +155,10 @@ jobs:
 
   rust-coverage-ratchet:
     name: Rust coverage ratchet
+    needs: changes
+    # Skipped on doc/chore PRs (E2); runs on code PRs and on
+    # push / merge_group / nightly schedule so the 60.8 floor still gates main.
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -156,6 +207,8 @@ jobs:
 
   rust-multi-channel:
     name: Rust channel matrix
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -206,6 +259,8 @@ jobs:
 
   game-harness:
     name: Full game harness fixture sweep
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -231,15 +286,26 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
-      - name: Run every fixture script
+      # Build once, then run all fixtures in parallel against the prebuilt
+      # binary (E3). The old serial `cargo run` per fixture scaled linearly
+      # with the fixture count (110+ and growing).
+      - name: Build engine once
+        run: cargo build -p parish-engine
+
+      - name: Run every fixture script (parallel)
         shell: bash
         run: |
           set -euo pipefail
-          for fixture in testing/fixtures/*.txt; do
-            echo "=== Running $fixture ==="
-            cargo run -p parish-engine -- --script "$fixture" > /tmp/fixture.out
-            tail -n 5 /tmp/fixture.out
-          done
+          export bin="$PWD/target/debug/parish-engine"
+          ls testing/fixtures/*.txt | xargs -P "$(nproc)" -I{} bash -c '
+            f="$1"
+            if ! out=$("$bin" --script "$f" 2>&1); then
+              echo "=== FAIL: $f ==="
+              printf "%s\n" "$out" | tail -n 20
+              exit 1
+            fi
+            echo "ok: $f"
+          ' _ {}
 
   harness-shadow:
     name: Harness shadow divergence ledger (non-gating)
@@ -289,6 +355,8 @@ jobs:
 
   ui-quality:
     name: UI quality (build, check, unit)
+    needs: changes
+    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -321,6 +389,8 @@ jobs:
 
   ui-e2e:
     name: UI Playwright e2e
+    needs: changes
+    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:

@@ -67,6 +67,11 @@ pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
         speed_factor: world.clock.speed_factor(),
         name_hints: vec![],
         day_of_week,
+        // The world alone does not know whether an NPC conversation turn is in
+        // flight — that lives in `ConversationRuntimeState`. The reconnect-
+        // resync snapshot endpoint (`GET /api/world-snapshot`) overrides this
+        // from `conversation_in_progress`; everywhere else it stays `false`.
+        turn_in_flight: false,
     }
 }
 

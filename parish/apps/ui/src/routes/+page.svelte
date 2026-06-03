@@ -406,7 +406,10 @@
 				// mid-turn, allowing a duplicate send. finishNpcStream clears it
 				// authoritatively once the pump drains. (Codex reconnect-resume.)
 				streamingActive.set(true);
-				const turn = sm.queuePendingTurn(payload.turn_id, payload.source);
+				// Pass message_id so a stream that resumed after a reconnect (whose
+				// placeholder text-log — and its id — was discarded by sm.reset()
+				// during the gap) rebinds to a reactable textLog entry (#1164).
+				const turn = sm.queuePendingTurn(payload.turn_id, payload.source, payload.message_id);
 				turn.buffer += payload.token;
 				sm.startTurnPumpIfNeeded(turn);
 			}));
@@ -517,6 +520,14 @@
 					worldState.set(snap);
 					palette.applyGameHour(snap.hour);
 					if (snap.name_hints) nameHints.set(snap.name_hints);
+					// Re-assert busy state from authoritative server state: if a
+					// turn was still in flight across the gap (slow model, or a
+					// pause before the next stream-token), the reset above wrongly
+					// cleared streamingActive, re-enabling the input field and
+					// quick-travel chips → duplicate-turn window. A resumed
+					// stream-token would re-set it, but only once tokens actually
+					// flow; this closes the pre-token gap immediately (#1164).
+					if (snap.turn_in_flight) streamingActive.set(true);
 				}
 				if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
 				if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
