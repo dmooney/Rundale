@@ -3,7 +3,7 @@
     "command": "/wait 30",
     "result": {
       "result": "system_command",
-      "response": "Waited 30 minutes. Now 08:30 Morning."
+      "response": "You wait for 30 minutes...\nIt is now 08:30 Morning."
     },
     "location": "Kilteevan Village",
     "time": "Morning",
