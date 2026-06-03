@@ -109,6 +109,11 @@ eval-gaeilge TARGET LIMIT="":
 harness-audit:
     cd parish && just harness-audit
 
+# Run the harness corpus in differential (shadow) mode and summarize the
+# legacy-vs-real-game_loop divergence ledger. Non-gating measurement (#1159).
+harness-shadow *ARGS:
+    bash parish/scripts/harness-shadow.sh {{ARGS}}
+
 # Run frontend component tests
 ui-test:
     cd parish && just ui-test
