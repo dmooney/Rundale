@@ -14,6 +14,10 @@ default:
 setup:
     cd parish && just setup
 
+# Install the language servers Claude Code uses for Svelte/TS symbol navigation
+setup-lsp:
+    cd parish && just setup-lsp
+
 # ─── Parish Engine Proxies ──────────────────────────────────────────────────
 
 # Build the workspace
@@ -104,6 +108,11 @@ eval-gaeilge TARGET LIMIT="":
 # Read-only audit of gameplay fixture coverage
 harness-audit:
     cd parish && just harness-audit
+
+# Run the harness corpus in differential (shadow) mode and summarize the
+# legacy-vs-real-game_loop divergence ledger. Non-gating measurement (#1159).
+harness-shadow *ARGS:
+    bash parish/scripts/harness-shadow.sh {{ARGS}}
 
 # Run frontend component tests
 ui-test:

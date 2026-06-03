@@ -1,0 +1,159 @@
+{
+  "ran_at_utc": "2026-05-27T22:59:21.070626+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/gpt-oss-20b-MXFP4-Q8": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 671,
+      "ttft_ms_p90": 676,
+      "total_ms_median": 3082,
+      "tokens_per_second_median": 82.9,
+      "tokens_per_second_p90": 83.2,
+      "json_freeform": {
+        "n": 10,
+        "valid": 3,
+        "rate": 0.3,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We need to output JSON with \"answer\" string: \"January\" and confidence 1.0.{\"answ",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We need to respond with JSON object with \"answer\" string and confidence. The ans",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We need to output JSON with answer string \"William Shakespeare\" and confidence 1",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We need to output JSON with answer string \"Au\" and confidence maybe 1.0.{\"answer",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We need to output JSON with \"answer\" string \"January\" and confidence 1.0.{\"answe"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=**",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=We",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=..."
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 680,
+          "total_ms": 3083,
+          "completion_tokens": 200,
+          "prompt_tokens": 1557,
+          "tokens_per_second": 83.22929671244277,
+          "reply_len": 896,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 667,
+          "total_ms": 3069,
+          "completion_tokens": 200,
+          "prompt_tokens": 1561,
+          "tokens_per_second": 83.2639467110741,
+          "reply_len": 839,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 670,
+          "total_ms": 3077,
+          "completion_tokens": 200,
+          "prompt_tokens": 1561,
+          "tokens_per_second": 83.09098462816785,
+          "reply_len": 805,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 672,
+          "total_ms": 3078,
+          "completion_tokens": 200,
+          "prompt_tokens": 1557,
+          "tokens_per_second": 83.12551953449709,
+          "reply_len": 814,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 676,
+          "total_ms": 3087,
+          "completion_tokens": 200,
+          "prompt_tokens": 1559,
+          "tokens_per_second": 82.9531314807134,
+          "reply_len": 868,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 673,
+          "total_ms": 3086,
+          "completion_tokens": 200,
+          "prompt_tokens": 1558,
+          "tokens_per_second": 82.88437629506839,
+          "reply_len": 840,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 672,
+          "total_ms": 3087,
+          "completion_tokens": 200,
+          "prompt_tokens": 1558,
+          "tokens_per_second": 82.81573498964804,
+          "reply_len": 839,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 668,
+          "total_ms": 3082,
+          "completion_tokens": 200,
+          "prompt_tokens": 1557,
+          "tokens_per_second": 82.8500414250207,
+          "reply_len": 854,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 667,
+          "total_ms": 3080,
+          "completion_tokens": 200,
+          "prompt_tokens": 1557,
+          "tokens_per_second": 82.88437629506839,
+          "reply_len": 806,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 670,
+          "total_ms": 3084,
+          "completion_tokens": 200,
+          "prompt_tokens": 1560,
+          "tokens_per_second": 82.8500414250207,
+          "reply_len": 891,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 40.045130014419556,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

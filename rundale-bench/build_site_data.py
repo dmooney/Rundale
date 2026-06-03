@@ -10,7 +10,6 @@ Walks `rundale-bench/artifacts/run_*.json` (dialogue quality) and
 Pure aggregation with injectable directories so it tests without a network.
 Latest run/measurement wins per model / (model, provider).
 """
-
 from __future__ import annotations
 
 import glob
@@ -18,6 +17,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
@@ -40,13 +40,12 @@ def _run_paths(artifacts_dir: Path) -> list[str]:
 _LOCAL_PREFIXES = ("mlx-community/", "ollama/", "lmstudio/", "local/")
 
 
-def model_is_local(model_id: str, families: dict | None = None) -> bool:
+def model_is_local(model_id: str, families: Optional[dict] = None) -> bool:
     """True for MLX/Ollama/LM Studio targets. Catalog `local_only` wins when
     the id is in the catalog; otherwise guess from common prefixes."""
     families = families or {}
     try:
         from catalog import load_catalog
-
         cat = load_catalog()
         for m in cat.models:
             if m.id == model_id or any(p.model_name_at_provider == model_id for p in m.providers):
@@ -54,7 +53,6 @@ def model_is_local(model_id: str, families: dict | None = None) -> bool:
     except Exception:
         pass
     return model_id.startswith(_LOCAL_PREFIXES)
-
 
 AXES = ("character", "authenticity", "language", "responsiveness", "craft")
 GAEILGE_AXES = ("fluency", "grammar", "idiom", "task_fulfillment", "english_leakage")
@@ -87,10 +85,12 @@ SLICE_PURPOSE = {
         "idiom, grammar, task-fulfilment, and resistance to falling back to English. "
         "Decoupled from the dialogue slice so models that fake en-IE can't fake ga-IE."
     ),
-    "tier2": ("(deprecated alias for tier2-sim — kept for older artifacts.)"),
+    "tier2": (
+        "(deprecated alias for tier2-sim — kept for older artifacts.)"
+    ),
     "intent": (
         "Deterministic player-input parser. Maps natural-language input "
-        '("go to the pub", "tell Mary I saw her cow") to '
+        "(\"go to the pub\", \"tell Mary I saw her cow\") to "
         "{intent: move|talk|look|interact|examine|unknown, target, dialogue}. "
         "Exact-match graded — no LLM judge, no axes; the only slice driven entirely "
         "by deterministic scoring."
@@ -103,7 +103,151 @@ def slugify(model_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", model_id).strip("-").lower()
 
 
-def _infer_provider(candidate_id: str, model_to_provider: dict | None = None) -> str:
+# Quant suffixes the local runner appends to the HuggingFace repo basename.
+# Order matters: longer compound tags (`qat-4bit`, `optiq-4bit`, `dwq-4bit`,
+# `mxfp4-q8`) must match before the bare quant fragments.
+_LOCAL_QUANT_TAGS = (
+    "qat-4bit", "optiq-4bit", "dwq-4bit", "mxfp4-q8",
+    "mxfp4", "nvfp4", "bf16",
+    "4bit", "5bit", "6bit", "8bit",
+)
+
+
+def _local_quant_label(quant_token: str) -> str:
+    """Human-readable variant of a quant token (e.g. `qat-4bit` → `QAT 4-bit`)."""
+    if not quant_token:
+        return ""
+    pretty = (
+        quant_token
+        .replace("optiq-4bit", "OptiQ 4-bit")
+        .replace("qat-4bit", "QAT 4-bit")
+        .replace("dwq-4bit", "DWQ 4-bit")
+        .replace("mxfp4-q8", "MXFP4 Q8")
+        .replace("mxfp4", "MXFP4")
+        .replace("nvfp4", "NVFP4")
+        .replace("bf16", "bf16")
+    )
+    if pretty == quant_token:
+        # Bare `<n>bit` → `<n>-bit`.
+        m = re.fullmatch(r"(\d+)bit", quant_token)
+        if m:
+            pretty = f"{m.group(1)}-bit"
+    return pretty
+
+
+def _strip_quant_suffix(basename: str) -> tuple[str, str]:
+    """Return `(stem_without_quant, quant_token)` for an mlx-community repo
+    basename. `quant_token` is `""` when no recognised quant suffix is
+    present."""
+    lower = basename.lower()
+    for tag in _LOCAL_QUANT_TAGS:
+        if lower.endswith("-" + tag):
+            return basename[: -(len(tag) + 1)], tag
+    return basename, ""
+
+
+def enrich_local_row(model_id: str, catalog_family: str) -> tuple[str, Optional[str]]:
+    """Compute `(family, display_name)` for any row, layering local
+    metadata over the catalog's value when the row is a local target.
+
+    - Cloud targets pass through unchanged with `display_name=None` so
+      downstream code keeps falling back to `model_id`.
+    - Local targets pick up the heuristic `family` from
+      `derive_local_metadata` (only if the catalog returned "unknown"),
+      plus a human-readable `display_name`.
+    """
+    if not model_id or not model_is_local(model_id):
+        return catalog_family, None
+    meta = derive_local_metadata(model_id)
+    family = catalog_family if catalog_family and catalog_family != "unknown" else meta["family"]
+    return family, meta["display_name"]
+
+
+def derive_local_metadata(model_id: str) -> dict:
+    """Best-effort `family`, `display_name`, and `vendor_prefix` for a local
+    repo id like `mlx-community/Qwen2.5-14B-Instruct-4bit`.
+
+    Heuristic only — no catalog lookup, so unknown lineages return
+    `family='unknown'` (which Brand.svelte will render as a colored
+    initials chip rather than a logo). Used to label MLX rows in the
+    bench-site so they sit alongside cloud rows with a logo + proper
+    name instead of the raw HuggingFace slug.
+
+    Returns ``{family, display_name, vendor_prefix}``. `vendor_prefix` is
+    the leading repo namespace (`mlx-community`, `lmstudio`, …) the
+    Brand component can use as a tertiary badge.
+    """
+    if "/" not in model_id:
+        return {"family": "unknown", "display_name": model_id, "vendor_prefix": ""}
+    vendor_prefix, _, basename = model_id.partition("/")
+    stem, quant = _strip_quant_suffix(basename)
+    quant_label = _local_quant_label(quant)
+
+    # Family inference — keyed on the lower-cased stem so additions to
+    # FAMILY_TO_SLUG (in lib/brands.ts) map automatically.
+    lower = stem.lower()
+    family = "unknown"
+    if lower.startswith("qwen3.6"):    family = "qwen3.6"
+    elif lower.startswith("qwen3.5"):  family = "qwen3.5"
+    elif lower.startswith("qwen3-") or lower == "qwen3" or lower.startswith("qwen3-coder"):
+        family = "qwen3"
+    elif lower.startswith("qwen2.5"):  family = "qwen2.5"
+    elif lower.startswith("gemma-4") or lower.startswith("gemma-3"):
+        family = "gemma"
+    elif lower.startswith("llama-4") or lower.startswith("llama-3"):
+        family = "llama"
+    elif lower.startswith("mistral") or lower.startswith("ministral") or lower.startswith("devstral"):
+        family = "mistral"
+    elif lower.startswith("deepseek"):
+        family = "deepseek-flash" if "flash" in lower else "deepseek"
+    elif lower.startswith("phi-"):     family = "phi"
+    elif lower.startswith("glm-"):     family = "glm"
+    elif lower.startswith("lfm"):      family = "liquid"
+    elif lower.startswith("minimax"):  family = "minimax-m2.5"
+    elif lower.startswith("eurollm"):  family = "eurollm"
+
+    # Display name: split on dashes, drop noise tokens like "mlx" /
+    # date-code "2512" (the quant tag already announces it's an MLX
+    # build, and the dated tag is uploader scaffolding), pretty-print
+    # each token (parameter counts like "70b" → "70B", MoE tags like
+    # "A3B" stay intact, brand-name tokens like "DeepSeek" keep their
+    # casing), then expand glued version numbers (Qwen2.5 → Qwen 2.5)
+    # **only** on the first token so MoE tags ("A3B") and DeepSeek
+    # versioning ("V4") don't get over-split.
+    _NOISE_TOKENS = {"mlx"}
+
+    def _pretty_token(t: str) -> str:
+        if not t or t.lower() in _NOISE_TOKENS:
+            return ""
+        # Parameter-count tag: "70b" / "27B" → "70B".
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)([bBmM])", t)
+        if m:
+            return m.group(1) + m.group(2).upper()
+        # MoE active-param tag (A3B, A4B, A22B): keep verbatim.
+        if re.fullmatch(r"A\d+B", t, re.IGNORECASE):
+            return t.upper()
+        # All-caps tags (MXFP4, NVFP4, QAT, MoE letters) stay as-is.
+        if t.isupper():
+            return t
+        # Mixed-case brand tokens like "DeepSeek", "EuroLLM", "Qwen2.5"
+        # keep their author casing.
+        if any(c.isupper() for c in t) and any(c.islower() for c in t):
+            return t
+        return t[:1].upper() + t[1:].lower()
+
+    tokens = [_pretty_token(t) for t in stem.split("-")]
+    tokens = [t for t in tokens if t]
+    if tokens:
+        # Only expand glued version numbers on the leading brand token
+        # ("Qwen2.5" → "Qwen 2.5", "Llama3" → "Llama 3"). Trailing
+        # tokens like "A3B" or "V4" stay glued.
+        tokens[0] = re.sub(r"([A-Za-z]+)(\d)", r"\1 \2", tokens[0])
+    pretty_stem = " ".join(tokens).strip()
+    display_name = f"{pretty_stem} (MLX {quant_label})" if quant_label else pretty_stem
+    return {"family": family, "display_name": display_name, "vendor_prefix": vendor_prefix}
+
+
+def _infer_provider(candidate_id: str, model_to_provider: Optional[dict] = None) -> str:
     """Best-effort provider tag for legacy perf rows (no provider_id field).
 
     Resolution order:
@@ -129,7 +273,6 @@ def _provider_lookup(suite: str) -> dict[str, str]:
     """
     try:
         from catalog import load_catalog
-
         cat = load_catalog(version=suite)
         out: dict[str, str] = {}
         for m in cat.models:
@@ -147,7 +290,6 @@ def _provider_lookup(suite: str) -> dict[str, str]:
 def _family_lookup(suite: str) -> dict[str, str]:
     try:
         from catalog import load_catalog
-
         cat = load_catalog(version=suite)
         out: dict[str, str] = {}
         for m in cat.models:
@@ -163,7 +305,6 @@ def _price_lookup(suite: str) -> dict[tuple[str, str], dict]:
     """Catalog input/output token prices keyed by logical and provider model id."""
     try:
         from catalog import load_catalog
-
         cat = load_catalog(version=suite)
     except Exception:
         return {}
@@ -181,7 +322,7 @@ def _price_lookup(suite: str) -> dict[tuple[str, str], dict]:
     return out
 
 
-def _latest_demo_profile_summary(profile_dir: Path) -> Path | None:
+def _latest_demo_profile_summary(profile_dir: Path) -> Optional[Path]:
     if not profile_dir.exists():
         return None
     paths = sorted(p for p in profile_dir.glob("*/summary.json") if p.is_file())
@@ -197,16 +338,12 @@ def _enrich_profile_bucket(bucket: dict, observed_minutes: float, *, included: b
         "included_in_gameplay_cost": included,
         "input_tokens_per_request_estimated": (input_tokens / requests) if requests else 0.0,
         "output_tokens_per_request_estimated": (output_tokens / requests) if requests else 0.0,
-        "input_tokens_per_minute_estimated": (input_tokens / observed_minutes)
-        if observed_minutes
-        else 0.0,
-        "output_tokens_per_minute_estimated": (output_tokens / observed_minutes)
-        if observed_minutes
-        else 0.0,
+        "input_tokens_per_minute_estimated": (input_tokens / observed_minutes) if observed_minutes else 0.0,
+        "output_tokens_per_minute_estimated": (output_tokens / observed_minutes) if observed_minutes else 0.0,
     }
 
 
-def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> dict | None:
+def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> Optional[dict]:
     """Normal-play request profile from the latest committed demo profiling run.
 
     The profile intentionally uses total_gameplay, excluding the synthetic
@@ -254,9 +391,7 @@ def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> dict | No
     }
 
 
-def _estimate_gameplay_cost(
-    profile: dict | None, input_price: float, output_price: float
-) -> dict | None:
+def _estimate_gameplay_cost(profile: Optional[dict], input_price: float, output_price: float) -> Optional[dict]:
     if profile is None:
         return None
     total = profile.get("total_gameplay") or {}
@@ -283,16 +418,15 @@ def _estimate_gameplay_cost(
     }
 
 
-def attach_gameplay_costs(
-    perf: list[dict], profile: dict | None, prices: dict[tuple[str, str], dict]
-) -> None:
+def attach_gameplay_costs(perf: list[dict], profile: Optional[dict], prices: dict[tuple[str, str], dict]) -> None:
     """Mutate perf rows with catalog prices and normal-play cost estimates."""
     for row in perf:
         model_id = row.get("model_id")
         provider_id = row.get("provider_id")
         provider_model = row.get("model_name_at_provider")
-        price = (prices.get((model_id, provider_id)) if model_id and provider_id else None) or (
-            prices.get((provider_model, provider_id)) if provider_model and provider_id else None
+        price = (
+            prices.get((model_id, provider_id))
+            or prices.get((provider_model, provider_id))
         )
         row["price_input_usd_per_mtok"] = None
         row["price_output_usd_per_mtok"] = None
@@ -312,11 +446,10 @@ def attach_gameplay_costs(
             row.update(cost)
 
 
-def build_cloud_cost_examples(profile: dict | None, suite: str = "v1") -> list[dict]:
+def build_cloud_cost_examples(profile: Optional[dict], suite: str = "v1") -> list[dict]:
     """Cost/min examples for all non-local catalog providers, independent of perf rows."""
     try:
         from catalog import load_catalog
-
         cat = load_catalog(version=suite)
     except Exception:
         return []
@@ -360,8 +493,88 @@ def _run_ts(out: dict, path: Path) -> str:
     return out.get("run_started_utc") or path.stem
 
 
-def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list[dict]:
+_LEADERBOARD_LOCAL_ROW = re.compile(
+    r"^\|\s*(?P<date>\d{8}T\d{6}Z)\s*\|\s*(?P<repo>mlx-community/[^\s|]+)\s*\|"
+    r"\s*(?P<slot>tiny|large)\s*\|\s*(?P<quant>[^\s|]+)\s*\|"
+    r"\s*(?P<params>[\d.()A-Za-z ]+?)\s*\|\s*(?P<ram>[\d.]+)\s*\|"
+    r"\s*(?P<slice>[a-z\d-]+)\s*\|"
+)
+
+
+def _build_peak_ram_index(artifacts_dir: Path) -> dict[str, float]:
+    """Map model_id -> highest observed peak_ram_gb.
+
+    Two sources, both consulted (max wins so the worst-case budget is
+    surfaced):
+      1. `local_*.json` per-sweep summaries (round 4+ only — earlier sweeps
+         didn't persist this file shape).
+      2. The "Local MLX sweeps" table in `artifacts/leaderboard.md`
+         (every round since round 1 wrote rows there via
+         `local_runner.append_leaderboard_row`).
+    Cloud rows appear in neither source → return None and the UI shows
+    a dash.
+    """
+    by_model: dict[str, float] = {}
+
+    def _record(mid: str, ram_gb: float) -> None:
+        cur = by_model.get(mid, 0.0)
+        if ram_gb > cur:
+            by_model[mid] = ram_gb
+
+    # Source 1: per-sweep JSONs
+    for p in sorted(artifacts_dir.glob("local_*.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        for row in d.get("rows", []) or []:
+            mid = row.get("hf_repo")
+            ram = row.get("peak_ram_gb")
+            if mid and ram is not None:
+                _record(mid, float(ram))
+
+    # Source 2: `artifacts/local_leaderboard.md` (the per-sweep markdown
+    # that local_runner.append_leaderboard_row writes — separate from the
+    # main `leaderboard.md` page).
+    lb_path = artifacts_dir / "local_leaderboard.md"
+    if lb_path.exists():
+        for line in lb_path.read_text(encoding="utf-8").splitlines():
+            m = _LEADERBOARD_LOCAL_ROW.match(line.strip())
+            if m:
+                _record(m.group("repo"), float(m.group("ram")))
+
+    return by_model
+
+
+def _build_peak_ram_est_index() -> dict[str, float]:
+    """Map model_id -> declared peak_ram_gb_est from candidates_local_mlx.toml.
+
+    Estimates only — used as a fallback for rows where no live-measured
+    peak_ram_gb is available (rounds 1-3 didn't persist that data).
+    The UI distinguishes estimated values via the `peak_ram_is_estimate`
+    flag attached alongside the value.
+    """
+    try:
+        import tomllib  # py311+
+    except ImportError:  # pragma: no cover — runtime is py311
+        return {}
+    candidates_toml = Path(__file__).parent / "candidates_local_mlx.toml"
+    if not candidates_toml.exists():
+        return {}
+    data = tomllib.loads(candidates_toml.read_text(encoding="utf-8"))
+    out: dict[str, float] = {}
+    for c in data.get("candidate", []):
+        repo = c.get("hf_repo")
+        est = c.get("peak_ram_gb_est")
+        if repo and est is not None:
+            out[repo] = float(est)
+    return out
+
+
+def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
     families = families or {}
+    peak_ram_by_model = _build_peak_ram_index(artifacts_dir)
+    peak_ram_est_by_model = _build_peak_ram_est_index()
     latest: dict[str, tuple[str, dict]] = {}  # model_id -> (ts, row)
     for p in _run_paths(artifacts_dir):
         path = Path(p)
@@ -373,25 +586,37 @@ def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list
         if not dia or "summary" not in dia:
             continue
         s = dia["summary"]
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
-            "model"
-        )
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
         if not model_id:
             continue
         ts = _run_ts(out, path)
+        fam, display_name = enrich_local_row(model_id, families.get(model_id, "unknown"))
+        measured_ram = peak_ram_by_model.get(model_id)
+        if measured_ram is not None:
+            ram_value, ram_is_est = measured_ram, False
+        elif model_id in peak_ram_est_by_model:
+            ram_value, ram_is_est = peak_ram_est_by_model[model_id], True
+        else:
+            ram_value, ram_is_est = None, False
         row = {
             "model_id": model_id,
+            "display_name": display_name,
             "slug": slugify(model_id),
-            "family": families.get(model_id, "unknown"),
+            "family": fam,
             "tier": out.get("tier"),
             "overall": s.get("overall"),
             "judged": s.get("judged", s.get("records")),
             "bench_bugs": s.get("bench_bugs", 0),
             "records": s.get("records"),
             "non_latin_rate": s.get("non_latin_rate"),
-            "judge_id": s.get("judge") or s.get("judge_id") or "judge_v1 (qwen3-235b)",
-            "judge_model": s.get("judge_model")
-            or ("qwen/qwen3-235b-a22b-2507" if not s.get("judge") else None),
+            # Sonnet-subagent is now the only allowed judge (see
+            # rundale_bench.load_judge). The legacy "qwen3-235b" fallback
+            # was stripped 2026-05-28 — fall back to "claude-sonnet-4-6"
+            # since that is the only judge that can produce a score now.
+            "judge_id": s.get("judge") or s.get("judge_id") or "judge_sonnet_v1",
+            "judge_model": s.get("judge_model") or "claude-sonnet-4-6",
+            "peak_ram_gb": ram_value,
+            "peak_ram_is_estimate": ram_is_est,
             **{a: s.get(a) for a in AXES},
             "measured_utc": ts,
         }
@@ -400,12 +625,9 @@ def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list
     return [row for _, row in sorted(latest.values(), key=lambda kv: -(kv[1].get("overall") or 0))]
 
 
-def build_perf(
-    perf_dir: Path,
-    legacy_dir: Path | None = None,
-    families: dict | None = None,
-    providers: dict | None = None,
-) -> list[dict]:
+def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
+               families: Optional[dict] = None,
+               providers: Optional[dict] = None) -> list[dict]:
     """Per-(model, provider) perf row, latest per pair wins.
 
     Reads Phase 3 schema from `perf_dir` and the legacy multi-target schema
@@ -426,11 +648,10 @@ def build_perf(
             continue
         ts = row.get("measured_utc", "")
         if key not in latest or ts > latest[key][0]:
-            fam = (families or {}).get(row["model_id"], "unknown")
-            latest[key] = (
-                ts,
-                {**row, "slug": slugify(row["model_id"]), "family": fam, "source": "phase3"},
-            )
+            fam, display_name = enrich_local_row(row["model_id"], (families or {}).get(row["model_id"], "unknown"))
+            latest[key] = (ts, {**row, "slug": slugify(row["model_id"]),
+                                 "family": fam, "display_name": display_name,
+                                 "source": "phase3"})
 
     # Legacy multi-target perf JSONs (one file holds many per_target entries)
     if legacy_dir and legacy_dir.exists():
@@ -445,10 +666,12 @@ def build_perf(
                 key = (cand, pid)
                 n_streamed = stats.get("n_streamed", 0) or 0
                 n_ok = stats.get("n_ok", 0) or 0
+                fam, display_name = enrich_local_row(cand, (families or {}).get(cand, "unknown"))
                 row = {
                     "model_id": cand,
+                    "display_name": display_name,
                     "slug": slugify(cand),
-                    "family": (families or {}).get(cand, "unknown"),
+                    "family": fam,
                     "provider_id": pid,
                     "model_name_at_provider": cand,
                     "n_ok": n_ok,
@@ -466,15 +689,10 @@ def build_perf(
                 if key not in latest or ts > latest[key][0]:
                     latest[key] = (ts, row)
 
-    return [
-        row
-        for _, row in sorted(
-            latest.values(), key=lambda kv: (kv[1]["model_id"], kv[1]["provider_id"])
-        )
-    ]
+    return [row for _, row in sorted(latest.values(), key=lambda kv: (kv[1]["model_id"], kv[1]["provider_id"]))]
 
 
-def build_gaeilge(artifacts_dir: Path, families: dict | None = None) -> list[dict]:
+def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
     """Gaeilge leaderboard: per model, axes + leakage. Latest wins."""
     families = families or {}
     latest: dict[str, tuple[str, dict]] = {}
@@ -488,16 +706,16 @@ def build_gaeilge(artifacts_dir: Path, families: dict | None = None) -> list[dic
         if not ga or "summary" not in ga:
             continue
         s = ga["summary"]
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
-            "model"
-        )
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
         if not model_id:
             continue
         ts = _run_ts(out, path)
+        fam, display_name = enrich_local_row(model_id, families.get(model_id, "unknown"))
         row = {
             "model_id": model_id,
+            "display_name": display_name,
             "slug": slugify(model_id),
-            "family": families.get(model_id, "unknown"),
+            "family": fam,
             "overall": s.get("overall_mean"),
             "records": s.get("records"),
             "errors": s.get("errors"),
@@ -546,9 +764,7 @@ def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
             out = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
-            "model"
-        )
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
         if not model_id:
             continue
         ts = _run_ts(out, path)
@@ -629,12 +845,9 @@ def build_judge_prompts(suite: str = "v1") -> dict:
             "base_url": cfg.get("base_url"),
             "rubric_sha256": cfg.get("rubric_sha256"),
             "axes": cfg.get("axes"),
-            "system_prompt": sys_path.read_text(encoding="utf-8")
-            if sys_path.exists()
-            else cfg.get("rubric", ""),
-            "system_prompt_source": str(sys_path.relative_to(_REPO_ROOT))
-            if sys_path.exists()
-            else f"{cfg_path.relative_to(_REPO_ROOT)} (rubric field)",
+            "system_prompt": sys_path.read_text(encoding="utf-8") if sys_path.exists() else cfg.get("rubric", ""),
+            "system_prompt_source": str(sys_path.relative_to(_REPO_ROOT)) if sys_path.exists()
+                else f"{cfg_path.relative_to(_REPO_ROOT)} (rubric field)",
             "rubric_text": cfg.get("rubric", ""),
         }
     return out
@@ -666,9 +879,8 @@ def build_datasets(suite: str = "v1") -> dict:
     return out
 
 
-def build_models_index(
-    leaderboard: list[dict], gaeilge: list[dict], perf: list[dict], samples: dict
-) -> list[dict]:
+def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[dict],
+                       samples: dict) -> list[dict]:
     """One row per observed model: cloud/local + best dialogue + best gaeilge
     + perf summary (best p50 latency, mean tok/s, cheapest $/Mtok). Drives
     /models and lets /perf rows link to a page that always exists."""
@@ -676,23 +888,22 @@ def build_models_index(
 
     def _ensure(slug: str, model_id: str) -> dict:
         if slug not in by_slug:
+            # Local rows pick up display_name + heuristic family even when
+            # the catalog doesn't carry the repo.
+            _, display_name = enrich_local_row(model_id, "unknown")
             by_slug[slug] = {
-                "slug": slug,
-                "model_id": model_id,
+                "slug": slug, "model_id": model_id,
+                "display_name": display_name,
                 "family": "unknown",
                 "is_local": model_is_local(model_id),
-                "dialogue_overall": None,
-                "gaeilge_overall": None,
-                "perf_providers": [],
-                "perf_best_p50_ms": None,
-                "perf_best_usd_per_mtok": None,
-                "perf_best_gameplay_usd_per_minute": None,
-                "perf_best_gameplay_usd_per_hour": None,
-                "perf_mean_tok_s": None,
+                "dialogue_overall": None, "gaeilge_overall": None,
+                "perf_providers": [], "perf_best_p50_ms": None,
+                "perf_best_usd_per_mtok": None, "perf_best_gameplay_usd_per_minute": None,
+                "perf_best_gameplay_usd_per_hour": None, "perf_mean_tok_s": None,
             }
         return by_slug[slug]
 
-    def _adopt_family(e: dict, candidate: str | None) -> None:
+    def _adopt_family(e: dict, candidate: Optional[str]) -> None:
         if candidate and candidate != "unknown" and e["family"] == "unknown":
             e["family"] = candidate
 
@@ -729,7 +940,6 @@ def build_models_index(
         if isinstance(ts, (int, float)):
             cur = e["perf_mean_tok_s"]
             e["perf_mean_tok_s"] = ts if cur is None else max(cur, ts)
-
     # Score rows so models with more data float to the top.
     def _score(e):
         return (
@@ -740,18 +950,12 @@ def build_models_index(
             -len(e["perf_providers"]),
             e["model_id"],
         )
-
     return sorted(by_slug.values(), key=_score)
 
 
-def build_data(
-    artifacts_dir: Path = ARTIFACTS_DIR,
-    perf_dir: Path = PERF_DIR,
-    profile_dir: Path = DEMO_PROFILE_DIR,
-    *,
-    suite: str = "v1",
-    judge_model: str = "claude-sonnet-4-6",
-) -> dict:
+def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
+               profile_dir: Path = DEMO_PROFILE_DIR,
+               *, suite: str = "v1", judge_model: str = "claude-sonnet-4-6") -> dict:
     families = _family_lookup(suite)
     providers = _provider_lookup(suite)
     datasets = build_datasets(suite)
@@ -760,18 +964,16 @@ def build_data(
     }
     leaderboard = build_leaderboard(artifacts_dir, families)
     gaeilge = build_gaeilge(artifacts_dir, families)
-    perf = build_perf(perf_dir, legacy_dir=artifacts_dir, families=families, providers=providers)
+    perf = build_perf(perf_dir, legacy_dir=artifacts_dir, families=families,
+                       providers=providers)
     samples = build_samples(artifacts_dir, datasets)
     normal_play_profile = build_normal_play_profile(profile_dir)
     attach_gameplay_costs(perf, normal_play_profile, _price_lookup(suite))
     cloud_cost_examples = build_cloud_cost_examples(normal_play_profile, suite)
     # Stamp is_local on every row so the site doesn't have to recompute it.
-    for r in leaderboard:
-        r["is_local"] = model_is_local(r["model_id"])
-    for r in gaeilge:
-        r["is_local"] = model_is_local(r["model_id"])
-    for r in perf:
-        r["is_local"] = model_is_local(r["model_id"])
+    for r in leaderboard: r["is_local"] = model_is_local(r["model_id"])
+    for r in gaeilge: r["is_local"] = model_is_local(r["model_id"])
+    for r in perf: r["is_local"] = model_is_local(r["model_id"])
     return {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "judge_model": judge_model,
@@ -792,9 +994,7 @@ def main() -> None:
     data = build_data()
     SITE_DATA.parent.mkdir(parents=True, exist_ok=True)
     SITE_DATA.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(
-        f"wrote {SITE_DATA} — {len(data['leaderboard'])} leaderboard row(s), {len(data['perf'])} perf row(s)"
-    )
+    print(f"wrote {SITE_DATA} — {len(data['leaderboard'])} leaderboard row(s), {len(data['perf'])} perf row(s)")
 
 
 if __name__ == "__main__":

@@ -612,6 +612,7 @@ mod tests {
             &GameEvent::FestivalStarted {
                 name: "Bealtaine".into(),
                 timestamp: now,
+                location: None,
             },
             &world,
             &npcs,

@@ -28,42 +28,83 @@ import type {
 	DemoConfigPayload,
 	BugContext,
 	BugReportResult,
+	AuthStatus
 } from './types';
 
 // ── Transport detection ─────────────────────────────────────────────────────
 
-const IS_TAURI =
-	typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/**
+ * Hard ceiling for a single HTTP **read** in web mode.
+ *
+ * Bounds only argless GET reads (world snapshot, map, npcs, theme, ui-config,
+ * debug snapshot — the mount-time load). Without a bound a hung server leaves
+ * the mount `Promise.allSettled` pending forever and the UI shows a permanent
+ * partial load with no error (audit M6). On abort we reject so the caller's
+ * error path runs.
+ *
+ * POST mutations are deliberately NOT bounded: `submit_input` awaits the full
+ * server-side game loop (NPC inference can legitimately run far longer than
+ * this even though tokens stream over the WebSocket), and provider-config /
+ * bug-report posts dial external services. Aborting those mid-flight would
+ * surface a spurious "timeout", re-enable the input, and risk duplicate turns
+ * while the backend is still working.
+ */
+const COMMAND_TIMEOUT_MS = 30_000;
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
-export async function command<T>(
-	name: string,
-	args?: Record<string, unknown>,
-): Promise<T> {
+export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
 	if (IS_TAURI) {
 		const { invoke } = await import('@tauri-apps/api/core');
 		return invoke<T>(name, args);
 	}
 	// Web mode: REST API
 	const endpoint = `/api/${name.replace(/^get_/, '').replace(/_/g, '-')}`;
-	const resp = await fetch(endpoint, {
-		method: args ? 'POST' : 'GET',
-		headers: args ? { 'Content-Type': 'application/json' } : {},
-		body: args ? JSON.stringify(args) : undefined,
-	});
-	if (!resp.ok) {
-		throw new Error(`API error: ${resp.status} ${resp.statusText}`);
+	// Bound reads only (see COMMAND_TIMEOUT_MS): a GET has no args, a mutation does.
+	const controller = args ? null : new AbortController();
+	const timer = controller ? setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS) : null;
+	try {
+		let resp: Response;
+		try {
+			resp = await fetch(endpoint, {
+				method: args ? 'POST' : 'GET',
+				headers: args ? { 'Content-Type': 'application/json' } : {},
+				body: args ? JSON.stringify(args) : undefined,
+				signal: controller?.signal
+			});
+		} catch (e) {
+			if (controller?.signal.aborted) {
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+			}
+			throw e;
+		}
+		if (!resp.ok) {
+			throw new Error(`API error: ${resp.status} ${resp.statusText}`);
+		}
+		// Read the body under the same timer: if headers arrive but the body
+		// stalls (proxy / partially-hung response), the abort signal cancels
+		// resp.text() too, so the timeout bounds the whole read — not just the
+		// headers. submit_input returns 200 with no body; the two-step cast
+		// makes the unsoundness explicit and searchable rather than hiding it (#755).
+		let text: string;
+		try {
+			text = await resp.text();
+		} catch (e) {
+			if (controller?.signal.aborted) {
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+			}
+			throw e;
+		}
+		if (!text) return undefined as unknown as T;
+		return JSON.parse(text) as T;
+	} finally {
+		if (timer) clearTimeout(timer);
 	}
-	// submit_input returns 200 with no body; the two-step cast makes the
-	// unsoundness explicit and searchable rather than hiding it (#755).
-	const text = await resp.text();
-	if (!text) return undefined as unknown as T;
-	return JSON.parse(text) as T;
 }
 
-export const getWorldSnapshot = () =>
-	command<WorldSnapshot>('get_world_snapshot');
+export const getWorldSnapshot = () => command<WorldSnapshot>('get_world_snapshot');
 
 export const getMap = () => command<MapData>('get_map');
 
@@ -74,8 +115,7 @@ export const getTheme = () => command<ThemePalette>('get_theme');
 export const submitInput = (text: string, addressedTo: string[] = []) =>
 	command<void>('submit_input', { text, addressedTo });
 
-export const getDebugSnapshot = () =>
-	command<DebugSnapshot>('get_debug_snapshot');
+export const getDebugSnapshot = () => command<DebugSnapshot>('get_debug_snapshot');
 
 export const getUiConfig = () => command<UiConfig>('get_ui_config');
 
@@ -91,26 +131,49 @@ export const getMods = (): Promise<ModEntry[]> => {
 	return fetch('/api/mods').then((r) => r.json());
 };
 
-export const switchMod = (
-	modId: string,
-): Promise<{ ok: boolean; error?: string }> => {
+export const switchMod = (modId: string): Promise<{ ok: boolean; error?: string }> => {
 	if (IS_TAURI) {
-		return Promise.resolve({
-			ok: false,
-			error: 'not supported in desktop mode',
-		});
+		return Promise.resolve({ ok: false, error: 'not supported in desktop mode' });
 	}
 	return fetch('/api/mods/switch', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ mod_id: modId }),
+		body: JSON.stringify({ mod_id: modId })
 	}).then((r) => r.json());
+};
+
+// ── Auth status (web-only OAuth UI) ──────────────────────────────────────────
+
+/**
+ * Fetches OAuth status for the web server's optional Google sign-in indicator.
+ *
+ * Forks inside the seam (like getMods/switchMod): Tauri desktop has no auth
+ * server, so it resolves to `null`; web mode hits `GET /api/auth/status` — a
+ * slash route that doesn't fit `command()`'s kebab-cased `/api/<name>` mapping.
+ * Returns `null` on any failure; the auth indicator is non-critical chrome.
+ * Centralising it here keeps AuthStatus.svelte off the raw transport (the
+ * "don't fork transports in components" seam rule).
+ */
+export const getAuthStatus = async (): Promise<AuthStatus | null> => {
+	if (IS_TAURI) return null;
+	// Bound the fetch like command() does (M6): a wedged server must not hang
+	// the mount flow on this optional call. Any failure (including abort)
+	// resolves to null rather than throwing — the auth UI is non-critical.
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS);
+	try {
+		const resp = await fetch('/api/auth/status', { signal: controller.signal });
+		return resp.ok ? ((await resp.json()) as AuthStatus) : null;
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(timer);
+	}
 };
 
 // ── Persistence commands ────────────────────────────────────────────────────
 
-export const discoverSaveFiles = () =>
-	command<SaveFileInfo[]>('discover_save_files');
+export const discoverSaveFiles = () => command<SaveFileInfo[]>('discover_save_files');
 
 export const saveGame = () => command<string>('save_game', {});
 
@@ -128,19 +191,14 @@ export const getSaveState = () => command<SaveState>('get_save_state');
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
-export const reactToMessage = (
-	npcName: string,
-	messageSnippet: string,
-	emoji: string,
-) => command<void>('react_to_message', { npcName, messageSnippet, emoji });
+export const reactToMessage = (npcName: string, messageSnippet: string, emoji: string) =>
+	command<void>('react_to_message', { npcName, messageSnippet, emoji });
 
 // ── Demo / auto-player commands ──────────────────────────────────────────────
 
-export const getDemoConfig = () =>
-	command<DemoConfigPayload>('get_demo_config');
+export const getDemoConfig = () => command<DemoConfigPayload>('get_demo_config');
 
-export const getDemoContext = () =>
-	command<DemoContextSnapshot>('get_demo_context');
+export const getDemoContext = () => command<DemoContextSnapshot>('get_demo_context');
 
 export const getLlmPlayerAction = (ctx: DemoContextSnapshot) =>
 	command<string>('get_llm_player_action', { ctx });
@@ -202,10 +260,8 @@ export const getLatestScreenshot = () =>
  * Only meaningful in Tauri mode — the server returns 501 for take-screenshot
  * and never emits the event, so this is never called in web mode.
  */
-export const notifyScreenshotCaptured = (
-	request_id: string,
-	info: ScreenshotInfo,
-) => command<void>('notify_screenshot_captured', { request_id, info });
+export const notifyScreenshotCaptured = (request_id: string, info: ScreenshotInfo) =>
+	command<void>('notify_screenshot_captured', { request_id, info });
 
 /**
  * Reports a screenshot capture failure back to the MCP bridge so it can
@@ -223,9 +279,8 @@ export interface RequestScreenshotPayload {
 }
 
 /** Registers a handler for agent-triggered screenshot requests. */
-export const onRequestScreenshot = (
-	cb: (payload: RequestScreenshotPayload) => void,
-) => onEvent<RequestScreenshotPayload>('request-screenshot', cb);
+export const onRequestScreenshot = (cb: (payload: RequestScreenshotPayload) => void) =>
+	onEvent<RequestScreenshotPayload>('request-screenshot', cb);
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
@@ -236,6 +291,30 @@ type EventCallback<T> = (payload: T) => void;
 let ws: WebSocket | null = null;
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const wsListeners = new Map<string, Set<EventCallback<unknown>>>();
+
+// Reconnect-resync hooks. Any event emitted while the socket was down is lost
+// (unlike Tauri's `listen`, which never disconnects), so a dropped
+// `stream-end` could leave the HUD desynced — e.g. `streamingActive` stuck
+// true. Callers register here to re-fetch authoritative state when the socket
+// re-opens after a drop (audit M4). The very first connection does NOT fire
+// these — the mount already loads initial state.
+const wsReconnectListeners = new Set<() => void>();
+let wsHasConnected = false;
+
+/**
+ * Registers a callback fired after the browser WebSocket reconnects following a
+ * drop (never on the initial connection). Use it to re-fetch world snapshot /
+ * map / npcs so events missed during the gap can't leave the UI out of sync.
+ * No-op in Tauri (the desktop transport never disconnects). Returns an
+ * unsubscribe function.
+ */
+export function onReconnect(cb: () => void): UnlistenFn {
+	if (IS_TAURI) return () => {};
+	wsReconnectListeners.add(cb);
+	return () => {
+		wsReconnectListeners.delete(cb);
+	};
+}
 
 function clearReconnectTimer(): void {
 	if (wsReconnectTimer !== null) {
@@ -294,15 +373,30 @@ function ensureWebSocket(): void {
 }
 
 function attachHandlers(socket: WebSocket): void {
+	socket.onopen = () => {
+		if (wsHasConnected) {
+			// This is a reconnect, not the first connection — replay-resync any
+			// state lost during the gap. Snapshot the set so a callback that
+			// unsubscribes mid-flush can't perturb iteration.
+			for (const cb of [...wsReconnectListeners]) {
+				try {
+					cb();
+				} catch (e) {
+					console.warn('Reconnect resync callback failed:', e);
+				}
+			}
+		}
+		wsHasConnected = true;
+	};
+
 	socket.onmessage = (event) => {
 		try {
-			const data = JSON.parse(event.data) as {
-				event: string;
-				payload: unknown;
-			};
+			const data = JSON.parse(event.data) as { event: string; payload: unknown };
 			const callbacks = wsListeners.get(data.event);
 			if (callbacks) {
-				for (const cb of callbacks) {
+				// Snapshot before iterating: a callback may unlisten (and thus
+				// mutate this Set) during dispatch.
+				for (const cb of [...callbacks]) {
 					cb(data.payload);
 				}
 			}
@@ -344,6 +438,7 @@ export function disposeTransport(): void {
 	clearReconnectTimer();
 	if (ws) {
 		// Detach handlers so the `onclose` reconnect path doesn't fire.
+		ws.onopen = null;
 		ws.onclose = null;
 		ws.onerror = null;
 		ws.onmessage = null;
@@ -354,12 +449,11 @@ export function disposeTransport(): void {
 		}
 		ws = null;
 	}
+	// Reset so the next mount's first connection isn't treated as a reconnect.
+	wsHasConnected = false;
 }
 
-async function onEvent<T>(
-	event: string,
-	cb: EventCallback<T>,
-): Promise<UnlistenFn> {
+async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<UnlistenFn> {
 	if (IS_TAURI) {
 		const { listen } = await import('@tauri-apps/api/event');
 		return listen<T>(event, (e) => cb(e.payload));
@@ -470,8 +564,7 @@ export interface SetupSnapshot {
 	needs_onboarding: boolean;
 }
 
-export const getSetupSnapshot = () =>
-	command<SetupSnapshot>('get_setup_snapshot');
+export const getSetupSnapshot = () => command<SetupSnapshot>('get_setup_snapshot');
 
 export const onSetupStatus = (cb: (payload: SetupStatusPayload) => void) =>
 	onEvent<SetupStatusPayload>('setup-status', cb);
@@ -482,9 +575,8 @@ export const onSetupProgress = (cb: (payload: SetupProgressPayload) => void) =>
 export const onSetupDone = (cb: (payload: SetupDonePayload) => void) =>
 	onEvent<SetupDonePayload>('setup-done', cb);
 
-export const onSetupNeedsOnboarding = (
-	cb: (payload: SetupStatusPayload) => void,
-) => onEvent<SetupStatusPayload>('setup-needs-onboarding', cb);
+export const onSetupNeedsOnboarding = (cb: (payload: SetupStatusPayload) => void) =>
+	onEvent<SetupStatusPayload>('setup-needs-onboarding', cb);
 
 // ── BYOK onboarding commands ────────────────────────────────────────────────
 

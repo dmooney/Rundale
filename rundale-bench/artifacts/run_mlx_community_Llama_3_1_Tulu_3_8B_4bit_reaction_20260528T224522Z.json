@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Llama-3.1-Tulu-3-8B-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T22:45:17.427528+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 10,
+        "bench_bugs": 0,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.0,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Well now, welcome to Darcy's. I'm Padraig. What can I get you?",
+          "response_sha256": "e79317d155908cc686d0b081b2158d112de460da3eb8538098e0cd0a80ea4673",
+          "cache_key": "dc6643273df3f1a18b31f235ff1e31dd1b220675b50ce4c57f81a103020fb770",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Mary, welcome to Darcy's Pub. Dry yourself by the fire, love.",
+          "response_sha256": "86959d2f50dca5e4067382bc2a46d35ee8b55fd08eb0c00ad3ae37f6b21412cf",
+          "cache_key": "0b9736781b85520b0c79ecd9d61cffa672b42e9cd75e4fc7ca1eb8dc8f72637d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Mary, welcome to Mass. You're right on time.",
+          "response_sha256": "36893e4a384b98704e89568764a33432caf39270364f844ae17a67360c0c925e",
+          "cache_key": "45656362e7ed1fc8bafc06aaa7b2d6991f0ef93823ed6c386ba471000d2f67c2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "Good evening, I'm Brigid O'Brien, the midwife. How might I assist you this night?",
+          "response_sha256": "447ea2ef4ecfb83008850b64986b6ab608d02596a23242b63ca78f988e1dfc0f",
+          "cache_key": "e58230126e194014bb070b23047cc36fa90a35c0e8f768dad1d804adea4d1909",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "Mary, welcome. Come in, you're just in time for a cup of tea.",
+          "response_sha256": "bd5ce3d0bf21174139c615edf91d215212e128d5c7487a56efe766d881154ad8",
+          "cache_key": "cbf53b1ae8fe08f45fbc5980ed15146233e21b8fe72fd0b01587e7c0442959df",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Mary, good to see you. How are you keeping?",
+          "response_sha256": "20a8f508cbde5de87409dfdcea41dcff04197c2bd6a031a83d485e5b2647ce8a",
+          "cache_key": "046a62ad018586256cbea858e16c0e1f28e0cd02c44935293e33d95b9529ed3b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Father Cathal Donnellan, at your service.",
+          "response_sha256": "db2b981d91f732f8e08ca22f350bf2578c287a52c573b2a4285d9a267c7fb7b8",
+          "cache_key": "e2b28e09f574635662964b9663c76c5055e1ccd625583b7144aab98b265bcb9f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Mary, you are welcome, but remember, the Lord's grace will not abide idleness.",
+          "response_sha256": "8234ae37a3c3bbee7637be503f5a5d0fde9ce49b82860611bd79d0592b2e1232",
+          "cache_key": "e1fb88c36203e2dd58c948081fdd487b41d577e5bc165451e871b5ef5301c983",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Mary, welcome. You are punctual, as always.",
+          "response_sha256": "4ef0727d90b89bf0f4429e14cdbe83d74834ead2778ed8bed2e60c4592f65833",
+          "cache_key": "53db5345beb6cccf26ffb11fd953189993867181388cbe2b0be22c8e1b3ea250",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Mary, I'm Sean Murphy, yer neighbor. What brings ye this far from the village?",
+          "response_sha256": "98194d06f36da6b8ec410457fc12a607304742694adaedf4b9681e7c8ea211c9",
+          "cache_key": "8143902f2c35b323e4df2f2d19386c6a5449f1354db6683e87baee9158ce0085",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Llama_3_1_Tulu_3_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Llama-3.1-Tulu-3-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Llama-3.1-Tulu-3-8B-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 5.026417970657349,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1245,
+    "completion_tokens": 172,
+    "usd": 0.0
+  }
+}

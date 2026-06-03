@@ -864,3 +864,68 @@ All configured in `training/configs/rundale_dialect_e2e.yaml`:
 - One-time secret provisioning (`RUNPOD_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `HF_TOKEN`; `GEMINI_API_KEY` if you want the calibration-failure fallback to work without manual intervention).
 - Reviewing the `/prove rundale-dialect` verdict if it fails — orchestrator surfaces the failure but does not auto-modify code in response.
 - DeepSeek discount renewal post-2026-05-31 — orchestrator surfaces post-deadline cost as a warning before each run starts.
+
+## Open notes — bilingual NPCs + phase split (2026-05-28)
+
+> Captured from a planning conversation after rundale-bench round-3 surfaced EuroLLM as the strongest open Irish-language candidate (4.02 / 5 on the Gaeilge slice). These notes are **not yet folded into the Decisions table**; they document scope and phasing considerations for a follow-on plan revision.
+
+### Scope expansion under consideration: bilingual NPCs with code-switching
+
+Player should be able to switch into Irish mid-conversation and have NPCs continue in Irish. NPCs already drop occasional idioms; the open question is full bidirectional register-switch with period-accurate Gaeilge on the NPC side.
+
+Implications the existing plan does not yet address:
+
+1. **Plan targets Hiberno-English, not Gaeilge.** Four-axis judge stack (anachronism wordlist + Talkie-1930 loglik + 250M dialect-oracle + DeepSeek coherence) scores period-English with Irish substrate. Zero coverage of pure Irish-language NPC utterances. Phase 2 needs a fifth axis or a parallel Gaeilge judge.
+2. **Per-NPC bilingual capacity is lore-correct.** 1820 Roscommon: roughly 80 % Irish-monolingual cottiers, 5 % English-monolingual gentry, 15 % bilingual middle (priests, hedge-schoolmasters, smiths, midwives, larger farmers, land-agents-with-tenants). NPC schema gains `irish_fluency: monolingual_ga | bilingual | monolingual_en` with realistic per-role default. Brigid bilingual; Mister Spencer the land agent English-only (would need a translator); Old Maire the cottier Irish-first (broken English). Interpreter mechanic becomes a quest beat.
+3. **Conversation-register state.** `parish-npc` adds `Conversation.language: { Ga, En, Mixed }`. Player's opening turn fingerprints language; NPC mirrors on `bilingual`/matching-monolingual; refusal or clarification on mismatch. Persists across turns within a conversation. Some NPCs remember per-player last register across game days.
+4. **Player input — language detection + UX.** Cheap langid sufficient (fasttext-176 or hand-rolled trigram classifier — Irish has unique trigrams `dh`, `bhf`, `mhn`, fada sequences). Accept naked-ASCII (`Slan`, `go raibh maith agat`) and proper fadas (`Slán`, `go raibh maith agat`) — convert to fadas on display. Phonetic English transliteration (`Slawn`) treats as English-with-greeting; NPC may correct/encourage.
+5. **Connacht-tilt for Gaeilge.** Game world is Connacht-anchored. Caighdeán Oifigiúil leans Munster; EuroLLM web-Irish similarly biased. Connacht features (`muid` not `sinn`, distinct verb endings, idioms) need explicit corpus + DPO bias toward Connacht. Phase 2 Irish corpus mirrors the regional-balance work the Hiberno-English side did in rounds 5–6: Hyde *Love Songs of Connacht* Irish-side, Larminie *West Irish Folk-Tales* Irish-side, Lady Gregory Galway transcriptions, Ó Direáin (Aran-Connacht, PD post-1990 estate confirmation needed).
+6. **Existing translation slice is not enough.** Plan's Irish→English translation subcorpus is poetry/prose, not conversation. Phase 2 needs conversational Irish: **Neilson 1808 *Introduction to the Irish Language*** (already in plan as a formal-contrast source — re-purpose its bilingual dialogues), Ó Conaire short stories (1920s, PD, Galway prose dialogue), Hyde *Love Songs* Irish-side as lyric dialogue, optional synthesis path (EuroLLM-distilled parallel pairs from Phase 1 outputs, license permitting).
+7. **Independent referee.** EuroLLM cannot both teach and judge Gaeilge — student can't be measured as exceeding teacher in that loop. The **rundale-bench gaeilge slice with Sonnet-subagent judge** is already that independent referee — free (subagent path), calibrated, and currently producing leaderboard scores. Should be folded into Stage 4 verification as the Gaeilge regression gate, replacing or supplementing any in-plan Gaeilge judge.
+8. **Tokenizer audit before base-model lock.** Gemma 4 9B may tokenize Irish inefficiently (fadas as byte fallbacks; `Dia dhuit` as 6+ tokens). Qwen3-14B / 22B EuroLLM-class tokenizers are multilingual-European with native Irish coverage. Measure tokens/char on a Gaeilge sample (Hyde Irish-side, Brooke Irish-side) across candidate bases before picking. **Reject any base with ≥1.5× the EuroLLM Irish ratio** — Phase 2 will be unaffordable on that base.
+9. **JSON-mix preservation.** Parish engine demands strict JSON outputs from the dialogue model. SFT corpus is prose, not JSON; risk of post-LoRA JSON-schema regression. Sample 5–10 % of training pairs from existing JSON-strict NPC turns to preserve schema-compliance.
+10. **New bench slice: `code-switch`.** Measures (a) NPC continues player's chosen language on switch, (b) quality of NPC Irish in switched mode (reuses gaeilge judge axes), (c) NPC Irish-idiom-drops in English mode, (d) refusal / clarification when player addresses Irish-only NPC in English (and reverse). Without this, bench cannot measure the feature.
+
+### Phasing — two phases, ship Phase 1 independently
+
+**Phase 1 — Hiberno-English (the existing plan, plus minor scope add).** Ships `rundale-dialect-model` flag default-on after corpus rounds 1–7 + SFT + DPO + `/prove rundale-dialect`. Bench gate: rundale-bench dialogue + reaction beats stock baseline by ≥ 0.5 overall. Covers ~80 % of the player-facing experience — cottier NPCs sprinkle idioms (wisha/musha/`Dia dhuit` greetings) without needing full Irish fluency. Players who never type Irish never notice Phase 2 is missing.
+
+**Phase 1 transitional bilingual stopgap.** Add provider category `dialogue_irish` mapped to EuroLLM-9B (or `gpt-oss-20b` per bench round-2: 4.52 on Gaeilge). Game loop dispatches to it when `conversation.language == Ga`. Costs VRAM (dual-load on Ollama / M5 Pro 48 GB) but ships a usable v1 of the feature without waiting on Phase 2 fine-tuning. Transitional debt — Phase 2 retires it.
+
+**Phase 1 forgetting-prevention.** Add a small Gaeilge replay (~5 %) to the Phase 1 SFT mix — Neilson dialogues + Hyde Irish-side — to preserve Irish tokens against catastrophic forgetting. Cheap, no Phase 2 dependency, makes the Phase 1 → Phase 2 hand-off smoother.
+
+**Phase 2 — Gaeilge + code-switch.** Builds on Phase 1 merged weights via continued LoRA SFT (not fresh from base, assumes Phase 1 base tokenizer passes the audit). Adds:
+
+- Conversational Irish corpus rounds (Neilson dialogue extraction, Ó Conaire, Hyde Irish-side, Larminie, Lady Gregory, Connacht-filtered).
+- Synthesis path: EuroLLM-distilled parallel pairs from Phase 1 NPC turns (verify EuroLLM license permits derivative SFT data).
+- Judge stack adds EuroLLM-as-Gaeilge-judge axis **or** uses rundale-bench Sonnet-subagent as the Gaeilge referee (Sonnet recommended — independent of any model in the training loop).
+- `code-switch` rundale-bench slice + judge.
+- Per-NPC `irish_fluency` enum + `Conversation.language` state in `parish-npc`.
+- Replaces Phase 1 dual-load EuroLLM fallback with the single bilingual fine-tune.
+- Bench gate: rundale-bench gaeilge ≥ EuroLLM baseline, code-switch slice ≥ 4.0 / 5.
+
+**Phasing risks + mitigations**
+
+- *Risk: Phase 1 base-model lock breaks Phase 2.* Mitigation: tokenizer audit **before Phase 1** — pick a base that works for both. Qwen3-14B / 22B is the safer pick; Gemma 4 9B needs explicit Irish-tokens-per-char measurement before committing.
+- *Risk: Phase 1 LoRA gets thrown away in Phase 2.* Mitigation: design Phase 2 as continued SFT on Phase 1 merged weights, not a fresh-from-base run. LoRA stacking is the cheap path if the base stays unchanged.
+- *Risk: Phase 1 corpus pulls model toward English-only ceiling.* Mitigation: 5 % Gaeilge replay in Phase 1 SFT (Neilson, Hyde Irish-side).
+- *Risk: dual-load VRAM cost in Phase 1 transitional.* Mitigation: explicit warm/cold tradeoff documented; bilingual single-model in Phase 2 retires it.
+
+**Effort split (rough)**
+
+- Phase 1: ~4–6 weeks corpus-finalize + train + eval (mostly the existing plan).
+- Phase 2: ~6–8 weeks for Irish corpus curation + bilingual fine-tune + code-switch eval. Corpus curation can start in parallel with Phase 1 training.
+
+**Player experience by phase**
+
+- Phase 1 launch: NPCs feel period-Irish in English. Player can't switch to Irish (or if they do, falls back to EuroLLM provider — decent Gaeilge but not Connacht-tilted, not Rundale-tone-tuned).
+- Phase 2 launch: full bilingual NPCs. Code-switching works both ways. NPCs remember player register across days. Interpreter mechanic available for monolingual-NPC ↔ monolingual-player scenes.
+
+### Action items (not yet executed)
+
+- [ ] Fold these notes into the Decisions table as `Decision: scope-phase-split` and `Decision: bilingual-NPCs` rows.
+- [ ] Tokenizer audit script: `training/scripts/tokenizer_audit.py` — measure Irish tokens/char across Gemma 4 9B, Qwen3-14B/22B, EuroLLM-9B/22B on Hyde Irish-side + Brooke Irish-side; gate base-model pick on result.
+- [ ] Phase 1 SFT config gains 5 % Gaeilge replay slice (Neilson dialogues + Hyde Irish-side).
+- [ ] Add `dialogue_irish` provider category to `parish-inference` plumbing; wire EuroLLM-9B as the default mapping; gate behind `bilingual-npc-stopgap` flag.
+- [ ] Add `irish_fluency` field to NPC schema (defaults by role); plumb into `Conversation.language` register state.
+- [ ] Design `code-switch` bench slice and add to rundale-bench; pre-register before Phase 2 training to avoid post-hoc gaming.

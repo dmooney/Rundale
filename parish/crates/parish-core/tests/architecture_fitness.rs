@@ -201,6 +201,150 @@ fn no_orphaned_source_files() {
     );
 }
 
+/// Sensor for the narration-drift class behind #1156.
+///
+/// Player-facing minute counts must be pluralized through the shared
+/// helper `parish_types::minute_word` (or, for the dependency-free
+/// `parish-client`, its local equivalent) rather than hand-written as a
+/// `format!("... {} minutes ...")` literal with no singular branch. The
+/// original bug shipped *four* independent hand-rolled copies of
+/// "{} minutes" — one of them in `parish-engine`'s headless harness, a
+/// copy that had silently diverged from the shared `/wait` command. Each
+/// copy is a place a "1 minutes on foot" defect can reappear, exactly the
+/// copy-paste drift CLAUDE.md rule #12 forbids.
+///
+/// The check is a cheap textual sensor: it flags any format-placeholder
+/// (`{}`, `{:>2}`, `{n}`, …) immediately followed by the word
+/// `minute`/`minutes` in a workspace `src/` file. Routing the count
+/// through a `minute_word(n)`-style helper (which emits `{} {}`) clears it.
+#[test]
+fn minute_counts_pluralize_through_helper() {
+    let ws = workspace_root();
+
+    // A format placeholder directly followed by the bare unit word — the
+    // hand-rolled-pluralization smell. `{}min` (the abbreviated exits
+    // hint) and `minute_word` itself are deliberately not matched.
+    let re = regex::Regex::new(r"\{[^{}]*\}\s+minutes?\b").expect("static regex compiles");
+
+    let mut violations: Vec<String> = Vec::new();
+    for entry in fs::read_dir(ws.join("crates")).expect("read crates/") {
+        let src = entry.expect("entry").path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        walk_rs_files(&src, &mut files);
+        for f in files {
+            let body = fs::read_to_string(&f).unwrap_or_default();
+            for (i, raw_line) in body.lines().enumerate() {
+                // Strip line/doc comments — the common false-positive source.
+                let line = raw_line.split("//").next().unwrap_or("");
+                if re.is_match(line) {
+                    let pretty = f
+                        .strip_prefix(&ws)
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|_| f.display().to_string());
+                    violations.push(format!("{pretty}:{}", i + 1));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Hand-rolled minute pluralization — `{{}} minutes` literal(s) with no \
+         singular branch (the #1156 defect class):\n  - {}\n\n\
+         FIX: pluralize through `parish_types::minute_word(n)` (re-exported as \
+         `parish_core::world::time::minute_word`), which returns \"minute\" for \
+         1 and \"minutes\" otherwise — emit `({{}} {{}})` with the count and \
+         `minute_word(count)`. `parish-client` is dependency-free by design and \
+         carries its own private `minute_word`. Duplicating the format literal \
+         instead lets a \"1 minutes on foot\" bug reappear in each copy. See \
+         CLAUDE.md rule #12 (no copy-pasted narration across entry points).",
+        violations.join("\n  - "),
+    );
+}
+
+/// `(src-relative path, Command variant)` pairs that are knowingly handled
+/// inside an entry-point crate instead of delegating to the shared
+/// `parish_core::ipc::commands::handle_command`. Every entry MUST cite why
+/// the local handling exists and a tracking issue for its removal.
+///
+/// Empty since #1159: the world-advance pump (weather tick, schedule→narration,
+/// banshee, gossip, tier-4) that every runtime drives now lives in exactly one
+/// place — `parish_core::game_loop::advance_world`. The synchronous
+/// CLI/script/test harness runs it once per turn from `GameTestHarness::execute`
+/// and delegates `Wait`/`Tick` to the shared `handle_command`, so no
+/// entry-point crate re-implements a command's orchestration body.
+const ALLOWED_LOCAL_COMMAND_HANDLERS: &[(&str, &str)] = &[];
+
+/// Rule #12 structural sensor: cross-runtime orchestration belongs in
+/// `parish-core`, parameterized over runtime concerns via traits — entry-point
+/// crates are limited to thin wiring.
+///
+/// The canonical player-command dispatcher is
+/// `parish_core::ipc::commands::handle_command`, which exhaustively matches
+/// every `Command` variant once. Any `Command::<Variant> =>` match arm in an
+/// entry-point crate (`parish-engine`, `parish-server`, `parish-tauri`) is a
+/// second, divergent implementation of an orchestration body — the exact
+/// copy-paste drift that let #1156's "1 minutes" survive in the headless
+/// harness and that #687/#696 warn about. Entry points must call the shared
+/// handler and dispatch its returned effects, not re-handle commands inline.
+#[test]
+fn entry_point_crates_do_not_reimplement_shared_commands() {
+    let ws = workspace_root();
+    const ENTRY_POINTS: &[&str] = &["parish-engine", "parish-server", "parish-tauri"];
+
+    // `Command::Variant` optionally with a tuple/struct payload, then `=>` on
+    // the same arm — i.e. a match arm, not a `Command::Wait(60)` construction
+    // (those terminate in `;`/`,`/`)` before any `=>`).
+    let re = regex::Regex::new(r"Command::([A-Z][A-Za-z0-9_]*)[^;\n]*=>")
+        .expect("static regex compiles");
+
+    let mut violations: Vec<String> = Vec::new();
+    for crate_name in ENTRY_POINTS {
+        let src = ws.join("crates").join(crate_name).join("src");
+        let mut files = Vec::new();
+        walk_rs_files(&src, &mut files);
+        for f in files {
+            let rel = f
+                .strip_prefix(&ws)
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| f.display().to_string());
+            let body = fs::read_to_string(&f).unwrap_or_default();
+            for (i, raw_line) in body.lines().enumerate() {
+                let line = raw_line.split("//").next().unwrap_or("");
+                for cap in re.captures_iter(line) {
+                    let variant = &cap[1];
+                    if ALLOWED_LOCAL_COMMAND_HANDLERS
+                        .iter()
+                        .any(|(p, v)| rel.replace('\\', "/") == *p && v == &variant)
+                    {
+                        continue;
+                    }
+                    violations.push(format!("{rel}:{} — Command::{variant}", i + 1));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Rule #12 violation — entry-point crate(s) re-implement a shared \
+         command handler instead of delegating:\n  - {}\n\n\
+         FIX: route the command through \
+         `parish_core::ipc::commands::handle_command` and dispatch the returned \
+         `CommandEffect`s; put any shared orchestration body, constant, or \
+         payload struct in `parish-core` parameterized over `EventEmitter`. \
+         Copy-pasting an orchestration arm into a second entry point produces \
+         invisible drift (#687, #696; it is how #1156 reached the headless \
+         harness). If the local handling is genuinely unavoidable, add it to \
+         ALLOWED_LOCAL_COMMAND_HANDLERS with a justification and a tracking \
+         issue. See CLAUDE.md rule #12 and docs/agent/architecture.md.",
+        violations.join("\n  - "),
+    );
+}
+
 fn list_top_level_modules(src: &Path) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     if !src.is_dir() {

@@ -1,0 +1,153 @@
+{
+  "ran_at_utc": "2026-05-28T14:53:16.097262+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "mlx-community/c4ai-command-r-08-2024-4bit": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 541,
+      "ttft_ms_p90": 555,
+      "total_ms_median": 10491,
+      "tokens_per_second_median": 15.3,
+      "tokens_per_second_p90": 15.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 1,
+        "rate": 0.1,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 529,
+          "total_ms": 6905,
+          "completion_tokens": 99,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 15.526976160602258,
+          "reply_len": 343,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 516,
+          "total_ms": 13624,
+          "completion_tokens": 200,
+          "prompt_tokens": 1555,
+          "tokens_per_second": 15.257857796765334,
+          "reply_len": 719,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 542,
+          "total_ms": 7167,
+          "completion_tokens": 102,
+          "prompt_tokens": 1555,
+          "tokens_per_second": 15.39622641509434,
+          "reply_len": 356,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 541,
+          "total_ms": 10001,
+          "completion_tokens": 145,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 15.327695560253698,
+          "reply_len": 469,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 535,
+          "total_ms": 13628,
+          "completion_tokens": 198,
+          "prompt_tokens": 1553,
+          "tokens_per_second": 15.122584587183992,
+          "reply_len": 750,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 548,
+          "total_ms": 7131,
+          "completion_tokens": 101,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 15.34254898982227,
+          "reply_len": 348,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 558,
+          "total_ms": 11621,
+          "completion_tokens": 168,
+          "prompt_tokens": 1552,
+          "tokens_per_second": 15.185754316189097,
+          "reply_len": 620,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 553,
+          "total_ms": 12753,
+          "completion_tokens": 185,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 15.16393442622951,
+          "reply_len": 683,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 286,
+          "total_ms": 7065,
+          "completion_tokens": 104,
+          "prompt_tokens": 1551,
+          "tokens_per_second": 15.341495795840094,
+          "reply_len": 360,
+          "error": null
+        },
+        {
+          "candidate": "mlx-community/c4ai-command-r-08-2024-4bit",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 555,
+          "total_ms": 10982,
+          "completion_tokens": 158,
+          "prompt_tokens": 1554,
+          "tokens_per_second": 15.152968255490554,
+          "reply_len": 584,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 125.50265192985535,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

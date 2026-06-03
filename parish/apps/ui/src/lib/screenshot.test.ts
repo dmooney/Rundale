@@ -3,13 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `html-to-image` is mocked so we can exercise `captureScreen`'s target
 // selection and option forwarding without running the (jsdom-incompatible)
 // real renderer.
-const toPngMock = vi.fn(
-	async (_node: HTMLElement, _opts?: Record<string, unknown>) =>
-		'data:image/png;base64,FAKE',
+const toPngMock = vi.fn(async (_node: HTMLElement, _opts?: Record<string, unknown>) =>
+	'data:image/png;base64,FAKE'
 );
 
 vi.mock('html-to-image', () => ({
-	toPng: toPngMock,
+	toPng: toPngMock
 }));
 
 beforeEach(() => {
@@ -36,14 +35,18 @@ describe('captureScreen()', () => {
 		expect(toPngMock.mock.calls[0]?.[0]).toBe(document.body);
 	});
 
-	it('forwards cacheBust and a sensible pixelRatio to html-to-image', async () => {
+	it('keeps the capture cheap: no cacheBust, pixelRatio capped at 2 (#1160)', async () => {
+		// cacheBust forces a refetch+inline of every cross-origin map tile, the
+		// dominant cost that pushed captures past the backend deadline. It must
+		// stay off, and pixelRatio must be capped so HiDPI displays don't blow up
+		// the pixel count.
+		Object.defineProperty(window, 'devicePixelRatio', { value: 3, configurable: true });
 		const { captureScreen } = await import('./screenshot');
 		await captureScreen();
-		const opts = toPngMock.mock.calls[0]?.[1] as
-			| Record<string, unknown>
-			| undefined;
-		expect(opts?.cacheBust).toBe(true);
+		const opts = toPngMock.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
+		expect(opts?.cacheBust).toBeUndefined();
 		expect(typeof opts?.pixelRatio).toBe('number');
 		expect(opts?.pixelRatio).toBeGreaterThan(0);
+		expect(opts?.pixelRatio).toBeLessThanOrEqual(2);
 	});
 });

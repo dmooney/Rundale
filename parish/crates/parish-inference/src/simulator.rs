@@ -181,8 +181,10 @@ fn target_length(system: Option<&str>) -> usize {
 
 /// Tiny keyword-based intent detector (mirrors parse_intent_local logic).
 ///
-/// Returns a JSON string compatible with `IntentResponse`.
-fn intent_json_for(prompt: &str) -> String {
+/// Returns a JSON string compatible with `IntentResponse`. Shared with
+/// [`crate::mock_client::MockClient`] so the scriptable mock classifies player
+/// intent identically to the simulator.
+pub(crate) fn intent_json_for(prompt: &str) -> String {
     let lower = prompt.trim().to_lowercase();
 
     // Match a verb prefix only at a word boundary — `starts_with("go")`

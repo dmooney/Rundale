@@ -1,0 +1,1272 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit",
+    "base_url": "http://localhost:8000/v1"
+  },
+  "run_started_utc": "2026-05-28T14:23:29.918704+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 10,
+        "label_match_rate": 0.0,
+        "mean_score": 0.0
+      },
+      "results": [
+        {
+          "id": "intent-0001",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0002",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0003",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0004",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0005",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0006",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0007",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0008",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0009",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0010",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    },
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "non_latin_rate": 0.0,
+        "character": null,
+        "authenticity": null,
+        "language": null,
+        "responsiveness": null,
+        "craft": null,
+        "overall": null,
+        "judge": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58"
+      },
+      "results": [
+        {
+          "id": "dialogue-0001",
+          "reply": "\u010aAlright,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120the\u0120user's\u0120query.\u0120Let\u0120me\u0120break\u0120it\u0120down.\u010a\u010aFirst,\u0120the\u0120user\u0120wants\u0120me\u0120to\u0120role-play\u0120as\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u01201820\u0120Ireland.\u0120They\u0120provided\u0120detailed\u0120information\u0120about\u0120the\u0120historical\u0120context,\u0120cultural\u0120guidelines,\u0120and\u0120language\u0120specifics.\u0120I\u0120need\u0120to\u0120make\u0120sure\u0120I\u0120stay\u0120in\u0120character\u0120as\u0120Brigid,\u0120keeping\u0120her\u0120background\u0120and\u0120knowledge\u0120in\u0120mind.\u010a\u010aThe\u0120user\u0120mentioned\u0120having\u0120trouble\u0120sleeping,\u0120with\u0120recurring\u0120dreams.\u0120I\u0120should\u0120respond\u0120in\u0120a\u0120way\u0120that's\u0120true\u0120to\u0120her\u0120character.\u0120Since\u0120she's\u0120a\u0120midwife,\u0120her\u0120concerns\u0120might\u0120revolve\u0120around\u0120health\u0120and\u0120the\u0120community.\u0120She's\u0120kind\u0120and\u0120direct,\u0120so\u0120she\u0120might\u0120offer\u0120advice\u0120related\u0120to\u0120natural\u0120remedies\u0120or\u0120things\u0120she\u0120knows\u0120from\u0120her\u0120knowledge\u0120of\u0120plants\u0120and\u0120folk\u0120medicine.\u010a\u010aI\u0120should\u0120use\u0120appropriate\u0120Irish\u0120phrases\u0120without\u0120overusing\u0120them.\u0120Maybe\u0120something\u0120like\u0120\"Sl\u00c3\u00a1n\"\u0120for\u0120good\u0120health\u0120or\u0120\"Dia\u0120daoine\"\u0120for\u0120the\u0120fairies.\u0120The\u0120response\u0120should\u0120be\u0120conversational,\u0120not\u0120a\u0120long\u0120monologue",
+          "response_sha256": "705e7372f1274fe5303fae267114a536895315bb892a67d72639a6a45b6317ee",
+          "cache_key": "f67438d4a93ab5a402863f6426dbc686cd6c2baa9f928e6634bf1d83a2e1d63b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0002",
+          "reply": "\u010aOkay,\u0120so\u0120the\u0120user\u0120is\u0120asking\u0120about\u0120the\u0120old\u0120Cailleach\u0120who\u0120lives\u0120in\u0120the\u0120fairy\u0120fort.\u0120I\u0120need\u0120to\u0120address\u0120this\u0120in\u0120character\u0120as\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u01201820\u0120rural\u0120Ireland.\u0120First,\u0120I\u0120should\u0120consider\u0120what\u0120I\u0120know\u0120about\u0120the\u0120Cailleach.\u0120She's\u0120a\u0120folklore\u0120character,\u0120a\u0120kind\u0120of\u0120Irish\u0120fairy\u0120or\u0120spirit\u0120associated\u0120with\u0120nature\u0120and\u0120wisdom.\u0120\u010a\u010aI\u0120remember\u0120that\u0120in\u0120Irish\u0120myths,\u0120the\u0120Cailleach\u0120is\u0120often\u0120portrayed\u0120as\u0120a\u0120wise\u0120woman,\u0120sometimes\u0120a\u0120healer\u0120or\u0120a\u0120guardian\u0120of\u0120the\u0120land.\u0120She\u0120might\u0120live\u0120in\u0120a\u0120fort\u0120or\u0120a\u0120hollow\u0120tree,\u0120which\u0120ties\u0120into\u0120the\u0120user's\u0120question.\u0120The\u0120user's\u0120query\u0120seems\u0120to\u0120be\u0120testing\u0120my\u0120knowledge\u0120of\u0120folklore,\u0120so\u0120I\u0120should\u0120respond\u0120in\u0120a\u0120way\u0120that\u0120reflects\u0120Brigid's\u0120character.\u010a\u010aSince\u0120Brigid\u0120is\u0120a\u0120midwife,\u0120she's\u0120knowledgeable\u0120about\u0120herbs\u0120and\u0120folk\u0120medicine.\u0120She\u0120wouldn't\u0120be\u0120dismissive\u0120but\u0120would\u0120acknowledge\u0120the\u0120Cailleach's\u0120existence,\u0120perhaps\u0120from\u0120a\u0120folklore\u0120perspective.\u0120She\u0120might\u0120not\u0120know\u0120the\u0120exact\u0120details\u0120but",
+          "response_sha256": "7ac259dc52ce449c583cb95a5e9666433d78bf1892e9f84308834c3365189e17",
+          "cache_key": "8d3da3043c122a16f3f1fdafbf8dcbac7d8d4fb92c8344c02059e84a1e8380fc",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0003",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u0120County\u0120Roscommon,\u0120Ireland,\u0120back\u0120in\u01201820.\u0120I\u0120need\u0120to\u0120respond\u0120to\u0120the\u0120player's\u0120question\u0120in\u0120the\u0120appropriate\u0120Hiberno-English,\u0120sprinkling\u0120in\u0120a\u0120bit\u0120of\u0120Irish\u0120without\u0120overdoing\u0120it.\u0120The\u0120player\u0120said,\u0120\"Mymotheristakenwithabadcough.Isthereanythingyoucangiveher?\"\u0120\u010a\u010aFirst,\u0120I\u0120should\u0120acknowledge\u0120the\u0120question\u0120in\u0120a\u0120friendly\u0120and\u0120helpful\u0120way.\u0120Maybe\u0120start\u0120with\u0120a\u0120greeting\u0120in\u0120Irish,\u0120like\u0120\"Dia\u0120dhuit\"\u0120for\u0120hello.\u0120Then,\u0120express\u0120concern\u0120about\u0120the\u0120mother's\u0120health.\u0120Since\u0120I'm\u0120a\u0120midwife,\u0120I\u0120should\u0120offer\u0120some\u0120traditional\u0120remedies.\u0120I\u0120remember\u0120from\u0120the\u0120historical\u0120context\u0120that\u0120in\u01201820,\u0120they\u0120didn't\u0120have\u0120modern\u0120medicines,\u0120so\u0120it\u0120would\u0120be\u0120appropriate\u0120to\u0120suggest\u0120things\u0120like\u0120an\u0120herbal\u0120remedy\u0120or\u0120something\u0120warm.\u010a\u010aI\u0120should\u0120think\u0120of\u0120specific\u0120Irish\u0120phrases\u0120to\u0120use.\u0120Maybe\u0120\"Sl\u00c3\u00a1n\"\u0120for\u0120health\u0120or\u0120\"Beanacht\u0120na\u0120mBochra\u00c3\u0143n\"",
+          "response_sha256": "9e9664807cb9066c7be90ed42b0ae11838490a1cd65ee8c69b73544fd7474da4",
+          "cache_key": "994d1c84682a944a4aa3a21b9068203e23ca1fec40d3c73b5f9d66c6806e005c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0004",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120the\u0120situation\u0120where\u0120a\u0120stranger\u0120arrives\u0120in\u0120the\u0120village.\u0120I'm\u0120playing\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u01201820\u0120Ireland.\u0120I\u0120need\u0120to\u0120stay\u0120in\u0120character,\u0120so\u0120I\u0120should\u0120respond\u0120in\u0120a\u0120way\u0120that\u0120reflects\u0120her\u0120personality\u0120and\u0120the\u0120cultural\u0120guidelines\u0120provided.\u010a\u010aFirst,\u0120I\u0120should\u0120consider\u0120her\u0120background.\u0120She's\u0120a\u0120midwife\u0120with\u0120deep\u0120knowledge\u0120of\u0120local\u0120plants\u0120and\u0120folk\u0120medicine,\u0120and\u0120she's\u0120kind\u0120but\u0120direct.\u0120Her\u0120mood\u0120is\u0120content,\u0120so\u0120the\u0120response\u0120should\u0120be\u0120friendly\u0120but\u0120not\u0120overly\u0120effusive.\u010a\u010aThe\u0120stranger\u0120arriving\u0120in\u0120the\u0120village\u0120is\u0120a\u0120new\u0120face,\u0120so\u0120she\u0120might\u0120feel\u0120a\u0120bit\u0120curious\u0120but\u0120not\u0120overly\u0120anxious.\u0120Since\u0120she's\u0120a\u0120midwife,\u0120her\u0120role\u0120is\u0120to\u0120help\u0120and\u0120support\u0120the\u0120community,\u0120so\u0120she\u0120might\u0120offer\u0120her\u0120services\u0120or\u0120inquire\u0120about\u0120the\u0120visitor's\u0120needs.\u010a\u010aLooking\u0120at\u0120the\u0120language\u0120guidelines,\u0120I\u0120need\u0120to\u0120use\u0120Hiberno-English\u0120with\u0120appropriate\u0120dialect\u0120markers\u0120like\u0120\"ye\"\u0120or\u0120\"sure.\"\u0120I\u0120should\u0120avoid\u0120any\u0120US\u0120spellings",
+          "response_sha256": "8394eb7c934acc47b9e360ca35ce056982f922ddda1da7787dde04762701b8e8",
+          "cache_key": "ee1fef49856b3a35cfdd0b14c6b782b98e22b558c9c1ca06509d51b1f15da2cc",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0005",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120this\u0120user's\u0120query\u0120about\u0120a\u0120sheepsighting\u0120in\u01201820s\u0120Ireland.\u0120First,\u0120I\u0120need\u0120to\u0120stay\u0120in\u0120character\u0120as\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u0120County\u0120Roscommon.\u0120She's\u0120knowledgeable\u0120about\u0120herbs\u0120and\u0120midwifery,\u0120not\u0120farming\u0120or\u0120predators.\u0120So\u0120I\u0120shouldn't\u0120bring\u0120up\u0120livestock\u0120or\u0120talk\u0120about\u0120farming.\u010a\u010aThe\u0120year\u0120is\u01201820,\u0120so\u0120I\u0120should\u0120consider\u0120the\u0120historical\u0120context.\u0120Ireland\u0120is\u0120under\u0120British\u0120rule\u0120after\u0120the\u0120Acts\u0120of\u0120Union\u0120in\u01201800.\u0120Catholic\u0120Emancipation\u0120hasn't\u0120happened\u0120yet.\u0120The\u0120land\u0120is\u0120rural,\u0120and\u0120there's\u0120no\u0120electricity,\u0120railways,\u0120or\u0120photography.\u0120News\u0120spreads\u0120by\u0120mail\u0120coach\u0120or\u0120word\u0120of\u0120mouth.\u010a\u010aBrigid\u0120is\u0120kind\u0120but\u0120direct,\u0120with\u0120a\u0120content\u0120mood.\u0120She\u0120stays\u0120in\u0120her\u0120lane,\u0120focusing\u0120on\u0120women's\u0120matters,\u0120not\u0120farming.\u0120So\u0120when\u0120the\u0120user\u0120asks\u0120if\u0120a\u0120sheep\u0120could\u0120be\u0120more\u0120than\u0120a\u0120wolf,\u0120I\u0120should\u0120respond\u0120in\u0120a\u0120way\u0120that's\u0120appropriate\u0120for\u0120her\u0120character.\u010a\u010a",
+          "response_sha256": "aa61bdc974c150d82e52b1a288cdf1301d7e3999f45239e228a47d5d60bf69df",
+          "cache_key": "ff4617e87de3b372709e20b70928050432d1a2b6d1f4516912730bc301fe8517",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0006",
+          "reply": "\u010aOkay,\u0120so\u0120the\u0120user\u0120is\u0120playing\u0120the\u0120role\u0120of\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u0120rural\u0120Ireland\u0120in\u01201820.\u0120The\u0120task\u0120is\u0120to\u0120write\u0120a\u0120dialogue\u0120based\u0120on\u0120the\u0120given\u0120guidelines.\u0120Let\u0120me\u0120start\u0120by\u0120understanding\u0120the\u0120context.\u010a\u010aFirst,\u0120the\u0120historical\u0120context\u0120says\u0120that\u0120Ireland\u0120is\u0120under\u0120British\u0120rule\u0120after\u0120the\u0120Act\u0120of\u0120Union\u0120in\u01201800.\u0120Catholic\u0120Emancipation\u0120hasn't\u0120happened\u0120yet,\u0120and\u0120the\u0120land\u0120is\u0120mostly\u0120Protestant\u0120and\u0120English-speaking.\u0120The\u0120rural\u0120life\u0120is\u0120agrarian,\u0120with\u0120no\u0120electricity,\u0120railways,\u0120or\u0120photography.\u0120Communication\u0120is\u0120by\u0120mail\u0120coach\u0120or\u0120word\u0120of\u0120mouth.\u010a\u010aBrigid\u0120is\u0120a\u0120midwife,\u0120so\u0120her\u0120knowledge\u0120is\u0120in\u0120herbs,\u0120births,\u0120and\u0120women's\u0120matters,\u0120but\u0120not\u0120in\u0120farming\u0120or\u0120British\u0120law.\u0120She\u0120doesn't\u0120track\u0120predators\u0120or\u0120speak\u0120like\u0120a\u0120farmer.\u0120She\u0120should\u0120respond\u0120in\u0120Hiberno-English,\u0120using\u0120Irish\u0120phrases\u0120but\u0120not\u0120inventing\u0120grammar.\u0120The\u0120example\u0120given\u0120uses\u0120words\u0120like\u0120\"ye,\"\u0120\"tis,\"\u0120\"mornin',\"\u0120etc.\u010a\u010aThe\u0120user's\u0120prompt\u0120is\u0120a",
+          "response_sha256": "00fd05df8f9c41f09c08a32a30e72d901c066feb9d487a170c32489eeedc85f8",
+          "cache_key": "9fa507b9da8702a6df0d1b5754f96eff356f401ce171d47e2f21d5dc54d94384",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0007",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120what\u0120Brigid\u0120O'Brien,\u0120the\u012042-year-old\u0120midwife\u0120in\u0120County\u0120Roscommon,\u0120Ireland\u0120in\u01201820,\u0120would\u0120say\u0120when\u0120asked,\u0120\"Isaw\u0120lights\u0120moving\u0120on\u0120the\u0120hill\u0120last\u0120night.\u0120What\u0120were\u0120they?\"\u0120\u010a\u010aFirst,\u0120I\u0120need\u0120to\u0120consider\u0120the\u0120historical\u0120context.\u0120It's\u01201820,\u0120so\u0120Ireland\u0120is\u0120under\u0120British\u0120rule\u0120after\u0120the\u0120Act\u0120of\u0120Union\u0120in\u01201800.\u0120Catholic\u0120Emancipation\u0120hasn't\u0120happened\u0120yet,\u0120so\u0120the\u0120relationship\u0120between\u0120the\u0120Catholic\u0120and\u0120Protestant\u0120landowners\u0120is\u0120a\u0120factor.\u0120The\u0120land\u0120is\u0120rural,\u0120and\u0120there's\u0120no\u0120electricity,\u0120railways,\u0120or\u0120photography.\u0120News\u0120travels\u0120by\u0120mail\u0120coach\u0120or\u0120word\u0120of\u0120mouth.\u010a\u010aBrigid\u0120is\u0120a\u0120midwife,\u0120so\u0120her\u0120knowledge\u0120is\u0120in\u0120local\u0120plants,\u0120folk\u0120medicine,\u0120and\u0120she\u0120doesn't\u0120track\u0120things\u0120like\u0120predators\u0120or\u0120farm\u0120animals.\u0120She\u0120doesn't\u0120speak\u0120like\u0120a\u0120farmer\u0120or\u0120a\u0120priest;\u0120she's\u0120knowledgeable\u0120but\u0120direct.\u010a\u010aShe\u0120stays\u0120in\u0120character\u0120as\u0120Brigid\u0120O'Brien,\u0120so\u0120she\u0120won't\u0120break\u0120character.",
+          "response_sha256": "7a803ea9acf3fc77f2c4494746f33e1e882fe8120fdd54a11a5abd617498fa63",
+          "cache_key": "e7ef82f1e24225a9c421670737e060f335efd818b74ea5a837ad7435cdc7cefd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0008",
+          "reply": "\u010aAlright,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120Brigid\u0120O'Brien\u0120would\u0120respond\u0120to\u0120the\u0120situation\u0120where\u0120the\u0120well\u0120water\u0120tastes\u0120strange\u0120this\u0120week.\u0120First,\u0120I\u0120need\u0120to\u0120stay\u0120in\u0120character\u0120as\u0120Brigid,\u0120a\u012042-year-old\u0120midwife\u0120from\u0120County\u0120Roscommon\u0120in\u01201820.\u0120She's\u0120knowledgeable\u0120about\u0120herbs,\u0120births,\u0120and\u0120women's\u0120matters,\u0120not\u0120involved\u0120in\u0120farming\u0120or\u0120tracking\u0120predators\u0120or\u0120hunting.\u0120So,\u0120her\u0120responses\u0120should\u0120reflect\u0120her\u0120role\u0120and\u0120the\u0120cultural\u0120guidelines\u0120provided.\u010a\u010aShe\u0120doesn't\u0120track\u0120livestock\u0120or\u0120speak\u0120as\u0120a\u0120farmer\u0120would,\u0120so\u0120she's\u0120more\u0120focused\u0120on\u0120the\u0120community\u0120and\u0120midwifery.\u0120The\u0120cultural\u0120guidelines\u0120say\u0120to\u0120portray\u0120her\u0120with\u0120dignity,\u0120warmth,\u0120and\u0120complexity,\u0120avoiding\u0120stereotypes\u0120like\u0120being\u0120excessively\u0120drunk,\u0120violent,\u0120foolishly\u0120superstitious,\u0120or\u0120speaking\u0120in\u0120exaggerated\u0120Irish\u0120dialects.\u0120Instead,\u0120show\u0120her\u0120wit,\u0120intelligence,\u0120and\u0120resilience.\u010a\u010aThe\u0120language\u0120should\u0120be\u0120in\u0120Hiberno-English,\u0120sprinkled\u0120with\u0120appropriate\u0120Irish\u0120phrases.\u0120I\u0120need\u0120to\u0120use\u0120words\u0120like\u0120\"ye,\"\u0120\"yer,\"\u0120\"",
+          "response_sha256": "a26ae7e8d3509d71a75dfe1f236b95241d7418d6a12fc045c2fd509196e864d1",
+          "cache_key": "2aaf677c6fe46eb51975ca526e660b55eb936e0351d0985948f184975d3f901f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0009",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120the\u0120user's\u0120query.\u0120Let\u0120me\u0120break\u0120it\u0120down.\u0120The\u0120user\u0120is\u0120playing\u0120the\u0120role\u0120of\u0120Brigid\u0120O'Brien,\u0120a\u0120midwife\u0120in\u0120County\u0120Roscommon,\u0120Ireland,\u0120in\u01201820.\u0120She's\u0120staying\u0120in\u0120her\u0120lane,\u0120focusing\u0120on\u0120midwifery,\u0120herbs,\u0120births,\u0120and\u0120women's\u0120matters,\u0120not\u0120worrying\u0120about\u0120livestock,\u0120hunting,\u0120or\u0120farming.\u0120So,\u0120her\u0120knowledge\u0120doesn't\u0120include\u0120things\u0120like\u0120animal\u0120predators,\u0120farming,\u0120or\u0120arithmetic.\u010a\u010aThe\u0120user\u0120wants\u0120me\u0120to\u0120write\u0120a\u0120dialogue\u0120where\u0120Brigid\u0120responds\u0120to\u0120a\u0120question.\u0120The\u0120example\u0120given\u0120is\u0120a\u0120response\u0120where\u0120she\u0120uses\u0120Irish\u0120phrases\u0120and\u0120stays\u0120in\u0120character,\u0120without\u0120using\u0120any\u0120anachronisms\u0120or\u0120incorrect\u0120facts.\u0120I\u0120need\u0120to\u0120make\u0120sure\u0120the\u0120response\u0120is\u0120in\u0120Hiberno-English,\u0120sprinkling\u0120in\u0120appropriate\u0120Irish\u0120phrases,\u0120but\u0120not\u0120overdoing\u0120it.\u0120Also,\u0120I\u0120should\u0120avoid\u0120any\u012021st-century\u0120words\u0120and\u0120stick\u0120to\u0120the\u0120period-appropriate\u0120language\u0120and\u0120terms.\u010a\u010aThe\u0120specific\u0120question\u0120is:",
+          "response_sha256": "fea2200b19f5a72fad8119cacbcae0547a7b112456634ca0c6c2ece278cd532f",
+          "cache_key": "793fd313d50813190ec3262a867f2bbe44f0c1b7ed0a2b2dab79371518d88270",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "dialogue-0010",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120the\u0120user's\u0120prompt\u0120about\u0120how\u0120I,\u0120as\u0120Brigid\u0120O'Brien,\u0120would\u0120react\u0120to\u0120Father\u0120Cathal's\u0120sermon\u0120on\u0120the\u0120old\u0120ways.\u0120Let\u0120me\u0120start\u0120by\u0120breaking\u0120down\u0120the\u0120elements\u0120given.\u010a\u010aFirst,\u0120the\u0120setting\u0120is\u0120County\u0120Roscommon\u0120in\u01201820.\u0120Brigid\u0120is\u0120a\u0120midwife,\u0120and\u0120her\u0120knowledge\u0120is\u0120in\u0120herbs,\u0120births,\u0120sickness,\u0120and\u0120women's\u0120matters,\u0120not\u0120farming\u0120or\u0120the\u0120like.\u0120She\u0120doesn't\u0120track\u0120predators,\u0120hunting,\u0120or\u0120speak\u0120like\u0120a\u0120farmer.\u0120So\u0120she's\u0120focused\u0120on\u0120her\u0120midwifery\u0120and\u0120herbal\u0120knowledge.\u010a\u010aThe\u0120historical\u0120context\u0120mentions\u0120that\u0120Ireland\u0120is\u0120under\u0120British\u0120rule,\u0120and\u0120Catholic\u0120Emancipation\u0120hasn't\u0120happened\u0120yet.\u0120The\u0120land\u0120is\u0120rural,\u0120with\u0120no\u0120electricity,\u0120railways,\u0120or\u0120photography.\u0120Travel\u0120is\u0120by\u0120foot,\u0120horse,\u0120or\u0120cart,\u0120and\u0120news\u0120comes\u0120by\u0120mail\u0120coach\u0120or\u0120word\u0120of\u0120mouth.\u0120So,\u0120information\u0120isn't\u0120as\u0120immediate\u0120as\u0120it\u0120is\u0120today.\u010a\u010aCultural\u0120guidelines\u0120state\u0120that\u0120Irish\u0120characters\u0120should\u0120be\u0120portrayed\u0120with",
+          "response_sha256": "e5e49f00d3c3c194547fdc93486d44d41196eb9ef9506df1dc92a2c622a28942",
+          "cache_key": "73331a22de640a0aa73b357ac09f695373f03cfbacd163ed5c7d7da95d78a95a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "authenticity": 0,
+              "character": 0,
+              "craft": 0,
+              "language": 0,
+              "responsiveness": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "dialogue__DeepSeek_R1_Distill_Llama_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Llama-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": null,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120help\u0120Padraig\u0120Darcy,\u0120a\u012058-year-old\u0120pub\u0120owner\u0120in\u0120rural\u0120Ireland,\u0120respond\u0120to\u0120a\u0120new\u0120person\u0120who\u0120just\u0120arrived\u0120at\u0120his\u0120pub.\u0120It's\u0120evening,\u0120and\u0120it's\u0120clear,\u0120so\u0120the\u0120setting\u0120is\u0120nice.\u0120Padraig\u0120is\u0120gruff\u0120but\u0120warm-hearted\u0120and\u0120has\u0120been\u0120running\u0120the\u0120pub\u0120for\u0120thirty\u0120years.\u0120He's\u0120dry\u0120and\u0120witty.\u0120The\u0120response\u0120should\u0120be\u0120a\u0120single\u0120brief\u0120greeting\u0120or\u0120reaction,\u01201-2\u0120sentences,\u0120just\u0120a\u0120dialogue,\u0120no\u0120narration\u0120or\u0120action",
+          "response_sha256": "b75efa17bc3afec1a717c80e0227ed6441977a098017fdf9ed2ec35c8158fe55",
+          "cache_key": "154b7190756bc1eb223b2e64b515c5a7ecd97a220f3b75013a367c63a1552b3b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120help\u0120the\u0120user\u0120with\u0120this\u0120query\u0120about\u0120creating\u0120a\u0120dialogue\u0120for\u0120Padraig\u0120Darcy,\u0120a\u0120publican\u0120in\u0120rural\u0120Ireland.\u0120The\u0120scenario\u0120is\u0120that\u0120a\u0120familiar\u0120has\u0120just\u0120arrived\u0120at\u0120Brigid's\u0120cottage\u0120in\u0120the\u0120morning,\u0120it's\u0120lightly\u0120raining,\u0120and\u0120Padraig\u0120is\u0120working\u0120behind\u0120the\u0120bar.\u0120The\u0120user\u0120wants\u0120a\u0120brief\u0120greeting\u0120or\u0120reaction,\u0120only\u0120dialogue,\u0120no\u0120narration\u0120or\u0120action\u0120descriptions,\u0120and\u0120to\u0120avoid\u0120modern\u0120language.\u010a\u010aFirst,\u0120I\u0120need\u0120to\u0120understand\u0120the\u0120context.\u0120Padraig\u0120is\u0120a",
+          "response_sha256": "e0b91b4bcd17f7f40b20fd54c7fe2e1a6d353a1dbdb43ec31f5d6925c84263a1",
+          "cache_key": "f5f749787644802e3c9211b922cb5c5bcf1740539c4cdf952eda7b8ca535c28c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120help\u0120create\u0120a\u0120reaction\u0120or\u0120greeting\u0120for\u0120Padraig\u0120Darcy,\u0120a\u012058-year-old\u0120publican\u0120in\u0120rural\u0120Ireland.\u0120He's\u0120gruff\u0120but\u0120warm-hearted,\u0120has\u0120run\u0120Darcy's\u0120Pub\u0120for\u0120thirty\u0120years,\u0120and\u0120is\u0120dry\u0120and\u0120witty.\u0120The\u0120scenario\u0120is\u0120that\u0120a\u0120familiar\u0120has\u0120just\u0120arrived\u0120at\u0120the\u0120church\u0120porch\u0120on\u0120a\u0120misty\u0120Sunday\u0120noon.\u0120I've\u0120met\u0120this\u0120person\u0120before\u0120and\u0120am\u0120working\u0120here\u0120as\u0120the\u0120publican.\u0120I\u0120need\u0120to\u0120greet\u0120them\u0120by\u0120name.\u010a\u010aFirst,\u0120I",
+          "response_sha256": "5cfd87cfdfbaf67f04e99d7e2359275b336c23d336ab7d3e30bcbb274d2b68b3",
+          "cache_key": "535ff2837d48932f805a3ac35c6c5249f963379224b133f9fa261ce632ea908b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "\u010aAlright,\u0120so\u0120I\u0120need\u0120to\u0120help\u0120Brigid\u0120O'Brien,\u0120a\u012042-year-old\u0120midwife\u0120from\u0120rural\u0120Ireland\u0120in\u01201820,\u0120respond\u0120to\u0120a\u0120new\u0120arrival\u0120at\u0120Darcy's\u0120Pub.\u0120The\u0120user\u0120wants\u0120a\u0120brief\u0120greeting\u0120or\u0120reaction,\u0120limited\u0120to\u01201-2\u0120sentences,\u0120in\u0120dialogue\u0120form,\u0120avoiding\u0120any\u0120modern\u0120language.\u0120\u010a\u010aFirst,\u0120I\u0120should\u0120consider\u0120the\u0120setting.\u0120It's\u0120an\u0120evening\u0120in\u01201820,\u0120rural\u0120Ireland.\u0120Darcy's\u0120Pub\u0120is\u0120a\u0120local\u0120spot,\u0120probably\u0120familiar\u0120to\u0120Brigid",
+          "response_sha256": "6c6d7857cd6cfd25680a2fed8f716b80f4797efbf6fb1bd693df9ad210324b05",
+          "cache_key": "1c117f4ff786dea6395fcf92ec50ad5f690464ffe1554abba39520fcde37213a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120write\u0120a\u0120greeting\u0120for\u0120Brigid\u0120O'Brien\u0120as\u0120a\u0120midwife\u0120in\u0120rural\u0120Ireland\u0120from\u01201820.\u0120The\u0120scenario\u0120is\u0120that\u0120a\u0120familiar\u0120has\u0120arrived\u0120at\u0120her\u0120cottage\u0120in\u0120the\u0120morning,\u0120it's\u0120raining,\u0120and\u0120she\u0120recognizes\u0120the\u0120person.\u0120I\u0120should\u0120write\u0120a\u0120single\u0120brief\u0120greeting,\u01201-2\u0120sentences,\u0120using\u0120dialogue\u0120only,\u0120without\u0120any\u0120narration\u0120or\u0120action\u0120descriptions.\u0120Also,\u0120avoid\u0120modern\u0120language.\u010a\u010aFirst,\u0120I\u0120should\u0120consider\u0120the\u0120setting.\u0120It's\u0120the\u0120morning,\u0120it's\u0120raining,",
+          "response_sha256": "ec79b7c9f3079131c6bca304c7ced92a1ac90a53de1bb9d3265a1393fc967fae",
+          "cache_key": "e4afc8b32a65b82cf06ffbe8c9a1b4ae19ed7632ab4a2a495e07a4134169171e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120the\u0120best\u0120way\u0120to\u0120respond\u0120to\u0120this\u0120query.\u0120The\u0120user\u0120is\u0120asking\u0120me\u0120to\u0120write\u0120a\u0120single\u0120brief\u0120greeting\u0120or\u0120reaction,\u0120just\u01201-2\u0120sentences,\u0120in\u0120dialogue\u0120form,\u0120without\u0120any\u0120narration\u0120or\u0120action\u0120descriptions.\u0120They\u0120specifically\u0120mention\u0120that\u0120Bridget\u0120O'Brien\u0120is\u0120a\u012042-year-old\u0120midwife\u0120in\u0120rural\u0120Ireland,\u0120knows\u0120local\u0120plants\u0120and\u0120folk\u0120medicine,\u0120and\u0120her\u0120current\u0120mood\u0120is\u0120focused.\u0120The\u0120scenario\u0120is\u0120that\u0120a\u0120familiar\u0120has\u0120just\u0120arrived\u0120at\u0120the\u0120church\u0120porch\u0120on\u0120a",
+          "response_sha256": "b5f94558f964e302bd9bd094e5bd569174460df9f8c14b03c40a527ac01aa788",
+          "cache_key": "799be684bf1207846a837f11a098d7271349a5394acc3ae91571ed6831e453fc",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120create\u0120a\u0120dialogue\u0120for\u0120Father\u0120Cathal\u0120Donnellan,\u0120a\u012051-year-old\u0120priest\u0120in\u0120rural\u0120Ireland\u0120in\u01201820.\u0120He's\u0120eloquent\u0120and\u0120severe,\u0120preaches\u0120against\u0120the\u0120old\u0120ways.\u0120His\u0120current\u0120mood\u0120is\u0120watchful.\u0120The\u0120prompt\u0120is\u0120to\u0120write\u0120a\u0120single\u0120brief\u0120greeting\u0120or\u0120reaction\u0120in\u0120dialogue,\u0120max\u01201-2\u0120sentences,\u0120no\u0120narration\u0120or\u0120action\u0120descriptions,\u0120and\u0120to\u0120use\u0120non-modern\u0120language.\u010a\u010aThe\u0120scenario\u0120is\u0120that\u0120a\u0120newcomer\u0120has\u0120just\u0120arrived\u0120at\u0120Darcy",
+          "response_sha256": "065a075c02848706ab9270e874519560eaa7715d405324c8d67998004c64f445",
+          "cache_key": "ddb9c8f1d0fcb7e8bc585132877daf4f85f93b82b1a3d45a7dabb0c1ecce4ea7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120have\u0120this\u0120query\u0120where\u0120I\u0120need\u0120to\u0120help\u0120a\u0120user\u0120create\u0120a\u0120dialogue\u0120for\u0120a\u0120priest\u0120greeting\u0120an\u0120arrival\u0120at\u0120Brigid's\u0120cottage.\u0120The\u0120user\u0120provided\u0120a\u0120specific\u0120scenario:\u0120it's\u0120morning,\u0120light\u0120rain,\u0120and\u0120the\u0120person\u0120is\u0120someone\u0120the\u0120priest\u0120has\u0120met\u0120before.\u0120The\u0120priest\u0120is\u0120Father\u0120Cathal\u0120Donnellan,\u012051,\u0120eloquent\u0120and\u0120severe,\u0120who\u0120preaches\u0120against\u0120the\u0120old\u0120ways.\u0120His\u0120current\u0120mood\u0120is\u0120watchful.\u0120The\u0120user\u0120wants\u0120a\u0120single\u0120brief\u0120greeting\u0120or\u0120reaction\u0120in\u0120dialogue,",
+          "response_sha256": "65804afea750e6f97a6d68016e3d432eb0bc5fb4a33341f95953a6a16a5f2a65",
+          "cache_key": "073a0616232fa014b7352ab53c2cd930a113d884bc60e8a284597a79fa985d34",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120have\u0120this\u0120query\u0120from\u0120a\u0120user\u0120who's\u0120a\u012050-something\u0120priest\u0120in\u0120rural\u0120Ireland,\u0120named\u0120Father\u0120Cathal\u0120Donnellan.\u0120He's\u0120eloquent\u0120and\u0120severe,\u0120preaches\u0120against\u0120old\u0120ways.\u0120His\u0120current\u0120mood\u0120is\u0120watchful.\u0120The\u0120user\u0120wants\u0120a\u0120single\u0120brief\u0120greeting\u0120or\u0120reaction,\u0120maximum\u01201-2\u0120sentences,\u0120dialogue\u0120only,\u0120no\u0120narration\u0120or\u0120action\u0120descriptions,\u0120and\u0120to\u0120avoid\u0120modern\u0120language.\u010a\u010aThe\u0120scenario\u0120is\u0120that\u0120a\u0120familiar\u0120has\u0120just\u0120arrived\u0120at\u0120the\u0120church\u0120porch\u0120on\u0120a\u0120Sunday\u0120noon",
+          "response_sha256": "30c689b27f953260c0cf4ffde3d6f7427506aa6c0dc9095a0a06e46f82e09c3b",
+          "cache_key": "e8b7b63793e6ce185feb7c9d2cb674b90fc244bba15f19bf000b7984f932434d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120the\u0120user's\u0120query.\u0120The\u0120user\u0120provided\u0120a\u0120scenario\u0120where\u0120Sean\u0120Murphy,\u0120a\u012041-year-old\u0120farmer\u0120from\u0120rural\u0120Ireland,\u0120is\u0120at\u0120Darcy's\u0120Pub,\u0120it's\u0120evening,\u0120and\u0120he's\u0120hungry.\u0120The\u0120task\u0120is\u0120to\u0120write\u0120a\u0120brief\u0120greeting\u0120or\u0120reaction,\u0120limited\u0120to\u01201-2\u0120sentences,\u0120in\u0120dialogue\u0120only,\u0120without\u0120any\u0120narration\u0120or\u0120action\u0120descriptions.\u0120Also,\u0120no\u0120modern\u0120language\u0120should\u0120be\u0120used.\u010a\u010aFirst,\u0120I\u0120need\u0120to\u0120understand\u0120the",
+          "response_sha256": "6358889c5219bac79b2065532953836c0aa1206e51cb23ccd2ea8df66929ff63",
+          "cache_key": "74c7ea7f71e6eb86d430b68b541b9f6ee920e8d7389626a1e60907a2d185d483",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__DeepSeek_R1_Distill_Llama_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Llama-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier2-sim": {
+      "summary": {
+        "slice": "tier2-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier2-0001",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120simulate\u0120the\u0120background\u0120interactions\u0120between\u0120these\u0120three\u0120characters\u0120in\u0120Darcy's\u0120Pub\u0120in\u01201820.\u0120The\u0120location\u0120is\u0120Darcy's\u0120Pub,\u0120time\u0120is\u0120evening,\u0120and\u0120the\u0120weather\u0120is\u0120clear.\u0120The\u0120characters\u0120are\u0120Padraig\u0120Darcy,\u0120Niamh\u0120Darcy,\u0120and\u0120Sean\u0120Murphy.\u0120\u010a\u010aFirst,\u0120let\u0120me\u0120break\u0120down\u0120each\u0120character:\u010a\u010a-\u0120Padraig\u0120Darcy\u0120is\u0120the\u0120publican,\u0120known\u0120as\u0120\"the\u0120Publican,\"\u0120and\u0120he's\u0120even-tempered,\u0120well-spoken.\u0120He's\u0120known\u0120as\u0120Niamh\u0120his\u0120whole\u0120life,\u0120which\u0120I\u0120think\u0120means\u0120he's\u0120a\u0120good\u0120publican,\u0120maybe\u0120respected\u0120in\u0120the\u0120community.\u010a\u010a-\u0120Niamh\u0120Darcy\u0120is\u0120his\u0120daughter.\u0120She's\u0120tired,\u0120quick-witted,\u0120observant.\u0120She's\u0120Padraig's\u0120daughter,\u0120so\u0120they\u0120must\u0120have\u0120a\u0120close\u0120relationship.\u010a\u010a-\u0120Sean\u0120Murphy\u0120is\u0120a\u0120farmer,\u0120currently\u0120hungry,\u0120plain-spoken,\u0120stubborn.\u0120He's\u0120described\u0120as\u0120\"Write\u0120one\u0120short\u0120sentence\u0120(max\u012020\u0120words)\u0120describing\u0120what\u0120these\u0120characters\u0120are",
+          "schema_valid": false,
+          "response_sha256": "a0917aad6b536c3033c4e6835b212a7ef0870f1f2032985a20390824a92f349f",
+          "cache_key": "6c8844a503664032390809c8cd7483cb341098a38541879703e3b213304c9f0d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0002",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "190eee7fa2e88b285c54690d5802f30701b84158bd16ab4a633f32a95a9c66ae",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0003",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "5e7cdb8eb66421210f6d0448650f6598d90e677a853bdc3751b2dde9dda055ad",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0004",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "0a8986ae99deb802a667317b1a4c6890fef96bc5ad3c0659cc7f2980689358b6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0005",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "3482c35d7b70ce9bfc6fb4f44baac785d6b18ae199122bb3edae3779f0a1db56",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0006",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "651da4533689fbbbbc9b03de0f9dd787b417fdb2616ae1bca9dbb3cb5f445b40",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0007",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "bf7add23e8312249f3627b1d95e61b30d7b614fc9dbc1c538771e8cb96bb1699",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0008",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "7a3861872e37cafb2f3452e5f2acfdf4ec32bb63a17f62ccef7337f521d074e6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0009",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "7fffb4abcd92967363c3a408a496642e8371755ae9edd45a4abf2d011d79d533",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier2-0010",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "ce922e8dba6c6a8afcf4af972b596e7174317c86b8188d3cf9e6a70c9f1acfa7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier2-sim__DeepSeek_R1_Distill_Llama_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Llama-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 0,
+        "bench_bugs": 10,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.0,
+        "mean_score": null,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "ee36ade3fb8c105acc6b9a066ebc10ae2b5e4feb61ae3ef51478eb531db11e1d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "fa7fc8f80f8e3f0534af32ac28f27fba982c64cc70803c4b091077f5e60d74e6",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "d4af242404bceffd2228485ca3bc029e7aef54a83c2ab9ab4a46c49ee801abab",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "9ae30e6a26d37dd6a73c328eec14762d3a8bd8f4d539214a7bc0c79e63d753a2",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "46046b245d96194d5c7c00f35b9b88f1c34241c704338e26cc541fef5b02dc76",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "c641f67fb7988fc992565cd8c56c8bf1ea80d0af78b21974521763de52ac08ec",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "0219dcc0bd081f333c9fc9865d5e9016fb80918d92aceedb4dd5a9221db33b72",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "4ab89ecb41baaa558c0107ecd61d3f06104e0b0785b98e9cbc7acdcda2dc8f84",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "589bcdfaabd926eacc0050ff5d2b69656e1be8d514a9df35a9a8491cae5e298c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "\u010a",
+          "schema_valid": false,
+          "response_sha256": "fd955ceec93d4a910eb335c4cd28b6a2abb455eb2269bf4c4e963e05c9285d1e",
+          "cache_key": "e41396d667cfcf5a1c70b2f8bfbc508bd30ed31599eb68d7d2751cc3a5112737",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__DeepSeek_R1_Distill_Llama_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Llama-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit@http://localhost:8000/v1"
+      }
+    },
+    "gaeilge": {
+      "summary": {
+        "slice": "gaeilge",
+        "records": 10,
+        "judged": 4,
+        "bench_bugs": 6,
+        "judge_failures": 0,
+        "errors": 0,
+        "english_leakage_flag_rate": 1.0,
+        "fluency_mean": 1.5,
+        "grammar_mean": 1.5,
+        "idiom_mean": 1.0,
+        "task_fulfillment_mean": 1.5,
+        "english_leakage_mean": 1.75,
+        "overall_mean": 1.45,
+        "judge": "gaeilge_fluency_judge_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "591760b3bef2b07eb6c754155f4661b1306c6c17815826b8a2fd71869705d3f9"
+      },
+      "results": [
+        {
+          "id": "gaeilge-0001",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120translate\u0120the\u0120sentence\u0120\"The\u0120harvest\u0120was\u0120good\u0120this\u0120year.\"\u0120into\u0120natural\u0120Irish\u0120Gaeilge.\u0120Let\u0120me\u0120think\u0120about\u0120how\u0120to\u0120approach\u0120this.\u0120First,\u0120I\u0120know\u0120that\u0120Gaeilge,\u0120or\u0120the\u0120Irish\u0120language,\u0120has\u0120its\u0120own\u0120unique\u0120vocabulary\u0120and\u0120grammar.\u0120The\u0120original\u0120sentence\u0120is\u0120in\u0120English,\u0120so\u0120I\u0120need\u0120to\u0120convert\u0120it\u0120into\u0120Irish\u0120without\u0120just\u0120translating\u0120word\u0120for\u0120word.\u010a\u010a\"The\u0120harvest\u0120was\u0120good\u0120this\u0120year.\"\u0120The\u0120key\u0120parts\u0120here\u0120are\u0120\"harvest,\"\u0120\"good,\"\u0120and\u0120\"this\u0120year.\"\u0120In\u0120Irish,\u0120\"harvest\"\u0120is\u0120\"f\u00c3\u00b3mhar\"\u0120which\u0120means\u0120good\u0120or\u0120abundant.\u0120\"Good\"\u0120in\u0120Irish\u0120is\u0120\"mhaith\"\u0120or\u0120\"bunaithe.\"\u0120\"This\u0120year\"\u0120translates\u0120to\u0120\"i\u0120n-aois\u0120\u00c3\u00a9\u0120seo\"\u0120or\u0120\"i\u0120ngearra\u0120\u00c3\u00a9\u0120seo.\"\u0120Wait,\u0120no,\u0120\"this\u0120year\"\u0120is\u0120more\u0120accurately\u0120\"i\u0120ngearra\"\u0120or\u0120\"i\u0120ngar\"\u0120but\u0120I\u0120think\u0120\"i\u0120ngearra\"\u0120is\u0120more\u0120common.\u0120\u010a\u010aPutting\u0120it\u0120together,\u0120\"The\u0120harvest\u0120was\u0120good\u0120this\u0120year.\"\u0120would\u0120be\u0120\"Tha\u0120an\u0120f\u00c3\u00b3mhar\u0120mhaith\u0120i\u0120ngearra.\"\u0120That\u0120sounds\u0120natural.\u0120Let\u0120me\u0120double-check\u0120the\u0120grammar.\u0120\"Tha\"\u0120is\u0120the\u0120verb\u0120\"is\"\u0120in\u0120Irish,\u0120\"an\"\u0120is\u0120the\u0120article,\u0120\"f\u00c3\u00b3mhar\"\u0120is\u0120harvest,\u0120\"mhaith\"\u0120is\u0120good,\u0120and\u0120\"i\u0120ngearra\"\u0120is\u0120this\u0120year.\u0120Yeah,\u0120that\u0120seems\u0120correct.\u0120I\u0120don't\u0120think\u0120I",
+          "response_sha256": "a6f41679de4f8b3c90e1e8f3e9e85785e22f0fd1c02b4b07c6b43109cef9a67a",
+          "cache_key": "77b5adaf63480ad175647c7d2f97da31838af975585671bc8d89afb47dda87f8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0002",
+          "reply": "\u010a\u010aT\u00c3\u00a1\u0120an-chothainn\u0120go\u0120dt\u00c3\u0143\u0120an\u0120bank.",
+          "response_sha256": "89cac7a3785feacc89ea3c5252c5061fa3f722317bbfd39cc953fca0f4d6b5dc",
+          "cache_key": "67920bf361024f7ab2b729ef9c7463a504ad31c8bdf259df09550262db690a69",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 2,
+              "fluency": 2,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0003",
+          "reply": "\u010a\u010aTha\u0120an\u0120t\u00c3\u00a1bhachtach\u0120tuiscin\u0120leat.",
+          "response_sha256": "313d59d129cbb4b40250f3ba8b21ec488bd56a9017a5b67fd02de2bf410c1b2c",
+          "cache_key": "73e007f47d81da5e0a8c44e42ea64f2394865e8e6a06e9c1b8fe75802371b5cb",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 1,
+              "fluency": 1,
+              "grammar": 1,
+              "idiom": 1,
+              "task_fulfillment": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0004",
+          "reply": "\u010a\u010a\"I\u0120ate\u0120the\u0120bread.\"\u0120in\u0120natural\u0120Irish\u0120Gaelic\u0120is\u0120\"Thug\u0120me\u0120an\u0120ar\u00c3\u00a1n.\"\u0120However,\u0120using\u0120the\u0120verb\u0120\"\u00c3\u0143\"\u0120is\u0120more\u0120accurate\u0120for\u0120\"I\u0120ate,\"\u0120so\u0120the\u0120correct\u0120translation\u0120is\u0120\"\u00c3\u012f\u0120me\u0120an\u0120ar\u00c3\u00a1n.\"",
+          "response_sha256": "e47a6ef1b8171aea929f06d50a3b78eb1e279f67a6020dff98f89440c4d69ae0",
+          "cache_key": "c92550dcb98bbc3d8fa448047c6d11c18a615d5d7380cfdb9c4887ca2214fc3c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 1,
+              "fluency": 1,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 2
+            },
+            "overall": 1.4,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0005",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120translate\u0120the\u0120sentence\u0120\"You\u0120will\u0120buy\u0120the\u0120book\u0120today.\"\u0120into\u0120natural\u0120Irish\u0120Gaeilge.\u0120Let\u0120me\u0120think\u0120about\u0120how\u0120to\u0120approach\u0120this.\u010a\u010aFirst,\u0120I\u0120should\u0120consider\u0120the\u0120structure\u0120of\u0120the\u0120sentence.\u0120It's\u0120a\u0120future\u0120action,\u0120so\u0120I'll\u0120need\u0120a\u0120verb\u0120in\u0120the\u0120future\u0120tense.\u0120In\u0120Irish,\u0120the\u0120future\u0120tense\u0120is\u0120formed\u0120by\u0120adding\u0120\"tabhair\"\u0120to\u0120the\u0120base\u0120form\u0120of\u0120the\u0120verb.\u0120For\u0120example,\u0120\"is\u0120tabhair\"\u0120means\u0120\"will\u0120be\"\u0120or\u0120\"shall\u0120be.\"\u010a\u010aNext,\u0120the\u0120subject\u0120is\u0120\"you,\"\u0120which\u0120in\u0120Irish\u0120is\u0120\"tu\"\u0120for\u0120singular\u0120and\u0120\"sib\"\u0120for\u0120plural.\u0120Since\u0120the\u0120original\u0120sentence\u0120is\u0120singular,\u0120I'll\u0120use\u0120\"tu.\"\u010a\u010aThe\u0120verb\u0120in\u0120the\u0120original\u0120is\u0120\"buy.\"\u0120In\u0120Irish,\u0120the\u0120verb\u0120\"to\u0120buy\"\u0120is\u0120\"maol.\"\u0120So,\u0120\"tu\u0120will\u0120buy\"\u0120becomes\u0120\"tu\u0120tabhair\u0120moal.\"\u010a\u010aNow,\u0120the\u0120time\u0120element\u0120is\u0120\"today.\"\u0120In\u0120Irish,\u0120\"today\"\u0120is\u0120\"inniu.\"\u0120So\u0120putting\u0120it\u0120all\u0120together,\u0120\"tu\u0120tabhair\u0120moal\u0120iniu\"\u0120means\u0120\"you\u0120will\u0120buy\u0120today.\"\u010a\u010aI\u0120should\u0120check\u0120if\u0120this\u0120makes\u0120sense.\u0120\"Tu\"\u0120is\u0120correct\u0120for\u0120singular\u0120\"you,\"\u0120\"tabhair\"\u0120for\u0120\"will,\"\u0120\"moal\"\u0120for\u0120\"buy,\"\u0120and\u0120\"inniu\"\u0120for\u0120\"today.\"\u0120That\u0120seems\u0120right.\u0120I\u0120don't\u0120think\u0120I\u0120need\u0120to\u0120add\u0120anything\u0120else\u0120because\u0120the\u0120sentence\u0120is\u0120straightforward.\u0120I\u0120should\u0120avoid\u0120any\u0120unnecessary\u0120words\u0120or\u0120explanations,\u0120just\u0120a\u0120single,\u0120natural\u0120Irish\u0120sentence",
+          "response_sha256": "c503c66eaec1a5219a7fa504f2b243de417714851e41bf6745e1b58ed7c0d0f6",
+          "cache_key": "7c019bad6f18eb091b91c2b65a512c057fce65c7ac53b525c1169685e1c7fa7a",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0006",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120translate\u0120\"I'm\u0120looking\u0120forward\u0120to\u0120the\u0120snow.\"\u0120into\u0120natural\u0120Irish.\u0120Hmm,\u0120let's\u0120see.\u0120First,\u0120the\u0120original\u0120sentence\u0120is\u0120pretty\u0120straightforward.\u0120\"I'm\u0120looking\u0120forward\u0120to\u0120the\u0120snow.\"\u0120In\u0120English,\u0120that's\u0120a\u0120common\u0120expression\u0120used\u0120when\u0120someone\u0120is\u0120excited\u0120about\u0120something\u0120happening,\u0120especially\u0120something\u0120like\u0120a\u0120snowfall\u0120which\u0120is\u0120a\u0120positive\u0120event.\u010a\u010aNow,\u0120translating\u0120this\u0120into\u0120Irish.\u0120I\u0120know\u0120that\u0120in\u0120Irish,\u0120the\u0120structure\u0120of\u0120sentences\u0120can\u0120be\u0120a\u0120bit\u0120different\u0120from\u0120English.\u0120They\u0120often\u0120use\u0120more\u0120idiomatic\u0120expressions.\u0120So,\u0120I\u0120shouldn't\u0120just\u0120translate\u0120word\u0120for\u0120word.\u0120Instead,\u0120I\u0120should\u0120find\u0120an\u0120equivalent\u0120expression\u0120that\u0120sounds\u0120natural\u0120to\u0120a\u0120native\u0120Irish\u0120speaker.\u010a\u010aLet\u0120me\u0120think\u0120about\u0120the\u0120structure.\u0120\"I'm\u0120looking\u0120forward\u0120to\"\u0120in\u0120English\u0120is\u0120a\u0120phrasal\u0120verb.\u0120In\u0120Irish,\u0120they\u0120might\u0120use\u0120a\u0120similar\u0120structure\u0120but\u0120with\u0120their\u0120own\u0120phrasing.\u0120Maybe\u0120something\u0120like\u0120\"T\u00c3\u00a1imid\"\u0120which\u0120means\u0120\"we\u0120are\"\u0120and\u0120then\u0120the\u0120verb\u0120in\u0120the\u0120infinitive.\u0120But\u0120wait,\u0120\"looking\u0120forward\u0120to\"\u0120is\u0120more\u0120of\u0120an\u0120adverb\u0120phrase.\u0120So\u0120perhaps\u0120\"T\u00c3\u00a1imid\u0120eir\u00c3\u0143the\"\u0120which\u0120means\u0120\"we\u0120are\u0120expecting\"\u0120or\u0120\"we\u0120look\u0120forward\u0120to.\"\u010a\u010aWait,\u0120\"eir\u00c3\u0143the\"\u0120is\u0120the\u0120past\u0120tense\u0120of\u0120\"eir\u00c3\u0143\"\u0120which\u0120means\u0120\"expect\"\u0120or\u0120\"look\u0120forward\u0120to.\"\u0120So\u0120\"T\u00c3\u00a1imid\u0120eir\u00c3\u0143the\u0120don\u0120bheann\"\u0120would\u0120be\u0120\"We\u0120are\u0120expecting\u0120the\u0120snow.\"\u0120That\u0120seems\u0120a\u0120bit\u0120formal.\u0120Maybe\u0120too\u0120formal?",
+          "response_sha256": "84265a0a92e38f3231948e309481231944944f8a2517c9fb66da76afd4b08072",
+          "cache_key": "b6af7b4b57fe0ee1e11b62ffcbddd8793dd21c1a91a381de701906f6897fb7be",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0007",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120translate\u0120the\u0120question\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120into\u0120natural\u0120Irish\u0120Gaeilge.\u0120Let\u0120me\u0120think\u0120about\u0120how\u0120to\u0120approach\u0120this.\u0120First,\u0120I\u0120should\u0120consider\u0120the\u0120structure\u0120of\u0120the\u0120question.\u0120In\u0120English,\u0120it's\u0120a\u0120straightforward\u0120question,\u0120but\u0120in\u0120Irish,\u0120I\u0120need\u0120to\u0120make\u0120sure\u0120the\u0120grammar\u0120and\u0120syntax\u0120are\u0120correct.\u010a\u010aThe\u0120original\u0120task\u0120was\u0120to\u0120translate\u0120\"Doesshehavemoney?\"\u0120but\u0120I\u0120notice\u0120a\u0120typo.\u0120It\u0120should\u0120be\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120So\u0120the\u0120correct\u0120translation\u0120would\u0120be\u0120\"T\u00c3\u00a1\u0120s\u00c3\u00a9\u0120caoghnartha\u0120aici\u0120inniu?\"\u0120Wait,\u0120no,\u0120that\u0120doesn't\u0120sound\u0120right.\u0120Let\u0120me\u0120break\u0120it\u0120down.\u010a\u010aIn\u0120Irish,\u0120the\u0120question\u0120would\u0120start\u0120with\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120So\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120translates\u0120to\u0120\"T\u00c3\u00a1\u0120s\u00c3\u00a9\u0120caoghnartha\u0120aici\u0120inniu?\"\u0120Hmm,\u0120but\u0120that\u0120doesn't\u0120seem\u0120quite\u0120right.\u0120Maybe\u0120I\u0120should\u0120use\u0120the\u0120verb\u0120\"has\"\u0120instead\u0120of\u0120\"have\"\u0120since\u0120it's\u0120singular.\u0120So\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120would\u0120be\u0120\"T\u00c3\u00a1\u0120s\u00c3\u00a9\u0120caoghnartha\u0120aici\u0120inniu?\"\u0120Wait,\u0120no,\u0120that's\u0120not\u0120correct.\u0120Let\u0120me\u0120think\u0120again.\u010a\u010aIn\u0120Irish,\u0120the\u0120structure\u0120for\u0120questions\u0120is\u0120a\u0120bit\u0120different.\u0120\"Does\u0120she\u0120have\u0120money?\"\u0120is\u0120\"T\u00c3\u00a1\u0120s\u00c3\u00a9\u0120caoghnartha\u0120aici\u0120inniu?\"\u0120No,\u0120that's\u0120not\u0120right.\u0120Maybe\u0120I\u0120should\u0120use\u0120\"Ba\u0120mhaith\"\u0120as\u0120a\u0120negative.\u0120Wait,\u0120\"Does\u0120she\u0120have\u0120money?\"",
+          "response_sha256": "e82ab9b95fe3b32dd142f704dd228e957eea70aeeacd96160f1cd2408819118c",
+          "cache_key": "e6591d5b25a72190217a9571ae96f9607c88c84f364022f82ba989c5ef35f323",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0008",
+          "reply": "\u010a\u010aT\u00c3\u00a1\u0120me\u0120thither\u0120siopa.",
+          "response_sha256": "4245ffbdf9f709bcc6af1ccb5fd28ade3eae4c0878ca27af3b22780e4e6a3d03",
+          "cache_key": "b408b8341cbddfdd6e0342ac0332e08c42ffc5ae19810a6615a8256946df91fd",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 3,
+              "fluency": 2,
+              "grammar": 2,
+              "idiom": 1,
+              "task_fulfillment": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0009",
+          "reply": "\u010aOkay,\u0120so\u0120I'm\u0120trying\u0120to\u0120figure\u0120out\u0120the\u0120answer\u0120to\u0120this\u0120Irish\u0120comprehension\u0120question.\u0120The\u0120task\u0120is\u0120to\u0120translate\u0120the\u0120given\u0120English\u0120sentence\u0120into\u0120Irish.\u0120The\u0120sentence\u0120provided\u0120is:\u0120\"Bh\u00c3\u00a1nearc\u0120hifneall\u0120an\u0120bheann\u00c3\u00a1n.\"\u0120I\u0120need\u0120to\u0120understand\u0120what\u0120this\u0120means\u0120and\u0120then\u0120provide\u0120the\u0120correct\u0120translation.\u010a\u010aFirst,\u0120I'll\u0120break\u0120down\u0120the\u0120sentence.\u0120\"Bh\u00c3\u00a1nearc\u0120hifneall\u0120an\u0120bheann\u00c3\u00a1n.\"\u0120Let's\u0120look\u0120at\u0120each\u0120part:\u010a\u010a-\u0120\"Bh\u00c3\u00a1nearc\":\u0120I\u0120think\u0120this\u0120is\u0120the\u0120word\u0120\"b\u00c3\u00a1nearc.\"\u0120In\u0120Irish,\u0120\"b\u00c3\u00a1n\"\u0120means\u0120\"b\u00c3\u00a1n\"\u0120which\u0120is\u0120like\u0120\"b\u00c3\u00a1n\"\u0120in\u0120English,\u0120but\u0120I'm\u0120not\u0120sure.\u0120Wait,\u0120no,\u0120\"b\u00c3\u00a1n\"\u0120is\u0120actually\u0120the\u0120Irish\u0120word\u0120for\u0120\"b\u00c3\u00a1n,\"\u0120which\u0120is\u0120similar\u0120to\u0120\"b\u00c3\u00a1n\"\u0120in\u0120English,\u0120but\u0120I\u0120think\u0120it's\u0120more\u0120like\u0120\"b\u00c3\u00a1n\"\u0120as\u0120in\u0120\"b\u00c3\u00a1n\"\u0120meaning\u0120\"b\u00c3\u00a1n\"\u0120or\u0120\"b\u00c3\u00a1n\"\u0120as\u0120in\u0120\"b\u00c3\u00a1n\"\u0120which\u0120is\u0120a\u0120type\u0120of\u0120flour.\u0120Wait,\u0120maybe\u0120I'm\u0120overcomplicating.\u0120Let\u0120me\u0120think\u0120again.\u0120\"B\u00c3\u00a1n\"\u0120in\u0120Irish\u0120is\u0120actually\u0120the\u0120word\u0120for\u0120\"b\u00c3\u00a1n,\"\u0120which\u0120is\u0120like\u0120\"b\u00c3\u00a1n\"\u0120in\u0120English,\u0120but\u0120I'm\u0120not\u0120sure.\u0120Maybe\u0120it's\u0120better\u0120to\u0120look\u0120at\u0120the\u0120entire\u0120sentence\u0120structure.\u010a\u010a-\u0120\"hifneall\":\u0120This\u0120looks\u0120like\u0120\"hifneall.\"\u0120I\u0120think\u0120this\u0120is\u0120the\u0120word\u0120\"hifneall\"",
+          "response_sha256": "e37dc290b3eb9c19586ae2c84f0f720cad9669418adf54c816eabbd52ca6e549",
+          "cache_key": "7eeeaf214b66ef650c6f14f59a17c27cc643ed27e439d52c4e5c54f5436f26ba",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "gaeilge-0010",
+          "reply": "\u010aOkay,\u0120so\u0120I\u0120need\u0120to\u0120figure\u0120out\u0120how\u0120to\u0120respond\u0120to\u0120this\u0120task.\u0120The\u0120task\u0120is\u0120to\u0120transform\u0120the\u0120English\u0120sentence\u0120\"Natalie\u0120is\u0120a\u0120teacher\"\u0120into\u0120Irish.\u0120I'm\u0120a\u0120bit\u0120new\u0120to\u0120this,\u0120so\u0120I'll\u0120take\u0120it\u0120step\u0120by\u0120step.\u010a\u010aFirst,\u0120I\u0120know\u0120that\u0120in\u0120Irish,\u0120the\u0120structure\u0120of\u0120sentences\u0120can\u0120be\u0120a\u0120bit\u0120different\u0120from\u0120English.\u0120I\u0120remember\u0120that\u0120the\u0120typical\u0120word\u0120order\u0120is\u0120Subject-Verb-Object\u0120(SVO)\u0120instead\u0120of\u0120Subject-Verb-Object\u0120(SVO)\u0120like\u0120in\u0120English.\u0120Wait,\u0120no,\u0120actually,\u0120in\u0120English\u0120it's\u0120Subject-Verb-Object\u0120(SVO),\u0120and\u0120in\u0120Irish,\u0120it's\u0120also\u0120SVO.\u0120Hmm,\u0120maybe\u0120I\u0120got\u0120that\u0120wrong.\u0120Let\u0120me\u0120double-check.\u010a\u010aWait,\u0120no,\u0120I\u0120think\u0120I\u0120confused\u0120it.\u0120In\u0120English,\u0120it's\u0120Subject-Verb-Object,\u0120and\u0120in\u0120Irish,\u0120it's\u0120also\u0120Subject-Verb-Object.\u0120So\u0120the\u0120structure\u0120is\u0120the\u0120same.\u0120But\u0120I\u0120think\u0120the\u0120difference\u0120is\u0120more\u0120about\u0120the\u0120grammar\u0120rules\u0120rather\u0120than\u0120the\u0120order.\u0120Maybe\u0120I\u0120should\u0120focus\u0120on\u0120the\u0120specific\u0120words\u0120and\u0120their\u0120Irish\u0120equivalents.\u010a\u010aThe\u0120given\u0120sentence\u0120is\u0120\"Natalie\u0120is\u0120a\u0120teacher.\"\u0120So,\u0120\"Natalie\"\u0120is\u0120the\u0120subject,\u0120\"is\"\u0120is\u0120the\u0120verb,\u0120and\u0120\"teacher\"\u0120is\u0120the\u0120object.\u0120In\u0120Irish,\u0120\"is\"\u0120is\u0120the\u0120same\u0120as\u0120in\u0120English,\u0120right?\u0120Or\u0120is\u0120there\u0120a\u0120different\u0120word\u0120for\u0120\"is\"?\u0120Wait,\u0120in\u0120Irish,\u0120\"is\"\u0120is\u0120\"is\"\u0120in\u0120English,\u0120but\u0120sometimes\u0120\"am\"\u0120is",
+          "response_sha256": "146b612d681c4dee1377800fe9b868f3dd297ca703ae95c0472252e004f09bc9",
+          "cache_key": "54e2b12d163100707a30a40c221731d028353606bfaaa1cdc451ca2a69828211",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "english_leakage": 0,
+              "fluency": 0,
+              "grammar": 0,
+              "idiom": 0,
+              "task_fulfillment": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "gaeilge__DeepSeek_R1_Distill_Llama_8B_4bit"
+      ],
+      "candidate": {
+        "model_id": "DeepSeek-R1-Distill-Llama-8B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit@http://localhost:8000/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 108.04212379455566,
+  "cost": {
+    "calls": 60,
+    "prompt_tokens": 33461,
+    "completion_tokens": 5905,
+    "usd": 0.0
+  }
+}

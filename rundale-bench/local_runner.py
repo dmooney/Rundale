@@ -24,7 +24,6 @@ Run::
     .venv-mlx/bin/python3 rundale-bench/local_runner.py \\
         --candidates Qwen3-1.7B-4bit,Qwen3-4B-4bit --slice all
 """
-
 from __future__ import annotations
 
 import argparse
@@ -36,12 +35,12 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-
-import tomllib
+from typing import Optional
 
 try:
     import psutil
@@ -131,7 +130,7 @@ class RamSampler:
         self._samples = 0
         self._thread = threading.Thread(target=self._loop, daemon=True)
 
-    def _process_memory(self, p: psutil.Process) -> int:
+    def _process_memory(self, p: "psutil.Process") -> int:
         """Memory bytes for one process, preferring `phys_footprint` on macOS.
 
         On Apple Silicon, Metal GPU allocations land in `phys_footprint`
@@ -180,15 +179,12 @@ def spawn_server(hf_repo: str, port: int, log_path: Path) -> subprocess.Popen:
     """Launch mlx_lm.server. Log to `log_path`. Returns the Popen handle."""
     if not _MLX_SERVER.exists():
         raise RuntimeError(f"mlx_lm.server missing at {_MLX_SERVER}; install mlx-lm in .venv-mlx")
-    log_fh = open(log_path, "wb")  # noqa: SIM115 -- fd passed to Popen stdout; OS keeps it open for the subprocess lifetime
+    log_fh = open(log_path, "wb")
     cmd = [
         str(_MLX_SERVER),
-        "--model",
-        hf_repo,
-        "--host",
-        "127.0.0.1",
-        "--port",
-        str(port),
+        "--model", hf_repo,
+        "--host", "127.0.0.1",
+        "--port", str(port),
     ]
     proc = subprocess.Popen(
         cmd,
@@ -215,32 +211,28 @@ def run_bench_subproc(
     slice_name: str,
     judge: str,
     split: str,
-    limit: int | None,
+    limit: Optional[int],
     log_path: Path,
 ) -> tuple[int, dict]:
     """Invoke rundale_bench.py and parse the JSON output it writes."""
     args = [
-        sys.executable,
-        str(_BENCH_PY),
-        "--target",
-        target_spec,
-        "--slice",
-        slice_name,
-        "--judge",
-        judge,
-        "--split",
-        split,
+        sys.executable, str(_BENCH_PY),
+        "--target", target_spec,
+        "--slice", slice_name,
+        "--judge", judge,
+        "--split", split,
     ]
     if limit is not None:
         args += ["--limit", str(limit)]
+    log_fh = open(log_path, "ab")
     started = time.time()
-    with open(log_path, "ab") as log_fh:
-        rc = subprocess.call(args, stdout=log_fh, stderr=subprocess.STDOUT)
+    rc = subprocess.call(args, stdout=log_fh, stderr=subprocess.STDOUT)
+    log_fh.close()
     elapsed = time.time() - started
     return rc, {"elapsed_s": elapsed, "rc": rc}
 
 
-def latest_bench_run(slice_name: str, model_slug: str, since_ts: float) -> Path | None:
+def latest_bench_run(slice_name: str, model_slug: str, since_ts: float) -> Optional[Path]:
     """Return the most-recent run_<model_slug>_<slice>_*.json mtime > since_ts."""
     candidates = []
     for p in _ARTIFACTS_DIR.glob(f"run_{model_slug}_{slice_name}_*.json"):
@@ -261,7 +253,7 @@ def parse_candidates(path: Path) -> list[dict]:
     return data.get("candidate", [])
 
 
-def fitness_check(cand: dict, available_gb: float, headroom_gb: float) -> str | None:
+def fitness_check(cand: dict, available_gb: float, headroom_gb: float) -> Optional[str]:
     est = float(cand.get("peak_ram_gb_est", 0.0))
     if est > available_gb - headroom_gb:
         return f"est {est:.1f} GB > available {available_gb:.1f} GB minus {headroom_gb} GB headroom"
@@ -271,7 +263,9 @@ def fitness_check(cand: dict, available_gb: float, headroom_gb: float) -> str | 
 def append_leaderboard_row(row: dict) -> None:
     """Append a markdown row to leaderboard.md under the 'Local MLX sweeps' section."""
     header = "## Local MLX sweeps"
-    columns = "| Date (UTC) | hf_repo | slot | quant | params_B | peak_RAM_GB | slice | split | metric | $/run | judge | harness_sha |"
+    columns = (
+        "| Date (UTC) | hf_repo | slot | quant | params_B | peak_RAM_GB | slice | split | metric | $/run | judge | harness_sha |"
+    )
     sep = "|---|---|---|---|---|---|---|---|---|---|---|---|"
 
     body = _LEADERBOARD.read_text(encoding="utf-8") if _LEADERBOARD.exists() else ""
@@ -291,11 +285,7 @@ def append_leaderboard_row(row: dict) -> None:
 
 def harness_sha() -> str:
     try:
-        out = (
-            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=_REPO_ROOT)
-            .decode()
-            .strip()
-        )
+        out = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=_REPO_ROOT).decode().strip()
         return out
     except Exception:
         return "unknown"
@@ -306,56 +296,59 @@ def available_memory_gb() -> float:
 
 
 def metric_from_summary(summary: dict) -> str:
-    """Compact one-cell metric for the leaderboard row, per slice family."""
+    """Compact one-cell metric for the leaderboard row, per slice family.
+
+    Bundled-judge slices (reaction, tier2-sim, tier3-sim, gaeilge) return
+    None for score fields when their pending_judge flag is set. Coalesce
+    None → 0 so the format string below doesn't TypeError mid-sweep.
+    """
+    def _f(key: str, default: float = 0.0) -> float:
+        v = summary.get(key, default)
+        return v if v is not None else default
+
     s = summary.get("slice")
     if s == "intent":
-        return f"label_match={summary.get('label_match_rate', 0):.3f}"
+        return f"label_match={_f('label_match_rate'):.3f}"
     if s == "dialogue":
         return (
-            f"overall={summary.get('overall', 0):.2f} "
-            f"(c={summary.get('character', 0):.1f}/"
-            f"a={summary.get('authenticity', 0):.1f}/"
-            f"l={summary.get('language', 0):.1f}/"
-            f"r={summary.get('responsiveness', 0):.1f}/"
-            f"cr={summary.get('craft', 0):.1f})"
+            f"overall={_f('overall'):.2f} "
+            f"(c={_f('character'):.1f}/"
+            f"a={_f('authenticity'):.1f}/"
+            f"l={_f('language'):.1f}/"
+            f"r={_f('responsiveness'):.1f}/"
+            f"cr={_f('craft'):.1f})"
         )
     if s == "reaction":
-        return f"mean_in_character={summary.get('mean_score', 0):.2f}"
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
+        return f"mean_in_character={_f('mean_score'):.2f}{pending}"
     if s in ("tier2-sim", "tier3-sim"):
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
         return (
-            f"schema_valid={summary.get('schema_valid_rate', 0):.2f} "
-            f"plausibility={summary.get('mean_score', 0):.2f}"
+            f"schema_valid={_f('schema_valid_rate'):.2f} "
+            f"plausibility={_f('mean_score'):.2f}{pending}"
         )
+    if s == "gaeilge":
+        pending = " (pending_judge)" if summary.get("pending_judge") else ""
+        return f"gaeilge_overall={_f('overall'):.2f}{pending}"
     return "n/a"
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--slot", default=None, choices=["tiny", "large"], help="filter to one slot")
-    ap.add_argument(
-        "--candidates",
-        default=None,
-        help="comma-separated short names (last segment of hf_repo) to include; default = all in slot",
-    )
-    ap.add_argument(
-        "--slice",
-        default="dialogue",
-        choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"],
-    )
+    ap.add_argument("--candidates", default=None,
+                    help="comma-separated short names (last segment of hf_repo) to include; default = all in slot")
+    ap.add_argument("--slice", default="dialogue",
+                    choices=["intent", "dialogue", "reaction", "tier2-sim", "tier3-sim", "all"])
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
     ap.add_argument("--limit", type=int, default=10, help="prompts per slice")
-    ap.add_argument("--judge", default="judge_v1")
-    ap.add_argument(
-        "--headroom-gb",
-        type=float,
-        default=4.0,
-        help="GB of unified memory to leave free for OS/other apps",
-    )
-    ap.add_argument(
-        "--dry-run", action="store_true", help="print the plan without spawning servers"
-    )
+    ap.add_argument("--judge", default="judge_sonnet_v1",
+                    help="judge config id; Sonnet-subagent ONLY (judge_v1 + other "
+                         "HTTP-API configs are refused at load time).")
+    ap.add_argument("--headroom-gb", type=float, default=4.0,
+                    help="GB of unified memory to leave free for OS/other apps")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print the plan without spawning servers")
     args = ap.parse_args()
 
     if not _MLX_SERVER.exists():
@@ -462,9 +455,7 @@ def main() -> None:
                 }
                 append_leaderboard_row(row)
                 summary_log.append(row)
-                print(
-                    f"[done] {s}: {row['metric']}  peak_ram={row['peak_ram_gb']:.2f} GB  ${row['cost_usd']:.4f}"
-                )
+                print(f"[done] {s}: {row['metric']}  peak_ram={row['peak_ram_gb']:.2f} GB  ${row['cost_usd']:.4f}")
 
             sampler.stop()
         finally:
@@ -472,24 +463,17 @@ def main() -> None:
             print(f"[server] stopped ({c['hf_repo']})")
 
     out_path = _ARTIFACTS_DIR / f"local_{utc_stamp()}.json"
-    out_path.write_text(
-        json.dumps(
-            {
-                "host": {
-                    "platform": sys.platform,
-                    "memory_gb": avail_gb,
-                },
-                "harness_sha": sha,
-                "split": args.split,
-                "limit": args.limit,
-                "judge": args.judge,
-                "rows": summary_log,
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    out_path.write_text(json.dumps({
+        "host": {
+            "platform": sys.platform,
+            "memory_gb": avail_gb,
+        },
+        "harness_sha": sha,
+        "split": args.split,
+        "limit": args.limit,
+        "judge": args.judge,
+        "rows": summary_log,
+    }, indent=2) + "\n", encoding="utf-8")
     print(f"\nwrote {out_path.relative_to(_REPO_ROOT)}")
 
 

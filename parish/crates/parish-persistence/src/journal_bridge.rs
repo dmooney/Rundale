@@ -147,6 +147,7 @@ mod tests {
         let event = GameEvent::FestivalStarted {
             name: "May Day".to_string(),
             timestamp: test_time(),
+            location: None,
         };
         assert!(to_journal_event(&event).is_none());
     }
@@ -176,6 +177,7 @@ mod tests {
         bus.publish(GameEvent::FestivalStarted {
             name: "test".to_string(),
             timestamp: test_time(),
+            location: None,
         });
         bus.publish(GameEvent::WeatherChanged {
             new_weather: "Rain".to_string(),

@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/OLMo-2-1124-13B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T22:54:51.699330+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 8,
+        "bench_bugs": 2,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.2,
+        "mean_score": 3.375,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"content\", \"activity_summary\": \"Served locals with his finest pint, engaging in lively conversations, no move\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"tired\", \"activity_summary\": \"Served drinks, chatted with Father Cathal, moved to the back of the pub\", \"new_location\": \"1\", \"relationship_changes\": [{\"from\": \"2\", \"to\": \"1\", \"delta\": 0.05}]}, {\"npc_id\": \"3\", \"mood\": \"hungry\", \"activity_summary\": \"Harvested crops, paused for a meal, no move\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"4\", \"mood\": \"restless\", \"activity_summary\": \"Told stories to Sean, moved to the nearby lane\", \"new_location\": \"5\", \"relationship_changes\": [{\"from\": \"4\", \"to\": \"3\", \"delta\": 0.1}]}, {\"npc_id\": \"5\", \"mood\": \"focused\", \"activity_summary\": \"Tended to a sick child, no move\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"6\", \"mood\": \"contemplative\", \"activity_summary\": \"Prayed and read scriptures, no move\", \"new_location\": null, \"relationship_changes\": []}] }",
+          "schema_valid": false,
+          "response_sha256": "b112101ea01495cb993780f748c05fb2d93292f7911de8dbaf5c642e2fcae731",
+          "cache_key": "e526ca5bc6bd330406c2f2989459d1b29dceec8fee87ea2abefb5a14d051c81d",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"content\", \"activity_summary\": \"Padraig Darcy, the publican, spent his afternoon organizing his pub, ensuring everything was in perfect order for the evening crowds. He remained at Darcy's Pub, his even-tempered demeanor bringing a sense of calm to the establishment. No notable relationship shifts.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"tired\", \"activity_summary\": \"Niamh Darcy, the barmaid, served drinks with a quick-witted smile, despite her tiredness. She remained at Darcy's Pub, ensuring her customers were well taken care of. A small moment of camaraderie with Father Cathal, sharing a laugh, slightly improved their relationship, delta: 0.05.\", \"new_location\": null, \"relationship_changes\": [{\"from\": \"2\", \"to\": \"5\", \"delta\": 0.05}]}, {\"npc_id\": \"3\", \"mood\": \"hungry\", \"activity_summary\": \"Sean Murphy, the farmer, worked at the bog, his plain-spoken nature evident in his straightforward approach to his work. He moved to Darcy's Pub, famished, seeking a meal. His encounter with Tommy Maguire, reminiscing about old times, slightly warmed their relationship, delta: 0.03.\", \"new_location\": \"1\", \"relationship_changes\": [{\"from\": \"3\", \"to\": \"4\", \"delta\": 0.03}]}, {\"npc_id\": \"4\", \"mood\": \"restless\", \"activity_summary\": \"Tommy Maguire, the restless farmer, found himself at the crossroads, his storyteller spirit weaving tales for any passerby. He moved to Darcy's Pub, sharing his colorful stories, which entertained many, including Father Cathal, slightly improving his rapport with the community, delta: 0.04 across various interactions.\", \"new_location\": \"1\", \"relationship_changes\": [{\"from\": \"4\", \"to\": \"1\", \"delta\": 0.04}, {\"from\": \"4\", \"to\": \"2\", \"delta\": 0.02}, {\"from\": \"4\", \"to\": \"5\", \"delta\": 0.01}]}, {\"npc_id\": \"5\", \"mood\": \"focused\", \"activity_summary\": \"Brigid O'Brien, the midwife, continued her work at her cottage, her kind and direct manner ensuring she attended to her patients with utmost care. She remained at her cottage, deeply focused on her duties. A visit from Father Cathal, seeking her advice, slightly enhanced their mutual respect, delta: 0.1.\", \"new_location\": null, \"",
+          "schema_valid": false,
+          "response_sha256": "b5367adb8cbb075ab5e792622951a6fcaa9135dabbca5d01344cc5be252f4e3c",
+          "cache_key": "1127b6cc25bdbfc0262abe743847e98c03f0d218ef0569fc528c495e20e7d48f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"content\", \"activity_summary\": \"Padraig Darcy, enjoying the good news, shared cheerful anecdotes with his patrons, enhancing his reputation as a beloved publican. He remained at Darcy's Pub. No relationship shifts.\"}, {\"npc_id\": \"2\", \"mood\": \"tired\", \"activity_summary\": \"Niamh Darcy, despite her tiredness, served drinks with her quick-witted charm, which lifted her mood slightly. She stayed at Darcy's Pub. No relationship shifts.\"}, {\"npc_id\": \"3\", \"mood\": \"hungry\", \"activity_summary\": \"Sean Murphy, feeling his stomach rumble, decided to leave the bog and head towards Darcy's Pub, hoping for a meal. He moved to Darcy's Pub. No relationship shifts.\"}, {\"npc_id\": \"4\", \"mood\": \"restless\", \"activity_summary\": \"Tommy Maguire, his storyteller spirit stirred by the good news, began weaving tales for anyone who paused at the crossroads, bringing smiles and a momentary escape from daily worries. He stayed at the crossroads. No relationship shifts.\"}, {\"npc_id\": \"5\", \"mood\": \"focused\", \"activity_summary\": \"Brigid O'Brien, deeply focused on her work, continued her midwifery duties, helping a nearby family, her direct kindness bringing comfort. She remained at her cottage. No relationship shifts.\"}, {\"npc_id\": \"6\", \"mood\": \"contemplative\", \"activity_summary\": \"Father Cathal, in his moment of contemplation, delivered a sermon infused with eloquence and severity, touching on the importance of community and good news, enhancing his standing among the parishioners. He stayed at the church. No relationship shifts.\"]}]",
+          "schema_valid": false,
+          "response_sha256": "26bacc8ecb778805c26fff31613d6665347494b66926507e9d712f094de9814c",
+          "cache_key": "2469ea9047f96351a4167f6fb78303ecf417fbb7725805b84cdbdf2c5c021679",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "{\"updates\":[{\"npc_id\":1,\"mood\":\"tired\",\"activity_summary\":\"Working at the forge, shaping horseshoes\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":2,\"mood\":\"patient\",\"activity_summary\":\"Teaching his class, emphasizing arithmetic\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":3,\"mood\":\"grieving\",\"activity_summary\":\"Sitting by the window, staring at the frost\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":4,\"mood\":\"distracted\",\"activity_summary\":\"Struggling to focus on his lessons, daydreaming about his father\",\"new_location\":2,\"relationship_changes\":[{\"from\":3,\"to\":2,\"delta\":0.05}]}]}",
+          "schema_valid": true,
+          "response_sha256": "5a4b9a80fd2a4b086fb80949143351f529299e4321745f74c060d1f5f9bbfa87",
+          "cache_key": "ca2ce375717da3efcc7d66b29b887c88b2c030ac375e738c58eaf4e4913ce1b0",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"tired\", \"activity_summary\": \"At the forge, shaping horseshoes, his work slow and methodical.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"patient\", \"activity_summary\": \"Teaching his class, using his Galway education to explain complex concepts.\", \"new_location\": null, \"relationship_changes\": [{\"from\": \"2\", \"to\": \"1\", \"delta\": 0.05}]}], {\"npc_id\": \"3\", \"mood\": \"grieving\", \"activity_summary\": \"Sitting by the window, staring out at the frost, lost in memories of her son.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"4\", \"mood\": \"distracted\", \"activity_summary\": \"At the schoolhouse, struggling to focus on his lessons, his mind often wandering.\", \"new_location\": \"3\", \"relationship_changes\": [{\"from\": \"2\", \"to\": \"3\", \"delta\": 0.1]}], {\"npc_id\": \"1\", \"mood\": \"tired\", \"activity_summary\": \"Continued working at the forge, his movements slower, his thoughts on last night's quarrel.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"slightly irritated\", \"activity_summary\": \"Noticed Eamon's absence, concerned, walks to Widow Kelleher's cottage to check on him.\", \"new_location\": \"3\", \"relationship_changes\": [{\"from\": \"2\", \"to\": \"3\", \"delta\": 0.05]}\"}]}",
+          "schema_valid": false,
+          "response_sha256": "4f7dc3af541a719658562311a0016b562829efc1fe64bedd0d5639f913205069",
+          "cache_key": "9ab7692e4f5b1d30abccd2c491f7e21a4719e6c793847397ca2856057be37687",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "{\"updates\":[{\"npc_id\":1,\"mood\":\"tired\",\"activity_summary\":\"Working at the forge, shaping horseshoes\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":2,\"mood\":\"patient\",\"activity_summary\":\"Teaching his class, introducing new books from Galway\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":3,\"mood\":\"grieving\",\"activity_summary\":\"Staring out the window, reminiscing about her son\",\"new_location\":null,\"relationship_changes\":[]},{\"npc_id\":4,\"mood\":\"distracted\",\"activity_summary\":\"Struggling to focus on his lessons, daydreaming about his father\",\"new_location\":2,\"relationship_changes\":[{\"from\":3,\"to\":2,\"delta\":0.05}]}]}",
+          "schema_valid": true,
+          "response_sha256": "47b6b845eba14f6156d680fa4f37fe0eba02aa6f437489b27415ee06010f1a6f",
+          "cache_key": "d4d9e77b3e2c41594ee0aa5b69d50ddc7418d2e076fbd61cb418d7bddc897821",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 2
+            },
+            "overall": 2.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"weary\", \"activity_summary\": \"Conor rested briefly under a large oak, contemplating his day's work. He didn't move, his spirit dampened slightly by fatigue.\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"hopeful\", \"activity_summary\": \"Padraig, seeing his older brother's exhaustion, tried to lift his spirits, suggesting they might have a good haul tomorrow. He moved to sit beside Conor, his mood lifting slightly.\", \"new_location\": \"lakeshore\", \"relationship_changes\": [{\"from\": \"1\", \"to\": \"2\", \"delta\": 0.05}]}, {\"npc_id\": \"3\", \"mood\": \"anxious\", \"activity_summary\": \"Maire paced inside her cottage, her hands often resting on her belly, her worry escalating slightly.\", \"new_location\": \"cottage\", \"relationship_changes\": []}, {\"npc_id\": \"4\", \"mood\": \"attentive\", \"activity_summary\": \"Brigid, having completed her weekly check, reassured Maire, helping to ease her anxiety slightly. She then left to continue her rounds, moving towards the next cottage.\", \"new_location\": \"next_cottage\", \"relationship_changes\": []}, {\"npc_id\": \"5\", \"mood\": \"loose-tongued\", \"activity_summary\": \"Tommy, having had three pints, continued his lively conversations, his mood buoyant and his stories louder, moving to a more central spot in the pub.\", \"new_location\": \"central_spot_in_pub\", \"relationship_changes\": []}] }",
+          "schema_valid": false,
+          "response_sha256": "ee180dfe88acac3b65a22eeaddb052b32f1f817bba683f73b26617f4d012797a",
+          "cache_key": "1024f61846df75ce3cdc6a3235f699df7c1ab2813c44a56e2fd96a3d6cff3d50",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"weary\", \"activity_summary\": \"Conor rested under a large oak, contemplating his day's work. He didn't move, his spirit lifted slightly by the good news. No relationship changes.\"}, {\"npc_id\": \"2\", \"mood\": \"hopeful\", \"activity_summary\": \"Padraig caught a glimpse of a rainbow, his heart buoyant. He moved to join his brother, sharing his joy. No relationship changes.\"}, {\"npc_id\": \"3\", \"mood\": \"anxious\", \"activity_summary\": \"Maire paced her cottage, knitting anxiously. She didned move far, but her spirits lifted slightly with Brigid's comforting presence. No relationship changes.\", \"new_location\": \"4\"}, {\"npc_id\": \"4\", \"mood\": \"attentive\", \"activity_summary\": \"Brigid examined Maire, offering reassurance. She moved to Maire's cottage, bringing comfort. No relationship changes.\", \"new_location\": \"3\"}, {\"npc_id\": \"5\", \"mood\": \"loose-tongued\", \"activity_summary\": \"Tommy regaled his fellow pub-goers with tales, his spirits high. He didn't move, but his stories brought a smile to many faces. No relationship changes.\"}] }",
+          "schema_valid": false,
+          "response_sha256": "ffb5da579c09e9144d8fcb12f141b813745f1e1ef7ebabae2da5f326292ee09f",
+          "cache_key": "4a538636f0a90b4c7679dc649da0a4c1d5408ff406d7edbcda7bad4827d2886c",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"impatient\", \"activity_summary\": \"collecting rents\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"wary\", \"activity_summary\": \"discussing payment plan with a creditor\", \"new_location\": \"agent's office\", \"relationship_changes\": [{\"from\": \"1\", \"to\": \"2\", \"delta\": 0.05}]}, {\"npc_id\": \"3\", \"mood\": \"anxious\", \"activity_summary\": \"selling oats, offering a good deal\", \"new_location\": \"publican's pub\", \"relationship_changes\": []}, {\"npc_id\": \"4\", \"mood\": \"neutral\", \"activity_summary\": \"buying herbs, chatting with Father Cathal\", \"new_location\": \"marketplace\", \"relationship_changes\": [{\"from\": \"5\", \"to\": \"4\", \"delta\": 0.03}]}, {\"npc_id\": \"5\", \"mood\": \"watchful\", \"activity_summary\": \"preparing for Mass, greeting visitors\", \"new_location\": \"church\", \"relationship_changes\": []}, {\"npc_id\": \"6\", \"mood\": \"talkative\", \"activity_summary\": \"telling stories about his farm, attracting a small crowd\", \"new_location\": \"marketplace\", \"relationship_changes\": []}, {\"npc_id\": \"7\", \"mood\": \"wary\", \"activity_summary\": \"drinking quietly, keeping an eye on locals\", \"new_location\": \"inn\", \"relationship_changes\": []}] }",
+          "schema_valid": false,
+          "response_sha256": "25771344796385cb5099dc70765efdfdf3497185eec5000923cdb0713b3130e3",
+          "cache_key": "b07d23615b64b54477c5d63395d763c07b545928a3decfa13bf932896dafe7e7",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "{\"updates\": [{\"npc_id\": \"1\", \"mood\": \"impatient\", \"activity_summary\": \"collecting rents\", \"new_location\": null, \"relationship_changes\": []}, {\"npc_id\": \"2\", \"mood\": \"wary\", \"activity_summary\": \"discussing payment plan with a creditor\", \"new_location\": \"agent's office\", \"relationship_changes\": [{\"from\": \"1\", \"to\": \"2\", \"delta\": 0.05}]}, {\"npc_id\": \"3\", \"mood\": \"anxious\", \"activity_summary\": \"selling oats at a fair price\", \"new_location\": \"marketplace\", \"relationship_changes\": []}, {\"npc_id\": \"4\", \"mood\": \"neutral\", \"activity_summary\": \"buying herbs for her kit\", \"new_location\": \"marketplace\", \"relationship_changes\": []}, {\"npc_id\": \"5\", \"mood\": \"watchful\", \"activity_summary\": \"preparing for Mass\", \"new_location\": \"church\", \"relationship_changes\": []}, {\"npc_id\": \"6\", \"mood\": \"talkative\", \"activity_summary\": \"telling tales of his travels\", \"new_location\": \"marketplace\", \"relationship_changes\": [{\"from\": \"3\", \"to\": \"6\", \"delta\": 0.1}]}, {\"npc_id\": \"7\", \"mood\": \"wary\", \"activity_summary\": \"drinking quietly, keeping an eye on locals\", \"new_location\": \"inn\", \"relationship_changes\": []}] }",
+          "schema_valid": false,
+          "response_sha256": "8cb8a2a9d4c895fa30f3382c66c6b211a3aab14b43f1a2a217f203432570e9e7",
+          "cache_key": "1675b9ba3c61447e82ef5b38c14e677397ae2dbe2b2e35cbd31c8e8d287cb3c8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__OLMo_2_1124_13B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "OLMo-2-1124-13B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/OLMo-2-1124-13B-Instruct-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 112.73489689826965,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 3103,
+    "completion_tokens": 3476,
+    "usd": 0.0
+  }
+}

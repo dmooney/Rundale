@@ -52,11 +52,21 @@ use crate::state::{AppState, SaveState, SetupStatusSnapshot};
 
 /// `GET /api/world-snapshot` — returns the current world snapshot.
 pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> Json<WorldSnapshot> {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
-    snapshot.name_hints =
-        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let mut snapshot = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
+        snapshot.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        snapshot
+    };
+    // Surface whether an NPC turn is in flight so the web frontend can
+    // re-assert `streamingActive` from authoritative state after a WebSocket
+    // reconnect, instead of guessing and re-enabling input mid-turn (#1164).
+    // Acquire the conversation lock only after the world/npc_manager locks are
+    // released so this hot, reconnect-path endpoint never holds three locks at
+    // once.
+    snapshot.turn_in_flight = state.conversation.lock().await.conversation_in_progress;
     Json(snapshot)
 }
 
@@ -436,7 +446,7 @@ pub async fn submit_bug_report(
         None => None,
     };
 
-    let cfg = bug_report::GitHubBugConfig::from_env();
+    let cfg = bug_report::GitHubBugConfig::from_env_async().await;
     let bundle_root = state.saves_dir.join("bug-reports");
     let http = reqwest::Client::new();
     let result = bug_report::create_bug_report(
@@ -1939,6 +1949,38 @@ pub mod tests {
         )
     }
 
+    /// #1164 AC1: `GET /api/world-snapshot` (the endpoint the reconnect resync
+    /// re-fetches) must report `turn_in_flight` from the authoritative
+    /// conversation state so the web client can re-assert `streamingActive`
+    /// instead of clearing it mid-turn.
+    #[tokio::test]
+    async fn world_snapshot_reports_turn_in_flight_from_conversation_state() {
+        let state = test_app_state();
+
+        // Idle: no turn in flight.
+        let Json(idle) = super::get_world_snapshot(Extension(Arc::clone(&state))).await;
+        assert!(
+            !idle.turn_in_flight,
+            "expected turn_in_flight=false when idle"
+        );
+
+        // Simulate an NPC turn being processed.
+        state.conversation.lock().await.conversation_in_progress = true;
+        let Json(busy) = super::get_world_snapshot(Extension(Arc::clone(&state))).await;
+        assert!(
+            busy.turn_in_flight,
+            "expected turn_in_flight=true while a conversation turn is in flight"
+        );
+
+        // Turn finishes: signal clears again.
+        state.conversation.lock().await.conversation_in_progress = false;
+        let Json(done) = super::get_world_snapshot(Extension(Arc::clone(&state))).await;
+        assert!(
+            !done.turn_in_flight,
+            "expected turn_in_flight=false after the turn completes"
+        );
+    }
+
     async fn add_introduced_npc(state: &Arc<AppState>, id: u32, name: &str, occupation: &str) {
         let player_location = {
             let world = state.world.lock().await;
@@ -2188,6 +2230,106 @@ pub mod tests {
             "expected exactly one stream-end after a 2-turn dispatch, got {}",
             stream_end_count
         );
+
+        worker.abort();
+    }
+
+    /// #1164 AC2: every `stream-token` emitted for a player-initiated NPC
+    /// conversation turn must carry the same non-empty `message_id` as the
+    /// turn's `text-log` placeholder, so a stream that resumes after a
+    /// WebSocket reconnect can rebind to a reactable chat entry.
+    #[tokio::test]
+    async fn stream_tokens_carry_the_placeholder_message_id() {
+        let state = test_app_state();
+        add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+
+        let mut rx = state.event_bus.subscribe(&[]);
+
+        // A streaming worker: unlike `install_scripted_inference_queue`, this
+        // pushes tokens through `token_tx` so `stream-token` events are
+        // actually emitted (the scripted helper only sends the final response).
+        let (tx, mut req_rx) = mpsc::channel::<InferenceRequest>(8);
+        let (bg_tx, _bg_rx) = mpsc::channel::<InferenceRequest>(8);
+        let (batch_tx, _batch_rx) = mpsc::channel::<InferenceRequest>(8);
+        let worker = tokio::spawn(async move {
+            while let Some(request) = req_rx.recv().await {
+                if let Some(token_tx) = &request.token_tx {
+                    let _ = token_tx
+                        .send("Aye, the fair will be grand.".to_string())
+                        .await;
+                }
+                let _ = request.response_tx.send(InferenceResponse {
+                    id: request.id,
+                    text: r#"{"dialogue":"Aye, the fair will be grand.","action":"speaks","mood":"content"}"#
+                        .to_string(),
+                    error: None,
+                });
+            }
+        });
+        *state.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
+
+        handle_npc_conversation(
+            "What news is there?".to_string(),
+            vec!["Siobhan Murphy".to_string()],
+            &state,
+        )
+        .await;
+
+        // Collect the placeholder id (from the empty streaming text-log) and the
+        // ids carried by stream-token events for that turn.
+        let mut placeholder_id: Option<String> = None;
+        let mut placeholder_turn: Option<u64> = None;
+        let mut token_message_ids: Vec<(u64, Option<String>)> = Vec::new();
+        loop {
+            match rx.try_recv() {
+                Some(event) if event.event == "text-log" => {
+                    let p = &event.payload;
+                    if p.get("content").and_then(|v| v.as_str()) == Some("")
+                        && p.get("stream_turn_id").and_then(|v| v.as_u64()).is_some()
+                    {
+                        placeholder_turn = p.get("stream_turn_id").and_then(|v| v.as_u64());
+                        placeholder_id = p.get("id").and_then(|v| v.as_str()).map(str::to_string);
+                    }
+                }
+                Some(event) if event.event == "stream-token" => {
+                    let turn = event
+                        .payload
+                        .get("turn_id")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or_default();
+                    let mid = event
+                        .payload
+                        .get("message_id")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    token_message_ids.push((turn, mid));
+                }
+                Some(_) => {}
+                None => break,
+            }
+        }
+
+        let placeholder_id = placeholder_id.expect("expected a streaming text-log placeholder");
+        assert!(
+            !placeholder_id.is_empty(),
+            "placeholder id must be non-empty"
+        );
+        assert!(
+            !token_message_ids.is_empty(),
+            "expected at least one stream-token for the turn"
+        );
+        for (turn, mid) in &token_message_ids {
+            assert_eq!(
+                Some(*turn),
+                placeholder_turn,
+                "stream-token turn_id should match the placeholder's stream_turn_id"
+            );
+            assert_eq!(
+                mid.as_deref(),
+                Some(placeholder_id.as_str()),
+                "every stream-token must carry the placeholder's message_id (#1164)"
+            );
+        }
 
         worker.abort();
     }

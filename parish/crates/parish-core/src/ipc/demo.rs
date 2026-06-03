@@ -256,6 +256,7 @@ mod tests {
             speed_factor: 1.0,
             name_hints: vec![],
             day_of_week: "Wednesday".to_string(),
+            turn_in_flight: false,
         }
     }
 

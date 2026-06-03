@@ -1,12 +1,5 @@
-import { writable } from 'svelte/store';
-import type {
-	WorldSnapshot,
-	MapData,
-	NpcInfo,
-	LanguageHint,
-	TextLogEntry,
-	UiConfig,
-} from '$lib/types';
+import { writable, get } from 'svelte/store';
+import type { WorldSnapshot, MapData, NpcInfo, LanguageHint, TextLogEntry, UiConfig } from '$lib/types';
 
 export const worldState = writable<WorldSnapshot | null>(null);
 
@@ -40,11 +33,7 @@ function createLoadingColor() {
 	return {
 		subscribe: inner.subscribe,
 		set: (c: [number, number, number]) =>
-			inner.set([
-				clampChannel(c?.[0]),
-				clampChannel(c?.[1]),
-				clampChannel(c?.[2]),
-			]),
+			inner.set([clampChannel(c?.[0]), clampChannel(c?.[1]), clampChannel(c?.[2])]),
 	};
 }
 export const loadingColor = createLoadingColor();
@@ -61,7 +50,7 @@ export const uiConfig = writable<UiConfig>({
 	tile_sources: [],
 	auto_pause_timeout_seconds: 300,
 	app_icon_url: null,
-	favicon_url: null,
+	favicon_url: null
 });
 
 export const fullMapOpen = writable<boolean>(false);
@@ -89,6 +78,40 @@ export function syncFocailOnViewportChange(matches: boolean): void {
 export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
 
 /**
+ * Drops hint entries whose message is no longer present in `log`.
+ *
+ * `messageHints` is keyed by message id and was previously only ever added to
+ * (`finishNpcStream` calls `messageHints.set` on every NPC turn) with no
+ * eviction, so it grew without bound over a long session while the `textLog`
+ * it keys into is capped at MAX_TEXT_LOG_SIZE (audit finding H3). Pruning to
+ * the live log keeps it bounded by the same cap. Only notifies subscribers
+ * when something is actually removed, so it can be wired to every `textLog`
+ * change without churning `ChatPanel` reactivity.
+ */
+export function pruneMessageHints(log: TextLogEntry[]): void {
+	const current = get(messageHints);
+	if (current.size === 0) return;
+	const live = new Set<string>();
+	for (const entry of log) {
+		if (entry.id) live.add(entry.id);
+	}
+	let toDelete: string[] | null = null;
+	for (const key of current.keys()) {
+		if (!live.has(key)) (toDelete ??= []).push(key);
+	}
+	if (!toDelete) return;
+	messageHints.update((map) => {
+		for (const key of toDelete) map.delete(key);
+		return map;
+	});
+}
+
+// Keep messageHints bounded to messages still present in the log: every time
+// the log changes (including when trimTextLog drops old entries) prune the
+// orphaned hint keys. This is the single chokepoint for all trim sites.
+textLog.subscribe((log) => pruneMessageHints(log));
+
+/**
  * Appends a user-visible error entry to the text log.
  *
  * Used to surface failures from IPC calls or initial data loads that would
@@ -97,7 +120,7 @@ export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
  */
 export function pushErrorLog(content: string): void {
 	textLog.update((log) =>
-		trimTextLog([...log, { source: 'system', subtype: 'error', content }]),
+		trimTextLog([...log, { source: 'system', subtype: 'error', content }])
 	);
 }
 
@@ -109,11 +132,7 @@ export function formatIpcError(err: unknown): string {
 }
 
 /** Adds a reaction to a message in the text log by message ID. */
-export function addReaction(
-	messageId: string,
-	emoji: string,
-	source: string,
-): void {
+export function addReaction(messageId: string, emoji: string, source: string): void {
 	textLog.update((log) => {
 		return log.map((entry) => {
 			if (entry.id !== messageId) return entry;
@@ -140,16 +159,12 @@ export function addReaction(
  * while an NPC's 😊 already exists doesn't accidentally strip the NPC's
  * reaction on rollback.
  */
-export function removeReaction(
-	messageId: string,
-	emoji: string,
-	source: string,
-): void {
+export function removeReaction(messageId: string, emoji: string, source: string): void {
 	textLog.update((log) => {
 		return log.map((entry) => {
 			if (entry.id !== messageId) return entry;
 			const reactions = (entry.reactions ?? []).filter(
-				(r) => !(r.emoji === emoji && r.source === source),
+				(r) => !(r.emoji === emoji && r.source === source)
 			);
 			return { ...entry, reactions };
 		});

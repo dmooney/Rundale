@@ -679,8 +679,8 @@ describe('InputField', () => {
 				['crossroads', 'church'],
 			] as [string, string][],
 			player_location: 'crossroads',
-			player_lat: 0,
-			player_lon: 0,
+			transport_label: 'on foot',
+			transport_id: 'walking',
 		};
 
 		it('renders chips for adjacent locations', () => {
@@ -897,8 +897,8 @@ describe('InputField', () => {
 				['crossroads', 'church'],
 			] as [string, string][],
 			player_location: 'crossroads',
-			player_lat: 0,
-			player_lon: 0,
+			transport_label: 'on foot',
+			transport_id: 'walking',
 		};
 
 		const testNpcs = [
@@ -1080,8 +1080,8 @@ describe('InputField', () => {
 				],
 				edges: [['crossroads', 'pub']] as [string, string][],
 				player_location: 'crossroads',
-				player_lat: 0,
-				player_lon: 0,
+				transport_label: 'on foot',
+				transport_id: 'walking',
 			};
 			mapData.set(testMap);
 			mockSubmitInput.mockImplementationOnce(async () => {

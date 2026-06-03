@@ -345,15 +345,25 @@ impl CharacterLogManager {
             GameEvent::WeatherChanged { new_weather, .. } => {
                 let body = format!("*Weather: {}*\n", new_weather);
                 append_journal_entry(&self.player_log_path(), ts, Some("Weather"), &body)?;
+                for npc in npc_manager.all_npcs() {
+                    if let Err(e) =
+                        append_journal_entry(&self.npc_log_path(npc), ts, Some("Weather"), &body)
+                    {
+                        tracing::warn!(npc_id = ?npc.id, "failed to write weather to npc diary: {e}");
+                    }
+                }
             }
             GameEvent::FestivalStarted { name, .. } => {
                 let body = format!("*Festival begins: {}*\n", name);
-                append_journal_entry(
-                    &self.player_log_path(),
-                    ts,
-                    Some(&format!("Festival: {}", name)),
-                    &body,
-                )?;
+                let heading = format!("Festival: {}", name);
+                append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
+                for npc in npc_manager.all_npcs() {
+                    if let Err(e) =
+                        append_journal_entry(&self.npc_log_path(npc), ts, Some(&heading), &body)
+                    {
+                        tracing::warn!(npc_id = ?npc.id, "failed to write festival to npc diary: {e}");
+                    }
+                }
             }
             GameEvent::LifeEvent {
                 npc_id,
@@ -1221,5 +1231,88 @@ mod tests {
         };
         mgr.process_event(&event, &world, &npcs).unwrap();
         assert!(!mgr.player_log_path().exists() || mgr.log_dir().as_os_str().is_empty());
+    }
+
+    #[test]
+    fn weather_changed_fans_out_to_npc_journals() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc1 = make_npc(7, "Padraig Darcy");
+        let npc2 = make_npc(8, "Niamh Darcy");
+        let id1 = npc1.id;
+        let id2 = npc2.id;
+        npcs.add_npc(npc1);
+        npcs.add_npc(npc2);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::WeatherChanged {
+            new_weather: "Heavy rain".to_string(),
+            timestamp: test_time(),
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let log1 = std::fs::read_to_string(mgr.npc_log_path(npcs.get(id1).unwrap())).unwrap();
+        let log2 = std::fs::read_to_string(mgr.npc_log_path(npcs.get(id2).unwrap())).unwrap();
+        assert!(
+            log1.contains("Weather") && log1.contains("Heavy rain"),
+            "npc1 diary missing weather entry: {}",
+            log1,
+        );
+        assert!(
+            log2.contains("Weather") && log2.contains("Heavy rain"),
+            "npc2 diary missing weather entry: {}",
+            log2,
+        );
+
+        let player = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        assert!(
+            player.contains("Weather") && player.contains("Heavy rain"),
+            "player diary missing weather entry: {}",
+            player,
+        );
+    }
+
+    #[test]
+    fn festival_started_fans_out_to_npc_journals() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut npcs = NpcManager::new();
+        let npc1 = make_npc(7, "Padraig Darcy");
+        let npc2 = make_npc(8, "Niamh Darcy");
+        let id1 = npc1.id;
+        let id2 = npc2.id;
+        npcs.add_npc(npc1);
+        npcs.add_npc(npc2);
+        let world = WorldState::new();
+        let mgr = CharacterLogManager::new_at_dir(tmp.path().to_path_buf(), true);
+        mgr.write_all_profiles(&world, &npcs).unwrap();
+
+        let event = GameEvent::FestivalStarted {
+            name: "Bealtaine".to_string(),
+            timestamp: test_time(),
+            location: None,
+        };
+        mgr.process_event(&event, &world, &npcs).unwrap();
+
+        let log1 = std::fs::read_to_string(mgr.npc_log_path(npcs.get(id1).unwrap())).unwrap();
+        let log2 = std::fs::read_to_string(mgr.npc_log_path(npcs.get(id2).unwrap())).unwrap();
+        assert!(
+            log1.contains("Festival") && log1.contains("Bealtaine"),
+            "npc1 diary missing festival entry: {}",
+            log1,
+        );
+        assert!(
+            log2.contains("Festival") && log2.contains("Bealtaine"),
+            "npc2 diary missing festival entry: {}",
+            log2,
+        );
+
+        let player = std::fs::read_to_string(mgr.player_log_path()).unwrap();
+        assert!(
+            player.contains("Festival") && player.contains("Bealtaine"),
+            "player diary missing festival entry: {}",
+            player,
+        );
     }
 }

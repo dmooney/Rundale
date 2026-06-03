@@ -920,61 +920,6 @@ async fn init_session_save(app_state: &Arc<AppState>, session_saves: &Path) -> R
 /// picked up by the next tick via a round-robin cursor.
 const GOSSIP_BUDGET_PER_TICK: usize = 20;
 
-/// Runs at most `budget` gossip propagations across `groups`, starting from
-/// the group at position `cursor` in location-id order and wrapping around.
-/// Returns the new cursor to persist for the next tick, so the round-robin
-/// makes forward progress through the group list over successive ticks
-/// rather than re-hitting the same prefix every time.
-///
-/// Groups with fewer than 2 NPCs are skipped silently and do *not* consume
-/// budget — they are no-ops for gossip and counting them would let a
-/// cluster of sparse groups waste an entire tick's budget.
-///
-/// The propagation work itself is handed off via a `propagate` callback so
-/// the helper stays free of the specific `GossipNetwork` / `Rng` types it
-/// would otherwise need to name, keeping the module's import graph small
-/// and the helper unit-testable with a counting stub.
-fn propagate_gossip_budgeted<F>(
-    groups: &std::collections::HashMap<
-        parish_core::world::LocationId,
-        Vec<parish_core::npc::NpcId>,
-    >,
-    cursor: usize,
-    budget: usize,
-    mut propagate: F,
-) -> usize
-where
-    F: FnMut(&[parish_core::npc::NpcId]),
-{
-    // Sort groups by LocationId so the cursor addresses a stable order
-    // across ticks; `HashMap::iter` order would shift on every resize.
-    let mut sorted_keys: Vec<parish_core::world::LocationId> = groups.keys().copied().collect();
-    sorted_keys.sort();
-    let n = sorted_keys.len();
-    if n == 0 {
-        return 0;
-    }
-    let start = cursor % n;
-    let mut consumed = 0;
-    for i in 0..n {
-        if consumed >= budget {
-            return (start + i) % n;
-        }
-        let idx = (start + i) % n;
-        let loc = sorted_keys[idx];
-        if let Some(npc_ids) = groups.get(&loc)
-            && npc_ids.len() >= 2
-        {
-            propagate(npc_ids);
-            consumed += 1;
-        }
-    }
-    // Wrapped all the way around without hitting the budget — advance the
-    // cursor by the number of groups we actually processed so we still
-    // rotate on each tick.
-    (start + consumed) % n
-}
-
 /// Spawns the three per-session background tasks and returns their handles.
 ///
 /// Each task observes `shutdown_token` via `tokio::select!` so it exits
@@ -1215,53 +1160,33 @@ fn spawn_session_ticks(
                     let mut world = s.world.lock().await;
                     let mut npc_mgr = s.npc_manager.lock().await;
 
-                    let season = world.clock.season();
-                    let now = world.clock.now();
-                    let mut rng = rand::rng();
-                    if let Some(new_weather) = world.weather_engine.tick(now, season, &mut rng) {
-                        world.weather = new_weather;
-                        world.event_bus.publish(
-                            parish_core::world::events::GameEvent::WeatherChanged {
-                                new_weather: new_weather.to_string(),
-                                timestamp: world.clock.now(),
-                            },
-                        );
-                    }
+                    // Advance the world one pump through the single shared
+                    // helper (rule #12): weather + schedules + tier
+                    // reassignment + banshee + budgeted gossip. The server
+                    // intentionally leaves tier-4 to its own scheduling (it has
+                    // never dispatched tier-4 from this loop). The budgeted
+                    // gossip cursor round-robins across ticks (#466).
+                    {
+                        use parish_core::game_loop::{
+                            AdvanceOptions, GossipMode, WeatherMode, advance_world,
+                        };
 
-                    npc_mgr.tick_schedules(
-                        &world.clock,
-                        &world.graph,
-                        world.weather,
-                        &world.event_bus,
-                    );
-                    npc_mgr.assign_tiers(&world, &[]);
-
-                    // Banshee tick — herald and finalise doomed NPCs.
-                    if banshee_enabled {
-                        let world = &mut *world;
-                        let _ = npc_mgr.tick_banshee(
-                            &world.clock,
-                            &world.graph,
-                            &mut world.text_log,
-                            &world.event_bus,
-                            world.player_location,
-                        );
-                    }
-
-                    if !world.gossip_network.is_empty() {
-                        let groups = npc_mgr.tier2_groups();
                         let mut rng = rand::rng();
-                        let network = &mut world.gossip_network;
-                        gossip_cursor = propagate_gossip_budgeted(
-                            &groups,
-                            gossip_cursor,
-                            GOSSIP_BUDGET_PER_TICK,
-                            |npc_ids| {
-                                parish_core::npc::ticks::propagate_gossip_at_location(
-                                    npc_ids, network, &mut rng,
-                                );
+                        let report = advance_world(
+                            &mut world,
+                            &mut npc_mgr,
+                            &mut rng,
+                            AdvanceOptions {
+                                weather: WeatherMode::Single,
+                                run_banshee: banshee_enabled,
+                                gossip: GossipMode::Budgeted {
+                                    cursor: gossip_cursor,
+                                    budget: GOSSIP_BUDGET_PER_TICK,
+                                },
+                                run_tier4: false,
                             },
                         );
+                        gossip_cursor = report.gossip_cursor;
                     }
 
                     // Advance the generation counter so handle_game_input can
@@ -1562,107 +1487,10 @@ mod tests {
     }
 
     // ── #466 gossip budget round-robin ──────────────────────────────────────
-
-    fn make_group(n: u32) -> (parish_core::world::LocationId, Vec<parish_core::npc::NpcId>) {
-        let loc = parish_core::world::LocationId(n);
-        // 2 NPCs so the group is gossip-eligible.
-        let npcs = vec![
-            parish_core::npc::NpcId(n * 10),
-            parish_core::npc::NpcId(n * 10 + 1),
-        ];
-        (loc, npcs)
-    }
-
-    #[test]
-    fn gossip_budget_empty_returns_zero_cursor() {
-        let groups = std::collections::HashMap::new();
-        let mut calls = 0;
-        let new_cursor = propagate_gossip_budgeted(&groups, 42, 20, |_| calls += 1);
-        assert_eq!(new_cursor, 0);
-        assert_eq!(calls, 0);
-    }
-
-    #[test]
-    fn gossip_budget_caps_at_budget_and_returns_next_cursor() {
-        // 50 eligible groups, budget 20 — expect 20 propagations and cursor=20.
-        let mut groups = std::collections::HashMap::new();
-        for i in 1..=50 {
-            let (loc, npcs) = make_group(i);
-            groups.insert(loc, npcs);
-        }
-        let mut calls = 0;
-        let new_cursor = propagate_gossip_budgeted(&groups, 0, 20, |_| calls += 1);
-        assert_eq!(calls, 20);
-        assert_eq!(new_cursor, 20, "cursor should advance by the budget");
-    }
-
-    #[test]
-    fn gossip_budget_round_robins_across_ticks() {
-        // 30 groups, budget 20. Tick 1 does 0..20, tick 2 should pick up at 20
-        // and wrap through 29, 0..9 — ending at cursor 10 (20+20 mod 30).
-        let mut groups = std::collections::HashMap::new();
-        for i in 1..=30 {
-            let (loc, npcs) = make_group(i);
-            groups.insert(loc, npcs);
-        }
-
-        let mut seen: Vec<parish_core::world::LocationId> = Vec::new();
-        let new_cursor = propagate_gossip_budgeted(&groups, 0, 20, |npc_ids| {
-            // reverse-map back to LocationId via NpcId(n*10).
-            let n = npc_ids[0].0 / 10;
-            seen.push(parish_core::world::LocationId(n));
-        });
-        assert_eq!(new_cursor, 20);
-        assert_eq!(seen.len(), 20);
-
-        // Next tick starting from cursor=20 should continue with id 21
-        // (since ids are sorted and we started at id 1 for index 0).
-        let mut next_seen: Vec<parish_core::world::LocationId> = Vec::new();
-        let next_cursor = propagate_gossip_budgeted(&groups, new_cursor, 20, |npc_ids| {
-            next_seen.push(parish_core::world::LocationId(npc_ids[0].0 / 10));
-        });
-        assert_eq!(next_cursor, 10, "wrap: (20+20) mod 30 = 10");
-        assert_eq!(next_seen.len(), 20);
-        // First item processed on tick 2 is id 21 (sorted position 20).
-        assert_eq!(next_seen[0], parish_core::world::LocationId(21));
-        // Last item is id 10 (sorted position 9 after wrap).
-        assert_eq!(next_seen[19], parish_core::world::LocationId(10));
-    }
-
-    #[test]
-    fn gossip_budget_skips_sparse_groups_without_consuming_budget() {
-        // Mix of eligible (len>=2) and sparse (len<2) groups. Budget=3.
-        // Sparse groups must not count against the budget — we should see
-        // exactly 3 propagations regardless of how many sparse peers sit
-        // between them.
-        let mut groups = std::collections::HashMap::new();
-        for i in 1..=10u32 {
-            let (loc, mut npcs) = make_group(i);
-            // Every 2nd group is sparse (1 member only).
-            if i.is_multiple_of(2) {
-                npcs.truncate(1);
-            }
-            groups.insert(loc, npcs);
-        }
-        let mut calls = 0;
-        let _ = propagate_gossip_budgeted(&groups, 0, 3, |_| calls += 1);
-        assert_eq!(calls, 3, "sparse groups must not consume budget");
-    }
-
-    #[test]
-    fn gossip_budget_cursor_wraps_modulo_group_count() {
-        // Absurdly large cursor should wrap cleanly.
-        let mut groups = std::collections::HashMap::new();
-        for i in 1..=5 {
-            let (loc, npcs) = make_group(i);
-            groups.insert(loc, npcs);
-        }
-        let mut calls = 0;
-        // cursor = 1_000_000, budget = 2, expect new cursor = (1_000_000 % 5) + 2 = 0 + 2 = 2.
-        let new_cursor = propagate_gossip_budgeted(&groups, 1_000_000, 2, |_| calls += 1);
-        assert_eq!(calls, 2);
-        assert_eq!(new_cursor, 2);
-    }
+    //
+    // The budgeting math (`budgeted_round_robin`) and its unit tests moved to
+    // `parish_core::game_loop::world_pump` in #1159 — the server now drives the
+    // single shared `advance_world` pump with `GossipMode::Budgeted`.
 
     // ── #482 disk-session purge ─────────────────────────────────────────────
 

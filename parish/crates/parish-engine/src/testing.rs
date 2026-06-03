@@ -113,6 +113,20 @@ pub struct GameTestHarness {
     simulator: Option<Arc<SimulatorClient>>,
     /// Seeded RNG shared across all weather/gossip calls for deterministic results.
     rng: StdRng,
+    /// Scriptable mock LLM backing the real-loop execution path
+    /// ([`Self::execute_via_real_loop`]). Distinct from `canned_responses`,
+    /// which feed the legacy path; the mock pins the inference seam for the
+    /// real `game_loop` so the two engines can be compared (#1159).
+    pub(crate) mock: Arc<crate::inference::MockClient>,
+    /// When true, [`Self::execute`] also runs the real `game_loop` on a
+    /// rolled-back copy of the pre-state and records divergences to
+    /// `shadow_ledger`. Seeded from the `PARISH_HARNESS_SHADOW` env var at
+    /// construction; tests opt in explicitly via `enable_shadow`.
+    pub(crate) shadow_enabled: bool,
+    /// Divergence-ledger path used when `shadow_enabled`.
+    pub(crate) shadow_ledger: std::path::PathBuf,
+    /// `case` label written into each divergence record.
+    pub(crate) shadow_case: String,
 }
 
 impl GameTestHarness {
@@ -264,6 +278,10 @@ impl GameTestHarness {
             db_sync,
             simulator: None,
             rng: StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
+            shadow_enabled: crate::shadow::is_enabled(),
+            shadow_ledger: crate::shadow::ledger_path(),
+            shadow_case: crate::shadow::case_label(),
         }
     }
 
@@ -357,45 +375,57 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
+        // Shadow mode (off by default): snapshot the pre-state so the real
+        // game_loop can be run on an identical starting point after the legacy
+        // path completes. `None` when disabled ⇒ zero overhead, byte-for-byte
+        // legacy behavior.
+        let shadow_pre = self.shadow_enabled.then(|| {
+            (
+                crate::persistence::GameSnapshot::capture(&self.app.world, &self.app.npc_manager),
+                self.app.world.text_log.len(),
+            )
+        });
+
         let result = match input::classify_input(trimmed) {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
         };
 
-        // Simulation tick after each action
-        let tier_transitions = self.app.npc_manager.assign_tiers(&self.app.world, &[]);
-        for tt in &tier_transitions {
-            let direction = if tt.promoted { "promoted" } else { "demoted" };
-            self.app.debug_event(format!(
-                "[tier] {} {} {:?} → {:?}",
-                tt.npc_name, direction, tt.old_tier, tt.new_tier,
-            ));
-        }
-        let schedule_events = self.app.npc_manager.tick_schedules(
-            &self.app.world.clock,
-            &self.app.world.graph,
-            self.app.world.weather,
-            &self.app.world.event_bus,
-        );
-        self.process_schedule_events(&schedule_events);
+        // Capture the legacy path's player-visible output *before* the
+        // post-action pump below appends further lines — the real-loop path
+        // runs only the core handler, so comparing core output avoids tick
+        // noise.
+        let shadow_legacy_lines = shadow_pre.as_ref().map(|(_, pre_len)| {
+            self.app
+                .world
+                .text_log
+                .iter()
+                .skip(*pre_len)
+                .cloned()
+                .collect::<Vec<String>>()
+        });
 
-        // Banshee tick after every action; default-on unless explicitly disabled.
-        if !self.app.flags.is_disabled("banshee") {
-            let player_loc = self.app.world.player_location;
-            let report = self.app.npc_manager.tick_banshee(
-                &self.app.world.clock,
-                &self.app.world.graph,
-                &mut self.app.world.text_log,
-                &self.app.world.event_bus,
-                player_loc,
+        // Simulation tick after each action, through the single shared world
+        // pump (rule #12). The harness's per-turn scheduling matches the
+        // historical inline copy: schedules + tier reassignment + the banshee
+        // tick, but no weather/gossip/tier-4 (those only run on explicit
+        // `advance_time` bulk jumps). Consumes no RNG, so seeded eval baselines
+        // stay byte-stable.
+        {
+            use parish_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
+
+            let report = advance_world(
+                &mut self.app.world,
+                &mut self.app.npc_manager,
+                &mut self.rng,
+                AdvanceOptions {
+                    weather: WeatherMode::Skip,
+                    run_banshee: !self.app.flags.is_disabled("banshee"),
+                    gossip: GossipMode::Skip,
+                    run_tier4: false,
+                },
             );
-            if !report.is_empty() {
-                self.app.debug_event(format!(
-                    "[banshee] {} wail(s), {} death(s)",
-                    report.wails.len(),
-                    report.deaths.len()
-                ));
-            }
+            self.apply_advance_report(&report);
         }
 
         // Drain any GameEvents queued on the character-log receiver since
@@ -443,6 +473,12 @@ impl GameTestHarness {
                     Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
                 }
             }
+        }
+
+        // Shadow comparison: replay this input through the real game_loop on the
+        // rolled-back pre-state and record any divergence. No-op when disabled.
+        if let (Some((pre_snapshot, _)), Some(legacy_lines)) = (shadow_pre, shadow_legacy_lines) {
+            self.shadow_compare_after_legacy(trimmed, pre_snapshot, legacy_lines);
         }
 
         result
@@ -532,112 +568,57 @@ impl GameTestHarness {
         &self.app.world.weather
     }
 
-    /// Advances the game clock and ticks NPC schedules.
+    /// Advances the game clock and runs the full world pump.
     ///
-    /// Useful for testing NPC movement without player actions.
+    /// Useful for testing NPC movement, weather, and tier-4 life events without
+    /// player actions. Delegates to the single shared
+    /// [`parish_core::game_loop::advance_world`] pump (rule #12) with the
+    /// harness's historical scheduling: weather is **backfilled** one check per
+    /// elapsed game-hour (silent on bulk jumps so the broadcast bus is not
+    /// flooded), gossip propagates among every co-located Tier-2 group, and
+    /// tier-4 dispatches when due. The RNG draw order (weather → gossip →
+    /// tier-4) is identical to the pre-#1159 inline copy, so seeded tests are
+    /// deterministic and unchanged.
     pub fn advance_time(&mut self, minutes: i64) {
+        use parish_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
+
         self.app.world.clock.advance(minutes);
-
-        // Tick the weather engine for each hour that elapsed, so large time jumps
-        // don't skip weather checks. The engine deduplicates by game-hour internally.
-        let season = self.app.world.clock.season();
-        let now = self.app.world.clock.now();
-        let hours_elapsed = (minutes / 60).max(1) as u32;
-        for h in 0..hours_elapsed {
-            let check_time =
-                now - chrono::Duration::minutes((hours_elapsed.saturating_sub(h + 1) as i64) * 60);
-            if let Some(new_weather) =
-                self.app
-                    .world
-                    .weather_engine
-                    .tick(check_time, season, &mut self.rng)
-            {
-                self.app.world.weather = new_weather;
-            }
-        }
-
-        let events = self.app.npc_manager.tick_schedules(
-            &self.app.world.clock,
-            &self.app.world.graph,
-            self.app.world.weather,
-            &self.app.world.event_bus,
+        let report = advance_world(
+            &mut self.app.world,
+            &mut self.app.npc_manager,
+            &mut self.rng,
+            AdvanceOptions {
+                weather: WeatherMode::Backfill { minutes },
+                run_banshee: !self.app.flags.is_disabled("banshee"),
+                gossip: GossipMode::All,
+                run_tier4: true,
+            },
         );
-        self.process_schedule_events(&events);
-        self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+        self.apply_advance_report(&report);
+    }
 
-        // Banshee tick: herald and finalise doomed NPCs.
-        // Default-on; gated by the `banshee` feature flag being explicitly disabled.
-        if !self.app.flags.is_disabled("banshee") {
-            let player_loc = self.app.world.player_location;
-            let report = self.app.npc_manager.tick_banshee(
-                &self.app.world.clock,
-                &self.app.world.graph,
-                &mut self.app.world.text_log,
-                &self.app.world.event_bus,
-                player_loc,
-            );
-            if !report.is_empty() {
-                self.app.debug_event(format!(
-                    "[banshee] {} wail(s), {} death(s)",
-                    report.wails.len(),
-                    report.deaths.len()
-                ));
-            }
+    /// Renders an [`parish_core::game_loop::AdvanceReport`] into the harness's
+    /// debug log and player-visible text log, mirroring the per-atom debug
+    /// strings and arrival/departure narration the live loops emit.
+    fn apply_advance_report(&mut self, report: &parish_core::game_loop::AdvanceReport) {
+        for tt in &report.tier_transitions {
+            let direction = if tt.promoted { "promoted" } else { "demoted" };
+            self.app.debug_event(format!(
+                "[tier] {} {} {:?} → {:?}",
+                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+            ));
         }
-
-        // Propagate gossip between co-located NPCs
-        if !self.app.world.gossip_network.is_empty() {
-            let groups = self.app.npc_manager.tier2_groups();
-            // Sort by LocationId to ensure deterministic RNG sequencing across ticks.
-            let mut sorted_keys: Vec<_> = groups.keys().copied().collect();
-            sorted_keys.sort();
-            for loc_id in sorted_keys {
-                let npc_ids = &groups[&loc_id];
-                if npc_ids.len() >= 2 {
-                    crate::npc::ticks::propagate_gossip_at_location(
-                        npc_ids,
-                        &mut self.app.world.gossip_network,
-                        &mut self.rng,
-                    );
-                }
-            }
+        self.process_schedule_events(&report.schedule_events);
+        if !report.banshee.is_empty() {
+            self.app.debug_event(format!(
+                "[banshee] {} wail(s), {} death(s)",
+                report.banshee.wails.len(),
+                report.banshee.deaths.len()
+            ));
         }
-
-        // Dispatch Tier 4 rules engine if enough game time has elapsed.
-        // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
-        let now = self.app.world.clock.now();
-        if self.app.npc_manager.needs_tier4_tick(now) {
-            let tier4_ids: std::collections::HashSet<crate::npc::NpcId> = self
-                .app
-                .npc_manager
-                .npcs_in_tier(crate::npc::types::CogTier::Tier4)
-                .into_iter()
-                .collect();
-            let t4_events = {
-                let mut tier4_refs: Vec<&mut crate::npc::Npc> = self
-                    .app
-                    .npc_manager
-                    .npcs_mut()
-                    .values_mut()
-                    .filter(|n| tier4_ids.contains(&n.id))
-                    .collect();
-                // Sort by NpcId for deterministic RNG sequencing across ticks.
-                tier4_refs.sort_by_key(|n| n.id);
-                let season = self.app.world.clock.season();
-                let game_date = now.date_naive();
-                crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut self.rng)
-            };
-            let banshee_on = !self.app.flags.is_disabled("banshee");
-            let game_events = self
-                .app
-                .npc_manager
-                .apply_tier4_events(&t4_events, now, banshee_on);
-            for evt in game_events {
-                self.app.world.event_bus.publish(evt);
-            }
-            self.app.npc_manager.record_tier4_tick(now);
+        if report.tier4_event_count > 0 {
             self.app
-                .debug_event(format!("[tier4] {} events", t4_events.len()));
+                .debug_event(format!("[tier4] {} events", report.tier4_event_count));
         }
     }
 
@@ -665,67 +646,14 @@ impl GameTestHarness {
 
     /// Handles a system command, returning a structured result.
     ///
-    /// Delegates most commands to [`parish_core::ipc::handle_command`] and
-    /// dispatches any returned [`CommandEffect`]s locally. Wait and Tick are
-    /// handled locally because the test harness needs weather ticking and
-    /// schedule-event processing that the shared handler doesn't perform.
+    /// Delegates every command — including `Wait` and `Tick` — to the shared
+    /// [`parish_core::ipc::handle_command`] and dispatches any returned
+    /// [`CommandEffect`]s locally. The world pump (weather/schedules/banshee/
+    /// tier-4) runs once per turn in [`Self::execute`] through the single
+    /// shared [`parish_core::game_loop::advance_world`] helper, so there is no
+    /// harness-local copy of any command's orchestration body (rule #12).
     fn handle_system_command(&mut self, cmd: Command) -> ActionResult {
-        use chrono::Timelike;
         use parish_core::ipc::commands::{CommandEffect, handle_command};
-
-        // Wait and Tick need test-harness-specific behavior (weather ticks,
-        // schedule event processing, gossip propagation via advance_time).
-        match cmd {
-            Command::Wait(minutes) => {
-                self.advance_time(minutes as i64);
-                let now = self.app.world.clock.now();
-                let tod = self.app.world.clock.time_of_day();
-                let msg = format!(
-                    "Waited {} minutes. Now {:02}:{:02} {}.",
-                    minutes,
-                    now.hour(),
-                    now.minute(),
-                    tod
-                );
-                self.app.world.log(msg.clone());
-                return ActionResult::SystemCommand { response: msg };
-            }
-            Command::Tick => {
-                // Tick weather engine (shared handler doesn't do this)
-                let season = self.app.world.clock.season();
-                let now = self.app.world.clock.now();
-                if let Some(new_weather) =
-                    self.app
-                        .world
-                        .weather_engine
-                        .tick(now, season, &mut self.rng)
-                {
-                    self.app.world.weather = new_weather;
-                }
-
-                self.app.npc_manager.assign_tiers(&self.app.world, &[]);
-                let events = self.app.npc_manager.tick_schedules(
-                    &self.app.world.clock,
-                    &self.app.world.graph,
-                    self.app.world.weather,
-                    &self.app.world.event_bus,
-                );
-                let count = events.len();
-                self.process_schedule_events(&events);
-
-                // Banshee tick is handled by the post-action block in execute(),
-                // so we don't call it here to avoid processing doomed NPCs twice.
-
-                let msg = if count == 0 {
-                    "No NPC activity.".to_string()
-                } else {
-                    format!("{} schedule event(s) processed.", count)
-                };
-                self.app.world.log(msg.clone());
-                return ActionResult::SystemCommand { response: msg };
-            }
-            _ => {} // fall through to shared handler
-        }
 
         // Delegate to shared handler
         let mut config = self.app.snapshot_config();
@@ -2588,6 +2516,10 @@ mod tests {
             db_sync: None,
             simulator: None,
             rng: rand::rngs::StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
+            shadow_enabled: false,
+            shadow_ledger: crate::shadow::ledger_path(),
+            shadow_case: "test".to_string(),
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)

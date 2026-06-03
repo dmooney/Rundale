@@ -197,6 +197,7 @@ pub async fn stream_npc_response(
                 token: batch.to_string(),
                 turn_id,
                 source: source.clone(),
+                message_id: None,
             },
         );
     })

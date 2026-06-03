@@ -1,0 +1,232 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    "base_url": "http://127.0.0.1:8765/v1"
+  },
+  "run_started_utc": "2026-05-29T00:38:35.815029+00:00",
+  "slices": {
+    "reaction": {
+      "summary": {
+        "slice": "reaction",
+        "records": 10,
+        "judged": 9,
+        "bench_bugs": 1,
+        "judge_failures": 0,
+        "errors": 0,
+        "mean_score": 3.0,
+        "judge": "judge_reaction_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211"
+      },
+      "results": [
+        {
+          "id": "reaction-0001",
+          "reply": "Well, come in out of the night, stranger. Don't mind the dust, it's company that brings the light. My name's Padraig Darcy, what brings you to my humble abode?",
+          "response_sha256": "9af16313245e8af487afc6245cc68d9313f0352d791c28349f5840e9511f38fc",
+          "cache_key": "7540c17cb7f8a6da38c6bfb092f71da00d3047cf165a28dbb42ff2942fa8ec9f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0002",
+          "reply": "Ah, Donal, what brings ye to Brigid's on such a morn?",
+          "response_sha256": "9c7793169d7732cc5aed8c210b3f166031cacf740441c14b6f2d32887eb22870",
+          "cache_key": "e8ae08dc8622aae718b097be93fc15465fc95f3c05062274a322d53fba097eb8",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0003",
+          "reply": "Ah, Se\u00e1n, what brings ye to the church porch on a Sunday noon?",
+          "response_sha256": "ae005381dbbb2dc3db81fa862626f9c09c2dcbbc444d6ba8d1e2a90592824e5c",
+          "cache_key": "8ea499787d4ad39d1fed4be46c529dd0d6bc82a5013b966d6dd33ba5bc6babce",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0004",
+          "reply": "God be with ye, stranger. My name is Brigid O'Brien, the village midwife. How might I assist ye this night?",
+          "response_sha256": "9c3c90cf5c3e80afeadde3b4776944f8e2cbde39d932e841f43faa608746fe4f",
+          "cache_key": "67708a4eb394fd1ff32ddf9022c11084b3fdb08a01d4fdaa5bc1536c2f9bb5f3",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0005",
+          "reply": "M\u00f3r \u00e1 dhiaidh sult uirthi, Maire. Seo \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r \u00e1r",
+          "response_sha256": "6004baae9c10a0c01670154c359a61cd0d7514f5cf4d43be92e318ee3d824e13",
+          "cache_key": "893295111eeb76c1a9e557cb9a34e3d2d75caae5b61629ad5362897ae673d64f",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0006",
+          "reply": "Mist, \u00e1lainn th\u00fa. Maith th\u00fa go m\u00f3r.",
+          "response_sha256": "125728d5e0821d7fb015a926fbbe35b0b71e553449711db5a1b0a67274de5a31",
+          "cache_key": "17109c87ac43581a8ef8181f7ef36aaebce9fe6a484d42cd30d2421592f7eaa9",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0007",
+          "reply": "Hail, stranger. I am Fr. Donnellan. Pray tell, what brings you to our humble gathering?",
+          "response_sha256": "2ba086f2fce7bdf51aee080a7d9da47b3d40ff53b5f2b1c8a7190d2612aa4910",
+          "cache_key": "4223d3f6e721e41187b8e26f98947d4338cc889abfe8b44f2ca600f1402e2718",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0008",
+          "reply": "Seon\u00e1n, \u00e1r mhaith dhia. Maith th\u00fa go maith.",
+          "response_sha256": "bdec8014ed326aadf283319225b847ab37a96853e643b6f46b1c47416d456ba6",
+          "cache_key": "fec838b8c8f975905a70962496770dfe54b395dc5b68680c7219b5f40694bc1b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 1
+            },
+            "overall": 1.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": true,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0009",
+          "reply": "Ah, Se\u00e1n, come into the warmth. Let us pray.",
+          "response_sha256": "fe0bd99cc475a5b6ec1779af9f619ab0bd4530f44f21afbf8037b98d1f87d944",
+          "cache_key": "84dc08980964abf9c92712cfad945eab989b2b084a61bbc162095264e4c2f896",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "reaction-0010",
+          "reply": "Well met, stranger. My name is Sean Murphy, come from the bog. What brings ye here on this clear evening?",
+          "response_sha256": "d78298464d359386dc99e2b63bae9e91f660f001d73746cc9c71d898ae52edf2",
+          "cache_key": "bfab5a7b9784b46188e6540fc470246cb7b77aae93267d48677dfb7ec748c357",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "in_character": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "reaction__Qwen2_5_Coder_32B_Instruct_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen2.5-Coder-32B-Instruct-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit@http://127.0.0.1:8765/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 30.528851985931396,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 1255,
+    "completion_tokens": 312,
+    "usd": 0.0
+  }
+}

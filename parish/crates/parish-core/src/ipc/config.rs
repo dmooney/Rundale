@@ -455,8 +455,8 @@ fn attach_rate_limit(
     match (client, limiter) {
         (AnyClient::OpenAi(c), lim) => AnyClient::OpenAi(c.maybe_with_rate_limit(lim)),
         (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
-        // Simulator has no network calls and ignores rate limiting.
-        (c @ AnyClient::Simulator(_), _) => c,
+        // Simulator and mock have no network calls and ignore rate limiting.
+        (c @ (AnyClient::Simulator(_) | AnyClient::Mock(_)), _) => c,
     }
 }
 

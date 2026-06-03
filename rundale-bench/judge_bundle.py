@@ -27,6 +27,12 @@ DONE_DIR = QUEUE_DIR / "done"
 
 AXES = ("character", "authenticity", "language", "responsiveness", "craft")
 
+# Some slices (gaeilge) include "overall" in their axes list because the
+# judge config's `axes` array is also the user-facing leaderboard-axis list.
+# For validation we treat `overall` as the holistic field, never as a 1-5
+# axis to coerce, so it is filtered out of the per-axis loop.
+_OVERALL_KEYS = {"overall"}
+
 
 def _slug(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_")[:80]
@@ -135,8 +141,26 @@ def _coerce_axis(value: Any, *, allow_zero: bool = False) -> int | None:
     return iv
 
 
-def validate_item(item: dict) -> tuple[bool, dict]:
+def _bundle_axes(bundle: Optional[dict]) -> tuple[str, ...]:
+    """Per-axis names to validate for a given bundle. Falls back to the
+    dialogue rubric's 5-axis set if the bundle is missing or has no
+    declared axes (legacy path before judge_*.json grew an `axes` list)."""
+    if bundle is None:
+        return AXES
+    declared = bundle.get("axes")
+    if not isinstance(declared, list) or not declared:
+        return AXES
+    # Strip the holistic `overall` key — it is validated separately and is
+    # not a 1-5 integer axis (gaeilge ships overall as a 1.0-5.0 float).
+    return tuple(k for k in declared if k not in _OVERALL_KEYS)
+
+
+def validate_item(item: dict, bundle: Optional[dict] = None) -> tuple[bool, dict]:
     """Validate one judged item against the Judgment schema.
+
+    `bundle` carries the slice's per-judge axes (and is required for any
+    slice other than dialogue). When omitted, the dialogue 5-axis schema is
+    used for backwards compatibility.
 
     Returns ``(ok, cleaned)``. On failure ``cleaned`` is a failure marker with
     ``axes=None`` and ``flags.judge_retry=True`` so the orchestrator can
@@ -147,6 +171,7 @@ def validate_item(item: dict) -> tuple[bool, dict]:
     surfaces them via a separate `bench_bugs` count instead of floor-1
     scoring them.
     """
+    axes = _bundle_axes(bundle)
     pid = item.get("prompt_id")
     _flags_raw = item.get("flags")
     flags_in: dict = _flags_raw if isinstance(_flags_raw, dict) else {}
@@ -173,7 +198,7 @@ def validate_item(item: dict) -> tuple[bool, dict]:
         return False, fail
 
     axes_out: dict[str, int] = {}
-    for k in AXES:
+    for k in axes:
         coerced = _coerce_axis(axes_in.get(k), allow_zero=bench_bug)
         if coerced is None:
             fail["error"] = f"axis {k!r} out of range or missing: {axes_in.get(k)!r}"
@@ -245,7 +270,7 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
     failed = []
     seen: set[str] = set()
     for it in result.get("items", []):
-        ok, cleaned = validate_item(it)
+        ok, cleaned = validate_item(it, bundle)
         if cleaned.get("prompt_id") in expected_ids:
             seen.add(cleaned["prompt_id"])
         (valid if ok else failed).append(cleaned)

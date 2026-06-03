@@ -69,6 +69,7 @@ fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot 
         speed_factor: core.speed_factor,
         name_hints: vec![],
         day_of_week: core.day_of_week,
+        turn_in_flight: core.turn_in_flight,
     }
 }
 
@@ -1157,6 +1158,10 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                         token: batch.to_string(),
                         turn_id,
                         source: source.to_string(),
+                        // Arrival reactions have no reconnect-resume contract
+                        // (desktop transport never disconnects); `None` keeps
+                        // the wire shape unchanged (#1164).
+                        message_id: None,
                     },
                 );
             },
@@ -1756,7 +1761,7 @@ pub(crate) async fn do_submit_bug_report(
         },
     };
 
-    let cfg = bug_report::GitHubBugConfig::from_env();
+    let cfg = bug_report::GitHubBugConfig::from_env_async().await;
     let bundle_root = state.saves_dir.join("bug-reports");
     let http = reqwest::Client::new();
     bug_report::create_bug_report(
@@ -1925,21 +1930,163 @@ pub async fn take_screenshot(
     do_take_screenshot(&state, &app).await
 }
 
-/// Shared implementation for agent-triggered screenshot capture.
+/// Capture deadline for the agent screenshot round-trip.
 ///
-/// Generates a UUID request ID, stashes a `oneshot::Sender` in
-/// `AppState::pending_screenshots`, emits `request-screenshot` to the live
-/// frontend window, and awaits the result for up to 15 seconds.
+/// Reads `PARISH_SCREENSHOT_TIMEOUT_SECS` (whole seconds); defaults to 45 and
+/// ignores unparseable or zero values. The full `.app-shell` `html-to-image`
+/// pass can exceed the old hardcoded 15 s under live local-inference load
+/// (#1160), so the deadline is configurable and longer by default.
+fn screenshot_timeout() -> std::time::Duration {
+    let secs = std::env::var("PARISH_SCREENSHOT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(45);
+    std::time::Duration::from_secs(secs)
+}
+
+/// Decides whether a late-completing capture can still be returned after the
+/// oneshot deadline expired.
 ///
-/// On emit failure the pending entry is cleaned up immediately so the map
-/// does not grow unbounded. On timeout the entry is also removed.
-/// The frontend delivers the result via `notify_screenshot_captured` (success)
-/// or `notify_screenshot_error` (failure).
+/// The frontend may finish `html-to-image` and write the PNG just after the
+/// backend gave up waiting; without this, that image is orphaned and the
+/// caller gets a hard error even though a valid screenshot exists (#1160).
+/// Returns the newest on-disk screenshot only when it was taken at or after
+/// the request started — i.e. it is THIS request landing late, not a stale
+/// image from an earlier capture. `taken_at` is second-precision, so the
+/// start is floored to the second to keep a same-second capture eligible.
+///
+/// Pure on `(started_at, latest)` for unit testing.
+fn resolve_late_screenshot(
+    started_at: chrono::DateTime<chrono::Utc>,
+    latest: Option<ScreenshotInfo>,
+) -> Option<ScreenshotInfo> {
+    let info = latest?;
+    let taken = chrono::NaiveDateTime::parse_from_str(&info.taken_at, "%Y-%m-%dT%H:%M:%SZ")
+        .ok()?
+        .and_utc();
+    let start_floor =
+        chrono::DateTime::from_timestamp(started_at.timestamp(), 0).unwrap_or(started_at);
+    if taken >= start_floor {
+        Some(info)
+    } else {
+        None
+    }
+}
+
+/// True when a captured OS window belongs to the Parish/Rundale desktop app.
+///
+/// Matched on the owning application name: the dev binary reports
+/// `parish-tauri`, a packaged build reports its bundle name (`Rundale`).
+/// Pure for unit testing the window-selection rule.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn is_app_window(app_name: &str) -> bool {
+    let a = app_name.to_lowercase();
+    a.contains("parish") || a.contains("rundale")
+}
+
+/// Captures the Parish/Rundale desktop window as PNG bytes using native OS
+/// screen capture (`xcap`).
+///
+/// This is the primary capture path because the gameplay MapLibre minimap is a
+/// WebGL canvas that `html-to-image` cannot read — it draws cross-origin tiles,
+/// which taint the canvas and block `toDataURL()`, so the map serialises blank
+/// (#1160 follow-up). Native capture reads the real composited pixels, map
+/// included. Picks the largest non-minimised app window. Blocking — call from
+/// `spawn_blocking`.
+///
+/// macOS/Windows only — the Linux xcap backend needs PipeWire system libs, so
+/// Linux desktop uses the html-to-image fallback instead.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn capture_app_window_png() -> Result<Vec<u8>, String> {
+    let windows = xcap::Window::all().map_err(|e| format!("enumerate windows: {e}"))?;
+    let mut best: Option<(u64, xcap::Window)> = None;
+    for w in windows {
+        if w.is_minimized().unwrap_or(false) {
+            continue;
+        }
+        if !is_app_window(&w.app_name().unwrap_or_default()) {
+            continue;
+        }
+        let area = u64::from(w.width().unwrap_or(0)) * u64::from(w.height().unwrap_or(0));
+        if best.as_ref().is_none_or(|(a, _)| area > *a) {
+            best = Some((area, w));
+        }
+    }
+    let (_, win) = best.ok_or("no Parish/Rundale window found to capture")?;
+    let img = win
+        .capture_image()
+        .map_err(|e| format!("capture window: {e}"))?;
+    let mut buf = Vec::new();
+    img.write_to(
+        &mut std::io::Cursor::new(&mut buf),
+        xcap::image::ImageFormat::Png,
+    )
+    .map_err(|e| format!("encode png: {e}"))?;
+    if buf.is_empty() {
+        return Err("captured image encoded to 0 bytes".into());
+    }
+    Ok(buf)
+}
+
+/// Native-capture path: grab the window pixels, write them under
+/// `<saves_dir>/screenshots/`, and update `latest_screenshot_path` so it
+/// behaves identically to the frontend round-trip from the caller's view.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotInfo, String> {
+    let png = tokio::task::spawn_blocking(capture_app_window_png)
+        .await
+        .map_err(|e| format!("capture task join: {e}"))??;
+    let now = chrono::Utc::now();
+    let info = write_screenshot_to_disk(&state.saves_dir, &png, now)?;
+    *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
+    Ok(info)
+}
+
+/// Agent-triggered screenshot capture.
+///
+/// Tries native window capture first ([`do_take_screenshot_native`]) so the
+/// WebGL minimap appears in the image. If native capture is unavailable (no
+/// window, missing screen-recording permission, headless), it falls back to the
+/// frontend `html-to-image` round-trip in [`do_take_screenshot_frontend`]
+/// (which carries the #1160 deadline + late-capture handling). The map may be
+/// blank in the fallback, but a screenshot is still produced.
 pub(crate) async fn do_take_screenshot(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    match do_take_screenshot_native(state).await {
+        Ok(info) => return Ok(info),
+        Err(e) => {
+            tracing::warn!(
+                "native screenshot failed ({e}); falling back to frontend html-to-image capture"
+            );
+        }
+    }
+    do_take_screenshot_frontend(state, app).await
+}
+
+/// Frontend `html-to-image` round-trip — the fallback capture path.
+///
+/// Generates a UUID request ID, stashes a `oneshot::Sender` in
+/// `AppState::pending_screenshots`, emits `request-screenshot` to the live
+/// frontend window, and awaits the result for up to [`screenshot_timeout`]
+/// (default 45 s, `PARISH_SCREENSHOT_TIMEOUT_SECS`).
+///
+/// On emit failure the pending entry is cleaned up immediately so the map
+/// does not grow unbounded. On timeout the entry is removed; if a capture
+/// from this request landed on disk just after the deadline we return it via
+/// [`resolve_late_screenshot`] rather than erroring (#1160).
+/// The frontend delivers the result via `notify_screenshot_captured` (success)
+/// or `notify_screenshot_error` (failure).
+async fn do_take_screenshot_frontend(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) -> Result<ScreenshotInfo, String> {
     use tokio::sync::oneshot;
+    let started_at = chrono::Utc::now();
+    let timeout = screenshot_timeout();
     let request_id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
     {
@@ -1954,13 +2101,24 @@ pub(crate) async fn do_take_screenshot(
         pending.remove(&request_id);
         return Err(e.to_string());
     }
-    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
+    match tokio::time::timeout(timeout, rx).await {
         Ok(Ok(result)) => result,
         Ok(Err(_)) => Err("screenshot request cancelled".into()),
         Err(_) => {
-            let mut pending = state.pending_screenshots.lock().await;
-            pending.remove(&request_id);
-            Err("screenshot capture timed out after 15 s".into())
+            {
+                let mut pending = state.pending_screenshots.lock().await;
+                pending.remove(&request_id);
+            }
+            // The capture may have completed just after the deadline; if a
+            // fresh PNG landed on disk, return it instead of a hard error.
+            let latest = do_get_latest_screenshot(state).await.ok().flatten();
+            match resolve_late_screenshot(started_at, latest) {
+                Some(info) => Ok(info),
+                None => Err(format!(
+                    "screenshot capture timed out after {} s",
+                    timeout.as_secs()
+                )),
+            }
         }
     }
 }
@@ -3578,6 +3736,79 @@ mod cmd_tests {
             Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
         let info = do_get_latest_screenshot(&state).await.unwrap();
         assert!(info.is_none(), "missing file on disk → None");
+    }
+
+    // ── #1160 screenshot deadline + late-capture fallback ────────────────────
+
+    #[test]
+    fn screenshot_timeout_default_env_and_garbage() {
+        // One test (not several) so the shared process env var is mutated
+        // sequentially and cannot race a sibling test running in parallel.
+        // SAFETY: edition-2024 env mutation; confined to this single test.
+        unsafe { std::env::remove_var("PARISH_SCREENSHOT_TIMEOUT_SECS") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "default is 45 s");
+
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "90") };
+        assert_eq!(screenshot_timeout().as_secs(), 90, "env override honoured");
+
+        // Zero and non-numeric values fall back to the default.
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "0") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "zero ignored");
+        unsafe { std::env::set_var("PARISH_SCREENSHOT_TIMEOUT_SECS", "soon") };
+        assert_eq!(screenshot_timeout().as_secs(), 45, "garbage ignored");
+
+        unsafe { std::env::remove_var("PARISH_SCREENSHOT_TIMEOUT_SECS") };
+    }
+
+    fn info_at(taken_at: &str) -> ScreenshotInfo {
+        ScreenshotInfo {
+            path: "/tmp/parish-shot.png".into(),
+            taken_at: taken_at.into(),
+            size_bytes: 1234,
+        }
+    }
+
+    #[test]
+    fn resolve_late_screenshot_returns_capture_from_this_request() {
+        let started = chrono::DateTime::parse_from_rfc3339("2026-05-31T23:59:33Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        // Same second (taken_at is floored to the second) → eligible.
+        let info = resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:33Z")));
+        assert!(
+            info.is_some(),
+            "same-second late capture should be returned"
+        );
+        // Strictly newer → eligible.
+        let info = resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:40Z")));
+        assert!(info.is_some(), "newer capture should be returned");
+    }
+
+    #[test]
+    fn resolve_late_screenshot_rejects_stale_or_missing() {
+        let started = chrono::DateTime::parse_from_rfc3339("2026-05-31T23:59:33Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        // Older than the request start → stale, must not be returned.
+        assert!(resolve_late_screenshot(started, Some(info_at("2026-05-31T23:59:10Z"))).is_none());
+        // No screenshot on disk at all.
+        assert!(resolve_late_screenshot(started, None).is_none());
+        // Unparseable timestamp → treated as not eligible.
+        assert!(resolve_late_screenshot(started, Some(info_at("not-a-date"))).is_none());
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[test]
+    fn is_app_window_matches_parish_and_rundale_only() {
+        // Dev binary and packaged bundle names (case-insensitive).
+        assert!(is_app_window("parish-tauri"));
+        assert!(is_app_window("Parish"));
+        assert!(is_app_window("Rundale"));
+        assert!(is_app_window("RUNDALE"));
+        // Unrelated apps are ignored so we never capture the wrong window.
+        assert!(!is_app_window("Safari"));
+        assert!(!is_app_window("Terminal"));
+        assert!(!is_app_window(""));
     }
 
     // ── #9 sim-cancel preemption ─────────────────────────────────────────────

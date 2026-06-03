@@ -40,3 +40,80 @@ pub trait EventEmitter: Send + Sync {
     /// type corresponds to that event.
     fn emit_event(&self, name: &str, payload: serde_json::Value);
 }
+
+/// An [`EventEmitter`] that records every emitted `(name, payload)` in order
+/// instead of forwarding it to a transport.
+///
+/// This is the capture seam for differential ("shadow") testing of the game
+/// harness against the real `game_loop`: drive the loop with a
+/// `CapturingEmitter`, then read back the exact event stream the loop produced
+/// for normalization and comparison. Lives next to the trait (not behind
+/// `#[cfg(test)]`) because the consumer — `parish-engine`'s harness — is a
+/// separate crate and needs it across the crate boundary.
+#[derive(Default)]
+pub struct CapturingEmitter {
+    events: std::sync::Mutex<Vec<(String, serde_json::Value)>>,
+}
+
+impl CapturingEmitter {
+    /// Creates an empty emitter.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns a clone of every captured event, in emission order.
+    pub fn events(&self) -> Vec<(String, serde_json::Value)> {
+        self.events.lock().unwrap().clone()
+    }
+
+    /// Removes and returns every captured event, leaving the buffer empty.
+    pub fn drain(&self) -> Vec<(String, serde_json::Value)> {
+        std::mem::take(&mut *self.events.lock().unwrap())
+    }
+
+    /// Number of events captured so far.
+    pub fn len(&self) -> usize {
+        self.events.lock().unwrap().len()
+    }
+
+    /// Whether no events have been captured.
+    pub fn is_empty(&self) -> bool {
+        self.events.lock().unwrap().is_empty()
+    }
+}
+
+impl EventEmitter for CapturingEmitter {
+    fn emit_event(&self, name: &str, payload: serde_json::Value) {
+        self.events
+            .lock()
+            .unwrap()
+            .push((name.to_string(), payload));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn captures_events_in_order_with_intact_payloads() {
+        let emitter = CapturingEmitter::new();
+        assert!(emitter.is_empty());
+
+        emitter.emit_event("text-log", json!({ "text": "You look around." }));
+        emitter.emit_event("world-update", json!({ "location": "church" }));
+
+        let events = emitter.events();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].0, "text-log");
+        assert_eq!(events[0].1, json!({ "text": "You look around." }));
+        assert_eq!(events[1].0, "world-update");
+        assert_eq!(events[1].1, json!({ "location": "church" }));
+
+        // drain empties the buffer and returns the same sequence.
+        let drained = emitter.drain();
+        assert_eq!(drained, events);
+        assert!(emitter.is_empty());
+    }
+}

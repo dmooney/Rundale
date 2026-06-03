@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-
-	interface AuthStatus {
-		oauth_enabled: boolean;
-		logged_in: boolean;
-		provider?: string;
-		display_name?: string;
-	}
+	import { getAuthStatus } from '$lib/ipc';
+	import type { AuthStatus } from '$lib/types';
 
 	let status = $state<AuthStatus | null>(null);
 
@@ -17,15 +12,9 @@
 	);
 
 	onMount(async () => {
-		// Skip fetch if in Tauri (no /api server running)
-		if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) return;
-
-		try {
-			const resp = await fetch('/api/auth/status');
-			if (resp.ok) status = await resp.json();
-		} catch {
-			// Not critical — auth UI is optional
-		}
+		// getAuthStatus routes through the IPC seam: returns null in Tauri (no
+		// /api server) and on any failure — the auth UI is optional chrome.
+		status = await getAuthStatus();
 	});
 </script>
 

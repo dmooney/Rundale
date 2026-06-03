@@ -1,0 +1,243 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "mlx-community/Qwen3-30B-A3B-4bit",
+    "base_url": "http://127.0.0.1:8766/v1"
+  },
+  "run_started_utc": "2026-05-28T23:26:38.472563+00:00",
+  "slices": {
+    "tier3-sim": {
+      "summary": {
+        "slice": "tier3-sim",
+        "records": 10,
+        "judged": 8,
+        "bench_bugs": 2,
+        "judge_failures": 0,
+        "errors": 0,
+        "schema_valid_rate": 0.7,
+        "mean_score": 3.625,
+        "judge": "judge_sim_v1",
+        "judge_model": "claude-sonnet-4-6",
+        "rubric_sha256": "17209c841e4acfc26d3b16d31f3016677e0e2e540770d4f7498db3f2e8cb853a"
+      },
+      "results": [
+        {
+          "id": "tier3-0001",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Served a quiet crowd at Darcy's Pub, refilled the ale barrel, and had a quiet chat with Niamh about the weather.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Bussed tables and poured drinks, but took a short break to rest her feet near the hearth.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hungry\",\n      \"activity_summary\": \"Picked wild mushrooms near the bog and returned to his farm for a meager meal.\",\n      \"new_location\": \"farm\",\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Spoke with a group of travelers at the crossroads, telling stories of the old days and asking about the harvest.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Visited a neighbor\u2019s home to check on a new mother and left with a small gift of herbs.\",\n      \"new_location\": \"neighbor's cottage\",\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Prayed in the church and reviewed the baptism records for the next Sunday.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": false,
+          "response_sha256": "06020b5358943d9cca7be693f6e52020fddf9c2cec40e0dc974ac14b0d38583e",
+          "cache_key": "d3010a3b3fdac9eb272d5067268e3b14b7c8876ff617a3d4e100a9cadb4c8e6b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0002",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Padraig Darcy served a quiet crowd at the pub, minding the bar and chatting with regulars. He offered a quiet apology for the quarrel the night before, but no one seemed to hold it against him.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Niamh Darcy finished her shift and took a short break near the well. She overheard a few hushed conversations about the quarrel but kept her head down and finished her tasks efficiently.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hungry\",\n      \"activity_summary\": \"Sean Murphy finished his work at the bog and walked to the pub for a meal. He sat near the back, eating quickly and avoiding eye contact with anyone.\",\n      \"new_location\": 1,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Tommy Maguire sat at the crossroads, telling stories to passing travelers. He spoke of the quarrel with a mix of humor and caution, trying to keep the mood light but wary.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Brigid O'Brien finished tending to a sick child and returned to her cottage. She wrote notes for the next day\u2019s appointments and prepared herbs for the evening.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Father Cathal spent the afternoon in quiet prayer and reflection. He visited the cemetery and said a few words over the graves. He considered the quarrel but said nothing aloud.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "f81ebb82982d759e24bf182a3188a0d840184391d53dcaced8ea29b70bf6e466",
+          "cache_key": "8fe60b96c5144e440eb3d9febbc081cefbb1078d4bab0557ad6846b953bab841",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0003",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Padraig Darcy served ale to the townsfolk and exchanged friendly banter with regulars. He smiled often and seemed genuinely pleased with the good news.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Niamh Darcy finished her shift and took a short break near the back door. She exchanged a few words with Padraig, who offered her a cup of tea.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"hungry\",\n      \"activity_summary\": \"Sean Murphy finished his work at the bog and walked to the village to buy bread and cheese. He greeted several neighbors but kept to himself.\",\n      \"new_location\": \"village\",\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"restless\",\n      \"activity_summary\": \"Tommy Maguire sat at the crossroads and told stories to passing travelers. He was animated and seemed to enjoy the attention.\",\n      \"new_location\": \"crossroads\",\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"focused\",\n      \"activity_summary\": \"Brigid O'Brien finished tending to a sick child and prepared a remedy for another. She was quiet but efficient.\",\n      \"new_location\": \"cottage\",\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"contemplative\",\n      \"activity_summary\": \"Father Cathal prayed in the church and then walked the quiet path around the graveyard. He greeted a few villagers with a nod and a blessing.\",\n      \"new_location\": \"church\",\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": false,
+          "response_sha256": "da62c8bf1546bbd5b9751e92da37133ce5d2ce81e2dfa0befc4785481dbdeeba",
+          "cache_key": "5bc0f32595ca3d4493e917a9fe977c7f5366161aa3b133ca652f347d38e853aa",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0004",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Donal finished mending a plow for a farmer and took a short break by the fire. He muttered about the cold and the long hours.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"patient\",\n      \"activity_summary\": \"Mister Lyons taught a small class of children, including Eamon. He gave extra attention to Eamon, who was quiet and distracted.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 4,\n          \"delta\": 0.05\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"grieving\",\n      \"activity_summary\": \"Widow Kelleher sat by the fire, staring at the wall. She whispered to herself and cried quietly.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"distracted\",\n      \"activity_summary\": \"Eamon struggled to focus in class. He kept looking out the window and fidgeted with a broken pencil.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 2,\n          \"delta\": -0.05\n        }\n      ]\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "72a143ef2ec53bbec08244f608712c689962378f6f3180a18e55f8d5c6b8cacd",
+          "cache_key": "a25c8cd6fda95b2e8985bff85805a49e9959d6adf58844acc2cb0027ab91089e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0005",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Donal finished mending a broken plow and took a short break by the fire. He muttered about the cold and the quarrel from last night but said little else.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"patient\",\n      \"activity_summary\": \"Mister Lyons taught the children for an hour, then sat with Widow Kelleher for a moment to offer quiet support. He asked Eamon if he needed help with his writing.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 2,\n          \"to\": 3,\n          \"delta\": 0.05\n        },\n        {\n          \"from\": 2,\n          \"to\": 4,\n          \"delta\": 0.03\n        }\n      ]\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"grieving\",\n      \"activity_summary\": \"Widow Kelleher sat by the fire, staring at the wall. She didn\u2019t speak but accepted a cup of tea from Mister Lyons. She didn\u2019t move from her chair.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"distracted\",\n      \"activity_summary\": \"Eamon struggled with his writing but finished a short paragraph. He asked Mister Lyons about his father and seemed to quiet down after that.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 2,\n          \"delta\": 0.04\n        }\n      ]\n    },\n    {\n      \"npc_id\": 1,\n      \"mood\": \"tired\",\n      \"activity_summary\": \"Donal finished mending the plow and went to check on the horses. He didn\u2019t speak to anyone but seemed more at ease after the work.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"grieving\",\n      \"activity_summary\": \"Widow Kelleher finally got up to tend the fire. She didn\u2019t speak but seemed slightly more present.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "1d1ccaf60b3e9dd56e962498675cee31b5e53e18a8c0f568780e330816c50cae",
+          "cache_key": "736342f0024413df459202e727b97b9ba065f2eaaa620d29794222a32737ec7b",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0006",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Tired but relieved\",\n      \"activity_summary\": \"Donal finished mending the plow for the O'Brien farm. He took a short break by the fire, but stayed at the forge.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient but hopeful\",\n      \"activity_summary\": \"Mister Lyons taught the children about the stars and the good news from Dublin. He wrote a note to the priest about the potential for a new school fund.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"Grieving but quiet\",\n      \"activity_summary\": \"Widow Kelleher sat by the fire, staring at the hearth. She didn't speak to anyone but kept the house warm.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"Distracted but trying\",\n      \"activity_summary\": \"Eamon struggled with his lessons but finished the math sheet. He asked Mister Lyons about his father, but didn't press for details.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 1,\n      \"mood\": \"Tired but focused\",\n      \"activity_summary\": \"Donal finished the iron gate for the church. He mumbled a thank you to the priest who came to check on the work.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"Patient but inspired\",\n      \"activity_summary\": \"Mister Lyons read aloud from a pamphlet about the new agricultural techniques. He invited the children to draw their ideal farm.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "43878da9a115783dcc166729ccd4ccb07e0f85a7cc60dc4b171a2410954b95fe",
+          "cache_key": "93566c9ffe2c953c91e8ae508c2c19e4ae4366be1d7e2df9b11e1e2ce1d88803",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 0
+            },
+            "overall": 0.0,
+            "flags": {
+              "bench_bug": true,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0007",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"exhausted\",\n      \"activity_summary\": \"Conor returned from the lakeshore after a long day of fishing. He sat on the dock, staring at the water, and didn't speak much.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"disappointed\",\n      \"activity_summary\": \"Padraig checked the nets again but found no fish. He sat near his brother, sharing a quiet moment of frustration.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"uneasy\",\n      \"activity_summary\": \"Maire sat by the fire, rubbing her stomach. She asked Brigid about the signs of labor and seemed anxious about the coming weeks.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"calm\",\n      \"activity_summary\": \"Brigid finished her check-up and gave Maire some herbs for sleep. She offered reassuring words and left with a quiet smile.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"garrulous\",\n      \"activity_summary\": \"Tommy finished his third pint and started telling stories about the old days. He laughed loudly and made a few people at the pub roll their eyes.\",\n      \"new_location\": \"Darcy's Pub\",\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": false,
+          "response_sha256": "5f7ef617c239caffc763285d901bcafc94dbed11058531d7e3a57e7691babfd3",
+          "cache_key": "8525e6139cb654f37eb8bb5f52283007214bbe0355ea30a257161f55f67f2b65",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 3
+            },
+            "overall": 3.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0009",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"relieved\",\n      \"activity_summary\": \"Conor returned from the lakeshore after a long day of fishing. He found the rain refreshing and felt a quiet satisfaction from the day's catch.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"elated\",\n      \"activity_summary\": \"Padraig, inspired by the good news, decided to fish again after a short rest. He shared a laugh with his brother and felt a renewed sense of hope.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"calm\",\n      \"activity_summary\": \"Maire sat with Brigid, who gave her a reassuring check-up. Maire felt comforted by the midwife\u2019s presence and the news that everything was progressing well.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 3,\n          \"to\": 4,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"content\",\n      \"activity_summary\": \"Brigid finished her visit with Maire and returned to her home. She felt a quiet pride in her work and was touched by Maire\u2019s trust.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 4,\n          \"to\": 3,\n          \"delta\": 0.1\n        }\n      ]\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"garrulous\",\n      \"activity_summary\": \"Tommy finished his third pint and began sharing stories with the other patrons. He was in high spirits and spread the good news around the pub.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "b3c0489b553a771509986b65f408566cb66613656e646071fd394d3d2e759ecf",
+          "cache_key": "8a187e166c7f439540edf0fefcfe0ebbe3dc4b22bcbf786d85db7aaa0ad220a4",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0010",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"impatient\",\n      \"activity_summary\": \"Spencer checked the clock again, muttered about the slow pace of the tenants, and scrawled another note for the next tenant to appear.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"wary\",\n      \"activity_summary\": \"Darcy overheard a conversation about the rent arrears and frowned. He poured himself a drink and kept an eye on the door.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"anxious\",\n      \"activity_summary\": \"Murphy checked the weight of his oats again, then asked a passerby about the market price. He frowned when he heard it had dropped.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"neutral\",\n      \"activity_summary\": \"Brigid asked the herbalist about the availability of willow bark and paid for a small bundle. She nodded in quiet satisfaction.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"watchful\",\n      \"activity_summary\": \"Father Cathal finished his meal and walked the length of the churchyard. He paused near the well, as if expecting someone.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"talkative\",\n      \"activity_summary\": \"Maguire told a story about a wild boar in the woods. A small crowd gathered, and he finished with a laugh and a nod to the crowd.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 7,\n      \"mood\": \"wary\",\n      \"activity_summary\": \"Whitcombe finished his ale and asked the innkeeper about the local customs. He kept his hand near his belt.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "91dd4eaa94bf951f79fe5d8131fd7bf0bb3b86afe72494cd3256e34d3bba3d74",
+          "cache_key": "f4214e2be4d8775f4354b0304a9a40431202ac61391c9d2baf7f1be822994870",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        },
+        {
+          "id": "tier3-0012",
+          "reply": "{\n  \"updates\": [\n    {\n      \"npc_id\": 1,\n      \"mood\": \"impatient\",\n      \"activity_summary\": \"Spencer checked the ledger again, scowled at the missing payments, and called for the next tenant. He asked for a drink but refused to stay.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 2,\n      \"mood\": \"wary\",\n      \"activity_summary\": \"Darcy overheard the good news but kept his head down. He served ale but refused to engage in conversation.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 3,\n      \"mood\": \"anxious\",\n      \"activity_summary\": \"Murphy sold his oats but was tense. He overheard a rumor about a tax increase and left quickly.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 4,\n      \"mood\": \"neutral\",\n      \"activity_summary\": \"Brigid bought herbs and asked about the good news. She listened but offered no opinion.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 5,\n      \"mood\": \"watchful\",\n      \"activity_summary\": \"Father Cathal finished Mass and overheard the good news. He smiled but kept an eye on the crowd.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    },\n    {\n      \"npc_id\": 6,\n      \"mood\": \"talkative\",\n      \"activity_summary\": \"Tommy regaled the market with stories about his farm and the good news. He made a few new acquaintances.\",\n      \"new_location\": null,\n      \"relationship_changes\": [\n        {\n          \"from\": 6,\n          \"to\": 3,\n          \"delta\": 0.05\n        },\n        {\n          \"from\": 6,\n          \"to\": 4,\n          \"delta\": 0.03\n        }\n      ]\n    },\n    {\n      \"npc_id\": 7,\n      \"mood\": \"wary\",\n      \"activity_summary\": \"Whitcombe finished his meal and left without speaking. He kept an eye on the crowd but said nothing.\",\n      \"new_location\": null,\n      \"relationship_changes\": []\n    }\n  ]\n}",
+          "schema_valid": true,
+          "response_sha256": "8d2a71ab0d83256bedca332422f439aefaa8425ef8bf20d5a501a984790c60f3",
+          "cache_key": "615569166d0c369c58b61c04cdd95e42db9f85bd577a4792c32616cd65b5696e",
+          "judged": true,
+          "judgment": {
+            "axes": {
+              "plausibility": 4
+            },
+            "overall": 4.0,
+            "flags": {
+              "bench_bug": false,
+              "judge_retry": false,
+              "non_latin_detected": false,
+              "refused": false
+            }
+          }
+        }
+      ],
+      "bundles": [
+        "tier3-sim__Qwen3_30B_A3B_4bit"
+      ],
+      "candidate": {
+        "model_id": "Qwen3-30B-A3B-4bit",
+        "provider_id": null,
+        "resolved_target": "mlx-community/Qwen3-30B-A3B-4bit@http://127.0.0.1:8766/v1"
+      }
+    }
+  },
+  "elapsed_seconds": 63.60476493835449,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2981,
+    "completion_tokens": 4413,
+    "usd": 0.0
+  }
+}

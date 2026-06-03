@@ -1,6 +1,6 @@
 ---
-description: Run a demo-audit session — cycle `just demo` with live MCP/HTTP inspection, surface gameplay bugs, document in TODO.md
-allowed-tools: Bash, Read, Edit, Write, Grep, Glob, TaskCreate, TaskUpdate, TaskList
+description: Run a demo-audit session — cycle `just demo` with live MCP/HTTP inspection, surface gameplay bugs, file them via the parish_file_bug MCP (screenshot + logs + state) and log in TODO.md
+allowed-tools: Bash, Read, Edit, Write, Grep, Glob, TaskCreate, TaskUpdate, TaskList, mcp__parish__parish_file_bug, mcp__parish__parish_take_screenshot, mcp__parish__parish_latest_screenshot, mcp__parish__parish_world_snapshot, mcp__parish__parish_npcs_here, mcp__parish__parish_submit_input
 ---
 
 Run a demo-audit session on the Parish/Rundale engine. Goal: snapshot current gameplay quality + surface bugs via repeated `just demo` cycles combined with live MCP/HTTP inspection.
@@ -62,10 +62,49 @@ grep -c '<name>' mods/rundale/world.json
 
 Many "wrong" names are in-canon (Concannon, Niamh Darcy, Curraghboy, sídhe).
 
-## 5. Documentation rule
+## 5. File confirmed bugs via the `parish_file_bug` MCP
 
-- Maintain a `TODO.md` at repo root. One numbered entry per category, with **Symptom** / **Root cause** / **Fix** sections. Group by cycle of discovery. Revise (not delete) earlier entries when later cycles refute or refine them — keep an audit trail.
-- At the end list top-10 by impact.
+File every **confirmed, reproducible** bug as a GitHub issue with
+`mcp__parish__parish_file_bug` — it auto-bundles a live screenshot, recent
+logs, and current game state, so the issue is self-contained. As of #1160 the
+screenshot is a native window capture, so the **MapLibre minimap renders in the
+image** (the old html-to-image path captured it blank).
+
+Protocol per bug:
+
+1. **Capture context at the moment of the bug.** The bug is filed against
+   whatever state is live, so freeze it first: stop advancing the demo, then
+   `mcp__parish__parish_take_screenshot` (confirm it returns a path — the live
+   desktop window must be present and foregrounded; under heavy local-MLX load
+   it can take up to the 45 s deadline). `parish_file_bug` attaches the latest
+   screenshot automatically; an explicit capture just guarantees it shows the
+   bug.
+2. **Dedup before filing — do NOT spam.** Search open issues first:
+   `gh issue list --repo dmooney/rundale --state open --search "<keywords>"`.
+   If a matching issue exists, add a comment instead of a new issue. Many
+   "wrong" names/behaviours are in-canon (see §4) — verify before filing.
+3. **File it.** `mcp__parish__parish_file_bug` with:
+   - `title` — one line, specific (e.g. `/wait 1 narration reads "1 minutes"`).
+   - `description` — **Symptom** (observed line/behaviour), **Repro** (exact
+     inputs), **Root cause** (cite `file.rs:line` — read the code first, §Constraints),
+     **Expected**. Reference related issues by number.
+   - optional `context` — a debug-panel record (`{kind,label,detail}`) when the
+     bug is about a specific inference call / event / conversation.
+   It returns `{created, issue_number, issue_url, screenshot_url}`. Verify the
+   issue body has the inline image: `gh issue view <n> --json body | grep '!\['`.
+4. **Dry-run when probing the loop, not real bugs.** Set
+   `PARISH_BUG_REPORT_DRY_RUN=1` in the demo/backend env to write the report to
+   disk (`created:false`, `bundle_path` set) instead of filing — use while
+   testing the audit flow so you don't create throwaway issues. Real audit runs
+   file for real.
+
+## 6. Audit trail in TODO.md
+
+- Maintain a `TODO.md` at repo root as the cross-cycle audit trail. One numbered
+  entry per category, with **Symptom** / **Root cause** / **Fix** and the filed
+  **issue #** / URL. Group by cycle of discovery. Revise (not delete) earlier
+  entries when later cycles refute or refine them.
+- At the end list top-10 by impact, each linked to its issue.
 
 # Constraints
 

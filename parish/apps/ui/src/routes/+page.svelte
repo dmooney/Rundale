@@ -57,6 +57,7 @@
 		onOpenDesigner,
 		onNpcReaction,
 		onTravelStart,
+		onReconnect,
 		submitInput,
 		saveScreenshot,
 		disposeTransport,
@@ -132,8 +133,8 @@
 					.catch(() => {});
 			}
 		}
-		// Toggle full map with M key, but only when not typing in an input/contenteditable
-		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && !(document.activeElement as HTMLElement)?.isContentEditable) {
+		// Toggle full map with M key, but only when not typing in an input/textarea/contenteditable
+		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && !(document.activeElement as HTMLElement)?.isContentEditable) {
 			e.preventDefault();
 			fullMapOpen.update((v) => !v);
 		}
@@ -374,6 +375,13 @@
 					return;
 				}
 
+				// Movement renders the full arrival scene here (with NPCs + exits).
+				// Suppress the shorter scene line the imminent world-update would
+				// otherwise append, so the location prints once, not twice.
+				if (payload.subtype === 'location') {
+					sceneDedup.suppressNextDescription();
+				}
+
 				// Strip "> " prefix from player messages — bubble alignment shows speaker
 				const content =
 					payload.source === 'player' && payload.content.startsWith('> ')
@@ -398,7 +406,17 @@
 			}));
 
 			listeners.push(await onStreamToken((payload) => {
-				const turn = sm.queuePendingTurn(payload.turn_id, payload.source);
+				// Re-assert the busy flag whenever tokens actually flow. Normally
+				// loading{active:true} already set it, but after a mid-turn
+				// reconnect (where we cleared it to recover from a possibly-dead
+				// stream) a resumed stream would otherwise leave input enabled
+				// mid-turn, allowing a duplicate send. finishNpcStream clears it
+				// authoritatively once the pump drains. (Codex reconnect-resume.)
+				streamingActive.set(true);
+				// Pass message_id so a stream that resumed after a reconnect (whose
+				// placeholder text-log — and its id — was discarded by sm.reset()
+				// during the gap) rebinds to a reactable textLog entry (#1164).
+				const turn = sm.queuePendingTurn(payload.turn_id, payload.source, payload.message_id);
 				turn.buffer += payload.token;
 				sm.startTurnPumpIfNeeded(turn);
 			}));
@@ -476,6 +494,53 @@
 
 			listeners.push(await onSavePicker(() => {
 				savePickerVisible.set(true);
+			}));
+
+			// Resync authoritative state after a WebSocket reconnect: events
+			// emitted during the gap (e.g. a terminal stream-end) are lost, so
+			// re-fetch snapshot/map/npcs and clear any stuck streaming flag so
+			// the input field and demo loop don't hang (audit M4). No-op in
+			// Tauri (the desktop transport never disconnects).
+			listeners.push(onReconnect(async () => {
+				// Discard the orphaned pre-reconnect stream SYNCHRONOUSLY, before
+				// awaiting anything. The turn that was streaming when the socket
+				// dropped lost its remaining tokens / stream-end during the gap,
+				// so pendingTurnCount()/chainInProgress would otherwise stay
+				// non-zero forever and leave the input disabled. Doing this before
+				// the first await means it runs inside the onopen dispatch — ahead
+				// of any onmessage on the new socket — so a stream the backend
+				// resumes after reconnect queues a fresh turn that this reset can't
+				// clobber (the late-reset race Codex flagged).
+				sm.reset();
+				streamingActive.set(false);
+
+				// allSettled (matching the mount-time fetch): a transient failure
+				// on one endpoint right after reconnect must not discard the
+				// other successful updates.
+				const [snapRes, mapRes, npcsRes] = await Promise.allSettled([
+					getWorldSnapshot(),
+					getMap(),
+					getNpcsHere()
+				]);
+				if (snapRes.status === 'fulfilled') {
+					const snap = snapRes.value;
+					worldState.set(snap);
+					palette.applyGameHour(snap.hour);
+					if (snap.name_hints) nameHints.set(snap.name_hints);
+					// Re-assert busy state from authoritative server state: if a
+					// turn was still in flight across the gap (slow model, or a
+					// pause before the next stream-token), the reset above wrongly
+					// cleared streamingActive, re-enabling the input field and
+					// quick-travel chips → duplicate-turn window. A resumed
+					// stream-token would re-set it, but only once tokens actually
+					// flow; this closes the pre-token gap immediately (#1164).
+					if (snap.turn_in_flight) streamingActive.set(true);
+				}
+				if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
+				if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
+				for (const r of [snapRes, mapRes, npcsRes]) {
+					if (r.status === 'rejected') console.warn('Reconnect resync partial failure:', r.reason);
+				}
 			}));
 
 		} catch (e) {

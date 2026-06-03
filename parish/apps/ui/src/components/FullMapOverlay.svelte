@@ -127,7 +127,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="map-embed">
+<div class="map-embed" data-testid="full-map">
 	<button
 		type="button"
 		class="close-btn"

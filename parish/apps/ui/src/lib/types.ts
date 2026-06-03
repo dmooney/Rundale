@@ -15,6 +15,13 @@ export interface WorldSnapshot {
 	speed_factor: number;
 	name_hints: LanguageHint[];
 	day_of_week: string;
+	/** Whether an NPC conversation turn is being processed by the engine.
+	 *  Set on the `/api/world-snapshot` resync the reconnect handler fetches so
+	 *  the client can re-assert `streamingActive` from authoritative state
+	 *  instead of clearing it mid-turn (#1164). `#[serde(default)]` on the Rust
+	 *  side, so it may be absent on world-update pushes — treat undefined as
+	 *  false. */
+	turn_in_flight?: boolean;
 }
 
 export interface MapLocation {
@@ -34,14 +41,15 @@ export interface MapData {
 	locations: MapLocation[];
 	edges: [string, string][];
 	player_location: string;
-	player_lat: number;
-	player_lon: number;
-	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count]. */
+	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count].
+	 *  Rust skips this when empty (`skip_serializing_if = "Vec::is_empty"`). */
 	edge_traversals?: [string, string, number][];
-	/** Human-readable transport mode label (e.g. "on foot"). */
-	transport_label?: string;
-	/** Machine identifier for the active transport mode (e.g. "walking"). */
-	transport_id?: string;
+	/** Human-readable transport mode label (e.g. "on foot").
+	 *  Always serialized by Rust `MapData` (`pub transport_label: String`). */
+	transport_label: string;
+	/** Machine identifier for the active transport mode (e.g. "walking").
+	 *  Always serialized by Rust `MapData` (`pub transport_id: String`). */
+	transport_id: string;
 }
 
 /** Tooltip data shown when hovering a map location marker.
@@ -151,6 +159,12 @@ export interface StreamTokenPayload {
 	token: string;
 	turn_id: number;
 	source: string;
+	/** Message id of the `text-log` placeholder this stream fills. Carried so a
+	 *  stream that resumes after a WS reconnect can rebind to a reactable
+	 *  `textLog` entry even though `StreamManager.reset()` discarded the
+	 *  client's only copy of the id (#1164). Absent for arrival-reaction
+	 *  streams (Rust serializes `Option<String>` with `skip_serializing_if`). */
+	message_id?: string;
 }
 
 export interface StreamTurnEndPayload {
@@ -162,7 +176,10 @@ export interface StreamEndPayload {
 }
 
 export interface TextLogPayload {
-	id?: string;
+	/** Unique message id for reaction targeting. Rust always serializes this
+	 *  (`#[serde(default)] pub id: String`); `#[serde(default)]` only affects
+	 *  deserialization, so the wire payload always carries a (possibly empty) id. */
+	id: string;
 	stream_turn_id?: number;
 	source: string;
 	content: string;
@@ -206,6 +223,20 @@ export interface AuthDebug {
 	provider: string | null;
 	display_name: string | null;
 	session_id: string | null;
+}
+
+/**
+ * Response body for `GET /api/auth/status` (web server only).
+ *
+ * Mirrors `parish_server::auth::AuthStatus` — keep in sync with that struct.
+ * Distinct from {@link AuthDebug} (the debug-snapshot shape, which also carries
+ * `session_id`); this is the narrower public auth-status payload.
+ */
+export interface AuthStatus {
+	oauth_enabled: boolean;
+	logged_in: boolean;
+	provider?: string | null;
+	display_name?: string | null;
 }
 
 export interface ClockDebug {

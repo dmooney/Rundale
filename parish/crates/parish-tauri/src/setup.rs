@@ -809,209 +809,113 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                 }
             }
             {
-                // Tick weather engine
-                let season = world.clock.season();
+                // `now` is reused by the Tier-3/Tier-2 dispatch further down.
                 let now = world.clock.now();
-                // Scope thread_rng tightly so it is dropped before any await.
-                let new_weather_opt = {
-                    let mut rng = rand::rng();
-                    world.weather_engine.tick(now, season, &mut rng)
-                };
-                {
-                    if let Some(new_weather) = new_weather_opt {
-                        let old = world.weather;
-                        world.weather = new_weather;
-                        world.event_bus.publish(
-                            parish_core::world::events::GameEvent::WeatherChanged {
-                                new_weather: new_weather.to_string(),
-                                timestamp: world.clock.now(),
-                            },
-                        );
-                        tracing::info!(old = %old, new = %new_weather, "Weather changed");
-                        // Emit weather debug event
-                        let mut debug_events = state.debug_events.lock().await;
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
-                        debug_events.push_back(DebugEvent {
-                            timestamp: String::new(),
-                            category: "weather".to_string(),
-                            message: format!("Weather: {} → {}", old, new_weather),
-                        });
-                    }
-                }
+                let old_weather = world.weather;
 
-                let schedule_events = npc_mgr.tick_schedules(
-                    &world.clock,
-                    &world.graph,
-                    world.weather,
-                    &world.event_bus,
-                );
-                let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
-
-                // Banshee tick — herald and finalise doomed NPCs.
-                // Default-on; kill-switched by the `banshee` feature flag.
+                // Banshee flag snapshot (gates the banshee tick in the pump).
                 let banshee_enabled = {
                     let cfg = state.config.lock().await;
                     !cfg.flags.is_disabled("banshee")
                 };
-                let banshee_report = if banshee_enabled {
-                    let world_ref = &mut *world;
-                    npc_mgr.tick_banshee(
-                        &world_ref.clock,
-                        &world_ref.graph,
-                        &mut world_ref.text_log,
-                        &world_ref.event_bus,
-                        world_ref.player_location,
-                    )
-                } else {
-                    parish_core::npc::banshee::BansheeReport::default()
-                };
-                if !banshee_report.is_empty() {
-                    let mut debug_events = state.debug_events.lock().await;
-                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                        debug_events.pop_front();
-                    }
-                    debug_events.push_back(DebugEvent {
-                        timestamp: world.clock.now().format("%H:%M %Y-%m-%d").to_string(),
-                        category: "banshee".to_string(),
-                        message: format!(
-                            "{} wail(s), {} death(s)",
-                            banshee_report.wails.len(),
-                            banshee_report.deaths.len()
-                        ),
-                    });
-                }
 
-                // Log schedule events and tier transitions to debug panel
-                if !schedule_events.is_empty() || !tier_transitions.is_empty() {
+                // Advance the world one pump through the single shared helper
+                // (rule #12): weather + schedules + tier reassignment + banshee
+                // + full gossip + tier-4. Scope the thread RNG tightly so it is
+                // dropped before any await.
+                let report = {
+                    use parish_core::game_loop::{
+                        AdvanceOptions, GossipMode, WeatherMode, advance_world,
+                    };
+                    let mut rng = rand::rng();
+                    advance_world(
+                        &mut world,
+                        &mut npc_mgr,
+                        &mut rng,
+                        AdvanceOptions {
+                            weather: WeatherMode::Single,
+                            run_banshee: banshee_enabled,
+                            gossip: GossipMode::All,
+                            run_tier4: true,
+                        },
+                    )
+                };
+
+                // Mirror the pump's report into the debug panel, in the same
+                // category order the pre-#1159 inline copy produced.
+                {
                     let ts = world.clock.now().format("%H:%M %Y-%m-%d").to_string();
                     let mut debug_events = state.debug_events.lock().await;
-                    for evt in &schedule_events {
+                    let mut push = |category: &str, message: String, timestamp: String| {
                         if debug_events.len() >= DEBUG_EVENT_CAPACITY {
                             debug_events.pop_front();
                         }
                         debug_events.push_back(DebugEvent {
-                            timestamp: ts.clone(),
-                            category: "schedule".to_string(),
-                            message: evt.debug_string(),
+                            timestamp,
+                            category: category.to_string(),
+                            message,
                         });
+                    };
+
+                    if let Some(new_weather) = report.weather_change {
+                        tracing::info!(old = %old_weather, new = %new_weather, "Weather changed");
+                        push(
+                            "weather",
+                            format!("Weather: {} → {}", old_weather, new_weather),
+                            String::new(),
+                        );
                     }
-                    for tt in &tier_transitions {
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
+                    if !report.banshee.is_empty() {
+                        push(
+                            "banshee",
+                            format!(
+                                "{} wail(s), {} death(s)",
+                                report.banshee.wails.len(),
+                                report.banshee.deaths.len()
+                            ),
+                            ts.clone(),
+                        );
+                    }
+                    for evt in &report.schedule_events {
+                        push("schedule", evt.debug_string(), ts.clone());
+                    }
+                    for tt in &report.tier_transitions {
                         let direction = if tt.promoted { "promoted" } else { "demoted" };
-                        debug_events.push_back(DebugEvent {
-                            timestamp: ts.clone(),
-                            category: "tier".to_string(),
-                            message: format!(
+                        push(
+                            "tier",
+                            format!(
                                 "{} {} {:?} → {:?}",
                                 tt.npc_name, direction, tt.old_tier, tt.new_tier,
                             ),
-                        });
+                            ts.clone(),
+                        );
                     }
-                }
-
-                // Propagate gossip between co-located Tier 2 NPCs
-                // Scope thread_rng tightly so it is dropped before any await.
-                let total_gossip = if !world.gossip_network.is_empty() {
-                    let groups = npc_mgr.tier2_groups();
-                    let mut rng = rand::rng();
-                    let mut total = 0usize;
-                    for npc_ids in groups.values() {
-                        if npc_ids.len() >= 2 {
-                            total += parish_core::npc::ticks::propagate_gossip_at_location(
-                                npc_ids,
-                                &mut world.gossip_network,
-                                &mut rng,
-                            );
-                        }
-                    }
-                    total
-                } else {
-                    0
-                };
-                {
-                    if total_gossip > 0 {
-                        let mut debug_events = state.debug_events.lock().await;
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
-                        debug_events.push_back(DebugEvent {
-                            timestamp: String::new(),
-                            category: "gossip".to_string(),
-                            message: format!(
+                    if report.gossip_count > 0 {
+                        push(
+                            "gossip",
+                            format!(
                                 "{} rumor(s) spread among co-located NPCs",
-                                total_gossip
+                                report.gossip_count
                             ),
-                        });
+                            String::new(),
+                        );
                     }
-                }
-
-                // Dispatch Tier 4 rules engine if enough game time has elapsed.
-                // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
-                if npc_mgr.needs_tier4_tick(now) {
-                    let tier4_ids: std::collections::HashSet<parish_core::npc::NpcId> = npc_mgr
-                        .npcs_in_tier(parish_core::npc::types::CogTier::Tier4)
-                        .into_iter()
-                        .collect();
-                    let events = {
-                        let mut tier4_refs: Vec<&mut parish_core::npc::Npc> = npc_mgr
-                            .npcs_mut()
-                            .values_mut()
-                            .filter(|n| tier4_ids.contains(&n.id))
-                            .collect();
-                        let game_date = now.date_naive();
-                        let mut rng = rand::rng();
-                        parish_core::npc::tier4::tick_tier4(
-                            &mut tier4_refs,
-                            season,
-                            game_date,
-                            &mut rng,
-                        )
-                    };
-                    let game_events = npc_mgr.apply_tier4_events(&events, now, banshee_enabled);
-                    // Collect per-event descriptions before publishing.
-                    let life_descriptions: Vec<String> = game_events
-                        .iter()
-                        .filter_map(|ge| {
+                    if report.tier4_event_count > 0 {
+                        for ge in &report.tier4_game_events {
                             if let parish_core::world::events::GameEvent::LifeEvent {
                                 description,
                                 ..
                             } = ge
                             {
-                                Some(description.clone())
-                            } else {
-                                None
+                                push("life_event", description.clone(), String::new());
                             }
-                        })
-                        .collect();
-                    for evt in game_events {
-                        world.event_bus.publish(evt);
-                    }
-                    npc_mgr.record_tier4_tick(now);
-                    let mut debug_events = state.debug_events.lock().await;
-                    // Per-event life_event entries
-                    for desc in &life_descriptions {
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
                         }
-                        debug_events.push_back(DebugEvent {
-                            timestamp: String::new(),
-                            category: "life_event".to_string(),
-                            message: desc.clone(),
-                        });
+                        push(
+                            "tier4",
+                            format!("Tier 4 tick: {} events", report.tier4_event_count),
+                            String::new(),
+                        );
                     }
-                    // Aggregate tier4 entry
-                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                        debug_events.pop_front();
-                    }
-                    debug_events.push_back(DebugEvent {
-                        timestamp: String::new(),
-                        category: "tier4".to_string(),
-                        message: format!("Tier 4 tick: {} events", events.len()),
-                    });
                 }
 
                 // Dispatch Tier 3 batch LLM simulation for distant NPCs.

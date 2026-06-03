@@ -1,0 +1,13 @@
+# play_fix-minimap-screenshot.txt
+#
+# The blank-minimap-in-screenshot bug is a Tauri-desktop WebGL capture
+# fidelity issue (MapLibre drawing buffer cleared before html-to-image reads
+# it). The headless parish-cli harness has no frontend / WebGL / window, so it
+# cannot observe the minimap or the capture. Proof of record is a LIVE
+# parish_take_screenshot showing the populated minimap; see
+# .proofs/fix-minimap-screenshot/.
+#
+# This script only confirms the engine still boots and plays after the change.
+/status
+look
+/time
