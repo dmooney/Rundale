@@ -23,24 +23,26 @@ prettier_fmt() {
 }
 
 case "$FILE_PATH" in
-*.rs)
-    cargo fmt --quiet 2>/dev/null || true
-    ;;
-*.ts | *.tsx | *.svelte | *.js | *.mjs | *.cjs | *.json | *.jsonc | *.md | *.yaml | *.yml)
-    prettier_fmt
-    ;;
-*.py)
-    if command -v ruff >/dev/null 2>&1; then
-        ruff format "$FILE_PATH" >/dev/null 2>&1 || true
-        ruff check --fix "$FILE_PATH" >/dev/null 2>&1 || true
-    fi
-    ;;
-*.sh)
-    command -v shfmt >/dev/null 2>&1 && shfmt -w "$FILE_PATH" 2>/dev/null || true
-    ;;
-*.toml)
-    command -v taplo >/dev/null 2>&1 && taplo fmt "$FILE_PATH" >/dev/null 2>&1 || true
-    ;;
+    *.rs)
+        cargo fmt --quiet 2>/dev/null || true
+        ;;
+    *.ts | *.tsx | *.svelte | *.js | *.mjs | *.cjs | *.json | *.jsonc | *.md | *.yaml | *.yml)
+        prettier_fmt
+        ;;
+    *.py)
+        if command -v ruff >/dev/null 2>&1; then
+            ruff format "$FILE_PATH" >/dev/null 2>&1 || true
+            ruff check --fix "$FILE_PATH" >/dev/null 2>&1 || true
+        fi
+        ;;
+    *.sh)
+        # Flags must match the CI / justfile gate (-i 4 -ci -bn) or the hook's
+        # in-place format diverges from what `shell-quality` checks.
+        command -v shfmt >/dev/null 2>&1 && shfmt -i 4 -ci -bn -w "$FILE_PATH" 2>/dev/null || true
+        ;;
+    *.toml)
+        command -v taplo >/dev/null 2>&1 && taplo fmt "$FILE_PATH" >/dev/null 2>&1 || true
+        ;;
 esac
 
 exit 0
