@@ -19,7 +19,7 @@ on:
   schedule:
     # Nightly full run: catches toolchain drift, coverage regressions, and
     # flaky tests that per-PR path-filtering would otherwise let slip.
-    - cron: '0 7 * * *'
+    - cron: "0 7 * * *"
   workflow_dispatch:
 
 concurrency:

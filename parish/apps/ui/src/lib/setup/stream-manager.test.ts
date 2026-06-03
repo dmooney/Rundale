@@ -232,7 +232,14 @@ describe('createStreamManager — reset() finalizes orphaned stream entries', ()
 		const sm = createStreamManager();
 		// A partially-streamed NPC bubble: content present, still streaming.
 		textLog.set([
-			{ id: 'm1', source: 'Padraig', content: 'Dia dh', streaming: true, latest_chunk: 'dh', stream_chunk_id: 3 }
+			{
+				id: 'm1',
+				source: 'Padraig',
+				content: 'Dia dh',
+				streaming: true,
+				latest_chunk: 'dh',
+				stream_chunk_id: 3,
+			},
 		]);
 
 		sm.reset();
@@ -248,8 +255,14 @@ describe('createStreamManager — reset() finalizes orphaned stream entries', ()
 	it('drops an empty streaming placeholder on reset', () => {
 		const sm = createStreamManager();
 		textLog.set([
-			{ id: 'p1', source: 'Siobhan', content: '', streaming: true, stream_turn_id: 7 },
-			{ id: 'm2', source: 'system', content: 'A scene line.' }
+			{
+				id: 'p1',
+				source: 'Siobhan',
+				content: '',
+				streaming: true,
+				stream_turn_id: 7,
+			},
+			{ id: 'm2', source: 'system', content: 'A scene line.' },
 		]);
 
 		sm.reset();
@@ -263,7 +276,7 @@ describe('createStreamManager — reset() finalizes orphaned stream entries', ()
 		const sm = createStreamManager();
 		const entries = [
 			{ id: 'a', source: 'player', content: '> hello' },
-			{ id: 'b', source: 'Padraig', content: 'Finished reply.' }
+			{ id: 'b', source: 'Padraig', content: 'Finished reply.' },
 		];
 		textLog.set(entries);
 

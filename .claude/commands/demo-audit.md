@@ -90,8 +90,8 @@ Protocol per bug:
      **Expected**. Reference related issues by number.
    - optional `context` — a debug-panel record (`{kind,label,detail}`) when the
      bug is about a specific inference call / event / conversation.
-   It returns `{created, issue_number, issue_url, screenshot_url}`. Verify the
-   issue body has the inline image: `gh issue view <n> --json body | grep '!\['`.
+     It returns `{created, issue_number, issue_url, screenshot_url}`. Verify the
+     issue body has the inline image: `gh issue view <n> --json body | grep '!\['`.
 4. **Dry-run when probing the loop, not real bugs.** Set
    `PARISH_BUG_REPORT_DRY_RUN=1` in the demo/backend env to write the report to
    disk (`created:false`, `bundle_path` set) instead of filing — use while

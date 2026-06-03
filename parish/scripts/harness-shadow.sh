@@ -22,7 +22,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 MANIFEST="parish/Cargo.toml"
 LEDGER="${PARISH_HARNESS_SHADOW_LEDGER:-$REPO_ROOT/parish/target/harness-shadow-ledger.jsonl}"
@@ -42,28 +42,29 @@ rm -f "$LEDGER"
 # code so a compile/test failure can't masquerade as a clean (empty) ledger.
 corpus_status=0
 run_case() {
-  local case_label="$1"; shift
-  echo "=== shadow corpus: $case_label ==="
-  PARISH_HARNESS_SHADOW_CASE="$case_label" cargo test --manifest-path "$MANIFEST" "$@" 2>&1 \
-    | grep -E "test result|FAILED|error\[" || true
-  # ${PIPESTATUS[0]} is cargo's exit code (grep/|| true would otherwise mask it).
-  local rc=${PIPESTATUS[0]}
-  if [ "$rc" -ne 0 ]; then
-    echo "WARNING: cargo test for '$case_label' exited $rc — ledger may be incomplete for this case."
-    corpus_status=1
-  fi
+    local case_label="$1"
+    shift
+    echo "=== shadow corpus: $case_label ==="
+    PARISH_HARNESS_SHADOW_CASE="$case_label" cargo test --manifest-path "$MANIFEST" "$@" 2>&1 \
+        | grep -E "test result|FAILED|error\[" || true
+    # ${PIPESTATUS[0]} is cargo's exit code (grep/|| true would otherwise mask it).
+    local rc=${PIPESTATUS[0]}
+    if [ "$rc" -ne 0 ]; then
+        echo "WARNING: cargo test for '$case_label' exited $rc — ledger may be incomplete for this case."
+        corpus_status=1
+    fi
 }
 
-run_case engine-unit         -p parish-engine --lib
-run_case engine-integration  -p parish-engine --tests
-run_case core                -p parish-core --lib
+run_case engine-unit -p parish-engine --lib
+run_case engine-integration -p parish-engine --tests
+run_case core -p parish-core --lib
 
 if [ "$corpus_status" -ne 0 ]; then
-  echo "NOTE: at least one corpus case had test failures; the divergence ledger below may be partial."
+    echo "NOTE: at least one corpus case had test failures; the divergence ledger below may be partial."
 fi
 
 echo
 echo "=== summarizing $LEDGER -> $SUMMARY ==="
-python3 "$REPO_ROOT/parish/scripts/harness-shadow-summarize.py" "$LEDGER" > "$SUMMARY"
+python3 "$REPO_ROOT/parish/scripts/harness-shadow-summarize.py" "$LEDGER" >"$SUMMARY"
 echo "wrote $SUMMARY"
 cat "$SUMMARY"

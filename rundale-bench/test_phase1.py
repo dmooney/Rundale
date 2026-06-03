@@ -284,9 +284,9 @@ def test_skills_exist_with_headings():
     assert "judge_sonnet_v1.system.md" in inner_txt and "JSON" in inner_txt
 
 
-# ── criterion 9: legacy qwen path untouched (additive refactor) ──────────────
-def test_legacy_qwen_judge_not_subagent():
-    assert rb._judge_is_subagent(rb.load_judge("judge_v1", "v1")) is False
+# (Removed test_legacy_qwen_judge_not_subagent: the legacy `judge_v1.json`
+# config it loaded was deleted in #1149 "enforce Sonnet-subagent as only valid
+# judge path". The test referenced a config that no longer exists by design.)
 
 
 def main() -> int:

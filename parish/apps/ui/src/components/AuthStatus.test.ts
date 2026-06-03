@@ -8,7 +8,7 @@ import { getAuthStatus } from '$lib/ipc';
 // fetch itself are covered in ipc.test.ts; here we mock the binding and assert
 // the rendered output for each status shape.
 vi.mock('$lib/ipc', () => ({
-	getAuthStatus: vi.fn()
+	getAuthStatus: vi.fn(),
 }));
 
 const mockGetAuthStatus = vi.mocked(getAuthStatus);
@@ -19,7 +19,10 @@ beforeEach(() => {
 
 describe('AuthStatus', () => {
 	it('shows nothing when oauth is not enabled', async () => {
-		mockGetAuthStatus.mockResolvedValueOnce({ oauth_enabled: false, logged_in: false });
+		mockGetAuthStatus.mockResolvedValueOnce({
+			oauth_enabled: false,
+			logged_in: false,
+		});
 		const { container } = render(AuthStatus);
 		await vi.waitFor(() => {
 			expect(container.querySelector('.auth-indicator')).toBeNull();
@@ -41,7 +44,7 @@ describe('AuthStatus', () => {
 		mockGetAuthStatus.mockResolvedValueOnce({
 			oauth_enabled: true,
 			logged_in: false,
-			provider: 'google'
+			provider: 'google',
 		});
 		const { container } = render(AuthStatus);
 		await vi.waitFor(() => {
@@ -56,7 +59,7 @@ describe('AuthStatus', () => {
 			oauth_enabled: true,
 			logged_in: true,
 			display_name: 'TestUser',
-			provider: 'google'
+			provider: 'google',
 		});
 		const { container } = render(AuthStatus);
 		await vi.waitFor(() => {

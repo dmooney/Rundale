@@ -3,12 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `html-to-image` is mocked so we can exercise `captureScreen`'s target
 // selection and option forwarding without running the (jsdom-incompatible)
 // real renderer.
-const toPngMock = vi.fn(async (_node: HTMLElement, _opts?: Record<string, unknown>) =>
-	'data:image/png;base64,FAKE'
+const toPngMock = vi.fn(
+	async (_node: HTMLElement, _opts?: Record<string, unknown>) =>
+		'data:image/png;base64,FAKE',
 );
 
 vi.mock('html-to-image', () => ({
-	toPng: toPngMock
+	toPng: toPngMock,
 }));
 
 beforeEach(() => {
@@ -40,10 +41,15 @@ describe('captureScreen()', () => {
 		// dominant cost that pushed captures past the backend deadline. It must
 		// stay off, and pixelRatio must be capped so HiDPI displays don't blow up
 		// the pixel count.
-		Object.defineProperty(window, 'devicePixelRatio', { value: 3, configurable: true });
+		Object.defineProperty(window, 'devicePixelRatio', {
+			value: 3,
+			configurable: true,
+		});
 		const { captureScreen } = await import('./screenshot');
 		await captureScreen();
-		const opts = toPngMock.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
+		const opts = toPngMock.mock.calls[0]?.[1] as
+			| Record<string, unknown>
+			| undefined;
 		expect(opts?.cacheBust).toBeUndefined();
 		expect(typeof opts?.pixelRatio).toBe('number');
 		expect(opts?.pixelRatio).toBeGreaterThan(0);

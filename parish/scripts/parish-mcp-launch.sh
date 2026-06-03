@@ -25,7 +25,7 @@ MCP_BIN="$TARGET_DIR/debug/parish-mcp"
 if [ ! -x "$MCP_BIN" ]; then
     echo "[parish-mcp-launch] binary missing at $MCP_BIN — building (one-time cold compile)..." >&2
     # stdout -> stderr so cargo never corrupts the JSON-RPC stream on stdout.
-    ( cd "$REPO/parish" && cargo build -p parish-mcp --quiet ) 1>&2
+    (cd "$REPO/parish" && cargo build -p parish-mcp --quiet) 1>&2
     echo "[parish-mcp-launch] build complete." >&2
 fi
 

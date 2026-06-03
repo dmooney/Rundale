@@ -33,7 +33,7 @@ Before any code change:
 
 Smallest possible diff. When threading a new param through multiple layers (inference, IPC, UI), delegate the mechanical pass-through edits to a sonnet sub-agent — saves opus context.
 
-Then decide whether this finding's *category* warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `parish/crates/parish-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
+Then decide whether this finding's _category_ warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `parish/crates/parish-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
 
 ## 5. Run quality gates
 

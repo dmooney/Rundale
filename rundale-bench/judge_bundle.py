@@ -141,7 +141,7 @@ def _coerce_axis(value: Any, *, allow_zero: bool = False) -> int | None:
     return iv
 
 
-def _bundle_axes(bundle: Optional[dict]) -> tuple[str, ...]:
+def _bundle_axes(bundle: dict | None) -> tuple[str, ...]:
     """Per-axis names to validate for a given bundle. Falls back to the
     dialogue rubric's 5-axis set if the bundle is missing or has no
     declared axes (legacy path before judge_*.json grew an `axes` list)."""
@@ -155,7 +155,7 @@ def _bundle_axes(bundle: Optional[dict]) -> tuple[str, ...]:
     return tuple(k for k in declared if k not in _OVERALL_KEYS)
 
 
-def validate_item(item: dict, bundle: Optional[dict] = None) -> tuple[bool, dict]:
+def validate_item(item: dict, bundle: dict | None = None) -> tuple[bool, dict]:
     """Validate one judged item against the Judgment schema.
 
     `bundle` carries the slice's per-judge axes (and is required for any

@@ -29,7 +29,7 @@
 
 - [ ] **`MLX_VENV` env-var documented in README.** This session repeatedly hit "psutil missing — run inside .venv-mlx". Right answer is `MLX_VENV=/Users/.../vllm-mlx`. Add to `rundale-bench/README.md` setup section + auto-detect in `local_runner.py` (search common uv tools paths if `.venv-mlx` symlink missing).
 - [ ] **Runtime RAM-cap kill switch.** `local_runner.py`'s `RamSampler` measures but doesn't enforce. Add `--max-ram-gb` flag: if peak RSS exceeds N, SIGKILL the mlx_lm.server and skip the candidate. Defends against OOM that kills Claude Code remotely (per round-3 user note).
-- [ ] **Bundled-slice metric surfaces `pending_judge` warning.** `metric_from_summary` now prefixes ` (pending_judge)` when summary flags it (round-4 fix). Add equivalent on leaderboard.md row — current rows show 0.00 for pending without indication, looks like a failed run.
+- [ ] **Bundled-slice metric surfaces `pending_judge` warning.** `metric_from_summary` now prefixes `(pending_judge)` when summary flags it (round-4 fix). Add equivalent on leaderboard.md row — current rows show 0.00 for pending without indication, looks like a failed run.
 - [ ] **Tokenizer audit script** (`tokenizer_audit.py`). Measure tokens/char on Hyde Irish-side + Brooke Irish-side across candidate bases (Gemma 4 9B, Qwen3-14B, EuroLLM-9B, OLMo-2-13B, Mistral-Small-24B-2501). Gates base-model pick per Phase 1 plan. Cheap (no fine-tune needed, just tokenize + count).
 - [ ] **Per-slice cost ledger.** Currently `cost.usd` on cloud rows, $0.0000 on local. Bundled-judge rows hide the Sonnet-subagent compute cost (it's not $0 in reality, it's amortised against the Claude Code session). Surface `judge_compute_minutes` or similar.
 
@@ -54,6 +54,7 @@ Locked down to make it impossible:
 - Round-4 dialogue run files patched in-place: Sonnet axes overwrite the inline Qwen scores. Older redundant dialogue runs for the same model deleted.
 
 Tests added (informal — run from `python -c`):
+
 - `load_judge('judge_sonnet_v1', 'v1')` → OK
 - `load_judge('judge_v1', 'v1')` → FileNotFoundError (file disabled)
 - A synthetic non-subagent config with `judge_via='http'` → ValueError REFUSED.

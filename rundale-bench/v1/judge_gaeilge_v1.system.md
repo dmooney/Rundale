@@ -112,6 +112,7 @@ fences:
 ```
 
 Rules:
+
 - Every 1-5 axis is an integer **1-5** for normal scoring, or **0** for
   a bench-bug item (every axis + `overall` must be 0 together).
 - `overall` is a one-decimal float in 1.0-5.0 for normal scoring, 0.0

@@ -10,6 +10,7 @@ Walks `rundale-bench/artifacts/run_*.json` (dialogue quality) and
 Pure aggregation with injectable directories so it tests without a network.
 Latest run/measurement wins per model / (model, provider).
 """
+
 from __future__ import annotations
 
 import glob
@@ -17,7 +18,6 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
@@ -40,12 +40,13 @@ def _run_paths(artifacts_dir: Path) -> list[str]:
 _LOCAL_PREFIXES = ("mlx-community/", "ollama/", "lmstudio/", "local/")
 
 
-def model_is_local(model_id: str, families: Optional[dict] = None) -> bool:
+def model_is_local(model_id: str, families: dict | None = None) -> bool:
     """True for MLX/Ollama/LM Studio targets. Catalog `local_only` wins when
     the id is in the catalog; otherwise guess from common prefixes."""
     families = families or {}
     try:
         from catalog import load_catalog
+
         cat = load_catalog()
         for m in cat.models:
             if m.id == model_id or any(p.model_name_at_provider == model_id for p in m.providers):
@@ -53,6 +54,7 @@ def model_is_local(model_id: str, families: Optional[dict] = None) -> bool:
     except Exception:
         pass
     return model_id.startswith(_LOCAL_PREFIXES)
+
 
 AXES = ("character", "authenticity", "language", "responsiveness", "craft")
 GAEILGE_AXES = ("fluency", "grammar", "idiom", "task_fulfillment", "english_leakage")
@@ -85,12 +87,10 @@ SLICE_PURPOSE = {
         "idiom, grammar, task-fulfilment, and resistance to falling back to English. "
         "Decoupled from the dialogue slice so models that fake en-IE can't fake ga-IE."
     ),
-    "tier2": (
-        "(deprecated alias for tier2-sim — kept for older artifacts.)"
-    ),
+    "tier2": ("(deprecated alias for tier2-sim — kept for older artifacts.)"),
     "intent": (
         "Deterministic player-input parser. Maps natural-language input "
-        "(\"go to the pub\", \"tell Mary I saw her cow\") to "
+        '("go to the pub", "tell Mary I saw her cow") to '
         "{intent: move|talk|look|interact|examine|unknown, target, dialogue}. "
         "Exact-match graded — no LLM judge, no axes; the only slice driven entirely "
         "by deterministic scoring."
@@ -107,9 +107,17 @@ def slugify(model_id: str) -> str:
 # Order matters: longer compound tags (`qat-4bit`, `optiq-4bit`, `dwq-4bit`,
 # `mxfp4-q8`) must match before the bare quant fragments.
 _LOCAL_QUANT_TAGS = (
-    "qat-4bit", "optiq-4bit", "dwq-4bit", "mxfp4-q8",
-    "mxfp4", "nvfp4", "bf16",
-    "4bit", "5bit", "6bit", "8bit",
+    "qat-4bit",
+    "optiq-4bit",
+    "dwq-4bit",
+    "mxfp4-q8",
+    "mxfp4",
+    "nvfp4",
+    "bf16",
+    "4bit",
+    "5bit",
+    "6bit",
+    "8bit",
 )
 
 
@@ -118,8 +126,7 @@ def _local_quant_label(quant_token: str) -> str:
     if not quant_token:
         return ""
     pretty = (
-        quant_token
-        .replace("optiq-4bit", "OptiQ 4-bit")
+        quant_token.replace("optiq-4bit", "OptiQ 4-bit")
         .replace("qat-4bit", "QAT 4-bit")
         .replace("dwq-4bit", "DWQ 4-bit")
         .replace("mxfp4-q8", "MXFP4 Q8")
@@ -146,7 +153,7 @@ def _strip_quant_suffix(basename: str) -> tuple[str, str]:
     return basename, ""
 
 
-def enrich_local_row(model_id: str, catalog_family: str) -> tuple[str, Optional[str]]:
+def enrich_local_row(model_id: str, catalog_family: str) -> tuple[str, str | None]:
     """Compute `(family, display_name)` for any row, layering local
     metadata over the catalog's value when the row is a local target.
 
@@ -187,24 +194,34 @@ def derive_local_metadata(model_id: str) -> dict:
     # FAMILY_TO_SLUG (in lib/brands.ts) map automatically.
     lower = stem.lower()
     family = "unknown"
-    if lower.startswith("qwen3.6"):    family = "qwen3.6"
-    elif lower.startswith("qwen3.5"):  family = "qwen3.5"
+    if lower.startswith("qwen3.6"):
+        family = "qwen3.6"
+    elif lower.startswith("qwen3.5"):
+        family = "qwen3.5"
     elif lower.startswith("qwen3-") or lower == "qwen3" or lower.startswith("qwen3-coder"):
         family = "qwen3"
-    elif lower.startswith("qwen2.5"):  family = "qwen2.5"
+    elif lower.startswith("qwen2.5"):
+        family = "qwen2.5"
     elif lower.startswith("gemma-4") or lower.startswith("gemma-3"):
         family = "gemma"
     elif lower.startswith("llama-4") or lower.startswith("llama-3"):
         family = "llama"
-    elif lower.startswith("mistral") or lower.startswith("ministral") or lower.startswith("devstral"):
+    elif (
+        lower.startswith("mistral") or lower.startswith("ministral") or lower.startswith("devstral")
+    ):
         family = "mistral"
     elif lower.startswith("deepseek"):
         family = "deepseek-flash" if "flash" in lower else "deepseek"
-    elif lower.startswith("phi-"):     family = "phi"
-    elif lower.startswith("glm-"):     family = "glm"
-    elif lower.startswith("lfm"):      family = "liquid"
-    elif lower.startswith("minimax"):  family = "minimax-m2.5"
-    elif lower.startswith("eurollm"):  family = "eurollm"
+    elif lower.startswith("phi-"):
+        family = "phi"
+    elif lower.startswith("glm-"):
+        family = "glm"
+    elif lower.startswith("lfm"):
+        family = "liquid"
+    elif lower.startswith("minimax"):
+        family = "minimax-m2.5"
+    elif lower.startswith("eurollm"):
+        family = "eurollm"
 
     # Display name: split on dashes, drop noise tokens like "mlx" /
     # date-code "2512" (the quant tag already announces it's an MLX
@@ -247,7 +264,7 @@ def derive_local_metadata(model_id: str) -> dict:
     return {"family": family, "display_name": display_name, "vendor_prefix": vendor_prefix}
 
 
-def _infer_provider(candidate_id: str, model_to_provider: Optional[dict] = None) -> str:
+def _infer_provider(candidate_id: str, model_to_provider: dict | None = None) -> str:
     """Best-effort provider tag for legacy perf rows (no provider_id field).
 
     Resolution order:
@@ -273,6 +290,7 @@ def _provider_lookup(suite: str) -> dict[str, str]:
     """
     try:
         from catalog import load_catalog
+
         cat = load_catalog(version=suite)
         out: dict[str, str] = {}
         for m in cat.models:
@@ -290,6 +308,7 @@ def _provider_lookup(suite: str) -> dict[str, str]:
 def _family_lookup(suite: str) -> dict[str, str]:
     try:
         from catalog import load_catalog
+
         cat = load_catalog(version=suite)
         out: dict[str, str] = {}
         for m in cat.models:
@@ -305,6 +324,7 @@ def _price_lookup(suite: str) -> dict[tuple[str, str], dict]:
     """Catalog input/output token prices keyed by logical and provider model id."""
     try:
         from catalog import load_catalog
+
         cat = load_catalog(version=suite)
     except Exception:
         return {}
@@ -322,7 +342,7 @@ def _price_lookup(suite: str) -> dict[tuple[str, str], dict]:
     return out
 
 
-def _latest_demo_profile_summary(profile_dir: Path) -> Optional[Path]:
+def _latest_demo_profile_summary(profile_dir: Path) -> Path | None:
     if not profile_dir.exists():
         return None
     paths = sorted(p for p in profile_dir.glob("*/summary.json") if p.is_file())
@@ -338,12 +358,16 @@ def _enrich_profile_bucket(bucket: dict, observed_minutes: float, *, included: b
         "included_in_gameplay_cost": included,
         "input_tokens_per_request_estimated": (input_tokens / requests) if requests else 0.0,
         "output_tokens_per_request_estimated": (output_tokens / requests) if requests else 0.0,
-        "input_tokens_per_minute_estimated": (input_tokens / observed_minutes) if observed_minutes else 0.0,
-        "output_tokens_per_minute_estimated": (output_tokens / observed_minutes) if observed_minutes else 0.0,
+        "input_tokens_per_minute_estimated": (input_tokens / observed_minutes)
+        if observed_minutes
+        else 0.0,
+        "output_tokens_per_minute_estimated": (output_tokens / observed_minutes)
+        if observed_minutes
+        else 0.0,
     }
 
 
-def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> Optional[dict]:
+def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> dict | None:
     """Normal-play request profile from the latest committed demo profiling run.
 
     The profile intentionally uses total_gameplay, excluding the synthetic
@@ -391,7 +415,9 @@ def build_normal_play_profile(profile_dir: Path = DEMO_PROFILE_DIR) -> Optional[
     }
 
 
-def _estimate_gameplay_cost(profile: Optional[dict], input_price: float, output_price: float) -> Optional[dict]:
+def _estimate_gameplay_cost(
+    profile: dict | None, input_price: float, output_price: float
+) -> dict | None:
     if profile is None:
         return None
     total = profile.get("total_gameplay") or {}
@@ -418,16 +444,20 @@ def _estimate_gameplay_cost(profile: Optional[dict], input_price: float, output_
     }
 
 
-def attach_gameplay_costs(perf: list[dict], profile: Optional[dict], prices: dict[tuple[str, str], dict]) -> None:
+def attach_gameplay_costs(
+    perf: list[dict], profile: dict | None, prices: dict[tuple[str, str], dict]
+) -> None:
     """Mutate perf rows with catalog prices and normal-play cost estimates."""
     for row in perf:
         model_id = row.get("model_id")
         provider_id = row.get("provider_id")
         provider_model = row.get("model_name_at_provider")
-        price = (
-            prices.get((model_id, provider_id))
-            or prices.get((provider_model, provider_id))
-        )
+        # Keys are (str, str); only look up when both halves are present.
+        price = None
+        if model_id is not None and provider_id is not None:
+            price = prices.get((model_id, provider_id))
+        if price is None and provider_model is not None and provider_id is not None:
+            price = prices.get((provider_model, provider_id))
         row["price_input_usd_per_mtok"] = None
         row["price_output_usd_per_mtok"] = None
         row["price_source"] = None
@@ -446,10 +476,11 @@ def attach_gameplay_costs(perf: list[dict], profile: Optional[dict], prices: dic
             row.update(cost)
 
 
-def build_cloud_cost_examples(profile: Optional[dict], suite: str = "v1") -> list[dict]:
+def build_cloud_cost_examples(profile: dict | None, suite: str = "v1") -> list[dict]:
     """Cost/min examples for all non-local catalog providers, independent of perf rows."""
     try:
         from catalog import load_catalog
+
         cat = load_catalog(version=suite)
     except Exception:
         return []
@@ -571,7 +602,7 @@ def _build_peak_ram_est_index() -> dict[str, float]:
     return out
 
 
-def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
+def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list[dict]:
     families = families or {}
     peak_ram_by_model = _build_peak_ram_index(artifacts_dir)
     peak_ram_est_by_model = _build_peak_ram_est_index()
@@ -586,7 +617,9 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
         if not dia or "summary" not in dia:
             continue
         s = dia["summary"]
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
+            "model"
+        )
         if not model_id:
             continue
         ts = _run_ts(out, path)
@@ -625,9 +658,12 @@ def build_leaderboard(artifacts_dir: Path, families: Optional[dict] = None) -> l
     return [row for _, row in sorted(latest.values(), key=lambda kv: -(kv[1].get("overall") or 0))]
 
 
-def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
-               families: Optional[dict] = None,
-               providers: Optional[dict] = None) -> list[dict]:
+def build_perf(
+    perf_dir: Path,
+    legacy_dir: Path | None = None,
+    families: dict | None = None,
+    providers: dict | None = None,
+) -> list[dict]:
     """Per-(model, provider) perf row, latest per pair wins.
 
     Reads Phase 3 schema from `perf_dir` and the legacy multi-target schema
@@ -648,10 +684,19 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
             continue
         ts = row.get("measured_utc", "")
         if key not in latest or ts > latest[key][0]:
-            fam, display_name = enrich_local_row(row["model_id"], (families or {}).get(row["model_id"], "unknown"))
-            latest[key] = (ts, {**row, "slug": slugify(row["model_id"]),
-                                 "family": fam, "display_name": display_name,
-                                 "source": "phase3"})
+            fam, display_name = enrich_local_row(
+                row["model_id"], (families or {}).get(row["model_id"], "unknown")
+            )
+            latest[key] = (
+                ts,
+                {
+                    **row,
+                    "slug": slugify(row["model_id"]),
+                    "family": fam,
+                    "display_name": display_name,
+                    "source": "phase3",
+                },
+            )
 
     # Legacy multi-target perf JSONs (one file holds many per_target entries)
     if legacy_dir and legacy_dir.exists():
@@ -689,10 +734,15 @@ def build_perf(perf_dir: Path, legacy_dir: Optional[Path] = None,
                 if key not in latest or ts > latest[key][0]:
                     latest[key] = (ts, row)
 
-    return [row for _, row in sorted(latest.values(), key=lambda kv: (kv[1]["model_id"], kv[1]["provider_id"]))]
+    return [
+        row
+        for _, row in sorted(
+            latest.values(), key=lambda kv: (kv[1]["model_id"], kv[1]["provider_id"])
+        )
+    ]
 
 
-def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[dict]:
+def build_gaeilge(artifacts_dir: Path, families: dict | None = None) -> list[dict]:
     """Gaeilge leaderboard: per model, axes + leakage. Latest wins."""
     families = families or {}
     latest: dict[str, tuple[str, dict]] = {}
@@ -706,7 +756,9 @@ def build_gaeilge(artifacts_dir: Path, families: Optional[dict] = None) -> list[
         if not ga or "summary" not in ga:
             continue
         s = ga["summary"]
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
+            "model"
+        )
         if not model_id:
             continue
         ts = _run_ts(out, path)
@@ -764,7 +816,9 @@ def build_samples(artifacts_dir: Path, datasets: dict) -> dict:
             out = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get("model")
+        model_id = (out.get("candidate", {}) or {}).get("model_id") or out.get("target", {}).get(
+            "model"
+        )
         if not model_id:
             continue
         ts = _run_ts(out, path)
@@ -845,9 +899,12 @@ def build_judge_prompts(suite: str = "v1") -> dict:
             "base_url": cfg.get("base_url"),
             "rubric_sha256": cfg.get("rubric_sha256"),
             "axes": cfg.get("axes"),
-            "system_prompt": sys_path.read_text(encoding="utf-8") if sys_path.exists() else cfg.get("rubric", ""),
-            "system_prompt_source": str(sys_path.relative_to(_REPO_ROOT)) if sys_path.exists()
-                else f"{cfg_path.relative_to(_REPO_ROOT)} (rubric field)",
+            "system_prompt": sys_path.read_text(encoding="utf-8")
+            if sys_path.exists()
+            else cfg.get("rubric", ""),
+            "system_prompt_source": str(sys_path.relative_to(_REPO_ROOT))
+            if sys_path.exists()
+            else f"{cfg_path.relative_to(_REPO_ROOT)} (rubric field)",
             "rubric_text": cfg.get("rubric", ""),
         }
     return out
@@ -879,8 +936,9 @@ def build_datasets(suite: str = "v1") -> dict:
     return out
 
 
-def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[dict],
-                       samples: dict) -> list[dict]:
+def build_models_index(
+    leaderboard: list[dict], gaeilge: list[dict], perf: list[dict], samples: dict
+) -> list[dict]:
     """One row per observed model: cloud/local + best dialogue + best gaeilge
     + perf summary (best p50 latency, mean tok/s, cheapest $/Mtok). Drives
     /models and lets /perf rows link to a page that always exists."""
@@ -892,18 +950,23 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
             # the catalog doesn't carry the repo.
             _, display_name = enrich_local_row(model_id, "unknown")
             by_slug[slug] = {
-                "slug": slug, "model_id": model_id,
+                "slug": slug,
+                "model_id": model_id,
                 "display_name": display_name,
                 "family": "unknown",
                 "is_local": model_is_local(model_id),
-                "dialogue_overall": None, "gaeilge_overall": None,
-                "perf_providers": [], "perf_best_p50_ms": None,
-                "perf_best_usd_per_mtok": None, "perf_best_gameplay_usd_per_minute": None,
-                "perf_best_gameplay_usd_per_hour": None, "perf_mean_tok_s": None,
+                "dialogue_overall": None,
+                "gaeilge_overall": None,
+                "perf_providers": [],
+                "perf_best_p50_ms": None,
+                "perf_best_usd_per_mtok": None,
+                "perf_best_gameplay_usd_per_minute": None,
+                "perf_best_gameplay_usd_per_hour": None,
+                "perf_mean_tok_s": None,
             }
         return by_slug[slug]
 
-    def _adopt_family(e: dict, candidate: Optional[str]) -> None:
+    def _adopt_family(e: dict, candidate: str | None) -> None:
         if candidate and candidate != "unknown" and e["family"] == "unknown":
             e["family"] = candidate
 
@@ -940,6 +1003,7 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
         if isinstance(ts, (int, float)):
             cur = e["perf_mean_tok_s"]
             e["perf_mean_tok_s"] = ts if cur is None else max(cur, ts)
+
     # Score rows so models with more data float to the top.
     def _score(e):
         return (
@@ -950,12 +1014,18 @@ def build_models_index(leaderboard: list[dict], gaeilge: list[dict], perf: list[
             -len(e["perf_providers"]),
             e["model_id"],
         )
+
     return sorted(by_slug.values(), key=_score)
 
 
-def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
-               profile_dir: Path = DEMO_PROFILE_DIR,
-               *, suite: str = "v1", judge_model: str = "claude-sonnet-4-6") -> dict:
+def build_data(
+    artifacts_dir: Path = ARTIFACTS_DIR,
+    perf_dir: Path = PERF_DIR,
+    profile_dir: Path = DEMO_PROFILE_DIR,
+    *,
+    suite: str = "v1",
+    judge_model: str = "claude-sonnet-4-6",
+) -> dict:
     families = _family_lookup(suite)
     providers = _provider_lookup(suite)
     datasets = build_datasets(suite)
@@ -964,16 +1034,18 @@ def build_data(artifacts_dir: Path = ARTIFACTS_DIR, perf_dir: Path = PERF_DIR,
     }
     leaderboard = build_leaderboard(artifacts_dir, families)
     gaeilge = build_gaeilge(artifacts_dir, families)
-    perf = build_perf(perf_dir, legacy_dir=artifacts_dir, families=families,
-                       providers=providers)
+    perf = build_perf(perf_dir, legacy_dir=artifacts_dir, families=families, providers=providers)
     samples = build_samples(artifacts_dir, datasets)
     normal_play_profile = build_normal_play_profile(profile_dir)
     attach_gameplay_costs(perf, normal_play_profile, _price_lookup(suite))
     cloud_cost_examples = build_cloud_cost_examples(normal_play_profile, suite)
     # Stamp is_local on every row so the site doesn't have to recompute it.
-    for r in leaderboard: r["is_local"] = model_is_local(r["model_id"])
-    for r in gaeilge: r["is_local"] = model_is_local(r["model_id"])
-    for r in perf: r["is_local"] = model_is_local(r["model_id"])
+    for r in leaderboard:
+        r["is_local"] = model_is_local(r["model_id"])
+    for r in gaeilge:
+        r["is_local"] = model_is_local(r["model_id"])
+    for r in perf:
+        r["is_local"] = model_is_local(r["model_id"])
     return {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "judge_model": judge_model,
@@ -994,7 +1066,9 @@ def main() -> None:
     data = build_data()
     SITE_DATA.parent.mkdir(parents=True, exist_ok=True)
     SITE_DATA.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {SITE_DATA} — {len(data['leaderboard'])} leaderboard row(s), {len(data['perf'])} perf row(s)")
+    print(
+        f"wrote {SITE_DATA} — {len(data['leaderboard'])} leaderboard row(s), {len(data['perf'])} perf row(s)"
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,11 @@
 import { get } from 'svelte/store';
-import { textLog, streamingActive, languageHints, messageHints, trimTextLog } from '../../stores/game';
+import {
+	textLog,
+	streamingActive,
+	languageHints,
+	messageHints,
+	trimTextLog,
+} from '../../stores/game';
 import { getStreamChunkDelayMs, takeNextStreamChunk } from '../stream-pacing';
 import type { LanguageHint } from '../types';
 
@@ -15,9 +21,16 @@ export type PendingNpcTurn = {
 	pumpHandle: ReturnType<typeof setTimeout> | null;
 };
 
-export function appendStreamToken(turnId: number, source: string, token: string, messageId?: string) {
+export function appendStreamToken(
+	turnId: number,
+	source: string,
+	token: string,
+	messageId?: string,
+) {
 	textLog.update((log) => {
-		const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+		const entryIndex = log.findIndex(
+			(entry) => entry.stream_turn_id === turnId,
+		);
 		if (entryIndex >= 0) {
 			const current = log[entryIndex];
 			const nextEntry = {
@@ -28,12 +41,12 @@ export function appendStreamToken(turnId: number, source: string, token: string,
 				stream_turn_id: turnId,
 				streaming: true,
 				latest_chunk: token,
-				stream_chunk_id: (current.stream_chunk_id ?? 0) + 1
+				stream_chunk_id: (current.stream_chunk_id ?? 0) + 1,
 			};
 			return [
 				...log.slice(0, entryIndex),
 				nextEntry,
-				...log.slice(entryIndex + 1)
+				...log.slice(entryIndex + 1),
 			];
 		}
 		return trimTextLog([
@@ -45,15 +58,19 @@ export function appendStreamToken(turnId: number, source: string, token: string,
 				stream_turn_id: turnId,
 				streaming: true,
 				latest_chunk: token,
-				stream_chunk_id: 1
-			}
+				stream_chunk_id: 1,
+			},
 		]);
 	});
 }
 
 export interface StreamManager {
 	findPendingTurn: (turnId: number) => PendingNpcTurn | undefined;
-	queuePendingTurn: (turnId: number, source: string, messageId?: string) => PendingNpcTurn;
+	queuePendingTurn: (
+		turnId: number,
+		source: string,
+		messageId?: string,
+	) => PendingNpcTurn;
 	ensureTurnEntry: (turn: PendingNpcTurn) => void;
 	finalizeStreamingEntry: (turnId: number) => void;
 	finishNpcStream: (hints?: LanguageHint[]) => void;
@@ -75,7 +92,7 @@ export interface StreamManager {
 }
 
 export function createStreamManager(): StreamManager {
-	let pendingNpcTurns = new Map<number, PendingNpcTurn>();
+	const pendingNpcTurns = new Map<number, PendingNpcTurn>();
 	let pendingStreamEndHints: LanguageHint[] | null = null;
 	// True from the first stream-token of a conversation chain until
 	// `finishNpcStream` runs. The +page.svelte `onLoading` handler reads
@@ -97,7 +114,11 @@ export function createStreamManager(): StreamManager {
 		return pendingNpcTurns.get(turnId);
 	}
 
-	function queuePendingTurn(turnId: number, source: string, messageId?: string) {
+	function queuePendingTurn(
+		turnId: number,
+		source: string,
+		messageId?: string,
+	) {
 		chainInProgress = true;
 		const existing = findPendingTurn(turnId);
 		if (existing) {
@@ -105,12 +126,14 @@ export function createStreamManager(): StreamManager {
 			existing.messageId = existing.messageId ?? messageId;
 			if (messageId && existing.placeholderInserted) {
 				textLog.update((log) => {
-					const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+					const entryIndex = log.findIndex(
+						(entry) => entry.stream_turn_id === turnId,
+					);
 					if (entryIndex < 0) return log;
 					return [
 						...log.slice(0, entryIndex),
 						{ ...log[entryIndex], id: log[entryIndex].id ?? messageId, source },
-						...log.slice(entryIndex + 1)
+						...log.slice(entryIndex + 1),
 					];
 				});
 			}
@@ -124,7 +147,7 @@ export function createStreamManager(): StreamManager {
 			buffer: '',
 			placeholderInserted: false,
 			complete: false,
-			pumpHandle: null
+			pumpHandle: null,
 		};
 		pendingNpcTurns.set(turnId, turn);
 		// TODO #45: first turn into an empty pool becomes the head.
@@ -146,16 +169,18 @@ export function createStreamManager(): StreamManager {
 					id: turn.messageId,
 					source: turn.source,
 					content: '',
-					stream_turn_id: turn.turnId
-				}
-			])
+					stream_turn_id: turn.turnId,
+				},
+			]),
 		);
 		turn.placeholderInserted = true;
 	}
 
 	function finalizeStreamingEntry(turnId: number) {
 		textLog.update((log) => {
-			const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+			const entryIndex = log.findIndex(
+				(entry) => entry.stream_turn_id === turnId,
+			);
 			if (entryIndex < 0) {
 				return log;
 			}
@@ -171,9 +196,9 @@ export function createStreamManager(): StreamManager {
 					...entry,
 					streaming: false,
 					latest_chunk: undefined,
-					stream_chunk_id: undefined
+					stream_chunk_id: undefined,
 				},
-				...log.slice(entryIndex + 1)
+				...log.slice(entryIndex + 1),
 			];
 		});
 	}
@@ -182,8 +207,15 @@ export function createStreamManager(): StreamManager {
 		if (hints.length > 0) {
 			const log = get(textLog);
 			for (let i = log.length - 1; i >= 0; i--) {
-				if (log[i].id && log[i].source !== 'player' && log[i].source !== 'system') {
-					messageHints.update((m) => { m.set(log[i].id!, hints); return m; });
+				if (
+					log[i].id &&
+					log[i].source !== 'player' &&
+					log[i].source !== 'system'
+				) {
+					messageHints.update((m) => {
+						m.set(log[i].id!, hints);
+						return m;
+					});
 					break;
 				}
 			}
@@ -277,12 +309,7 @@ export function createStreamManager(): StreamManager {
 		}
 
 		turn.buffer = rest;
-		appendStreamToken(
-			turn.turnId,
-			turn.source,
-			chunk,
-			turn.messageId
-		);
+		appendStreamToken(turn.turnId, turn.source, chunk, turn.messageId);
 		scheduleTurnPump(turn, getStreamChunkDelayMs(chunk));
 	}
 
@@ -327,7 +354,12 @@ export function createStreamManager(): StreamManager {
 				}
 				changed = true;
 				if (entry.content === '') continue; // drop empty placeholder
-				out.push({ ...entry, streaming: false, latest_chunk: undefined, stream_chunk_id: undefined });
+				out.push({
+					...entry,
+					streaming: false,
+					latest_chunk: undefined,
+					stream_chunk_id: undefined,
+				});
 			}
 			return changed ? out : log;
 		});
@@ -354,6 +386,6 @@ export function createStreamManager(): StreamManager {
 		hasPendingEndHints,
 		isChainInProgress,
 		reset,
-		dispose
+		dispose,
 	};
 }
