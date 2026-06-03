@@ -100,37 +100,37 @@ ac_files="$tmpdir/ac_files"
     git diff --cached --name-only
     git diff --name-only
     git ls-files --others --exclude-standard
-} | sed '/^[[:space:]]*$/d' | sort -u > "$changed"
+} | sed '/^[[:space:]]*$/d' | sort -u >"$changed"
 
-: > "$relevant"
-: > "$runtime"
-: > "$evidence"
-: > "$judges"
-: > "$ac_files"
+: >"$relevant"
+: >"$runtime"
+: >"$evidence"
+: >"$judges"
+: >"$ac_files"
 
 is_proof_relevant() {
     local file="$1"
     case "$file" in
         # Proof bundles themselves are never the trigger.
-        docs/proofs/*|.proofs/*)
+        docs/proofs/* | .proofs/*)
             return 1
             ;;
         # Documentation, agent instructions, build config, CI workflows,
         # and check tooling require proof only when paired with a runtime
         # code change. On their own, they have no gameplay behavior to
         # prove. Per rule 10 in AGENTS.md.
-        *.md|*.txt|\
-        AGENTS.md|CLAUDE.md|README.md|\
-        justfile|parish/justfile|\
-        docs/*|.agents/*|.claude/*|\
-        .github/*|\
-        parish/scripts/*)
+        # (*.md already covers AGENTS.md / CLAUDE.md / README.md.)
+        *.md | *.txt | \
+            justfile | parish/justfile | \
+            docs/* | .agents/* | .claude/* | \
+            .github/* | \
+            parish/scripts/*)
             return 1
             ;;
         # Source / runtime paths.
-        parish/Cargo.toml|parish/Cargo.lock|\
-        parish/crates/*|parish/apps/*|parish/testing/*|\
-        mods/*|deploy/*)
+        parish/Cargo.toml | parish/Cargo.lock | \
+            parish/crates/* | parish/apps/* | parish/testing/* | \
+            mods/* | deploy/*)
             return 0
             ;;
         *)
@@ -150,24 +150,24 @@ is_proof_relevant() {
 is_runtime_path() {
     local file="$1"
     case "$file" in
-        parish/crates/parish-tauri/*|\
-        parish/crates/parish-server/*|\
-        parish/crates/parish-engine/*|\
-        parish/crates/parish-core/src/game_loop/*|\
-        parish/crates/parish-core/src/game_session/*|\
-        parish/crates/parish-core/src/ipc/*|\
-        parish/crates/parish-inference/src/setup.rs|\
-        parish/crates/parish-inference/src/client.rs|\
-        parish/crates/parish-npc/src/ticks.rs|\
-        parish/crates/parish-npc/src/manager.rs|\
-        parish/crates/parish-npc/src/reactions/*|\
-        parish/crates/parish-npc/src/autonomous/*|\
-        parish/crates/parish-world/*|\
-        parish/crates/parish-input/*|\
-        parish/apps/ui/src/*|\
-        mods/*|\
-        .claude/hooks/*|\
-        .claude/skills/*)
+        parish/crates/parish-tauri/* | \
+            parish/crates/parish-server/* | \
+            parish/crates/parish-engine/* | \
+            parish/crates/parish-core/src/game_loop/* | \
+            parish/crates/parish-core/src/game_session/* | \
+            parish/crates/parish-core/src/ipc/* | \
+            parish/crates/parish-inference/src/setup.rs | \
+            parish/crates/parish-inference/src/client.rs | \
+            parish/crates/parish-npc/src/ticks.rs | \
+            parish/crates/parish-npc/src/manager.rs | \
+            parish/crates/parish-npc/src/reactions/* | \
+            parish/crates/parish-npc/src/autonomous/* | \
+            parish/crates/parish-world/* | \
+            parish/crates/parish-input/* | \
+            parish/apps/ui/src/* | \
+            mods/* | \
+            .claude/hooks/* | \
+            .claude/skills/*)
             return 0
             ;;
         *)
@@ -179,7 +179,7 @@ is_runtime_path() {
 validate_evidence_file() {
     local file="$1"
     case "$file" in
-        *.png|*.jpg|*.jpeg|*.gif)
+        *.png | *.jpg | *.jpeg | *.gif)
             return 0
             ;;
         # Raw transcripts (.txt) carry literal program output — they
@@ -190,7 +190,7 @@ validate_evidence_file() {
         *.txt)
             return 0
             ;;
-        *.md|*)
+        *.md | *)
             # Accept the optional `live ` prefix that the runtime-path
             # tier (rule #10) requires for proofs of changes touching
             # the Tauri/server/CLI/UI/mod seams. Plain
@@ -228,12 +228,12 @@ scan_for_debt_markers() {
 # ── Relevance & runtime classification (both modes share this) ───────────
 while IFS= read -r file; do
     if is_proof_relevant "$file"; then
-        echo "$file" >> "$relevant"
+        echo "$file" >>"$relevant"
     fi
     if is_runtime_path "$file"; then
-        echo "$file" >> "$runtime"
+        echo "$file" >>"$runtime"
     fi
-done < "$changed"
+done <"$changed"
 
 # Lint: `.proofs/` must never appear in the diff. Bundles are gitignored
 # and posted to the PR via `just attach-proof`. A leaked `.proofs/` file
@@ -255,13 +255,13 @@ gather_bundles_local() {
         fi
         case "$f" in
             .proofs/*/judge.md)
-                echo "$f" >> "$judges"
+                echo "$f" >>"$judges"
                 ;;
             .proofs/*/acceptance-criteria.md)
-                echo "$f" >> "$ac_files"
+                echo "$f" >>"$ac_files"
                 ;;
-            .proofs/*/*.md|.proofs/*/*.txt|.proofs/*/*.png|.proofs/*/*.jpg|.proofs/*/*.jpeg|.proofs/*/*.gif)
-                echo "$f" >> "$evidence"
+            .proofs/*/*.md | .proofs/*/*.txt | .proofs/*/*.png | .proofs/*/*.jpg | .proofs/*/*.jpeg | .proofs/*/*.gif)
+                echo "$f" >>"$evidence"
                 ;;
         esac
     done < <(find .proofs -mindepth 2 -maxdepth 2 -type f 2>/dev/null || true)
@@ -287,16 +287,22 @@ gather_bundles_pr() {
     echo "agent-check: PR #$pr_number author is '$pr_author'; trusting only that login for proof comments."
 
     local raw="$tmpdir/comments_and_body.txt"
-    : > "$raw"
-    gh pr view "$pr_number" --json body --jq '.body // empty' >> "$raw" 2>/dev/null \
-        || { echo "agent-check FAILED: could not fetch PR #$pr_number." >&2; return 1; }
-    printf '\n' >> "$raw"
+    : >"$raw"
+    gh pr view "$pr_number" --json body --jq '.body // empty' >>"$raw" 2>/dev/null \
+        || {
+            echo "agent-check FAILED: could not fetch PR #$pr_number." >&2
+            return 1
+        }
+    printf '\n' >>"$raw"
     # Filter comments by login server-side so untrusted bodies never reach
     # the extractor.
     gh pr view "$pr_number" --json comments \
         --jq ".comments[] | select(.author.login == \"$pr_author\") | .body // empty" \
-        >> "$raw" 2>/dev/null \
-        || { echo "agent-check FAILED: could not fetch PR #$pr_number comments." >&2; return 1; }
+        >>"$raw" 2>/dev/null \
+        || {
+            echo "agent-check FAILED: could not fetch PR #$pr_number comments." >&2
+            return 1
+        }
 
     # Extract each `<!-- parish-proof-bundle:ID v=N -->` ... `<!-- /parish-proof-bundle:ID -->`
     # block into a per-bundle file. Opener and closer must be on their
@@ -330,10 +336,10 @@ gather_bundles_pr() {
     # only contains judge boilerplate cannot satisfy rule 13.
     for block_file in "$tmpdir"/pr_block_*.md; do
         [[ -f "$block_file" ]] || continue
-        echo "$block_file" >> "$evidence"
-        echo "$block_file" >> "$judges"
+        echo "$block_file" >>"$evidence"
+        echo "$block_file" >>"$judges"
         if grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$block_file"; then
-            echo "$block_file" >> "$ac_files"
+            echo "$block_file" >>"$ac_files"
         fi
     done
 }
@@ -344,12 +350,12 @@ else
     gather_bundles_pr || exit 1
 fi
 
-changed_count="$(wc -l < "$changed" | tr -d ' ')"
-relevant_count="$(wc -l < "$relevant" | tr -d ' ')"
-runtime_count="$(wc -l < "$runtime" | tr -d ' ')"
-evidence_count="$(wc -l < "$evidence" | tr -d ' ')"
-judge_count="$(wc -l < "$judges" | tr -d ' ')"
-ac_count="$(wc -l < "$ac_files" | tr -d ' ')"
+changed_count="$(wc -l <"$changed" | tr -d ' ')"
+relevant_count="$(wc -l <"$relevant" | tr -d ' ')"
+runtime_count="$(wc -l <"$runtime" | tr -d ' ')"
+evidence_count="$(wc -l <"$evidence" | tr -d ' ')"
+judge_count="$(wc -l <"$judges" | tr -d ' ')"
+ac_count="$(wc -l <"$ac_files" | tr -d ' ')"
 
 echo "agent-check: source=$source_mode; comparing $changed_count changed file(s) against $base_ref."
 
@@ -370,7 +376,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
     else
         while IFS= read -r file; do
             validate_evidence_file "$file" || failed=1
-        done < "$evidence"
+        done <"$evidence"
     fi
 
     if [[ "$judge_count" -eq 0 ]]; then
@@ -391,7 +397,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
                 echo "agent-check FAILED: $file must include 'Technical debt: clear'." >&2
                 failed=1
             fi
-        done < "$judges"
+        done <"$judges"
     fi
 
     if [[ "$ac_count" -gt 0 ]]; then
@@ -413,7 +419,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
         if [[ "$evidence_count" -gt 0 ]]; then
             while IFS= read -r file; do
                 case "$file" in
-                    *.png|*.jpg|*.jpeg|*.gif)
+                    *.png | *.jpg | *.jpeg | *.gif)
                         live_found=1
                         ;;
                     *.txt)
@@ -425,7 +431,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
                         fi
                         ;;
                 esac
-            done < "$evidence"
+            done <"$evidence"
         fi
         if [[ "$live_found" -eq 0 ]]; then
             echo "agent-check FAILED: runtime-shipping changes require evidence from a live process." >&2
@@ -459,8 +465,11 @@ if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 || "$ac_count" -gt 0 ]]; t
             for ev in "$bundle_dir"/*.md "$bundle_dir"/*.txt "$bundle_dir"/*.png "$bundle_dir"/*.jpg "$bundle_dir"/*.jpeg "$bundle_dir"/*.gif; do
                 [[ -f "$ev" ]] || continue
                 case "$ev" in
-                    "$bundle_dir/judge.md"|"$bundle_dir/acceptance-criteria.md") ;;
-                    *) local_has_evidence=1; break ;;
+                    "$bundle_dir/judge.md" | "$bundle_dir/acceptance-criteria.md") ;;
+                    *)
+                        local_has_evidence=1
+                        break
+                        ;;
                 esac
             done
             if [[ "$local_has_evidence" -eq 0 ]]; then
@@ -513,22 +522,23 @@ if [[ "$judge_count" -gt 0 ]]; then
                 failed=1
             fi
         fi
-    done < "$judges"
+    done <"$judges"
 fi
 
 debt_found=0
 while IFS= read -r file; do
-    # Skip scanning the check tools and docs themselves to avoid matching the regex patterns they contain
+    # The debt scanner hunts for stubbed-out *code* an agent left behind.
+    # Documentation (Markdown) legitimately contains illustrative, deliberately
+    # incomplete code snippets (`// ... existing`, `unimplemented!()`, etc.) as
+    # examples — scanning prose for these is a false positive. Skip all docs;
+    # also skip the check tooling, which embeds the marker regexes themselves.
+    [[ "$file" == *.md ]] && continue
     [[ "$file" == "parish/scripts/agent-check.sh" ]] && continue
     [[ "$file" == "parish/justfile" ]] && continue
-    [[ "$file" == "docs/agent/witness.md" ]] && continue
-    [[ "$file" == "docs/agent/agent-check.md" ]] && continue
-    [[ "$file" == ".agents/skills/check/SKILL.md" ]] && continue
-    [[ "$file" == ".agents/skills/task-start/SKILL.md" ]] && continue
     if scan_for_debt_markers "$file"; then
         debt_found=1
     fi
-done < "$changed"
+done <"$changed"
 
 if [[ "$debt_found" -eq 1 ]]; then
     echo "agent-check FAILED: placeholder-like debt markers found in changed files." >&2
