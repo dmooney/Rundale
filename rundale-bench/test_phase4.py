@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Hermetic tests for Phase 4 data bridge. Run: python3 rundale-bench/test_phase4.py"""
+
 from __future__ import annotations
 
 import json
@@ -26,13 +27,25 @@ def _tmp() -> Path:
 
 def _dialogue_run(model_id, overall, ts, tier="screen", axes=4):
     return {
-        "tier": tier, "run_started_utc": ts,
+        "tier": tier,
+        "run_started_utc": ts,
         "candidate": {"model_id": model_id},
-        "slices": {"dialogue": {"summary": {
-            "overall": overall, "judged": 5, "records": 5, "non_latin_rate": 0.0,
-            "character": axes, "authenticity": axes, "language": axes,
-            "responsiveness": axes, "craft": axes,
-        }, "results": []}},
+        "slices": {
+            "dialogue": {
+                "summary": {
+                    "overall": overall,
+                    "judged": 5,
+                    "records": 5,
+                    "non_latin_rate": 0.0,
+                    "character": axes,
+                    "authenticity": axes,
+                    "language": axes,
+                    "responsiveness": axes,
+                    "craft": axes,
+                },
+                "results": [],
+            }
+        },
     }
 
 
@@ -40,17 +53,42 @@ def _profile_summary(seconds=300.0):
     return {
         "observed_seconds": seconds,
         "categories": {
-            "intent": {"category": "intent", "requests": 10, "requests_per_minute": 2.0,
-                       "input_tokens_estimated": 1000, "output_tokens_estimated": 100},
-            "dialogue": {"category": "dialogue", "requests": 5, "requests_per_minute": 1.0,
-                         "input_tokens_estimated": 500, "output_tokens_estimated": 250},
-            "demo-player": {"category": "demo-player", "requests": 3, "requests_per_minute": 0.6,
-                            "input_tokens_estimated": 900, "output_tokens_estimated": 90},
+            "intent": {
+                "category": "intent",
+                "requests": 10,
+                "requests_per_minute": 2.0,
+                "input_tokens_estimated": 1000,
+                "output_tokens_estimated": 100,
+            },
+            "dialogue": {
+                "category": "dialogue",
+                "requests": 5,
+                "requests_per_minute": 1.0,
+                "input_tokens_estimated": 500,
+                "output_tokens_estimated": 250,
+            },
+            "demo-player": {
+                "category": "demo-player",
+                "requests": 3,
+                "requests_per_minute": 0.6,
+                "input_tokens_estimated": 900,
+                "output_tokens_estimated": 90,
+            },
         },
-        "total_gameplay": {"category": "total_gameplay", "requests": 15, "requests_per_minute": 3.0,
-                           "input_tokens_estimated": 1500, "output_tokens_estimated": 350},
-        "total_observed": {"category": "total_observed", "requests": 18, "requests_per_minute": 3.6,
-                           "input_tokens_estimated": 2400, "output_tokens_estimated": 440},
+        "total_gameplay": {
+            "category": "total_gameplay",
+            "requests": 15,
+            "requests_per_minute": 3.0,
+            "input_tokens_estimated": 1500,
+            "output_tokens_estimated": 350,
+        },
+        "total_observed": {
+            "category": "total_observed",
+            "requests": 18,
+            "requests_per_minute": 3.6,
+            "input_tokens_estimated": 2400,
+            "output_tokens_estimated": 440,
+        },
     }
 
 
@@ -58,9 +96,15 @@ def _profile_summary(seconds=300.0):
 def test_leaderboard_latest_wins():
     tmp = _tmp()
     art = tmp / "artifacts"
-    _write(art, "run_a_dialogue_screen_1.json", _dialogue_run("model-a", 3.9, "2026-05-20T00:00:00Z"))
-    _write(art, "run_a_dialogue_screen_2.json", _dialogue_run("model-a", 4.4, "2026-05-23T00:00:00Z"))
-    _write(art, "run_b_dialogue_screen_1.json", _dialogue_run("model-b", 4.1, "2026-05-21T00:00:00Z"))
+    _write(
+        art, "run_a_dialogue_screen_1.json", _dialogue_run("model-a", 3.9, "2026-05-20T00:00:00Z")
+    )
+    _write(
+        art, "run_a_dialogue_screen_2.json", _dialogue_run("model-a", 4.4, "2026-05-23T00:00:00Z")
+    )
+    _write(
+        art, "run_b_dialogue_screen_1.json", _dialogue_run("model-b", 4.1, "2026-05-21T00:00:00Z")
+    )
     rows = bsd.build_leaderboard(art)
     assert len(rows) == 2  # two distinct models
     a = next(r for r in rows if r["model_id"] == "model-a")
@@ -80,11 +124,39 @@ def test_non_dialogue_runs_ignored():
 def test_perf_latest_per_pair():
     tmp = _tmp()
     pdir = tmp / "perf"
-    base = {"latency_p50_ms": 100, "latency_p95_ms": 200, "tokens_per_sec_mean": 50.0,
-            "usd_per_mtok_observed": 0.5, "error_rate": 0.0}
-    _write(pdir, "perf_m_groq_1.json", {**base, "model_id": "m", "provider_id": "groq", "measured_utc": "2026-05-20T00:00:00Z"})
-    _write(pdir, "perf_m_groq_2.json", {**base, "model_id": "m", "provider_id": "groq", "measured_utc": "2026-05-23T00:00:00Z", "latency_p50_ms": 80})
-    _write(pdir, "perf_m_together_1.json", {**base, "model_id": "m", "provider_id": "together", "measured_utc": "2026-05-21T00:00:00Z"})
+    base = {
+        "latency_p50_ms": 100,
+        "latency_p95_ms": 200,
+        "tokens_per_sec_mean": 50.0,
+        "usd_per_mtok_observed": 0.5,
+        "error_rate": 0.0,
+    }
+    _write(
+        pdir,
+        "perf_m_groq_1.json",
+        {**base, "model_id": "m", "provider_id": "groq", "measured_utc": "2026-05-20T00:00:00Z"},
+    )
+    _write(
+        pdir,
+        "perf_m_groq_2.json",
+        {
+            **base,
+            "model_id": "m",
+            "provider_id": "groq",
+            "measured_utc": "2026-05-23T00:00:00Z",
+            "latency_p50_ms": 80,
+        },
+    )
+    _write(
+        pdir,
+        "perf_m_together_1.json",
+        {
+            **base,
+            "model_id": "m",
+            "provider_id": "together",
+            "measured_utc": "2026-05-21T00:00:00Z",
+        },
+    )
     rows = bsd.build_perf(pdir)
     assert len(rows) == 2  # groq (deduped) + together
     groq = next(r for r in rows if r["provider_id"] == "groq")
@@ -123,11 +195,13 @@ def test_attach_gameplay_costs_uses_profile_and_missing_prices_are_nonfatal():
     bsd.attach_gameplay_costs(
         rows,
         profile,
-        {("provider-model", "provider"): {
-            "price_input_usd_per_mtok": 1.0,
-            "price_output_usd_per_mtok": 2.0,
-            "price_source": "test",
-        }},
+        {
+            ("provider-model", "provider"): {
+                "price_input_usd_per_mtok": 1.0,
+                "price_output_usd_per_mtok": 2.0,
+                "price_source": "test",
+            }
+        },
     )
 
     # 300 input tok/min at $1/M + 70 output tok/min at $2/M.
@@ -142,7 +216,9 @@ def test_attach_gameplay_costs_uses_profile_and_missing_prices_are_nonfatal():
 def test_build_data_schema_populated():
     tmp = _tmp()
     art, pdir = tmp / "artifacts", tmp / "perf"
-    _write(art, "run_a_dialogue_screen_1.json", _dialogue_run("model-a", 4.4, "2026-05-23T00:00:00Z"))
+    _write(
+        art, "run_a_dialogue_screen_1.json", _dialogue_run("model-a", 4.4, "2026-05-23T00:00:00Z")
+    )
     profile_dir = tmp / "profiles"
     _write(profile_dir / "20260502T000000Z", "summary.json", _profile_summary())
     data = bsd.build_data(art, pdir, profile_dir)
@@ -172,9 +248,11 @@ def main() -> int:
         try:
             t()
         except AssertionError as e:
-            print(f"FAIL {t.__name__}: {e}"); failed += 1
+            print(f"FAIL {t.__name__}: {e}")
+            failed += 1
         except Exception as e:
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}"); failed += 1
+            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
+            failed += 1
         else:
             print(f"OK   {t.__name__}")
     print(f"\n{len(tests) - failed}/{len(tests)} passed")

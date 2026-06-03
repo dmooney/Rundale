@@ -36,7 +36,7 @@ on:
         default: true
 
 permissions:
-  contents: write   # required to create the GitHub Release on tag push
+  contents: write # required to create the GitHub Release on tag push
 
 concurrency:
   group: release-${{ github.ref }}

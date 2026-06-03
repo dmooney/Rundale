@@ -3,6 +3,7 @@
 **Date:** 2026-03-23
 **Reviewer:** Claude Code Reviewer Agent
 **Commits reviewed:**
+
 - `cd7766e` — feat: add Celtic cross loading animation for LLM inference waits (#23)
 - `b508932` — feat: add SimCity-style game speed controls and halve default speed (#25)
 
@@ -56,6 +57,7 @@ Two well-structured feature commits that add runtime game speed controls (SimCit
 1. **`src/input/mod.rs:194-200` — Silent fallback on invalid speed name.** `/speed bogus` silently falls back to showing current speed. Consider informing the user of valid options so typos aren't invisible.
 
 2. **`src/world/time.rs:306-319` — Duplicated factor magic numbers in `current_speed()`.** The values 18.0, 36.0, 72.0, 144.0 are duplicated from `GameSpeed::factor()`. Consider:
+
    ```rust
    pub fn current_speed(&self) -> Option<GameSpeed> {
        const EPSILON: f64 = 0.01;

@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { layoutTree, NODE_W, NODE_H, GAP_X, GAP_Y } from './dag';
+import { layoutTree, NODE_W, NODE_H, GAP_X } from './dag';
 import type { SaveBranchDisplay } from '$lib/types';
 
-function branch(name: string, parent: string | null, id = 0): SaveBranchDisplay {
+function branch(
+	name: string,
+	parent: string | null,
+	id = 0,
+): SaveBranchDisplay {
 	return {
 		name,
 		id,
@@ -10,7 +14,7 @@ function branch(name: string, parent: string | null, id = 0): SaveBranchDisplay 
 		snapshot_count: 1,
 		latest_location: null,
 		latest_game_date: null,
-		snapshots: []
+		snapshots: [],
 	};
 }
 
@@ -38,14 +42,16 @@ describe('layoutTree', () => {
 		const branches = [
 			branch('main', null, 1),
 			branch('dev', 'main', 2),
-			branch('feature', 'dev', 3)
+			branch('feature', 'dev', 3),
 		];
 		const result = layoutTree(branches);
 		expect(result.nodes).toHaveLength(3);
 		// Linear chain: 2 edges (main→dev, dev→feature)
 		expect(result.edges).toHaveLength(2);
 
-		const byName = Object.fromEntries(result.nodes.map(n => [n.branch.name, n]));
+		const byName = Object.fromEntries(
+			result.nodes.map((n) => [n.branch.name, n]),
+		);
 
 		// All nodes share the same x (single leaf column)
 		expect(byName.main.x).toBe(byName.dev.x);
@@ -64,14 +70,16 @@ describe('layoutTree', () => {
 		const branches = [
 			branch('root', null, 1),
 			branch('left', 'root', 2),
-			branch('right', 'root', 3)
+			branch('right', 'root', 3),
 		];
 		const result = layoutTree(branches);
 		expect(result.nodes).toHaveLength(3);
 		// Two edges: root→left, root→right
 		expect(result.edges).toHaveLength(2);
 
-		const byName = Object.fromEntries(result.nodes.map(n => [n.branch.name, n]));
+		const byName = Object.fromEntries(
+			result.nodes.map((n) => [n.branch.name, n]),
+		);
 
 		// Two leaf slots: left gets slot 0, right gets slot 1
 		// left.x = 0 * (NODE_W + GAP_X) + PAD = 40
@@ -97,7 +105,7 @@ describe('layoutTree', () => {
 			branch('root', null, 1),
 			branch('a', 'root', 2),
 			branch('b', 'root', 3),
-			branch('c', 'root', 4)
+			branch('c', 'root', 4),
 		];
 		const result = layoutTree(branches);
 		expect(result.edges).toHaveLength(3);
@@ -107,7 +115,7 @@ describe('layoutTree', () => {
 		const branches = [
 			branch('root', null, 1),
 			branch('left', 'root', 2),
-			branch('right', 'root', 3)
+			branch('right', 'root', 3),
 		];
 		const result = layoutTree(branches);
 		for (const node of result.nodes) {
@@ -117,15 +125,14 @@ describe('layoutTree', () => {
 	});
 
 	it('edge connects parent top-center to child bottom-center', () => {
-		const branches = [
-			branch('root', null, 1),
-			branch('child', 'root', 2)
-		];
+		const branches = [branch('root', null, 1), branch('child', 'root', 2)];
 		const result = layoutTree(branches);
 		expect(result.edges).toHaveLength(1);
 		const [edge] = result.edges;
 
-		const byName = Object.fromEntries(result.nodes.map(n => [n.branch.name, n]));
+		const byName = Object.fromEntries(
+			result.nodes.map((n) => [n.branch.name, n]),
+		);
 		// x1 = root.x + NODE_W/2, y1 = root.y (top of root)
 		expect(edge.x1).toBeCloseTo(byName.root.x + NODE_W / 2);
 		expect(edge.y1).toBe(byName.root.y);
@@ -136,15 +143,14 @@ describe('layoutTree', () => {
 
 	it('handles disconnected nodes (no parent match) as separate roots', () => {
 		// Two branches with no parent_name — treated as two separate roots
-		const branches = [
-			branch('alpha', null, 1),
-			branch('beta', null, 2)
-		];
+		const branches = [branch('alpha', null, 1), branch('beta', null, 2)];
 		const result = layoutTree(branches);
 		expect(result.nodes).toHaveLength(2);
 		expect(result.edges).toHaveLength(0);
 		// Each is a leaf; should be placed in adjacent columns
-		const byName = Object.fromEntries(result.nodes.map(n => [n.branch.name, n]));
+		const byName = Object.fromEntries(
+			result.nodes.map((n) => [n.branch.name, n]),
+		);
 		expect(byName.alpha.x).not.toBe(byName.beta.x);
 	});
 });

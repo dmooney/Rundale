@@ -19,7 +19,7 @@ modes are preserved unchanged. This phase lays the foundation for Phase 7's mobi
 
 ## Workspace Structure (after migration)
 
-```
+```text
 parish/
 ├── Cargo.toml                    ← workspace manifest
 ├── CLAUDE.md                     ← updated build/test instructions
@@ -76,24 +76,24 @@ parish/
 
 ### Rust (workspace Cargo.toml)
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `tauri` | 2 | Tauri app framework, command/event system |
-| `tauri-build` | 2 | Build-script helper for Tauri metadata |
-| `serde` | 1 | Serialise command return types and event payloads |
+| Crate         | Version | Purpose                                           |
+| ------------- | ------- | ------------------------------------------------- |
+| `tauri`       | 2       | Tauri app framework, command/event system         |
+| `tauri-build` | 2       | Build-script helper for Tauri metadata            |
+| `serde`       | 1       | Serialise command return types and event payloads |
 
 Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screenshots).
 
 ### JavaScript (`ui/package.json`)
 
-| Package | Purpose |
-|---------|---------|
-| `@tauri-apps/api` | Typed `invoke()` and `listen()` bindings |
-| `@tauri-apps/plugin-*` | Shell, dialog, fs plugins as needed |
-| `svelte` | UI framework |
-| `@sveltejs/vite-plugin-svelte` | Vite integration |
-| `vite` | Dev server + bundler |
-| `typescript` | Type safety |
+| Package                        | Purpose                                  |
+| ------------------------------ | ---------------------------------------- |
+| `@tauri-apps/api`              | Typed `invoke()` and `listen()` bindings |
+| `@tauri-apps/plugin-*`         | Shell, dialog, fs plugins as needed      |
+| `svelte`                       | UI framework                             |
+| `@sveltejs/vite-plugin-svelte` | Vite integration                         |
+| `vite`                         | Dev server + bundler                     |
+| `typescript`                   | Type safety                              |
 
 ## Tasks
 
@@ -127,6 +127,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 
 5. **Define the shared IPC type surface in `src-tauri/src/lib.rs`**
    Serde-serialisable structs mirrored in `ui/src/lib/types.ts`:
+
    ```rust
    #[derive(serde::Serialize, Clone)]
    pub struct WorldSnapshot {
@@ -176,6 +177,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
    ```
 
    Hold mutable game state in a `tauri::State`-managed struct:
+
    ```rust
    pub struct AppState {
        pub world: tokio::sync::Mutex<WorldState>,
@@ -188,6 +190,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
    ```
 
 6. **Implement Tauri commands in `src-tauri/src/commands.rs`**
+
    ```rust
    #[tauri::command]
    pub async fn submit_input(text: String, state: tauri::State<'_, AppState>,
@@ -209,6 +212,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
    pub async fn get_theme(state: tauri::State<'_, AppState>)
        -> Result<ThemePalette, String>
    ```
+
    `submit_input` processes input through the `parish-core` pipeline (classify → movement or NPC
    conversation → inference) and emits events as the response streams.
 
@@ -243,39 +247,54 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Add `"@tauri-apps/api": "^2"` to `package.json`
 
 11. **Write typed IPC wrappers in `ui/src/lib/ipc.ts`**
+
     ```typescript
-    import { invoke } from "@tauri-apps/api/core";
-    import { listen } from "@tauri-apps/api/event";
-    import type { WorldSnapshot, MapData, NpcInfo, ThemePalette,
-                  StreamTokenPayload, StreamEndPayload, TextLogPayload,
-                  WorldUpdatePayload, LoadingPayload } from "./types";
+    import { invoke } from '@tauri-apps/api/core';
+    import { listen } from '@tauri-apps/api/event';
+    import type {
+      WorldSnapshot,
+      MapData,
+      NpcInfo,
+      ThemePalette,
+      StreamTokenPayload,
+      StreamEndPayload,
+      TextLogPayload,
+      WorldUpdatePayload,
+      LoadingPayload,
+    } from './types';
 
     export const submitInput = (text: string) =>
-        invoke<void>("submit_input", { text });
+      invoke<void>('submit_input', { text });
     export const getWorldSnapshot = () =>
-        invoke<WorldSnapshot>("get_world_snapshot");
-    export const getMap = () => invoke<MapData>("get_map");
-    export const getNpcsHere = () => invoke<NpcInfo[]>("get_npcs_here");
-    export const getTheme = () => invoke<ThemePalette>("get_theme");
+      invoke<WorldSnapshot>('get_world_snapshot');
+    export const getMap = () => invoke<MapData>('get_map');
+    export const getNpcsHere = () => invoke<NpcInfo[]>('get_npcs_here');
+    export const getTheme = () => invoke<ThemePalette>('get_theme');
 
     export const onStreamToken = (cb: (p: StreamTokenPayload) => void) =>
-        listen<StreamTokenPayload>("stream-token", e => cb(e.payload));
+      listen<StreamTokenPayload>('stream-token', (e) => cb(e.payload));
     export const onStreamEnd = (cb: (p: StreamEndPayload) => void) =>
-        listen<StreamEndPayload>("stream-end", e => cb(e.payload));
+      listen<StreamEndPayload>('stream-end', (e) => cb(e.payload));
     export const onTextLog = (cb: (p: TextLogPayload) => void) =>
-        listen<TextLogPayload>("text-log", e => cb(e.payload));
+      listen<TextLogPayload>('text-log', (e) => cb(e.payload));
     export const onWorldUpdate = (cb: (p: WorldUpdatePayload) => void) =>
-        listen<WorldUpdatePayload>("world-update", e => cb(e.payload));
+      listen<WorldUpdatePayload>('world-update', (e) => cb(e.payload));
     export const onLoading = (cb: (p: LoadingPayload) => void) =>
-        listen<LoadingPayload>("loading", e => cb(e.payload));
+      listen<LoadingPayload>('loading', (e) => cb(e.payload));
     ```
 
 12. **Implement Svelte stores in `ui/src/stores/`**
 
     `game.ts`:
+
     ```typescript
-    import { writable, derived } from "svelte/store";
-    import type { WorldSnapshot, MapData, NpcInfo, TextLogEntry } from "../lib/types";
+    import { writable, derived } from 'svelte/store';
+    import type {
+      WorldSnapshot,
+      MapData,
+      NpcInfo,
+      TextLogEntry,
+    } from '../lib/types';
 
     export const worldState = writable<WorldSnapshot | null>(null);
     export const mapData = writable<MapData | null>(null);
@@ -286,23 +305,24 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     ```
 
     `theme.ts`:
+
     ```typescript
-    import { writable } from "svelte/store";
-    import type { ThemePalette } from "../lib/types";
+    import { writable } from 'svelte/store';
+    import type { ThemePalette } from '../lib/types';
 
     export const palette = writable<ThemePalette | null>(null);
 
     // Applies palette as CSS custom properties on :root
-    palette.subscribe(p => {
-        if (!p) return;
-        const root = document.documentElement;
-        root.style.setProperty("--color-bg", p.bg);
-        root.style.setProperty("--color-fg", p.fg);
-        root.style.setProperty("--color-accent", p.accent);
-        root.style.setProperty("--color-panel-bg", p.panel_bg);
-        root.style.setProperty("--color-input-bg", p.input_bg);
-        root.style.setProperty("--color-border", p.border);
-        root.style.setProperty("--color-muted", p.muted);
+    palette.subscribe((p) => {
+      if (!p) return;
+      const root = document.documentElement;
+      root.style.setProperty('--color-bg', p.bg);
+      root.style.setProperty('--color-fg', p.fg);
+      root.style.setProperty('--color-accent', p.accent);
+      root.style.setProperty('--color-panel-bg', p.panel_bg);
+      root.style.setProperty('--color-input-bg', p.input_bg);
+      root.style.setProperty('--color-border', p.border);
+      root.style.setProperty('--color-muted', p.muted);
     });
     ```
 
@@ -419,20 +439,24 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 ## Testing Strategy
 
 **parish-core (Rust)**
+
 - All existing unit tests must pass without modification after the extraction
 - Run with `cargo test -p parish-core`
 
 **src-tauri (Rust)**
+
 - Command handler unit tests via `tauri::test::mock_app()`
 - Streaming bridge: test that tokens accumulate and emit correctly with a mock `InferenceQueue`
 - `cargo test -p parish-tauri`
 
 **ui (TypeScript/Svelte)**
+
 - Vitest + `@testing-library/svelte` for component tests
 - Mock `@tauri-apps/api` in tests (standard Tauri testing pattern)
 - `cd ui && npm test`
 
 **Integration**
+
 - Use the existing `GameTestHarness` (`--script` mode) via the CLI binary (TUI/headless) to verify
   game logic is unchanged after core extraction
 - Visual verification: run `cargo tauri dev` and manually walk through a town → pub → NPC conversation

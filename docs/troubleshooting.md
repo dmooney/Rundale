@@ -5,7 +5,7 @@ failure — there is now a reproducible artefact to attach to the report.
 Every backend process writes two paired JSONL files to
 `{your saves directory}/inference_logs/`:
 
-```
+```text
 {timestamp-pid}.jsonl            ← every LLM call (prompt, response, model, timing)
 {timestamp-pid}.transcript.jsonl ← user-visible chat events (dialogue, travel, off-screen beats)
 ```

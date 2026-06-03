@@ -58,7 +58,7 @@ echo "attach-proof: target PR is #$pr_number."
 # Render the comment body.
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
-bash parish/scripts/render-proof-comment.sh "$task_id" > "$body_file"
+bash parish/scripts/render-proof-comment.sh "$task_id" >"$body_file"
 
 # Resolve the PR's base repository (where the PR lives), NOT the local
 # repo. Fork contributors clone their fork as origin, so `gh repo view`

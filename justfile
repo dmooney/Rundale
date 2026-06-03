@@ -118,6 +118,18 @@ harness-shadow *ARGS:
 ui-test:
     cd parish && just ui-test
 
+# Lint the frontend (ESLint)
+ui-lint:
+    cd parish && just ui-lint
+
+# Auto-format the frontend (Prettier)
+ui-format:
+    cd parish && just ui-format
+
+# Check frontend formatting without writing
+ui-format-check:
+    cd parish && just ui-format-check
+
 # Run Playwright E2E tests
 ui-e2e:
     cd parish && just ui-e2e
@@ -125,6 +137,82 @@ ui-e2e:
 # Regenerate GUI screenshots via Playwright
 screenshots:
     cd parish && just screenshots
+
+# ─── Repo-wide docs/data formatting (Prettier + markdownlint) ─────────────────
+
+# Auto-format docs/data (Markdown, JSON, YAML) repo-wide
+fmt-docs:
+    eval "$(fnm env)" && npm run format
+
+# Check docs/data formatting without writing (CI gate)
+fmt-docs-check:
+    eval "$(fnm env)" && npm run format:check
+
+# Lint Markdown (markdownlint-cli2)
+lint-docs:
+    eval "$(fnm env)" && npm run lint:md
+
+# ─── Python tooling (ruff + mypy + yamllint + pytest) ─────────────────────────
+# Recipes prefer the local .venv-dev (just setup-py) and fall back to PATH tools.
+
+# Create/refresh the Python dev virtualenv from requirements-dev.txt
+setup-py:
+    python3 -m venv .venv-dev
+    .venv-dev/bin/pip install --quiet --upgrade pip
+    .venv-dev/bin/pip install --quiet -r requirements-dev.txt
+
+# Resolve a tool from .venv-dev if present, else PATH
+_py-bin TOOL:
+    @if [ -x ".venv-dev/bin/{{TOOL}}" ]; then echo ".venv-dev/bin/{{TOOL}}"; else echo "{{TOOL}}"; fi
+
+# Auto-format Python (ruff format)
+fmt-py:
+    "$(just _py-bin ruff)" format .
+
+# Lint + type-check + yaml-lint Python (CI gate)
+lint-py:
+    "$(just _py-bin ruff)" check .
+    "$(just _py-bin ruff)" format --check .
+    "$(just _py-bin mypy)" .
+    "$(just _py-bin yamllint)" .
+
+# Run the Python (bench) test suite
+test-py:
+    "$(just _py-bin pytest)"
+
+# ─── Shell tooling (shellcheck + shfmt) ───────────────────────────────────────
+# shfmt flags (-i 4 -ci -bn) mirror .editorconfig so editors agree.
+
+# Auto-format all shell scripts (shfmt, writes in place)
+fmt-shell:
+    shfmt -i 4 -ci -bn -w $(git ls-files '*.sh')
+
+# Lint + format-check all shell scripts (CI gate)
+lint-shell:
+    shellcheck -S warning $(git ls-files '*.sh')
+    shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
+
+# ─── TOML tooling (taplo) ─────────────────────────────────────────────────────
+# Config in taplo.toml (excludes intentionally-malformed test fixtures).
+
+# Auto-format all TOML (taplo, writes in place)
+fmt-toml:
+    taplo fmt
+
+# Lint + format-check all TOML (CI gate)
+lint-toml:
+    taplo fmt --check
+    taplo lint
+
+# ─── Aggregate non-Rust gates ─────────────────────────────────────────────────
+
+# Format every non-Rust file type in place (web, docs/data, python, shell, toml)
+fmt-all: ui-format fmt-docs fmt-py fmt-shell fmt-toml
+    @echo "Formatted web + docs/data + python + shell + toml."
+
+# Run every non-Rust lint/format gate (CI parity, non-mutating)
+lint-all: ui-lint ui-format-check lint-docs lint-py lint-shell lint-toml
+    @echo "All non-Rust quality gates passed."
 
 # ─── Utilities ───────────────────────────────────────────────────────────────
 

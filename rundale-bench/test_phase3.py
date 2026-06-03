@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Hermetic tests for Phase 3: perf-by-provider. Run: python3 rundale-bench/test_phase3.py"""
+
 from __future__ import annotations
 
 import contextlib
@@ -86,6 +87,7 @@ def _stub_call(latency_seq=None):
     def call(target, system, prompt, **k):
         calls["n"] += 1
         return ("reply", {"prompt_tokens": 20, "completion_tokens": 40})
+
     call.calls = calls
     return call
 
@@ -95,10 +97,11 @@ def test_warmup_excluded():
     model = cat.by_id("llama-3.3-70b")
     provider = model.cheapest_provider()
     call = _stub_call()
-    row = perf_mod.measure_provider(model, provider, ["p1", "p2"], "warm",
-                                    warmup=2, measure=5, call=call)
-    assert row["n_ok"] + row["n_error"] == 5      # warm-ups not counted
-    assert call.calls["n"] == 7                    # 2 warmup + 5 measure actually issued
+    row = perf_mod.measure_provider(
+        model, provider, ["p1", "p2"], "warm", warmup=2, measure=5, call=call
+    )
+    assert row["n_ok"] + row["n_error"] == 5  # warm-ups not counted
+    assert call.calls["n"] == 7  # 2 warmup + 5 measure actually issued
 
 
 # ── criterion 3 + 8: sweep providers, schema, files written ──────────────────
@@ -106,18 +109,42 @@ def test_perf_subcommand_sweeps_providers():
     with perf_sandbox() as tmp:
         # stub the shared call_chat that measure_provider lazy-imports
         import eval_lib
+
         saved = eval_lib.call_chat
-        eval_lib.call_chat = lambda target, system, prompt, **k: ("reply", {"prompt_tokens": 20, "completion_tokens": 40})
+        eval_lib.call_chat = lambda target, system, prompt, **k: (
+            "reply",
+            {"prompt_tokens": 20, "completion_tokens": 40},
+        )
         try:
-            rb.cmd_perf(["--model", "llama-3.3-70b", "--providers", "groq,together,openrouter",
-                         "--warmup", "1", "--measure", "3"])
+            rb.cmd_perf(
+                [
+                    "--model",
+                    "llama-3.3-70b",
+                    "--providers",
+                    "groq,together,openrouter",
+                    "--warmup",
+                    "1",
+                    "--measure",
+                    "3",
+                ]
+            )
         finally:
             eval_lib.call_chat = saved
         files = sorted((tmp / "perf").glob("perf_*.json"))
         assert len(files) == 3
-        keys = {"model_id", "provider_id", "model_name_at_provider", "n_ok", "n_error",
-                "error_rate", "latency_p50_ms", "latency_p95_ms", "tokens_per_sec_mean",
-                "usd_per_mtok_observed", "measured_utc"}
+        keys = {
+            "model_id",
+            "provider_id",
+            "model_name_at_provider",
+            "n_ok",
+            "n_error",
+            "error_rate",
+            "latency_p50_ms",
+            "latency_p95_ms",
+            "tokens_per_sec_mean",
+            "usd_per_mtok_observed",
+            "measured_utc",
+        }
         for f in files:
             row = json.loads(f.read_text())
             assert keys <= set(row), f"missing keys in {f.name}: {keys - set(row)}"
@@ -128,16 +155,26 @@ def test_perf_subcommand_sweeps_providers():
 def test_providers_all_and_unknown():
     with perf_sandbox():
         import eval_lib
+
         saved = eval_lib.call_chat
-        eval_lib.call_chat = lambda target, system, prompt, **k: ("r", {"prompt_tokens": 1, "completion_tokens": 1})
+        eval_lib.call_chat = lambda target, system, prompt, **k: (
+            "r",
+            {"prompt_tokens": 1, "completion_tokens": 1},
+        )
         try:
             cat = load_catalog()
             n_providers = len(cat.by_id("deepseek-v3").providers)
-            rb.cmd_perf(["--model", "deepseek-v3", "--providers", "all", "--warmup", "0", "--measure", "1"])
+            rb.cmd_perf(
+                ["--model", "deepseek-v3", "--providers", "all", "--warmup", "0", "--measure", "1"]
+            )
             files = list(perf_mod.PERF_DIR.glob("perf_deepseek-v3_*.json"))
             assert len(files) == n_providers
-            _assert_raises(SystemExit, lambda: rb.cmd_perf(
-                ["--model", "deepseek-v3", "--providers", "bogus", "--measure", "1"]))
+            _assert_raises(
+                SystemExit,
+                lambda: rb.cmd_perf(
+                    ["--model", "deepseek-v3", "--providers", "bogus", "--measure", "1"]
+                ),
+            )
         finally:
             eval_lib.call_chat = saved
 

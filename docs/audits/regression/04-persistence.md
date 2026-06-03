@@ -15,18 +15,18 @@ F5 save picker.
 
 ## 2. Coverage matrix
 
-| Sub-feature | Unit | Integration / Fixture | Rubric | UI |
-|---|---|---|---|---|
-| SQLite + WAL config | `parish-persistence/src/database.rs:71-77` (in-source; sets `PRAGMA journal_mode=WAL`) | none | none | none |
-| Append-only event journal | 100 in-source tests in `parish-persistence` (across `journal.rs`, `journal_bridge.rs`, `snapshot.rs`) | `parish-cli/tests/persistence_integration.rs:9-401` (10 tests including roundtrip, weather/text-log preservation, NPC state preservation, full-world-state) | none | none |
-| Snapshot serialization | `parish-persistence/src/snapshot.rs` (in-source, with explicit comments at `:130` and `:447` warning about NPC LOD erasure regressions) | `persistence_integration.rs:333` `test_fork_preserves_npc_state`; fixture `testing/fixtures/test_persistence.txt` | none | none |
-| Autosave (45s periodic) | none — no test simulates 45s elapsing or asserts autosave fires | none | none | none |
-| `/save` `/fork` `/load` | `persistence_integration.rs:9` save+load roundtrip; `:37` fork-creates-independent-branch | fixture `test_persistence.txt` (10-step branch flow) | none | none |
-| `/branches` `/log` | `persistence_integration.rs:68` branches-lists-all; `:85` log-shows-snapshots | fixture `test_persistence.txt` | none | none |
-| Branch DAG visualization | none | none | none | **none** — `apps/ui/src/components/SavePicker.svelte` has no `.test.ts` colocated |
-| F5 save picker UI | `parish-persistence/src/picker.rs:466-519` (in-source: parse_save_number, next_save_number, discover_saves) | none | none | none |
-| Concurrent reader behavior under WAL | none — `parish-server/tests/isolation.rs:294` `debug_snapshot_no_deadlock_with_concurrent_readers` covers a different surface (in-memory snapshot, not SQLite WAL) | none | none | none |
-| Schema migration / version upgrades | none discovered | none | none | none |
+| Sub-feature                          | Unit                                                                                                                                                               | Integration / Fixture                                                                                                                                       | Rubric | UI                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------- |
+| SQLite + WAL config                  | `parish-persistence/src/database.rs:71-77` (in-source; sets `PRAGMA journal_mode=WAL`)                                                                             | none                                                                                                                                                        | none   | none                                                                              |
+| Append-only event journal            | 100 in-source tests in `parish-persistence` (across `journal.rs`, `journal_bridge.rs`, `snapshot.rs`)                                                              | `parish-cli/tests/persistence_integration.rs:9-401` (10 tests including roundtrip, weather/text-log preservation, NPC state preservation, full-world-state) | none   | none                                                                              |
+| Snapshot serialization               | `parish-persistence/src/snapshot.rs` (in-source, with explicit comments at `:130` and `:447` warning about NPC LOD erasure regressions)                            | `persistence_integration.rs:333` `test_fork_preserves_npc_state`; fixture `testing/fixtures/test_persistence.txt`                                           | none   | none                                                                              |
+| Autosave (45s periodic)              | none — no test simulates 45s elapsing or asserts autosave fires                                                                                                    | none                                                                                                                                                        | none   | none                                                                              |
+| `/save` `/fork` `/load`              | `persistence_integration.rs:9` save+load roundtrip; `:37` fork-creates-independent-branch                                                                          | fixture `test_persistence.txt` (10-step branch flow)                                                                                                        | none   | none                                                                              |
+| `/branches` `/log`                   | `persistence_integration.rs:68` branches-lists-all; `:85` log-shows-snapshots                                                                                      | fixture `test_persistence.txt`                                                                                                                              | none   | none                                                                              |
+| Branch DAG visualization             | none                                                                                                                                                               | none                                                                                                                                                        | none   | **none** — `apps/ui/src/components/SavePicker.svelte` has no `.test.ts` colocated |
+| F5 save picker UI                    | `parish-persistence/src/picker.rs:466-519` (in-source: parse_save_number, next_save_number, discover_saves)                                                        | none                                                                                                                                                        | none   | none                                                                              |
+| Concurrent reader behavior under WAL | none — `parish-server/tests/isolation.rs:294` `debug_snapshot_no_deadlock_with_concurrent_readers` covers a different surface (in-memory snapshot, not SQLite WAL) | none                                                                                                                                                        | none   | none                                                                              |
+| Schema migration / version upgrades  | none discovered                                                                                                                                                    | none                                                                                                                                                        | none   | none                                                                              |
 
 ## 3. Strong spots
 
@@ -43,7 +43,7 @@ F5 save picker.
 ## 4. Gaps
 
 - **[P0] Autosave (45-second timer) has no test.** No test simulates time
-  elapsing and asserts a snapshot was written. Saves *are* the most
+  elapsing and asserts a snapshot was written. Saves _are_ the most
   unrecoverable failure mode in the engine; if autosave silently breaks,
   the player loses their session. Suggested: time-mocked unit test in
   `parish-persistence/src/snapshot.rs` named

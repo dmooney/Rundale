@@ -9,11 +9,11 @@ auto-generated notes.
 
 `parish/scripts/release.sh` rewrites three user-visible version fields:
 
-| File | Field |
-| --- | --- |
-| `parish/crates/parish-cli/Cargo.toml` | `[package].version` |
-| `parish/crates/parish-tauri/tauri.conf.json` | `.version` |
-| `parish/apps/ui/package.json` | `.version` |
+| File                                         | Field               |
+| -------------------------------------------- | ------------------- |
+| `parish/crates/parish-cli/Cargo.toml`        | `[package].version` |
+| `parish/crates/parish-tauri/tauri.conf.json` | `.version`          |
+| `parish/apps/ui/package.json`                | `.version`          |
 
 `Cargo.lock` is refreshed as a side effect. Internal leaf crates keep their
 `0.1.0` baseline — they are unpublished workspace members and don't carry an
@@ -54,7 +54,6 @@ verify the **bump** or the **build/publish pipeline**:
    Trigger `release.yml` manually via the GitHub Actions UI →
    "Release" workflow → "Run workflow" → set `version=0.2.0`,
    leave `dry_run=true` (default).
-
    - `validate-tag` is skipped on `workflow_dispatch` (it only enforces
      against real tag pushes), so dispatch-mode dry-runs work even if the
      bump hasn't landed.
@@ -66,7 +65,7 @@ verify the **bump** or the **build/publish pipeline**:
 
    The artifact is downloadable from the workflow run page for ~14 days.
 
-If you want to test the *real* tag-driven flow without polluting the public
+If you want to test the _real_ tag-driven flow without polluting the public
 release list, push to a throwaway tag like `v0.0.0-rc.1` (a prerelease semver),
 delete it after, and delete the resulting Release manually. The workflow's
 tag pattern accepts prereleases (`v0.0.0-rc.1`, etc.).

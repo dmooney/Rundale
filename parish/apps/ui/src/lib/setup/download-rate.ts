@@ -37,11 +37,13 @@ export function formatDownloadStats(
 	downloadCompleted: number,
 	downloadTotal: number,
 	downloadSpeedBps: number | null,
-	downloadEtaSeconds: number | null
+	downloadEtaSeconds: number | null,
 ): string {
 	if (downloadTotal <= 0) return '';
 
-	const parts = [`${formatBytes(downloadCompleted)} of ${formatBytes(downloadTotal)}`];
+	const parts = [
+		`${formatBytes(downloadCompleted)} of ${formatBytes(downloadTotal)}`,
+	];
 	if (downloadSpeedBps !== null && downloadSpeedBps > 0) {
 		parts.push(`${formatBytes(downloadSpeedBps)}/s`);
 	}

@@ -1,0 +1,45 @@
+// markdownlint-cli2 config — Markdown *linting* (Prettier owns formatting).
+// Rules that fight Prettier or are noise for prose-heavy agent docs are off.
+{
+  "config": {
+    "default": true,
+    // Prettier controls wrapping; line length is not a lint concern.
+    "MD013": false,
+    // Inline HTML is used deliberately (details/summary, kbd, comments).
+    "MD033": false,
+    // Allow duplicate headings under different parents (changelogs, per-section).
+    "MD024": { "siblings_only": true },
+    // First line need not be a top-level heading (frontmatter, badges).
+    "MD041": false,
+    // Bare URLs are fine in agent docs / link dumps.
+    "MD034": false,
+    // Ordered-list numbering style is Prettier's job, not a lint error.
+    "MD029": false,
+    // Emphasis-as-heading is sometimes intentional (callouts).
+    "MD036": false,
+    // Trailing punctuation in headings (e.g. "Why?") is allowed.
+    "MD026": false,
+    // Emphasis delimiter style (`_x_` vs `*x*`) is pure style, not a defect.
+    "MD049": false,
+    // Blank lines inside blockquotes are used in design docs for callout spacing.
+    "MD028": false,
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/target/**",
+    ".venv-dev/**",
+    "**/.pytest_cache/**",
+    "**/.mypy_cache/**",
+    "**/.ruff_cache/**",
+    ".proofs/**",
+    "**/THIRD_PARTY_NOTICES*.md",
+    "docs/proofs/**",
+    "rundale-bench/artifacts/**",
+    "parish/testing/**",
+    "parish/apps/ui/**",
+    "rundale-bench/bench-site/**",
+    ".opencode/**",
+    ".codex/**",
+  ],
+}

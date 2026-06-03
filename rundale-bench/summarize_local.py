@@ -10,6 +10,7 @@ Output is plain Markdown — pipe into a file to attach to evidence.
 
     python3 rundale-bench/summarize_local.py
 """
+
 from __future__ import annotations
 
 import json
@@ -25,7 +26,11 @@ _LEADERBOARD = _ARTIFACTS / "local_leaderboard.md"
 
 
 def _is_local(model: str) -> bool:
-    return model.startswith("mlx-community/") or "@http://127.0.0.1" in model or "@http://localhost" in model
+    return (
+        model.startswith("mlx-community/")
+        or "@http://127.0.0.1" in model
+        or "@http://localhost" in model
+    )
 
 
 def _fnum(value, digits: int = 2) -> str:
@@ -121,17 +126,19 @@ def main() -> int:
     by_slice: dict[str, list[dict]] = defaultdict(list)
     for (repo, slc), info in runs.items():
         lb = rows.get((repo, slc), {})
-        by_slice[slc].append({
-            "repo": repo,
-            "slice": slc,
-            "metric": info["metric"],
-            "elapsed_s": info["elapsed_s"],
-            "cost_usd": info["cost_usd"],
-            "slot": lb.get("slot", "?"),
-            "quant": lb.get("quant", "?"),
-            "params": lb.get("params", "?"),
-            "ram_gb": lb.get("ram_gb", 0.0),
-        })
+        by_slice[slc].append(
+            {
+                "repo": repo,
+                "slice": slc,
+                "metric": info["metric"],
+                "elapsed_s": info["elapsed_s"],
+                "cost_usd": info["cost_usd"],
+                "slot": lb.get("slot", "?"),
+                "quant": lb.get("quant", "?"),
+                "params": lb.get("params", "?"),
+                "ram_gb": lb.get("ram_gb", 0.0),
+            }
+        )
 
     def _sort_key(r: dict) -> float:
         m = r["metric"]

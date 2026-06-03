@@ -22,13 +22,13 @@ This requires a save system that supports:
 
 Adopt a **git-like branching model** for the save system, mapping persistence concepts to familiar version control analogies:
 
-| Save System Concept | Git Analogy |
-|---------------------|-------------|
-| Journal (real-time mutation log) | Working directory |
-| Snapshot (periodic compaction) | Commit |
-| Branch (named save) | Branch |
-| Fork (create alternate timeline) | `git checkout -b` |
-| Load (switch to a different timeline) | `git checkout` |
+| Save System Concept                   | Git Analogy       |
+| ------------------------------------- | ----------------- |
+| Journal (real-time mutation log)      | Working directory |
+| Snapshot (periodic compaction)        | Commit            |
+| Branch (named save)                   | Branch            |
+| Fork (create alternate timeline)      | `git checkout -b` |
+| Load (switch to a different timeline) | `git checkout`    |
 
 **Behavior:**
 

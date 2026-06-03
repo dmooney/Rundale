@@ -61,7 +61,7 @@ for doc in "${sources[@]}"; do
     )
 done
 
-if (( missing > 0 )); then
+if ((missing > 0)); then
     echo "" >&2
     echo "FAIL: $missing cited path(s) missing (checked $checked)." >&2
     echo "Either update the doc to reflect the repo, or create the path." >&2

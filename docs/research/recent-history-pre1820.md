@@ -24,7 +24,7 @@ This betrayal is fundamental to understanding the political consciousness of Cat
 
 ## Robert Emmet's Rebellion (1803)
 
-**Robert Emmet's rising of 1803** was militarily insignificant — a botched attempt to seize Dublin Castle that collapsed into street violence and was suppressed within hours. But Emmet's **speech from the dock** before his execution became one of the most famous utterances in Irish political culture: *"Let no man write my epitaph... When my country takes her place among the nations of the earth, then, and not till then, let my epitaph be written."* [7] By the 1820s, these words had been memorized, repeated, and woven into the fabric of nationalist feeling. Emmet's rebellion demonstrated that the flame of 1798 had not been entirely extinguished, even if his failure also demonstrated its practical hopelessness in the face of British power.
+**Robert Emmet's rising of 1803** was militarily insignificant — a botched attempt to seize Dublin Castle that collapsed into street violence and was suppressed within hours. But Emmet's **speech from the dock** before his execution became one of the most famous utterances in Irish political culture: _"Let no man write my epitaph... When my country takes her place among the nations of the earth, then, and not till then, let my epitaph be written."_ [7] By the 1820s, these words had been memorized, repeated, and woven into the fabric of nationalist feeling. Emmet's rebellion demonstrated that the flame of 1798 had not been entirely extinguished, even if his failure also demonstrated its practical hopelessness in the face of British power.
 
 ## The Napoleonic Wars and the Agricultural Boom
 
@@ -96,21 +96,21 @@ Finally, the **economic context** — the post-war depression, falling prices, r
 
 ## Bibliography
 
-- "1798 Rebellion — A Brief Overview." *The Irish Story*. https://www.theirishstory.com/2017/10/28/the-1798-rebellion-a-brief-overview/
-- "Acts of Union 1800." *Wikipedia*. https://en.wikipedia.org/wiki/Acts_of_Union_1800
-- "Battle of Ballinamuck." *Wikipedia*. https://en.wikipedia.org/wiki/Battle_of_Ballinamuck
-- "Battle of Castlebar." *Wikipedia*. https://en.wikipedia.org/wiki/Battle_of_Castlebar
-- "Britain, Ireland, and the Disastrous 1801 Act of Union." *Victorian Web*. https://victorianweb.org/history/ireland1.html
-- "Catholic Emancipation." *Britannica*. https://www.britannica.com/event/Catholic-Emancipation
-- "Catholic Relief Act in Ireland, 1778." *Church History*, Cambridge University Press. https://www.cambridge.org/core/journals/church-history/article/abs/catholic-relief-act-in-ireland-1778/00046185A6727830F62990B4BB170D6E
-- "French Revolutionary Wars." *Wikipedia*. https://en.wikipedia.org/wiki/French_Revolutionary_Wars
-- "General Humbert." *Mayo County Council*. https://www.mayo.ie/discover/history-heritage/great-battles-conflicts/general-humbert
-- "Hedge School." *Wikipedia*. https://en.wikipedia.org/wiki/Hedge_school
-- "Historical Population of Ireland." *Wikipedia*. https://en.wikipedia.org/wiki/Historical_population_of_Ireland
-- "Irish Rebellion of 1798." *Wikipedia*. https://en.wikipedia.org/wiki/Irish_Rebellion_of_1798
-- "Napoleonic Wars." *Wikipedia*. https://en.wikipedia.org/wiki/Napoleonic_Wars
-- "Population, Economy, and Society from 1750 to 1950." *Encyclopedia.com*. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/population-economy-and-society-1750-1950
-- "Robert Emmet." *Wikipedia*. https://en.wikipedia.org/wiki/Robert_Emmet
-- "Roman Catholic Relief Act 1793." *Wikipedia*. https://en.wikipedia.org/wiki/Roman_Catholic_Relief_Act_1793
-- "Speech from the Dock (Emmet)." *Wikisource*. https://en.wikisource.org/wiki/Speech_from_the_Dock_(Emmet)
-- "The Battle of Ballinamuck." *RTÉ Archives*. https://www.rte.ie/archives/2023/0822/1401031-the-battle-of-ballinamuck/
+- "1798 Rebellion — A Brief Overview." _The Irish Story_. https://www.theirishstory.com/2017/10/28/the-1798-rebellion-a-brief-overview/
+- "Acts of Union 1800." _Wikipedia_. https://en.wikipedia.org/wiki/Acts_of_Union_1800
+- "Battle of Ballinamuck." _Wikipedia_. https://en.wikipedia.org/wiki/Battle_of_Ballinamuck
+- "Battle of Castlebar." _Wikipedia_. https://en.wikipedia.org/wiki/Battle_of_Castlebar
+- "Britain, Ireland, and the Disastrous 1801 Act of Union." _Victorian Web_. https://victorianweb.org/history/ireland1.html
+- "Catholic Emancipation." _Britannica_. https://www.britannica.com/event/Catholic-Emancipation
+- "Catholic Relief Act in Ireland, 1778." _Church History_, Cambridge University Press. https://www.cambridge.org/core/journals/church-history/article/abs/catholic-relief-act-in-ireland-1778/00046185A6727830F62990B4BB170D6E
+- "French Revolutionary Wars." _Wikipedia_. https://en.wikipedia.org/wiki/French_Revolutionary_Wars
+- "General Humbert." _Mayo County Council_. https://www.mayo.ie/discover/history-heritage/great-battles-conflicts/general-humbert
+- "Hedge School." _Wikipedia_. https://en.wikipedia.org/wiki/Hedge_school
+- "Historical Population of Ireland." _Wikipedia_. https://en.wikipedia.org/wiki/Historical_population_of_Ireland
+- "Irish Rebellion of 1798." _Wikipedia_. https://en.wikipedia.org/wiki/Irish_Rebellion_of_1798
+- "Napoleonic Wars." _Wikipedia_. https://en.wikipedia.org/wiki/Napoleonic_Wars
+- "Population, Economy, and Society from 1750 to 1950." _Encyclopedia.com_. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/population-economy-and-society-1750-1950
+- "Robert Emmet." _Wikipedia_. https://en.wikipedia.org/wiki/Robert_Emmet
+- "Roman Catholic Relief Act 1793." _Wikipedia_. https://en.wikipedia.org/wiki/Roman_Catholic_Relief_Act_1793
+- "Speech from the Dock (Emmet)." _Wikisource_. https://en.wikisource.org/wiki/Speech_from_the_Dock_(Emmet)
+- "The Battle of Ballinamuck." _RTÉ Archives_. https://www.rte.ie/archives/2023/0822/1401031-the-battle-of-ballinamuck/

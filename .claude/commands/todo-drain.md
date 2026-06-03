@@ -33,7 +33,7 @@ Before any code change:
 
 Smallest possible diff. When threading a new param through multiple layers (inference, IPC, UI), delegate the mechanical pass-through edits to a sonnet sub-agent — saves opus context.
 
-Then decide whether this finding's *category* warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `parish/crates/parish-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
+Then decide whether this finding's _category_ warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `parish/crates/parish-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
 
 ## 5. Run quality gates
 
@@ -76,7 +76,7 @@ First line must be `Evidence type: live gameplay transcript`. Include:
 
 Independent verdict. Must end with all three lines verbatim:
 
-```
+```text
 Verdict: sufficient
 Technical debt: clear
 Acceptance criteria: met
@@ -87,7 +87,7 @@ Include risk-check (save compatibility, prompt budget, mode parity, architecture
 ## 9. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
-- Body explains the *why*, not the *what*; ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
+- Body explains the _why_, not the _what_; ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - PR title prefix matches commit.
 - PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
 

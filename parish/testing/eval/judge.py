@@ -42,16 +42,18 @@ The JSON must match the schema specified in the rubric exactly."""
 def github_models_complete(system: str, prompt: str) -> str:
     if not GITHUB_TOKEN:
         sys.exit("ERROR: GITHUB_TOKEN is not set.")
-    payload = json.dumps({
-        "model": JUDGE_MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        "max_tokens": 600,
-        "temperature": 0.1,
-        "response_format": {"type": "json_object"},
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": JUDGE_MODEL,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": 600,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+    ).encode()
     req = urllib.request.Request(
         GITHUB_MODELS_URL,
         data=payload,
@@ -145,8 +147,11 @@ def main():
     notes = verdict_data.get("notes", "")
 
     # Compute mean score across numeric axes
-    scores = {k: v for k, v in verdict_data.items()
-              if isinstance(v, (int, float)) and k not in ("verdict", "notes")}
+    scores = {
+        k: v
+        for k, v in verdict_data.items()
+        if isinstance(v, (int, float)) and k not in ("verdict", "notes")
+    }
     mean = sum(scores.values()) / len(scores) if scores else 0.0
 
     result = {

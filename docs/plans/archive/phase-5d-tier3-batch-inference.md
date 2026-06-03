@@ -66,7 +66,7 @@ pub async fn tick_tier3(
 
 **Prompt template:**
 
-```
+```text
 System: You are simulating background NPC activity in a rural Irish parish in 1820.
 Given the following NPCs and their current states, simulate {hours} hours of activity.
 The weather is {weather}. The season is {season}. The time is {time_of_day}.
@@ -84,7 +84,7 @@ NPCs:
 
 **NPC summary format** (~100-150 tokens each):
 
-```
+```text
 NPC {id} "{name}" ({occupation}, age {age}): At {location}. Mood: {mood}.
 Recent: {deflated_summary or last activity}.
 Relationships: {name1} ({strength}), {name2} ({strength}).
@@ -171,18 +171,18 @@ Update `NpcManager::assign_tiers()` to distinguish Tier 3 from Tier 4:
 
 ## Tests
 
-| Test | What it verifies |
-|------|------------------|
-| `test_tier3_response_parsing` | Mock JSON response parses into correct `Tier3Update` structs |
-| `test_tier3_response_partial` | Handles missing optional fields gracefully |
-| `test_tier3_prompt_construction` | Prompt includes all NPC summaries and world context |
-| `test_tier3_batching` | 25 NPCs split into 3 batches of 10, 10, 5 |
-| `test_tier3_update_application` | Mood, location, relationships updated correctly |
-| `test_tier3_invalid_location_ignored` | Update with nonexistent location_id is skipped |
-| `test_tier3_tick_interval` | Tick fires every in-game day, not before |
-| `test_tier3_skip_on_overdue` | If tick can't complete in time, next one is skipped |
-| `test_priority_interactive_over_batch` | Interactive request is processed before batch |
-| `test_tier_assignment_3_vs_4` | Distance 3-5 = Tier 3, distance 6+ = Tier 4 |
+| Test                                   | What it verifies                                             |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `test_tier3_response_parsing`          | Mock JSON response parses into correct `Tier3Update` structs |
+| `test_tier3_response_partial`          | Handles missing optional fields gracefully                   |
+| `test_tier3_prompt_construction`       | Prompt includes all NPC summaries and world context          |
+| `test_tier3_batching`                  | 25 NPCs split into 3 batches of 10, 10, 5                    |
+| `test_tier3_update_application`        | Mood, location, relationships updated correctly              |
+| `test_tier3_invalid_location_ignored`  | Update with nonexistent location_id is skipped               |
+| `test_tier3_tick_interval`             | Tick fires every in-game day, not before                     |
+| `test_tier3_skip_on_overdue`           | If tick can't complete in time, next one is skipped          |
+| `test_priority_interactive_over_batch` | Interactive request is processed before batch                |
+| `test_tier_assignment_3_vs_4`          | Distance 3-5 = Tier 3, distance 6+ = Tier 4                  |
 
 ## Acceptance Criteria
 

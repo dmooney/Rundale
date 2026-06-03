@@ -19,7 +19,7 @@ NPCs organically align into factions (e.g., loyalists vs. agrarian agitators, ol
 
 ### 2. Reputation as Currency
 
-A multi-dimensional reputation system: trusted/distrusted, generous/stingy, devout/skeptical, Irish-speaking/Anglicized. NPCs adjust behavior based on what they've *heard* about the player through gossip, not just direct experience.
+A multi-dimensional reputation system: trusted/distrusted, generous/stingy, devout/skeptical, Irish-speaking/Anglicized. NPCs adjust behavior based on what they've _heard_ about the player through gossip, not just direct experience.
 
 - **Connects to**: Gossip propagation (Phase 5), NPC memory, Tier 1 prompt context
 - **Phase fit**: 5 (natural extension of gossip system)
@@ -190,12 +190,12 @@ When sleeping, the player could experience dream sequences — fragments of memo
 
 Ideas that build most naturally on existing systems and could be implemented soonest:
 
-| Priority | Ideas | Rationale |
-|----------|-------|-----------|
-| **High** | 2 (Reputation), 12 (Weather as storytelling), 17 (Blow-in arc) | Extend existing systems with minimal new architecture |
-| **Medium** | 1 (Factions), 4 (Secrets), 9 (Fairy encounters), 11 (Holy well) | Require gossip/memory systems from Phase 5 |
-| **Lower** | 5 (Land), 7 (Crafts), 8 (Poitín), 18 (Irish language) | Need new player state/progression systems |
+| Priority   | Ideas                                                           | Rationale                                             |
+| ---------- | --------------------------------------------------------------- | ----------------------------------------------------- |
+| **High**   | 2 (Reputation), 12 (Weather as storytelling), 17 (Blow-in arc)  | Extend existing systems with minimal new architecture |
+| **Medium** | 1 (Factions), 4 (Secrets), 9 (Fairy encounters), 11 (Holy well) | Require gossip/memory systems from Phase 5            |
+| **Lower**  | 5 (Land), 7 (Crafts), 8 (Poitín), 18 (Irish language)           | Need new player state/progression systems             |
 
 ---
 
-*Document created: 2026-03-26*
+_Document created: 2026-03-26_

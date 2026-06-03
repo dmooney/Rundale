@@ -24,11 +24,11 @@ Meanwhile, Tier 2 background simulation and intent parsing work well with local 
 
 Add an optional cloud LLM provider alongside the existing local provider, with request routing based on inference purpose:
 
-| Inference Type | Client | Rationale |
-|---|---|---|
-| Tier 1 dialogue (player-facing) | Cloud (if configured) | Quality + speed |
-| Tier 2 simulation (NPC background) | Local (always) | Cost + offline + throughput |
-| Intent parsing | Local (always) | Low latency, structured output |
+| Inference Type                     | Client                | Rationale                      |
+| ---------------------------------- | --------------------- | ------------------------------ |
+| Tier 1 dialogue (player-facing)    | Cloud (if configured) | Quality + speed                |
+| Tier 2 simulation (NPC background) | Local (always)        | Cost + offline + throughput    |
+| Intent parsing                     | Local (always)        | Low latency, structured output |
 
 When no cloud provider is configured, all inference uses the local provider (full backward compatibility with ADR-005).
 

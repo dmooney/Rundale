@@ -59,7 +59,7 @@ beforeEach(() => {
 	Object.defineProperty(globalThis, 'WebSocket', {
 		configurable: true,
 		writable: true,
-		value: MockWebSocket
+		value: MockWebSocket,
 	});
 	openSockets.length = 0;
 });
@@ -207,12 +207,14 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 	it('rejects with a timeout error when fetch never settles', async () => {
 		vi.useFakeTimers();
 		// A fetch that rejects with an AbortError once its signal aborts.
-		vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
-			new Promise((_resolve, reject) => {
-				init?.signal?.addEventListener('abort', () =>
-					reject(new DOMException('aborted', 'AbortError'))
-				);
-			})
+		vi.stubGlobal(
+			'fetch',
+			(_url: string, init?: RequestInit) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener('abort', () =>
+						reject(new DOMException('aborted', 'AbortError')),
+					);
+				}),
 		);
 		const ipc = await loadIpc();
 		const p = ipc.command('get_world_snapshot');
@@ -230,10 +232,10 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 				text: () =>
 					new Promise<string>((_resolve, reject) => {
 						init?.signal?.addEventListener('abort', () =>
-							reject(new DOMException('aborted', 'AbortError'))
+							reject(new DOMException('aborted', 'AbortError')),
 						);
-					})
-			} as unknown as Response)
+					}),
+			} as unknown as Response),
 		);
 		const ipc = await loadIpc();
 		const p = ipc.command('get_map');
@@ -246,13 +248,15 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 		vi.useFakeTimers();
 		let aborted = false;
 		// A slow POST that resolves only after 60s and records any abort.
-		vi.stubGlobal('fetch', (_url: string, init?: RequestInit) =>
-			new Promise<Response>((resolve) => {
-				init?.signal?.addEventListener('abort', () => {
-					aborted = true;
-				});
-				setTimeout(() => resolve(new Response('')), 60_000);
-			})
+		vi.stubGlobal(
+			'fetch',
+			(_url: string, init?: RequestInit) =>
+				new Promise<Response>((resolve) => {
+					init?.signal?.addEventListener('abort', () => {
+						aborted = true;
+					});
+					setTimeout(() => resolve(new Response('')), 60_000);
+				}),
 		);
 		const ipc = await loadIpc();
 		const p = ipc.command('submit_input', { text: 'hello', addressedTo: [] });
@@ -262,9 +266,16 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 	});
 
 	it('getAuthStatus returns parsed status in web mode', async () => {
-		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ oauth_enabled: true, logged_in: false }))
-		));
+		vi.stubGlobal(
+			'fetch',
+			vi
+				.fn()
+				.mockResolvedValue(
+					new Response(
+						JSON.stringify({ oauth_enabled: true, logged_in: false }),
+					),
+				),
+		);
 		const ipc = await loadIpc();
 		const status = await ipc.getAuthStatus();
 		expect(status).toEqual({ oauth_enabled: true, logged_in: false });

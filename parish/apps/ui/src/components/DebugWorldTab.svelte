@@ -6,7 +6,7 @@
 
 <div class="section">
 	<h4>Locations ({snap.world.visited_count}/{snap.world.location_count} visited)</h4>
-	{#each snap.world.locations as loc}
+	{#each snap.world.locations as loc (loc.id)}
 		<div class="loc-row" class:player-here={loc.id === snap.world.player_location_id}>
 			<div class="field">
 				{#if loc.id === snap.world.player_location_id}<strong>>>> </strong>{/if}
@@ -17,7 +17,7 @@
 				<div class="field muted indent">NPCs: {loc.npcs_here.join(', ')}</div>
 			{/if}
 			{#if loc.edges.length > 0}
-				{#each loc.edges as edge}
+				{#each loc.edges as edge, ei (ei)}
 					<div class="field muted indent">\u2192 {edge.target_name} ({edge.walking_minutes}m walk) \u2014 {edge.path_description}</div>
 				{/each}
 			{/if}
@@ -27,7 +27,7 @@
 {#if snap.world.edge_traversals.length > 0}
 	<div class="section">
 		<h4>Worn Paths (top edges)</h4>
-		{#each snap.world.edge_traversals.slice(0, 20) as edge}
+		{#each snap.world.edge_traversals.slice(0, 20) as edge, ti (ti)}
 			<div class="field">{edge.from_name} \u2194 {edge.to_name} <span class="muted">\u00d7{edge.count}</span></div>
 		{/each}
 	</div>
@@ -37,7 +37,7 @@
 	{#if snap.world.text_log_tail.length === 0}
 		<div class="field muted">(empty)</div>
 	{:else}
-		{#each snap.world.text_log_tail as line}
+		{#each snap.world.text_log_tail as line, li (li)}
 			<div class="field muted">{line}</div>
 		{/each}
 	{/if}

@@ -32,12 +32,12 @@ The game is set in 1820s rural Ireland. `mods/rundale/world.json` stores lat/lon
 
 Every location in `world.json` has these coordinate-related fields:
 
-| Field | Meaning |
-|---|---|
-| `lat`, `lon` | The *resolved* absolute WGS-84 coords. Always present. For `relative_to` locations, this is a cache the resolver rewrites. |
-| `geo_kind` | One of `real`, `manual`, `fictional`. Controls how `lat`/`lon` is determined. |
+| Field                    | Meaning                                                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lat`, `lon`             | The _resolved_ absolute WGS-84 coords. Always present. For `relative_to` locations, this is a cache the resolver rewrites.                                      |
+| `geo_kind`               | One of `real`, `manual`, `fictional`. Controls how `lat`/`lon` is determined.                                                                                   |
 | `relative_to` (optional) | `{ anchor: <id>, dnorth_m: <m>, deast_m: <m> }`. When present, `lat`/`lon` are derived as `anchor.lat/lon + offset` in meters ENU. Authorial intent lives here. |
-| `geo_source` (optional) | Provenance string for Manual pins — e.g. `"OS 6-inch First Edition, Roscommon sheet, ca. 1837"`. Ignored at runtime; metadata only. |
+| `geo_source` (optional)  | Provenance string for Manual pins — e.g. `"OS 6-inch First Edition, Roscommon sheet, ca. 1837"`. Ignored at runtime; metadata only.                             |
 
 Three `geo_kind` variants:
 
@@ -51,12 +51,12 @@ Resolution order inside `realign_rundale_coords`:
 2. Apply any `--set-coord` / `--set-source` CLI overrides (these flip `geo_kind` to `Manual` and record deltas).
 3. For each `Real` location, geocode via Nominatim (with suffix-stripping fallback — see "Gotchas"). Graceful degradation: on zero hits, warn and keep existing coord.
 4. Topologically resolve `relative_to` refs — any cycle or unknown anchor is a hard error. Writes new `lat`/`lon` for each relative location.
-5. For each `Fictional` location *without* `relative_to`, apply a weighted delta from the BFS-reachable anchor set.
+5. For each `Fictional` location _without_ `relative_to`, apply a weighted delta from the BFS-reachable anchor set.
 6. Serialize back to disk with 4-space indent.
 
 ## Decision tree: which mode for a new coordinate task?
 
-```
+```text
 Is this a real-world place that still exists today and modern geocoders find correctly?
 ├─ YES → geo_kind = real. Set name to match OSM. Let Nominatim handle it.
 │
@@ -93,22 +93,30 @@ If you're pinning an anchor (e.g. The Crossroads) and want its village cluster t
 
 1. Identify the cluster — the fictional locations that should always sit near the anchor (not all of them, just the ones that belong to the cluster).
 2. Compute historical offsets using the helper:
+
    ```bash
    python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \
      --anchor-id 1 --cluster 2,3,4,6,9,13 --baseline-commit 91c996c
    ```
+
    The baseline commit is "the last commit where the cluster was spatially coherent." For Rundale, that's typically `91c996c` (before any realign pipeline ran) or `cc3d85f` (before the OS-6" pinning work).
+
 3. Apply the offsets with the helper:
+
    ```bash
    python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \
      --anchor-id 1 \
      --offsets '{"2":{"dnorth_m":445,"deast_m":462}, ...}'
    ```
+
    Or hand-edit `world.json` (both work; the script is just a shortcut).
+
 4. Run realign to resolve:
+
    ```bash
    just realign-coords
    ```
+
 5. Now future `--set-coord` on the anchor automatically carries the whole cluster.
 
 See commits `7d05463` (Kilteevan cluster) and `e1f3aa0` (Crossroads cluster) for worked examples.
@@ -141,25 +149,25 @@ print({k: loc[k] for k in ['name','lat','lon','geo_kind','relative_to','geo_sour
 
 ## Data sources
 
-| Source | URL | Used? | For what |
-|---|---|---|---|
-| **Nominatim** | `nominatim.openstreetmap.org/search` | Yes, runtime | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale. |
-| **Overpass** | `overpass-api.de/api/interpreter` | Yes, runtime | Bulk OSM feature extraction in the main `parish-geo-tool` binary. Run rarely. |
-| **OSM raster tiles** | `tile.openstreetmap.org` | Yes, UI | Map background layer in the frontend. |
-| **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer) | Yes, **manually** | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins. |
-| **OS 25-inch** (ca. 1887–1913) | `map.geohive.ie` | Occasionally | Higher-resolution historical map for later-era details. |
-| **Tailte Éireann MapGenie / WMTS** | `tailte.ie/services/mapgenie/` | No (referenced in `parish.example.toml:145`, commented out) | Planned future source for tiled historical maps. |
-| **logainm.ie** | `logainm.ie` | No (only cited in `docs/research/irish-language.md`) | Authoritative for Irish placename etymology and admin hierarchy. Does **not** have "village" as a category — it describes administrative identity (townland/civil parish/etc.), not physical settlements. Good for name disambiguation, not for village-center coords. |
-| **townlands.ie** | `townlands.ie` | No (referenced in design docs) | Townland/civil parish polygons. Planned for Stage B. |
-| **Geofabrik Ireland extract** | `download.geofabrik.de` | No | Planned for offline OSM bulk processing at island scale. |
-| **Wikipedia/Wikidata** | — | No | Modern village centers; useful sanity checks, wrong for 1820s settlements. |
+| Source                                 | URL                                  | Used?                                                       | For what                                                                                                                                                                                                                                                               |
+| -------------------------------------- | ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Nominatim**                          | `nominatim.openstreetmap.org/search` | Yes, runtime                                                | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale.                                                                                                                                             |
+| **Overpass**                           | `overpass-api.de/api/interpreter`    | Yes, runtime                                                | Bulk OSM feature extraction in the main `parish-geo-tool` binary. Run rarely.                                                                                                                                                                                          |
+| **OSM raster tiles**                   | `tile.openstreetmap.org`             | Yes, UI                                                     | Map background layer in the frontend.                                                                                                                                                                                                                                  |
+| **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer)            | Yes, **manually**                                           | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins.                                                                                            |
+| **OS 25-inch** (ca. 1887–1913)         | `map.geohive.ie`                     | Occasionally                                                | Higher-resolution historical map for later-era details.                                                                                                                                                                                                                |
+| **Tailte Éireann MapGenie / WMTS**     | `tailte.ie/services/mapgenie/`       | No (referenced in `parish.example.toml:145`, commented out) | Planned future source for tiled historical maps.                                                                                                                                                                                                                       |
+| **logainm.ie**                         | `logainm.ie`                         | No (only cited in `docs/research/irish-language.md`)        | Authoritative for Irish placename etymology and admin hierarchy. Does **not** have "village" as a category — it describes administrative identity (townland/civil parish/etc.), not physical settlements. Good for name disambiguation, not for village-center coords. |
+| **townlands.ie**                       | `townlands.ie`                       | No (referenced in design docs)                              | Townland/civil parish polygons. Planned for Stage B.                                                                                                                                                                                                                   |
+| **Geofabrik Ireland extract**          | `download.geofabrik.de`              | No                                                          | Planned for offline OSM bulk processing at island scale.                                                                                                                                                                                                               |
+| **Wikipedia/Wikidata**                 | —                                    | No                                                          | Modern village centers; useful sanity checks, wrong for 1820s settlements.                                                                                                                                                                                             |
 
 **Key lesson:** for a 1820s world, the OS 6-inch First Edition is the authoritative map, not any modern geocoder. The physical village cluster often sat hundreds of metres away from what today's Nominatim or Google Maps calls "Kilteevan" — see the Kilteevan example: modern village center is ~1.3 km NW of the OS 6" labeled feature.
 
 ## Gotchas (in rough order of how likely you are to hit them)
 
 1. **Nominatim doesn't know "Kilteevan Village."** OSM tags it `place=townland name=Kilteevan`, not `Kilteevan Village`. The tool auto-retries with trailing type words stripped (`Village`, `Town`, `Parish`, `Hamlet`, `Townland`, `Cross`, `Crossroads`), so `Kilteevan Village` falls back to `Kilteevan` and returns the townland centroid. When that's still wrong (townland centroid ≠ village center), use `Manual` with the OS 6" coord.
-2. **Graph-delta realignment is a weighted average, not a rigid translation.** When a `Real` or `Manual` anchor moves, fictionals without `relative_to` get nudged by the BFS-weighted mean of nearby anchor deltas. For a cluster that *must* stay rigid relative to the anchor (village buildings around the crossroads), use `relative_to` — not graph-delta. The Kilteevan pin in commit `1f6efdd` drifted the whole village cluster ~10 km off before we set up `relative_to` in `7d05463`.
+2. **Graph-delta realignment is a weighted average, not a rigid translation.** When a `Real` or `Manual` anchor moves, fictionals without `relative_to` get nudged by the BFS-weighted mean of nearby anchor deltas. For a cluster that _must_ stay rigid relative to the anchor (village buildings around the crossroads), use `relative_to` — not graph-delta. The Kilteevan pin in commit `1f6efdd` drifted the whole village cluster ~10 km off before we set up `relative_to` in `7d05463`.
 3. **`--set-coord` alone does not subordinate the cluster.** It only records a delta for the pinned location. Absolute-positioned fictionals around it get the graph-delta treatment. If you want clean cluster propagation, wire up `relative_to` first (see the recipe above) and then `--set-coord`.
 4. **4-space indent.** All files in `mods/rundale/*.json` use 4-space indent, and the editor's byte-identity test enforces it. `realign_rundale_coords` writes with `PrettyFormatter::with_indent(b"    ")`. If you hand-edit with Python, use `json.dump(w, f, indent=4)` and append `'\n'` at the end. 2-space output will silently break the editor round-trip test.
 5. **`geo_source`, `relative_to`, and `lat`/`lon` all coexist.** `relative_to` overrides `lat`/`lon` on resolve; but `lat`/`lon` is still written back as a cache. `geo_source` is purely informational.

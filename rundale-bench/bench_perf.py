@@ -21,6 +21,7 @@ Usage::
 Writes `rundale-bench/artifacts/perf_<UTC>.json` with per-call records
 plus per-candidate medians.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -51,7 +52,7 @@ _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 DIALOGUE_SYS = build_dialogue_system_prompt()
 
 JSON_FREEFORM_SYS = (
-    "You respond only with a JSON object: {\"answer\": <string>, \"confidence\": <0.0-1.0>}. "
+    'You respond only with a JSON object: {"answer": <string>, "confidence": <0.0-1.0>}. '
     "No prose, no markdown fences, no commentary."
 )
 JSON_FREEFORM_PROMPTS = [
@@ -99,17 +100,19 @@ def measure_streaming(t, records: list[dict], max_tokens: int) -> list[dict]:
             result = call_chat_streaming(t, DIALOGUE_SYS, rec["prompt"], max_tokens=max_tokens)
         except Exception as e:
             err = str(e)
-        out.append({
-            "candidate": t.model,
-            "prompt_id": rec["id"],
-            "ttft_ms": result.get("ttft_ms"),
-            "total_ms": result.get("total_ms", int((time.time() - t0) * 1000)),
-            "completion_tokens": result.get("completion_tokens"),
-            "prompt_tokens": result.get("prompt_tokens"),
-            "tokens_per_second": result.get("tokens_per_second"),
-            "reply_len": len(result.get("text", "")),
-            "error": err,
-        })
+        out.append(
+            {
+                "candidate": t.model,
+                "prompt_id": rec["id"],
+                "ttft_ms": result.get("ttft_ms"),
+                "total_ms": result.get("total_ms", int((time.time() - t0) * 1000)),
+                "completion_tokens": result.get("completion_tokens"),
+                "prompt_tokens": result.get("prompt_tokens"),
+                "tokens_per_second": result.get("tokens_per_second"),
+                "reply_len": len(result.get("text", "")),
+                "error": err,
+            }
+        )
     return out
 
 
@@ -122,9 +125,12 @@ def measure_json_compliance(t, n: int, with_schema: bool, tracker: CostTracker) 
         total += 1
         try:
             text, usage = call_chat(
-                t, JSON_FREEFORM_SYS, prompt,
+                t,
+                JSON_FREEFORM_SYS,
+                prompt,
                 schema=JSON_SCHEMA if with_schema else None,
-                max_tokens=200, temperature=0,
+                max_tokens=200,
+                temperature=0,
             )
             tracker.record(t, usage)
             parsed = json.loads(text)
@@ -145,7 +151,9 @@ def measure_json_compliance(t, n: int, with_schema: bool, tracker: CostTracker) 
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--target", action="append", required=True, help="model spec; repeat")
     ap.add_argument("--suite", default="v1")
     ap.add_argument("--split", default="dev", choices=["dev", "holdout"])
@@ -175,18 +183,29 @@ def main() -> None:
             tt = rec.get("ttft_ms")
             tps = rec.get("tokens_per_second")
             err = " ERR" if rec.get("error") else ""
-            print(f"    {rec['prompt_id']}  ttft={str(tt)+'ms':>8}  total={rec['total_ms']:5d}ms  "
-                  f"tok/s={tps:5.1f}{err}" if tps else
-                  f"    {rec['prompt_id']}  ttft={str(tt)+'ms':>8}  total={rec['total_ms']:5d}ms{err}",
-                  flush=True)
+            print(
+                f"    {rec['prompt_id']}  ttft={str(tt) + 'ms':>8}  total={rec['total_ms']:5d}ms  "
+                f"tok/s={tps:5.1f}{err}"
+                if tps
+                else f"    {rec['prompt_id']}  ttft={str(tt) + 'ms':>8}  total={rec['total_ms']:5d}ms{err}",
+                flush=True,
+            )
 
         print(f"  json-compliance free-form ({args.json_trials})…", flush=True)
         json_free = measure_json_compliance(t, args.json_trials, with_schema=False, tracker=tracker)
-        print(f"    free-form  rate={json_free['rate']:.2%}  ({json_free['valid']}/{json_free['n']})", flush=True)
+        print(
+            f"    free-form  rate={json_free['rate']:.2%}  ({json_free['valid']}/{json_free['n']})",
+            flush=True,
+        )
 
         print(f"  json-compliance schema-enforced ({args.json_trials})…", flush=True)
-        json_schema = measure_json_compliance(t, args.json_trials, with_schema=True, tracker=tracker)
-        print(f"    schema     rate={json_schema['rate']:.2%}  ({json_schema['valid']}/{json_schema['n']})", flush=True)
+        json_schema = measure_json_compliance(
+            t, args.json_trials, with_schema=True, tracker=tracker
+        )
+        print(
+            f"    schema     rate={json_schema['rate']:.2%}  ({json_schema['valid']}/{json_schema['n']})",
+            flush=True,
+        )
 
         ttfts = [r["ttft_ms"] for r in stream_records if r.get("ttft_ms") is not None]
         tpss = [r["tokens_per_second"] for r in stream_records if r.get("tokens_per_second")]
@@ -205,9 +224,12 @@ def main() -> None:
             "stream_records": stream_records,
         }
         s = per_target[t.model]
-        print(f"  → ttft p50={s['ttft_ms_median']}ms  total p50={s['total_ms_median']}ms  "
-              f"tok/s p50={s['tokens_per_second_median']}  "
-              f"json: free={json_free['rate']:.0%} / schema={json_schema['rate']:.0%}", flush=True)
+        print(
+            f"  → ttft p50={s['ttft_ms_median']}ms  total p50={s['total_ms_median']}ms  "
+            f"tok/s p50={s['tokens_per_second_median']}  "
+            f"json: free={json_free['rate']:.0%} / schema={json_schema['rate']:.0%}",
+            flush=True,
+        )
 
     elapsed = time.time() - started
     out = {

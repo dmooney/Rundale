@@ -11,7 +11,7 @@ function upsertIconLink(rel: string): HTMLLinkElement {
 
 export function applyAppIcon(
 	appIconHref: string | null | undefined,
-	faviconHref: string | null | undefined = appIconHref
+	faviconHref: string | null | undefined = appIconHref,
 ): void {
 	if (typeof document === 'undefined' || !appIconHref) return;
 

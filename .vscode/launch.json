@@ -1,81 +1,104 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug (parish)",
-            "cargo": {
-                "args": ["build", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--bin=parish", "--package=parish"],
-                "filter": {
-                    "name": "parish",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}/parish",
-            "env": {
-                "RUST_LOG": "debug"
-            },
-            "terminal": "integrated"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Release (parish)",
-            "cargo": {
-                "args": ["build", "--release", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--bin=parish", "--package=parish"],
-                "filter": {
-                    "name": "parish",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}/parish",
-            "env": {
-                "RUST_LOG": "info"
-            },
-            "terminal": "integrated"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug Tests",
-            "cargo": {
-                "args": ["test", "--no-run", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--lib", "--package=parish"],
-                "filter": {
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}/parish",
-            "env": {
-                "RUST_LOG": "debug"
-            }
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug Single Test",
-            "cargo": {
-                "args": ["test", "--no-run", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--lib", "--package=parish"],
-                "filter": {
-                    "kind": "lib"
-                }
-            },
-            "args": ["${input:testName}"],
-            "cwd": "${workspaceFolder}/parish",
-            "env": {
-                "RUST_LOG": "debug"
-            }
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug (parish)",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--bin=parish",
+          "--package=parish"
+        ],
+        "filter": {
+          "name": "parish",
+          "kind": "bin"
         }
-    ],
-    "inputs": [
-        {
-            "id": "testName",
-            "description": "Name of the test to debug",
-            "type": "promptString",
-            "default": ""
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/parish",
+      "env": {
+        "RUST_LOG": "debug"
+      },
+      "terminal": "integrated"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Release (parish)",
+      "cargo": {
+        "args": [
+          "build",
+          "--release",
+          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--bin=parish",
+          "--package=parish"
+        ],
+        "filter": {
+          "name": "parish",
+          "kind": "bin"
         }
-    ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/parish",
+      "env": {
+        "RUST_LOG": "info"
+      },
+      "terminal": "integrated"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--lib",
+          "--package=parish"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/parish",
+      "env": {
+        "RUST_LOG": "debug"
+      }
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Single Test",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--lib",
+          "--package=parish"
+        ],
+        "filter": {
+          "kind": "lib"
+        }
+      },
+      "args": ["${input:testName}"],
+      "cwd": "${workspaceFolder}/parish",
+      "env": {
+        "RUST_LOG": "debug"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testName",
+      "description": "Name of the test to debug",
+      "type": "promptString",
+      "default": ""
+    }
+  ]
 }

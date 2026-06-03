@@ -21,8 +21,6 @@
 		type OnboardingOptions
 	} from '$lib/ipc';
 	import {
-		formatBytes,
-		formatDuration,
 		formatElapsed,
 		formatDownloadStats,
 		RATE_SAMPLE_WINDOW_MS,
@@ -33,7 +31,6 @@
 	import {
 		INITIAL_SETUP_MESSAGE,
 		SETUP_START_MESSAGE,
-		SETUP_HISTORY_LIMIT,
 		compactSetupMessages,
 		formatSetupStatusMessage,
 		sentenceBreakParts,
@@ -44,9 +41,7 @@
 		readSetupActivity,
 		markSetupComplete as markSetupCompleteStorage,
 		clearSetupComplete as clearSetupCompleteStorage,
-		persistSetupActivity as persistSetupActivityStorage,
-		clearSetupActivity,
-		type StoredSetupActivity
+		persistSetupActivity as persistSetupActivityStorage
 	} from '$lib/setup/storage';
 
 	const tauri = isTauri();
@@ -545,8 +540,8 @@
 				<p class="current-phrase">
 					{#key currentPhrase}
 						<span class="phrase-text message-fade">
-							{#each sentenceBreakParts(currentPhrase) as part}
-								{part.text}{#if part.breakAfter}<wbr />{' '}{/if}
+							{#each sentenceBreakParts(currentPhrase) as part, i (i)}
+								{part.text}{#if part.breakAfter}<wbr /> {/if}
 							{/each}
 						</span>
 					{/key}
@@ -569,7 +564,7 @@
 			</div>
 			{#if downloadPct !== null}
 				<p class="progress-label" aria-label={`${downloadPct.toFixed(1)}%`}>
-					{#each `${downloadPct.toFixed(1)}%`.split('') as char}
+					{#each `${downloadPct.toFixed(1)}%`.split('') as char, i (i)}
 						<span
 							class="progress-char"
 							class:digit={char >= '0' && char <= '9'}
@@ -581,7 +576,7 @@
 			{/if}
 			{#if downloadStatsText}
 				<p class="download-stats" aria-label={downloadStatsText}>
-					{#each downloadStatsText.split('') as char}
+					{#each downloadStatsText.split('') as char, i (i)}
 						<span
 							class="stat-char"
 							class:digit={char >= '0' && char <= '9'}
@@ -600,10 +595,10 @@
 					<span class="elapsed">{formatElapsed(elapsedSeconds)}</span>
 				</div>
 				<div class="messages" bind:this={messagesEl}>
-					{#each visibleMessages as msg, i}
+					{#each visibleMessages as msg, i (i)}
 						<p class="msg message-fade" class:latest={i === visibleMessages.length - 1}>
-							{#each sentenceBreakParts(msg) as part}
-								{part.text}{#if part.breakAfter}<wbr />{' '}{/if}
+							{#each sentenceBreakParts(msg) as part, j (j)}
+								{part.text}{#if part.breakAfter}<wbr /> {/if}
 							{/each}
 						</p>
 					{/each}

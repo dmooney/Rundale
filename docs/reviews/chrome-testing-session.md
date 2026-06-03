@@ -49,38 +49,38 @@ every page load.
 
 ## Features Tested
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Page load / initial data fetch | Pass (after fix) | World snapshot, map, NPCs all load |
-| Status bar | Pass | Location, time, weather, season update correctly |
-| Map rendering | Pass (after fix) | SVG map with geo-projected nodes, player dot |
-| Map player position updates | Pass | Dot moves on travel |
-| NPC sidebar | Pass (after fix) | Shows name, role, mood for NPCs at location |
-| Chat panel | Pass | Scrolling log with player/system/NPC entries |
-| Input field (Enter key) | Pass | Submits on Enter |
-| Input field (Send button) | Pass | Submits on click |
-| Empty submit | Pass | No-op, no error |
-| Travel (`go to <place>`) | Pass | Narration, time advance, location update |
-| Invalid location | Pass | "You haven't the faintest notion..." + exits |
-| Already-here detection | Pass | "Sure, you're already standing right here." |
-| Look command | Pass | Renders location description + exits |
-| NPC conversation (LLM) | Pass | Streamed response via OpenRouter, in character |
-| NPC token streaming | Pass | Text appears incrementally in chat |
-| Irish word hints (Focail) | Pass | Populated from NPC response metadata |
-| Idle message (no NPCs) | Pass | "The clouds shift. The parish carries on." |
-| `/help` | Pass | Shows command list |
-| `/status` | Pass | Shows location, time, season |
-| `/pause` / `/resume` | Pass | Clock stops/starts, themed messages |
-| `/speed fast` | Pass | "The parish quickens its step." |
-| Debug panel toggle (DBG button) | Pass | Panel slides in below game area |
-| Debug: Overview tab | Pass | Clock, location, tier summary |
-| Debug: NPCs tab | Pass | All 8 NPCs with tier, mood, location, transit |
-| Debug: World tab | Pass | Not deeply tested |
-| Debug: Events tab | Pass | Empty (no debug events stored in web mode) |
-| Debug: Inference tab | Pass | Not deeply tested |
-| WebSocket reconnect | Not tested | Would need to kill/restart server mid-session |
-| Theme/palette updates | Pass | Time-of-day palette updated as clock advanced |
-| Multiple NPC conversations | Pass | Talked to Fr. Tierney and Tommy O'Brien |
+| Feature                         | Status           | Notes                                            |
+| ------------------------------- | ---------------- | ------------------------------------------------ |
+| Page load / initial data fetch  | Pass (after fix) | World snapshot, map, NPCs all load               |
+| Status bar                      | Pass             | Location, time, weather, season update correctly |
+| Map rendering                   | Pass (after fix) | SVG map with geo-projected nodes, player dot     |
+| Map player position updates     | Pass             | Dot moves on travel                              |
+| NPC sidebar                     | Pass (after fix) | Shows name, role, mood for NPCs at location      |
+| Chat panel                      | Pass             | Scrolling log with player/system/NPC entries     |
+| Input field (Enter key)         | Pass             | Submits on Enter                                 |
+| Input field (Send button)       | Pass             | Submits on click                                 |
+| Empty submit                    | Pass             | No-op, no error                                  |
+| Travel (`go to <place>`)        | Pass             | Narration, time advance, location update         |
+| Invalid location                | Pass             | "You haven't the faintest notion..." + exits     |
+| Already-here detection          | Pass             | "Sure, you're already standing right here."      |
+| Look command                    | Pass             | Renders location description + exits             |
+| NPC conversation (LLM)          | Pass             | Streamed response via OpenRouter, in character   |
+| NPC token streaming             | Pass             | Text appears incrementally in chat               |
+| Irish word hints (Focail)       | Pass             | Populated from NPC response metadata             |
+| Idle message (no NPCs)          | Pass             | "The clouds shift. The parish carries on."       |
+| `/help`                         | Pass             | Shows command list                               |
+| `/status`                       | Pass             | Shows location, time, season                     |
+| `/pause` / `/resume`            | Pass             | Clock stops/starts, themed messages              |
+| `/speed fast`                   | Pass             | "The parish quickens its step."                  |
+| Debug panel toggle (DBG button) | Pass             | Panel slides in below game area                  |
+| Debug: Overview tab             | Pass             | Clock, location, tier summary                    |
+| Debug: NPCs tab                 | Pass             | All 8 NPCs with tier, mood, location, transit    |
+| Debug: World tab                | Pass             | Not deeply tested                                |
+| Debug: Events tab               | Pass             | Empty (no debug events stored in web mode)       |
+| Debug: Inference tab            | Pass             | Not deeply tested                                |
+| WebSocket reconnect             | Not tested       | Would need to kill/restart server mid-session    |
+| Theme/palette updates           | Pass             | Time-of-day palette updated as clock advanced    |
+| Multiple NPC conversations      | Pass             | Talked to Fr. Tierney and Tommy O'Brien          |
 
 ## Observations
 
@@ -123,25 +123,25 @@ server not picking up the `.env` file (LLM requests hit a dead endpoint).
 
 ### Features Tested
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Page load / initial render | Pass | Status bar, map, NPCs, chat, input all present |
-| Status bar | Pass | Location, time, weather, season update on travel |
-| Map rendering | Pass | SVG minimap with player dot and labels |
-| NPC sidebar updates | Pass | NPCs appear/disappear based on location and time |
-| Travel (direct hop) | Pass | Crossroads: narration + time advance |
-| Travel (multi-hop) | Pass | Village to Pub via Crossroads: 19 min narration |
-| Invalid location | Pass | "You haven't the faintest notion how to reach 'castle dracula'." |
-| Already-here detection | Pass | "Sure, you're already standing right here." |
-| Empty submit | Pass | No-op, input stays focused |
-| `/help` | Pass | Shows command list with descriptions |
-| `/status` | Pass | "Location: Darcy's Pub \| Afternoon \| Spring" |
-| `/pause` | Pass | "The clocks of the parish stand still." + status bar indicator |
-| `/resume` | Pass | "Time stirs again in the parish." + indicator removed |
-| `/wait 180` | Pass | Advances 3 hours, NPC schedules update |
-| Idle message (no NPCs) | Pass | "Only the sound of a distant crow." |
-| NPC conversation (LLM) | Inconclusive | .env not loaded; loading indicator shown but no response |
-| Console errors | Pass | No JavaScript errors throughout session |
+| Feature                    | Status       | Notes                                                            |
+| -------------------------- | ------------ | ---------------------------------------------------------------- |
+| Page load / initial render | Pass         | Status bar, map, NPCs, chat, input all present                   |
+| Status bar                 | Pass         | Location, time, weather, season update on travel                 |
+| Map rendering              | Pass         | SVG minimap with player dot and labels                           |
+| NPC sidebar updates        | Pass         | NPCs appear/disappear based on location and time                 |
+| Travel (direct hop)        | Pass         | Crossroads: narration + time advance                             |
+| Travel (multi-hop)         | Pass         | Village to Pub via Crossroads: 19 min narration                  |
+| Invalid location           | Pass         | "You haven't the faintest notion how to reach 'castle dracula'." |
+| Already-here detection     | Pass         | "Sure, you're already standing right here."                      |
+| Empty submit               | Pass         | No-op, input stays focused                                       |
+| `/help`                    | Pass         | Shows command list with descriptions                             |
+| `/status`                  | Pass         | "Location: Darcy's Pub \| Afternoon \| Spring"                   |
+| `/pause`                   | Pass         | "The clocks of the parish stand still." + status bar indicator   |
+| `/resume`                  | Pass         | "Time stirs again in the parish." + indicator removed            |
+| `/wait 180`                | Pass         | Advances 3 hours, NPC schedules update                           |
+| Idle message (no NPCs)     | Pass         | "Only the sound of a distant crow."                              |
+| NPC conversation (LLM)     | Inconclusive | .env not loaded; loading indicator shown but no response         |
+| Console errors             | Pass         | No JavaScript errors throughout session                          |
 
 ### Bugs Found
 
@@ -176,27 +176,27 @@ None (all tests that could run passed cleanly).
 
 ### Summary
 
-| Test | Result |
-|------|--------|
-| Page Load (status bar, map, NPCs, chat, input) | ✅ PASS |
-| Navigation — Darcy's Pub → The Crossroads | ✅ PASS |
-| Navigation — The Crossroads → St. Brigid's Church | ✅ PASS |
-| Edge case: invalid location ("go to timbuktu") | ✅ PASS |
-| Edge case: already-here | ✅ PASS |
-| Edge case: empty submit | ✅ PASS |
-| `/help` system command | ✅ PASS |
-| `/status` system command | ✅ PASS |
-| `/pause` system command | ✅ PASS |
-| `/resume` system command | ✅ PASS |
-| `GET /api/discover-save-files` (was 404, now 200) | ✅ PASS |
-| `GET /api/save-state` (was 404, now 200) | ✅ PASS |
-| `GET /api/save-game` (was 404, now 200) | ✅ PASS |
-| `GET /api/new-save-file` (was 404, now 200) | ✅ PASS |
-| `GET /api/new-game` (was 404, now 200) | ✅ PASS |
+| Test                                                        | Result  |
+| ----------------------------------------------------------- | ------- |
+| Page Load (status bar, map, NPCs, chat, input)              | ✅ PASS |
+| Navigation — Darcy's Pub → The Crossroads                   | ✅ PASS |
+| Navigation — The Crossroads → St. Brigid's Church           | ✅ PASS |
+| Edge case: invalid location ("go to timbuktu")              | ✅ PASS |
+| Edge case: already-here                                     | ✅ PASS |
+| Edge case: empty submit                                     | ✅ PASS |
+| `/help` system command                                      | ✅ PASS |
+| `/status` system command                                    | ✅ PASS |
+| `/pause` system command                                     | ✅ PASS |
+| `/resume` system command                                    | ✅ PASS |
+| `GET /api/discover-save-files` (was 404, now 200)           | ✅ PASS |
+| `GET /api/save-state` (was 404, now 200)                    | ✅ PASS |
+| `GET /api/save-game` (was 404, now 200)                     | ✅ PASS |
+| `GET /api/new-save-file` (was 404, now 200)                 | ✅ PASS |
+| `GET /api/new-game` (was 404, now 200)                      | ✅ PASS |
 | `POST /api/load-branch` — nonexistent file → 500 (expected) | ✅ PASS |
 | `POST /api/create-branch` — no active save → 400 (expected) | ✅ PASS |
-| Ledger UI — opens, shows save entry with YOU ARE HERE | ✅ PASS |
-| Browser console errors | ✅ NONE |
+| Ledger UI — opens, shows save entry with YOU ARE HERE       | ✅ PASS |
+| Browser console errors                                      | ✅ NONE |
 
 ### Key Observations
 

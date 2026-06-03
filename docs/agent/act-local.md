@@ -45,19 +45,19 @@ Docker. If that works, act is wired up correctly.
 
 All of these are defined in `justfile`:
 
-| Command | What it runs |
-|---|---|
-| `just act-list` | Enumerate all jobs (fast, no Docker execution) |
-| `just act-audit` | `audit.yml` cargo-audit job — fastest smoke test |
-| `just act-fmt` | `ci.yml` rust-quality-gate (fmt + clippy + tests) |
-| `just act-harness` | `ci.yml` game-harness fixture sweep |
-| `just act-ui` | `ci.yml` ui-quality (svelte-check + vitest + build) |
-| `just act-e2e` | `ci.yml` ui-e2e (Playwright) |
-| `just act-ci` | All of `ci.yml` — matches what PRs see |
-| `just act-job JOB=<id>` | Run a specific job by id from `act-list` |
-| `just act-pr` | Simulate the `pull_request` event |
-| `just act-refresh` | Re-fetch third-party actions after a version bump |
-| `just act-clean` | Tear down cached containers + artifact output |
+| Command                 | What it runs                                        |
+| ----------------------- | --------------------------------------------------- |
+| `just act-list`         | Enumerate all jobs (fast, no Docker execution)      |
+| `just act-audit`        | `audit.yml` cargo-audit job — fastest smoke test    |
+| `just act-fmt`          | `ci.yml` rust-quality-gate (fmt + clippy + tests)   |
+| `just act-harness`      | `ci.yml` game-harness fixture sweep                 |
+| `just act-ui`           | `ci.yml` ui-quality (svelte-check + vitest + build) |
+| `just act-e2e`          | `ci.yml` ui-e2e (Playwright)                        |
+| `just act-ci`           | All of `ci.yml` — matches what PRs see              |
+| `just act-job JOB=<id>` | Run a specific job by id from `act-list`            |
+| `just act-pr`           | Simulate the `pull_request` event                   |
+| `just act-refresh`      | Re-fetch third-party actions after a version bump   |
+| `just act-clean`        | Tear down cached containers + artifact output       |
 
 ## Configuration
 

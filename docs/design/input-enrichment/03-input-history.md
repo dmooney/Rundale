@@ -49,7 +49,7 @@ export const inputHistory = writable<string[]>(loadHistory());
 
 /** Add a new entry to history. Deduplicates consecutive identical entries. */
 export function pushHistory(text: string) {
-  inputHistory.update(entries => {
+  inputHistory.update((entries) => {
     // Don't add duplicate of the most recent entry
     if (entries.length > 0 && entries[entries.length - 1] === text) {
       return entries;
@@ -164,9 +164,9 @@ async function handleSubmit(e: Event) {
   const trimmed = getPlainText().trim();
   if (!trimmed || $streamingActive) return;
 
-  pushHistory(trimmed);   // ← NEW
-  historyIndex = -1;      // ← NEW: reset navigation
-  draftText = '';          // ← NEW
+  pushHistory(trimmed); // ← NEW
+  historyIndex = -1; // ← NEW: reset navigation
+  draftText = ''; // ← NEW
 
   clearEditor();
   showMentions = false;
@@ -234,11 +234,21 @@ function isCursorOnLastLine(): boolean {
 Updated key handler:
 
 ```typescript
-if (e.key === 'ArrowUp' && !showMentions && !showSlash && isCursorOnFirstLine()) {
+if (
+  e.key === 'ArrowUp' &&
+  !showMentions &&
+  !showSlash &&
+  isCursorOnFirstLine()
+) {
   // ... history navigation
 }
 
-if (e.key === 'ArrowDown' && !showMentions && !showSlash && isCursorOnLastLine()) {
+if (
+  e.key === 'ArrowDown' &&
+  !showMentions &&
+  !showSlash &&
+  isCursorOnLastLine()
+) {
   // ... history navigation
 }
 ```
@@ -249,7 +259,7 @@ if (e.key === 'ArrowDown' && !showMentions && !showSlash && isCursorOnLastLine()
 
 ## Data Flow
 
-```
+```text
 Session starts:
   → loadHistory() reads localStorage → ["go to pub", "hello @Padraig"]
 
@@ -281,19 +291,19 @@ Player presses ArrowDown past end:
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Empty history, press Up | Nothing happens |
-| At oldest entry, press Up again | Stay at index 0 (don't wrap) |
-| At newest entry, press Down | Restore draft, historyIndex = -1 |
-| Submit duplicate of last entry | Not added (consecutive dedup) |
-| Submit same text as 3 entries ago | Added (only dedup consecutive) |
-| History exceeds 50 entries | Oldest entries evicted |
+| Case                                     | Behavior                                                |
+| ---------------------------------------- | ------------------------------------------------------- |
+| Empty history, press Up                  | Nothing happens                                         |
+| At oldest entry, press Up again          | Stay at index 0 (don't wrap)                            |
+| At newest entry, press Down              | Restore draft, historyIndex = -1                        |
+| Submit duplicate of last entry           | Not added (consecutive dedup)                           |
+| Submit same text as 3 entries ago        | Added (only dedup consecutive)                          |
+| History exceeds 50 entries               | Oldest entries evicted                                  |
 | localStorage unavailable (iframe, quota) | History works in-session but doesn't persist; no errors |
-| Multi-line input in history | Recalled correctly; ArrowUp only triggers on first line |
-| @mention chip in original input | Recalled as plain `@Name` text (no chip recreation) |
-| Player edits recalled entry | historyIndex resets; editing doesn't modify history |
-| History navigation during streaming | Input is disabled during streaming; no conflict |
+| Multi-line input in history              | Recalled correctly; ArrowUp only triggers on first line |
+| @mention chip in original input          | Recalled as plain `@Name` text (no chip recreation)     |
+| Player edits recalled entry              | historyIndex resets; editing doesn't modify history     |
+| History navigation during streaming      | Input is disabled during streaming; no conflict         |
 
 ## Testing
 
@@ -316,11 +326,11 @@ Player presses ArrowDown past end:
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/stores/history.ts` | **New** — history store with localStorage persistence |
-| `ui/src/components/InputField.svelte` | Add history navigation (Up/Down), push on submit, draft preservation |
-| `ui/src/components/InputField.test.ts` | Add history navigation tests |
+| File                                   | Change                                                               |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `ui/src/stores/history.ts`             | **New** — history store with localStorage persistence                |
+| `ui/src/components/InputField.svelte`  | Add history navigation (Up/Down), push on submit, draft preservation |
+| `ui/src/components/InputField.test.ts` | Add history navigation tests                                         |
 
 ## Effort Estimate
 

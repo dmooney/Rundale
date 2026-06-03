@@ -50,7 +50,9 @@ export interface AutoPauseTracker {
 	dispose: () => void;
 }
 
-export function createAutoPauseTracker(opts: AutoPauseTrackerOptions): AutoPauseTracker {
+export function createAutoPauseTracker(
+	opts: AutoPauseTrackerOptions,
+): AutoPauseTracker {
 	let pausedByAutoIdle = false;
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastMousemoveAt = 0;
@@ -133,6 +135,6 @@ export function createAutoPauseTracker(opts: AutoPauseTrackerOptions): AutoPause
 		recordMousemove,
 		onWorldStateChange,
 		wasAutoPaused,
-		dispose
+		dispose,
 	};
 }

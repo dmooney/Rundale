@@ -1,0 +1,10 @@
+# Generated / vendored — not ours to format
+.svelte-kit/
+dist/
+build/
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+# Playwright visual baselines (binary)
+e2e/screenshots/
+playwright-report/

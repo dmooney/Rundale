@@ -26,7 +26,7 @@ The standard fix is **embedding-based retrieval**: store each memory as a vector
 **Deferred.** Two prerequisites should land before we commit:
 
 1. **A reliable lightweight embedding option.** The local-first commitment from [ADR-005 Ollama Local Inference](005-ollama-local-inference.md) means we need an embedding model that ships with Ollama (or equivalent local runtime) and produces useful 256–768 dim vectors at acceptable latency. Today, the candidate is `nomic-embed-text` or `mxbai-embed-large` via Ollama — the local-quality bar should be measured before we rely on it.
-2. **Quality measurement.** Without [LLM quality evals](../plans/llm-quality-evals.md), we cannot tell whether retrieval *improves* dialogue quality vs. simply changing it. The eval suite should land first so the retrieval rollout can be evaluated.
+2. **Quality measurement.** Without [LLM quality evals](../plans/llm-quality-evals.md), we cannot tell whether retrieval _improves_ dialogue quality vs. simply changing it. The eval suite should land first so the retrieval rollout can be evaluated.
 
 When we revisit, the candidate decision is:
 
@@ -48,7 +48,7 @@ When we revisit, the candidate decision is:
 - **Embedding-time cost.** Every memory write becomes a model call. Tier 4 → Tier 1 promotion already runs an inflate step; embedding gets bundled there.
 - **Provider routing.** Embedding category needs to be added to the per-category provider config from [ADR-017](017-per-category-inference-providers.md). Cloud-vs-local choice for embeddings is its own knob.
 - **Migration.** Existing save files have memories without vectors; either lazily embed on first read or backfill on load.
-- **Eval guarantee.** A bad retrieval (irrelevant memory floated to top) can produce *worse* dialogue than no retrieval — the eval suite must catch this.
+- **Eval guarantee.** A bad retrieval (irrelevant memory floated to top) can produce _worse_ dialogue than no retrieval — the eval suite must catch this.
 
 ### If rejected
 

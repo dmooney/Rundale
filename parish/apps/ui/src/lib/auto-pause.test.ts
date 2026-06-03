@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import {
+	describe,
+	it,
+	expect,
+	beforeEach,
+	afterEach,
+	vi,
+	type Mock,
+} from 'vitest';
 import { createAutoPauseTracker } from './auto-pause';
 
 describe('createAutoPauseTracker', () => {
@@ -20,7 +28,7 @@ describe('createAutoPauseTracker', () => {
 			idleMs: () => 60_000,
 			mousemoveThrottleMs: 1000,
 			submitInput,
-			isWorldPaused: () => worldPaused
+			isWorldPaused: () => worldPaused,
 		});
 	}
 
@@ -126,13 +134,13 @@ describe('createAutoPauseTracker', () => {
 
 	describe('window-focus guard (TODO #6 / #31a)', () => {
 		it('does NOT auto-pause when the window is not focused', () => {
-			let focused = false;
+			const focused = false;
 			const tracker = createAutoPauseTracker({
 				idleMs: () => 60_000,
 				mousemoveThrottleMs: 1000,
 				submitInput,
 				isWorldPaused: () => worldPaused,
-				isWindowFocused: () => focused
+				isWindowFocused: () => focused,
 			});
 			vi.advanceTimersByTime(60_000);
 			expect(submitInput).not.toHaveBeenCalledWith('/pause');
@@ -147,7 +155,7 @@ describe('createAutoPauseTracker', () => {
 				mousemoveThrottleMs: 1000,
 				submitInput,
 				isWorldPaused: () => worldPaused,
-				isWindowFocused: () => focused
+				isWindowFocused: () => focused,
 			});
 			// First idle interval fires while unfocused — no /pause.
 			vi.advanceTimersByTime(60_000);
@@ -168,7 +176,7 @@ describe('createAutoPauseTracker', () => {
 				mousemoveThrottleMs: 1000,
 				submitInput,
 				isWorldPaused: () => worldPaused,
-				isWindowFocused: () => true
+				isWindowFocused: () => true,
 			});
 			vi.advanceTimersByTime(60_000);
 			expect(submitInput).toHaveBeenCalledWith('/pause');
@@ -182,7 +190,7 @@ describe('createAutoPauseTracker', () => {
 				idleMs: () => 60_000,
 				mousemoveThrottleMs: 1000,
 				submitInput,
-				isWorldPaused: () => worldPaused
+				isWorldPaused: () => worldPaused,
 			});
 			vi.advanceTimersByTime(60_000);
 			expect(submitInput).toHaveBeenCalledWith('/pause');

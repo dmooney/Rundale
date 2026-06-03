@@ -5,20 +5,20 @@
 
 ## Designs Ready for Implementation
 
-| # | Design | Effort | Backend | Frontend |
-|---|--------|--------|---------|----------|
-| 01 | [/slash Autocomplete](../../design/input-enrichment/01-slash-autocomplete.md) | Low | None | InputField.svelte |
-| 02 | [Emote *asterisks*](../../design/input-enrichment/02-emote-actions.md) | Low | input/mod.rs, routes.rs, ticks.rs | ChatPanel.svelte |
-| 03 | [Input History](../../design/input-enrichment/03-input-history.md) | Low | None | InputField.svelte |
-| 05 | [Whisper Syntax](../../design/input-enrichment/05-whisper-syntax.md) | Medium | routes.rs, memory.rs, ticks.rs, types.rs | InputField, ChatPanel, ipc.ts, types.ts |
-| 06 | [Emoji Reactions](../../design/input-enrichment/06-emoji-reactions.md) | Med-High | npc/reactions.rs (new), npc/mod.rs, ticks.rs, types.rs, routes.rs | ChatPanel, game.ts, types.ts, ipc.ts |
-| 07 | [Quick-Travel Buttons](../../design/input-enrichment/07-quick-travel-buttons.md) | Low | None | QuickTravel.svelte (new), +page.svelte |
-| 09 | [Smart Replies](../../design/input-enrichment/09-smart-replies.md) | High | npc/suggestions.rs (new), routes.rs, types.rs | Suggestions.svelte (new), game.ts, +page.svelte |
-| 15 | [Tab-Complete Nouns](../../design/input-enrichment/15-tab-complete-nouns.md) | Medium | None | InputField.svelte, nouns.ts (new) |
+| #   | Design                                                                           | Effort   | Backend                                                           | Frontend                                        |
+| --- | -------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------- | ----------------------------------------------- |
+| 01  | [/slash Autocomplete](../../design/input-enrichment/01-slash-autocomplete.md)    | Low      | None                                                              | InputField.svelte                               |
+| 02  | [Emote _asterisks_](../../design/input-enrichment/02-emote-actions.md)           | Low      | input/mod.rs, routes.rs, ticks.rs                                 | ChatPanel.svelte                                |
+| 03  | [Input History](../../design/input-enrichment/03-input-history.md)               | Low      | None                                                              | InputField.svelte                               |
+| 05  | [Whisper Syntax](../../design/input-enrichment/05-whisper-syntax.md)             | Medium   | routes.rs, memory.rs, ticks.rs, types.rs                          | InputField, ChatPanel, ipc.ts, types.ts         |
+| 06  | [Emoji Reactions](../../design/input-enrichment/06-emoji-reactions.md)           | Med-High | npc/reactions.rs (new), npc/mod.rs, ticks.rs, types.rs, routes.rs | ChatPanel, game.ts, types.ts, ipc.ts            |
+| 07  | [Quick-Travel Buttons](../../design/input-enrichment/07-quick-travel-buttons.md) | Low      | None                                                              | QuickTravel.svelte (new), +page.svelte          |
+| 09  | [Smart Replies](../../design/input-enrichment/09-smart-replies.md)               | High     | npc/suggestions.rs (new), routes.rs, types.rs                     | Suggestions.svelte (new), game.ts, +page.svelte |
+| 15  | [Tab-Complete Nouns](../../design/input-enrichment/15-tab-complete-nouns.md)     | Medium   | None                                                              | InputField.svelte, nouns.ts (new)               |
 
 ## File Conflict Matrix
 
-```
+```text
                     01   02   03   05   06   07   09   15
 InputField.svelte   ██        ██   ░░                  ██   ← critical bottleneck
 ChatPanel.svelte         ██        ░░   ██
@@ -39,7 +39,7 @@ input/mod.rs             ██
 
 ### Wave 1 — No Conflicts (3 agents in parallel, worktree isolation)
 
-```
+```text
 Agent A: Idea 07 — Quick-Travel Buttons
   Files: ui/src/components/QuickTravel.svelte (new)
          ui/src/routes/+page.svelte (add component to layout)
@@ -77,7 +77,7 @@ Agent C: Idea 06 — Emoji Reactions (Phase 1: player→NPC only)
 
 ### Wave 2 — InputField Cluster (1 agent, sequential)
 
-```
+```text
 Agent D: Ideas 01 → 03 → 15 (slash autocomplete, input history, tab-complete)
   Depends on: Wave 1 merged (so +page.svelte is stable)
 
@@ -106,7 +106,7 @@ Agent D: Ideas 01 → 03 → 15 (slash autocomplete, input history, tab-complete
 
 ### Wave 2b — Backend-Heavy (2 agents in parallel, alongside Agent D)
 
-```
+```text
 Agent E: Idea 02 — Emote/Action Prefix
   Depends on: Wave 1 merged (routes.rs stable)
   Files: crates/parish-core/src/input/mod.rs (EnrichedInput, extract_actions)
@@ -137,13 +137,14 @@ Agent F: Idea 05 — Whisper Syntax
 ### Final Merge
 
 After all agents complete:
+
 1. Merge Agent D's commits (slash + history + tab-complete)
 2. Merge Agent E (emote actions) — resolve `ChatPanel.svelte` conflicts with Agent C
 3. Merge Agent F (whisper) — resolve `InputField.svelte`, `ChatPanel.svelte`, `types.ts` conflicts
 
 ## Timeline Diagram
 
-```
+```text
 Time ──────────────────────────────────────────────────────►
 
 Wave 1:  [A: QuickTravel]  [B: SmartReplies]  [C: Reactions]

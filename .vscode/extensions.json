@@ -1,11 +1,11 @@
 {
-    "recommendations": [
-        "rust-lang.rust-analyzer",
-        "vadimcn.vscode-lldb",
-        "tamasfe.even-better-toml",
-        "skellock.just",
-        "fill-labs.dependi",
-        "usernamehw.errorlens"
-    ],
-    "unwantedRecommendations": []
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb",
+    "tamasfe.even-better-toml",
+    "skellock.just",
+    "fill-labs.dependi",
+    "usernamehw.errorlens"
+  ],
+  "unwantedRecommendations": []
 }

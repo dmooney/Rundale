@@ -29,8 +29,8 @@ No cloud dependency.
 exists and is currently unused by the runtime. It is the natural input for
 a pronunciation-override layer: before synthesis, replace known tokens
 (placenames, surnames, Irish loanwords) with their authored phonetic
-spelling so the engine doesn't anglicise *Cill Taobhach* into *kill tay-ow-
-ack*. Treat the file as authoritative; fall back to the TTS engine's
+spelling so the engine doesn't anglicise _Cill Taobhach_ into _kill tay-ow-
+ack_. Treat the file as authoritative; fall back to the TTS engine's
 grapheme-to-phoneme model only for unknown strings.
 
 ### 2. Streaming TTS tied to Tier 1 streaming
@@ -118,8 +118,8 @@ Svelte UI. Emit through the grammar-constrained JSON (doc 02).
 
 ## Papers / references
 
-- Radford et al., *Whisper* (2022).
-- Gandhi et al., *Distil-Whisper* (2023).
-- Sauer et al., *SDXL Turbo — Adversarial Diffusion Distillation* (2023).
-- Black Forest Labs, *FLUX.1* model card (2024).
-- Kim et al., *VITS* (backbone for many neural TTS).
+- Radford et al., _Whisper_ (2022).
+- Gandhi et al., _Distil-Whisper_ (2023).
+- Sauer et al., _SDXL Turbo — Adversarial Diffusion Distillation_ (2023).
+- Black Forest Labs, _FLUX.1_ model card (2024).
+- Kim et al., _VITS_ (backbone for many neural TTS).

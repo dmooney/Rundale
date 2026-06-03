@@ -16,14 +16,14 @@ network calls and no companion server. The player downloads the app, the app
 downloads its language model on first launch, and from then on Rundale runs
 offline.
 
-This is deliberately the *opposite* of the [Phase 7 — Web & Mobile](../../plans/phase-7-web-mobile.md)
+This is deliberately the _opposite_ of the [Phase 7 — Web & Mobile](../../plans/phase-7-web-mobile.md)
 design, which puts the game on a cloud server and ships a thin client to
 mobile. Both approaches are viable; this doc describes the on-device path so
 the trade-off is explicit.
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │       parish-core · parish-inference · parish-persistence (+ others)    │
 │  WorldGraph · NpcManager · GameClock · SimulationTiers · Persistence    │
@@ -216,10 +216,10 @@ in `parish-tauri`'s `build.rs`), so this is greenfield. Commit to:
 
 Use **Gemma 4 edge variants** as the default local model family:
 
-| Model         | Size on disk | iOS 17 Pro GPU decode | Notes |
-|---------------|--------------|------------------------|-------|
-| Gemma4-E2B-it | 2.58 GB      | ~56–57 tok/s           | Best default for responsiveness + memory |
-| Gemma4-E4B-it | 3.65 GB      | ~25 tok/s              | Better quality; higher memory/thermal pressure |
+| Model         | Size on disk | iOS 17 Pro GPU decode | Notes                                          |
+| ------------- | ------------ | --------------------- | ---------------------------------------------- |
+| Gemma4-E2B-it | 2.58 GB      | ~56–57 tok/s          | Best default for responsiveness + memory       |
+| Gemma4-E4B-it | 3.65 GB      | ~25 tok/s             | Better quality; higher memory/thermal pressure |
 
 Both are explicitly benchmarked by Google AI Edge on iOS GPU. Start with E2B
 as the shipping default and keep E4B as an opt-in "high quality" setting for
@@ -268,6 +268,7 @@ the prep work has, however, already happened organically.
   ```
 
   Add iOS icons and Info.plist entries (no camera/mic usage strings needed; the game requires neither).
+
 - In `crates/parish-tauri/src/lib.rs`, `build_client_from_env` reads the `PARISH_PROVIDER` env var and dispatches between Ollama, OpenAI-compatible cloud providers, and the simulator. On `target_os = "ios"`, short-circuit that function to construct a `LiteRtLmClient` from `PARISH_MODEL_PATH` regardless of env. `build_cloud_client_from_env` is desktop-only and is `cfg`-gated out.
 - `crates/parish-tauri/src/commands.rs` contains a **second** `InferenceClients` construction path used when the user changes provider at runtime. Apply the same iOS override there (or better: collapse both call sites onto a single helper before adding the iOS branch, so the override lives in one place).
 - The `--screenshot <dir>` CLI flag parsing in `crates/parish-tauri/src/lib.rs` is a desktop dev affordance. `#[cfg(not(target_os = "ios"))]`-gate the whole flag-parsing block (the iOS binary receives no command-line arguments).
@@ -338,7 +339,7 @@ dependency. Every other persistence function already takes an explicit
 which walks up from `std::env::current_dir()` looking for a `mods/rundale/mod.toml`.
 On iOS the app sandbox has no concept of "the directory the binary was launched
 from", so `current_dir()` is useless and the mod has to ship as a Tauri
-*resource*:
+_resource_:
 
 - Add `"../../mods/rundale/**"` to `tauri.conf.json` → `bundle.resources` (shown in §"What's left" above).
 - In `parish-tauri/src/lib.rs`, replace the `find_default_mod()` / `GameMod::load(&dir)` pairing in the Tauri startup hook with `app_handle.path().resolve("mods/rundale", BaseDirectory::Resource)?` before calling `GameMod::load`. Keep `find_default_mod` untouched for the CLI and server binaries.
@@ -474,8 +475,8 @@ WKWebView + Svelte + touch input work end to end.
 Builds last a year and survive reboots.
 
 Under the hood every iOS build is signed with a **certificate** (proves
-*who* built it) and bundled with a **provisioning profile** (proves *what
-device* and *what entitlements* it has). Xcode hides this when "Automatically
+_who_ built it) and bundled with a **provisioning profile** (proves _what
+device_ and _what entitlements_ it has). Xcode hides this when "Automatically
 manage signing" is on, which you should leave on until you have a reason
 not to.
 
@@ -500,15 +501,15 @@ submission.
 
 Three viable options:
 
-| Option                          | Pros                                              | Cons                                                          |
-|---------------------------------|---------------------------------------------------|---------------------------------------------------------------|
-| **Xcode Cloud**                 | First-party, integrated with App Store Connect; generous free tier (25 hr/month) | Less flexible than YAML-based CI; locks you into Apple        |
-| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Rundale CI | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
-| **Self-hosted Mac**             | Cheapest at scale; fast                           | Babysit the machine; certificate management is on you         |
+| Option                              | Pros                                                                             | Cons                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Xcode Cloud**                     | First-party, integrated with App Store Connect; generous free tier (25 hr/month) | Less flexible than YAML-based CI; locks you into Apple         |
+| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Rundale CI                  | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
+| **Self-hosted Mac**                 | Cheapest at scale; fast                                                          | Babysit the machine; certificate management is on you          |
 
 A typical iOS CI pipeline:
 
-```
+```text
 1. Checkout
 2. Install Ruby + bundler + fastlane
 3. Set up signing (decrypt certs from a private repo via fastlane match)
@@ -796,28 +797,28 @@ Store the scripted corpus and outcomes in `testing/fixtures/ios_prompt_eval/`.
 
 Forward reference for whoever picks this up:
 
-| Path                                                              | Change                                                          |
-|-------------------------------------------------------------------|-----------------------------------------------------------------|
-| `crates/parish-inference/src/lib.rs`                              | Introduce `InferenceBackend` trait; delete `AnyClient`; `InferenceClients` + `spawn_inference_worker` move to `Box<dyn InferenceBackend>` |
-| `crates/parish-inference/src/openai_client.rs`                    | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode) |
-| `crates/parish-inference/src/simulator.rs`                        | `impl InferenceBackend for SimulatorClient`                     |
-| `crates/parish-inference/src/litert_lm_client.rs` *(new)*         | Embedded LiteRT-LM backend behind `ios-inference` feature       |
-| `crates/parish-inference/src/setup.rs`                            | `cfg`-gate Ollama bootstrap and GPU probe                       |
-| `crates/parish-inference/src/client.rs`                           | `cfg`-gate `OllamaProcess`                                      |
-| `crates/parish-inference/build.rs` *(new)*                        | `bindgen` + `cc` for the C shim, gated on `ios-inference`       |
-| `crates/parish-inference/vendor/litert-lm/` *(new submodule)*     | Pinned upstream LiteRT-LM source                                |
-| `crates/parish-inference/vendor/bridge/litert_lm_bridge.{h,cc}` *(new)* | Thin C shim over LiteRT-LM                                 |
-| `crates/parish-inference/Cargo.toml`                              | `ios-inference` feature; `async-trait`, `bindgen` (build-dep), `cc` (build-dep) |
-| `crates/parish-persistence/src/picker.rs`                         | `ensure_saves_dir(base: &Path)` — explicit base, no iOS branch in this crate |
-| `crates/parish-tauri/tauri.conf.json`                             | `bundle.targets` → array with `"iOS"`; `bundle.resources` for the mod; iOS icons |
-| `crates/parish-tauri/src/lib.rs`                                  | Resolve mod via Tauri resource API; pass `app_data_dir` to `ensure_saves_dir`; force embedded backend on `target_os = "ios"` via `PARISH_MODEL_PATH`; `cfg`-gate `--screenshot` parsing |
-| `crates/parish-tauri/src/commands.rs`                             | Same iOS override at the dynamic `InferenceClients` rebuild path; unify both construction sites on one helper |
-| `crates/parish-tauri/gen/apple/` *(generated)*                    | Xcode project from `cargo tauri ios init`                       |
-| `mods/rundale/prompts/tier1_system.txt`                           | Slim down for 3B-class model                                    |
-| `mods/rundale/prompts/tier1_context.txt`                          | Same; tighten scaffolding                                       |
-| `mods/rundale/prompts/tier2_system.txt`                           | Same                                                            |
-| `apps/ui/src/app.css`                                             | `env(safe-area-inset-*)` rules                                  |
-| `.github/workflows/ios-build.yml` *(new)*                         | macOS runner, path-filtered triggers (`crates/parish-tauri/**`, `crates/parish-inference/**`, `apps/ui/**`, self); `fastlane match` for signing |
+| Path                                                                    | Change                                                                                                                                                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/parish-inference/src/lib.rs`                                    | Introduce `InferenceBackend` trait; delete `AnyClient`; `InferenceClients` + `spawn_inference_worker` move to `Box<dyn InferenceBackend>`                                               |
+| `crates/parish-inference/src/openai_client.rs`                          | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode)                                                                                            |
+| `crates/parish-inference/src/simulator.rs`                              | `impl InferenceBackend for SimulatorClient`                                                                                                                                             |
+| `crates/parish-inference/src/litert_lm_client.rs` _(new)_               | Embedded LiteRT-LM backend behind `ios-inference` feature                                                                                                                               |
+| `crates/parish-inference/src/setup.rs`                                  | `cfg`-gate Ollama bootstrap and GPU probe                                                                                                                                               |
+| `crates/parish-inference/src/client.rs`                                 | `cfg`-gate `OllamaProcess`                                                                                                                                                              |
+| `crates/parish-inference/build.rs` _(new)_                              | `bindgen` + `cc` for the C shim, gated on `ios-inference`                                                                                                                               |
+| `crates/parish-inference/vendor/litert-lm/` _(new submodule)_           | Pinned upstream LiteRT-LM source                                                                                                                                                        |
+| `crates/parish-inference/vendor/bridge/litert_lm_bridge.{h,cc}` _(new)_ | Thin C shim over LiteRT-LM                                                                                                                                                              |
+| `crates/parish-inference/Cargo.toml`                                    | `ios-inference` feature; `async-trait`, `bindgen` (build-dep), `cc` (build-dep)                                                                                                         |
+| `crates/parish-persistence/src/picker.rs`                               | `ensure_saves_dir(base: &Path)` — explicit base, no iOS branch in this crate                                                                                                            |
+| `crates/parish-tauri/tauri.conf.json`                                   | `bundle.targets` → array with `"iOS"`; `bundle.resources` for the mod; iOS icons                                                                                                        |
+| `crates/parish-tauri/src/lib.rs`                                        | Resolve mod via Tauri resource API; pass `app_data_dir` to `ensure_saves_dir`; force embedded backend on `target_os = "ios"` via `PARISH_MODEL_PATH`; `cfg`-gate `--screenshot` parsing |
+| `crates/parish-tauri/src/commands.rs`                                   | Same iOS override at the dynamic `InferenceClients` rebuild path; unify both construction sites on one helper                                                                           |
+| `crates/parish-tauri/gen/apple/` _(generated)_                          | Xcode project from `cargo tauri ios init`                                                                                                                                               |
+| `mods/rundale/prompts/tier1_system.txt`                                 | Slim down for 3B-class model                                                                                                                                                            |
+| `mods/rundale/prompts/tier1_context.txt`                                | Same; tighten scaffolding                                                                                                                                                               |
+| `mods/rundale/prompts/tier2_system.txt`                                 | Same                                                                                                                                                                                    |
+| `apps/ui/src/app.css`                                                   | `env(safe-area-inset-*)` rules                                                                                                                                                          |
+| `.github/workflows/ios-build.yml` _(new)_                               | macOS runner, path-filtered triggers (`crates/parish-tauri/**`, `crates/parish-inference/**`, `apps/ui/**`, self); `fastlane match` for signing                                         |
 
 ## Headless Execution Addendum
 
@@ -839,7 +840,7 @@ gating, 12-partial, 13, 16-first-pass):**
 - `ios-inference` Cargo feature with `async-trait`, `bindgen`, `cc` wired.
 - LiteRT-LM C-shim header + Rust wrapper skeleton + `build.rs` that compiles to a
   **stub** when upstream sources are absent (so `cargo check --features
-  ios-inference` passes on Linux) and links the real static lib once the Mac
+ios-inference` passes on Linux) and links the real static lib once the Mac
   vendoring lands.
 - `cfg`-gating Ollama bootstrap, `OllamaProcess`, and the `--screenshot` flag for
   `target_os = "ios"`.
@@ -892,7 +893,7 @@ account for these:
    `src/lib.rs` and `src/commands.rs` call.
 5. **`token_tx` is `mpsc::Sender<String>` (bounded), not `UnboundedSender`.**
    The trait signature must use the bounded form (capacity `TOKEN_CHANNEL_CAPACITY
-   = 1024`, `lib.rs:40`) to avoid touching every call site.
+= 1024`, `lib.rs:40`) to avoid touching every call site.
 6. **Use `Arc<dyn InferenceBackend>`, not `Box<dyn …>`,** for the
    `InferenceClients` slots and `spawn_inference_worker` parameter.
    `InferenceClients` is `#[derive(Clone)]` and the worker spawns clones into
@@ -930,7 +931,7 @@ The last line passing against the stub shim proves the trait, `bindgen`
 bindings, and `LiteRtLmClient` wrapper are wired correctly; only real LiteRT-LM
 vendoring then remains for the inference path. Consider a `just verify-ios-headless`
 recipe wrapping the four `cargo check` lines. (A full `cargo build
---target aarch64-apple-ios` will *not* link on Linux — that needs the Mac
+--target aarch64-apple-ios` will _not_ link on Linux — that needs the Mac
 toolchain, so headless validation stops at `cargo check`.)
 
 ### Stub-shim caveat

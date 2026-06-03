@@ -6,14 +6,14 @@ import {
 	debugSnapshot,
 	debugTab,
 	debugDockLeft,
-	selectedNpcId
+	selectedNpcId,
 } from '../stores/debug';
 import type { DebugSnapshot } from '$lib/types';
 import DebugPanel from './DebugPanel.svelte';
 
 // The Inference tab imports submitInput at module scope.
 vi.mock('$lib/ipc', () => ({
-	submitInput: vi.fn(() => Promise.resolve())
+	submitInput: vi.fn(() => Promise.resolve()),
 }));
 
 // ── Snapshot factory ─────────────────────────────────────────────────────────
@@ -34,14 +34,14 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			day_type: 'Workday',
 			start_game_time: '1820-03-15 06:00',
 			paused_game_time: '1820-03-15 09:00',
-			real_elapsed_secs: 0
+			real_elapsed_secs: 0,
 		},
 		weather: {
 			current: 'Clear',
 			since: '1820-03-15 06:00',
 			duration_hours: 3.0,
 			min_duration_hours: 2.0,
-			last_check_hour: 8
+			last_check_hour: 8,
 		},
 		world: {
 			player_location_name: 'Village Green',
@@ -53,7 +53,7 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			text_log_tail: [],
 			text_log_len: 0,
 			locations: [],
-			player_name: null
+			player_name: null,
 		},
 		npcs: [],
 		tier_summary: {
@@ -72,19 +72,19 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			introduced_count: 2,
 			tier2_in_flight: false,
 			tier3_pending_count: 0,
-			tier4_recent_events: []
+			tier4_recent_events: [],
 		},
 		event_bus: {
 			subscriber_count: 3,
-			recent_events: []
+			recent_events: [],
 		},
 		gossip: {
 			item_count: 0,
-			items: []
+			items: [],
 		},
 		conversations: {
 			exchange_count: 0,
-			exchanges: []
+			exchanges: [],
 		},
 		events: [],
 		inference: {
@@ -98,16 +98,16 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			improv_enabled: false,
 			call_log: [],
 			categories: [],
-			configured_providers: []
+			configured_providers: [],
 		},
 		auth: {
 			oauth_enabled: false,
 			logged_in: false,
 			provider: null,
 			display_name: null,
-			session_id: null
+			session_id: null,
 		},
-		...overrides
+		...overrides,
 	};
 }
 
@@ -195,10 +195,10 @@ describe('DebugPanel', () => {
 				emotional: 5,
 				practical: 3,
 				wisdom: 4,
-				creative: 2
+				creative: 2,
 			},
 			last_activity: null,
-			knows_player_name: false
+			knows_player_name: false,
 		};
 
 		it('shows NPC list when no NPC is selected', () => {
@@ -271,15 +271,17 @@ describe('DebugPanel', () => {
 
 		it('shows "(never)" when last_check_hour is null', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				weather: {
-					current: 'Rain',
-					since: '1820-03-15 08:00',
-					duration_hours: 1.0,
-					min_duration_hours: 0.5,
-					last_check_hour: null
-				}
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					weather: {
+						current: 'Rain',
+						since: '1820-03-15 08:00',
+						duration_hours: 1.0,
+						min_duration_hours: 0.5,
+						last_check_hour: null,
+					},
+				}),
+			);
 			debugTab.set(3);
 			const { container } = render(DebugPanel);
 			expect(container.textContent).toContain('(never)');
@@ -297,15 +299,31 @@ describe('DebugPanel', () => {
 
 		it('renders gossip items when present', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				gossip: {
-					item_count: 2,
-					items: [
-						{ id: 1, content: 'The harvest looks promising.', source_name: 'Brigid', known_by: ['Brigid', 'Seamus'], distortion_level: 0, timestamp: '09:00' },
-						{ id: 2, content: 'Rent collector was seen on the road.', source_name: 'Padraig', known_by: ['Padraig'], distortion_level: 2, timestamp: '09:30' }
-					]
-				}
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					gossip: {
+						item_count: 2,
+						items: [
+							{
+								id: 1,
+								content: 'The harvest looks promising.',
+								source_name: 'Brigid',
+								known_by: ['Brigid', 'Seamus'],
+								distortion_level: 0,
+								timestamp: '09:00',
+							},
+							{
+								id: 2,
+								content: 'Rent collector was seen on the road.',
+								source_name: 'Padraig',
+								known_by: ['Padraig'],
+								distortion_level: 2,
+								timestamp: '09:30',
+							},
+						],
+					},
+				}),
+			);
 			debugTab.set(4);
 			const { container, getByText } = render(DebugPanel);
 			expect(getByText(/The harvest looks promising/)).toBeTruthy();
@@ -326,19 +344,23 @@ describe('DebugPanel', () => {
 
 		it('renders conversation exchanges when present', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				conversations: {
-					exchange_count: 1,
-					exchanges: [{
-						timestamp: '09:15',
-						speaker_id: 1,
-						location_name: 'Village Green',
-						player_input: 'Good day to you.',
-						speaker_name: 'Brigid',
-						npc_dialogue: 'And a good day to yourself, stranger.'
-					}]
-				}
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					conversations: {
+						exchange_count: 1,
+						exchanges: [
+							{
+								timestamp: '09:15',
+								speaker_id: 1,
+								location_name: 'Village Green',
+								player_input: 'Good day to you.',
+								speaker_name: 'Brigid',
+								npc_dialogue: 'And a good day to yourself, stranger.',
+							},
+						],
+					},
+				}),
+			);
 			debugTab.set(5);
 			const { getByText } = render(DebugPanel);
 			expect(getByText(/Good day to you/)).toBeTruthy();
@@ -358,14 +380,20 @@ describe('DebugPanel', () => {
 
 		it('renders game events from event_bus when present', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				event_bus: {
-					subscriber_count: 2,
-					recent_events: [
-						{ timestamp: '09:01', kind: 'NpcMoved', summary: 'Seamus walked to the pub.' }
-					]
-				}
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					event_bus: {
+						subscriber_count: 2,
+						recent_events: [
+							{
+								timestamp: '09:01',
+								kind: 'NpcMoved',
+								summary: 'Seamus walked to the pub.',
+							},
+						],
+					},
+				}),
+			);
 			debugTab.set(6);
 			const { container } = render(DebugPanel);
 			expect(container.textContent).toContain('NpcMoved');
@@ -374,11 +402,17 @@ describe('DebugPanel', () => {
 
 		it('renders debug events when present', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				events: [
-					{ timestamp: '09:02', category: 'system', message: 'World ticked.' }
-				]
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					events: [
+						{
+							timestamp: '09:02',
+							category: 'system',
+							message: 'World ticked.',
+						},
+					],
+				}),
+			);
 			debugTab.set(6);
 			const { container } = render(DebugPanel);
 			expect(container.textContent).toContain('system');
@@ -389,38 +423,40 @@ describe('DebugPanel', () => {
 	describe('Inference tab (index 7)', () => {
 		it('shows call log entries when present', () => {
 			debugVisible.set(true);
-			debugSnapshot.set(makeSnapshot({
-				inference: {
-					provider_name: 'anthropic',
-					model_name: 'claude-3-haiku',
-					base_url: '',
-					cloud_provider: null,
-					cloud_model: null,
-					has_queue: false,
-					reaction_req_id: 0,
-					improv_enabled: false,
-					categories: [],
-					configured_providers: ['anthropic'],
-					call_log: [
-						{
-							request_id: 1,
-							timestamp: '09:03',
-							model: 'claude-3-haiku',
-							streaming: false,
-							duration_ms: 350,
-							prompt_len: 120,
-							response_len: 80,
-							error: null,
-							system_prompt: 'You are Brigid, a local woman.',
-							prompt_text: 'What do you think?',
-							response_text: 'I think the harvest will be poor this year.',
-							max_tokens: null,
-							ttft_ms: null,
-							output_tokens: null
-						}
-					]
-				}
-			}));
+			debugSnapshot.set(
+				makeSnapshot({
+					inference: {
+						provider_name: 'anthropic',
+						model_name: 'claude-3-haiku',
+						base_url: '',
+						cloud_provider: null,
+						cloud_model: null,
+						has_queue: false,
+						reaction_req_id: 0,
+						improv_enabled: false,
+						categories: [],
+						configured_providers: ['anthropic'],
+						call_log: [
+							{
+								request_id: 1,
+								timestamp: '09:03',
+								model: 'claude-3-haiku',
+								streaming: false,
+								duration_ms: 350,
+								prompt_len: 120,
+								response_len: 80,
+								error: null,
+								system_prompt: 'You are Brigid, a local woman.',
+								prompt_text: 'What do you think?',
+								response_text: 'I think the harvest will be poor this year.',
+								max_tokens: null,
+								ttft_ms: null,
+								output_tokens: null,
+							},
+						],
+					},
+				}),
+			);
 			debugTab.set(7);
 			const { container } = render(DebugPanel);
 			// Call log should show the entry
@@ -475,10 +511,10 @@ describe('DebugPanel', () => {
 							response_text: 'Hi there.',
 							max_tokens: null,
 							ttft_ms: null,
-							output_tokens: null
-						}
-					]
-				}
+							output_tokens: null,
+						},
+					],
+				},
 			});
 
 			debugSnapshot.set(snap);
@@ -498,7 +534,9 @@ describe('DebugPanel', () => {
 
 			// Close via the X button so closePanel() runs (not debugVisible.set directly —
 			// that would bypass the fix and make the test vacuous).
-			const closeBtn = container.querySelector('.debug-close') as HTMLButtonElement;
+			const closeBtn = container.querySelector(
+				'.debug-close',
+			) as HTMLButtonElement;
 			expect(closeBtn).toBeTruthy();
 			await fireEvent.click(closeBtn);
 			await tick();

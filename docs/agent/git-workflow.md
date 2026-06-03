@@ -31,7 +31,7 @@ Explain the behavior change, link related issues, list commands run (`just check
 ## Merge queue
 
 CI declares an `on: merge_group` trigger, so the full suite re-runs against the
-tip of `main` when a PR enters the queue. This catches *semantic* conflicts —
+tip of `main` when a PR enters the queue. This catches _semantic_ conflicts —
 two PRs each green in isolation that break once combined — which plain git
 merges miss. With many worktrees landing in parallel this is the main guard on
 `main` staying green.

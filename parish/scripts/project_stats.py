@@ -28,9 +28,9 @@ BAR_HALF = "▌"
 
 def fmt_loc(n):
     if n >= 1_000_000:
-        return f"{n/1_000_000:.1f}M"
+        return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
-        return f"{n/1_000:.1f}k"
+        return f"{n / 1_000:.1f}k"
     return str(n)
 
 
@@ -45,6 +45,7 @@ def bar(value, max_val, width=30):
 
 # ── Data collection ─────────────────────────────────────────────
 
+
 def git_daily_loc():
     exts = CODE_EXTENSIONS.split()
     cmd = ["git", "log", "--all", "--format=%ad", "--date=short", "--numstat", "--"] + exts
@@ -54,9 +55,9 @@ def git_daily_loc():
     current_date = None
     for line in result.stdout.splitlines():
         parts = line.split()
-        if len(parts) == 1 and len(parts[0]) == 10 and parts[0][4] == '-':
+        if len(parts) == 1 and len(parts[0]) == 10 and parts[0][4] == "-":
             current_date = parts[0]
-        elif len(parts) >= 3 and current_date and parts[0] != '-':
+        elif len(parts) >= 3 and current_date and parts[0] != "-":
             added[current_date] = added.get(current_date, 0) + int(parts[0])
             deleted[current_date] = deleted.get(current_date, 0) + int(parts[1])
     days = sorted(added.keys())
@@ -71,21 +72,30 @@ def git_commit_count():
 def git_commits_since(days_ago):
     result = subprocess.run(
         ["git", "log", "--all", "--oneline", f"--since={days_ago} days ago"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return len(result.stdout.strip().splitlines())
 
 
 def git_loc_since(days_ago):
     exts = CODE_EXTENSIONS.split()
-    cmd = ["git", "log", "--all", "--format=%ad", "--date=short", "--numstat",
-           f"--since={days_ago} days ago", "--"] + exts
+    cmd = [
+        "git",
+        "log",
+        "--all",
+        "--format=%ad",
+        "--date=short",
+        "--numstat",
+        f"--since={days_ago} days ago",
+        "--",
+    ] + exts
     result = subprocess.run(cmd, capture_output=True, text=True)
     added = 0
     deleted = 0
     for line in result.stdout.splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[0] != '-':
+        if len(parts) >= 3 and parts[0] != "-":
             try:
                 added += int(parts[0])
                 deleted += int(parts[1])
@@ -95,9 +105,7 @@ def git_loc_since(days_ago):
 
 
 def git_contributors():
-    result = subprocess.run(
-        ["git", "shortlog", "-sn", "--all"], capture_output=True, text=True
-    )
+    result = subprocess.run(["git", "shortlog", "-sn", "--all"], capture_output=True, text=True)
     contribs = []
     for line in result.stdout.strip().splitlines():
         parts = line.strip().split("\t", 1)
@@ -126,7 +134,7 @@ def loc_by_extension_on_disk():
         if len(files) == 1:
             count = int(lines[0].split()[0]) if lines else 0
         else:
-            total_line = [l for l in lines if "total" in l]
+            total_line = [line for line in lines if "total" in line]
             count = int(total_line[-1].split()[0]) if total_line else 0
         if count > 0:
             totals[ext] = count
@@ -137,7 +145,8 @@ def loc_by_extension_on_disk():
 def git_busiest_days(top_n=5):
     result = subprocess.run(
         ["git", "log", "--all", "--format=%ad", "--date=short"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     counts = {}
     for line in result.stdout.strip().splitlines():
@@ -175,11 +184,13 @@ print(f"\n{BOLD}{CYAN}Overview{RESET}")
 print(f"{'─' * 60}")
 print(f"  Total LOC (code only):  {BOLD}{CURRENT_LOC:>10,}{RESET}")
 print(f"  Total commits:          {BOLD}{COMMIT_COUNT:>10,}{RESET}")
-print(f"  Project age:            {BOLD}{elapsed:>10} days{RESET}  {DIM}(since {START_DATE}){RESET}")
+print(
+    f"  Project age:            {BOLD}{elapsed:>10} days{RESET}  {DIM}(since {START_DATE}){RESET}"
+)
 print(f"  Contributors:           {BOLD}{len(CONTRIBUTORS):>10}{RESET}")
 if elapsed > 0:
-    print(f"  Avg commits/day:        {BOLD}{COMMIT_COUNT/elapsed:>10.1f}{RESET}")
-    print(f"  Avg LOC/day:            {BOLD}{CURRENT_LOC/elapsed:>10,.0f}{RESET}")
+    print(f"  Avg commits/day:        {BOLD}{COMMIT_COUNT / elapsed:>10.1f}{RESET}")
+    print(f"  Avg LOC/day:            {BOLD}{CURRENT_LOC / elapsed:>10,.0f}{RESET}")
 
 # ── Recent velocity ─────────────────────────────────────────────
 
@@ -187,20 +198,34 @@ print(f"\n{BOLD}{CYAN}Recent Velocity{RESET}")
 print(f"{'─' * 60}")
 net_7d = added_7d - deleted_7d
 net_14d = added_14d - deleted_14d
-print(f"  Last  7 days:  {GREEN}+{added_7d:>8,}{RESET} / {RED}-{deleted_7d:>8,}{RESET}  = net {BOLD}{net_7d:>+9,}{RESET}  ({commits_7d} commits)")
-print(f"  Last 14 days:  {GREEN}+{added_14d:>8,}{RESET} / {RED}-{deleted_14d:>8,}{RESET}  = net {BOLD}{net_14d:>+9,}{RESET}  ({commits_14d} commits)")
+print(
+    f"  Last  7 days:  {GREEN}+{added_7d:>8,}{RESET} / {RED}-{deleted_7d:>8,}{RESET}  = net {BOLD}{net_7d:>+9,}{RESET}  ({commits_7d} commits)"
+)
+print(
+    f"  Last 14 days:  {GREEN}+{added_14d:>8,}{RESET} / {RED}-{deleted_14d:>8,}{RESET}  = net {BOLD}{net_14d:>+9,}{RESET}  ({commits_14d} commits)"
+)
 
 # ── LOC by language ─────────────────────────────────────────────
 
 disk_total = sum(LOC_BY_EXT.values())
-print(f"\n{BOLD}{CYAN}LOC by Language{RESET}  {DIM}(on disk: {disk_total:,} LOC, {sum(FILE_COUNTS.values())} files){RESET}")
+print(
+    f"\n{BOLD}{CYAN}LOC by Language{RESET}  {DIM}(on disk: {disk_total:,} LOC, {sum(FILE_COUNTS.values())} files){RESET}"
+)
 print(f"{'─' * 60}")
 sorted_exts = sorted(LOC_BY_EXT.items(), key=lambda x: -x[1])
 max_ext_loc = max(LOC_BY_EXT.values()) if LOC_BY_EXT else 1
 ext_labels = {
-    ".rs": "Rust", ".ts": "TypeScript", ".svelte": "Svelte", ".js": "JavaScript",
-    ".json": "JSON", ".toml": "TOML", ".css": "CSS", ".html": "HTML",
-    ".sh": "Shell", ".py": "Python", ".txt": "Text",
+    ".rs": "Rust",
+    ".ts": "TypeScript",
+    ".svelte": "Svelte",
+    ".js": "JavaScript",
+    ".json": "JSON",
+    ".toml": "TOML",
+    ".css": "CSS",
+    ".html": "HTML",
+    ".sh": "Shell",
+    ".py": "Python",
+    ".txt": "Text",
 }
 for ext, loc in sorted_exts:
     label = ext_labels.get(ext, ext)
@@ -240,10 +265,14 @@ for datestr, net in ACTUAL:
     day_num = (date.fromisoformat(datestr) - START_DATE).days
     if net >= 0:
         b = bar(net, max_abs, 25)
-        print(f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {GREEN}{b}{RESET} {net:>+8,}  ({fmt_loc(cumulative)})")
+        print(
+            f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {GREEN}{b}{RESET} {net:>+8,}  ({fmt_loc(cumulative)})"
+        )
     else:
         b = bar(abs(net), max_abs, 25)
-        print(f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {MAGENTA}{b}{RESET} {net:>+8,}  ({fmt_loc(cumulative)})")
+        print(
+            f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {MAGENTA}{b}{RESET} {net:>+8,}  ({fmt_loc(cumulative)})"
+        )
 
 # ── Projections ─────────────────────────────────────────────────
 
@@ -292,8 +321,7 @@ def scenario_mature(day):
 
 
 scenarios = [
-    ("Steady pace", f"~{fmt_loc(int(avg_recent))}/day flat",
-     lambda d: avg_recent * 0.85),
+    ("Steady pace", f"~{fmt_loc(int(avg_recent))}/day flat", lambda d: avg_recent * 0.85),
     ("Ramp + decay", "peak ~day 30, gradual slowdown", scenario_ramp),
     ("Hypergrowth", "AI-assisted, sustained high output", scenario_hyper),
     ("Early plateau", "rapid decay to maintenance mode", scenario_mature),
@@ -315,8 +343,10 @@ for name, desc, fn in scenarios:
                 eta = f"in {remaining}d"
             else:
                 eta = f"in ~{remaining // 7} weeks"
-            print(f"    {fmt_loc(m):>5s} LOC  →  {CYAN}{dt.strftime('%b %d, %Y')}{RESET}"
-                  f"  {DIM}({eta}){RESET}")
+            print(
+                f"    {fmt_loc(m):>5s} LOC  →  {CYAN}{dt.strftime('%b %d, %Y')}{RESET}"
+                f"  {DIM}({eta}){RESET}"
+            )
         else:
             print(f"    {fmt_loc(m):>5s} LOC  →  {DIM}beyond 3 years{RESET}")
 
@@ -328,13 +358,17 @@ lines_per_hour = avg_all / 16
 print(f"\n{BOLD}{CYAN}Fun Stats{RESET}")
 print(f"{'─' * 60}")
 print(f"  Average net output:    {BOLD}{avg_all:,.0f}{RESET} LOC/day")
-print(f"  That's roughly:        {BOLD}{lines_per_hour:,.0f}{RESET} LOC/hour  {DIM}(16h workday){RESET}")
-print(f"  Or:                    {BOLD}{lines_per_hour/60:,.1f}{RESET} LOC/minute")
+print(
+    f"  That's roughly:        {BOLD}{lines_per_hour:,.0f}{RESET} LOC/hour  {DIM}(16h workday){RESET}"
+)
+print(f"  Or:                    {BOLD}{lines_per_hour / 60:,.1f}{RESET} LOC/minute")
 if ACTUAL:
     peak_day = max(ACTUAL, key=lambda x: x[1])
     min_day = min(ACTUAL, key=lambda x: x[1])
     print(f"  Peak single day:       {BOLD}+{peak_day[1]:,}{RESET} LOC ({peak_day[0]})")
     print(f"  Biggest refactor:      {BOLD}{min_day[1]:,}{RESET} LOC ({min_day[0]})")
 if avg_all > 0:
-    print(f"  Days to write a novel: {DIM}(~80k words){RESET} {BOLD}{80000/avg_all:.1f}{RESET} days at this pace")
+    print(
+        f"  Days to write a novel: {DIM}(~80k words){RESET} {BOLD}{80000 / avg_all:.1f}{RESET} days at this pace"
+    )
 print()

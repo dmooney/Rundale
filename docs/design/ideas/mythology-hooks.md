@@ -10,12 +10,12 @@ Irish mythology should have structural hooks in the prototype even if no content
 
 The time system tracks the four traditional Irish seasonal festivals:
 
-| Festival      | Date           | Significance                                    |
-|---------------|----------------|-------------------------------------------------|
-| **Samhain**   | ~November 1    | Start of winter; boundary between worlds thins  |
-| **Imbolc**    | ~February 1    | Start of spring; renewal and purification       |
-| **Bealtaine** | ~May 1         | Start of summer; fertility and fire             |
-| **Lughnasa**  | ~August 1      | Start of autumn; harvest and assembly           |
+| Festival      | Date        | Significance                                   |
+| ------------- | ----------- | ---------------------------------------------- |
+| **Samhain**   | ~November 1 | Start of winter; boundary between worlds thins |
+| **Imbolc**    | ~February 1 | Start of spring; renewal and purification      |
+| **Bealtaine** | ~May 1      | Start of summer; fertility and fire            |
+| **Lughnasa**  | ~August 1   | Start of autumn; harvest and assembly          |
 
 These are potential moments where the mythological layer surfaces.
 

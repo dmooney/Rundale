@@ -31,9 +31,12 @@ describe('drawIconImage', () => {
 		// Provide Path2D in the jsdom global if it is missing, using vi.stubGlobal
 		// so Vitest can auto-clean it up rather than permanently polluting globalThis.
 		if (typeof globalThis.Path2D === 'undefined') {
-			vi.stubGlobal('Path2D', class {
-				constructor(_d?: string) {}
-			});
+			vi.stubGlobal(
+				'Path2D',
+				class {
+					constructor(_d?: string) {}
+				},
+			);
 		}
 
 		// Inject a fake canvas that records transform calls.
@@ -66,14 +69,18 @@ describe('drawIconImage', () => {
 				},
 				getImageData(_x: number, _y: number, w: number, h: number): ImageData {
 					// jsdom doesn't provide ImageData; return a compatible plain object.
-					return { data: pixels.slice(), width: w, height: h } as unknown as ImageData;
-				}
+					return {
+						data: pixels.slice(),
+						width: w,
+						height: h,
+					} as unknown as ImageData;
+				},
 			};
 
 			return {
 				width: SIZE,
 				height: SIZE,
-				getContext: (type: string) => (type === '2d' ? ctx : null)
+				getContext: (type: string) => (type === '2d' ? ctx : null),
 			} as unknown as HTMLCanvasElement;
 		});
 	});
@@ -117,7 +124,10 @@ describe('drawIconImage', () => {
 
 // ─── positionAlongPath ────────────────────────────────────────────────────────
 
-function buildSegments(waypoints: TravelWaypoint[]): { segs: number[]; total: number } {
+function buildSegments(waypoints: TravelWaypoint[]): {
+	segs: number[];
+	total: number;
+} {
 	const segs: number[] = [];
 	let total = 0;
 	for (let i = 1; i < waypoints.length; i += 1) {
@@ -133,7 +143,7 @@ function buildSegments(waypoints: TravelWaypoint[]): { segs: number[]; total: nu
 describe('positionAlongPath', () => {
 	const straight: TravelWaypoint[] = [
 		{ id: 'a', lat: 0, lon: 0 },
-		{ id: 'b', lat: 0, lon: 10 }
+		{ id: 'b', lat: 0, lon: 10 },
 	];
 
 	it('returns first waypoint at t=0', () => {
@@ -163,7 +173,7 @@ describe('positionAlongPath', () => {
 		const path: TravelWaypoint[] = [
 			{ id: 'a', lat: 0, lon: 0 },
 			{ id: 'b', lat: 0, lon: 1 },
-			{ id: 'c', lat: 9, lon: 1 }
+			{ id: 'c', lat: 9, lon: 1 },
 		];
 		const { segs, total } = buildSegments(path);
 		expect(total).toBeCloseTo(10, 10);
@@ -182,7 +192,7 @@ describe('positionAlongPath', () => {
 	it('handles a degenerate zero-length path', () => {
 		const degenerate: TravelWaypoint[] = [
 			{ id: 'a', lat: 3, lon: 7 },
-			{ id: 'b', lat: 3, lon: 7 }
+			{ id: 'b', lat: 3, lon: 7 },
 		];
 		const { segs, total } = buildSegments(degenerate);
 		expect(positionAlongPath(degenerate, segs, total, 0.4)).toEqual([7, 3]);

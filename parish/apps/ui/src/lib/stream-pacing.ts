@@ -13,7 +13,10 @@ const BASE_CHUNK_DELAY_MS = 120;
 const CLAUSE_PAUSE_MS = 90;
 const SENTENCE_PAUSE_MS = 190;
 
-function tokenizeBufferedWords(buffer: string, flush: boolean): { words: BufferedWord[]; consumed: number } {
+function tokenizeBufferedWords(
+	buffer: string,
+	flush: boolean,
+): { words: BufferedWord[]; consumed: number } {
 	const words: BufferedWord[] = [];
 	let consumed = 0;
 	let match: RegExpExecArray | null;
@@ -33,7 +36,10 @@ function tokenizeBufferedWords(buffer: string, flush: boolean): { words: Buffere
 	return { words, consumed };
 }
 
-export function takeNextStreamChunk(buffer: string, flush = false): StreamChunkResult {
+export function takeNextStreamChunk(
+	buffer: string,
+	flush = false,
+): StreamChunkResult {
 	if (buffer.length === 0) {
 		return { chunk: null, rest: buffer };
 	}
@@ -46,7 +52,7 @@ export function takeNextStreamChunk(buffer: string, flush = false): StreamChunkR
 	const chunkEnd = words[0]?.end ?? consumed;
 	return {
 		chunk: buffer.slice(0, chunkEnd),
-		rest: buffer.slice(chunkEnd)
+		rest: buffer.slice(chunkEnd),
 	};
 }
 

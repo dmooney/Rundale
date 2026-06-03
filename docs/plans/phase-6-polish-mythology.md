@@ -27,11 +27,13 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
    - Simple text-based map: list each location with connections shown as `--` lines
    - Mark player location with `[*]`, locations with NPCs present with `(N)` where N is count
    - Example output:
-     ```
+
+     ```text
      [*] The Crossroads -- Darcy's Pub (3)
           |-- St. Brigid's Church
           |-- Murphy's Farm (1)
      ```
+
    - Show only locations within 3 edges of player (avoid overwhelming output)
 
 3. **Implement `/status` command**
@@ -44,22 +46,26 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 4. **Implement `/log` command UI**
    - Load snapshot history from `Database::branch_log()`
    - Render as scrollable list in main text panel:
-     ```
+
+     ```text
      Branch: main
      [3] 14 Mar Year 2, afternoon — autosave
      [2] 14 Mar Year 2, morning — autosave
      [1] 13 Mar Year 2, evening — manual save
      ```
+
    - Each entry shows snapshot id, game time, and whether it was auto or manual
 
 5. **Implement `/branches` command UI**
    - Load branch list from `Database::list_branches()`
    - Render as table:
-     ```
+
+     ```text
      Branch          Created              Last Played
      * main          2026-03-18 14:00     14 Mar Year 2
        experiment    2026-03-18 15:30     13 Mar Year 2
      ```
+
    - Active branch marked with `*`
 
 6. **Add `mythological_significance` to `Location`**

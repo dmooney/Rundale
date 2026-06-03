@@ -18,12 +18,12 @@ The locked semantics (see the redesign plan):
 Judgments are committed under ``docs/proofs/rundale-bench/judgments/<key>.json``
 so a frozen run is fully reproducible from the repo alone.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
@@ -55,7 +55,7 @@ def has(key: str) -> bool:
     return _path_for(key).exists()
 
 
-def get(key: str) -> Optional[dict]:
+def get(key: str) -> dict | None:
     """Return the stored judgment dict, or None if absent."""
     path = _path_for(key)
     if not path.exists():

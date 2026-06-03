@@ -18,22 +18,22 @@ export default defineConfig({
 	timeout: 60_000,
 	expect: {
 		toHaveScreenshot: {
-			maxDiffPixelRatio: 0.01
-		}
+			maxDiffPixelRatio: 0.01,
+		},
 	},
 
 	use: {
 		baseURL: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}`,
 		viewport: { width: 1280, height: 800 },
 		trace: 'on-first-retry',
-		screenshot: 'only-on-failure'
+		screenshot: 'only-on-failure',
 	},
 
 	projects: [
 		{
 			name: 'chromium',
-			use: { ...devices['Desktop Chrome'] }
-		}
+			use: { ...devices['Desktop Chrome'] },
+		},
 	],
 
 	webServer: {
@@ -49,7 +49,7 @@ export default defineConfig({
 		// control still gets its own dedicated coverage in
 		// parish-server/tests/admission_control.rs.
 		env: {
-			PARISH_MAX_SESSIONS: '500'
-		}
-	}
+			PARISH_MAX_SESSIONS: '500',
+		},
+	},
 });

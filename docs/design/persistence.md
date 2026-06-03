@@ -32,13 +32,13 @@ The player never thinks about saving. They quit whenever they want, load wheneve
 
 ## Git-Like Branching Model
 
-| Game Concept | Git Analog       |
-|-------------|------------------|
-| Journal     | Working directory |
-| Snapshot    | Commit           |
-| Branch      | Branch           |
-| Fork        | `git checkout -b` |
-| Load        | `git checkout`   |
+| Game Concept | Git Analog        |
+| ------------ | ----------------- |
+| Journal      | Working directory |
+| Snapshot     | Commit            |
+| Branch       | Branch            |
+| Fork         | `git checkout -b` |
+| Load         | `git checkout`    |
 
 Additional behaviors:
 
@@ -71,15 +71,15 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 
 ### Player Commands
 
-| Command | Effect |
-|---------|--------|
-| `/save` | Immediate snapshot to current branch |
-| `/quit` | Snapshot + exit |
-| `/fork <name>` | Snapshot, create new branch, switch to it |
-| `/load` | Show save picker (switch save file or start new game) |
+| Command        | Effect                                                      |
+| -------------- | ----------------------------------------------------------- |
+| `/save`        | Immediate snapshot to current branch                        |
+| `/quit`        | Snapshot + exit                                             |
+| `/fork <name>` | Snapshot, create new branch, switch to it                   |
+| `/load`        | Show save picker (switch save file or start new game)       |
 | `/load <name>` | Auto-save current branch (if different), load target branch |
-| `/branches` | List all branches with active marker |
-| `/log` | Show snapshot history for current branch |
+| `/branches`    | List all branches with active marker                        |
+| `/log`         | Show snapshot history for current branch                    |
 
 ## Related
 

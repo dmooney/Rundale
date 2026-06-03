@@ -159,7 +159,7 @@
 						value={npc.home}
 						onchange={(e) => { const v = parseInt(e.currentTarget.value, 10); if (!isNaN(v)) handleFieldChange('home', v); }}
 					>
-						{#each locations as loc}
+						{#each locations as loc (loc.id)}
 							<option value={loc.id}>{loc.name}</option>
 						{/each}
 					</select>
@@ -176,7 +176,7 @@
 						}}
 					>
 						<option value={-1}>(none)</option>
-						{#each locations as loc}
+						{#each locations as loc (loc.id)}
 							<option value={loc.id}>{loc.name}</option>
 						{/each}
 					</select>
@@ -187,7 +187,7 @@
 			{#if npc.intelligence}
 				<section class="section">
 					<h4 class="section-label">Intelligence</h4>
-					{#each intelligenceDimensions as dim}
+					{#each intelligenceDimensions as dim (dim.key)}
 						<div class="field-row">
 							<label class="field-label" for="npc-intel-{dim.key}">{dim.label}</label>
 							<input
@@ -214,7 +214,7 @@
 			<!-- Relationships -->
 			<section class="section">
 				<h4 class="section-label">Relationships ({npc.relationships.length})</h4>
-				{#each npc.relationships as rel, i}
+				{#each npc.relationships as rel (rel.target_id)}
 					<div class="rel-row">
 						<span class="rel-target">{npcName(rel.target_id)}</span>
 						<span class="rel-kind">{rel.kind}</span>
@@ -229,7 +229,7 @@
 			<!-- Knowledge -->
 			<section class="section">
 				<h4 class="section-label">Knowledge ({npc.knowledge.length})</h4>
-				{#each npc.knowledge as item, i}
+				{#each npc.knowledge as item, i (i)}
 					<div class="knowledge-item">{item}</div>
 				{/each}
 				{#if npc.knowledge.length === 0}
@@ -241,10 +241,10 @@
 			{#if npc.seasonal_schedule}
 				<section class="section">
 					<h4 class="section-label">Schedule (read-only)</h4>
-					{#each npc.seasonal_schedule as variant}
+					{#each npc.seasonal_schedule as variant, _vi (_vi)}
 						<div class="schedule-variant">
 							<span class="variant-label">{variantLabel(variant)}</span>
-							{#each variant.entries as entry}
+							{#each variant.entries as entry, _ei (_ei)}
 								<div class="schedule-entry">
 									<span class="entry-time">{formatHourRange(entry.start_hour, entry.end_hour)}</span>
 									<span class="entry-loc">{locationName(entry.location)}</span>

@@ -22,7 +22,7 @@ This enables scaling from the current 15 hand-authored locations to thousands or
 
 The parish-geo-tool is a separate binary (`crates/parish-geo-tool/src/`) that shares types with the main game crate.
 
-```
+```text
 crates/parish-geo-tool/src/
 ├── main.rs          # CLI entry point (clap)
 ├── pipeline.rs      # Orchestrates the full conversion workflow
@@ -63,13 +63,13 @@ cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landma
 
 ### Administrative Levels
 
-| Level      | OSM admin_level | Description                           |
-|------------|-----------------|---------------------------------------|
-| `townland` | 10              | Single townland (~50-200 acres)       |
-| `parish`   | 8               | Civil parish (group of townlands)     |
-| `barony`   | 7               | Barony (group of parishes)            |
-| `county`   | 6               | County                                |
-| `province` | 5               | Province (Connacht, Leinster, etc.)   |
+| Level      | OSM admin_level | Description                         |
+| ---------- | --------------- | ----------------------------------- |
+| `townland` | 10              | Single townland (~50-200 acres)     |
+| `parish`   | 8               | Civil parish (group of townlands)   |
+| `barony`   | 7               | Barony (group of parishes)          |
+| `county`   | 6               | County                              |
+| `province` | 5               | Province (Connacht, Leinster, etc.) |
 
 ## Pipeline Stages
 
@@ -86,11 +86,11 @@ cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landma
 
 Each location tracks how its description was generated:
 
-| Tier        | Source                              | Overwritten on re-run? |
-|-------------|-------------------------------------|------------------------|
-| `curated`   | Hand-authored by human              | Never                  |
-| `template`  | Auto-generated from OSM tags        | Yes                    |
-| `llm_pending` | Placeholder for future LLM pass  | Yes                    |
+| Tier          | Source                          | Overwritten on re-run? |
+| ------------- | ------------------------------- | ---------------------- |
+| `curated`     | Hand-authored by human          | Never                  |
+| `template`    | Auto-generated from OSM tags    | Yes                    |
+| `llm_pending` | Placeholder for future LLM pass | Yes                    |
 
 The metadata sidecar (`parish-generated.meta.json`) records the tier for each location, enabling selective LLM enrichment later.
 
@@ -98,30 +98,30 @@ The metadata sidecar (`parish-generated.meta.json`) records the tier for each lo
 
 The extractor classifies OSM features into these game-relevant types:
 
-| Type           | Indoor? | Public? | Example OSM tags                    |
-|----------------|---------|---------|--------------------------------------|
-| Pub            | Yes     | Yes     | `amenity=pub`                        |
-| Church         | Yes     | Yes     | `amenity=place_of_worship`           |
-| Shop           | Yes     | Yes     | `shop=*`                             |
-| School         | Yes     | Yes     | `amenity=school`                     |
-| PostOffice     | Yes     | Yes     | `amenity=post_office`                |
-| Farm           | No      | No      | `building=farmhouse`                 |
-| Crossroads     | No      | Yes     | Road junction (3+ ways meeting)      |
-| Bridge         | No      | Yes     | `man_made=bridge`                    |
-| Well           | No      | Yes     | `historic=holy_well`                 |
-| Waterside      | No      | Yes     | `natural=water`                      |
-| Bog            | No      | Yes     | `natural=wetland`                    |
-| Woodland       | No      | Yes     | `natural=wood`                       |
-| RingFort       | No      | Yes     | `historic=ring_fort`                 |
-| StandingStone  | No      | Yes     | `historic=standing_stone`            |
-| Graveyard      | No      | Yes     | `landuse=cemetery`                   |
-| Mill           | Yes     | Yes     | `man_made=watermill`                 |
-| Forge          | Yes     | Yes     | `craft=blacksmith`                   |
-| LimeKiln       | No      | Yes     | `man_made=kiln`                      |
-| Harbour        | No      | Yes     | `leisure=harbour`                    |
-| Hill           | No      | Yes     | `natural=peak`                       |
-| Ruin           | No      | Yes     | `historic=castle`, `historic=ruins`  |
-| NamedPlace     | No      | Yes     | `place=townland|village|hamlet`      |
+| Type          | Indoor? | Public? | Example OSM tags                    |
+| ------------- | ------- | ------- | ----------------------------------- | ------- | ------- |
+| Pub           | Yes     | Yes     | `amenity=pub`                       |
+| Church        | Yes     | Yes     | `amenity=place_of_worship`          |
+| Shop          | Yes     | Yes     | `shop=*`                            |
+| School        | Yes     | Yes     | `amenity=school`                    |
+| PostOffice    | Yes     | Yes     | `amenity=post_office`               |
+| Farm          | No      | No      | `building=farmhouse`                |
+| Crossroads    | No      | Yes     | Road junction (3+ ways meeting)     |
+| Bridge        | No      | Yes     | `man_made=bridge`                   |
+| Well          | No      | Yes     | `historic=holy_well`                |
+| Waterside     | No      | Yes     | `natural=water`                     |
+| Bog           | No      | Yes     | `natural=wetland`                   |
+| Woodland      | No      | Yes     | `natural=wood`                      |
+| RingFort      | No      | Yes     | `historic=ring_fort`                |
+| StandingStone | No      | Yes     | `historic=standing_stone`           |
+| Graveyard     | No      | Yes     | `landuse=cemetery`                  |
+| Mill          | Yes     | Yes     | `man_made=watermill`                |
+| Forge         | Yes     | Yes     | `craft=blacksmith`                  |
+| LimeKiln      | No      | Yes     | `man_made=kiln`                     |
+| Harbour       | No      | Yes     | `leisure=harbour`                   |
+| Hill          | No      | Yes     | `natural=peak`                      |
+| Ruin          | No      | Yes     | `historic=castle`, `historic=ruins` |
+| NamedPlace    | No      | Yes     | `place=townland                     | village | hamlet` |
 
 ## Connection Generation
 

@@ -1,0 +1,41 @@
+# EditorConfig — https://editorconfig.org
+# Per-glob settings aligned with the repo formatters so they never disagree:
+#   Rust   -> rustfmt   (owns .rs; not configured here)
+#   TS/Svelte/JS -> Prettier (.prettierrc useTabs:true)
+#   Shell  -> shfmt (-i 4)
+#   data/docs -> Prettier (2-space)
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Frontend: tabs, matching parish/apps/ui/.prettierrc (useTabs: true)
+[*.{ts,svelte,js,mjs,cjs}]
+indent_style = tab
+
+# Shell: 4-space, matching shfmt -i 4
+[*.sh]
+indent_style = space
+indent_size = 4
+
+# Data + docs: 2-space
+[*.{json,jsonc,yaml,yml,toml,md}]
+indent_style = space
+indent_size = 2
+
+# Python: 4-space (ruff / PEP 8)
+[*.py]
+indent_style = space
+indent_size = 4
+
+# Markdown: keep trailing whitespace (hard line breaks)
+[*.md]
+trim_trailing_whitespace = false
+
+# Generated / vendored: leave alone
+[{*-lock.json,pnpm-lock.yaml,Cargo.lock}]
+trim_trailing_whitespace = false
+insert_final_newline = false

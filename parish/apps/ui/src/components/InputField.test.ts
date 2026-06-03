@@ -223,7 +223,7 @@ describe('InputField', () => {
 		});
 
 		it('inserts a mention chip with full name on selection', async () => {
-			const { getByRole, queryAllByRole } = render(InputField);
+			const { getByRole } = render(InputField);
 			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');

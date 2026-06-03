@@ -39,6 +39,7 @@ NPCs are aware of conversations happening around them, not just conversations di
 ### Witness Memory System
 
 When the player talks to NPC A at a location where NPCs B and C are also present:
+
 - B and C each receive a short-term memory entry: `"Overheard: a newcomer said '...' and {A} replied '...'"`
 - These memories appear in B's and C's context when the player talks to them next
 - This creates natural conversational flow: "I heard what you said to Padraig..."
@@ -73,7 +74,7 @@ All LLM responses for NPC behavior should be structured JSON:
   "mood": "current emotional state",
   "internal_thought": "what they're actually thinking (hidden from player)",
   "knowledge_gained": ["any new information learned"],
-  "relationship_changes": [{"npc_id": "...", "delta": 0.0}]
+  "relationship_changes": [{ "npc_id": "...", "delta": 0.0 }]
 }
 ```
 

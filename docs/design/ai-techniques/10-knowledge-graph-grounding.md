@@ -6,8 +6,8 @@ semantic memory (doc 01).
 
 ## Problem
 
-Semantic memory tells us *how* an NPC remembers. It does not tell us *what is
-objectively true* and *who has been told what*. Today an NPC can reveal a
+Semantic memory tells us _how_ an NPC remembers. It does not tell us _what is
+objectively true_ and _who has been told what_. Today an NPC can reveal a
 secret the game's simulation never actually told them, because the prompt
 includes world knowledge for coherence. The result: rumours cannot gate
 speech, because there is no authoritative record of who knows what.
@@ -16,7 +16,7 @@ speech, because there is no authoritative record of who knows what.
 
 A symbolic triple store with provenance and confidence:
 
-```
+```text
 (subject, predicate, object, source, confidence, learned_at)
 ("Séan_Ó_Conaill", "owes_debt_to", "landlord_blake", "Máire_overheard",
  0.8, 1820-06-12T09:14)
@@ -28,18 +28,18 @@ A symbolic triple store with provenance and confidence:
 - **Source:** the event or NPC the triple was learned from.
 - **Confidence:** 0–1, decays over time; raised by corroboration.
 
-Each NPC carries a subset view — *their beliefs*. Global ground truth lives
+Each NPC carries a subset view — _their beliefs_. Global ground truth lives
 in a separate table and is only writable by Tier 4 / authored content.
 
 ## Why it's distinct from semantic memory
 
 - **Semantic memory** is episodic / fuzzy, retrieved by cosine similarity,
   used for flavour.
-- **Knowledge graph** is symbolic, queryable, used for *gating*: "would Séan
+- **Knowledge graph** is symbolic, queryable, used for _gating_: "would Séan
   actually know this?" before we let him say it.
 
 Both can coexist: dialogue generation retrieves fuzzy context from memory
-*and* queries the graph for hard facts the NPC may reference.
+_and_ queries the graph for hard facts the NPC may reference.
 
 ## Integration points
 
@@ -88,9 +88,9 @@ directly: `believes(npc, subject, predicate)`).
 
 ## Papers / references
 
-- Bordes et al., *Translating Embeddings for Modeling Multi-relational Data*
+- Bordes et al., _Translating Embeddings for Modeling Multi-relational Data_
   (TransE, 2013).
-- Speer et al., *ConceptNet 5.5* (2017) — precedent for commonsense triple stores.
-- Peng et al., *Check Your Facts and Try Again: Improving LLMs with External
-  Knowledge and Automated Feedback* (2023).
-- Wang et al., *Knowledge Graph Prompting for Multi-Document QA* (2024).
+- Speer et al., _ConceptNet 5.5_ (2017) — precedent for commonsense triple stores.
+- Peng et al., _Check Your Facts and Try Again: Improving LLMs with External
+  Knowledge and Automated Feedback_ (2023).
+- Wang et al., _Knowledge Graph Prompting for Multi-Document QA_ (2024).

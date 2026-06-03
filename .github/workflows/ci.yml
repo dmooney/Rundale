@@ -19,7 +19,7 @@ on:
   schedule:
     # Nightly full run: catches toolchain drift, coverage regressions, and
     # flaky tests that per-PR path-filtering would otherwise let slip.
-    - cron: '0 7 * * *'
+    - cron: "0 7 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -257,6 +257,117 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./parish/scripts/check-doc-paths.sh
 
+  format-quality:
+    name: Docs/data formatting (Prettier + markdownlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Root-scoped tooling (configs + package.json live at the repo root, not in
+    # parish/ which is this workflow's global default working-directory).
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier check (md/json/yaml)
+        run: npm run format:check
+
+      - name: Markdownlint
+        run: npm run lint:md
+
+  python-quality:
+    name: Python quality (ruff, mypy, yamllint, pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Root-scoped: pyproject.toml + requirements-dev.txt live at the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy .
+
+      - name: Yamllint
+        run: yamllint .
+
+      - name: Pytest
+        run: pytest
+
+  shell-quality:
+    name: Shell quality (shellcheck + shfmt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Root-scoped: `git ls-files '*.sh'` must run from the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shfmt
+        run: |
+          curl -fsSL -o /usr/local/bin/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64
+          chmod +x /usr/local/bin/shfmt
+
+      - name: ShellCheck
+        run: shellcheck -S warning $(git ls-files '*.sh')
+
+      - name: shfmt (diff = fail)
+        run: shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
+
+  toml-quality:
+    name: TOML quality (taplo fmt + lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Root-scoped: taplo.toml (with its exclude globs) lives at the repo root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+
+      - name: Taplo format check
+        run: taplo fmt --check
+
+      - name: Taplo lint
+        run: taplo lint
+
   game-harness:
     name: Full game harness fixture sweep
     needs: changes
@@ -380,6 +491,12 @@ jobs:
 
       - name: Svelte check
         run: npm run check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run format:check
 
       - name: Build UI
         run: npm run build

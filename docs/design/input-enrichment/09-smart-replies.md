@@ -7,6 +7,7 @@
 Show 2-3 contextual quick-reply chips above the input field based on the current game situation. These reduce blank-page paralysis for new players and surface contextually appropriate actions. Suggestions update after each player action or NPC response.
 
 Examples:
+
 - At the pub with Padraig: `[Order a drink]` `[Ask about the news]` `[Tell a story]`
 - At the church: `[Pray]` `[Speak to the priest]` `[Examine the headstones]`
 - After an NPC says something surprising: `[Tell me more]` `[I don't believe you]` `[Change the subject]`
@@ -15,10 +16,10 @@ Examples:
 
 Two generation strategies, used together:
 
-| Strategy | When | Latency | Cost |
-|----------|------|---------|------|
-| **Rule-based** | Always available; immediate | 0ms | Free |
-| **LLM-generated** | After NPC response; async | 500-2000ms | 1 inference call |
+| Strategy          | When                        | Latency    | Cost             |
+| ----------------- | --------------------------- | ---------- | ---------------- |
+| **Rule-based**    | Always available; immediate | 0ms        | Free             |
+| **LLM-generated** | After NPC response; async   | 500-2000ms | 1 inference call |
 
 Rule-based suggestions appear instantly. LLM suggestions arrive asynchronously and replace or augment the rule-based ones once ready.
 
@@ -274,7 +275,9 @@ async fn generate_llm_suggestions(
   border: 1px solid var(--color-border);
   border-radius: 12px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   white-space: nowrap;
 }
 
@@ -344,7 +347,7 @@ pub struct SuggestionsPayload {
 
 ## Suggestion Lifecycle
 
-```
+```text
 1. Player arrives at new location:
    → handle_look() completes
    → Rule-based suggestions generated immediately
@@ -403,17 +406,17 @@ tokio::spawn(async move { /* ... generate_llm_suggestions ... */ });
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| No NPCs, generic location | Fallback suggestions: "Look around", "Check the time" |
-| LLM unavailable (no provider) | Rule-based suggestions only; no LLM attempt |
-| LLM times out (>3s) | Rule-based suggestions remain shown |
+| Case                                         | Behavior                                                                     |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| No NPCs, generic location                    | Fallback suggestions: "Look around", "Check the time"                        |
+| LLM unavailable (no provider)                | Rule-based suggestions only; no LLM attempt                                  |
+| LLM times out (>3s)                          | Rule-based suggestions remain shown                                          |
 | Player submits before LLM suggestions arrive | `suggestions.set([])` clears; LLM result is emitted but immediately relevant |
-| Multiple rapid movements | Each `handle_look()` emits new suggestions; last one wins |
-| Suggestion text is a system command | Treated as game input; `classify_input()` won't match `/` prefix |
-| Very long suggestion text (from LLM) | Chip wraps; `white-space: nowrap` keeps individual chips on one line |
-| Clicking suggestion during streaming | Button is hidden (`!$streamingActive` guard) |
-| QuickTravel + Suggestions both visible | They stack vertically; visually distinct (different border/bg styles) |
+| Multiple rapid movements                     | Each `handle_look()` emits new suggestions; last one wins                    |
+| Suggestion text is a system command          | Treated as game input; `classify_input()` won't match `/` prefix             |
+| Very long suggestion text (from LLM)         | Chip wraps; `white-space: nowrap` keeps individual chips on one line         |
+| Clicking suggestion during streaming         | Button is hidden (`!$streamingActive` guard)                                 |
+| QuickTravel + Suggestions both visible       | They stack vertically; visually distinct (different border/bg styles)        |
 
 ## Testing
 
@@ -441,16 +444,16 @@ tokio::spawn(async move { /* ... generate_llm_suggestions ... */ });
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `crates/parish-core/src/npc/suggestions.rs` | **New** — rule-based engine + LLM prompt/context |
-| `crates/parish-core/src/npc/mod.rs` | Re-export suggestions module |
-| `crates/parish-core/src/ipc/types.rs` | Add `SuggestionsPayload` |
-| `crates/parish-server/src/routes.rs` | Emit suggestions after `handle_look()` and `handle_npc_conversation()` |
-| `ui/src/components/Suggestions.svelte` | **New** — suggestion chip bar |
-| `ui/src/stores/game.ts` | Add `suggestions` writable store |
-| `ui/src/lib/types.ts` | Add `SuggestionsPayload` |
-| `ui/src/routes/+page.svelte` | Wire up `suggestions` event listener, place `<Suggestions />` in layout |
+| File                                        | Change                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `crates/parish-core/src/npc/suggestions.rs` | **New** — rule-based engine + LLM prompt/context                        |
+| `crates/parish-core/src/npc/mod.rs`         | Re-export suggestions module                                            |
+| `crates/parish-core/src/ipc/types.rs`       | Add `SuggestionsPayload`                                                |
+| `crates/parish-server/src/routes.rs`        | Emit suggestions after `handle_look()` and `handle_npc_conversation()`  |
+| `ui/src/components/Suggestions.svelte`      | **New** — suggestion chip bar                                           |
+| `ui/src/stores/game.ts`                     | Add `suggestions` writable store                                        |
+| `ui/src/lib/types.ts`                       | Add `SuggestionsPayload`                                                |
+| `ui/src/routes/+page.svelte`                | Wire up `suggestions` event listener, place `<Suggestions />` in layout |
 
 ## Effort Estimate
 
@@ -458,8 +461,8 @@ tokio::spawn(async move { /* ... generate_llm_suggestions ... */ });
 
 ### Recommended Phasing
 
-| Phase | Scope | Effort |
-|-------|-------|--------|
-| **Phase 1** | Rule-based suggestions only | Medium |
+| Phase       | Scope                                              | Effort |
+| ----------- | -------------------------------------------------- | ------ |
+| **Phase 1** | Rule-based suggestions only                        | Medium |
 | **Phase 2** | LLM-generated suggestions (async, fire-and-forget) | Medium |
-| **Phase 3** | Mod-driven location suggestions (world.json) | Low |
+| **Phase 3** | Mod-driven location suggestions (world.json)       | Low    |

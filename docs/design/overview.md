@@ -2,7 +2,6 @@
 
 > Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
 
-
 ## Project Overview
 
 **Rundale** is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in Kilteevan Village, in the parish of Kiltoom near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
@@ -17,16 +16,16 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 
 ## Tech Stack
 
-| Component     | Technology                               | Purpose                                            |
-|---------------|------------------------------------------|----------------------------------------------------|
-| Language      | **Rust**                                 | Core game engine, simulation                       |
-| Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
-| GUI           | **Tauri 2 + Svelte 5**                   | Desktop app with map, chat, and sidebars           |
-| LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing |
-| HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
-| Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
-| Persistence   | **SQLite** (via rusqlite)                | Save system, NPC memory, world events              |
-| Entity System | Hand-rolled structs + manager pattern   | World simulation data model                        |
+| Component     | Technology                                                        | Purpose                                                    |
+| ------------- | ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| Language      | **Rust**                                                          | Core game engine, simulation                               |
+| Async Runtime | **Tokio**                                                         | Concurrent simulation tiers, async inference calls         |
+| GUI           | **Tauri 2 + Svelte 5**                                            | Desktop app with map, chat, and sidebars                   |
+| LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing                    |
+| HTTP Client   | **Reqwest**                                                       | Communication with LLM provider via `/v1/chat/completions` |
+| Serialization | **Serde** (JSON)                                                  | World state, LLM structured output                         |
+| Persistence   | **SQLite** (via rusqlite)                                         | Save system, NPC memory, world events                      |
+| Entity System | Hand-rolled structs + manager pattern                             | World simulation data model                                |
 
 ## Hardware Assumptions
 
@@ -36,7 +35,7 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 
 ## Core Loop
 
-```
+```text
 Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Context + NPC Context
@@ -62,7 +61,7 @@ The Parish engine is generic and knows nothing about any specific setting. All R
 
 A mod is a directory with a `mod.toml` manifest and data files:
 
-```
+```text
 mods/rundale/
 ├── mod.toml              # Manifest: name, version, start_date, start_location, period_year
 ├── world.json            # Location graph (from mods/rundale/world.json)
@@ -94,7 +93,7 @@ See [Engine / Game Data Separation Plan](../plans/archive/engine-game-data-separ
 
 ## Module Tree
 
-```
+```text
 src/
 ├── main.rs              # Entry point, CLI args (clap), mode routing (--game-mod flag)
 ├── lib.rs               # Module declarations
@@ -189,12 +188,12 @@ src/
 
 The Parish engine supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
 
-| Provider | Type | Notes |
-|----------|------|-------|
-| **Ollama** (default) | Local | Auto-start, GPU detection, model pulling |
-| **LM Studio** | Local | Bring your own model |
-| **OpenRouter** | Cloud | Access to Claude, GPT-4, Gemini, etc. Requires API key |
-| **Custom** | Any | Any OpenAI-compatible endpoint |
+| Provider             | Type  | Notes                                                  |
+| -------------------- | ----- | ------------------------------------------------------ |
+| **Ollama** (default) | Local | Auto-start, GPU detection, model pulling               |
+| **LM Studio**        | Local | Bring your own model                                   |
+| **OpenRouter**       | Cloud | Access to Claude, GPT-4, Gemini, etc. Requires API key |
+| **Custom**           | Any   | Any OpenAI-compatible endpoint                         |
 
 ### Configuration
 
@@ -214,11 +213,11 @@ Env: `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`
 
 Each inference category can use a different provider, model, and endpoint. Categories without explicit overrides inherit from the base `[provider]` config:
 
-| Category | Purpose | Default |
-|---|---|---|
-| **Dialogue** | Player-facing NPC conversation (Tier 1, streaming) | Base provider |
-| **Simulation** | Background NPC group interactions (Tier 2, JSON) | Base provider |
-| **Intent** | Player input parsing (JSON, low-latency) | Base provider |
+| Category       | Purpose                                            | Default       |
+| -------------- | -------------------------------------------------- | ------------- |
+| **Dialogue**   | Player-facing NPC conversation (Tier 1, streaming) | Base provider |
+| **Simulation** | Background NPC group interactions (Tier 2, JSON)   | Base provider |
+| **Intent**     | Player input parsing (JSON, low-latency)           | Base provider |
 
 Per-category overrides in TOML:
 
@@ -253,15 +252,15 @@ The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests via `d
 
 Beyond provider settings, `parish.toml` supports an `[engine]` section for runtime tuning of engine parameters. All fields use `#[serde(default)]` so existing deployments work unchanged. See `parish.example.toml` for all available settings.
 
-| Section | What it configures |
-|---|---|
-| `[engine.inference]` | Timeouts (request, streaming, reachability, download, loading) |
-| `[engine.speeds]` | Speed presets (Slow/Normal/Fast/Fastest/Ludicrous) |
-| `[engine.encounters]` | Per-time-of-day encounter probabilities |
-| `[engine.npc]` | Memory capacity, holdback, truncation limits |
-| `[engine.npc.cognitive_tiers]` | Tier distance thresholds, Tier 2 tick interval |
-| `[engine.npc.relationship_labels]` | Relationship strength label thresholds |
-| `[engine.palette]` | Contrast thresholds |
+| Section                            | What it configures                                             |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `[engine.inference]`               | Timeouts (request, streaming, reachability, download, loading) |
+| `[engine.speeds]`                  | Speed presets (Slow/Normal/Fast/Fastest/Ludicrous)             |
+| `[engine.encounters]`              | Per-time-of-day encounter probabilities                        |
+| `[engine.npc]`                     | Memory capacity, holdback, truncation limits                   |
+| `[engine.npc.cognitive_tiers]`     | Tier distance thresholds, Tier 2 tick interval                 |
+| `[engine.npc.relationship_labels]` | Relationship strength label thresholds                         |
+| `[engine.palette]`                 | Contrast thresholds                                            |
 
 Config structs live in `crates/parish-core/src/config/engine.rs`.
 
@@ -330,6 +329,7 @@ streaming, and NPC conversation setup across backends.
 #### Backend parity
 
 All backends share these features through core:
+
 - NPC conversations with anachronism checking and pronunciation hints
 - LLM-based intent parsing (local keywords first, LLM fallback for ambiguous input)
 - Per-category inference client/model resolution (dialogue, simulation, intent, reaction)

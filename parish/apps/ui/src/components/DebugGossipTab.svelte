@@ -9,7 +9,7 @@
 	{#if snap.gossip.items.length === 0}
 		<div class="field muted">(no gossip)</div>
 	{:else}
-		{#each snap.gossip.items as item}
+		{#each snap.gossip.items as item (item.id)}
 			<div class="gossip-item">
 				<div class="field">
 					<span class="muted">#{item.id}</span>

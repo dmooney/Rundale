@@ -11,7 +11,7 @@ import type {
 	UiConfig,
 	DebugSnapshot,
 	SaveFileInfo,
-	SaveState
+	SaveState,
 } from '../src/lib/types';
 import type { SetupSnapshot } from '../src/lib/ipc';
 import type { ModSummary, EditorModSnapshot } from '../src/lib/editor-types';
@@ -28,7 +28,7 @@ export const PALETTES: Record<string, ThemePalette> = {
 		panel_bg: '#1a2438',
 		input_bg: '#162040',
 		border: '#2e3e56',
-		muted: '#8899aa'
+		muted: '#8899aa',
 	},
 	midday: {
 		bg: '#2a2a3e',
@@ -37,7 +37,7 @@ export const PALETTES: Record<string, ThemePalette> = {
 		panel_bg: '#222240',
 		input_bg: '#1a1a50',
 		border: '#3a3a5a',
-		muted: '#8888aa'
+		muted: '#8888aa',
 	},
 	dusk: {
 		bg: '#2a1a2e',
@@ -46,7 +46,7 @@ export const PALETTES: Record<string, ThemePalette> = {
 		panel_bg: '#241828',
 		input_bg: '#301040',
 		border: '#3e2a4a',
-		muted: '#9a7a8a'
+		muted: '#9a7a8a',
 	},
 	night: {
 		bg: '#0e0e1e',
@@ -55,8 +55,8 @@ export const PALETTES: Record<string, ThemePalette> = {
 		panel_bg: '#0a0a18',
 		input_bg: '#080830',
 		border: '#1a1a3a',
-		muted: '#5a5a7a'
-	}
+		muted: '#5a5a7a',
+	},
 };
 
 // ── World snapshots per time of day ─────────────────────────────────────────
@@ -75,7 +75,7 @@ function epochForHour(hour: number): number {
 function makeSnapshot(
 	hour: number,
 	timeLabel: string,
-	weather: string = 'Overcast'
+	weather: string = 'Overcast',
 ): WorldSnapshot {
 	return {
 		location_name: 'Baile Átha Cliath',
@@ -92,10 +92,14 @@ function makeSnapshot(
 		game_epoch_ms: epochForHour(hour),
 		speed_factor: 0, // Frozen: clock stays at the anchored hour during tests
 		name_hints: [
-			{ word: 'Baile Átha Cliath', pronunciation: 'BAHL-ya AH-ha KLEE-ah', meaning: 'town of the hurdled ford (Dublin)' },
-			{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' }
+			{
+				word: 'Baile Átha Cliath',
+				pronunciation: 'BAHL-ya AH-ha KLEE-ah',
+				meaning: 'town of the hurdled ford (Dublin)',
+			},
+			{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' },
 		],
-		day_of_week: 'Monday'
+		day_of_week: 'Monday',
 	};
 }
 
@@ -103,42 +107,91 @@ export const SNAPSHOTS: Record<string, WorldSnapshot> = {
 	morning: makeSnapshot(8, 'Morning', 'Clear'),
 	midday: makeSnapshot(12, 'Midday', 'Overcast'),
 	dusk: makeSnapshot(18, 'Dusk', 'Drizzle'),
-	night: makeSnapshot(22, 'Night', 'Clear')
+	night: makeSnapshot(22, 'Night', 'Clear'),
 };
 
 // ── Map data ────────────────────────────────────────────────────────────────
 
 export const MAP_DATA: MapData = {
 	locations: [
-		{ id: 'dublin', name: 'Baile Átha Cliath', lat: 53.3498, lon: -6.2603, adjacent: false, hops: 0 },
-		{ id: 'howth', name: 'Binn Éadair', lat: 53.3862, lon: -6.065, adjacent: true, hops: 1 },
-		{ id: 'dalkey', name: 'Deilginse', lat: 53.2758, lon: -6.0986, adjacent: true, hops: 1 },
-		{ id: 'bray', name: 'Bré', lat: 53.2009, lon: -6.0985, adjacent: false, hops: 2 },
-		{ id: 'maynooth', name: 'Maigh Nuad', lat: 53.3851, lon: -6.5916, adjacent: false, hops: 1 }
+		{
+			id: 'dublin',
+			name: 'Baile Átha Cliath',
+			lat: 53.3498,
+			lon: -6.2603,
+			adjacent: false,
+			hops: 0,
+		},
+		{
+			id: 'howth',
+			name: 'Binn Éadair',
+			lat: 53.3862,
+			lon: -6.065,
+			adjacent: true,
+			hops: 1,
+		},
+		{
+			id: 'dalkey',
+			name: 'Deilginse',
+			lat: 53.2758,
+			lon: -6.0986,
+			adjacent: true,
+			hops: 1,
+		},
+		{
+			id: 'bray',
+			name: 'Bré',
+			lat: 53.2009,
+			lon: -6.0985,
+			adjacent: false,
+			hops: 2,
+		},
+		{
+			id: 'maynooth',
+			name: 'Maigh Nuad',
+			lat: 53.3851,
+			lon: -6.5916,
+			adjacent: false,
+			hops: 1,
+		},
 	],
 	edges: [
 		['dublin', 'howth'],
 		['dublin', 'dalkey'],
 		['dalkey', 'bray'],
-		['dublin', 'maynooth']
+		['dublin', 'maynooth'],
 	],
 	player_location: 'dublin',
 	player_lat: 53.3498,
-	player_lon: -6.2603
+	player_lon: -6.2603,
 };
 
 // ── NPCs ────────────────────────────────────────────────────────────────────
 
 export const NPCS: NpcInfo[] = [
-	{ name: 'Séamas Ó Briain', real_name: 'Séamas Ó Briain', occupation: 'Publican', mood: 'cheerful', introduced: true, mood_emoji: '😊' },
-	{ name: 'Aoife Ní Cheallaigh', real_name: 'Aoife Ní Cheallaigh', occupation: 'Scholar', mood: 'pensive', introduced: true, mood_emoji: '🤔' }
+	{
+		name: 'Séamas Ó Briain',
+		real_name: 'Séamas Ó Briain',
+		occupation: 'Publican',
+		mood: 'cheerful',
+		introduced: true,
+		mood_emoji: '😊',
+	},
+	{
+		name: 'Aoife Ní Cheallaigh',
+		real_name: 'Aoife Ní Cheallaigh',
+		occupation: 'Scholar',
+		mood: 'pensive',
+		introduced: true,
+		mood_emoji: '🤔',
+	},
 ];
 
 // ── Irish word hints ────────────────────────────────────────────────────────
 
 export const IRISH_HINTS: LanguageHint[] = [
 	{ word: 'sláinte', pronunciation: 'SLAWN-cha', meaning: 'health / cheers' },
-	{ word: 'craic', pronunciation: 'crack', meaning: 'fun, entertainment' }
+	{ word: 'craic', pronunciation: 'crack', meaning: 'fun, entertainment' },
 ];
 
 // ── UI config ──────────────────────────────────────────────────────────────
@@ -159,10 +212,10 @@ export const UI_CONFIG: UiConfig = {
 			attribution: '© OpenStreetMap contributors',
 			raster_saturation: 0,
 			raster_opacity: 1,
-			tms: false
-		}
+			tms: false,
+		},
 	],
-	auto_pause_timeout_seconds: 300
+	auto_pause_timeout_seconds: 300,
 };
 
 // ── Text log entries ────────────────────────────────────────────────────────
@@ -171,17 +224,17 @@ export const TEXT_LOG: TextLogEntry[] = [
 	{
 		source: 'system',
 		content:
-			'The streets of Dublin bustle with life. Georgian buildings line the wide avenues, and the Liffey flows dark beneath its bridges.'
+			'The streets of Dublin bustle with life. Georgian buildings line the wide avenues, and the Liffey flows dark beneath its bridges.',
 	},
 	{
 		source: 'player',
-		content: 'talk to Séamas'
+		content: 'talk to Séamas',
 	},
 	{
 		source: 'NPC',
 		content:
-			"Ah, you're most welcome! Come in out of the rain. What'll it be — a pint of the black stuff, or something warmer?"
-	}
+			"Ah, you're most welcome! Come in out of the rain. What'll it be — a pint of the black stuff, or something warmer?",
+	},
 ];
 
 // ── Debug snapshot ──────────────────────────────────────────────────────────
@@ -201,14 +254,14 @@ export const DEBUG_SNAPSHOT: DebugSnapshot = {
 		day_type: 'weekday',
 		start_game_time: '08:00',
 		paused_game_time: '',
-		real_elapsed_secs: 0
+		real_elapsed_secs: 0,
 	},
 	weather: {
 		current: 'Clear',
 		since: '00:00',
 		duration_hours: 6,
 		min_duration_hours: 2,
-		last_check_hour: 8
+		last_check_hour: 8,
 	},
 	world: {
 		player_location_name: 'Baile Átha Cliath',
@@ -220,7 +273,7 @@ export const DEBUG_SNAPSHOT: DebugSnapshot = {
 		text_log_tail: [],
 		text_log_len: 0,
 		locations: [],
-		player_name: null
+		player_name: null,
 	},
 	npcs: [],
 	tier_summary: {
@@ -239,19 +292,19 @@ export const DEBUG_SNAPSHOT: DebugSnapshot = {
 		introduced_count: 0,
 		tier2_in_flight: false,
 		tier3_pending_count: 0,
-		tier4_recent_events: []
+		tier4_recent_events: [],
 	},
 	event_bus: {
 		subscriber_count: 0,
-		recent_events: []
+		recent_events: [],
 	},
 	gossip: {
 		item_count: 0,
-		items: []
+		items: [],
 	},
 	conversations: {
 		exchange_count: 0,
-		exchanges: []
+		exchanges: [],
 	},
 	events: [],
 	inference: {
@@ -265,15 +318,15 @@ export const DEBUG_SNAPSHOT: DebugSnapshot = {
 		improv_enabled: false,
 		call_log: [],
 		categories: [],
-		configured_providers: ['ollama']
+		configured_providers: ['ollama'],
 	},
 	auth: {
 		oauth_enabled: false,
 		logged_in: false,
 		provider: null,
 		display_name: null,
-		session_id: null
-	}
+		session_id: null,
+	},
 };
 
 // ── Setup snapshot (completed — prevents overlay from blocking UI) ───────────
@@ -285,7 +338,7 @@ export const SETUP_SNAPSHOT: SetupSnapshot = {
 	total: 0,
 	done: true,
 	success: true,
-	error: ''
+	error: '',
 };
 
 // ── Save files ──────────────────────────────────────────────────────────────
@@ -306,18 +359,18 @@ export const SAVE_FILES: SaveFileInfo[] = [
 				snapshots: [
 					{ id: 1, game_date: '1820-03-15', location: 'Baile Átha Cliath' },
 					{ id: 2, game_date: '1820-03-16', location: 'Howth' },
-					{ id: 3, game_date: '1820-03-17', location: 'Baile Átha Cliath' }
-				]
-			}
+					{ id: 3, game_date: '1820-03-17', location: 'Baile Átha Cliath' },
+				],
+			},
 		],
-		locked: false
-	}
+		locked: false,
+	},
 ];
 
 export const SAVE_STATE: SaveState = {
 	filename: 'rundale.ledger',
 	branch_id: 1,
-	branch_name: 'main'
+	branch_name: 'main',
 };
 
 // ── Editor (Parish Designer) ────────────────────────────────────────────────
@@ -329,8 +382,8 @@ export const EDITOR_MODS: ModSummary[] = [
 		title: 'Rundale',
 		version: '0.1.0',
 		description: 'Test mod for e2e',
-		path: '/mods/rundale'
-	}
+		path: '/mods/rundale',
+	},
 ];
 
 export const EDITOR_SNAPSHOT: EditorModSnapshot = {
@@ -343,7 +396,7 @@ export const EDITOR_SNAPSHOT: EditorModSnapshot = {
 		description: 'Test mod for e2e',
 		start_date: '1820-03-15',
 		start_location: 1,
-		period_year: 1820
+		period_year: 1820,
 	},
 	npcs: { npcs: [] },
 	locations: [],
@@ -352,7 +405,7 @@ export const EDITOR_SNAPSHOT: EditorModSnapshot = {
 	anachronisms: {
 		context_alert_prefix: '',
 		context_alert_suffix: '',
-		terms: []
+		terms: [],
 	},
-	validation: { errors: [], warnings: [] }
+	validation: { errors: [], warnings: [] },
 };

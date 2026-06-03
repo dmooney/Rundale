@@ -78,7 +78,7 @@
 	</div>
 	{#if snap.tier_summary.tier4_recent_events.length > 0}
 		<div class="field">Recent life events:</div>
-		{#each snap.tier_summary.tier4_recent_events.slice(-3) as evt}
+		{#each snap.tier_summary.tier4_recent_events.slice(-3) as evt, i (i)}
 			<div class="field muted">- {evt}</div>
 		{/each}
 	{/if}
@@ -93,7 +93,7 @@
 <div class="section">
 	<h4>Gossip ({snap.gossip.item_count})</h4>
 	{#if snap.gossip.items.length > 0}
-		{#each snap.gossip.items.slice(-3) as item}
+		{#each snap.gossip.items.slice(-3) as item (item.id)}
 			<div class="field muted">- {item.content.length > 80 ? item.content.slice(0, 77) + '...' : item.content}</div>
 		{/each}
 	{/if}

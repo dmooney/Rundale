@@ -24,33 +24,59 @@ A static array of command descriptors drives both the dropdown and help text. De
 // ui/src/lib/commands.ts (new file)
 
 export interface CommandDescriptor {
-  name: string;           // e.g. "/save"
-  description: string;    // e.g. "Manual snapshot to current branch"
-  args?: string;          // e.g. "<name>" — shown as hint
-  debug?: boolean;        // only show when debug mode is active
+  name: string; // e.g. "/save"
+  description: string; // e.g. "Manual snapshot to current branch"
+  args?: string; // e.g. "<name>" — shown as hint
+  debug?: boolean; // only show when debug mode is active
 }
 
 export const COMMANDS: CommandDescriptor[] = [
-  { name: '/pause',    description: 'Freeze all simulation ticks' },
-  { name: '/resume',   description: 'Unfreeze simulation' },
-  { name: '/quit',     description: 'Save and exit' },
-  { name: '/save',     description: 'Manual snapshot to current branch' },
-  { name: '/fork',     description: 'Create a new named save branch', args: '<name>' },
-  { name: '/load',     description: 'Load a named save branch', args: '<name>' },
+  { name: '/pause', description: 'Freeze all simulation ticks' },
+  { name: '/resume', description: 'Unfreeze simulation' },
+  { name: '/quit', description: 'Save and exit' },
+  { name: '/save', description: 'Manual snapshot to current branch' },
+  {
+    name: '/fork',
+    description: 'Create a new named save branch',
+    args: '<name>',
+  },
+  { name: '/load', description: 'Load a named save branch', args: '<name>' },
   { name: '/branches', description: 'List all save branches' },
-  { name: '/log',      description: 'History of current branch' },
-  { name: '/status',   description: 'Show current game status' },
-  { name: '/help',     description: 'Show help text' },
-  { name: '/irish',    description: 'Toggle Irish pronunciation sidebar' },
-  { name: '/improv',   description: 'Toggle improv craft mode for NPC dialogue' },
-  { name: '/provider', description: 'Show or set LLM provider', args: '[name]' },
-  { name: '/model',    description: 'Show or set model name', args: '[name]' },
-  { name: '/key',      description: 'Show or set API key', args: '[key]' },
-  { name: '/cloud',    description: 'Show cloud provider info', args: '[provider key]' },
-  { name: '/speed',    description: 'Set game speed', args: '<slow|normal|fast|ludicrous>' },
-  { name: '/about',    description: 'Show credits' },
-  { name: '/debug',    description: 'Debug commands', args: '[subcommand]', debug: true },
-  { name: '/spinner',  description: 'Show loading spinner', args: '<seconds>', debug: true },
+  { name: '/log', description: 'History of current branch' },
+  { name: '/status', description: 'Show current game status' },
+  { name: '/help', description: 'Show help text' },
+  { name: '/irish', description: 'Toggle Irish pronunciation sidebar' },
+  { name: '/improv', description: 'Toggle improv craft mode for NPC dialogue' },
+  {
+    name: '/provider',
+    description: 'Show or set LLM provider',
+    args: '[name]',
+  },
+  { name: '/model', description: 'Show or set model name', args: '[name]' },
+  { name: '/key', description: 'Show or set API key', args: '[key]' },
+  {
+    name: '/cloud',
+    description: 'Show cloud provider info',
+    args: '[provider key]',
+  },
+  {
+    name: '/speed',
+    description: 'Set game speed',
+    args: '<slow|normal|fast|ludicrous>',
+  },
+  { name: '/about', description: 'Show credits' },
+  {
+    name: '/debug',
+    description: 'Debug commands',
+    args: '[subcommand]',
+    debug: true,
+  },
+  {
+    name: '/spinner',
+    description: 'Show loading spinner',
+    args: '<seconds>',
+    debug: true,
+  },
 ];
 ```
 
@@ -62,13 +88,25 @@ The per-category dot-notation commands (`/provider.dialogue`, `/model.simulation
 export const CATEGORIES = ['dialogue', 'simulation', 'intent'] as const;
 
 export function allCommands(debugActive: boolean): CommandDescriptor[] {
-  const base = debugActive ? COMMANDS : COMMANDS.filter(c => !c.debug);
+  const base = debugActive ? COMMANDS : COMMANDS.filter((c) => !c.debug);
   const categoryCommands: CommandDescriptor[] = [];
   for (const cat of CATEGORIES) {
     categoryCommands.push(
-      { name: `/provider.${cat}`, description: `Show/set provider for ${cat}`, args: '[name]' },
-      { name: `/model.${cat}`,    description: `Show/set model for ${cat}`, args: '[name]' },
-      { name: `/key.${cat}`,      description: `Show/set API key for ${cat}`, args: '[key]' },
+      {
+        name: `/provider.${cat}`,
+        description: `Show/set provider for ${cat}`,
+        args: '[name]',
+      },
+      {
+        name: `/model.${cat}`,
+        description: `Show/set model for ${cat}`,
+        args: '[name]',
+      },
+      {
+        name: `/key.${cat}`,
+        description: `Show/set API key for ${cat}`,
+        args: '[key]',
+      },
     );
   }
   return [...base, ...categoryCommands];
@@ -81,7 +119,7 @@ export function allCommands(debugActive: boolean): CommandDescriptor[] {
 
 Add a second trigger detection path alongside the existing `@mention` system:
 
-```
+```text
 State additions:
   showSlash: boolean       — controls slash dropdown visibility
   slashQuery: string       — text after the `/` for filtering
@@ -168,7 +206,7 @@ const filteredCommands = $derived(() => {
   const cmds = allCommands(debugActive);
   if (slashQuery === '') return cmds;
   const q = slashQuery.toLowerCase();
-  return cmds.filter(c => c.name.toLowerCase().startsWith('/' + q));
+  return cmds.filter((c) => c.name.toLowerCase().startsWith('/' + q));
 });
 ```
 
@@ -251,7 +289,7 @@ If commands become mod-driven or change at runtime, add a `GET /api/commands` en
 
 ## Data Flow
 
-```
+```text
 Player types "/"
     → detectDropdowns() detects slash trigger
     → showSlash = true, slashQuery = ""
@@ -273,15 +311,15 @@ Player types "5" and hits Enter
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| `/` followed immediately by space | Close dropdown (space = query has spaces) |
-| `/` in middle of text | No trigger — slash must be at position 0 |
-| `/` with @mention chip before it | `getPlainText()` starts with `@Name/...` — no trigger |
-| Empty filter result | Dropdown hidden (no matches) |
-| Debug commands when debug inactive | Filtered out by `allCommands(false)` |
-| Very long command list | Dropdown has `max-height: 12rem; overflow-y: auto` (same as mentions) |
-| Player pastes `/save` | `handleInput` → `detectDropdowns()` fires, shows filtered list |
+| Case                               | Behavior                                                              |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| `/` followed immediately by space  | Close dropdown (space = query has spaces)                             |
+| `/` in middle of text              | No trigger — slash must be at position 0                              |
+| `/` with @mention chip before it   | `getPlainText()` starts with `@Name/...` — no trigger                 |
+| Empty filter result                | Dropdown hidden (no matches)                                          |
+| Debug commands when debug inactive | Filtered out by `allCommands(false)`                                  |
+| Very long command list             | Dropdown has `max-height: 12rem; overflow-y: auto` (same as mentions) |
+| Player pastes `/save`              | `handleInput` → `detectDropdowns()` fires, shows filtered list        |
 
 ## Testing
 
@@ -292,7 +330,7 @@ Player types "5" and hits Enter
 3. **Keyboard navigation**: ArrowDown increments `slashSelectedIndex`
 4. **Selection**: Tab/Enter inserts command text, closes dropdown
 5. **Escape**: Closes dropdown without changing input
-6. **Args hint**: `/fork` selection inserts `/fork ` (trailing space)
+6. **Args hint**: `/fork` selection inserts `/fork` (trailing space)
 7. **No conflict with @mention**: `@Padraig /foo` — no slash dropdown (not at pos 0)
 
 ### Manual
@@ -303,11 +341,11 @@ Player types "5" and hits Enter
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/lib/commands.ts` | **New** — command registry |
-| `ui/src/components/InputField.svelte` | Add slash trigger detection, dropdown, keyboard handling |
-| `ui/src/components/InputField.test.ts` | Add slash autocomplete tests |
+| File                                   | Change                                                   |
+| -------------------------------------- | -------------------------------------------------------- |
+| `ui/src/lib/commands.ts`               | **New** — command registry                               |
+| `ui/src/components/InputField.svelte`  | Add slash trigger detection, dropdown, keyboard handling |
+| `ui/src/components/InputField.test.ts` | Add slash autocomplete tests                             |
 
 ## Effort Estimate
 

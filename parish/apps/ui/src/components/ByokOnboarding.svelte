@@ -13,7 +13,6 @@
 		listByokEnvKeys,
 		listPresetModels,
 		listAvailableProviders,
-		type AvailableProviderInfo,
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
 		type ProviderPresetOption
@@ -230,6 +229,7 @@
 			<h2>{chosen?.label}</h2>
 			{#if chosen?.signupUrl}
 				<p class="byok__sub">
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- chosen.signupUrl is an external provider signup URL, not a SvelteKit route -->
 					<a href={chosen.signupUrl} target="_blank" rel="noopener noreferrer"
 						>Get a key →</a
 					>

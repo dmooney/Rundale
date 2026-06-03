@@ -12,12 +12,13 @@ scores back into the run aggregate.
 This module owns: bundle assembly, queue I/O, and result validation. It does
 not call any model — judging is the subagent's job, perf the orchestrator's.
 """
+
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _BENCH_DIR = Path(__file__).resolve().parent
 QUEUE_DIR = _BENCH_DIR / ".bench-queue"
@@ -52,7 +53,9 @@ def assemble_bundle(
 ) -> dict:
     """Build a judging bundle. `items` are `{prompt_id, prompt, response}`."""
     return {
-        "bundle_id": bundle_id(slice_name, candidate.get("model_id") or candidate.get("resolved_target", "unknown")),
+        "bundle_id": bundle_id(
+            slice_name, candidate.get("model_id") or candidate.get("resolved_target", "unknown")
+        ),
         "slice": slice_name,
         "candidate": candidate,
         "judge_id": judge["judge_id"],
@@ -106,7 +109,7 @@ def extract_json(text: str) -> dict:
         return json.loads(fence.group(1))
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
-        return json.loads(text[start:end + 1])
+        return json.loads(text[start : end + 1])
     raise ValueError("no JSON object found in judge reply")
 
 
@@ -121,7 +124,7 @@ def unjudged_bundles() -> list[Path]:
     return [p for p in list_pending() if p.stem not in done_stems]
 
 
-def _coerce_axis(value: Any, *, allow_zero: bool = False) -> Optional[int]:
+def _coerce_axis(value: Any, *, allow_zero: bool = False) -> int | None:
     """Coerce a judge-supplied axis value to an int. By default the range
     is 1-5; `allow_zero=True` widens it to 0-5 (used when the item is
     flagged as a bench-bug, where every axis must be 0)."""
@@ -138,7 +141,7 @@ def _coerce_axis(value: Any, *, allow_zero: bool = False) -> Optional[int]:
     return iv
 
 
-def _bundle_axes(bundle: Optional[dict]) -> tuple[str, ...]:
+def _bundle_axes(bundle: dict | None) -> tuple[str, ...]:
     """Per-axis names to validate for a given bundle. Falls back to the
     dialogue rubric's 5-axis set if the bundle is missing or has no
     declared axes (legacy path before judge_*.json grew an `axes` list)."""
@@ -152,7 +155,7 @@ def _bundle_axes(bundle: Optional[dict]) -> tuple[str, ...]:
     return tuple(k for k in declared if k not in _OVERALL_KEYS)
 
 
-def validate_item(item: dict, bundle: Optional[dict] = None) -> tuple[bool, dict]:
+def validate_item(item: dict, bundle: dict | None = None) -> tuple[bool, dict]:
     """Validate one judged item against the Judgment schema.
 
     `bundle` carries the slice's per-judge axes (and is required for any
@@ -170,14 +173,20 @@ def validate_item(item: dict, bundle: Optional[dict] = None) -> tuple[bool, dict
     """
     axes = _bundle_axes(bundle)
     pid = item.get("prompt_id")
-    flags_in = item.get("flags") if isinstance(item.get("flags"), dict) else {}
+    _flags_raw = item.get("flags")
+    flags_in: dict = _flags_raw if isinstance(_flags_raw, dict) else {}
     bench_bug = bool(flags_in.get("bench_bug", False))
     fail = {
         "prompt_id": pid,
         "axes": None,
         "overall": None,
         "rationales": item.get("rationales") if isinstance(item.get("rationales"), dict) else {},
-        "flags": {"non_latin_detected": False, "refused": False, "bench_bug": False, "judge_retry": True},
+        "flags": {
+            "non_latin_detected": False,
+            "refused": False,
+            "bench_bug": False,
+            "judge_retry": True,
+        },
     }
     if not pid:
         fail["error"] = "missing prompt_id"
@@ -196,15 +205,18 @@ def validate_item(item: dict, bundle: Optional[dict] = None) -> tuple[bool, dict
             return False, fail
         axes_out[k] = coerced
 
-    if bench_bug:
-        # All-or-nothing: a bench-bug item must have every axis == 0.
-        if any(v != 0 for v in axes_out.values()):
-            fail["error"] = f"bench_bug=true but axes not all 0: {axes_out}"
-            return False, fail
+    # All-or-nothing: a bench-bug item must have every axis == 0.
+    if bench_bug and any(v != 0 for v in axes_out.values()):
+        fail["error"] = f"bench_bug=true but axes not all 0: {axes_out}"
+        return False, fail
 
     overall = item.get("overall")
     lower = 0.0 if bench_bug else 1.0
-    if isinstance(overall, bool) or not isinstance(overall, (int, float)) or not (lower <= float(overall) <= 5.0):
+    if (
+        isinstance(overall, bool)
+        or not isinstance(overall, (int, float))
+        or not (lower <= float(overall) <= 5.0)
+    ):
         fail["error"] = f"overall out of range: {overall!r}"
         return False, fail
     if bench_bug and float(overall) != 0.0:
@@ -235,20 +247,27 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
     """
     expected_ids = {it["prompt_id"] for it in bundle["items"]}
     if result.get("rubric_sha256") != bundle["rubric_sha256"]:
-        failed = []
+        failed: list[dict] = []
         for it in bundle["items"]:
-            failed.append({
-                "prompt_id": it["prompt_id"],
-                "axes": None,
-                "overall": None,
-                "rationales": {},
-                "flags": {"non_latin_detected": False, "refused": False, "bench_bug": False, "judge_retry": True},
-                "error": "rubric_sha256 mismatch between result and bundle",
-            })
+            failed.append(
+                {
+                    "prompt_id": it["prompt_id"],
+                    "axes": None,
+                    "overall": None,
+                    "rationales": {},
+                    "flags": {
+                        "non_latin_detected": False,
+                        "refused": False,
+                        "bench_bug": False,
+                        "judge_retry": True,
+                    },
+                    "error": "rubric_sha256 mismatch between result and bundle",
+                }
+            )
         return [], failed
 
     valid: list[dict] = []
-    failed: list[dict] = []
+    failed = []
     seen: set[str] = set()
     for it in result.get("items", []):
         ok, cleaned = validate_item(it, bundle)
@@ -258,12 +277,19 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
 
     # Any expected prompt the subagent silently dropped is a failure.
     for pid in expected_ids - seen:
-        failed.append({
-            "prompt_id": pid,
-            "axes": None,
-            "overall": None,
-            "rationales": {},
-            "flags": {"non_latin_detected": False, "refused": False, "bench_bug": False, "judge_retry": True},
-            "error": "prompt_id absent from judge result",
-        })
+        failed.append(
+            {
+                "prompt_id": pid,
+                "axes": None,
+                "overall": None,
+                "rationales": {},
+                "flags": {
+                    "non_latin_detected": False,
+                    "refused": False,
+                    "bench_bug": False,
+                    "judge_retry": True,
+                },
+                "error": "prompt_id absent from judge result",
+            }
+        )
     return valid, failed

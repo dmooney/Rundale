@@ -50,7 +50,7 @@ export interface EdgeFeatureProps {
  */
 export function computeOffMapCounts(
 	edges: ReadonlyArray<[string, string]>,
-	visibleIds: ReadonlySet<string>
+	visibleIds: ReadonlySet<string>,
 ): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const [a, b] of edges) {
@@ -76,7 +76,7 @@ export function locationsToGeoJSON(
 	options: {
 		filterIds?: ReadonlySet<string>;
 		offMapCounts?: ReadonlyMap<string, number>;
-	} = {}
+	} = {},
 ): FeatureCollection<Point, LocationFeatureProps> {
 	const { filterIds, offMapCounts } = options;
 	const locations = filterIds
@@ -89,17 +89,21 @@ export function locationsToGeoJSON(
 			type: 'Feature',
 			geometry: {
 				type: 'Point',
-				coordinates: [loc.lon, loc.lat]
+				coordinates: [loc.lon, loc.lat],
 			},
-			properties: buildLocationProps(loc, map.player_location, offMapCounts?.get(loc.id) ?? 0)
-		}))
+			properties: buildLocationProps(
+				loc,
+				map.player_location,
+				offMapCounts?.get(loc.id) ?? 0,
+			),
+		})),
 	};
 }
 
 function buildLocationProps(
 	loc: MapLocation,
 	playerLocation: string,
-	offMapCount: number
+	offMapCount: number,
 ): LocationFeatureProps {
 	const visited = loc.visited !== false;
 	return {
@@ -113,7 +117,7 @@ function buildLocationProps(
 		lit: visited && LIT_PATTERNS.test(loc.name),
 		indoor: loc.indoor ?? false,
 		travelMinutes: loc.travel_minutes ?? 0,
-		offMapCount
+		offMapCount,
 	};
 }
 
@@ -129,14 +133,18 @@ export function edgesToGeoJSON(
 	options: {
 		filterIds?: ReadonlySet<string>;
 		traversingEdgeKeys?: ReadonlySet<string>;
-	} = {}
+	} = {},
 ): FeatureCollection<LineString, EdgeFeatureProps> {
 	const { filterIds, traversingEdgeKeys } = options;
 	const locById = new Map(map.locations.map((l) => [l.id, l]));
 	const traversalsByKey = buildTraversalMap(map.edge_traversals);
-	const maxTraversal = Math.max(1, ...(map.edge_traversals ?? []).map(([, , c]) => c));
+	const maxTraversal = Math.max(
+		1,
+		...(map.edge_traversals ?? []).map(([, , c]) => c),
+	);
 
-	const features: FeatureCollection<LineString, EdgeFeatureProps>['features'] = [];
+	const features: FeatureCollection<LineString, EdgeFeatureProps>['features'] =
+		[];
 	for (const [a, b] of map.edges) {
 		if (filterIds && !(filterIds.has(a) && filterIds.has(b))) continue;
 		const srcLoc = locById.get(a);
@@ -153,8 +161,8 @@ export function edgesToGeoJSON(
 				type: 'LineString',
 				coordinates: [
 					[srcLoc.lon, srcLoc.lat],
-					[dstLoc.lon, dstLoc.lat]
-				]
+					[dstLoc.lon, dstLoc.lat],
+				],
 			},
 			properties: {
 				src: a,
@@ -162,8 +170,8 @@ export function edgesToGeoJSON(
 				traversals,
 				traversalWeight: weight,
 				frontier: srcLoc.visited === false || dstLoc.visited === false,
-				traversing: traversingEdgeKeys?.has(key) ?? false
-			}
+				traversing: traversingEdgeKeys?.has(key) ?? false,
+			},
 		});
 	}
 
@@ -176,7 +184,7 @@ export function edgeKey(a: string, b: string): string {
 }
 
 function buildTraversalMap(
-	traversals: MapData['edge_traversals']
+	traversals: MapData['edge_traversals'],
 ): Map<string, number> {
 	const map = new Map<string, number>();
 	if (!traversals) return map;

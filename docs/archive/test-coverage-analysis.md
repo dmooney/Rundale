@@ -6,36 +6,36 @@
 
 ## Per-File Coverage
 
-| File | Lines Covered | Total Lines | Coverage |
-|------|--------------|-------------|----------|
-| `src/npc/memory.rs` | 25/25 | 100% | |
-| `src/npc/mod.rs` | 55/55 | 100% | |
-| `src/world/mod.rs` | 35/35 | 100% | |
-| `src/world/encounter.rs` | 19/19 | 100% | |
-| `src/world/description.rs` | 28/29 | 97% | |
-| `src/world/graph.rs` | 101/105 | 96% | |
-| `src/world/movement.rs` | 21/22 | 95% | |
-| `src/npc/data.rs` | 45/48 | 94% | |
-| `src/npc/manager.rs` | 123/132 | 93% | |
-| `src/npc/types.rs` | 19/21 | 90% | |
-| `src/world/time.rs` | 65/73 | 89% | |
-| `src/npc/overhear.rs` | 16/16 | 100% | |
-| `src/testing.rs` | 175/217 | 81% | |
-| `src/input/mod.rs` | 87/110 | 79% | |
-| `src/npc/ticks.rs` | 77/101 | 76% | |
-| `src/gui/theme.rs` | 51/71 | 72% | |
-| `src/gui/mod.rs` | 70/349 | 20% | |
-| `src/gui/screenshot.rs` | 49/124 | 40% | |
-| `src/tui/debug_panel.rs` | 36/69 | 52% | |
-| `src/tui/mod.rs` | 52/199 | 26% | |
-| `src/inference/openai_client.rs` | 34/102 | 33% | |
-| `src/headless.rs` | 56/264 | 21% | |
-| `src/inference/setup.rs` | 42/219 | 19% | |
-| `src/inference/mod.rs` | 5/28 | 18% | |
-| `src/inference/client.rs` | 6/97 | 6% | |
-| `src/gui/sidebar.rs` | 0/62 | 0% | |
-| `src/gui/status_bar.rs` | 0/43 | 0% | |
-| `src/main.rs` | 0/369 | 0% | |
+| File                             | Lines Covered | Total Lines | Coverage |
+| -------------------------------- | ------------- | ----------- | -------- |
+| `src/npc/memory.rs`              | 25/25         | 100%        |          |
+| `src/npc/mod.rs`                 | 55/55         | 100%        |          |
+| `src/world/mod.rs`               | 35/35         | 100%        |          |
+| `src/world/encounter.rs`         | 19/19         | 100%        |          |
+| `src/world/description.rs`       | 28/29         | 97%         |          |
+| `src/world/graph.rs`             | 101/105       | 96%         |          |
+| `src/world/movement.rs`          | 21/22         | 95%         |          |
+| `src/npc/data.rs`                | 45/48         | 94%         |          |
+| `src/npc/manager.rs`             | 123/132       | 93%         |          |
+| `src/npc/types.rs`               | 19/21         | 90%         |          |
+| `src/world/time.rs`              | 65/73         | 89%         |          |
+| `src/npc/overhear.rs`            | 16/16         | 100%        |          |
+| `src/testing.rs`                 | 175/217       | 81%         |          |
+| `src/input/mod.rs`               | 87/110        | 79%         |          |
+| `src/npc/ticks.rs`               | 77/101        | 76%         |          |
+| `src/gui/theme.rs`               | 51/71         | 72%         |          |
+| `src/gui/mod.rs`                 | 70/349        | 20%         |          |
+| `src/gui/screenshot.rs`          | 49/124        | 40%         |          |
+| `src/tui/debug_panel.rs`         | 36/69         | 52%         |          |
+| `src/tui/mod.rs`                 | 52/199        | 26%         |          |
+| `src/inference/openai_client.rs` | 34/102        | 33%         |          |
+| `src/headless.rs`                | 56/264        | 21%         |          |
+| `src/inference/setup.rs`         | 42/219        | 19%         |          |
+| `src/inference/mod.rs`           | 5/28          | 18%         |          |
+| `src/inference/client.rs`        | 6/97          | 6%          |          |
+| `src/gui/sidebar.rs`             | 0/62          | 0%          |          |
+| `src/gui/status_bar.rs`          | 0/43          | 0%          |          |
+| `src/main.rs`                    | 0/369         | 0%          |          |
 
 ---
 
@@ -68,12 +68,12 @@ inline. This makes them unit-testable without needing a full runtime.
 
 ### Priority 2 — CRITICAL: Inference module (6–33%)
 
-| File | Coverage |
-|------|----------|
-| `inference/client.rs` | 6% |
-| `inference/mod.rs` | 18% |
-| `inference/setup.rs` | 19% |
-| `inference/openai_client.rs` | 33% |
+| File                         | Coverage |
+| ---------------------------- | -------- |
+| `inference/client.rs`        | 6%       |
+| `inference/mod.rs`           | 18%      |
+| `inference/setup.rs`         | 19%      |
+| `inference/openai_client.rs` | 33%      |
 
 **What's missing:**
 
@@ -122,14 +122,14 @@ module once. For headless-specific I/O formatting, capture stdout in tests.
 
 ### Priority 4 — HIGH: GUI & TUI (0–52%)
 
-| File | Coverage |
-|------|----------|
-| `gui/sidebar.rs` | 0% |
-| `gui/status_bar.rs` | 0% |
-| `gui/mod.rs` | 20% |
-| `gui/screenshot.rs` | 40% |
-| `tui/mod.rs` | 26% |
-| `tui/debug_panel.rs` | 52% |
+| File                 | Coverage |
+| -------------------- | -------- |
+| `gui/sidebar.rs`     | 0%       |
+| `gui/status_bar.rs`  | 0%       |
+| `gui/mod.rs`         | 20%      |
+| `gui/screenshot.rs`  | 40%      |
+| `tui/mod.rs`         | 26%      |
+| `tui/debug_panel.rs` | 52%      |
 
 **What's missing:**
 
@@ -141,7 +141,7 @@ module once. For headless-specific I/O formatting, capture stdout in tests.
   simulation ticks, untested.
 - **`tui/mod.rs`** — TUI rendering and input handling at 26%.
 
-**Recommendation:** While rendering code is hard to unit test, the *logic*
+**Recommendation:** While rendering code is hard to unit test, the _logic_
 behind what gets rendered is not. Extract data preparation from rendering (e.g.,
 "what text goes in the sidebar" vs "how to draw it") and test the data layer.
 For `egui`/`ratatui` rendering, consider snapshot testing.
@@ -220,15 +220,15 @@ These modules are above 89% but have specific gaps:
 
 ## Path to 90% Coverage
 
-| Area | Current Lines | Gap to 90% | Estimated New Tests |
-|------|--------------|------------|-------------------|
-| main.rs | 0/369 | +332 lines | ~15 tests |
-| headless.rs | 56/264 | +182 lines | ~10 tests |
-| inference/* | 87/446 | +314 lines | ~20 tests |
-| gui/* | 170/649 | +414 lines | ~15 tests |
-| tui/* | 88/268 | +153 lines | ~8 tests |
-| Other gaps | — | ~100 lines | ~10 tests |
-| **Total** | **1,968/4,245** | **~1,495 lines** | **~78 tests** |
+| Area         | Current Lines   | Gap to 90%       | Estimated New Tests |
+| ------------ | --------------- | ---------------- | ------------------- |
+| main.rs      | 0/369           | +332 lines       | ~15 tests           |
+| headless.rs  | 56/264          | +182 lines       | ~10 tests           |
+| inference/\* | 87/446          | +314 lines       | ~20 tests           |
+| gui/\*       | 170/649         | +414 lines       | ~15 tests           |
+| tui/\*       | 88/268          | +153 lines       | ~8 tests            |
+| Other gaps   | —               | ~100 lines       | ~10 tests           |
+| **Total**    | **1,968/4,245** | **~1,495 lines** | **~78 tests**       |
 
 Getting to 90% requires covering approximately 1,495 additional lines, which
 translates to roughly 78 new test functions. The highest-impact work is

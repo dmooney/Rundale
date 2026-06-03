@@ -27,6 +27,7 @@ Or pipe from compute_historical_offsets.py:
 After running, execute `just realign-coords` so the resolver materialises
 the new `relative_to` refs back into absolute `lat`/`lon`.
 """
+
 import argparse
 import json
 import sys

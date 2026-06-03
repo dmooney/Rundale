@@ -9,9 +9,11 @@ describe('applyAppIcon', () => {
 	it('creates favicon and apple-touch links for the active mod icon', () => {
 		applyAppIcon('/api/app-icon.png', '/api/favicon.png');
 
-		const favicon = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
-		const appleTouch =
-			document.head.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+		const favicon =
+			document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+		const appleTouch = document.head.querySelector<HTMLLinkElement>(
+			'link[rel="apple-touch-icon"]',
+		);
 
 		expect(favicon?.getAttribute('href')).toBe('/api/favicon.png');
 		expect(favicon?.getAttribute('type')).toBe('image/png');
@@ -22,6 +24,8 @@ describe('applyAppIcon', () => {
 		applyAppIcon(null);
 
 		expect(document.head.querySelector('link[rel="icon"]')).toBeNull();
-		expect(document.head.querySelector('link[rel="apple-touch-icon"]')).toBeNull();
+		expect(
+			document.head.querySelector('link[rel="apple-touch-icon"]'),
+		).toBeNull();
 	});
 });

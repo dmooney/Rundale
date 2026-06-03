@@ -27,7 +27,7 @@ const mockIpc = vi.hoisted(() => {
 		done: false,
 		success: null,
 		error: '',
-		needs_onboarding: false
+		needs_onboarding: false,
 	});
 
 	const callbacks: {
@@ -56,7 +56,7 @@ const mockIpc = vi.hoisted(() => {
 			callbacks.needsOnboarding = cb;
 			return vi.fn();
 		}),
-		getSetupSnapshot: vi.fn(async (): Promise<Snapshot> => defaultSnapshot())
+		getSetupSnapshot: vi.fn(async (): Promise<Snapshot> => defaultSnapshot()),
 	};
 });
 
@@ -66,7 +66,7 @@ vi.mock('$lib/ipc', () => ({
 	onSetupStatus: mockIpc.onSetupStatus,
 	onSetupProgress: mockIpc.onSetupProgress,
 	onSetupDone: mockIpc.onSetupDone,
-	onSetupNeedsOnboarding: mockIpc.onSetupNeedsOnboarding
+	onSetupNeedsOnboarding: mockIpc.onSetupNeedsOnboarding,
 }));
 
 describe('SetupOverlay', () => {
@@ -87,7 +87,7 @@ describe('SetupOverlay', () => {
 			done: false,
 			success: null,
 			error: '',
-			needs_onboarding: false
+			needs_onboarding: false,
 		});
 		mockIpc.callbacks.status = undefined;
 		mockIpc.callbacks.progress = undefined;
@@ -100,24 +100,30 @@ describe('SetupOverlay', () => {
 		expect(LONG_WAIT_MESSAGES.length).toBeGreaterThanOrEqual(500);
 		expect(LONG_WAIT_MESSAGES.length).toBeLessThan(750);
 		expect(new Set(LONG_WAIT_MESSAGES).size).toBe(LONG_WAIT_MESSAGES.length);
-		expect(LONG_WAIT_MESSAGES.some((message) => message.includes('one-time'))).toBe(true);
+		expect(
+			LONG_WAIT_MESSAGES.some((message) => message.includes('one-time')),
+		).toBe(true);
 	});
 
 	it('shows an initial setup message before backend status events arrive', async () => {
 		const { container, getByRole } = render(SetupOverlay);
 
 		await waitFor(() =>
-			expect(getByRole('heading', { name: 'Rundale' })).toHaveClass('game-title')
+			expect(getByRole('heading', { name: 'Rundale' })).toHaveClass(
+				'game-title',
+			),
 		);
 		expect(container.querySelector('.current-phrase')).toHaveTextContent(
-			'Preparing the storyteller...'
+			'Preparing the storyteller...',
 		);
 	});
 
 	it('shows indeterminate progress before backend percentage events arrive', async () => {
 		const { getByRole, queryByText } = render(SetupOverlay);
 
-		const progress = await waitFor(() => getByRole('progressbar', { name: 'Setup progress' }));
+		const progress = await waitFor(() =>
+			getByRole('progressbar', { name: 'Setup progress' }),
+		);
 		expect(progress).toHaveClass('indeterminate');
 		expect(progress).not.toHaveAttribute('aria-valuenow');
 		expect(queryByText('0.0%')).toBeNull();
@@ -126,10 +132,18 @@ describe('SetupOverlay', () => {
 	it('uses inherited color for the setup spinner strokes', async () => {
 		const { container } = render(SetupOverlay);
 
-		await waitFor(() => expect(container.querySelector('.triquetra-spinner')).toBeTruthy());
+		await waitFor(() =>
+			expect(container.querySelector('.triquetra-spinner')).toBeTruthy(),
+		);
 		const spinner = container.querySelector('.triquetra-spinner');
-		expect(spinner?.querySelector('.knot-circle')).toHaveAttribute('stroke', 'currentColor');
-		expect(spinner?.querySelector('.triquetra-path')).toHaveAttribute('stroke', 'currentColor');
+		expect(spinner?.querySelector('.knot-circle')).toHaveAttribute(
+			'stroke',
+			'currentColor',
+		);
+		expect(spinner?.querySelector('.triquetra-path')).toHaveAttribute(
+			'stroke',
+			'currentColor',
+		);
 	});
 
 	it('does not show the overlay when the setup snapshot is already complete', async () => {
@@ -141,7 +155,7 @@ describe('SetupOverlay', () => {
 			done: true,
 			success: true,
 			error: '',
-			needs_onboarding: false
+			needs_onboarding: false,
 		});
 
 		const { container, queryByRole } = render(SetupOverlay);
@@ -157,8 +171,10 @@ describe('SetupOverlay', () => {
 		const first = render(SetupOverlay);
 
 		await waitFor(() => expect(mockIpc.callbacks.status).toBeDefined());
-		mockIpc.callbacks.status?.({ message: 'Starting inference provider setup...' });
-		mockIpc.callbacks.status?.({ message: "  pulling manifest" });
+		mockIpc.callbacks.status?.({
+			message: 'Starting inference provider setup...',
+		});
+		mockIpc.callbacks.status?.({ message: '  pulling manifest' });
 		await tick();
 		expect(first.getByText(/starting inference provider setup/)).toBeTruthy();
 		expect(first.getAllByText(/pulling manifest/).length).toBeGreaterThan(0);
@@ -172,13 +188,15 @@ describe('SetupOverlay', () => {
 			done: false,
 			success: null,
 			error: '',
-			needs_onboarding: false
+			needs_onboarding: false,
 		});
 
 		const second = render(SetupOverlay);
 
 		await waitFor(() =>
-			expect(second.getByText(/starting inference provider setup/)).toBeTruthy()
+			expect(
+				second.getByText(/starting inference provider setup/),
+			).toBeTruthy(),
 		);
 		expect(second.getAllByText(/pulling manifest/).length).toBeGreaterThan(0);
 	});
@@ -193,9 +211,11 @@ describe('SetupOverlay', () => {
 			await tick();
 			expect(mockIpc.callbacks.status).toBeDefined();
 
-			mockIpc.callbacks.status?.({ message: "  pulling manifest" });
+			mockIpc.callbacks.status?.({ message: '  pulling manifest' });
 			await tick();
-			expect(getAllByText(/Ollama: pulling manifest/).length).toBeGreaterThan(0);
+			expect(getAllByText(/Ollama: pulling manifest/).length).toBeGreaterThan(
+				0,
+			);
 
 			await vi.advanceTimersByTimeAsync(2_500);
 			await tick();
@@ -212,14 +232,14 @@ describe('SetupOverlay', () => {
 			current_message: '  pulling manifest',
 			messages: [
 				"Fetching the storyteller's book of tales ('qwen3:32b')...",
-				'  pulling manifest'
+				'  pulling manifest',
 			],
 			completed: 0,
 			total: 0,
 			done: false,
 			success: null,
 			error: '',
-			needs_onboarding: false
+			needs_onboarding: false,
 		});
 		const { getAllByText } = render(SetupOverlay);
 
@@ -240,11 +260,13 @@ describe('SetupOverlay', () => {
 		const { container } = render(SetupOverlay);
 
 		await waitFor(() => expect(mockIpc.callbacks.status).toBeDefined());
-		mockIpc.callbacks.status?.({ message: 'Taking stock of what we have to work with...' });
+		mockIpc.callbacks.status?.({
+			message: 'Taking stock of what we have to work with...',
+		});
 		await tick();
 
 		expect(container.querySelector('.current-phrase')).toHaveTextContent(
-			'Taking stock of what we have to work with...'
+			'Taking stock of what we have to work with...',
 		);
 	});
 
@@ -253,13 +275,15 @@ describe('SetupOverlay', () => {
 
 		await waitFor(() => expect(mockIpc.callbacks.status).toBeDefined());
 		mockIpc.callbacks.status?.({
-			message: "Fetching the storyteller's book of tales ('qwen3:32b')..."
+			message: "Fetching the storyteller's book of tales ('qwen3:32b')...",
 		});
 		await tick();
 
 		expect(getAllByText(/one-time model download/).length).toBeGreaterThan(0);
 		expect(getAllByText(/qwen3:32b/).length).toBeGreaterThan(0);
-		expect(container.querySelectorAll('.current-phrase wbr').length).toBeGreaterThan(0);
+		expect(
+			container.querySelectorAll('.current-phrase wbr').length,
+		).toBeGreaterThan(0);
 		expect(container.querySelectorAll('.msg wbr').length).toBeGreaterThan(0);
 	});
 
@@ -269,25 +293,27 @@ describe('SetupOverlay', () => {
 			messages: [
 				'Starting inference provider setup...',
 				'Taking stock of what we have to work with...',
-				'Hardware: Apple Silicon'
+				'Hardware: Apple Silicon',
 			],
 			completed: 0,
 			total: 0,
 			done: false,
 			success: null,
 			error: '',
-			needs_onboarding: false
+			needs_onboarding: false,
 		});
 
 		const { container, getByText } = render(SetupOverlay);
 
 		await waitFor(() =>
 			expect(container.querySelector('.current-phrase')).toHaveTextContent(
-				'Hardware: Apple Silicon'
-			)
+				'Hardware: Apple Silicon',
+			),
 		);
 		expect(getByText(/starting inference provider setup/)).toBeTruthy();
-		expect(getByText('Taking stock of what we have to work with...')).toBeTruthy();
+		expect(
+			getByText('Taking stock of what we have to work with...'),
+		).toBeTruthy();
 	});
 
 	it('switches to determinate progress when backend progress arrives', async () => {
@@ -320,7 +346,7 @@ describe('SetupOverlay', () => {
 			await tick();
 
 			expect(getByLabelText('50 B of 100 B • 25 B/s • 0:02 left')).toHaveClass(
-				'download-stats'
+				'download-stats',
 			);
 		} finally {
 			nowSpy.mockRestore();
@@ -339,17 +365,17 @@ describe('SetupOverlay', () => {
 			nowSpy.mockReturnValueOnce(2_000);
 			mockIpc.callbacks.progress?.({ completed: 100, total: 2000 });
 			await tick();
-			expect(getByLabelText('100 B of 1.95 KB • 100 B/s • 0:19 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('100 B of 1.95 KB • 100 B/s • 0:19 left'),
+			).toHaveClass('download-stats');
 
 			nowSpy.mockReturnValueOnce(3_000);
 			mockIpc.callbacks.progress?.({ completed: 1000, total: 2000 });
 			await tick();
 
-			expect(getByLabelText('1000 B of 1.95 KB • 160 B/s • 0:06 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('1000 B of 1.95 KB • 160 B/s • 0:06 left'),
+			).toHaveClass('download-stats');
 		} finally {
 			nowSpy.mockRestore();
 		}
@@ -367,17 +393,17 @@ describe('SetupOverlay', () => {
 			nowSpy.mockReturnValueOnce(2_000);
 			mockIpc.callbacks.progress?.({ completed: 100, total: 1000 });
 			await tick();
-			expect(getByLabelText('100 B of 1000 B • 100 B/s • 0:09 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('100 B of 1000 B • 100 B/s • 0:09 left'),
+			).toHaveClass('download-stats');
 
 			nowSpy.mockReturnValueOnce(2_200);
 			mockIpc.callbacks.progress?.({ completed: 900, total: 1000 });
 			await tick();
 
-			expect(getByLabelText('900 B of 1000 B • 100 B/s • 0:01 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('900 B of 1000 B • 100 B/s • 0:01 left'),
+			).toHaveClass('download-stats');
 		} finally {
 			nowSpy.mockRestore();
 		}
@@ -395,17 +421,17 @@ describe('SetupOverlay', () => {
 			nowSpy.mockReturnValueOnce(2_000);
 			mockIpc.callbacks.progress?.({ completed: 500, total: 1000 });
 			await tick();
-			expect(getByLabelText('500 B of 1000 B • 500 B/s • 0:01 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('500 B of 1000 B • 500 B/s • 0:01 left'),
+			).toHaveClass('download-stats');
 
 			nowSpy.mockReturnValueOnce(2_200);
 			mockIpc.callbacks.progress?.({ completed: 1000, total: 1488 });
 			await tick();
 
-			expect(getByLabelText('1000 B of 1.45 KB • 500 B/s • 0:01 left')).toHaveClass(
-				'download-stats'
-			);
+			expect(
+				getByLabelText('1000 B of 1.45 KB • 500 B/s • 0:01 left'),
+			).toHaveClass('download-stats');
 		} finally {
 			nowSpy.mockRestore();
 		}
@@ -422,7 +448,9 @@ describe('SetupOverlay', () => {
 
 			expect(getByText('Something went wrong.')).toBeTruthy();
 			expect(container.querySelector('.error-box')).toBeTruthy();
-			expect(container.querySelector('.error-msg')?.textContent).toContain('Ollama not found');
+			expect(container.querySelector('.error-msg')?.textContent).toContain(
+				'Ollama not found',
+			);
 			expect(getByText(/Close the app/)).toBeTruthy();
 		});
 

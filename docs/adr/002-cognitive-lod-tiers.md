@@ -19,6 +19,7 @@ The system needs a way to allocate inference resources proportionally to proximi
 Implement a **4-tier cognitive level-of-detail (LOD) system** based on distance from the player:
 
 **Tier 1 -- Immediate (GPU, 14B model)**
+
 - Full LLM inference per NPC interaction
 - Rich dialogue, nuanced decisions, emotional responses, awareness of player actions
 - Real-time, per-interaction inference
@@ -26,6 +27,7 @@ Implement a **4-tier cognitive level-of-detail (LOD) system** based on distance 
 - Structured JSON output with action, dialogue, mood, internal thought, knowledge, relationship changes
 
 **Tier 2 -- Nearby (GPU, 8B or 3B model)**
+
 - Lighter inference with shorter prompts and summary-level reasoning
 - NPCs interact with each other at reduced depth
 - The player may overhear or learn about these interactions
@@ -33,12 +35,14 @@ Implement a **4-tier cognitive level-of-detail (LOD) system** based on distance 
 - Tick rate: every few game-minutes
 
 **Tier 3 -- Distant (GPU, batch inference)**
+
 - Bulk tick: one LLM call covers many NPCs
 - Prompt pattern: "Here are 50 NPCs and their current states. Simulate N hours of activity. Return updated states."
 - Broad strokes: relationships shift, resources change, major events occur
 - Tick rate: every in-game day or two (~every few real-world minutes)
 
 **Tier 4 -- Far Away (CPU only, no LLM)**
+
 - Pure rules engine with deterministic or lightly randomized state transitions
 - Births, deaths, trade, seasonal changes, national-level events
 - Runs on CPU E-cores at low priority with high parallelism

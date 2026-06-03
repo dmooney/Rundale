@@ -12,45 +12,50 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
 
 ## What Already Exists (do not re-implement)
 
-| Mechanic | Location |
-|---|---|
-| Time / seasons / festivals | `parish-types/src/time.rs` |
-| Weather (7-state machine) | `parish-world/src/weather.rs` |
-| Movement / pathfinding | `parish-world/src/movement.rs` |
-| NPC schedules, memory, moods | `parish-npc/src/` |
-| NPC relationships | `parish-npc/src/types.rs` |
-| Conversation history | `parish-types/src/conversation.rs` |
-| Event bus | `parish-types/src/events.rs` |
-| NPC illness flag (`is_ill`) | `parish-npc/src/data.rs` |
-| Save / load / branch | `parish-core/src/ipc/commands.rs` |
+| Mechanic                     | Location                           |
+| ---------------------------- | ---------------------------------- |
+| Time / seasons / festivals   | `parish-types/src/time.rs`         |
+| Weather (7-state machine)    | `parish-world/src/weather.rs`      |
+| Movement / pathfinding       | `parish-world/src/movement.rs`     |
+| NPC schedules, memory, moods | `parish-npc/src/`                  |
+| NPC relationships            | `parish-npc/src/types.rs`          |
+| Conversation history         | `parish-types/src/conversation.rs` |
+| Event bus                    | `parish-types/src/events.rs`       |
+| NPC illness flag (`is_ill`)  | `parish-npc/src/data.rs`           |
+| Save / load / branch         | `parish-core/src/ipc/commands.rs`  |
 
 ---
 
 ## 1. Player Vitals
 
 ### 1a. Health
+
 - **What:** HP-like value (0–100). Reaches 0 → game-over (or serious penalty).
 - **Sources of damage:** starvation, dehydration, exposure (cold + wet), illness, injury.
 - **Sources of recovery:** eating, sleeping, resting indoors, receiving care from an NPC with healing knowledge.
-- **Rundale flavour:** A hedge-school doctor or the parish *bean feasa* (wise woman) can tend wounds.
+- **Rundale flavour:** A hedge-school doctor or the parish _bean feasa_ (wise woman) can tend wounds.
 
 ### 1b. Hunger
+
 - **What:** 0 (starving) → 100 (sated). Drains over real time at a rate tied to activity.
 - **Effects:** Below 30 → fatigue accumulates faster. Below 10 → health drains.
 - **Food items:** bread, potatoes, oat porridge, salted fish, game, butter — each restores a different amount.
 - **Rundale flavour:** The potato crop is the primary calorie source; famine years raise stakes dramatically.
 
 ### 1c. Thirst
+
 - **What:** 0–100. Drains faster than hunger; water sources at wells, streams, or taverns.
 - **Effects:** Below 20 → confusion penalty (NPC name-matching fuzzier, intent-parsing harder).
 - **Rundale flavour:** Clean well water vs. brackish ditch water (illness risk).
 
 ### 1d. Fatigue / Rest
+
 - **What:** 0 (exhausted) → 100 (well-rested). Falls with travel and activity; rises only by sleeping.
 - **Effects:** Below 20 → movement speed halved; below 10 → cannot travel.
 - **Sleep system** is its own section (§ 2).
 
 ### 1e. Warmth
+
 - **What:** Comfort rating affected by weather, clothing, and shelter.
 - **Effects:** Prolonged cold/wet → health drain; reaching a fire or indoors recovers warmth quickly.
 - **Rundale flavour:** Turf fires are the primary heat source; cutting and storing turf is seasonal labour.
@@ -59,7 +64,7 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
 
 ## 2. Sleep System
 
-- **Trigger:** Player types something like *"go to sleep"*, *"lie down"*, *"rest"* at an eligible location.
+- **Trigger:** Player types something like _"go to sleep"_, _"lie down"_, _"rest"_ at an eligible location.
 - **Eligible locations:**
   - Player's own home (full rest bonus)
   - An NPC's home if invited or for a fee (medium bonus)
@@ -69,7 +74,7 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
   - Restores fatigue fully; partial hunger/thirst drain while sleeping.
   - Applies warmth recovery or penalties depending on location.
   - Can be interrupted by events (storm worsens, NPC knocks, dawn bell).
-- **Cuaird connection:** Evening visiting (*cuaird*) is already flagged in schedules. Sleeping after a late cuaird visit should be narratively natural.
+- **Cuaird connection:** Evening visiting (_cuaird_) is already flagged in schedules. Sleeping after a late cuaird visit should be narratively natural.
 
 ---
 
@@ -78,7 +83,7 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
 - **Container:** `PlayerInventory` — a `Vec<ItemStack>` with a configurable `max_weight` (encumbrance).
 - **ItemStack:** `{ item_id: ItemId, quantity: u32 }` — stackable commodities.
 - **Weight:** Each item has a `weight_kg: f64`; total carried weight affects travel speed.
-- **Commands:** `/inventory` (list), *"pick up [item]"*, *"drop [item]"*, *"give [item] to [NPC]"*, *"eat [food]"*.
+- **Commands:** `/inventory` (list), _"pick up [item]"_, _"drop [item]"_, _"give [item] to [NPC]"_, _"eat [food]"_.
 - **Persistence:** Serialised alongside WorldState in save files.
 
 ---
@@ -87,17 +92,17 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
 
 ### Item Types
 
-| Category | Examples |
-|---|---|
-| Food | Potato, bread loaf, salted herring, oat cake, butter pat, cabbage, turnip |
-| Drink | Water (flask), milk (jug), poitín (jar), ale (mug) |
-| Fuel | Turf sod, bundle of sticks, peat brick |
-| Tools | Spade, scythe, fishing line, net, knife |
-| Clothing | Woollen cloak, brat, leather brogue, shawl |
-| Trade goods | Wool bundle, linen yard, tallow candle, rope |
-| Currency | Penny, shilling, crown (pre-decimal Irish) |
-| Keys / Plot | Letter, sealed document, package for delivery |
-| Light sources | Rush candle, tallow candle, oil lantern |
+| Category      | Examples                                                                  |
+| ------------- | ------------------------------------------------------------------------- |
+| Food          | Potato, bread loaf, salted herring, oat cake, butter pat, cabbage, turnip |
+| Drink         | Water (flask), milk (jug), poitín (jar), ale (mug)                        |
+| Fuel          | Turf sod, bundle of sticks, peat brick                                    |
+| Tools         | Spade, scythe, fishing line, net, knife                                   |
+| Clothing      | Woollen cloak, brat, leather brogue, shawl                                |
+| Trade goods   | Wool bundle, linen yard, tallow candle, rope                              |
+| Currency      | Penny, shilling, crown (pre-decimal Irish)                                |
+| Keys / Plot   | Letter, sealed document, package for delivery                             |
+| Light sources | Rush candle, tallow candle, oil lantern                                   |
 
 ### Item Data Model
 
@@ -131,15 +136,15 @@ struct Item {
 
 Rather than XP bars, skills improve through use (implicit learning):
 
-| Skill | Increases by… | Effect |
-|---|---|---|
-| Irish Language | speaking Irish with NPCs | unlock deeper dialogue, trust bonuses |
-| Farming | tending crops, cutting turf | crop yield, reduced effort |
-| Fishing | fishing actions | catch rate, fish species variety |
-| Craft / Trade | making or selling goods | better trade prices |
-| Social / Charm | successful conversations | NPC mood starts higher |
-| Navigation | travelling new routes | travel time reduced |
-| Healing | assisting the sick | can provide medical care |
+| Skill          | Increases by…               | Effect                                |
+| -------------- | --------------------------- | ------------------------------------- |
+| Irish Language | speaking Irish with NPCs    | unlock deeper dialogue, trust bonuses |
+| Farming        | tending crops, cutting turf | crop yield, reduced effort            |
+| Fishing        | fishing actions             | catch rate, fish species variety      |
+| Craft / Trade  | making or selling goods     | better trade prices                   |
+| Social / Charm | successful conversations    | NPC mood starts higher                |
+| Navigation     | travelling new routes       | travel time reduced                   |
+| Healing        | assisting the sick          | can provide medical care              |
 
 Skills are `u8` (0–100) stored in `PlayerState`. Thresholds (25, 50, 75, 100) unlock new intent outcomes.
 
@@ -161,15 +166,15 @@ Skills are `u8` (0–100) stored in `PlayerState`. Thresholds (25, 50, 75, 100) 
 
 Short-duration modifiers on `PlayerState`:
 
-| Effect | Cause | Duration | Impact |
-|---|---|---|---|
-| Soaked | Heavy rain outdoors | Until near fire | Warmth drain, health drain |
-| Chilled | Low warmth extended | Gradual | Health drain |
-| Ill | Infected water / NPC spread | Days | All vitals drain faster |
-| Drunk | Too much poitín/ale | Hours | Intent parsing fuzzy, social penalties |
-| Well-fed | Just ate | 1 hour | Fatigue drains slower |
-| Rested | Just woke | 2 hours | Travel speed bonus |
-| Grieving | Plot trigger | Variable | Social options change |
+| Effect   | Cause                       | Duration        | Impact                                 |
+| -------- | --------------------------- | --------------- | -------------------------------------- |
+| Soaked   | Heavy rain outdoors         | Until near fire | Warmth drain, health drain             |
+| Chilled  | Low warmth extended         | Gradual         | Health drain                           |
+| Ill      | Infected water / NPC spread | Days            | All vitals drain faster                |
+| Drunk    | Too much poitín/ale         | Hours           | Intent parsing fuzzy, social penalties |
+| Well-fed | Just ate                    | 1 hour          | Fatigue drains slower                  |
+| Rested   | Just woke                   | 2 hours         | Travel speed bonus                     |
+| Grieving | Plot trigger                | Variable        | Social options change                  |
 
 ---
 
@@ -187,7 +192,7 @@ Short-duration modifiers on `PlayerState`:
 
 - **Player home:** A designated `LocationId` owned or rented by the player.
 - **Homeless state:** If evicted (rent unpaid), player must find lodging each night.
-- **Lodging options:** Travellers' hostel (*teach an bhóthair*), sleeping at a sympathetic NPC's home.
+- **Lodging options:** Travellers' hostel (_teach an bhóthair_), sleeping at a sympathetic NPC's home.
 - **Home upgrades:** Thatch repair, adding a bedroom, building a byre — each costs materials + labour + time.
 - **Eviction risk:** Ties back to rent payment in the Economy system.
 
@@ -197,12 +202,12 @@ Short-duration modifiers on `PlayerState`:
 
 Ties time, skills, and inventory together:
 
-| Season | Activity | Mechanic |
-|---|---|---|
-| Spring | Plant potatoes, sow oats | Requires spade + seed; starts multi-day task |
-| Summer | Hay cutting, turf cutting | Stamina drain; yield depends on skill |
-| Autumn | Harvest crops | Time-limited; failure → food shortage |
-| Winter | Threshing, spinning, repairs | Indoor tasks; sociability (cuaird) high |
+| Season | Activity                     | Mechanic                                     |
+| ------ | ---------------------------- | -------------------------------------------- |
+| Spring | Plant potatoes, sow oats     | Requires spade + seed; starts multi-day task |
+| Summer | Hay cutting, turf cutting    | Stamina drain; yield depends on skill        |
+| Autumn | Harvest crops                | Time-limited; failure → food shortage        |
+| Winter | Threshing, spinning, repairs | Indoor tasks; sociability (cuaird) high      |
 
 - Tasks are **multi-day processes**: start a task, advance time, return to complete it.
 - Crop failure (bad weather + poor skill) can trigger famine pressure.
@@ -216,7 +221,7 @@ Building on the existing `is_ill` NPC flag:
 - **Illness types:** Common cold, fever, the flux, more severe epidemic (plot).
 - **Transmission:** Spending time with ill NPCs raises player illness chance.
 - **Player illness:** New `PlayerStatus::Ill { severity, days_remaining }`.
-- **Treatment:** Rest + warmth + specific items (herbs, poitín as medicine); visiting the *bean feasa*.
+- **Treatment:** Rest + warmth + specific items (herbs, poitín as medicine); visiting the _bean feasa_.
 - **NPC epidemic spread:** Tier-4 engine already exists for NPC illness ticks.
 
 ---
@@ -225,13 +230,13 @@ Building on the existing `is_ill` NPC flag:
 
 Building on the existing `TransportMode` struct:
 
-| Mode | Speed (m/s) | Requires | Notes |
-|---|---|---|---|
-| On foot | 1.25 | — | Default |
-| Donkey | 1.5 | Own / hire donkey | Can carry heavy loads |
-| Horse | 2.5 | Own / hire horse | Costs upkeep |
-| Cart | 1.2 | Horse + cart | Carry bulk goods; slower |
-| Currach | varies | Coastal routes only | Needed to cross to islands |
+| Mode    | Speed (m/s) | Requires            | Notes                      |
+| ------- | ----------- | ------------------- | -------------------------- |
+| On foot | 1.25        | —                   | Default                    |
+| Donkey  | 1.5         | Own / hire donkey   | Can carry heavy loads      |
+| Horse   | 2.5         | Own / hire horse    | Costs upkeep               |
+| Cart    | 1.2         | Horse + cart        | Carry bulk goods; slower   |
+| Currach | varies      | Coastal routes only | Needed to cross to islands |
 
 - Animals need feeding (hunger-like mechanic for animals).
 - Hiring costs currency; owning costs ongoing feed + stabling.
@@ -242,6 +247,7 @@ Building on the existing `TransportMode` struct:
 
 - **Task types:** Errand (deliver X to Y), Fetch (bring item), Timed (before market day), Relational (improve standing with NPC).
 - **Task struct:**
+
   ```rust
   struct Task {
       id:          TaskId,
@@ -253,6 +259,7 @@ Building on the existing `TransportMode` struct:
       state:       TaskState,  // Active, Complete, Failed
   }
   ```
+
 - **Discovery:** Tasks surface through NPC dialogue naturally — NPC says "Would you ever carry this to Máire?" → intent-parsed as a task offer.
 - **Failure:** Missing a deadline → relationship damage with giver.
 
@@ -282,19 +289,19 @@ Not strictly mechanics, but complement vitals — see also [ambient-sound.md](..
 
 ## Priority / Implementation Order
 
-| Priority | Mechanic | Rationale |
-|---|---|---|
-| 1 | Player vitals (health, hunger, fatigue) | Highest gameplay impact; everything else builds on this |
-| 2 | Sleep system | Immediate payoff; uses vitals + time |
-| 3 | Inventory + basic items (food) | Gives hunger system content |
-| 4 | Economy (currency + rent) | Creates stakes and pressure |
-| 5 | Status effects (wet, cold, ill) | Pays off the existing weather system |
-| 6 | Reputation | Gossip network already built |
-| 7 | Skills | Polish layer |
-| 8 | Agriculture / seasonal tasks | Deep sim layer |
-| 9 | Quests | Narrative glue |
-| 10 | Transport / mounts | Quality-of-life + depth |
+| Priority | Mechanic                                | Rationale                                               |
+| -------- | --------------------------------------- | ------------------------------------------------------- |
+| 1        | Player vitals (health, hunger, fatigue) | Highest gameplay impact; everything else builds on this |
+| 2        | Sleep system                            | Immediate payoff; uses vitals + time                    |
+| 3        | Inventory + basic items (food)          | Gives hunger system content                             |
+| 4        | Economy (currency + rent)               | Creates stakes and pressure                             |
+| 5        | Status effects (wet, cold, ill)         | Pays off the existing weather system                    |
+| 6        | Reputation                              | Gossip network already built                            |
+| 7        | Skills                                  | Polish layer                                            |
+| 8        | Agriculture / seasonal tasks            | Deep sim layer                                          |
+| 9        | Quests                                  | Narrative glue                                          |
+| 10       | Transport / mounts                      | Quality-of-life + depth                                 |
 
 ---
 
-*Document created: 2026-04-11*
+_Document created: 2026-04-11_

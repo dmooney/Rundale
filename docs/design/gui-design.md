@@ -23,7 +23,7 @@ Headless mode continues to use the Rust `LoadingAnimation` (`crates/parish-core/
 
 ## Layout
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │  Status Bar: Location | HH:MM TimeOfDay | Weather | Season  │
 ├──────────────────────────┬───────────────────────────────────┤
@@ -97,15 +97,15 @@ Two collapsible sections:
 
 The GUI uses time-of-day palettes computed by the shared `crates/parish-palette` engine. The 7 defined palettes cover the major times of day:
 
-| Time | Background | Text | Accent |
-|------|-----------|------|--------|
-| Dawn | `(255,220,180)` warm pale | `(60,40,20)` dark brown | `(200,140,60)` gold |
-| Morning | `(255,245,220)` warm gold | `(50,35,15)` dark brown | `(180,130,50)` amber |
-| Midday | `(255,255,240)` bright warm | `(40,30,10)` near-black | `(160,120,40)` gold |
-| Afternoon | `(240,220,170)` deep gold | `(50,35,15)` dark brown | `(180,130,50)` amber |
-| Dusk | `(60,70,110)` deep blue | `(220,210,190)` light | `(200,160,80)` amber |
-| Night | `(20,25,40)` near-black | `(180,180,190)` silver | `(100,110,140)` blue-grey |
-| Midnight | `(10,12,20)` darkest | `(150,150,165)` muted | `(70,75,100)` dark blue |
+| Time      | Background                  | Text                    | Accent                    |
+| --------- | --------------------------- | ----------------------- | ------------------------- |
+| Dawn      | `(255,220,180)` warm pale   | `(60,40,20)` dark brown | `(200,140,60)` gold       |
+| Morning   | `(255,245,220)` warm gold   | `(50,35,15)` dark brown | `(180,130,50)` amber      |
+| Midday    | `(255,255,240)` bright warm | `(40,30,10)` near-black | `(160,120,40)` gold       |
+| Afternoon | `(240,220,170)` deep gold   | `(50,35,15)` dark brown | `(180,130,50)` amber      |
+| Dusk      | `(60,70,110)` deep blue     | `(220,210,190)` light   | `(200,160,80)` amber      |
+| Night     | `(20,25,40)` near-black     | `(180,180,190)` silver  | `(100,110,140)` blue-grey |
+| Midnight  | `(10,12,20)` darkest        | `(150,150,165)` muted   | `(70,75,100)` dark blue   |
 
 Palettes are selected by `compute_palette()` (from `crates/parish-palette`), which interpolates between the 7 keyframes and enforces a minimum foreground/background contrast floor.
 
@@ -113,7 +113,7 @@ Palettes are selected by `compute_palette()` (from `crates/parish-palette`), whi
 
 Input follows the same pipeline as headless mode:
 
-```
+```text
 Text from input field
     ↓
 classify_input() → SystemCommand or GameInput

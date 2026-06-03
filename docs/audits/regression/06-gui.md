@@ -21,50 +21,50 @@ history, quick-travel).
 Components in `apps/ui/src/components/` and `apps/ui/src/components/editor/` —
 **6 of 17 components have a colocated `.test.ts`** (~35%):
 
-| Component | Test file | Status |
-|---|---|---|
-| `ChatPanel.svelte` | `ChatPanel.test.ts` | covered |
-| `InputField.svelte` | `InputField.test.ts` | covered |
-| `MapPanel.svelte` | `MapPanel.test.ts` | covered |
-| `MoodIcon.svelte` | `MoodIcon.test.ts` | covered |
-| `StatusBar.svelte` | `StatusBar.test.ts` | covered |
-| `editor/LocationDetail.svelte` | `editor/LocationDetail.test.ts` | covered |
-| `AuthStatus.svelte` | — | **none** |
-| `DebugPanel.svelte` | — | **none** (5 tabs unverified) |
-| `FullMapOverlay.svelte` | — | **none** |
-| `SavePicker.svelte` | — | **none** (DAG layout untested) |
-| `Sidebar.svelte` | — | **none** (Focail panel untested) |
-| `editor/LocationList.svelte` | — | **none** |
-| `editor/ModBrowser.svelte` | — | **none** |
-| `editor/NpcDetail.svelte` | — | **none** |
-| `editor/NpcList.svelte` | — | **none** |
-| `editor/SaveInspector.svelte` | — | **none** |
-| `editor/ValidatorPanel.svelte` | — | **none** |
+| Component                      | Test file                       | Status                           |
+| ------------------------------ | ------------------------------- | -------------------------------- |
+| `ChatPanel.svelte`             | `ChatPanel.test.ts`             | covered                          |
+| `InputField.svelte`            | `InputField.test.ts`            | covered                          |
+| `MapPanel.svelte`              | `MapPanel.test.ts`              | covered                          |
+| `MoodIcon.svelte`              | `MoodIcon.test.ts`              | covered                          |
+| `StatusBar.svelte`             | `StatusBar.test.ts`             | covered                          |
+| `editor/LocationDetail.svelte` | `editor/LocationDetail.test.ts` | covered                          |
+| `AuthStatus.svelte`            | —                               | **none**                         |
+| `DebugPanel.svelte`            | —                               | **none** (5 tabs unverified)     |
+| `FullMapOverlay.svelte`        | —                               | **none**                         |
+| `SavePicker.svelte`            | —                               | **none** (DAG layout untested)   |
+| `Sidebar.svelte`               | —                               | **none** (Focail panel untested) |
+| `editor/LocationList.svelte`   | —                               | **none**                         |
+| `editor/ModBrowser.svelte`     | —                               | **none**                         |
+| `editor/NpcDetail.svelte`      | —                               | **none**                         |
+| `editor/NpcList.svelte`        | —                               | **none**                         |
+| `editor/SaveInspector.svelte`  | —                               | **none**                         |
+| `editor/ValidatorPanel.svelte` | —                               | **none**                         |
 
 Library / store coverage in `apps/ui/src/lib/` + `stores/`:
 
-| File | Coverage |
-|---|---|
-| `lib/slash-commands.test.ts` | covered |
-| `lib/ipc.test.ts` | covered |
-| `lib/stream-pacing.test.ts` | covered (token streaming) |
-| `lib/rich-text.test.ts` | covered (likely emote parsing) |
-| `lib/auto-pause.test.ts` | covered |
-| `lib/editor-map.test.ts` | covered |
-| `lib/map/geojson.test.ts` | covered |
-| `lib/map/controller.test.ts` | covered |
-| `lib/map/style.test.ts` | covered |
-| `stores/game.test.ts` | covered |
-| `stores/tiles.test.ts` | covered |
+| File                         | Coverage                       |
+| ---------------------------- | ------------------------------ |
+| `lib/slash-commands.test.ts` | covered                        |
+| `lib/ipc.test.ts`            | covered                        |
+| `lib/stream-pacing.test.ts`  | covered (token streaming)      |
+| `lib/rich-text.test.ts`      | covered (likely emote parsing) |
+| `lib/auto-pause.test.ts`     | covered                        |
+| `lib/editor-map.test.ts`     | covered                        |
+| `lib/map/geojson.test.ts`    | covered                        |
+| `lib/map/controller.test.ts` | covered                        |
+| `lib/map/style.test.ts`      | covered                        |
+| `stores/game.test.ts`        | covered                        |
+| `stores/tiles.test.ts`       | covered                        |
 
 E2E (`apps/ui/e2e/`):
 
-| Spec | Coverage |
-|---|---|
-| `smoke.spec.ts` | page loads, can type, can move, API JSON, screenshot at different states (5 tests) |
-| `app.spec.ts` | app shell, status bar, chat initial description, map canvas, NPC chip row, input enabled, sidebar pronunciation hints (7 tests) |
-| `interactions.spec.ts` | type+Enter, disabled during streaming, multi-npc stream interleaving, paused indicator (5 tests) |
-| `screenshots.spec.ts` | screenshot generation + visual regression baselines |
+| Spec                   | Coverage                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `smoke.spec.ts`        | page loads, can type, can move, API JSON, screenshot at different states (5 tests)                                              |
+| `app.spec.ts`          | app shell, status bar, chat initial description, map canvas, NPC chip row, input enabled, sidebar pronunciation hints (7 tests) |
+| `interactions.spec.ts` | type+Enter, disabled during streaming, multi-npc stream interleaving, paused indicator (5 tests)                                |
+| `screenshots.spec.ts`  | screenshot generation + visual regression baselines                                                                             |
 
 ## 3. Strong spots
 
@@ -84,7 +84,7 @@ E2E (`apps/ui/e2e/`):
 - **[P0] `SavePicker.svelte` has no test.** This component is reachable
   via F5, renders a branch-DAG with hierarchical layout and auto-zoom
   bbox, and gates the entire save-management UX. Pixel-level visual
-  regression is the *only* current sensor and won't catch click-handler
+  regression is the _only_ current sensor and won't catch click-handler
   drift or DAG-layout bugs. Suggested: Vitest test in
   `apps/ui/src/components/SavePicker.test.ts`.
 - **[P0] `DebugPanel.svelte` has no test.** features.md describes 5 tabs
@@ -99,7 +99,7 @@ E2E (`apps/ui/e2e/`):
   feature; regressions here corrupt mods. Suggested: minimum smoke
   test per component asserting render + 1 interaction.
 - **[P1] Theme System (time-of-day RGB gradient, season/weather tinting)
-  has no unit test.** Pixel-regression catches drift in the *current*
+  has no unit test.** Pixel-regression catches drift in the _current_
   state, not transitions or per-input correctness. Suggested:
   `apps/ui/src/lib/theme.test.ts` asserting the gradient interpolation
   for a few (time, season, weather) tuples.

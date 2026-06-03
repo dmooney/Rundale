@@ -8,12 +8,12 @@ description = "Engine and LLM-provider configuration loader for the Parish engin
 
 [dependencies]
 parish-types = { workspace = true }
-serde        = { workspace = true }
-serde_json   = { workspace = true }
-toml         = { workspace = true }
-tracing      = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-tempfile    = { workspace = true }
+tempfile = { workspace = true }
 serial_test = { workspace = true }
-toml        = { workspace = true }
+toml = { workspace = true }

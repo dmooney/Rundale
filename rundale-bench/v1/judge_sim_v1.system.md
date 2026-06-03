@@ -90,6 +90,7 @@ fences:
 ```
 
 Rules:
+
 - `axes.plausibility` is an integer **1-5** for normal scoring, or **0**
   for a bench-bug item. `overall` mirrors it (1.0-5.0 normal, 0.0
   bench-bug).
@@ -106,6 +107,7 @@ Rules:
 # Rubric
 
 Score 1-5 on PLAUSIBILITY (5 = best). Penalise:
+
 - mood transitions that don't follow from the scene (sudden rage with
   no trigger),
 - relationship deltas outside the -0.1..0.1 band the prompt allows,

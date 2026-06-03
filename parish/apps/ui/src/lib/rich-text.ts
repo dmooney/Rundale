@@ -88,7 +88,8 @@ export function segmentText(
 	//      earlier range is visited (and accepted) first.
 	//   3. Re-sort accepted ranges by start position for segment construction.
 	ranges.sort(
-		(a, b) => KIND_PRIORITY[b.kind] - KIND_PRIORITY[a.kind] || a.start - b.start,
+		(a, b) =>
+			KIND_PRIORITY[b.kind] - KIND_PRIORITY[a.kind] || a.start - b.start,
 	);
 
 	const resolved: MatchRange[] = [];

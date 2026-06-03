@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentText, type RichSegment } from './rich-text';
+import { segmentText } from './rich-text';
 
 describe('segmentText', () => {
 	it('returns plain segment for empty hints', () => {

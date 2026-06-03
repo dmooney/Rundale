@@ -8,9 +8,9 @@ Tier 2 tick overhaul, `crates/parish-core/` social graph.
 Tier 4 rules already propagate gossip probabilistically, and Tier 2 moves mood
 between adjacent NPCs. But:
 
-- NPCs have no explicit *belief about what another NPC knows*. They "just
+- NPCs have no explicit _belief about what another NPC knows_. They "just
   know" village facts because those facts are in their prompt.
-- Gossip is a scalar diffusion; the *content* doesn't mutate as it spreads.
+- Gossip is a scalar diffusion; the _content_ doesn't mutate as it spreads.
   Real rumours distort.
 - Tier 2 simulates each nearby NPC independently. Two NPCs can independently
   decide to comfort the same third — no coordination.
@@ -21,11 +21,11 @@ between adjacent NPCs. But:
 
 Each NPC carries, per other NPC it cares about, a small belief record:
 
-```
+```text
 believes(séan, that: "máire owes margaret 12 shillings", confidence: 0.7, learned: <date>)
 ```
 
-Tier 1/2 prompts retrieve not the ground truth but *this NPC's belief set*.
+Tier 1/2 prompts retrieve not the ground truth but _this NPC's belief set_.
 An NPC who hasn't heard the news genuinely doesn't know it — no more prompt
 leakage.
 
@@ -50,7 +50,7 @@ passes with a joint pass:
 
 - Shared scratchpad, turn-taking governed by the scene director (doc 04
   planner).
-- Each NPC's output is conditioned on the prior utterance *and* its own
+- Each NPC's output is conditioned on the prior utterance _and_ its own
   belief state.
 
 Society-of-Mind and MAD (Multi-Agent Debate) show this produces more
@@ -108,8 +108,8 @@ clearing.
 
 ## Papers / references
 
-- Park et al., *Generative Agents* (2023) — reflection + relationship memory.
-- Li et al., *CAMEL: Communicative Agents for "Mind" Exploration of LLMs* (2023).
-- Du et al., *Improving Factuality and Reasoning via Multiagent Debate* (2023).
-- Rabinowitz et al., *Machine Theory of Mind* (2018).
-- Blondel et al., *Fast Unfolding of Communities in Large Networks* (2008).
+- Park et al., _Generative Agents_ (2023) — reflection + relationship memory.
+- Li et al., _CAMEL: Communicative Agents for "Mind" Exploration of LLMs_ (2023).
+- Du et al., _Improving Factuality and Reasoning via Multiagent Debate_ (2023).
+- Rabinowitz et al., _Machine Theory of Mind_ (2018).
+- Blondel et al., _Fast Unfolding of Communities in Large Networks_ (2008).

@@ -27,22 +27,23 @@ export interface LayoutResult {
 }
 
 export function layoutTree(branches: SaveBranchDisplay[]): LayoutResult {
-	if (branches.length === 0) return { nodes: [], width: 0, height: 0, edges: [] };
+	if (branches.length === 0)
+		return { nodes: [], width: 0, height: 0, edges: [] };
 
 	// Build tree structure
 	function buildNode(branch: SaveBranchDisplay): TreeNode {
 		const children = branches
-			.filter(b => b.parent_name === branch.name)
-			.map(b => buildNode(b));
+			.filter((b) => b.parent_name === branch.name)
+			.map((b) => buildNode(b));
 		return { branch, children, x: 0, y: 0, span: 0 };
 	}
 
 	const roots = branches
-		.filter(b => b.parent_name === null)
-		.map(b => buildNode(b));
+		.filter((b) => b.parent_name === null)
+		.map((b) => buildNode(b));
 
 	// If somehow no roots, treat all as roots
-	const tree = roots.length > 0 ? roots : branches.map(b => buildNode(b));
+	const tree = roots.length > 0 ? roots : branches.map((b) => buildNode(b));
 
 	// Compute spans (how many leaf slots each subtree needs)
 	function computeSpan(node: TreeNode): number {
@@ -137,7 +138,7 @@ export function layoutTree(branches: SaveBranchDisplay[]): LayoutResult {
 				x1: node.x + NODE_W / 2,
 				y1: node.y,
 				x2: child.x + NODE_W / 2,
-				y2: child.y + NODE_H
+				y2: child.y + NODE_H,
 			});
 			collectEdges(child);
 		}

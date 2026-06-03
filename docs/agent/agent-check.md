@@ -11,7 +11,7 @@ Run it locally with `just agent-check`. It is also part of `just check` and `jus
 
 ## Lifecycle of a bundle
 
-```
+```text
 /task-start <id>          → write .proofs/<id>/acceptance-criteria.md +
                             parish/testing/fixtures/play_<id>.txt
                           → stop, get human approval

@@ -44,6 +44,7 @@ After identifying the root cause, ask:
 If yes — a missing rule, an unenforced convention, a gap in mode-parity coverage, a silently-tolerated anti-pattern — propose the rule text and **include the `AGENTS.md` change in the same PR as the fix**. The five-whys output is incomplete without this step. A root cause that only fixes one occurrence and leaves the door open for the next is half a fix.
 
 Guidance on the change:
+
 - Prefer enforcement (a fitness test, lint, or CI check) over convention. If enforcement is too costly, file a follow-up issue tracking the test, and add the rule as convention with a `TODO: enforce via <test>`.
 - Keep the rule one short paragraph in the **Non-negotiable engineering rules** list. Lead with the imperative; one-line rationale.
 - If no gap exists (the rule was there and was ignored, or the cause is genuinely one-off), say so explicitly — don't pad.

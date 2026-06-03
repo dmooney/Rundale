@@ -14,41 +14,43 @@ Modelled on the contract that makes SWE-bench and HLE useful: fixed dataset, hel
 
 Proposed. Lands incrementally — each phase ships as a small PR.
 
-Predecessor: [PR #958](https://github.com/dmooney/Rundale/pull/958) generalised the local-eval scripts behind a `Target` abstraction so any OpenAI-compatible endpoint can be evaluated. That's the *probe* — useful for one-off swap decisions, not yet a benchmark.
+Predecessor: [PR #958](https://github.com/dmooney/Rundale/pull/958) generalised the local-eval scripts behind a `Target` abstraction so any OpenAI-compatible endpoint can be evaluated. That's the _probe_ — useful for one-off swap decisions, not yet a benchmark.
 
 ## What's missing today
 
-| Property | Probe (today) | Real benchmark |
-| --- | --- | --- |
-| Dataset versioning | Prompts mutate in-place in `flaw_scan.py` / `gen_dlg.py` | Frozen JSONL, Merkle root committed, SemVer |
-| Held-out split | None | 80% dev (public) / 20% holdout (sealed) |
-| Grading | LLM-judge only (Opus, stochastic) | Hybrid: deterministic where possible + pinned-LLM judge for taste |
-| Statistical N | 5 (dialogue) / 100 (flaw scan) | 200-500 per slice |
-| Reproducibility | "Run the script and eyeball" | Same target → same score within rubric noise (±0.3) |
-| Leaderboard | Scattered across `docs/proofs/local-perf/` | Append-only canonical table |
-| Spec | None | Versioned task contract + citation BibTeX |
-| Contamination control | None | Holdout sealed; not crawled |
+| Property              | Probe (today)                                            | Real benchmark                                                    |
+| --------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| Dataset versioning    | Prompts mutate in-place in `flaw_scan.py` / `gen_dlg.py` | Frozen JSONL, Merkle root committed, SemVer                       |
+| Held-out split        | None                                                     | 80% dev (public) / 20% holdout (sealed)                           |
+| Grading               | LLM-judge only (Opus, stochastic)                        | Hybrid: deterministic where possible + pinned-LLM judge for taste |
+| Statistical N         | 5 (dialogue) / 100 (flaw scan)                           | 200-500 per slice                                                 |
+| Reproducibility       | "Run the script and eyeball"                             | Same target → same score within rubric noise (±0.3)               |
+| Leaderboard           | Scattered across `docs/proofs/local-perf/`               | Append-only canonical table                                       |
+| Spec                  | None                                                     | Versioned task contract + citation BibTeX                         |
+| Contamination control | None                                                     | Holdout sealed; not crawled                                       |
 
 ## Scope
 
 Five slices, mirroring `InferenceCategory`:
 
-| Slice | Grader | Gold style |
-| --- | --- | --- |
-| `intent` | deterministic | exact-match intent label + target F1 vs gold JSON |
-| `reaction` | hybrid | schema-valid + LLM-judge rubric |
-| `tier2-sim` | hybrid | schema-valid + delta plausibility (LLM) |
-| `tier3-sim` | hybrid | schema-valid + count + LLM-judge |
-| `dialogue` | LLM-judge | frozen 5-axis rubric + non-Latin script rule |
+| Slice       | Grader        | Gold style                                        |
+| ----------- | ------------- | ------------------------------------------------- |
+| `intent`    | deterministic | exact-match intent label + target F1 vs gold JSON |
+| `reaction`  | hybrid        | schema-valid + LLM-judge rubric                   |
+| `tier2-sim` | hybrid        | schema-valid + delta plausibility (LLM)           |
+| `tier3-sim` | hybrid        | schema-valid + count + LLM-judge                  |
+| `dialogue`  | LLM-judge     | frozen 5-axis rubric + non-Latin script rule      |
 
 Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), latency budgets (already covered by `inf_bench.rs`), or training-data benchmarks. Those are v2 candidates.
 
 ## Deliverables
 
 1. **Dataset.** `rundale-bench/v1/<slice>.jsonl`, one record per line:
+
    ```jsonl
    {"id": "intent-0001", "prompt": "...", "schema": {...}, "gold": {"intent": "talk", "target": "Padraig", "dialogue": "I saw his cow"}}
    ```
+
    200 prompts per slice. Hand-authored or hand-graded (intent / reaction); LLM-graded for tier2/tier3 once a pinned judge exists.
 
 2. **Holdout split.** 20% reserved as `<slice>.holdout.jsonl`. Sealed: encrypted-at-rest in repo (age key in CI secret) or hosted externally. Never decrypted in interactive sessions; only the `rundale_bench.py` CI runner sees the plaintext. Hashes of holdout prompts checked in alongside ciphertext so contamination can be audited.
@@ -60,10 +62,12 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
    - `grade_simulation(pred, schema, judge)` — schema-validate then plausibility-judge
 
 4. **Harness.** `rundale-bench/rundale_bench.py`:
+
    ```sh
    python3 -m rundale_bench --target '<spec>' --suite v1 --split dev
    python3 -m rundale_bench --target '<spec>' --suite v1 --split holdout    # CI-only
    ```
+
    Single entry point. Emits per-slice scores, aggregate overall, per-1k-task USD, p50/p95 latency. Outputs JSON + appends a leaderboard row.
 
 5. **Pinned judge.** `judge_v1` snapshot: model id + base_url + temperature + seed + rubric prompt hash. Captured in `docs/agent/rundale-bench-v1.md` and verified at runtime (`grade.py` aborts if the judge response signature deviates from the pinned hash).
@@ -77,9 +81,11 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
    - errata + version history
 
 7. **Leaderboard.** `rundale-bench/artifacts/leaderboard.md` — generated Markdown table:
-   ```
+
+   ```text
    | Date (UTC)        | Target                                                     | Dev / Holdout overall | Intent | Reaction | Tier2 | Tier3 | Dialogue | $/1k | p50 ms | Harness SHA |
    ```
+
    Every CI run appends one row. Reproducibility check: re-running the same target on the same harness SHA must yield within ±0.3 overall.
 
 ## Phased rollout

@@ -8,7 +8,7 @@ import {
 	type ThemePreference,
 	DEFAULT_PREFERENCE,
 	loadThemePreference,
-	saveThemePreference
+	saveThemePreference,
 } from '$lib/theme';
 
 /** Game hour < 6 or >= 20 is considered night. */

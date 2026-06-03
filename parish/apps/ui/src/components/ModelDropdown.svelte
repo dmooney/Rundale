@@ -10,7 +10,7 @@
 </script>
 
 <ul id="model-listbox" class="mention-dropdown" role="listbox" aria-label="Model suggestions">
-	{#each models as model, i}
+	{#each models as model, i (model.provider + '/' + model.name)}
 		<li
 			id="model-option-{i}"
 			role="option"

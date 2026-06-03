@@ -1,6 +1,6 @@
 # Architecture & Housing in 1820s Ireland
 
-*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
+_Research document for Rundale — an interactive fiction game set in 1820s rural Ireland._
 
 ## The One-Room Cabin
 
@@ -76,7 +76,7 @@ The architecture and housing of 1820s Ireland offer rich material for building R
 
 [8] **Verified.** Súgán is Irish for straw-rope, and súgán chairs feature wooden frames with seats woven from oat straw or hay rope. Popular in rural Ireland from the 19th to early 20th centuries. — Wikipedia, "Súgán"; Irish Examiner, "The ancient art of súgán-making."
 
-[9] **Verified.** The practice of *grieshog* involved burying warm coals in ashes overnight to preserve the fire. The woman of the house would bank the fire at night. Exceptions occurred only at Samhain and Bealtaine when hearths were ritually quenched and relit. — Irish Central, "Keeping the home fires burning."
+[9] **Verified.** The practice of _grieshog_ involved burying warm coals in ashes overnight to preserve the fire. The woman of the house would bank the fire at night. Exceptions occurred only at Samhain and Bealtaine when hearths were ritually quenched and relit. — Irish Central, "Keeping the home fires burning."
 
 [10] **Verified.** The hob is a projection, shelf, or bench built into the chimney corner to hold food or utensils warm or serve as a seat. Irish homes typically had hobs on each side of the fireplace. — Wikipedia, "Hob (hearth)."
 

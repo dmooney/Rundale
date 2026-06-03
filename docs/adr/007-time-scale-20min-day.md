@@ -20,12 +20,12 @@ Rundale simulates a living Irish parish where seasons change, relationships evol
 
 Adopt the following time scale:
 
-| Real Time | Game Time |
-|-----------|-----------|
-| 20 minutes | 1 day |
-| ~7-8 minutes | Night portion |
-| ~30-45 minutes | 1 season |
-| 2-3 hours | 1 year |
+| Real Time      | Game Time     |
+| -------------- | ------------- |
+| 20 minutes     | 1 day         |
+| ~7-8 minutes   | Night portion |
+| ~30-45 minutes | 1 season      |
+| 2-3 hours      | 1 year        |
 
 This gives approximately **6-9 in-game days per season**.
 

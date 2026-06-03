@@ -28,7 +28,7 @@ The **Orange Order**, founded in 1795 after the sectarian **Battle of the Diamon
 
 One of the most distinctive features of Irish religious life was the survival of **holy wells** — springs and natural water sources associated with particular saints, believed to possess curative powers. These sites were almost certainly **pre-Christian** in origin, sacred places absorbed into the Christian framework by association with local saints. Pilgrims visited holy wells to perform **rounds** (circuits of prayer), leave **votive offerings** (rags, pins, coins, crutches), and seek cures for ailments of the eyes, the joints, infertility, and mental disturbance. Pattern days at holy wells combined genuine devotion with festivity — and often with drinking, dancing, and faction fighting, which scandalized both Catholic clergy and Protestant commentators.
 
-The relationship between **orthodox Catholicism and folk belief** was one of comfortable coexistence rather than conflict in the 1820s. Ordinary people saw no contradiction between attending Mass and fearing the **fairies** (the *sí* or *good people*), between reciting the rosary and guarding against **pisheogs** (malicious spells or curses). **The evil eye** — the belief that envy could cause harm through a glance — was universally credited, and precautions against it were routine: spitting lightly on a praised child, turning a compliment with "God bless the mark," keeping blessed objects about one's person. **Fairy forts** (ringforts) were left undisturbed not from antiquarian sentiment but from genuine fear of supernatural reprisal.
+The relationship between **orthodox Catholicism and folk belief** was one of comfortable coexistence rather than conflict in the 1820s. Ordinary people saw no contradiction between attending Mass and fearing the **fairies** (the _sí_ or _good people_), between reciting the rosary and guarding against **pisheogs** (malicious spells or curses). **The evil eye** — the belief that envy could cause harm through a glance — was universally credited, and precautions against it were routine: spitting lightly on a praised child, turning a compliment with "God bless the mark," keeping blessed objects about one's person. **Fairy forts** (ringforts) were left undisturbed not from antiquarian sentiment but from genuine fear of supernatural reprisal.
 
 The **priest's curse** was particularly dreaded — a formal malediction believed to carry real power, capable of blighting a family for generations. Priests were understood to possess spiritual authority that extended beyond the sacraments into the realm of the uncanny. Conversely, the priest's blessing was eagerly sought for every undertaking, from a new house to a journey to a difficult calving.
 
@@ -50,13 +50,13 @@ The **parish priest** is a natural candidate for a major NPC: a figure of author
 
 ## Fact-Check Notes
 
-[1] **Verified.** Catholic population was roughly 80% of Ireland in the 1820s. Estimates range from 80–85% for the whole island, consistent with the document's claim. The first religious survey (1834) recorded Catholics at approximately 80–81% island-wide, with higher percentages in the south and west. — Lancaster University *Troubled Geographies* project; Wikipedia, "Catholic Church in Ireland."
+[1] **Verified.** Catholic population was roughly 80% of Ireland in the 1820s. Estimates range from 80–85% for the whole island, consistent with the document's claim. The first religious survey (1834) recorded Catholics at approximately 80–81% island-wide, with higher percentages in the south and west. — Lancaster University _Troubled Geographies_ project; Wikipedia, "Catholic Church in Ireland."
 
-[2] **Corrected.** The original text said bishops were "prohibited from residing in Ireland." More precisely, the Banishment Act of 1697 banished all Catholic bishops, ordering them to leave by 1 May 1698 on pain of imprisonment and transportation. The text has been changed from "prohibited Catholic bishops from residing in Ireland" to "banished Catholic bishops from Ireland" to reflect the stronger legal reality. — Wikipedia, "Banishment Act 1697"; *Catholic Encyclopedia*, "Penal Laws."
+[2] **Corrected.** The original text said bishops were "prohibited from residing in Ireland." More precisely, the Banishment Act of 1697 banished all Catholic bishops, ordering them to leave by 1 May 1698 on pain of imprisonment and transportation. The text has been changed from "prohibited Catholic bishops from residing in Ireland" to "banished Catholic bishops from Ireland" to reflect the stronger legal reality. — Wikipedia, "Banishment Act 1697"; _Catholic Encyclopedia_, "Penal Laws."
 
 [3] **Verified.** Gardiner's Relief Act of 1778 removed restrictions on Catholic land acquisition; a further act in 1782 permitted Catholic bishops and priests to reside in Ireland and allowed Catholic schools. The 1793 act granted Catholics the franchise and admission to most civil offices. — Cambridge University Press, "The Catholic Relief Act in Ireland, 1778"; Britannica, "Relief Acts."
 
-[4] **Verified.** Secret Masses were celebrated at Mass rocks (*Carraig an Aifrinn*) during the Penal era, with lookouts posted to watch for soldiers. The term "hedge masses" is loosely used; "Mass rocks" is the more precise historical term. The document's description of outdoor altars and lookouts is accurate. — Wikipedia, "Mass rock"; Aid to the Church in Need Ireland.
+[4] **Verified.** Secret Masses were celebrated at Mass rocks (_Carraig an Aifrinn_) during the Penal era, with lookouts posted to watch for soldiers. The term "hedge masses" is loosely used; "Mass rocks" is the more precise historical term. The document's description of outdoor altars and lookouts is accurate. — Wikipedia, "Mass rock"; Aid to the Church in Need Ireland.
 
 [5] **Verified.** Daniel O'Connell and Richard Lalor Sheil founded the Catholic Association on 12 May 1823. — Wikipedia, "Catholic Association"; Britannica, "Daniel O'Connell."
 
@@ -64,19 +64,19 @@ The **parish priest** is a natural candidate for a major NPC: a figure of author
 
 [7] **Verified.** Station Masses were a distinctive Irish Catholic practice of celebrating Mass in private homes on a rotating basis within townlands. The system emerged as a practical response to shortages of chapels and clergy, with each household taking turns hosting. Priest's dues were collected at these events. — Presses universitaires de Rennes, "The rise and fall of stations in Ireland, 1750–1850"; Irish Apostolate USA.
 
-[8] **Verified.** The "Devotional Revolution" is the term coined by historian Emmet Larkin (1972) for the transformation of Irish Catholic practice between roughly 1850 and 1875, under Cardinal Paul Cullen. Pre-Famine Catholicism was characterized by folk practices, irregular Mass attendance, and blending of official and popular religion. — Larkin, "The Devotional Revolution in Ireland, 1850–75," *American Historical Review* (1972); Wikipedia, "Devotional Revolution."
+[8] **Verified.** The "Devotional Revolution" is the term coined by historian Emmet Larkin (1972) for the transformation of Irish Catholic practice between roughly 1850 and 1875, under Cardinal Paul Cullen. Pre-Famine Catholicism was characterized by folk practices, irregular Mass attendance, and blending of official and popular religion. — Larkin, "The Devotional Revolution in Ireland, 1850–75," _American Historical Review_ (1972); Wikipedia, "Devotional Revolution."
 
-[9] **Corrected.** The original text said "perhaps ten percent." Estimates suggest the Church of Ireland comprised roughly 10–12% of Ireland's total population in this period (with Catholics at ~80% and Presbyterians at ~8%). The text has been adjusted to "ten to twelve percent" for greater accuracy. — Lancaster University *Troubled Geographies*; Wikipedia, "Church of Ireland."
+[9] **Corrected.** The original text said "perhaps ten percent." Estimates suggest the Church of Ireland comprised roughly 10–12% of Ireland's total population in this period (with Catholics at ~80% and Presbyterians at ~8%). The text has been adjusted to "ten to twelve percent" for greater accuracy. — Lancaster University _Troubled Geographies_; Wikipedia, "Church of Ireland."
 
 [10] **Corrected.** The original text referred to the Tithe War as occurring in "the early 1830s." The Tithe War is conventionally dated 1830–1836 (sometimes extended to 1838 with the Irish Tithe Act). The text has been corrected to "1830–1836." — Wikipedia, "Tithe War"; Encyclopedia.com, "Tithe War (1830–1838)."
 
-[11] **Corrected.** The original text said Presbyterians comprised "roughly ten percent" of the population. Historical estimates place them at approximately 8% of Ireland's total population (with 12% Church of Ireland and 80% Catholic). The text has been corrected to "roughly eight percent." — Lancaster University *Troubled Geographies*; Wikipedia, "Presbyterian Church in Ireland."
+[11] **Corrected.** The original text said Presbyterians comprised "roughly ten percent" of the population. Historical estimates place them at approximately 8% of Ireland's total population (with 12% Church of Ireland and 80% Catholic). The text has been corrected to "roughly eight percent." — Lancaster University _Troubled Geographies_; Wikipedia, "Presbyterian Church in Ireland."
 
 [12] **Verified.** The 1798 Rebellion in Ulster was dominated by Presbyterians. Key leaders included Henry Joy McCracken, Henry Munro, and some twenty Presbyterian ministers and probationers. The Society of United Irishmen was originally founded in Belfast by Presbyterians in 1791. — Wikipedia, "Irish Rebellion of 1798"; Ulster Historical Foundation.
 
 [13] **Verified.** The Orange Order was founded in September 1795 following the Battle of the Diamond near Loughgall, County Armagh. The battle took place on 21 September 1795 between the Catholic Defenders and the Protestant Peep o' Day Boys. — Wikipedia, "Orange Order"; Wikipedia, "Battle of the Diamond."
 
-[14] **Verified.** Wake games including mock weddings, kissing games, bawdy contests, riddles, and physical competitions are well documented. Synods condemned them as early as 1614 in Armagh. Sean O Suilleabhain's *Irish Wake Amusements* (1967) catalogued hundreds of such games. — O Suilleabhain, *Irish Wake Amusements* (1967); Cabinet Magazine, "Irish Wake Amusements: An Introduction."
+[14] **Verified.** Wake games including mock weddings, kissing games, bawdy contests, riddles, and physical competitions are well documented. Synods condemned them as early as 1614 in Armagh. Sean O Suilleabhain's _Irish Wake Amusements_ (1967) catalogued hundreds of such games. — O Suilleabhain, _Irish Wake Amusements_ (1967); Cabinet Magazine, "Irish Wake Amusements: An Introduction."
 
 ## Bibliography
 
@@ -88,10 +88,10 @@ The **parish priest** is a natural candidate for a major NPC: a figure of author
 - Encyclopedia.com. "Tithe War (1830–1838)." https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/tithe-war-1830-1838
 - Irish Apostolate USA. "Irish Station Mass." https://www.usairish.org/irish-station-mass-1
 - Lancaster University. "Troubled Geographies: Two Centuries of Religious Division in Ireland." https://www.lancaster.ac.uk/troubledgeogs/chap3.htm
-- Larkin, Emmet. "The Devotional Revolution in Ireland, 1850–75." *American Historical Review* 77, no. 3 (1972): 625–652.
+- Larkin, Emmet. "The Devotional Revolution in Ireland, 1850–75." _American Historical Review_ 77, no. 3 (1972): 625–652.
 - Maynooth University. "University History." https://www.maynoothuniversity.ie/about-us/university-history
-- New Advent. *Catholic Encyclopedia*: "Penal Laws." https://www.newadvent.org/cathen/11611c.htm
-- O Suilleabhain, Sean. *Irish Wake Amusements*. Cork: Mercier Press, 1967.
+- New Advent. _Catholic Encyclopedia_: "Penal Laws." https://www.newadvent.org/cathen/11611c.htm
+- O Suilleabhain, Sean. _Irish Wake Amusements_. Cork: Mercier Press, 1967.
 - Presses universitaires de Rennes. "The rise and fall of stations in Ireland, 1750–1850." https://books.openedition.org/pur/15968
 - Ulster Historical Foundation. "Popular Protest and the 1798 Rebellion." https://ulsterhistoricalfoundation.com/the-scots-in-ulster/from-ulster-to-america/1798
 - Wikipedia. "Banishment Act 1697." https://en.wikipedia.org/wiki/Banishment_Act_1697

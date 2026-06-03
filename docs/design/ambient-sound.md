@@ -12,7 +12,7 @@ Audio playback is **GUI-mode only** using the `rodio` crate, gated behind a `aud
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │  GuiApp::update()  (every frame)                │
 │                                                 │
@@ -33,7 +33,7 @@ Audio playback is **GUI-mode only** using the `rodio` crate, gated behind a `aud
 
 ### Module Structure
 
-```
+```text
 src/audio/
 ├── mod.rs           # AudioManager, feature gate, public API
 ├── catalog.rs       # SoundCatalog: what sounds exist and when they play
@@ -147,7 +147,7 @@ pub enum LoopMode {
 
 When the ambient engine ticks, it determines which sounds the player can hear:
 
-```
+```text
 function audible_sounds(player_location, graph, time, season, weather):
     candidates = []
 
@@ -211,13 +211,13 @@ fn attenuation(distance_minutes: u16, propagation: &Propagation) -> f32 {
 
 Weather affects how far sound carries:
 
-| Weather | Dampening Factor | Notes |
-|---------|-----------------|-------|
-| Clear | 1.0 | No effect |
-| Overcast | 0.95 | Negligible |
-| Rain | 0.6 | Rain masks distant sounds |
-| Fog | 0.5 | Fog absorbs sound |
-| Storm | 0.3 | Only nearby sounds audible through storm |
+| Weather  | Dampening Factor | Notes                                    |
+| -------- | ---------------- | ---------------------------------------- |
+| Clear    | 1.0              | No effect                                |
+| Overcast | 0.95             | Negligible                               |
+| Rain     | 0.6              | Rain masks distant sounds                |
+| Fog      | 0.5              | Fog absorbs sound                        |
+| Storm    | 0.3              | Only nearby sounds audible through storm |
 
 Fog and storm also add their own sounds (wind, rain, thunder) which layer on top.
 
@@ -225,87 +225,87 @@ Fog and storm also add their own sounds (wind, rain, thunder) which layer on top
 
 ### Pub (LocationKind::Pub)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Fiddle reel/jig | Near | Night, Dusk | Any | Loop | Primary pub music. Loudest sound. |
-| Sean-nós singing | Near | Night | Any | OneShot | Solo voice, occasional. |
-| Crowd murmur | Local | Afternoon–Night | Any | Loop | Background conversation layer. |
-| Glasses clinking | Local | Afternoon–Night | Any | OneShot | Intermittent. |
-| Hearth crackling | Local | Any | Autumn, Winter | Loop | Low volume base layer indoors. |
+| Sound            | Propagation | Time            | Season         | Loop    | Notes                             |
+| ---------------- | ----------- | --------------- | -------------- | ------- | --------------------------------- |
+| Fiddle reel/jig  | Near        | Night, Dusk     | Any            | Loop    | Primary pub music. Loudest sound. |
+| Sean-nós singing | Near        | Night           | Any            | OneShot | Solo voice, occasional.           |
+| Crowd murmur     | Local       | Afternoon–Night | Any            | Loop    | Background conversation layer.    |
+| Glasses clinking | Local       | Afternoon–Night | Any            | OneShot | Intermittent.                     |
+| Hearth crackling | Local       | Any             | Autumn, Winter | Loop    | Low volume base layer indoors.    |
 
 ### Church (LocationKind::Church)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Bell toll (Angelus) | Far(60) | Dawn, Midday, Dusk | Any | OneShot | 3 sets of 3 tolls. Heard everywhere. |
-| Bell toll (Sunday) | Far(60) | Morning | Any | OneShot | Extended peal. Only on Sundays [1]. |
-| Hymns | Medium | Morning (Sunday) | Any | Loop | Faint singing during service. |
-| Silence / stone echo | Local | Any | Any | Loop | Default: near-silence, echo quality. |
+| Sound                | Propagation | Time               | Season | Loop    | Notes                                |
+| -------------------- | ----------- | ------------------ | ------ | ------- | ------------------------------------ |
+| Bell toll (Angelus)  | Far(60)     | Dawn, Midday, Dusk | Any    | OneShot | 3 sets of 3 tolls. Heard everywhere. |
+| Bell toll (Sunday)   | Far(60)     | Morning            | Any    | OneShot | Extended peal. Only on Sundays [1].  |
+| Hymns                | Medium      | Morning (Sunday)   | Any    | Loop    | Faint singing during service.        |
+| Silence / stone echo | Local       | Any                | Any    | Loop    | Default: near-silence, echo quality. |
 
 [1] Sunday detection requires checking the game clock's day-of-week. The `GameClock` struct should expose this.
 
 ### Farm (LocationKind::Farm)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Rooster crow | Near | Dawn | Any | OneShot | Iconic dawn sound. Multiple variants. |
-| Cattle lowing | Near | Morning–Dusk | Any | OneShot | Intermittent throughout day. |
-| Sheep bleating | Local | Morning–Dusk | Any | OneShot | Seasonal: more in Spring (lambing). |
-| Dog barking | Near | Any | Any | OneShot | Alert/guard, intermittent. |
-| Donkey braying | Medium | Any | Any | OneShot | Loud, carries far. Occasional. |
-| Hens clucking | Local | Morning–Afternoon | Any | Loop | Low background layer. |
+| Sound          | Propagation | Time              | Season | Loop    | Notes                                 |
+| -------------- | ----------- | ----------------- | ------ | ------- | ------------------------------------- |
+| Rooster crow   | Near        | Dawn              | Any    | OneShot | Iconic dawn sound. Multiple variants. |
+| Cattle lowing  | Near        | Morning–Dusk      | Any    | OneShot | Intermittent throughout day.          |
+| Sheep bleating | Local       | Morning–Dusk      | Any    | OneShot | Seasonal: more in Spring (lambing).   |
+| Dog barking    | Near        | Any               | Any    | OneShot | Alert/guard, intermittent.            |
+| Donkey braying | Medium      | Any               | Any    | OneShot | Loud, carries far. Occasional.        |
+| Hens clucking  | Local       | Morning–Afternoon | Any    | Loop    | Low background layer.                 |
 
 ### Waterside (LocationKind::Waterside)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Water lapping | Local | Any | Any | Loop | Base layer for lakeshore. |
-| Wind in reeds | Local | Any | Any | Loop | Layered with water. |
-| Waterfowl | Local | Dawn, Dusk | Spring, Summer | OneShot | Herons, ducks. |
+| Sound         | Propagation | Time       | Season         | Loop    | Notes                     |
+| ------------- | ----------- | ---------- | -------------- | ------- | ------------------------- |
+| Water lapping | Local       | Any        | Any            | Loop    | Base layer for lakeshore. |
+| Wind in reeds | Local       | Any        | Any            | Loop    | Layered with water.       |
+| Waterfowl     | Local       | Dawn, Dusk | Spring, Summer | OneShot | Herons, ducks.            |
 
 ### Bog (LocationKind::Bog)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Wind over bog | Local | Any | Any | Loop | Base layer. Intensity varies with weather. |
-| Curlew call | Near | Dawn, Dusk | Spring, Summer | OneShot | Haunting, emblematic. |
-| Bog silence | Local | Night, Midnight | Any | Loop | Near-silence. Unsettling. |
+| Sound         | Propagation | Time            | Season         | Loop    | Notes                                      |
+| ------------- | ----------- | --------------- | -------------- | ------- | ------------------------------------------ |
+| Wind over bog | Local       | Any             | Any            | Loop    | Base layer. Intensity varies with weather. |
+| Curlew call   | Near        | Dawn, Dusk      | Spring, Summer | OneShot | Haunting, emblematic.                      |
+| Bog silence   | Local       | Night, Midnight | Any            | Loop    | Near-silence. Unsettling.                  |
 
 ### Crossroads (LocationKind::Crossroads)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Crossroads dance music | Near | Dusk, Night | Summer | Loop | Fiddle + dancing feet. Summer evenings only. |
-| Wind at crossroads | Local | Any | Any | Loop | Default: wind and silence. |
+| Sound                  | Propagation | Time        | Season | Loop | Notes                                        |
+| ---------------------- | ----------- | ----------- | ------ | ---- | -------------------------------------------- |
+| Crossroads dance music | Near        | Dusk, Night | Summer | Loop | Fiddle + dancing feet. Summer evenings only. |
+| Wind at crossroads     | Local       | Any         | Any    | Loop | Default: wind and silence.                   |
 
 ### Village (LocationKind::Village)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Rooster | Local | Dawn | Any | OneShot | Village roosters. |
-| Children playing | Local | Morning, Afternoon | Not Winter | OneShot | Distant voices, laughter. |
-| Door/footsteps | Local | Morning–Dusk | Any | OneShot | Domestic activity. |
-| Evening settling | Local | Dusk | Any | Loop | Quiet, smoke, last sounds of day. |
+| Sound            | Propagation | Time               | Season     | Loop    | Notes                             |
+| ---------------- | ----------- | ------------------ | ---------- | ------- | --------------------------------- |
+| Rooster          | Local       | Dawn               | Any        | OneShot | Village roosters.                 |
+| Children playing | Local       | Morning, Afternoon | Not Winter | OneShot | Distant voices, laughter.         |
+| Door/footsteps   | Local       | Morning–Dusk       | Any        | OneShot | Domestic activity.                |
+| Evening settling | Local       | Dusk               | Any        | Loop    | Quiet, smoke, last sounds of day. |
 
 ### Fairy Fort (LocationKind::FairyFort)
 
-| Sound | Propagation | Time | Season | Loop | Notes |
-|-------|-------------|------|--------|------|-------|
-| Hawthorn wind | Local | Any | Any | Loop | Wind through thorny branches. Eerie quality. |
-| Uncanny silence | Local | Night, Midnight | Any | Loop | Even wind drops. Deeply quiet. |
-| Samhain atmosphere | Local | Night | Autumn | Loop | Heightened eeriness near Oct 31. |
+| Sound              | Propagation | Time            | Season | Loop | Notes                                        |
+| ------------------ | ----------- | --------------- | ------ | ---- | -------------------------------------------- |
+| Hawthorn wind      | Local       | Any             | Any    | Loop | Wind through thorny branches. Eerie quality. |
+| Uncanny silence    | Local       | Night, Midnight | Any    | Loop | Even wind drops. Deeply quiet.               |
+| Samhain atmosphere | Local       | Night           | Autumn | Loop | Heightened eeriness near Oct 31.             |
 
 ### Weather Overlay
 
 Weather sounds play globally regardless of location:
 
-| Sound | Weather | Loop | Notes |
-|-------|---------|------|-------|
-| Light rain | Rain | Loop | Constant patter. Volume varies by indoor/outdoor. |
-| Heavy rain | Storm | Loop | Intense. Masks most other sounds. |
-| Wind | Rain, Storm | Loop | Layered with rain. |
-| Thunder | Storm | OneShot | Intermittent rumbles. |
-| Fog silence | Fog | Loop | Subtle dampening effect on all other sounds. |
+| Sound       | Weather     | Loop    | Notes                                             |
+| ----------- | ----------- | ------- | ------------------------------------------------- |
+| Light rain  | Rain        | Loop    | Constant patter. Volume varies by indoor/outdoor. |
+| Heavy rain  | Storm       | Loop    | Intense. Masks most other sounds.                 |
+| Wind        | Rain, Storm | Loop    | Layered with rain.                                |
+| Thunder     | Storm       | OneShot | Intermittent rumbles.                             |
+| Fog silence | Fog         | Loop    | Subtle dampening effect on all other sounds.      |
 
 ## AudioManager
 
@@ -375,6 +375,7 @@ impl AmbientEngine {
 ### State Change Detection
 
 Re-evaluate the full sound set when any of these change:
+
 - Player location
 - Time of day (not every minute — only when `TimeOfDay` enum variant changes)
 - Weather
@@ -383,6 +384,7 @@ Re-evaluate the full sound set when any of these change:
 ### Event Scheduling
 
 One-shot sounds (rooster, bell, dog bark) are triggered probabilistically with cooldowns:
+
 - Minimum 30 seconds between events on the same channel
 - Each event has a probability per tick (e.g., rooster at dawn: 5% per second)
 - Church bells follow the actual game clock (Angelus at 6:00, 12:00, 18:00)

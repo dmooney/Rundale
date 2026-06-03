@@ -4,17 +4,17 @@ on:
   # Daily sweep catches newly-published advisories against existing deps.
   # Offset minute to avoid top-of-hour runner contention.
   schedule:
-    - cron: '17 6 * * *'
+    - cron: "17 6 * * *"
   workflow_dispatch:
   # Re-audit immediately when the dependency tree changes on main, so we
   # don't wait up to 24h to notice a bad lockfile bump.
   push:
     branches: [main]
     paths:
-      - 'parish/Cargo.lock'
-      - 'parish/Cargo.toml'
-      - 'parish/crates/**/Cargo.toml'
-      - '.github/workflows/audit.yml'
+      - "parish/Cargo.lock"
+      - "parish/Cargo.toml"
+      - "parish/crates/**/Cargo.toml"
+      - ".github/workflows/audit.yml"
 
 concurrency:
   group: audit-${{ github.workflow }}-${{ github.ref }}

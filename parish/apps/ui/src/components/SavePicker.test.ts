@@ -19,10 +19,18 @@ Element.prototype.scrollIntoView = vi.fn();
 // ── IPC mock ────────────────────────────────────────────────────────────────
 // All IPC calls are mocked; test-specific overrides via mockReturnValue/mockResolvedValue.
 
-const mockDiscoverSaveFiles = vi.fn<() => Promise<SaveFileInfo[]>>(() => Promise.resolve([]));
-const mockGetSaveState = vi.fn<() => Promise<SaveState | null>>(() => Promise.resolve(null));
-const mockLoadBranch = vi.fn<(filePath: string, branchId: number) => Promise<void>>(() => Promise.resolve());
-const mockCreateBranch = vi.fn<(name: string, parentBranchId: number) => Promise<string>>(() => Promise.resolve('new-id'));
+const mockDiscoverSaveFiles = vi.fn<() => Promise<SaveFileInfo[]>>(() =>
+	Promise.resolve([]),
+);
+const mockGetSaveState = vi.fn<() => Promise<SaveState | null>>(() =>
+	Promise.resolve(null),
+);
+const mockLoadBranch = vi.fn<
+	(filePath: string, branchId: number) => Promise<void>
+>(() => Promise.resolve());
+const mockCreateBranch = vi.fn<
+	(name: string, parentBranchId: number) => Promise<string>
+>(() => Promise.resolve('new-id'));
 const mockGetWorldSnapshot = vi.fn(() => Promise.resolve({}));
 const mockGetMap = vi.fn(() => Promise.resolve({}));
 const mockGetNpcsHere = vi.fn(() => Promise.resolve([]));
@@ -33,19 +41,25 @@ const mockNewGame = vi.fn(() => Promise.resolve());
 vi.mock('$lib/ipc', () => ({
 	discoverSaveFiles: () => mockDiscoverSaveFiles(),
 	getSaveState: () => mockGetSaveState(),
-	loadBranch: (filePath: string, branchId: number) => mockLoadBranch(filePath, branchId),
-	createBranch: (name: string, parentBranchId: number) => mockCreateBranch(name, parentBranchId),
+	loadBranch: (filePath: string, branchId: number) =>
+		mockLoadBranch(filePath, branchId),
+	createBranch: (name: string, parentBranchId: number) =>
+		mockCreateBranch(name, parentBranchId),
 	getWorldSnapshot: () => mockGetWorldSnapshot(),
 	getMap: () => mockGetMap(),
 	getNpcsHere: () => mockGetNpcsHere(),
 	saveGame: () => mockSaveGame(),
 	newSaveFile: () => mockNewSaveFile(),
-	newGame: () => mockNewGame()
+	newGame: () => mockNewGame(),
 }));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function makeBranch(name: string, parent: string | null, id: number): SaveBranchDisplay {
+function makeBranch(
+	name: string,
+	parent: string | null,
+	id: number,
+): SaveBranchDisplay {
 	return {
 		name,
 		id,
@@ -53,31 +67,37 @@ function makeBranch(name: string, parent: string | null, id: number): SaveBranch
 		snapshot_count: 1,
 		latest_location: 'Kilteevan',
 		latest_game_date: 'March 1820',
-		snapshots: []
+		snapshots: [],
 	};
 }
 
-function makeFile(filename: string, branches: SaveBranchDisplay[]): SaveFileInfo {
+function makeFile(
+	filename: string,
+	branches: SaveBranchDisplay[],
+): SaveFileInfo {
 	return {
 		path: `/saves/${filename}`,
 		filename,
 		file_size: '12 KB',
 		branches,
-		locked: false
+		locked: false,
 	};
 }
 
 const SAVE_STATE: SaveState = {
 	filename: 'parish.db',
 	branch_id: 1,
-	branch_name: 'main'
+	branch_name: 'main',
 };
 
 /**
  * Mount the picker with pre-seeded IPC mocks so the refreshSaves() side-effect
  * (triggered by visibility) writes the right data into the stores.
  */
-async function mountWithFile(file: SaveFileInfo, saveState: SaveState | null = SAVE_STATE) {
+async function mountWithFile(
+	file: SaveFileInfo,
+	saveState: SaveState | null = SAVE_STATE,
+) {
 	mockDiscoverSaveFiles.mockResolvedValue([file]);
 	mockGetSaveState.mockResolvedValue(saveState);
 
@@ -138,9 +158,11 @@ describe('SavePicker', () => {
 			const branches = [
 				makeBranch('main', null, 1),
 				makeBranch('left', 'main', 2),
-				makeBranch('right', 'main', 3)
+				makeBranch('right', 'main', 3),
 			];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 			const nodes = container.querySelectorAll('.dag-node');
 			expect(nodes).toHaveLength(3);
 		});
@@ -149,9 +171,11 @@ describe('SavePicker', () => {
 			const branches = [
 				makeBranch('main', null, 1),
 				makeBranch('left', 'main', 2),
-				makeBranch('right', 'main', 3)
+				makeBranch('right', 'main', 3),
 			];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 			const edges = container.querySelectorAll('.dag-edges path');
 			expect(edges).toHaveLength(2);
 		});
@@ -160,21 +184,27 @@ describe('SavePicker', () => {
 			const branches = [
 				makeBranch('main', null, 1),
 				makeBranch('left', 'main', 2),
-				makeBranch('right', 'main', 3)
+				makeBranch('right', 'main', 3),
 			];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 			const currentNode = container.querySelector('.dag-current');
 			expect(currentNode).toBeTruthy();
-			expect(currentNode?.querySelector('.node-name')?.textContent).toBe('main');
+			expect(currentNode?.querySelector('.node-name')?.textContent).toBe(
+				'main',
+			);
 		});
 
 		it('renders branch names as node text', async () => {
 			const branches = [
 				makeBranch('main', null, 1),
 				makeBranch('left', 'main', 2),
-				makeBranch('right', 'main', 3)
+				makeBranch('right', 'main', 3),
 			];
-			const { getByText } = await mountWithFile(makeFile('parish.db', branches));
+			const { getByText } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 			expect(getByText('main')).toBeTruthy();
 			expect(getByText('left')).toBeTruthy();
 			expect(getByText('right')).toBeTruthy();
@@ -182,7 +212,9 @@ describe('SavePicker', () => {
 
 		it('renders "You are here" badge on current branch node', async () => {
 			const branches = [makeBranch('main', null, 1)];
-			const { getByText } = await mountWithFile(makeFile('parish.db', branches));
+			const { getByText } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 			expect(getByText('You are here')).toBeTruthy();
 		});
 	});
@@ -190,9 +222,13 @@ describe('SavePicker', () => {
 	describe('load branch on click', () => {
 		it('calls loadBranch IPC when a node body button is clicked', async () => {
 			const branches = [makeBranch('main', null, 1)];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
-			const nodeBtn = container.querySelector('.node-body') as HTMLButtonElement;
+			const nodeBtn = container.querySelector(
+				'.node-body',
+			) as HTMLButtonElement;
 			expect(nodeBtn).toBeTruthy();
 			await fireEvent.click(nodeBtn);
 			// Allow async IPC handler to start
@@ -207,16 +243,20 @@ describe('SavePicker', () => {
 		it('shows phantom node after clicking "Branch From Here"', async () => {
 			const branches = [
 				makeBranch('main', null, 1),
-				makeBranch('dev', 'main', 2)
+				makeBranch('dev', 'main', 2),
 			];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
 			// Click "Branch From Here" on the 'dev' node
 			const devNode = Array.from(container.querySelectorAll('.dag-node')).find(
-				n => n.querySelector('.node-name')?.textContent === 'dev'
+				(n) => n.querySelector('.node-name')?.textContent === 'dev',
 			);
 			expect(devNode).toBeTruthy();
-			const branchBtn = devNode!.querySelector('.node-branch-btn') as HTMLButtonElement;
+			const branchBtn = devNode!.querySelector(
+				'.node-branch-btn',
+			) as HTMLButtonElement;
 			await fireEvent.click(branchBtn);
 			await tick();
 
@@ -227,25 +267,29 @@ describe('SavePicker', () => {
 		it('calls createBranch IPC with parent branch id when Create is clicked', async () => {
 			const branches = [
 				makeBranch('main', null, 1),
-				makeBranch('dev', 'main', 2)
+				makeBranch('dev', 'main', 2),
 			];
 			// createBranch triggers refreshSaves; provide stable mock data
-			mockDiscoverSaveFiles.mockResolvedValue([makeFile('parish.db', branches)]);
+			mockDiscoverSaveFiles.mockResolvedValue([
+				makeFile('parish.db', branches),
+			]);
 			mockGetSaveState.mockResolvedValue(SAVE_STATE);
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
 			// Open phantom node on 'dev'
 			const devNode = Array.from(container.querySelectorAll('.dag-node')).find(
-				n => n.querySelector('.node-name')?.textContent === 'dev'
+				(n) => n.querySelector('.node-name')?.textContent === 'dev',
 			);
 			await fireEvent.click(devNode!.querySelector('.node-branch-btn')!);
 			await tick();
 
 			// Click Create
 			const phantom = container.querySelector('.dag-phantom')!;
-			const createBtn = Array.from(phantom.querySelectorAll('.phantom-btn')).find(
-				b => b.textContent?.trim() === 'Create'
-			) as HTMLButtonElement;
+			const createBtn = Array.from(
+				phantom.querySelectorAll('.phantom-btn'),
+			).find((b) => b.textContent?.trim() === 'Create') as HTMLButtonElement;
 			expect(createBtn).toBeTruthy();
 			await fireEvent.click(createBtn);
 			await tick();
@@ -255,20 +299,24 @@ describe('SavePicker', () => {
 			expect(mockCreateBranch.mock.calls[0][1]).toBe(2);
 			// First argument must be a non-empty string name
 			expect(typeof mockCreateBranch.mock.calls[0][0]).toBe('string');
-			expect((mockCreateBranch.mock.calls[0][0] as string).length).toBeGreaterThan(0);
+			expect(
+				(mockCreateBranch.mock.calls[0][0] as string).length,
+			).toBeGreaterThan(0);
 		});
 
 		it('Cancel button dismisses the phantom node', async () => {
 			const branches = [makeBranch('main', null, 1)];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
 			await fireEvent.click(container.querySelector('.node-branch-btn')!);
 			await tick();
 			expect(container.querySelector('.dag-phantom')).toBeTruthy();
 
 			const cancelBtn = Array.from(
-				container.querySelectorAll('.phantom-btn')
-			).find(b => b.textContent?.trim() === 'Cancel') as HTMLButtonElement;
+				container.querySelectorAll('.phantom-btn'),
+			).find((b) => b.textContent?.trim() === 'Cancel') as HTMLButtonElement;
 			await fireEvent.click(cancelBtn);
 			await tick();
 
@@ -280,9 +328,13 @@ describe('SavePicker', () => {
 		it('keeps dialog open when loadBranch IPC fails', async () => {
 			mockLoadBranch.mockRejectedValue(new Error('Backend unreachable'));
 			const branches = [makeBranch('main', null, 1)];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
-			const nodeBtn = container.querySelector('.node-body') as HTMLButtonElement;
+			const nodeBtn = container.querySelector(
+				'.node-body',
+			) as HTMLButtonElement;
 			await fireEvent.click(nodeBtn);
 			await flush();
 
@@ -292,14 +344,16 @@ describe('SavePicker', () => {
 		it('shows fork error text when createBranch IPC fails', async () => {
 			mockCreateBranch.mockRejectedValue(new Error('Name conflict'));
 			const branches = [makeBranch('main', null, 1)];
-			const { container } = await mountWithFile(makeFile('parish.db', branches));
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
 
 			await fireEvent.click(container.querySelector('.node-branch-btn')!);
 			await tick();
 
-			const createBtn = Array.from(container.querySelectorAll('.phantom-btn')).find(
-				b => b.textContent?.trim() === 'Create'
-			) as HTMLButtonElement;
+			const createBtn = Array.from(
+				container.querySelectorAll('.phantom-btn'),
+			).find((b) => b.textContent?.trim() === 'Create') as HTMLButtonElement;
 			await fireEvent.click(createBtn);
 			await flush();
 
@@ -316,8 +370,10 @@ describe('SavePicker', () => {
 			await fireEvent.click(getByText('Ledgers'));
 			await tick();
 
-			const forkLedgerRow = Array.from(container.querySelectorAll('.new-ledger')).find(
-				row => row.textContent?.includes('Fork New Ledger')
+			const forkLedgerRow = Array.from(
+				container.querySelectorAll('.new-ledger'),
+			).find((row) =>
+				row.textContent?.includes('Fork New Ledger'),
 			) as HTMLElement;
 			await fireEvent.click(forkLedgerRow);
 			await flush();
@@ -333,9 +389,9 @@ describe('SavePicker', () => {
 			await fireEvent.click(getByText('Ledgers'));
 			await tick();
 
-			const newGameRow = Array.from(container.querySelectorAll('.new-ledger')).find(
-				row => row.textContent?.includes('New Game')
-			) as HTMLElement;
+			const newGameRow = Array.from(
+				container.querySelectorAll('.new-ledger'),
+			).find((row) => row.textContent?.includes('New Game')) as HTMLElement;
 			await fireEvent.click(newGameRow);
 			await flush();
 
@@ -366,12 +422,14 @@ describe('SavePicker', () => {
 			await tick();
 
 			// Modal title changes to "Ledgers"
-			expect(container.querySelector('.modal-title')?.textContent?.trim()).toBe('Ledgers');
+			expect(container.querySelector('.modal-title')?.textContent?.trim()).toBe(
+				'Ledgers',
+			);
 		});
 
 		it('shows Back button in ledger view', async () => {
 			const file = makeFile('parish.db', [makeBranch('main', null, 1)]);
-			const { container, getByText } = await mountWithFile(file);
+			const { getByText } = await mountWithFile(file);
 
 			await fireEvent.click(getByText('Ledgers'));
 			await tick();
