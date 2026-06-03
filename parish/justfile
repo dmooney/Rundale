@@ -189,6 +189,18 @@ ui-build:
 ui-check:
     eval "$(fnm env)" && cd apps/ui && npm run check
 
+# Lint the frontend (ESLint: typescript-eslint + eslint-plugin-svelte)
+ui-lint:
+    eval "$(fnm env)" && cd apps/ui && npm run lint
+
+# Auto-format the frontend (Prettier, writes in place)
+ui-format:
+    eval "$(fnm env)" && cd apps/ui && npm run format
+
+# Check frontend formatting without writing (CI gate)
+ui-format-check:
+    eval "$(fnm env)" && cd apps/ui && npm run format:check
+
 # Run frontend component tests (vitest)
 ui-test:
     eval "$(fnm env)" && cd apps/ui && npx vitest run
@@ -338,11 +350,11 @@ harness-audit:
 agent-check:
     bash ./scripts/agent-check.sh
 
-# Pre-commit gate: proof, format, lint, tests, placeholder scan, doc-paths
-check: agent-check fmt-check clippy test witness-scan check-doc-paths
+# Pre-commit gate: proof, format, lint, tests, placeholder scan, doc-paths, frontend lint/format/check
+check: agent-check fmt-check clippy test witness-scan check-doc-paths ui-check ui-lint ui-format-check
 
 # Pre-push gate: proof, check + game harness walkthrough
-verify: agent-check fmt-check clippy test game-test witness-scan check-doc-paths
+verify: agent-check fmt-check clippy test game-test witness-scan check-doc-paths ui-check ui-lint ui-format-check
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:
