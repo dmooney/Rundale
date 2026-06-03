@@ -52,14 +52,20 @@ use crate::state::{AppState, SaveState, SetupStatusSnapshot};
 
 /// `GET /api/world-snapshot` — returns the current world snapshot.
 pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> Json<WorldSnapshot> {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
-    snapshot.name_hints =
-        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let mut snapshot = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
+        snapshot.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        snapshot
+    };
     // Surface whether an NPC turn is in flight so the web frontend can
     // re-assert `streamingActive` from authoritative state after a WebSocket
     // reconnect, instead of guessing and re-enabling input mid-turn (#1164).
+    // Acquire the conversation lock only after the world/npc_manager locks are
+    // released so this hot, reconnect-path endpoint never holds three locks at
+    // once.
     snapshot.turn_in_flight = state.conversation.lock().await.conversation_in_progress;
     Json(snapshot)
 }
