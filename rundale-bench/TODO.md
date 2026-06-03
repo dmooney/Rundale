@@ -29,7 +29,7 @@
 
 - [ ] **`MLX_VENV` env-var documented in README.** This session repeatedly hit "psutil missing — run inside .venv-mlx". Right answer is `MLX_VENV=/Users/.../vllm-mlx`. Add to `rundale-bench/README.md` setup section + auto-detect in `local_runner.py` (search common uv tools paths if `.venv-mlx` symlink missing).
 - [ ] **Runtime RAM-cap kill switch.** `local_runner.py`'s `RamSampler` measures but doesn't enforce. Add `--max-ram-gb` flag: if peak RSS exceeds N, SIGKILL the mlx_lm.server and skip the candidate. Defends against OOM that kills Claude Code remotely (per round-3 user note).
-- [ ] **Bundled-slice metric surfaces `pending_judge` warning.** `metric_from_summary` now prefixes ` (pending_judge)` when summary flags it (round-4 fix). Add equivalent on leaderboard.md row — current rows show 0.00 for pending without indication, looks like a failed run.
+- [ ] **Bundled-slice metric surfaces `pending_judge` warning.** `metric_from_summary` now prefixes `(pending_judge)` when summary flags it (round-4 fix). Add equivalent on leaderboard.md row — current rows show 0.00 for pending without indication, looks like a failed run.
 - [ ] **Tokenizer audit script** (`tokenizer_audit.py`). Measure tokens/char on Hyde Irish-side + Brooke Irish-side across candidate bases (Gemma 4 9B, Qwen3-14B, EuroLLM-9B, OLMo-2-13B, Mistral-Small-24B-2501). Gates base-model pick per Phase 1 plan. Cheap (no fine-tune needed, just tokenize + count).
 - [ ] **Per-slice cost ledger.** Currently `cost.usd` on cloud rows, $0.0000 on local. Bundled-judge rows hide the Sonnet-subagent compute cost (it's not $0 in reality, it's amortised against the Claude Code session). Surface `judge_compute_minutes` or similar.
 
@@ -54,6 +54,7 @@ Locked down to make it impossible:
 - Round-4 dialogue run files patched in-place: Sonnet axes overwrite the inline Qwen scores. Older redundant dialogue runs for the same model deleted.
 
 Tests added (informal — run from `python -c`):
+
 - `load_judge('judge_sonnet_v1', 'v1')` → OK
 - `load_judge('judge_v1', 'v1')` → FileNotFoundError (file disabled)
 - A synthetic non-subagent config with `judge_via='http'` → ValueError REFUSED.
@@ -82,22 +83,22 @@ Structured tracking layer parallel to the priority backlog above. Items here are
 
 ### Open
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-001 | Complexity | P1 | `rundale_bench.py:1-1163` | The main orchestrator owns CLI parsing, target/catalog resolution, all slice runners, judge dispatch, artifact writing, ingest/finalize, and aggregation in one file. Split per-slice runners, CLI commands, artifact I/O, and ingest/finalize into modules before adding more benchmark phases. |
-| TD-002 | Complexity | P2 | `build_site_data.py:1-753` | Static-site data aggregation mixes artifact discovery, proof-run fallback discovery, model/provider/family/price enrichment, demo-profile cost shaping, and leaderboard row generation in one file. Split source discovery, catalog enrichment, profile enrichment, and output shaping so the site data contract is easier to test. |
-| TD-003 | Generated Data Drift | P2 | `bench-site/src/data/bench.json:1-11690` | The checked-in site data is a large generated artifact with no cheap freshness gate in the normal unit-test path. Add a deterministic `build_site_data.py --check` or test fixture that fails when committed site data is stale relative to its intended input directories. |
-| TD-004 | Config Schema | P2 | `candidates_local_mlx.toml:1-730` | The local MLX fleet catalog carries model IDs, quantization metadata, RAM estimates, and skip thresholds by hand. Add a schema/consistency test for unique IDs, required fields, positive RAM estimates, and model-name/provider compatibility before more local candidates are added. |
-| TD-005 | Weak Tests | P2 | `local_runner.py:1-465` | The MLX runner performs memory headroom checks, starts/stops `mlx_lm.server`, polls readiness, skips overlarge models, and appends local leaderboard rows, but no unit tests import it. Extract pure planning/readiness/result-shaping helpers so OOM-safety and skip behavior can be tested without launching MLX. |
-| TD-006 | Stale Docs | P3 | `README.md:11`, `AGENTS.md:45`, `v1/MANIFEST.json:4-67` | Docs still say the v1-dev dataset has 155 prompts, but `MANIFEST.json` currently records 309 dev+holdout records. Update the prose or generate the count from the manifest so benchmark status notes stay trustworthy. |
+| ID     | Category             | Severity | Location                                                | Description                                                                                                                                                                                                                                                                                                                         |
+| ------ | -------------------- | -------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TD-001 | Complexity           | P1       | `rundale_bench.py:1-1163`                               | The main orchestrator owns CLI parsing, target/catalog resolution, all slice runners, judge dispatch, artifact writing, ingest/finalize, and aggregation in one file. Split per-slice runners, CLI commands, artifact I/O, and ingest/finalize into modules before adding more benchmark phases.                                    |
+| TD-002 | Complexity           | P2       | `build_site_data.py:1-753`                              | Static-site data aggregation mixes artifact discovery, proof-run fallback discovery, model/provider/family/price enrichment, demo-profile cost shaping, and leaderboard row generation in one file. Split source discovery, catalog enrichment, profile enrichment, and output shaping so the site data contract is easier to test. |
+| TD-003 | Generated Data Drift | P2       | `bench-site/src/data/bench.json:1-11690`                | The checked-in site data is a large generated artifact with no cheap freshness gate in the normal unit-test path. Add a deterministic `build_site_data.py --check` or test fixture that fails when committed site data is stale relative to its intended input directories.                                                         |
+| TD-004 | Config Schema        | P2       | `candidates_local_mlx.toml:1-730`                       | The local MLX fleet catalog carries model IDs, quantization metadata, RAM estimates, and skip thresholds by hand. Add a schema/consistency test for unique IDs, required fields, positive RAM estimates, and model-name/provider compatibility before more local candidates are added.                                              |
+| TD-005 | Weak Tests           | P2       | `local_runner.py:1-465`                                 | The MLX runner performs memory headroom checks, starts/stops `mlx_lm.server`, polls readiness, skips overlarge models, and appends local leaderboard rows, but no unit tests import it. Extract pure planning/readiness/result-shaping helpers so OOM-safety and skip behavior can be tested without launching MLX.                 |
+| TD-006 | Stale Docs           | P3       | `README.md:11`, `AGENTS.md:45`, `v1/MANIFEST.json:4-67` | Docs still say the v1-dev dataset has 155 prompts, but `MANIFEST.json` currently records 309 dev+holdout records. Update the prose or generate the count from the manifest so benchmark status notes stay trustworthy.                                                                                                              |
 
 ### In Progress
 
-*(none)*
+_(none)_
 
 ### Done
 
-*(none)*
+_(none)_
 
 ### Progress Log
 

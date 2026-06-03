@@ -14,6 +14,7 @@ from datetime import date, timedelta
 
 CODE_EXTENSIONS = "*.rs *.ts *.svelte *.js *.json *.toml *.css *.html *.sh *.py *.txt"
 
+
 def git_daily_loc():
     """Run git log to get daily net LOC for code files (excludes .md)."""
     exts = CODE_EXTENSIONS.split()
@@ -24,17 +25,19 @@ def git_daily_loc():
     current_date = None
     for line in result.stdout.splitlines():
         parts = line.split()
-        if len(parts) == 1 and len(parts[0]) == 10 and parts[0][4] == '-':
+        if len(parts) == 1 and len(parts[0]) == 10 and parts[0][4] == "-":
             current_date = parts[0]
-        elif len(parts) >= 3 and current_date and parts[0] != '-':
+        elif len(parts) >= 3 and current_date and parts[0] != "-":
             added[current_date] = added.get(current_date, 0) + int(parts[0])
             deleted[current_date] = deleted.get(current_date, 0) + int(parts[1])
     days = sorted(added.keys())
     return [(d, added[d] - deleted.get(d, 0)) for d in days]
 
+
 def git_commit_count():
     result = subprocess.run(["git", "log", "--all", "--oneline"], capture_output=True, text=True)
     return len(result.stdout.strip().splitlines())
+
 
 ACTUAL = git_daily_loc()
 START_DATE = date.fromisoformat(ACTUAL[0][0]) if ACTUAL else date.today()
@@ -59,9 +62,9 @@ BAR_HALF = "▌"
 
 def fmt_loc(n):
     if n >= 1_000_000:
-        return f"{n/1_000_000:.1f}M"
+        return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
-        return f"{n/1_000:.1f}k"
+        return f"{n / 1_000:.1f}k"
     return str(n)
 
 
@@ -85,10 +88,14 @@ for datestr, net in ACTUAL:
     day_num = (date.fromisoformat(datestr) - START_DATE).days
     if net >= 0:
         b = bar(net, max_abs, 30)
-        print(f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {GREEN}{b}{RESET} {net:>+7,d}  ({fmt_loc(cumulative)})")
+        print(
+            f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {GREEN}{b}{RESET} {net:>+7,d}  ({fmt_loc(cumulative)})"
+        )
     else:
         b = bar(abs(net), max_abs, 30)
-        print(f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {MAGENTA}{b}{RESET} {net:>+7,d}  ({fmt_loc(cumulative)})")
+        print(
+            f"  Day {day_num:2d} {DIM}{datestr}{RESET}  {MAGENTA}{b}{RESET} {net:>+7,d}  ({fmt_loc(cumulative)})"
+        )
 
 elapsed = CURRENT_DAY + 1
 print(f"\n  {BOLD}Current: {CURRENT_LOC:,} LOC on day {CURRENT_DAY}{RESET}")
@@ -96,6 +103,7 @@ print(f"  {BOLD}Commits: {COMMIT_COUNT:,} across {elapsed} days{RESET}")
 
 
 # ── Projection scenarios ─────────────────────────────────────────
+
 
 def project(name, daily_fn):
     loc = CURRENT_LOC
@@ -117,17 +125,20 @@ positive_days = [n for _, n in ACTUAL if n > 0]
 recent = positive_days[-7:]
 avg_recent = sum(recent) / len(recent) if recent else 5000
 
+
 def scenario_ramp(day):
     peak = avg_recent * 1.5
     ramp = 1 - math.exp(-0.08 * day)
     decay = math.exp(-0.003 * (day - 30)) if day > 30 else 1.0
     return peak * ramp * decay * 0.85
 
+
 def scenario_hyper(day):
     peak = avg_recent * 2.5
     ramp = 1 - math.exp(-0.12 * day)
     decay = math.exp(-0.001 * (day - 45)) if day > 45 else 1.0
     return peak * ramp * decay * 0.85
+
 
 def scenario_mature(day):
     peak = avg_recent
@@ -137,14 +148,10 @@ def scenario_mature(day):
 
 
 scenarios = [
-    ("Steady pace", f"~{fmt_loc(int(avg_recent))}/day flat",
-     lambda d: avg_recent * 0.85),
-    ("Ramp + decay", "peak ~day 30, gradual slowdown",
-     scenario_ramp),
-    ("Hypergrowth", "AI-assisted, sustained high output",
-     scenario_hyper),
-    ("Early plateau", "rapid decay to maintenance mode",
-     scenario_mature),
+    ("Steady pace", f"~{fmt_loc(int(avg_recent))}/day flat", lambda d: avg_recent * 0.85),
+    ("Ramp + decay", "peak ~day 30, gradual slowdown", scenario_ramp),
+    ("Hypergrowth", "AI-assisted, sustained high output", scenario_hyper),
+    ("Early plateau", "rapid decay to maintenance mode", scenario_mature),
 ]
 
 print(f"\n{BOLD}{'─' * 55}")
@@ -164,8 +171,10 @@ for name, desc, fn in scenarios:
                 eta = f"in {remaining}d"
             else:
                 eta = f"in ~{remaining / 7:.0f} weeks"
-            print(f"    {fmt_loc(m):>5s} LOC  →  {CYAN}{dt.strftime('%b %d, %Y')}{RESET}"
-                  f"  {DIM}({eta}){RESET}")
+            print(
+                f"    {fmt_loc(m):>5s} LOC  →  {CYAN}{dt.strftime('%b %d, %Y')}{RESET}"
+                f"  {DIM}({eta}){RESET}"
+            )
         else:
             print(f"    {fmt_loc(m):>5s} LOC  →  {DIM}beyond 3 years{RESET}")
     print()
@@ -180,12 +189,14 @@ print(f"Fun Stats{RESET}")
 print(f"{'─' * 55}\n")
 print(f"  Average net output:    {BOLD}{avg_all:,.0f}{RESET} LOC/day")
 print(f"  That's roughly:        {BOLD}{lines_per_hour:,.0f}{RESET} LOC/hour")
-print(f"  Or:                    {BOLD}{lines_per_hour/60:,.1f}{RESET} LOC/minute")
+print(f"  Or:                    {BOLD}{lines_per_hour / 60:,.1f}{RESET} LOC/minute")
 if ACTUAL:
     peak_day = max(ACTUAL, key=lambda x: x[1])
     min_day = min(ACTUAL, key=lambda x: x[1])
     print(f"  Peak single day:       {BOLD}+{peak_day[1]:,}{RESET} LOC ({peak_day[0]})")
     print(f"  Biggest refactor:      {BOLD}{min_day[1]:,}{RESET} LOC ({min_day[0]})")
 if avg_all > 0:
-    print(f"  Days to write a novel: {DIM}(~80k words){RESET} {BOLD}{80000/avg_all:.1f}{RESET} days at this pace")
+    print(
+        f"  Days to write a novel: {DIM}(~80k words){RESET} {BOLD}{80000 / avg_all:.1f}{RESET} days at this pace"
+    )
 print()

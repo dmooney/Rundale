@@ -36,6 +36,7 @@ real, reproducible issue for a fix-agent to pick up.
 
 No game-state changes. New IPC payload structs only, all serde snake_case and
 mirrored in `apps/ui/src/lib/types.ts`:
+
 - `BugReportRequest { title, description, screenshot_data_url?, context? }`
 - `BugContext { kind, label, detail: Value }`
 - `BugReportResult { issue_url?, issue_number?, screenshot_url?, bundle_path?, created }`

@@ -1,11 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
-import { textLog, streamingActive, loadingPhrase, loadingColor } from '../stores/game';
+import {
+	textLog,
+	streamingActive,
+	loadingPhrase,
+	loadingColor,
+} from '../stores/game';
 import ChatPanel from './ChatPanel.svelte';
 
 // Mock the IPC layer
 vi.mock('$lib/ipc', () => ({
-	reactToMessage: vi.fn(() => Promise.resolve())
+	reactToMessage: vi.fn(() => Promise.resolve()),
 }));
 
 describe('ChatPanel', () => {
@@ -24,7 +29,7 @@ describe('ChatPanel', () => {
 	it('renders text log entries', () => {
 		textLog.set([
 			{ source: 'player', content: 'Hello there' },
-			{ source: 'system', content: 'You arrive at the pub.' }
+			{ source: 'system', content: 'You arrive at the pub.' },
 		]);
 		const { getByText } = render(ChatPanel);
 		expect(getByText('Hello there')).toBeTruthy();
@@ -56,13 +61,15 @@ describe('ChatPanel', () => {
 	});
 
 	it('animates the latest streamed chunk when metadata is present', () => {
-		textLog.set([{
-			source: 'Seán',
-			content: 'Dia dhuit ',
-			streaming: true,
-			latest_chunk: 'dhuit ',
-			stream_chunk_id: 2
-		}]);
+		textLog.set([
+			{
+				source: 'Seán',
+				content: 'Dia dhuit ',
+				streaming: true,
+				latest_chunk: 'dhuit ',
+				stream_chunk_id: 2,
+			},
+		]);
 		const { container } = render(ChatPanel);
 		const latestChunk = container.querySelector('.stream-chunk');
 		expect(latestChunk).toBeTruthy();
@@ -111,7 +118,9 @@ describe('ChatPanel', () => {
 		});
 
 		it('renders mixed text and emotes', () => {
-			textLog.set([{ source: 'Padraig', content: 'Hello *smiles warmly* how are ye?' }]);
+			textLog.set([
+				{ source: 'Padraig', content: 'Hello *smiles warmly* how are ye?' },
+			]);
 			const { container } = render(ChatPanel);
 			const emotes = container.querySelectorAll('.emote');
 			expect(emotes.length).toBe(1);
@@ -126,17 +135,23 @@ describe('ChatPanel', () => {
 			textLog.set([{ source: 'player', content: 'Just plain text' }]);
 			const { container } = render(ChatPanel);
 			expect(container.querySelector('.emote')).toBeFalsy();
-			expect(container.querySelector('.content')?.textContent).toContain('Just plain text');
+			expect(container.querySelector('.content')?.textContent).toContain(
+				'Just plain text',
+			);
 		});
 
 		it('renders unmatched asterisks as normal text', () => {
-			textLog.set([{ source: 'player', content: 'I think *this is incomplete' }]);
+			textLog.set([
+				{ source: 'player', content: 'I think *this is incomplete' },
+			]);
 			const { container } = render(ChatPanel);
 			expect(container.querySelector('.emote')).toBeFalsy();
 		});
 
 		it('renders emotes in system messages too', () => {
-			textLog.set([{ source: 'system', content: 'You *tip your hat* to the barman.' }]);
+			textLog.set([
+				{ source: 'system', content: 'You *tip your hat* to the barman.' },
+			]);
 			const { container } = render(ChatPanel);
 			const emote = container.querySelector('.emote');
 			expect(emote).toBeTruthy();
@@ -152,12 +167,16 @@ describe('ChatPanel', () => {
 
 		it('removes optimistic reaction when reactToMessage IPC fails', async () => {
 			const { reactToMessage } = await import('$lib/ipc');
-			(reactToMessage as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+			(reactToMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+				new Error('Network error'),
+			);
 
 			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Bad news.' }]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
 
 			const buttons = container.querySelectorAll('.reaction-btn');
@@ -168,31 +187,42 @@ describe('ChatPanel', () => {
 				await Promise.resolve();
 			}
 
-			expect(container.querySelector('[data-testid="reaction-bar"]')).toBeFalsy();
+			expect(
+				container.querySelector('[data-testid="reaction-bar"]'),
+			).toBeFalsy();
 		});
 	});
 
 	describe('tabular subtype rendering', () => {
 		it('renders tabular grid with header and cmd/desc pairs', () => {
-			textLog.set([{
-				source: 'system',
-				content: 'Commands\n/go — Move somewhere\n/look — Look around',
-				subtype: 'tabular'
-			}]);
+			textLog.set([
+				{
+					source: 'system',
+					content: 'Commands\n/go — Move somewhere\n/look — Look around',
+					subtype: 'tabular',
+				},
+			]);
 			const { container } = render(ChatPanel);
 			const grid = container.querySelector('.tabular-grid');
 			expect(grid).toBeTruthy();
-			expect(container.querySelector('.tabular-header')?.textContent).toContain('Commands');
+			expect(container.querySelector('.tabular-header')?.textContent).toContain(
+				'Commands',
+			);
 			expect(container.querySelector('.tabular-cmd')?.textContent).toBe('/go');
-			expect(container.querySelector('.tabular-desc')?.textContent).toContain('Move somewhere');
+			expect(container.querySelector('.tabular-desc')?.textContent).toContain(
+				'Move somewhere',
+			);
 		});
 
 		it('renders multiple cmd/desc pairs in tabular grid', () => {
-			textLog.set([{
-				source: 'system',
-				content: '/go — Move somewhere\n/look — Look around\n/talk — Start a conversation',
-				subtype: 'tabular'
-			}]);
+			textLog.set([
+				{
+					source: 'system',
+					content:
+						'/go — Move somewhere\n/look — Look around\n/talk — Start a conversation',
+					subtype: 'tabular',
+				},
+			]);
 			const { container } = render(ChatPanel);
 			const cmds = container.querySelectorAll('.tabular-cmd');
 			expect(cmds.length).toBe(3);
@@ -217,62 +247,99 @@ describe('ChatPanel', () => {
 
 	describe('emoji reactions', () => {
 		it('shows reaction picker on NPC message hover', async () => {
-			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
+			textLog.set([
+				{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' },
+			]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			expect(anchor).toBeTruthy();
 
 			await fireEvent.mouseEnter(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeTruthy();
 		});
 
 		it('hides reaction picker on mouseleave', async () => {
-			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
+			textLog.set([
+				{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' },
+			]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeTruthy();
 
 			await fireEvent.mouseLeave(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeFalsy();
 		});
 
 		it('does not show reaction picker on player messages', async () => {
 			textLog.set([{ id: 'msg-1', source: 'player', content: 'Hello' }]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.player .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.player .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeFalsy();
 		});
 
 		it('does not show reaction picker on streaming messages', async () => {
-			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Hello...', streaming: true }]);
+			textLog.set([
+				{
+					id: 'msg-1',
+					source: 'Padraig',
+					content: 'Hello...',
+					streaming: true,
+				},
+			]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeFalsy();
 		});
 
 		it('does not show reaction picker on messages without id', async () => {
 			textLog.set([{ source: 'Padraig', content: 'Hello' }]);
 			const { container } = render(ChatPanel);
 
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
-			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+			expect(
+				container.querySelector('[data-testid="reaction-picker"]'),
+			).toBeFalsy();
 		});
 
 		it('clicking reaction adds to entry reactions and calls IPC', async () => {
 			const { reactToMessage } = await import('$lib/ipc');
-			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'The rent was raised.' }]);
+			textLog.set([
+				{ id: 'msg-1', source: 'Padraig', content: 'The rent was raised.' },
+			]);
 			const { container } = render(ChatPanel);
 
 			// Hover to show picker
-			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			const anchor = container.querySelector(
+				'.bubble-row.npc .bubble-anchor',
+			) as HTMLElement;
 			await fireEvent.mouseEnter(anchor);
 
 			// Click the first reaction button (😊)
@@ -281,24 +348,32 @@ describe('ChatPanel', () => {
 			await fireEvent.click(buttons[0]);
 
 			// Reaction bar should appear with the badge
-			expect(container.querySelector('[data-testid="reaction-bar"]')).toBeTruthy();
+			expect(
+				container.querySelector('[data-testid="reaction-bar"]'),
+			).toBeTruthy();
 			const badge = container.querySelector('.reaction-badge');
 			expect(badge?.textContent).toContain('😊');
 
 			// IPC should be called
-			expect(reactToMessage).toHaveBeenCalledWith('Padraig', 'The rent was raised.', '😊');
+			expect(reactToMessage).toHaveBeenCalledWith(
+				'Padraig',
+				'The rent was raised.',
+				'😊',
+			);
 		});
 
 		it('renders reaction bar when entry has reactions', () => {
-			textLog.set([{
-				id: 'msg-1',
-				source: 'Padraig',
-				content: 'Hello',
-				reactions: [
-					{ emoji: '😊', source: 'player' },
-					{ emoji: '😂', source: 'Siobhan' }
-				]
-			}]);
+			textLog.set([
+				{
+					id: 'msg-1',
+					source: 'Padraig',
+					content: 'Hello',
+					reactions: [
+						{ emoji: '😊', source: 'player' },
+						{ emoji: '😂', source: 'Siobhan' },
+					],
+				},
+			]);
 			const { container } = render(ChatPanel);
 
 			const bar = container.querySelector('[data-testid="reaction-bar"]');
@@ -313,12 +388,14 @@ describe('ChatPanel', () => {
 		});
 
 		it('player reactions do not show source label', () => {
-			textLog.set([{
-				id: 'msg-1',
-				source: 'Padraig',
-				content: 'Hello',
-				reactions: [{ emoji: '😊', source: 'player' }]
-			}]);
+			textLog.set([
+				{
+					id: 'msg-1',
+					source: 'Padraig',
+					content: 'Hello',
+					reactions: [{ emoji: '😊', source: 'player' }],
+				},
+			]);
 			const { container } = render(ChatPanel);
 
 			expect(container.querySelector('.reaction-source')).toBeFalsy();

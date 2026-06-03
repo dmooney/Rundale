@@ -13,12 +13,12 @@ model@base_url                          # local, no auth
 model@base_url#env:VAR                  # cloud, API key in $VAR
 ```
 
-| Script | Purpose | Output |
-|---|---|---|
-| `gen_samples.py` | Renders **2 examples per inference category** (Intent, Reaction, Tier 2 Sim, Tier 3 Sim, Dialogue) using the production prompt builders mirrored from [`parish-inference/examples/inf_bench.rs`](../../crates/parish-inference/examples/inf_bench.rs). Takes `--small` and `--large` target specs; defaults reproduce the two-slot vllm-mlx loadout. | `docs/proofs/local-perf/category_samples.md` |
-| `flaw_scan.py` | Runs **N dialogue prompts** through one target and flags responses containing non-Latin scripts (Cyrillic, Han, Hiragana, Katakana, Hangul, Arabic, Hebrew, Greek, Devanagari), empty output, or > 800 char output. `--prompts` / `--workers` configurable. | `docs/proofs/local-perf/dialogue_flaw_scan*.md` |
-| `gen_dlg.py` | 5-prompt canonical dialogue sampler — paired with `/rundale-bench eval-dialogue` for blind A/B/N. Takes a single target spec + output path. | path supplied on CLI |
-| `eval_lib.py` | Shared `Target`, `parse_target`, `call_chat`, `CostTracker`, and `COSTS` table. | — |
+| Script           | Purpose                                                                                                                                                                                                                                                                                                                                              | Output                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `gen_samples.py` | Renders **2 examples per inference category** (Intent, Reaction, Tier 2 Sim, Tier 3 Sim, Dialogue) using the production prompt builders mirrored from [`parish-inference/examples/inf_bench.rs`](../../crates/parish-inference/examples/inf_bench.rs). Takes `--small` and `--large` target specs; defaults reproduce the two-slot vllm-mlx loadout. | `docs/proofs/local-perf/category_samples.md`    |
+| `flaw_scan.py`   | Runs **N dialogue prompts** through one target and flags responses containing non-Latin scripts (Cyrillic, Han, Hiragana, Katakana, Hangul, Arabic, Hebrew, Greek, Devanagari), empty output, or > 800 char output. `--prompts` / `--workers` configurable.                                                                                          | `docs/proofs/local-perf/dialogue_flaw_scan*.md` |
+| `gen_dlg.py`     | 5-prompt canonical dialogue sampler — paired with `/rundale-bench eval-dialogue` for blind A/B/N. Takes a single target spec + output path.                                                                                                                                                                                                          | path supplied on CLI                            |
+| `eval_lib.py`    | Shared `Target`, `parse_target`, `call_chat`, `CostTracker`, and `COSTS` table.                                                                                                                                                                                                                                                                      | —                                               |
 
 For blind-judge quality scoring across two or more models, prefer the
 [`/rundale-bench eval-dialogue`](../../../.agents/skills/rundale-bench/SKILL.md)
@@ -31,6 +31,7 @@ and archives a scoring report under `docs/proofs/local-perf/` in one go.
 
 1. `uv tool install vllm-mlx`.
 2. Spawn the slots before running. Example two-slot loadout:
+
    ```sh
    vllm-mlx serve mlx-community/Qwen2.5-7B-Instruct-4bit \
        --port 8000 --enable-prefix-cache --continuous-batching &

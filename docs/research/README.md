@@ -10,62 +10,62 @@ These documents provide the historical, cultural, and material foundations for N
 
 ### Core Society & People
 
-| Document | Summary |
-|----------|---------|
-| [Irish Language](irish-language.md) | Bilingual landscape of Irish and English -- dialects, code-switching, Hiberno-English, place-name anglicisation, and the oral tradition |
-| [Demographics & Social Structure](demographics-social-structure.md) | Population explosion, landlord-tenant hierarchy, farming classes from strong farmers to landless labourers, religious demographics, and the emerging Catholic middle class |
-| [Family Life](family-life.md) | Household structure, matchmaking and the fortune system, inheritance and subdivision, gender roles, kinship networks, seasonal migration, and the clachan settlement pattern |
-| [Names & Naming Conventions](names-naming-conventions.md) | Gaelic surname system (Mac/O), anglicisation of names, patronymic chains, bynames and nicknames, common Roscommon surnames, townland name meanings |
+| Document                                                            | Summary                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Irish Language](irish-language.md)                                 | Bilingual landscape of Irish and English -- dialects, code-switching, Hiberno-English, place-name anglicisation, and the oral tradition                                      |
+| [Demographics & Social Structure](demographics-social-structure.md) | Population explosion, landlord-tenant hierarchy, farming classes from strong farmers to landless labourers, religious demographics, and the emerging Catholic middle class   |
+| [Family Life](family-life.md)                                       | Household structure, matchmaking and the fortune system, inheritance and subdivision, gender roles, kinship networks, seasonal migration, and the clachan settlement pattern |
+| [Names & Naming Conventions](names-naming-conventions.md)           | Gaelic surname system (Mac/O), anglicisation of names, patronymic chains, bynames and nicknames, common Roscommon surnames, townland name meanings                           |
 
 ### Daily Life & Material Culture
 
-| Document | Summary |
-|----------|---------|
-| [Culture & Daily Life](culture-daily-life.md) | Daily routines by class, evening visiting and ceili houses, hospitality customs, meitheal communal labour, wakes, fairs, pattern days, seasonal calendar, courtship, and social deference |
-| [Food & Drink](food-drink.md) | Potato dependency and the Lumper, buttermilk and oatmeal, the meal months, meat scarcity, poitin and shebeens, hearth cooking, feast foods, and the butter trade |
-| [Clothing & Textiles](clothing-textiles.md) | Frieze coats, red petticoats, shawls and cloaks, barefoot culture, homespun banin, linen and wool production, natural dyes, Sunday dress, and the collapse of cottage textile industry |
-| [Architecture & Housing](architecture-housing.md) | One-room cabins, vernacular farmhouses, the half-door and dresser, hearth customs, clachan settlements, the Big House, town buildings, outbuildings, and regional building materials |
+| Document                                          | Summary                                                                                                                                                                                   |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Culture & Daily Life](culture-daily-life.md)     | Daily routines by class, evening visiting and ceili houses, hospitality customs, meitheal communal labour, wakes, fairs, pattern days, seasonal calendar, courtship, and social deference |
+| [Food & Drink](food-drink.md)                     | Potato dependency and the Lumper, buttermilk and oatmeal, the meal months, meat scarcity, poitin and shebeens, hearth cooking, feast foods, and the butter trade                          |
+| [Clothing & Textiles](clothing-textiles.md)       | Frieze coats, red petticoats, shawls and cloaks, barefoot culture, homespun banin, linen and wool production, natural dyes, Sunday dress, and the collapse of cottage textile industry    |
+| [Architecture & Housing](architecture-housing.md) | One-room cabins, vernacular farmhouses, the half-door and dresser, hearth customs, clachan settlements, the Big House, town buildings, outbuildings, and regional building materials      |
 
 ### Economy & Work
 
-| Document | Summary |
-|----------|---------|
-| [Economy & Trade](economy-trade.md) | Post-Napoleonic crash, subsistence vs. market agriculture, rent and the middleman system, tithes, market towns and fairs, cottage industry decline, butter/linen/livestock exports, currency, smuggling, and the shopkeeper-publican class |
-| [Farming & Agriculture](farming-agriculture.md) | Rundale system, spade cultivation and the loy, lazy beds, potato varieties, conacre tenancy, livestock economy, the seasonal farming calendar, meitheal labour, and land disputes |
-| [Technology & Crafts](technology-crafts.md) | The blacksmith's forge, coopering, thatching, spinning and weaving, turf cutting with the slean, lime burning, poitin distilling, tinkers, rope-making, rush lights, water mills, and the industrial divide with England |
-| [Transportation](transportation.md) | Walking as primary travel, horse and jaunting car, stage coaches, turnpike roads, canals and fly-boats, coastal shipping, dire road conditions west of the Shannon, and the limited travel radius of ordinary people |
+| Document                                        | Summary                                                                                                                                                                                                                                    |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Economy & Trade](economy-trade.md)             | Post-Napoleonic crash, subsistence vs. market agriculture, rent and the middleman system, tithes, market towns and fairs, cottage industry decline, butter/linen/livestock exports, currency, smuggling, and the shopkeeper-publican class |
+| [Farming & Agriculture](farming-agriculture.md) | Rundale system, spade cultivation and the loy, lazy beds, potato varieties, conacre tenancy, livestock economy, the seasonal farming calendar, meitheal labour, and land disputes                                                          |
+| [Technology & Crafts](technology-crafts.md)     | The blacksmith's forge, coopering, thatching, spinning and weaving, turf cutting with the slean, lime burning, poitin distilling, tinkers, rope-making, rush lights, water mills, and the industrial divide with England                   |
+| [Transportation](transportation.md)             | Walking as primary travel, horse and jaunting car, stage coaches, turnpike roads, canals and fly-boats, coastal shipping, dire road conditions west of the Shannon, and the limited travel radius of ordinary people                       |
 
 ### Power & Institutions
 
-| Document | Summary |
-|----------|---------|
-| [Law & Governance](law-governance.md) | Dublin Castle administration, Grand Jury system, magistrates and petty sessions, the emerging constabulary, the tithe system, landlord-agent-bailiff authority chain, and Catholic legal disabilities |
-| [Politics & Movements](politics-movements.md) | Act of Union aftermath, Protestant Ascendancy electoral control, O'Connell and the Catholic Association, the Clare by-election, Orange Order and Ribbon lodges, local power brokers (priest, landlord, publican), and the memory of 1798 |
-| [Crime & Secret Societies](crime-secret-societies.md) | Whiteboys, Threshers, Ribbonmen, Rockites, and Terry Alts -- their methods (threatening letters, cattle-maiming, carding), faction fighting, poitin production, crown vs. community justice, and the horror of the informer |
+| Document                                              | Summary                                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Law & Governance](law-governance.md)                 | Dublin Castle administration, Grand Jury system, magistrates and petty sessions, the emerging constabulary, the tithe system, landlord-agent-bailiff authority chain, and Catholic legal disabilities                                    |
+| [Politics & Movements](politics-movements.md)         | Act of Union aftermath, Protestant Ascendancy electoral control, O'Connell and the Catholic Association, the Clare by-election, Orange Order and Ribbon lodges, local power brokers (priest, landlord, publican), and the memory of 1798 |
+| [Crime & Secret Societies](crime-secret-societies.md) | Whiteboys, Threshers, Ribbonmen, Rockites, and Terry Alts -- their methods (threatening letters, cattle-maiming, carding), faction fighting, poitin production, crown vs. community justice, and the horror of the informer              |
 
 ### Spiritual & Intellectual Life
 
-| Document | Summary |
-|----------|---------|
-| [Religion & Spirituality](religion-spirituality.md) | Catholic majority and Penal Law legacy, chapel building, the parish priest's authority, stations in homes, devotional practices, Church of Ireland and tithes, Presbyterians, holy wells, folk-Catholic syncretism, and wake customs |
-| [Mythology & Folklore](mythology-folklore.md) | The living fairy faith, Tuatha De Danann and the Otherworld, fairy forts and landscape taboos, changelings, banshees, the puca, fairy doctors and pisheogs, liminal spaces, the four seasonal festivals (Samhain, Imbolc, Bealtaine, Lughnasa), and the seanchai tradition |
-| [Education & Literacy](education-literacy.md) | Hedge schools and the schoolmaster, classical learning in mud cabins, literacy rates and regional variation, the oral tradition and seanchai, the dying scribal tradition, Kildare Place Society, print culture, and news propagation |
-| [Music & Entertainment](music-entertainment.md) | Fiddle, uilleann pipes, and the harp's decline, sean-nos singing, the seanchai as performer, crossroads dances, set dancing, pattern days, hurling, blood sports, card games, keening at wakes, and travelling musicians |
-| [Ambient Sound Sources](ambient-sound-sources.md) | Royalty-free audio sources for period-correct ambient sounds: church bells, fiddle music, farm animals, water, wind, pub ambience, and weather |
+| Document                                            | Summary                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Religion & Spirituality](religion-spirituality.md) | Catholic majority and Penal Law legacy, chapel building, the parish priest's authority, stations in homes, devotional practices, Church of Ireland and tithes, Presbyterians, holy wells, folk-Catholic syncretism, and wake customs                                       |
+| [Mythology & Folklore](mythology-folklore.md)       | The living fairy faith, Tuatha De Danann and the Otherworld, fairy forts and landscape taboos, changelings, banshees, the puca, fairy doctors and pisheogs, liminal spaces, the four seasonal festivals (Samhain, Imbolc, Bealtaine, Lughnasa), and the seanchai tradition |
+| [Education & Literacy](education-literacy.md)       | Hedge schools and the schoolmaster, classical learning in mud cabins, literacy rates and regional variation, the oral tradition and seanchai, the dying scribal tradition, Kildare Place Society, print culture, and news propagation                                      |
+| [Music & Entertainment](music-entertainment.md)     | Fiddle, uilleann pipes, and the harp's decline, sean-nos singing, the seanchai as performer, crossroads dances, set dancing, pattern days, hurling, blood sports, card games, keening at wakes, and travelling musicians                                                   |
+| [Ambient Sound Sources](ambient-sound-sources.md)   | Royalty-free audio sources for period-correct ambient sounds: church bells, fiddle music, farm animals, water, wind, pub ambience, and weather                                                                                                                             |
 
 ### Health & Environment
 
-| Document | Summary |
-|----------|---------|
-| [Medicine & Health](medicine-health.md) | Folk medicine as primary healthcare, the bean feasa (wise woman), bone-setters, midwifery and maternal mortality, herbal remedies, holy well cures, endemic diseases (typhus, TB, smallpox), the early dispensary system, and mental illness through the fairy framework |
-| [Flora, Fauna & Landscape](flora-fauna-landscape.md) | Raised and blanket bogs, deforestation and hedgerows, rivers and loughs, drumlins, wildlife (fox, badger, hare, otter, corncrake, curlew), farming animals, seasonal landscape changes, weather, and wild plants with their uses |
+| Document                                             | Summary                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Medicine & Health](medicine-health.md)              | Folk medicine as primary healthcare, the bean feasa (wise woman), bone-setters, midwifery and maternal mortality, herbal remedies, holy well cures, endemic diseases (typhus, TB, smallpox), the early dispensary system, and mental illness through the fairy framework |
+| [Flora, Fauna & Landscape](flora-fauna-landscape.md) | Raised and blanket bogs, deforestation and hedgerows, rivers and loughs, drumlins, wildlife (fox, badger, hare, otter, corncrake, curlew), farming animals, seasonal landscape changes, weather, and wild plants with their uses                                         |
 
 ### Historical Context
 
-| Document | Summary |
-|----------|---------|
-| [Recent History (Pre-1820)](recent-history-pre1820.md) | The 1798 Rebellion and Ballinamuck, Act of Union and the broken promise, Emmet's 1803 rising, Napoleonic Wars agricultural boom and post-war crash, Penal Law relaxation, transportation as communal trauma, and the emotional landscape of layered grief |
-| [Forthcoming Decades](forthcoming-decades.md) | Catholic Emancipation (1829), the Tithe War, National Schools and Irish language decline, the Poor Law and workhouses, the Repeal movement, the Great Famine (1845-52), mass emigration, revolutionary nationalism, and the Land War -- material for foreshadowing and dramatic irony |
+| Document                                               | Summary                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Recent History (Pre-1820)](recent-history-pre1820.md) | The 1798 Rebellion and Ballinamuck, Act of Union and the broken promise, Emmet's 1803 rising, Napoleonic Wars agricultural boom and post-war crash, Penal Law relaxation, transportation as communal trauma, and the emotional landscape of layered grief                             |
+| [Forthcoming Decades](forthcoming-decades.md)          | Catholic Emancipation (1829), the Tithe War, National Schools and Irish language decline, the Poor Law and workhouses, the Repeal movement, the Great Famine (1845-52), mass emigration, revolutionary nationalism, and the Land War -- material for foreshadowing and dramatic irony |
 
 ---
 

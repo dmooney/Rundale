@@ -33,7 +33,7 @@ function installStorage(name: 'localStorage' | 'sessionStorage') {
 		value: storage,
 		writable: true,
 		configurable: true,
-		enumerable: true
+		enumerable: true,
 	};
 	Object.defineProperty(globalThis, name, desc);
 	if (typeof window !== 'undefined') {
@@ -55,6 +55,6 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 			removeListener: () => {},
 			addEventListener: () => {},
 			removeEventListener: () => {},
-			dispatchEvent: () => false
+			dispatchEvent: () => false,
 		}) as MediaQueryList;
 }

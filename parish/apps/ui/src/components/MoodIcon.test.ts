@@ -9,7 +9,7 @@ describe('MoodIcon', () => {
 		// value through, MoodIcon must render it directly instead of
 		// re-deriving from the mood string.
 		const { container } = render(MoodIcon, {
-			props: { mood: 'angry', emoji: '🦊' }
+			props: { mood: 'angry', emoji: '🦊' },
 		});
 		const span = container.querySelector('.mood-emoji');
 		expect(span?.textContent).toBe('🦊');
@@ -23,7 +23,9 @@ describe('MoodIcon', () => {
 	});
 
 	it('renders fallback emoji for an unknown mood', () => {
-		const { container } = render(MoodIcon, { props: { mood: 'zzz_unknown_zzz' } });
+		const { container } = render(MoodIcon, {
+			props: { mood: 'zzz_unknown_zzz' },
+		});
 		const span = container.querySelector('.mood-emoji');
 		expect(span).toBeTruthy();
 		expect(span?.textContent).toBe('🙂');
@@ -47,7 +49,9 @@ describe('MoodIcon', () => {
 	});
 
 	it('matches mood keywords as substrings', () => {
-		const { container } = render(MoodIcon, { props: { mood: 'contemplative' } });
+		const { container } = render(MoodIcon, {
+			props: { mood: 'contemplative' },
+		});
 		const span = container.querySelector('.mood-emoji');
 		expect(span?.textContent).toBe('🤔');
 	});
@@ -71,7 +75,7 @@ describe('MoodIcon', () => {
 			['warm', '🤗'],
 			['friendly', '🤗'],
 			['cheerful', '😊'],
-			['joyful', '😄']
+			['joyful', '😄'],
 		];
 		for (const [mood, expected] of cases) {
 			const { container } = render(MoodIcon, { props: { mood } });
@@ -82,10 +86,31 @@ describe('MoodIcon', () => {
 
 	it('renders all mood categories to an emoji', () => {
 		const moods = [
-			'angry', 'afraid', 'anxious', 'sad', 'melancholy', 'irritated', 'suspicious',
-			'joyful', 'cheerful', 'friendly', 'amused', 'passionate',
-			'contemplative', 'determined', 'alert', 'calm', 'content',
-			'restless', 'tired', 'stoic', 'curious', 'shy', 'proud', 'surprised', 'warm'
+			'angry',
+			'afraid',
+			'anxious',
+			'sad',
+			'melancholy',
+			'irritated',
+			'suspicious',
+			'joyful',
+			'cheerful',
+			'friendly',
+			'amused',
+			'passionate',
+			'contemplative',
+			'determined',
+			'alert',
+			'calm',
+			'content',
+			'restless',
+			'tired',
+			'stoic',
+			'curious',
+			'shy',
+			'proud',
+			'surprised',
+			'warm',
 		];
 		for (const mood of moods) {
 			const { container } = render(MoodIcon, { props: { mood } });
@@ -98,10 +123,30 @@ describe('MoodIcon', () => {
 		// "content" uses 🙂 which is also the fallback — that's intentional.
 		// All other moods should differ from fallback.
 		const moods = [
-			'angry', 'afraid', 'anxious', 'sad', 'melancholy', 'irritated', 'suspicious',
-			'joyful', 'cheerful', 'friendly', 'amused', 'passionate',
-			'contemplative', 'determined', 'alert', 'calm',
-			'restless', 'tired', 'stoic', 'curious', 'shy', 'proud', 'surprised', 'warm'
+			'angry',
+			'afraid',
+			'anxious',
+			'sad',
+			'melancholy',
+			'irritated',
+			'suspicious',
+			'joyful',
+			'cheerful',
+			'friendly',
+			'amused',
+			'passionate',
+			'contemplative',
+			'determined',
+			'alert',
+			'calm',
+			'restless',
+			'tired',
+			'stoic',
+			'curious',
+			'shy',
+			'proud',
+			'surprised',
+			'warm',
 		];
 		for (const mood of moods) {
 			const { container } = render(MoodIcon, { props: { mood } });

@@ -10,7 +10,7 @@ Proposed (2026-04-26). No implementation yet.
 
 Tier 1 NPC dialogue today is rendered as **prose followed by a `---` separator and a JSON sidecar** (see [ADR-008 Structured JSON LLM Output](008-structured-json-llm-output.md), [ADR-019 JSON Structured Output for NPC Dialogue](019-json-structured-output-for-npc-dialogue.md)). The system prompt at `mods/rundale/prompts/tier1_system.txt` instructs the model to emit:
 
-```
+```text
 <dialogue text>
 ---
 {
@@ -24,7 +24,7 @@ Tier 1 NPC dialogue today is rendered as **prose followed by a `---` separator a
 This works, but has two costs that show up in the harness:
 
 1. **Parse fragility.** The separator-based protocol depends on the model behaving. We've already shipped one fix for this — see commit `1b3c5bc refactor: replace separator-based LLM parsing with JSON structured output (#472)`. The post-fix parser is robust, but every new field (e.g. tier-2 `mood_changes` arrays, `relationship_changes`) costs prompt-engineering effort to keep the model emitting the right shape across providers.
-2. **Action enumeration drift.** `"action"` is a freeform string in the schema; the engine's enum (`speak | move | trade | work | rest | observe`) is *implied* by the prompt. The model can emit an action the engine doesn't know how to handle, and we discover it at runtime.
+2. **Action enumeration drift.** `"action"` is a freeform string in the schema; the engine's enum (`speak | move | trade | work | rest | observe`) is _implied_ by the prompt. The model can emit an action the engine doesn't know how to handle, and we discover it at runtime.
 
 Most modern provider APIs (Anthropic, OpenAI, Google) expose **structured tool-calling**: the client declares a JSON schema for each tool, the provider validates the model's call against the schema, and the response is a guaranteed-typed structured object instead of free text. This eliminates both costs above.
 
@@ -59,7 +59,7 @@ When we revisit, the candidate decision is:
 
 - **Two code paths per tier.** Cloud Tier 1 uses tool-calling; local Tier 1 uses the existing protocol. Mode parity (AGENTS.md §2) requires both to produce the same `Tier1Response` struct. Likely materializes as a `Tier1ResponseAdapter` trait with `CloudToolCallAdapter` and `JsonSidecarAdapter` impls.
 - **Streaming UX.** Need to design how a tool-call response surfaces dialogue tokens to the client. Options: (a) keep dialogue as a streamed prose field on the tool's argument (token-stream within structured args is supported by Anthropic/OpenAI), (b) accept non-streaming Tier 1 on cloud and rely on cloud latency being low enough.
-- **Prompt rewrite.** `tier1_system.txt` must teach the cloud path to call the tool *and* the local path to emit the sidecar. Prompt-template branching, gated on provider category from `parish-config`'s provider routing.
+- **Prompt rewrite.** `tier1_system.txt` must teach the cloud path to call the tool _and_ the local path to emit the sidecar. Prompt-template branching, gated on provider category from `parish-config`'s provider routing.
 
 ### If rejected
 

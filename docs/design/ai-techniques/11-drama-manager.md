@@ -7,13 +7,13 @@
 
 Rundale is a sandbox. Without narrative pressure, days blur into each other —
 the same schedules, the same gossip cadence, no sense of momentum. Tier 4
-rules produce *events* (births, illness, festivals), but not *arcs*. Players
+rules produce _events_ (births, illness, festivals), but not _arcs_. Players
 report "nothing is happening" even when plenty is happening.
 
 ## SOTA technique
 
 An AI Director borrowed from storylet / drama-management research (Mateas,
-Riedl, *Left 4 Dead*'s director, Versu):
+Riedl, _Left 4 Dead_'s director, Versu):
 
 - Runs once per in-game day (or on an adaptive cadence driven by player
   idleness / engagement).
@@ -42,7 +42,7 @@ parameterises them, never invents them. Keeps output bounded and diegetic.
 
 ## Director prompt shape
 
-```
+```text
 World mood: subdued, rain for three days.
 Player has not met the priest in 6 game-days.
 Gossip volume: low in Ballygar, rising in Kilteevan.
@@ -79,7 +79,7 @@ table.
 ## Effort & sequencing
 
 Roughly 1.5 engineer-weeks. Best landed after doc 02 (grammar) and doc 10
-(knowledge graph) so the director can reason about what *can* be revealed.
+(knowledge graph) so the director can reason about what _can_ be revealed.
 
 ## Risks
 
@@ -91,9 +91,9 @@ Roughly 1.5 engineer-weeks. Best landed after doc 02 (grammar) and doc 10
 
 ## Papers / references
 
-- Mateas & Stern, *Façade* (2005) — dramatic beats and manager.
-- Riedl & Bulitko, *Interactive Narrative: An Intelligent Systems Approach* (2013).
-- Booth, *The AI Director of Left 4 Dead* (GDC 2009).
-- Evans & Short, *Versu* (2014) — storylet / character-driven narrative.
-- Kreminski et al., *Why Are We Like This? The AI Architecture of a Co-Creative
-  Storytelling Game* (2022).
+- Mateas & Stern, _Façade_ (2005) — dramatic beats and manager.
+- Riedl & Bulitko, _Interactive Narrative: An Intelligent Systems Approach_ (2013).
+- Booth, _The AI Director of Left 4 Dead_ (GDC 2009).
+- Evans & Short, _Versu_ (2014) — storylet / character-driven narrative.
+- Kreminski et al., _Why Are We Like This? The AI Architecture of a Co-Creative
+  Storytelling Game_ (2022).

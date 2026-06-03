@@ -19,6 +19,7 @@ them. Phase 7 freeze will rotate them out of the public dataset and into
 an age-encrypted form gated behind a CI-only key; until then, treat the
 holdout as "moral seal", not cryptographic.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -45,8 +46,11 @@ def split(version: str, slice_name: str) -> tuple[int, int]:
     dev_path = src
     holdout_path = suite / f"{slice_name}.holdout.jsonl"
 
-    records = [json.loads(line) for line in src.read_text(encoding="utf-8").splitlines() if line.strip()]
-    dev, holdout = [], []
+    records = [
+        json.loads(line) for line in src.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    dev: list[dict] = []
+    holdout: list[dict] = []
     for rec in records:
         # core tier is the always-run smoke set — never moves to holdout, so
         # `gen_dlg.py` and equivalents keep working from the dev split alone.
@@ -55,9 +59,15 @@ def split(version: str, slice_name: str) -> tuple[int, int]:
             continue
         (holdout if _holdout_bucket(rec["id"]) else dev).append(rec)
 
-    dev_path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in dev) + "\n", encoding="utf-8")
-    holdout_path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in holdout) + "\n", encoding="utf-8")
-    print(f"{slice_name}: {len(dev)} dev / {len(holdout)} holdout ({100*len(holdout)/max(1,len(records)):.1f}%)")
+    dev_path.write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in dev) + "\n", encoding="utf-8"
+    )
+    holdout_path.write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in holdout) + "\n", encoding="utf-8"
+    )
+    print(
+        f"{slice_name}: {len(dev)} dev / {len(holdout)} holdout ({100 * len(holdout) / max(1, len(records)):.1f}%)"
+    )
     return len(dev), len(holdout)
 
 
@@ -70,8 +80,7 @@ def main() -> None:
         split(version, sys.argv[2])
     else:
         slices = sorted(
-            p.stem for p in suite.glob("*.jsonl")
-            if not p.name.endswith(".holdout.jsonl")
+            p.stem for p in suite.glob("*.jsonl") if not p.name.endswith(".holdout.jsonl")
         )
         for s in slices:
             split(version, s)

@@ -1,6 +1,6 @@
 # Food & Drink in 1820s Ireland
 
-*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
+_Research document for Rundale — an interactive fiction game set in 1820s rural Ireland._
 
 ## The Potato Economy
 

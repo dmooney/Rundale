@@ -1,6 +1,6 @@
 # The Forthcoming Decades — What's Coming After 1820
 
-> **Design note:** This document covers events *after* the game's starting period of the early 1820s. NPCs living in Kilteevan, County Roscommon, do not know these things are coming. This material exists for game designers to inform foreshadowing, dramatic irony, and long-term narrative planning should the game timeline advance. The characters go about their daily lives unaware that they stand at the edge of a precipice.
+> **Design note:** This document covers events _after_ the game's starting period of the early 1820s. NPCs living in Kilteevan, County Roscommon, do not know these things are coming. This material exists for game designers to inform foreshadowing, dramatic irony, and long-term narrative planning should the game timeline advance. The characters go about their daily lives unaware that they stand at the edge of a precipice.
 
 ## A Hinge Point in Irish History
 
@@ -64,7 +64,7 @@ This timeline is not background lore — it is a design resource with specific a
 
 [3] **Verified with precision added.** The Battle of Carrickshock during the Tithe War. — Confirmed. The confrontation occurred on 14 December 1831 (not simply "1831") near Hugginstown, County Kilkenny. Seventeen were killed: fourteen members of the tithe-collection party and three locals. It was unusual in that the majority of casualties were on the collection side. Text amended to add "December." Sources: Wikipedia (Carrickshock incident); RTÉ Documentary on One.
 
-[4] **Corrected.** The "Tithe Commutation Act of 1838." — The Act's proper title is the *Tithe Rentcharge (Ireland) Act 1838*, not the "Tithe Commutation Act." It converted tithe into a rent charge on the landowner at three-quarters of the original amount. Text corrected. Sources: Irish Statute Book; Encyclopedia.com (Irish Tithe Act of 1838).
+[4] **Corrected.** The "Tithe Commutation Act of 1838." — The Act's proper title is the _Tithe Rentcharge (Ireland) Act 1838_, not the "Tithe Commutation Act." It converted tithe into a rent charge on the landowner at three-quarters of the original amount. Text corrected. Sources: Irish Statute Book; Encyclopedia.com (Irish Tithe Act of 1838).
 
 [5] **Verified.** Edward Stanley's letter establishing the National School system in 1831. — Confirmed. Stanley, as Chief Secretary for Ireland, addressed a letter in October 1831 to the Duke of Leinster, outlining the plan for state-funded non-denominational schools. This letter remains the legal basis of the National School system. By 1831, the system enrolled over 100,000 children, rising to nearly 1 million within 40 years. Sources: Stanley's Letter (stanleysletter.com); Wikipedia (Stanley letter; National school (Ireland)).
 
@@ -72,7 +72,7 @@ This timeline is not background lore — it is a design resource with specific a
 
 [7] **Verified.** O'Connell's Clontarf meeting banned in 1843. — Confirmed. The British government issued a proclamation on 7 October 1843 banning the Clontarf meeting planned for the following day. Some 2,500 troops and warships were deployed to enforce the order. O'Connell cancelled the meeting, fearing bloodshed. His compliance discredited him among younger, more radical nationalists. Sources: The Irish Story; Library Ireland; Wikipedia (1843 in Ireland).
 
-[8] **Verified.** *Phytophthora infestans* as the pathogen causing the potato blight beginning in 1845. — Confirmed. The water mold arrived in Ireland from North America in 1845. Cool, moist weather conditions allowed it to spread rapidly through genetically uniform potato crops (especially the Irish Lumper variety). Sources: Britannica (Great Famine); Wikipedia (Great Famine (Ireland); Phytophthora infestans); Smithsonian Magazine.
+[8] **Verified.** _Phytophthora infestans_ as the pathogen causing the potato blight beginning in 1845. — Confirmed. The water mold arrived in Ireland from North America in 1845. Cool, moist weather conditions allowed it to spread rapidly through genetically uniform potato crops (especially the Irish Lumper variety). Sources: Britannica (Great Famine); Wikipedia (Great Famine (Ireland); Phytophthora infestans); Smithsonian Magazine.
 
 [9] **Corrected.** Ireland's pre-Famine population stated as "approximately 8.2 million." — Sources more commonly cite figures of 8.2 to 8.5 million (the 1841 census recorded over 8 million; Britannica cites "about 8.5 million"). The post-Famine figure of approximately 6.5 million by 1851 is broadly confirmed, with sources citing between 6 and 6.6 million. Text amended to "approximately 8.2 to 8.5 million" for accuracy. Sources: Britannica (Great Famine); Wikipedia (Great Famine (Ireland)).
 
@@ -84,28 +84,28 @@ This timeline is not background lore — it is a design resource with specific a
 
 ## Bibliography
 
-- "Battle of Carrickshock." *RTÉ Documentary on One*. https://www.rte.ie/radio/doconone/646747-radio-documentary-battle-of-carrickshock
-- "Carrickshock Incident." *Wikipedia*. https://en.wikipedia.org/wiki/Carrickshock_incident
-- "Catholic Rent." *Wikipedia*. https://en.wikipedia.org/wiki/Catholic_Rent
-- "Daniel O'Connell." *Wikipedia*. https://en.wikipedia.org/wiki/Daniel_O'Connell
-- "Fenian Brotherhood." *Wikipedia*. https://en.wikipedia.org/wiki/Fenian_Brotherhood
-- "Fenian Movement and the Irish Republican Brotherhood." *Encyclopedia.com*. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/fenian-movement-and-irish-republican-brotherhood
-- "Forty-shilling Freeholders." *Wikipedia*. https://en.wikipedia.org/wiki/Forty-shilling_freeholders
-- "Great Famine (Ireland)." *Britannica*. https://www.britannica.com/event/Great-Famine-Irish-history
-- "Great Famine (Ireland)." *Wikipedia*. https://en.wikipedia.org/wiki/Great_Famine_(Ireland)
-- "Irish National Land League." *Wikipedia*. https://en.wikipedia.org/wiki/Irish_National_Land_League
-- "Irish Poor Law Unions." *Workhouses.org.uk*. https://www.workhouses.org.uk/Ireland/
-- "Irish Republican Brotherhood." *Wikipedia*. https://en.wikipedia.org/wiki/Irish_Republican_Brotherhood
-- "Irish Tithe Act of 1838." *Encyclopedia.com*. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/irish-tithe-act-1838
-- "Land War 1879 to 1882." *Encyclopedia.com*. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/land-war-1879-1882
-- "National School (Ireland)." *Wikipedia*. https://en.wikipedia.org/wiki/National_school_(Ireland)
-- "Phytophthora infestans." *Wikipedia*. https://en.wikipedia.org/wiki/Phytophthora_infestans
-- "Poor Law Records." *National Archives of Ireland*. https://nationalarchives.ie/help-with-research/research-guides/poor-law-records/
-- "Roman Catholic Relief Act 1829." *Wikipedia*. https://en.wikipedia.org/wiki/Roman_Catholic_Relief_Act_1829
-- "Stanley Letter." *Wikipedia*. https://en.wikipedia.org/wiki/Stanley_letter
-- "The Stanley Letter." *Stanley's Letter*. https://stanleysletter.com/
-- "The Workhouse." *Irish Famine Exhibition*. https://www.theirishpotatofamine.com/blogs/blog-1/the-workhouse
-- "Tithe Rentcharge (Ireland) Act 1838." *Irish Statute Book*. https://www.irishstatutebook.ie/eli/1838/act/109/enacted/en/html
-- "Tithe War." *Wikipedia*. https://en.wikipedia.org/wiki/Tithe_War
-- "Today in Irish History: The Repeal Meeting at Clontarf is Banned." *The Irish Story*. https://www.theirishstory.com/2011/10/08/today-in-irish-history-october-8-1843-the-repeal-meeting-at-clontarf-is-banned/
-- "Young Ireland Revolt, 1848." *History Today*. https://www.historytoday.com/archive/young-ireland-revolt-1848
+- "Battle of Carrickshock." _RTÉ Documentary on One_. https://www.rte.ie/radio/doconone/646747-radio-documentary-battle-of-carrickshock
+- "Carrickshock Incident." _Wikipedia_. https://en.wikipedia.org/wiki/Carrickshock_incident
+- "Catholic Rent." _Wikipedia_. https://en.wikipedia.org/wiki/Catholic_Rent
+- "Daniel O'Connell." _Wikipedia_. https://en.wikipedia.org/wiki/Daniel_O'Connell
+- "Fenian Brotherhood." _Wikipedia_. https://en.wikipedia.org/wiki/Fenian_Brotherhood
+- "Fenian Movement and the Irish Republican Brotherhood." _Encyclopedia.com_. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/fenian-movement-and-irish-republican-brotherhood
+- "Forty-shilling Freeholders." _Wikipedia_. https://en.wikipedia.org/wiki/Forty-shilling_freeholders
+- "Great Famine (Ireland)." _Britannica_. https://www.britannica.com/event/Great-Famine-Irish-history
+- "Great Famine (Ireland)." _Wikipedia_. https://en.wikipedia.org/wiki/Great_Famine_(Ireland)
+- "Irish National Land League." _Wikipedia_. https://en.wikipedia.org/wiki/Irish_National_Land_League
+- "Irish Poor Law Unions." _Workhouses.org.uk_. https://www.workhouses.org.uk/Ireland/
+- "Irish Republican Brotherhood." _Wikipedia_. https://en.wikipedia.org/wiki/Irish_Republican_Brotherhood
+- "Irish Tithe Act of 1838." _Encyclopedia.com_. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/irish-tithe-act-1838
+- "Land War 1879 to 1882." _Encyclopedia.com_. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/land-war-1879-1882
+- "National School (Ireland)." _Wikipedia_. https://en.wikipedia.org/wiki/National_school_(Ireland)
+- "Phytophthora infestans." _Wikipedia_. https://en.wikipedia.org/wiki/Phytophthora_infestans
+- "Poor Law Records." _National Archives of Ireland_. https://nationalarchives.ie/help-with-research/research-guides/poor-law-records/
+- "Roman Catholic Relief Act 1829." _Wikipedia_. https://en.wikipedia.org/wiki/Roman_Catholic_Relief_Act_1829
+- "Stanley Letter." _Wikipedia_. https://en.wikipedia.org/wiki/Stanley_letter
+- "The Stanley Letter." _Stanley's Letter_. https://stanleysletter.com/
+- "The Workhouse." _Irish Famine Exhibition_. https://www.theirishpotatofamine.com/blogs/blog-1/the-workhouse
+- "Tithe Rentcharge (Ireland) Act 1838." _Irish Statute Book_. https://www.irishstatutebook.ie/eli/1838/act/109/enacted/en/html
+- "Tithe War." _Wikipedia_. https://en.wikipedia.org/wiki/Tithe_War
+- "Today in Irish History: The Repeal Meeting at Clontarf is Banned." _The Irish Story_. https://www.theirishstory.com/2011/10/08/today-in-irish-history-october-8-1843-the-repeal-meeting-at-clontarf-is-banned/
+- "Young Ireland Revolt, 1848." _History Today_. https://www.historytoday.com/archive/young-ireland-revolt-1848

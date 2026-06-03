@@ -94,6 +94,7 @@ fences:
 ```
 
 Rules:
+
 - `axes.in_character` is an integer **1-5** for normal scoring, or **0**
   for a bench-bug item. `overall` mirrors it (1.0-5.0 normal, 0.0
   bench-bug). The score_range in the bundle is [1, 5]; the same range

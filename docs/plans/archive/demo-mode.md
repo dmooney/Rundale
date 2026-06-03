@@ -12,19 +12,19 @@ Tauri-only scope: the demo loop depends on the desktop app's observable state an
 
 ## Key Design Decisions (vs. Original Draft)
 
-| Topic | Original Draft | This Plan | Reason |
-|-------|---------------|-----------|--------|
-| `InferenceCategory::Demo` | Add new variant | **Skip for MVP** | Cascades across 8+ files (`cat_idx`, `[Option;4]` arrays, `ALL`, `RateLimitConfig`, `presets.rs`, CLI, etc.) — add later if per-category config is needed |
-| `EVENT_ACTION_COMPLETE` | New backend event | **Skip** | Not needed — frontend detects turn-complete via `streamingActive` store |
-| Non-streaming LLM call | Queue via `token_tx: None` | **Direct `AnyClient::generate()`** | Same pattern as `parse_intent` (uses `state.client` directly); simpler |
-| `recent_log` in context | Backend fetches | **Frontend fills before calling** | Backend has no text log; frontend owns the `textLog` store |
-| `set_demo_config` | Backend-persisted | **Frontend state only** | Panel modifies `demoConfig` store; no need to round-trip through backend |
+| Topic                     | Original Draft             | This Plan                          | Reason                                                                                                                                                    |
+| ------------------------- | -------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InferenceCategory::Demo` | Add new variant            | **Skip for MVP**                   | Cascades across 8+ files (`cat_idx`, `[Option;4]` arrays, `ALL`, `RateLimitConfig`, `presets.rs`, CLI, etc.) — add later if per-category config is needed |
+| `EVENT_ACTION_COMPLETE`   | New backend event          | **Skip**                           | Not needed — frontend detects turn-complete via `streamingActive` store                                                                                   |
+| Non-streaming LLM call    | Queue via `token_tx: None` | **Direct `AnyClient::generate()`** | Same pattern as `parse_intent` (uses `state.client` directly); simpler                                                                                    |
+| `recent_log` in context   | Backend fetches            | **Frontend fills before calling**  | Backend has no text log; frontend owns the `textLog` store                                                                                                |
+| `set_demo_config`         | Backend-persisted          | **Frontend state only**            | Panel modifies `demoConfig` store; no need to round-trip through backend                                                                                  |
 
 ---
 
 ## Data Flow Diagram
 
-```
+```text
 CLI args (--demo, --demo-prompt, etc.)
        │
        ▼
@@ -59,6 +59,7 @@ Demo loop (demo-player.ts):
 ### `parish/crates/parish-tauri/src/lib.rs`
 
 **`DemoConfig` struct** (add in lib.rs, not in parish-config, to stay Tauri-scoped):
+
 ```rust
 pub struct DemoConfig {
     pub auto_start: bool,
@@ -69,11 +70,13 @@ pub struct DemoConfig {
 ```
 
 **`AppState` additions** — two plain fields (no Mutex, read-only after startup):
+
 ```rust
 pub demo_config: DemoConfig,
 ```
 
 **CLI arg parsing** in `run()`, same pattern as `--screenshot`:
+
 ```rust
 let demo_auto_start = args.iter().any(|a| a == "--demo");
 let demo_extra_prompt = args.iter()
@@ -94,6 +97,7 @@ let demo_max_turns = args.iter()
 Add `demo_config: DemoConfig { auto_start: demo_auto_start, extra_prompt: demo_extra_prompt, turn_pause_secs: demo_pause_secs, max_turns: demo_max_turns }` to `AppState { ... }`.
 
 **Register new commands** in `.invoke_handler()`:
+
 ```rust
 commands::get_demo_context,
 commands::get_llm_player_action,
@@ -103,6 +107,7 @@ commands::get_demo_config,
 ### `parish/crates/parish-tauri/src/commands.rs`
 
 **`DemoContextSnapshot`** struct (serde Serialize + Deserialize):
+
 ```rust
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct DemoContextSnapshot {
@@ -134,6 +139,7 @@ pub struct DemoAdjacentLocation {
 ```
 
 **`DemoConfigPayload`** struct for `get_demo_config` response:
+
 ```rust
 #[derive(serde::Serialize, Clone)]
 pub struct DemoConfigPayload {
@@ -155,7 +161,8 @@ pub struct DemoConfigPayload {
 **Prompt assembly** (in `get_llm_player_action`):
 
 System prompt:
-```
+
+```text
 You are playing Rundale, an Irish living-world simulation set in 1820. You are a wandering
 stranger exploring the townlands of east Roscommon. The world is populated by historical
 Irish villagers — farmers, priests, weavers, matchmakers — each living their own life.
@@ -173,7 +180,7 @@ Reply with exactly one action — the text you would type as the player. Example
 Do not include any explanation, just the action text.
 ```
 
-User prompt assembled from `DemoContextSnapshot` fields: location, time, season, weather, NPCs here (bulleted), adjacent locations with travel times and visited status, recent log lines prefixed with `> `.
+User prompt assembled from `DemoContextSnapshot` fields: location, time, season, weather, NPCs here (bulleted), adjacent locations with travel times and visited status, recent log lines prefixed with `>`.
 
 ---
 
@@ -186,18 +193,20 @@ import { writable } from 'svelte/store';
 export const demoEnabled = writable(false);
 export const demoPaused = writable(false);
 export const demoTurnCount = writable(0);
-export const demoStatus = writable<'idle' | 'waiting' | 'thinking' | 'acting'>('idle');
+export const demoStatus = writable<'idle' | 'waiting' | 'thinking' | 'acting'>(
+  'idle',
+);
 export interface DemoConfig {
-    auto_start: boolean;
-    extra_prompt: string | null;
-    turn_pause_secs: number;
-    max_turns: number | null;
+  auto_start: boolean;
+  extra_prompt: string | null;
+  turn_pause_secs: number;
+  max_turns: number | null;
 }
 export const demoConfig = writable<DemoConfig>({
-    auto_start: false,
-    extra_prompt: null,
-    turn_pause_secs: 2.0,
-    max_turns: null
+  auto_start: false,
+  extra_prompt: null,
+  turn_pause_secs: 2.0,
+  max_turns: null,
 });
 ```
 
@@ -207,71 +216,95 @@ Turn-complete detection: subscribe to `streamingActive` before submitting. Track
 
 ```typescript
 import { get } from 'svelte/store';
-import { demoEnabled, demoPaused, demoTurnCount, demoStatus, demoConfig } from '../stores/demo';
+import {
+  demoEnabled,
+  demoPaused,
+  demoTurnCount,
+  demoStatus,
+  demoConfig,
+} from '../stores/demo';
 import { streamingActive, textLog } from '../stores/game';
 import { getDemoContext, getLlmPlayerAction, submitInput } from './ipc';
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function waitForFalse(store: Readable<boolean>): Promise<void> {
-    return new Promise(resolve => {
-        const unsub = store.subscribe(v => { if (!v) { unsub(); resolve(); } });
+  return new Promise((resolve) => {
+    const unsub = store.subscribe((v) => {
+      if (!v) {
+        unsub();
+        resolve();
+      }
     });
+  });
 }
 
 export async function runDemoTurn(): Promise<void> {
-    if (!get(demoEnabled) || get(demoPaused)) return;
-    const config = get(demoConfig);
+  if (!get(demoEnabled) || get(demoPaused)) return;
+  const config = get(demoConfig);
 
-    demoStatus.set('waiting');
-    await sleep(config.turn_pause_secs * 1000);
-    if (!get(demoEnabled) || get(demoPaused)) return;
+  demoStatus.set('waiting');
+  await sleep(config.turn_pause_secs * 1000);
+  if (!get(demoEnabled) || get(demoPaused)) return;
 
-    demoStatus.set('thinking');
-    const ctx = await getDemoContext();
-    // Fill recent log from frontend store (last 40 lines)
-    ctx.recent_log = get(textLog).slice(-40).map(e => `[${e.source}] ${e.content}`);
-    if (config.extra_prompt) ctx.extra_prompt = config.extra_prompt;
-    const action = (await getLlmPlayerAction(ctx)).trim().replace(/^["']|["']$/g, '');
+  demoStatus.set('thinking');
+  const ctx = await getDemoContext();
+  // Fill recent log from frontend store (last 40 lines)
+  ctx.recent_log = get(textLog)
+    .slice(-40)
+    .map((e) => `[${e.source}] ${e.content}`);
+  if (config.extra_prompt) ctx.extra_prompt = config.extra_prompt;
+  const action = (await getLlmPlayerAction(ctx))
+    .trim()
+    .replace(/^["']|["']$/g, '');
 
-    demoStatus.set('acting');
-    // Detect whether streaming starts during submit
-    let streamingStarted = false;
-    const unsub = streamingActive.subscribe(v => { if (v) streamingStarted = true; });
-    await submitInput(action, []);
-    unsub();
+  demoStatus.set('acting');
+  // Detect whether streaming starts during submit
+  let streamingStarted = false;
+  const unsub = streamingActive.subscribe((v) => {
+    if (v) streamingStarted = true;
+  });
+  await submitInput(action, []);
+  unsub();
 
-    if (streamingStarted) {
-        await waitForFalse(streamingActive);
-    } else {
-        await sleep(50);
-    }
+  if (streamingStarted) {
+    await waitForFalse(streamingActive);
+  } else {
+    await sleep(50);
+  }
 
-    demoTurnCount.update(n => n + 1);
-    if (config.max_turns != null && get(demoTurnCount) >= config.max_turns) {
-        demoEnabled.set(false);
-        demoStatus.set('idle');
-    }
+  demoTurnCount.update((n) => n + 1);
+  if (config.max_turns != null && get(demoTurnCount) >= config.max_turns) {
+    demoEnabled.set(false);
+    demoStatus.set('idle');
+  }
 }
 
 let loopRunning = false;
 export async function startDemoLoop(): Promise<void> {
-    if (loopRunning) return;
-    loopRunning = true;
-    demoEnabled.set(true);
-    while (get(demoEnabled)) {
-        if (!get(demoPaused)) {
-            try { await runDemoTurn(); } catch (e) { console.warn('Demo turn error:', e); await sleep(2000); }
-        } else {
-            await sleep(500);
-        }
+  if (loopRunning) return;
+  loopRunning = true;
+  demoEnabled.set(true);
+  while (get(demoEnabled)) {
+    if (!get(demoPaused)) {
+      try {
+        await runDemoTurn();
+      } catch (e) {
+        console.warn('Demo turn error:', e);
+        await sleep(2000);
+      }
+    } else {
+      await sleep(500);
     }
-    loopRunning = false;
-    demoStatus.set('idle');
+  }
+  loopRunning = false;
+  demoStatus.set('idle');
 }
 
 export function stopDemo(): void {
-    demoEnabled.set(false);
+  demoEnabled.set(false);
 }
 ```
 
@@ -282,13 +315,14 @@ Fixed overlay bar (top-center) shown when `demoEnabled`. Shows turn count, statu
 ### New file: `parish/apps/ui/src/components/DemoPanel.svelte`
 
 F11 config panel (same structural pattern as `DebugPanel.svelte`):
+
 - Enable toggle
 - Pause slider (0–30s)
 - Max turns input (0 = unlimited)
 - Extra prompt textarea
 - Apply & Start / Stop buttons
 - Turn counter and status display
-On "Apply & Start": updates `demoConfig` store, calls `startDemoLoop()`.
+  On "Apply & Start": updates `demoConfig` store, calls `startDemoLoop()`.
 
 ### Modifications to `parish/apps/ui/src/routes/+page.svelte`
 
@@ -302,10 +336,12 @@ On "Apply & Start": updates `demoConfig` store, calls `startDemoLoop()`.
 ### Modifications to `parish/apps/ui/src/lib/ipc.ts`
 
 ```typescript
-export const getDemoContext = () => command<DemoContextSnapshot>('get_demo_context');
+export const getDemoContext = () =>
+  command<DemoContextSnapshot>('get_demo_context');
 export const getLlmPlayerAction = (ctx: DemoContextSnapshot) =>
-    command<string>('get_llm_player_action', { ctx });
-export const getDemoConfig = () => command<DemoConfigPayload>('get_demo_config');
+  command<string>('get_llm_player_action', { ctx });
+export const getDemoConfig = () =>
+  command<DemoConfigPayload>('get_demo_config');
 ```
 
 Add `DemoContextSnapshot` and `DemoConfigPayload` types to `lib/types.ts`.
@@ -314,17 +350,17 @@ Add `DemoContextSnapshot` and `DemoConfigPayload` types to `lib/types.ts`.
 
 ## Critical Files
 
-| File | Change |
-|------|--------|
-| `parish/crates/parish-tauri/src/lib.rs` | `DemoConfig` struct, `AppState.demo_config`, CLI arg parsing, register 3 commands |
-| `parish/crates/parish-tauri/src/commands.rs` | 3 new commands, `DemoContextSnapshot`, `DemoNpcInfo`, `DemoAdjacentLocation`, `DemoConfigPayload`, prompt assembly |
-| `parish/apps/ui/src/lib/ipc.ts` | 3 new command wrappers |
-| `parish/apps/ui/src/lib/types.ts` | `DemoContextSnapshot`, `DemoConfigPayload` types |
-| `parish/apps/ui/src/routes/+page.svelte` | F11 handler, Esc stop, auto-start on mount, mount components |
-| `parish/apps/ui/src/stores/demo.ts` | **new** — demo state stores |
-| `parish/apps/ui/src/lib/demo-player.ts` | **new** — demo turn loop |
-| `parish/apps/ui/src/components/DemoBanner.svelte` | **new** — always-on overlay banner |
-| `parish/apps/ui/src/components/DemoPanel.svelte` | **new** — F11 config panel |
+| File                                              | Change                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `parish/crates/parish-tauri/src/lib.rs`           | `DemoConfig` struct, `AppState.demo_config`, CLI arg parsing, register 3 commands                                  |
+| `parish/crates/parish-tauri/src/commands.rs`      | 3 new commands, `DemoContextSnapshot`, `DemoNpcInfo`, `DemoAdjacentLocation`, `DemoConfigPayload`, prompt assembly |
+| `parish/apps/ui/src/lib/ipc.ts`                   | 3 new command wrappers                                                                                             |
+| `parish/apps/ui/src/lib/types.ts`                 | `DemoContextSnapshot`, `DemoConfigPayload` types                                                                   |
+| `parish/apps/ui/src/routes/+page.svelte`          | F11 handler, Esc stop, auto-start on mount, mount components                                                       |
+| `parish/apps/ui/src/stores/demo.ts`               | **new** — demo state stores                                                                                        |
+| `parish/apps/ui/src/lib/demo-player.ts`           | **new** — demo turn loop                                                                                           |
+| `parish/apps/ui/src/components/DemoBanner.svelte` | **new** — always-on overlay banner                                                                                 |
+| `parish/apps/ui/src/components/DemoPanel.svelte`  | **new** — F11 config panel                                                                                         |
 
 Existing NPC struct field to check: `parish/crates/parish-npc/src/lib.rs` — confirm `brief_description` or equivalent field name before writing `get_demo_context`.
 

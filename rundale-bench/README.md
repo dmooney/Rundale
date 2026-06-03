@@ -10,16 +10,16 @@ Generated benchmark outputs live in [`artifacts/`](artifacts/). The GitHub-rende
 
 `v1-dev` — in-development. Phases 1-7 of the rollout have landed structurally but the dataset is intentionally undersized (155 prompts total vs the plan's 1100 target). The framework is complete and produces measured per-slice scores; freeze (`MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0`) waits until the corpus is grown to the planned size and the leaderboard has at least three independently-evaluated targets (one frontier cloud, one open-weight, one local MLX) on the holdout split.
 
-| Phase | Status | Notes |
-|---|---|---|
-| 1 — Dataset freeze | landed | dialogue slice frozen with sha256-verified loader |
-| 2 — Intent + grader | landed | 30 records (target 200); deterministic Jaccard grader; 70% label match on `gpt-oss-120b:free` smoke |
-| 3 — Dialogue extend + pinned judge | landed (partial corpus) | 50 records added (target 400); `judge_v1` pinned at Claude Sonnet 4.6 with rubric_sha256 |
-| 4 — Reaction + sim slices | landed (partial corpus) | 30 + 30 + 15 records (target 200 + 200 + 100); `judge_reaction_v1`, `judge_sim_v1` pinned |
-| 5 — Holdout split | landed | deterministic id-hash split; `core` tier preserved in dev; encryption deferred to v1.0 freeze |
-| 6 — Leaderboard | landed (seed row only) | append-only table; one seed row pre-split; needs broader sweep |
-| 7 — v1.0 freeze | deferred | requires corpus growth + 3+ leaderboard rows before tag |
-| Gaeilge fluency slice | landed (starter corpus) | 12 source-backed records from Tatoeba and UD Irish-IDT for translation, idiom variants, grammar, comprehension, and English-leakage resistance; `judge_gaeilge_v1` pinned |
+| Phase                              | Status                  | Notes                                                                                                                                                                     |
+| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Dataset freeze                 | landed                  | dialogue slice frozen with sha256-verified loader                                                                                                                         |
+| 2 — Intent + grader                | landed                  | 30 records (target 200); deterministic Jaccard grader; 70% label match on `gpt-oss-120b:free` smoke                                                                       |
+| 3 — Dialogue extend + pinned judge | landed (partial corpus) | 50 records added (target 400); `judge_v1` pinned at Claude Sonnet 4.6 with rubric_sha256                                                                                  |
+| 4 — Reaction + sim slices          | landed (partial corpus) | 30 + 30 + 15 records (target 200 + 200 + 100); `judge_reaction_v1`, `judge_sim_v1` pinned                                                                                 |
+| 5 — Holdout split                  | landed                  | deterministic id-hash split; `core` tier preserved in dev; encryption deferred to v1.0 freeze                                                                             |
+| 6 — Leaderboard                    | landed (seed row only)  | append-only table; one seed row pre-split; needs broader sweep                                                                                                            |
+| 7 — v1.0 freeze                    | deferred                | requires corpus growth + 3+ leaderboard rows before tag                                                                                                                   |
+| Gaeilge fluency slice              | landed (starter corpus) | 12 source-backed records from Tatoeba and UD Irish-IDT for translation, idiom variants, grammar, comprehension, and English-leakage resistance; `judge_gaeilge_v1` pinned |
 
 ## Layout
 
@@ -117,10 +117,12 @@ While `frozen=false` (i.e. `v1-dev`), prompts can still be added/changed:
 1. Edit the slice `*.jsonl`. New records use the next `id` in `<slice>-NNNN` sequence — never reuse an `id`.
 2. Re-run the manifest builder (above) to refresh hashes.
 3. Run the smoke probe to confirm scoring is sane:
+
    ```sh
    python3 parish/scripts/local-eval/flaw_scan.py \
        --target '<your target>' --prompts 25 --workers 2
    ```
+
 4. Commit the slice change + manifest change in the same PR.
 
 After `frozen=true`, edits require a new version directory (`v1.1/`, `v2/`).

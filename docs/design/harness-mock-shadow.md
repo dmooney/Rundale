@@ -8,7 +8,7 @@ in parallel to `parish_core::game_loop`. That parallel path is where harness
 behavior drifts from the shipping engine (#985 absent-NPC, #1028 player-name) —
 the #1159 theme.
 
-The sustainable end state is a *strangler-fig* consolidation: the harness keeps
+The sustainable end state is a _strangler-fig_ consolidation: the harness keeps
 its public API but internally drives the **real** `game_loop`, mocking only the
 external boundary (the LLM). This task lands the scaffolding and a measurement,
 nothing destructive:
@@ -25,7 +25,7 @@ The legacy path remains the default and the oracle. The deliverable is the
 
 `AnyClient::Simulator` already exists but emits Markov nonsense — uncontrolled,
 so it can't back assertions, which is exactly why the harness grew its own
-router above the seam. A *scriptable* mock (`AnyClient::Mock`) makes both
+router above the seam. A _scriptable_ mock (`AnyClient::Mock`) makes both
 engines deterministic pure functions of `(input, seeded RNG, scripted
 completions) → events`. Determinism is the precondition for differential
 testing; without it, lockstep comparison is impossible. Mocking at `AnyClient`

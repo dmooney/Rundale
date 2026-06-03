@@ -58,11 +58,13 @@ impl LongTermMemory {
 ```
 
 **Keyword extraction**: When promoting from short-term memory, extract keywords by:
+
 - NPC names mentioned in `participants`
 - Location name from `location`
 - Simple word extraction: nouns/verbs over 4 characters from `content`
 
 **Importance scoring heuristic** (no LLM needed):
+
 - Player involved: +0.3
 - Multiple participants: +0.1
 - Contains relationship change: +0.2
@@ -167,12 +169,12 @@ impl GossipNetwork {
 
 **Distortion rules** (simple string mutation, no LLM):
 
-| Rule | Example |
-|------|---------|
-| Drop an adjective | "the angry farmer" → "the farmer" |
-| Exaggerate quantity | "a few sheep" → "many sheep" |
-| Shift emotional tone | "was upset" → "was furious" |
-| Swap a name (5% chance) | "Padraig told" → "Tommy told" |
+| Rule                    | Example                           |
+| ----------------------- | --------------------------------- |
+| Drop an adjective       | "the angry farmer" → "the farmer" |
+| Exaggerate quantity     | "a few sheep" → "many sheep"      |
+| Shift emotional tone    | "was upset" → "was furious"       |
+| Swap a name (5% chance) | "Padraig told" → "Tommy told"     |
 
 Implementation: regex-based replacements with a small dictionary of adjectives, quantities, and emotion words.
 
@@ -198,19 +200,19 @@ Add `gossip_network: GossipNetwork` to `WorldState` (or a new `SimulationState` 
 
 ## Tests
 
-| Test | What it verifies |
-|------|------------------|
-| `test_long_term_store_and_recall` | Store 10 entries, recall by keywords, assert relevance ordering |
-| `test_long_term_importance_threshold` | Entries below 0.5 importance are not stored |
-| `test_long_term_keyword_scoring` | More keyword overlap = higher recall rank |
-| `test_short_term_eviction_returns_entry` | `add()` returns the evicted entry when at capacity |
-| `test_gossip_create` | Creating gossip assigns id and sets source as knower |
-| `test_gossip_propagate_60_percent` | Over 1000 trials, ~60% transmission rate |
-| `test_gossip_distortion` | Over 1000 trials, ~20% of transmitted items are distorted |
-| `test_gossip_no_duplicate_transmission` | Speaker can't transmit gossip listener already knows |
-| `test_gossip_known_by` | Returns only gossip known by the queried NPC |
-| `test_distortion_rules` | Each distortion rule produces a different string |
-| `test_gossip_from_event` | DialogueOccurred event creates gossip item |
+| Test                                     | What it verifies                                                |
+| ---------------------------------------- | --------------------------------------------------------------- |
+| `test_long_term_store_and_recall`        | Store 10 entries, recall by keywords, assert relevance ordering |
+| `test_long_term_importance_threshold`    | Entries below 0.5 importance are not stored                     |
+| `test_long_term_keyword_scoring`         | More keyword overlap = higher recall rank                       |
+| `test_short_term_eviction_returns_entry` | `add()` returns the evicted entry when at capacity              |
+| `test_gossip_create`                     | Creating gossip assigns id and sets source as knower            |
+| `test_gossip_propagate_60_percent`       | Over 1000 trials, ~60% transmission rate                        |
+| `test_gossip_distortion`                 | Over 1000 trials, ~20% of transmitted items are distorted       |
+| `test_gossip_no_duplicate_transmission`  | Speaker can't transmit gossip listener already knows            |
+| `test_gossip_known_by`                   | Returns only gossip known by the queried NPC                    |
+| `test_distortion_rules`                  | Each distortion rule produces a different string                |
+| `test_gossip_from_event`                 | DialogueOccurred event creates gossip item                      |
 
 ## Acceptance Criteria
 

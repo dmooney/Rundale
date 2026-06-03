@@ -6,7 +6,7 @@ Family was everything in 1820s Ireland — the economic unit, the social safety 
 
 The typical rural Irish household was large and multigenerational. **Extended families** — grandparents, parents, children, unmarried aunts or uncles — commonly lived under the same roof or in adjacent dwellings. A cabin might hold eight, ten, or even twelve people in a space that would horrify a modern observer. In parts of Connacht, including County Roscommon, the pattern of the **clachan** was widespread: a loose cluster of cabins housing related families who farmed the surrounding land collectively under the **rundale system**. [1] In a clachan, your neighbors were your cousins, your in-laws, your wife's brother's family. The boundary between household and community was blurred almost to nothing. Land was held in common and redistributed periodically in scattered strips, so that no single family got all the good ground or all the bog. It was communal, egalitarian in spirit, and increasingly unsustainable as the population swelled.
 
-Even outside clachan settlements, the basic unit was rarely the nuclear family as we'd understand it. Elderly parents expected to be housed and fed by whichever son inherited — or more accurately, was *given* — the land. Unmarried siblings might stay on indefinitely, contributing labor. The household expanded and contracted as children were born, as young people emigrated or went into service, as old people died. It was fluid, crowded, and intensely interconnected.
+Even outside clachan settlements, the basic unit was rarely the nuclear family as we'd understand it. Elderly parents expected to be housed and fed by whichever son inherited — or more accurately, was _given_ — the land. Unmarried siblings might stay on indefinitely, contributing labor. The household expanded and contracted as children were born, as young people emigrated or went into service, as old people died. It was fluid, crowded, and intensely interconnected.
 
 ## Marriage and Matchmaking
 
@@ -62,7 +62,7 @@ This material is rich with possibilities for NPC behavior, dialogue, and quest c
 
 ## Fact-Check Notes
 
-[1] **Verified.** Clachan settlements and the rundale system were widespread in Connacht and the west of Ireland. Academic sources confirm clachans were clusters of related families' cabins with land held communally in scattered strips under the rundale open-field system. — Estyn Evans (1939); Desmond McCourt, "The decline of rundale, 1750–1850" in *Plantation to Partition* (1981); Kevin Whelan, "Settlement patterns in the West of Ireland" (1994); B.S. Mac Aodha, "Clachan Settlement in Iar-Connacht," *Irish Geography* Vol. 5 No. 2 (1965).
+[1] **Verified.** Clachan settlements and the rundale system were widespread in Connacht and the west of Ireland. Academic sources confirm clachans were clusters of related families' cabins with land held communally in scattered strips under the rundale open-field system. — Estyn Evans (1939); Desmond McCourt, "The decline of rundale, 1750–1850" in _Plantation to Partition_ (1981); Kevin Whelan, "Settlement patterns in the West of Ireland" (1994); B.S. Mac Aodha, "Clachan Settlement in Iar-Connacht," _Irish Geography_ Vol. 5 No. 2 (1965).
 
 [2] **Verified.** Matchmaking as a semi-professional institution in rural Ireland is well attested. Third-party arbiters negotiated pairings and accompanying dowries, sometimes professionally. — Irish Folklore WordPress, "Marriage and Matchmaking in the Irish Tradition"; Sligo Heritage, "Matchmaking: Fortune or Misfortune"; Women in History (scoilnet.ie), "Making a Match."
 
@@ -70,7 +70,7 @@ This material is rich with possibilities for NPC behavior, dialogue, and quest c
 
 [4] **Verified.** Early and universal marriage among the cottier and landless classes in pre-Famine Ireland is confirmed by demographic historians. Access to a potato patch rather than accumulated wealth was sufficient to start a family, reducing incentives to delay marriage. By contrast, post-Famine Ireland saw dramatically later marriage ages. — Encyclopedia.com, "Family: Marriage Patterns and Family Life from 1690 to 1921"; K.H. Connell's work on Irish marriage patterns.
 
-[5] **Verified.** The dowry was universally called the "fortune" in Irish usage. The Irish term *spré* literally means "fortune." The fortune typically went to the groom's family and could fund a sister's fortune in turn. — Irish Folklore WordPress; Sligo Heritage; The Wild Geese, "What Is a Dowry?"
+[5] **Verified.** The dowry was universally called the "fortune" in Irish usage. The Irish term _spré_ literally means "fortune." The fortune typically went to the groom's family and could fund a sister's fortune in turn. — Irish Folklore WordPress; Sligo Heritage; The Wild Geese, "What Is a Dowry?"
 
 [6] **Verified.** Partible inheritance was widespread in pre-Famine Ireland, particularly in Connacht and Ulster. The Popery Act of 1704 reinforced this by requiring Catholic land to be divided equally among all sons. By the 1840s, many farms had become too small to support a family on anything but potatoes. — Wikipedia, "Irish farm subdivision"; "Gavelkind in Ireland"; historyhome.co.uk, "Land-holding in Ireland 1760–1880."
 
@@ -82,24 +82,24 @@ This material is rich with possibilities for NPC behavior, dialogue, and quest c
 
 [10] **Verified.** Hedge schoolmasters sometimes taught Latin and Greek, though this was not universal across all schools. By the 1820s, Ireland had one of the highest rates of classical literacy among rural populations in Europe, largely because of hedge schools. — History Ireland; Wikipedia, "Hedge school."
 
-[11] **Verified.** The use of "friends" to mean relatives and kin is well documented in Irish rural society. This English usage is a calque from Irish Gaelic kinship terminology. Anthropological studies of rural Ireland confirm that "friend" referred to kinsmen, with "distant friend" meaning a distant cousin rather than a geographically remote companion. — Conrad Arensberg and Solon Kimball, *Family and Community in Ireland* (1940); Transparent.com Irish Language Blog.
+[11] **Verified.** The use of "friends" to mean relatives and kin is well documented in Irish rural society. This English usage is a calque from Irish Gaelic kinship terminology. Anthropological studies of rural Ireland confirm that "friend" referred to kinsmen, with "distant friend" meaning a distant cousin rather than a geographically remote companion. — Conrad Arensberg and Solon Kimball, _Family and Community in Ireland_ (1940); Transparent.com Irish Language Blog.
 
 [12] **Verified.** The meitheal was a system of cooperative reciprocal labour among neighbours, confirmed across multiple sources. Pronounced approximately "meh-hal" [ˈmɛhəl]. Failure to reciprocate could lead to social isolation. Work days included food and drink provided by the host. — Wikipedia, "Communal work (Meitheal)"; irishamericanmom.com, "The Meaning of a Meitheal"; Tenth Glen Heritage Farms.
 
 [13] **Verified.** The Irish Poor Relief Act was passed in 1838, establishing the workhouse system. Before that, Ireland had only limited Houses of Industry (from 1703 onward) on a much smaller scale than in England. The document's statement that "the workhouse system came later, in the 1830s-40s" is accurate. — Virginia Crossman, "The Poor Law in Ireland, 1838–1948"; workhouses.org.uk; Wikipedia, "Poor Relief (Ireland) Act 1838."
 
-[14] **Verified.** Seasonal migration of spailpíní from Connacht and western counties to England and Scotland for harvest work is well attested. In the 1820s, approximately 8,000 migrants crossed the Irish Sea annually for seasonal work, with numbers rising to 25,000 by the early 1840s. Their numbers were greatest during the 1820s and 1830s. The note that "some women" also travelled is accurate, though women's participation became significant mainly in the mid-19th century in Scottish potato fields. — Wikipedia, "Spailpín"; Anne O'Dowd, *Spalpeens and Tattie Hokers* (1991); Encyclopedia of Irish History and Culture.
+[14] **Verified.** Seasonal migration of spailpíní from Connacht and western counties to England and Scotland for harvest work is well attested. In the 1820s, approximately 8,000 migrants crossed the Irish Sea annually for seasonal work, with numbers rising to 25,000 by the early 1840s. Their numbers were greatest during the 1820s and 1830s. The note that "some women" also travelled is accurate, though women's participation became significant mainly in the mid-19th century in Scottish potato fields. — Wikipedia, "Spailpín"; Anne O'Dowd, _Spalpeens and Tattie Hokers_ (1991); Encyclopedia of Irish History and Culture.
 
 ## Bibliography
 
-- Arensberg, Conrad M. and Solon T. Kimball. *Family and Community in Ireland*. Cambridge, MA: Harvard University Press, 1940.
-- Connell, K.H. *The Population of Ireland, 1750–1845*. Oxford: Clarendon Press, 1950.
+- Arensberg, Conrad M. and Solon T. Kimball. _Family and Community in Ireland_. Cambridge, MA: Harvard University Press, 1940.
+- Connell, K.H. _The Population of Ireland, 1750–1845_. Oxford: Clarendon Press, 1950.
 - Crossman, Virginia. "The Poor Law in Ireland, 1838–1948." History in Focus, Institute of Historical Research.
-- Evans, E. Estyn. "Donegal Survivals." *Antiquity* 13 (1939): 207–222.
-- Mac Aodha, B.S. "Clachan Settlement in Iar-Connacht." *Irish Geography* 5, no. 2 (1965): 20–28.
-- McCourt, Desmond. "The decline of rundale, 1750–1850." In *Plantation to Partition*, edited by Peter Roebuck, 119–139. Belfast, 1981.
-- O'Dowd, Anne. *Spalpeens and Tattie Hokers: History and Folklore of the Irish Migratory Agricultural Worker in Ireland and Britain*. Dublin: Irish Academic Press, 1991.
-- Whelan, Kevin. "Settlement patterns in the West of Ireland in the pre-Famine period." In *Decoding the Landscape*, edited by T. Collins. Galway, 1994.
+- Evans, E. Estyn. "Donegal Survivals." _Antiquity_ 13 (1939): 207–222.
+- Mac Aodha, B.S. "Clachan Settlement in Iar-Connacht." _Irish Geography_ 5, no. 2 (1965): 20–28.
+- McCourt, Desmond. "The decline of rundale, 1750–1850." In _Plantation to Partition_, edited by Peter Roebuck, 119–139. Belfast, 1981.
+- O'Dowd, Anne. _Spalpeens and Tattie Hokers: History and Folklore of the Irish Migratory Agricultural Worker in Ireland and Britain_. Dublin: Irish Academic Press, 1991.
+- Whelan, Kevin. "Settlement patterns in the West of Ireland in the pre-Famine period." In _Decoding the Landscape_, edited by T. Collins. Galway, 1994.
 - Encyclopedia.com. "Family: Marriage Patterns and Family Life from 1690 to 1921."
 - Encyclopedia.com. "Education: Primary Public Education—National Schools from 1831."
 - History Ireland. "Inciting the lawless and profligate adventure — the hedge schools of Ireland."

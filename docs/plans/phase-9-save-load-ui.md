@@ -10,7 +10,7 @@ Rundale uses a git-like branching save system where each save is a named branch 
 
 ### Layout: Full-screen overlay with two-panel split
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │  ✕                    Timelines                          │
 ├─────────────────────┬────────────────────────────────────┤
@@ -76,6 +76,7 @@ pub struct BranchSummary {
 ```
 
 Commands:
+
 - `list_save_branches() -> Vec<BranchSummary>` — Lists all branches with preview data from their latest snapshot
 - `load_branch(name: String) -> ()` — Auto-saves current branch, loads target branch (restores snapshot + replays journal), emits world-update + theme-update events
 - `fork_branch(name: String) -> ()` — Snapshots current state, creates new branch, switches to it
@@ -96,19 +97,19 @@ For `list_save_branches`: query `list_branches()`, then for each branch call `lo
 
 ```typescript
 export interface BranchSummary {
-    id: number;
-    name: string;
-    created_at: string;
-    parent_branch_id: number | null;
-    parent_branch_name: string | null;
-    is_active: boolean;
-    location_name: string | null;
-    game_time: string | null;
-    real_time: string | null;
-    season: string | null;
-    time_of_day: string | null;
-    weather: string | null;
-    snapshot_count: number;
+  id: number;
+  name: string;
+  created_at: string;
+  parent_branch_id: number | null;
+  parent_branch_name: string | null;
+  is_active: boolean;
+  location_name: string | null;
+  game_time: string | null;
+  real_time: string | null;
+  season: string | null;
+  time_of_day: string | null;
+  weather: string | null;
+  snapshot_count: number;
 }
 ```
 
@@ -117,10 +118,14 @@ export interface BranchSummary {
 **File: `ui/src/lib/ipc.ts`** — Add:
 
 ```typescript
-export const listSaveBranches = () => invoke<BranchSummary[]>('list_save_branches');
-export const loadBranch = (name: string) => invoke<void>('load_branch', { name });
-export const forkBranch = (name: string) => invoke<void>('fork_branch', { name });
-export const deleteBranch = (name: string) => invoke<void>('delete_branch', { name });
+export const listSaveBranches = () =>
+  invoke<BranchSummary[]>('list_save_branches');
+export const loadBranch = (name: string) =>
+  invoke<void>('load_branch', { name });
+export const forkBranch = (name: string) =>
+  invoke<void>('fork_branch', { name });
+export const deleteBranch = (name: string) =>
+  invoke<void>('delete_branch', { name });
 ```
 
 ### 4. Svelte Components
@@ -128,6 +133,7 @@ export const deleteBranch = (name: string) => invoke<void>('delete_branch', { na
 **New file: `ui/src/components/SaveLoadOverlay.svelte`**
 
 Single component containing:
+
 - Backdrop + panel container
 - Left panel: branch tree (built from `parent_branch_id` relationships)
 - Right panel: selected branch detail card + action buttons
@@ -136,6 +142,7 @@ Single component containing:
 - Keyboard handling: Escape to close, Enter to load selected, arrow keys to navigate
 
 State:
+
 ```typescript
 let branches: BranchSummary[] = $state([]);
 let selectedId: number | null = $state(null);
@@ -146,6 +153,7 @@ let loading: boolean = $state(false);
 ```
 
 Props:
+
 ```typescript
 let { open, onclose }: { open: boolean; onclose: () => void } = $props();
 ```
@@ -153,6 +161,7 @@ let { open, onclose }: { open: boolean; onclose: () => void } = $props();
 Tree rendering: Build a tree structure from flat `BranchSummary[]` using `parent_branch_id`. Render recursively with indentation + connector styling.
 
 Detail card shows:
+
 - Branch name (large, accent)
 - Location name
 - Game date + formatted time of day
@@ -162,6 +171,7 @@ Detail card shows:
 - Snapshot count
 
 Action buttons:
+
 - **Load** (accent bg, only if not active branch) — calls `loadBranch()`, closes overlay
 - **Fork** (border style) — shows inline name input, calls `forkBranch()`
 - **Delete** (muted/red, not for "main" or active) — shows confirmation, calls `deleteBranch()`
@@ -181,14 +191,14 @@ Action buttons:
 
 ### 6. Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `F5` or StatusBar button | Open save/load overlay |
-| `Escape` | Close overlay |
-| `↑` / `↓` | Navigate branch list |
-| `Enter` | Load selected branch |
-| `f` | Fork selected branch (shows name input) |
-| `Delete` / `Backspace` | Delete selected branch (shows confirm) |
+| Key                      | Action                                  |
+| ------------------------ | --------------------------------------- |
+| `F5` or StatusBar button | Open save/load overlay                  |
+| `Escape`                 | Close overlay                           |
+| `↑` / `↓`                | Navigate branch list                    |
+| `Enter`                  | Load selected branch                    |
+| `f`                      | Fork selected branch (shows name input) |
+| `Delete` / `Backspace`   | Delete selected branch (shows confirm)  |
 
 ### 7. Database Initialization in Tauri
 
@@ -212,6 +222,7 @@ let (branch_id, snapshot_id) = if let Some(b) = main_branch {
 ```
 
 Add to `AppState`:
+
 ```rust
 pub db: Arc<AsyncDatabase>,
 pub active_branch_id: Mutex<i64>,
@@ -220,16 +231,16 @@ pub latest_snapshot_id: Mutex<i64>,
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src-tauri/src/lib.rs` | Add `db`, `active_branch_id`, `latest_snapshot_id` to AppState; init DB in `run()`; register new commands |
-| `src-tauri/src/commands.rs` | Add `BranchSummary` struct + 4 new commands |
-| `ui/src/lib/types.ts` | Add `BranchSummary` interface |
-| `ui/src/lib/ipc.ts` | Add 4 new IPC wrappers |
-| `ui/src/components/SaveLoadOverlay.svelte` | **New file** — full overlay component |
-| `ui/src/routes/+page.svelte` | Add overlay integration + keyboard shortcut |
-| `ui/src/components/StatusBar.svelte` | Add "Timelines" trigger button |
-| `src-tauri/Cargo.toml` | Ensure `parish-core` persistence module is accessible |
+| File                                       | Change                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `src-tauri/src/lib.rs`                     | Add `db`, `active_branch_id`, `latest_snapshot_id` to AppState; init DB in `run()`; register new commands |
+| `src-tauri/src/commands.rs`                | Add `BranchSummary` struct + 4 new commands                                                               |
+| `ui/src/lib/types.ts`                      | Add `BranchSummary` interface                                                                             |
+| `ui/src/lib/ipc.ts`                        | Add 4 new IPC wrappers                                                                                    |
+| `ui/src/components/SaveLoadOverlay.svelte` | **New file** — full overlay component                                                                     |
+| `ui/src/routes/+page.svelte`               | Add overlay integration + keyboard shortcut                                                               |
+| `ui/src/components/StatusBar.svelte`       | Add "Timelines" trigger button                                                                            |
+| `src-tauri/Cargo.toml`                     | Ensure `parish-core` persistence module is accessible                                                     |
 
 ## Key Reuse
 

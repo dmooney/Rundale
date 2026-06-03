@@ -19,6 +19,7 @@ Examples::
         --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' \\
         --output docs/proofs/local-perf/category_samples_xprovider.md
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,11 +39,7 @@ from eval_lib import (  # noqa: E402
 DEFAULT_SMALL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit@http://localhost:8001/v1"
 DEFAULT_LARGE = "mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1"
 DEFAULT_OUTPUT = (
-    Path(__file__).resolve().parents[3]
-    / "docs"
-    / "proofs"
-    / "local-perf"
-    / "category_samples.md"
+    Path(__file__).resolve().parents[3] / "docs" / "proofs" / "local-perf" / "category_samples.md"
 )
 
 INTENT_SYS = (
@@ -234,32 +231,81 @@ def cases(small: Target, large: Target) -> list[tuple]:
     """Returns (category, n, slot_label, target, system, user, schema, max_tokens)."""
     return [
         ("Intent", 1, "small", small, INTENT_SYS, "go to the pub", INTENT_SCHEMA, None),
-        ("Intent", 2, "small", small, INTENT_SYS,
-         "tell Padraig I saw his cow wandering near the bog", INTENT_SCHEMA, None),
-        ("Reaction", 1, "small", small, REACTION_SYS,
-         "A newcomer has just arrived at Darcy's Pub. It is evening, Clear.\n"
-         "You have not met this person before. You are working here as the Publican. "
-         "Introduce yourself briefly.", None, 100),
-        ("Reaction", 2, "small", small, REACTION_SYS,
-         "A newcomer has just arrived at Darcy's Pub. It is morning, Light Rain.\n"
-         "You have met this person before.", None, 100),
+        (
+            "Intent",
+            2,
+            "small",
+            small,
+            INTENT_SYS,
+            "tell Padraig I saw his cow wandering near the bog",
+            INTENT_SCHEMA,
+            None,
+        ),
+        (
+            "Reaction",
+            1,
+            "small",
+            small,
+            REACTION_SYS,
+            "A newcomer has just arrived at Darcy's Pub. It is evening, Clear.\n"
+            "You have not met this person before. You are working here as the Publican. "
+            "Introduce yourself briefly.",
+            None,
+            100,
+        ),
+        (
+            "Reaction",
+            2,
+            "small",
+            small,
+            REACTION_SYS,
+            "A newcomer has just arrived at Darcy's Pub. It is morning, Light Rain.\n"
+            "You have met this person before.",
+            None,
+            100,
+        ),
         ("Simulation (Tier 2)", 1, "small", small, None, TIER2_USER, TIER2_SCHEMA, 200),
         ("Simulation (Tier 3 batch)", 2, "small", small, None, TIER3_USER, TIER3_SCHEMA, 600),
-        ("Dialogue", 1, "large", large, DIALOGUE_SYS,
-         "I've been having trouble sleeping. The dreams keep coming back.", None, None),
-        ("Dialogue", 2, "large", large, DIALOGUE_SYS,
-         "What do you know about the old Cailleach who lives near the fairy fort?", None, None),
+        (
+            "Dialogue",
+            1,
+            "large",
+            large,
+            DIALOGUE_SYS,
+            "I've been having trouble sleeping. The dreams keep coming back.",
+            None,
+            None,
+        ),
+        (
+            "Dialogue",
+            2,
+            "large",
+            large,
+            DIALOGUE_SYS,
+            "What do you know about the old Cailleach who lives near the fairy fort?",
+            None,
+            None,
+        ),
     ]
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--small", default=DEFAULT_SMALL,
-                    help=f"Target for Intent/Reaction/Simulation (default: {DEFAULT_SMALL})")
-    ap.add_argument("--large", default=DEFAULT_LARGE,
-                    help=f"Target for Dialogue (default: {DEFAULT_LARGE})")
-    ap.add_argument("--output", default=str(DEFAULT_OUTPUT),
-                    help=f"Markdown report path (default: {DEFAULT_OUTPUT})")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--small",
+        default=DEFAULT_SMALL,
+        help=f"Target for Intent/Reaction/Simulation (default: {DEFAULT_SMALL})",
+    )
+    ap.add_argument(
+        "--large", default=DEFAULT_LARGE, help=f"Target for Dialogue (default: {DEFAULT_LARGE})"
+    )
+    ap.add_argument(
+        "--output",
+        default=str(DEFAULT_OUTPUT),
+        help=f"Markdown report path (default: {DEFAULT_OUTPUT})",
+    )
     args = ap.parse_args()
 
     small = parse_target(args.small)

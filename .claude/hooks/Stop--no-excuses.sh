@@ -21,17 +21,17 @@ log() { echo "[Stop--no-excuses] $*" >&2; }
 # Guard against infinite block loops
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 if [ "$STOP_ACTIVE" = "true" ]; then
-  exit 0
+    exit 0
 fi
 
 TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
 if [ -z "$TRANSCRIPT" ] || [ ! -r "$TRANSCRIPT" ]; then
-  exit 0
+    exit 0
 fi
 
 # Extract text from the last assistant message only
 LAST_TEXT="$(
-  jq -srj '
+    jq -srj '
     [.[] | select(.type == "assistant")] | last // {} |
     (.message.content // [])
     | map(select(.type == "text") | .text)
@@ -40,13 +40,13 @@ LAST_TEXT="$(
 )"
 
 if [ -z "$LAST_TEXT" ]; then
-  exit 0
+    exit 0
 fi
 
 # Sentinel bypass — only checked in the last assistant message
 if printf '%s' "$LAST_TEXT" | grep -q '\[skip-no-excuses\]'; then
-  log "bypass: [skip-no-excuses] sentinel found"
-  exit 0
+    log "bypass: [skip-no-excuses] sentinel found"
+    exit 0
 fi
 
 # Lazy-out patterns (case-insensitive)
@@ -74,7 +74,7 @@ LAZY_PATTERN="$LAZY_PATTERN"'|would need (a|an) (actual|real|physical|live) (bro
 MATCHED="$(printf '%s' "$LAST_TEXT" | grep -oiE "$LAZY_PATTERN" | head -1 || true)"
 
 if [ -z "$MATCHED" ]; then
-  exit 0
+    exit 0
 fi
 
 log "lazy phrase detected: '$MATCHED'"

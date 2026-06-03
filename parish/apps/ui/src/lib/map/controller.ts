@@ -23,7 +23,7 @@ import maplibregl, {
 	LngLatBounds,
 	type LngLatLike,
 	type MapMouseEvent,
-	type MapGeoJSONFeature
+	type MapGeoJSONFeature,
 } from 'maplibre-gl';
 import type { MapData, TileSource, TravelWaypoint } from '$lib/types';
 import { buildStyle, readThemeColors, type MapVariant } from './style';
@@ -33,7 +33,7 @@ import {
 	computeOffMapCounts,
 	edgeKey,
 	type LocationFeatureProps,
-	type EdgeFeatureProps
+	type EdgeFeatureProps,
 } from './geojson';
 import type { FeatureCollection, Point, LineString } from 'geojson';
 import { ICON_PATHS, type LocationIcon } from '$lib/map-icons';
@@ -127,7 +127,7 @@ export class MapController {
 			dragRotate: false,
 			pitchWithRotate: false,
 			touchZoomRotate: options.interactive,
-			keyboard: false
+			keyboard: false,
 		});
 
 		this.map.on('load', () => {
@@ -192,11 +192,11 @@ export class MapController {
 
 		const locationFC = locationsToGeoJSON(mapData, {
 			filterIds: visibleIds,
-			offMapCounts
+			offMapCounts,
 		});
 		const edgeFC = edgesToGeoJSON(mapData, {
 			filterIds: visibleIds,
-			traversingEdgeKeys: this.activeTravelEdgeKeys
+			traversingEdgeKeys: this.activeTravelEdgeKeys,
 		});
 
 		setSourceData(this.map, 'locations', locationFC);
@@ -220,10 +220,7 @@ export class MapController {
 	 * Fits the map bounds to the given lat/lon box with padding.
 	 * Used by the full map on mount to frame the whole parish at once.
 	 */
-	fitBounds(
-		corners: Array<{ lat: number; lon: number }>,
-		padding = 60
-	): void {
+	fitBounds(corners: Array<{ lat: number; lon: number }>, padding = 60): void {
 		if (corners.length === 0) return;
 		const bounds = new LngLatBounds();
 		for (const c of corners) {
@@ -248,7 +245,7 @@ export class MapController {
 	startTravel(
 		waypoints: TravelWaypoint[],
 		durationMs: number,
-		targetBounds?: Array<{ lat: number; lon: number }>
+		targetBounds?: Array<{ lat: number; lon: number }>,
 	): void {
 		this.stopTravel();
 		if (waypoints.length < 2) return;
@@ -272,7 +269,7 @@ export class MapController {
 				maxZoom: 16,
 				duration: durationMs,
 				easing: (t) => t,
-				linear: true
+				linear: true,
 			});
 		}
 
@@ -291,10 +288,16 @@ export class MapController {
 
 		const startTime = performance.now();
 		const tick = () => {
-			const t = durationMs > 0
-				? Math.min(1, (performance.now() - startTime) / durationMs)
-				: 1;
-			const [lon, lat] = positionAlongPath(waypoints, segLengths, totalLength, t);
+			const t =
+				durationMs > 0
+					? Math.min(1, (performance.now() - startTime) / durationMs)
+					: 1;
+			const [lon, lat] = positionAlongPath(
+				waypoints,
+				segLengths,
+				totalLength,
+				t,
+			);
 			marker.setLngLat([lon, lat]);
 			if (t < 1 && this.travelAnim) {
 				this.travelAnim.rafId = requestAnimationFrame(tick);
@@ -371,7 +374,7 @@ export class MapController {
 	/** Registers handlers called on location hover enter / leave. */
 	onLocationHover(
 		enter: (info: LocationHoverInfo) => void,
-		leave: () => void
+		leave: () => void,
 	): void {
 		this.hoverEnterHandler = enter;
 		this.hoverLeaveHandler = leave;
@@ -398,19 +401,21 @@ export class MapController {
 
 		const canvas = this.map.getCanvas();
 
-		const handleClick = (e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
+		const handleClick = (
+			e: MapMouseEvent & { features?: MapGeoJSONFeature[] },
+		) => {
 			const feat = e.features?.[0];
 			if (!feat || !this.clickHandler) return;
 			const props = feat.properties as LocationFeatureProps;
 			this.clickHandler({
 				id: props.id,
 				name: props.name,
-				adjacent: !!props.adjacent
+				adjacent: !!props.adjacent,
 			});
 		};
 
 		const handleMouseEnter = (
-			e: MapMouseEvent & { features?: MapGeoJSONFeature[] }
+			e: MapMouseEvent & { features?: MapGeoJSONFeature[] },
 		) => {
 			const feat = e.features?.[0];
 			if (!feat) return;
@@ -421,7 +426,7 @@ export class MapController {
 				name: props.name,
 				visited: !!props.visited,
 				indoor: !!props.indoor,
-				travelMinutes: props.travelMinutes ?? 0
+				travelMinutes: props.travelMinutes ?? 0,
 			});
 		};
 
@@ -448,10 +453,18 @@ export class MapController {
 			this.map.off('click', 'location-labels', this.layerClickHandler);
 		}
 		if (this.layerMouseEnterHandler) {
-			this.map.off('mouseenter', 'location-circles', this.layerMouseEnterHandler);
+			this.map.off(
+				'mouseenter',
+				'location-circles',
+				this.layerMouseEnterHandler,
+			);
 		}
 		if (this.layerMouseLeaveHandler) {
-			this.map.off('mouseleave', 'location-circles', this.layerMouseLeaveHandler);
+			this.map.off(
+				'mouseleave',
+				'location-circles',
+				this.layerMouseLeaveHandler,
+			);
 		}
 		this.layerClickHandler = null;
 		this.layerMouseEnterHandler = null;
@@ -469,7 +482,7 @@ function setSourceData(
 	id: string,
 	data:
 		| FeatureCollection<Point, LocationFeatureProps>
-		| FeatureCollection<LineString, EdgeFeatureProps>
+		| FeatureCollection<LineString, EdgeFeatureProps>,
 ): void {
 	const source = map.getSource(id);
 	if (source && source.type === 'geojson') {
@@ -486,7 +499,7 @@ export function positionAlongPath(
 	waypoints: TravelWaypoint[],
 	segLengths: number[],
 	totalLength: number,
-	t: number
+	t: number,
 ): [number, number] {
 	if (waypoints.length === 0) return [0, 0];
 	if (t <= 0 || totalLength === 0) {
@@ -524,7 +537,9 @@ function buildTravelEdgeKeys(waypoints: TravelWaypoint[]): Set<string> {
 }
 
 function registerLocationIcons(map: MapLibreMap): void {
-	for (const [icon, path] of Object.entries(ICON_PATHS) as Array<[LocationIcon, string]>) {
+	for (const [icon, path] of Object.entries(ICON_PATHS) as Array<
+		[LocationIcon, string]
+	>) {
 		const imageId = `icon-${icon}`;
 		if (map.hasImage(imageId)) continue;
 		const image = drawIconImage(path);

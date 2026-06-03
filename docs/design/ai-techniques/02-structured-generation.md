@@ -11,7 +11,7 @@ relies on the model "remembering" the contract. Failures surface as:
 - Missing `---` → everything treated as prose, no state updates.
 - Invalid JSON keys → Tier 2 tick silently drops mood changes.
 - Hallucinated enum values (`action: "pray_for_rain"` when only `move|talk|look|
-  interact|examine` is permitted).
+interact|examine` is permitted).
 
 The inference pipeline already has retries, but retries cost tokens and break
 streaming.
@@ -43,7 +43,7 @@ cloud Tier 1.
 Dialogue wants streaming; structure wants all-at-once. Resolve with a two-
 segment contract already hinted at by ADR-008:
 
-```
+```text
 <free-text dialogue streamed token by token>
 <|meta|>
 <grammar-constrained JSON object>
@@ -84,14 +84,14 @@ directly into `04-agent-planning`.
 
 - Grammar + Ollama interaction is version-sensitive — pin a known-good build
   and integration-test.
-- Over-constraining kills creativity. Keep dialogue prose *outside* the
+- Over-constraining kills creativity. Keep dialogue prose _outside_ the
   grammar; only constrain metadata.
 - Mode parity: OpenRouter models vary wildly in schema support. Provider
   capability flag already exists; extend it.
 
 ## Papers / references
 
-- Willard & Louf, *Efficient Guided Generation for LLMs* (Outlines, 2023).
-- Geng et al., *Grammar-Constrained Decoding for Structured NLP Tasks* (2023).
-- Dong et al., *XGrammar: Flexible and Efficient Structured Generation Engine* (2024).
-- OpenAI, *Structured Outputs* blog post (Aug 2024).
+- Willard & Louf, _Efficient Guided Generation for LLMs_ (Outlines, 2023).
+- Geng et al., _Grammar-Constrained Decoding for Structured NLP Tasks_ (2023).
+- Dong et al., _XGrammar: Flexible and Efficient Structured Generation Engine_ (2024).
+- OpenAI, _Structured Outputs_ blog post (Aug 2024).

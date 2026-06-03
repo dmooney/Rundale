@@ -12,20 +12,20 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 
 **This is a prototype. No story or quest system yet. The goal is to get the simulation loop, TUI, movement, NPC interaction, and persistence working end-to-end.**
 
------
+---
 
 ## Tech Stack
 
-|Component    |Technology                              |Purpose                                           |
-|-------------|----------------------------------------|--------------------------------------------------|
-|Language     |**Rust**                                |Core game engine, simulation, TUI                 |
-|Async Runtime|**Tokio**                               |Concurrent simulation tiers, async inference calls|
-|TUI          |**Ratatui + Crossterm**                 |Terminal UI with 24-bit true color                |
-|LLM Inference|**Ollama** (local, via REST API)        |NPC cognition, natural language parsing           |
-|HTTP Client  |**Reqwest**                             |Communication with Ollama at `localhost:11434`    |
-|Serialization|**Serde** (JSON)                        |World state, LLM structured output                |
-|Persistence  |**SQLite** (via rusqlite)               |Save system, NPC memory, world events             |
-|Entity System|**Bevy ECS** (standalone) or hand-rolled|World simulation data model                       |
+| Component     | Technology                               | Purpose                                            |
+| ------------- | ---------------------------------------- | -------------------------------------------------- |
+| Language      | **Rust**                                 | Core game engine, simulation, TUI                  |
+| Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
+| TUI           | **Ratatui + Crossterm**                  | Terminal UI with 24-bit true color                 |
+| LLM Inference | **Ollama** (local, via REST API)         | NPC cognition, natural language parsing            |
+| HTTP Client   | **Reqwest**                              | Communication with Ollama at `localhost:11434`     |
+| Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
+| Persistence   | **SQLite** (via rusqlite)                | Save system, NPC memory, world events              |
+| Entity System | **Bevy ECS** (standalone) or hand-rolled | World simulation data model                        |
 
 ### Hardware Assumptions
 
@@ -33,13 +33,13 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 - **CPU**: Intel i9-13900KS — handles game logic, TUI rendering, background simulation on E-cores
 - **Models**: Qwen3 14B for close-proximity NPCs, smaller model (8B/3B) for nearby tier
 
------
+---
 
 ## Architecture
 
 ### Core Loop
 
-```
+```text
 Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Context + NPC Context
@@ -98,7 +98,7 @@ When a player moves toward a distant NPC, that NPC's sparse state must be "infla
 
 An event bus must propagate state changes across tier boundaries to maintain coherence (e.g., if a nearby NPC decides to betray a distant one).
 
------
+---
 
 ## World & Geography
 
@@ -160,7 +160,7 @@ The map is a **static authored data file** (JSON or SQLite). Geography never cha
 
 > Any resemblance to real persons, living or dead, or actual businesses is purely coincidental. All characters and commercial establishments in this game are fictional.
 
------
+---
 
 ## Time System
 
@@ -188,7 +188,7 @@ The four traditional Irish seasonal festivals map to the game's seasons:
 
 These are potential moments where the mythological layer surfaces. Not scripted yet — but the temporal hooks should exist in the time system.
 
------
+---
 
 ## Weather System
 
@@ -200,7 +200,7 @@ Weather is a simulation driver, not just visual dressing:
 - Fog, overcast, storms affect atmosphere and NPC behavior
 - Weather state is part of world state and affects NPC context prompts
 
------
+---
 
 ## TUI Design
 
@@ -235,7 +235,7 @@ Color transitions should be **gradual**, not stepped.
 
 Target: kitty, alacritty, wezterm, Windows Terminal. All support 24-bit RGB.
 
------
+---
 
 ## Player Input & Command System
 
@@ -256,21 +256,21 @@ System commands use `/` prefix for now (placeholder — may change to a prefix-f
 
 #### Command List
 
-|Command       |Description                                                            |
-|--------------|-----------------------------------------------------------------------|
-|`/pause`      |Freeze all simulation ticks, TUI stays up                              |
-|`/resume`     |Unfreeze simulation                                                    |
-|`/quit`       |Persist current state, clean shutdown                                  |
-|`/save`       |Manual snapshot to current branch                                      |
-|`/fork <name>`|Snapshot current state, create new named branch, continue on new branch|
-|`/load <name>`|Load a branch head, resume from that point                             |
-|`/branches`   |List all branches with timestamps and brief context                    |
-|`/log`        |Show history of current branch (git log style)                         |
-|`/status`     |Current branch name, in-game date, play time, NPC count by tier        |
-|`/help`       |Show help reference                                                    |
-|`/map`        |(Future) Simple ASCII parish layout                                    |
+| Command        | Description                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| `/pause`       | Freeze all simulation ticks, TUI stays up                               |
+| `/resume`      | Unfreeze simulation                                                     |
+| `/quit`        | Persist current state, clean shutdown                                   |
+| `/save`        | Manual snapshot to current branch                                       |
+| `/fork <name>` | Snapshot current state, create new named branch, continue on new branch |
+| `/load <name>` | Load a branch head, resume from that point                              |
+| `/branches`    | List all branches with timestamps and brief context                     |
+| `/log`         | Show history of current branch (git log style)                          |
+| `/status`      | Current branch name, in-game date, play time, NPC count by tier         |
+| `/help`        | Show help reference                                                     |
+| `/map`         | (Future) Simple ASCII parish layout                                     |
 
------
+---
 
 ## Persistence & Save System
 
@@ -315,7 +315,7 @@ Three layers:
 
 SQLite in WAL mode. One database file per branch, or a single database with branch-tagged rows. The journal is the WAL.
 
------
+---
 
 ## NPC System
 
@@ -361,15 +361,15 @@ All LLM responses for NPC behavior should be structured JSON:
   "mood": "current emotional state",
   "internal_thought": "what they're actually thinking (hidden from player)",
   "knowledge_gained": ["any new information learned"],
-  "relationship_changes": [{"npc_id": "...", "delta": 0.0}]
+  "relationship_changes": [{ "npc_id": "...", "delta": 0.0 }]
 }
 ```
 
------
+---
 
 ## Inference Pipeline
 
-```
+```text
 Simulation Threads → Inference Queue (Tokio mpsc channel) → Inference Worker → Ollama REST API → Response Router → World State Update
 ```
 
@@ -398,7 +398,7 @@ Player natural language input is also sent to Ollama for intent parsing. The LLM
 
 If the LLM can't resolve intent, the game asks for clarification in-character.
 
------
+---
 
 ## Mythology Layer (Future — Hooks Only)
 
@@ -411,7 +411,7 @@ Irish mythology should have structural hooks in the prototype even if no content
 
 No mythological content or events for v1. Just ensure the data model doesn't preclude it.
 
------
+---
 
 ## Development Phases
 
@@ -462,7 +462,7 @@ No mythological content or events for v1. Just ensure the data model doesn't pre
 1. Mythological data model hooks
 1. Night-time atmosphere differentiation
 
------
+---
 
 ## Open Questions (Deferred)
 

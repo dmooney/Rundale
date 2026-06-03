@@ -6,8 +6,8 @@
 ## Problem
 
 `LongTermMemory::recall` (`crates/parish-npc/src/memory.rs`) scores entries by
-keyword overlap. A memory stored as *"Máire's cow took sick at the fair"* is
-invisible to a query about *"cattle illness in Tuam"* — the words don't match
+keyword overlap. A memory stored as _"Máire's cow took sick at the fair"_ is
+invisible to a query about _"cattle illness in Tuam"_ — the words don't match
 even though the meaning does. NPCs feel amnesiac.
 
 ## SOTA techniques
@@ -35,7 +35,7 @@ domains. Keep current keyword store as the lexical arm.
 Periodically (say, at dawn in-game) run a Tier 3 pass per NPC that:
 
 - Retrieves the top-k recent memories.
-- Asks the LLM to produce 1–3 higher-order *reflections*
+- Asks the LLM to produce 1–3 higher-order _reflections_
   ("I think the landlord is afraid of me").
 - Stores them as first-class memories with boosted importance.
 
@@ -54,7 +54,7 @@ short-term as RAM:
 
 ### 5. Historical-corpus RAG (style + period grounding)
 
-Reuse the same embedding infra to index *external* period sources, not just
+Reuse the same embedding infra to index _external_ period sources, not just
 NPC memory:
 
 - Public-domain 1820-era Irish material: newspapers (Galway Advertiser,
@@ -67,7 +67,7 @@ NPC memory:
   injects them as a quoted "period voice" stanza, replacing the currently
   frozen cultural-guidelines paragraph.
 
-Payoff: dialogue inherits *actual* period cadence and vocabulary instead of
+Payoff: dialogue inherits _actual_ period cadence and vocabulary instead of
 the model's pastiche. Compounds with doc 06's style-vector work.
 
 ### 6. Episodic vs semantic split
@@ -102,7 +102,7 @@ Retrieval can then weight by kind depending on the query
 
 ## Papers / references
 
-- Park et al., *Generative Agents: Interactive Simulacra of Human Behavior* (2023).
-- Packer et al., *MemGPT: Towards LLMs as Operating Systems* (2023).
-- Izacard & Grave, *Atlas* — retrieval-augmented few-shot learning (2022).
-- Gao et al., *Retrieval-Augmented Generation for LLMs: A Survey* (2024).
+- Park et al., _Generative Agents: Interactive Simulacra of Human Behavior_ (2023).
+- Packer et al., _MemGPT: Towards LLMs as Operating Systems_ (2023).
+- Izacard & Grave, _Atlas_ — retrieval-augmented few-shot learning (2022).
+- Gao et al., _Retrieval-Augmented Generation for LLMs: A Survey_ (2024).

@@ -20,5 +20,5 @@ export const REACTION_PALETTE: ReactionDef[] = [
 	{ emoji: '😂', description: 'laughed heartily', key: '9' },
 	{ emoji: '🙄', description: 'rolled their eyes', key: '0' },
 	{ emoji: '🍺', description: 'raised a glass', key: '-' },
-	{ emoji: '✝️', description: 'crossed themselves', key: '=' }
+	{ emoji: '✝️', description: 'crossed themselves', key: '=' },
 ];

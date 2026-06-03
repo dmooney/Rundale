@@ -7,14 +7,14 @@ publish = false
 description = "World graph, movement, weather, and environment state for the Parish engine"
 
 [dependencies]
-parish-types  = { workspace = true }
+parish-types = { workspace = true }
 parish-config = { workspace = true }
-serde         = { workspace = true }
-serde_json    = { workspace = true }
-tracing       = { workspace = true }
-chrono        = { workspace = true }
-strsim        = { workspace = true }
-rand          = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+strsim = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }

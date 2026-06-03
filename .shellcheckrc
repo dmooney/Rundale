@@ -1,0 +1,12 @@
+# ShellCheck config for Rundale shell scripts (hooks + parish/scripts).
+# Severity gate is set per-invocation (CI uses -S warning).
+
+# Follow `source`d files so sourced helpers are analyzed, not skipped.
+external-sources=true
+
+# SC2154 (var referenced but not assigned): our Stop hooks assign `rc` inside an
+# ERR-trap string — `trap 'rc=$?; ...' ERR` — which ShellCheck's static analysis
+# cannot see, producing a false positive on every hook. The assignment is real
+# and correct; disable this one check rather than litter 10 files with inline
+# directives. Genuinely-unset vars are still caught by `set -u` at runtime.
+disable=SC2154

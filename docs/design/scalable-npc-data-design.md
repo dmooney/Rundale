@@ -14,25 +14,25 @@ Rundale currently has 8 hand-authored NPCs in `mods/rundale/npcs.json`. Each has
 
 Ground all generation in historical truth:
 
-| Category | Detail |
-|----------|--------|
-| Parish scale | Kiltoom parish ~1,500–3,000 souls, 20–40 townlands, 5–20 households per townland |
-| County Roscommon | ~250,000 across ~60 parishes. 1M NPCs = ~5–6 counties |
-| Age pyramid (pre-transition) | 0–14: 40%, 15–44: 40%, 45–64: 15%, 65+: 5% |
-| Occupations | Tenant farmers 35%, laborers 30%, servants 10%, craftsmen 8%, shopkeepers 3%, clergy 0.5%, gentry 2%, others 10% |
-| Family structure | Avg household 5–7, stem family system, marriage age men ~28 / women ~25, 6–8 children per marriage |
-| Language | Connacht majority Irish-speaking with increasing bilingualism |
-| Religion | ~85% Catholic, ~14% Church of Ireland, ~1% Presbyterian |
-| Social networks | Dunbar's ~150–200 recognized by name, 15–50 active relationships, 5–15 intimate |
+| Category                     | Detail                                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Parish scale                 | Kiltoom parish ~1,500–3,000 souls, 20–40 townlands, 5–20 households per townland                                 |
+| County Roscommon             | ~250,000 across ~60 parishes. 1M NPCs = ~5–6 counties                                                            |
+| Age pyramid (pre-transition) | 0–14: 40%, 15–44: 40%, 45–64: 15%, 65+: 5%                                                                       |
+| Occupations                  | Tenant farmers 35%, laborers 30%, servants 10%, craftsmen 8%, shopkeepers 3%, clergy 0.5%, gentry 2%, others 10% |
+| Family structure             | Avg household 5–7, stem family system, marriage age men ~28 / women ~25, 6–8 children per marriage               |
+| Language                     | Connacht majority Irish-speaking with increasing bilingualism                                                    |
+| Religion                     | ~85% Catholic, ~14% Church of Ireland, ~1% Presbyterian                                                          |
+| Social networks              | Dunbar's ~150–200 recognized by name, 15–50 active relationships, 5–15 intimate                                  |
 
 ## 2. The Two-Axis Tier Model
 
 Two independent tier systems (the key architectural insight):
 
-| Axis | Controls | Assigned When | Values |
-|------|----------|---------------|--------|
-| Data Depth | How much static data exists | At build time (Sketched) or on promotion | Sketched / Elaborated / Authored |
-| Cognitive LOD | How much compute is spent now | Every time player moves | Tier 1–4 (existing system) |
+| Axis          | Controls                      | Assigned When                            | Values                           |
+| ------------- | ----------------------------- | ---------------------------------------- | -------------------------------- |
+| Data Depth    | How much static data exists   | At build time (Sketched) or on promotion | Sketched / Elaborated / Authored |
+| Cognitive LOD | How much compute is spent now | Every time player moves                  | Tier 1–4 (existing system)       |
 
 These are orthogonal. An Authored NPC far away runs at Tier 4. A Sketched NPC the player stumbles upon gets promoted to Elaborated and jumps to Tier 1.
 
@@ -44,11 +44,11 @@ These are orthogonal. An Authored NPC far away runs at Tier 4. A Sketched NPC th
 
 ### Interaction Matrix (Data Depth × Cognitive LOD)
 
-| | Tier 1 (same loc) | Tier 2 (nearby) | Tier 3 (distant) | Tier 4 (far) |
-|---|---|---|---|---|
-| **Authored** | Full LLM + rich context | LLM + relationships | Batch summary | Rules engine |
-| **Elaborated** | Full LLM + generated context | LLM + basic context | Batch summary | Rules engine |
-| **Sketched** | PROMOTE first, then Tier 1 | PROMOTE first, then Tier 2 | Skip | Skip |
+|                | Tier 1 (same loc)            | Tier 2 (nearby)            | Tier 3 (distant) | Tier 4 (far) |
+| -------------- | ---------------------------- | -------------------------- | ---------------- | ------------ |
+| **Authored**   | Full LLM + rich context      | LLM + relationships        | Batch summary    | Rules engine |
+| **Elaborated** | Full LLM + generated context | LLM + basic context        | Batch summary    | Rules engine |
+| **Sketched**   | PROMOTE first, then Tier 1   | PROMOTE first, then Tier 2 | Skip             | Skip         |
 
 ## 3. Promotion Mechanics
 
@@ -114,7 +114,7 @@ All Sketched NPCs are pre-generated at build time, not at runtime. The generatio
 
 ### Pipeline Overview
 
-```
+```text
 parish-geo-tool extracts parishes/townlands/locations from OSM (geographic blocks)
     │
     ▼
@@ -134,7 +134,7 @@ ships with game (or downloaded as a "world pack")
 
 The unit of generation is the household (not individual NPC).
 
-```
+```text
 generate_household(townland, rng):
   1. Choose type by weighted random (cottier 35%, small farm 30%, strong farm 10%, craftsman 8%, ...)
   2. Generate head (male, 28-60, occupation from type)
@@ -220,13 +220,13 @@ Locations are also pre-generated via `parish-geo-tool` OSM pipeline, stored in t
 
 ## 11. Performance Estimates
 
-| Operation | 8 NPCs (now) | 2,000 (parish) | 1M (pre-generated) |
-|-----------|-------------|-----------------|---------------------|
-| Active set load | <1ms | ~50ms | ~100ms (2,000 NPCs from DB) |
-| NPCs at location | <1μs | ~20μs | ~1ms (SQLite index) |
-| Tier assignment BFS | <1μs | ~100μs | ~100μs (per parish) |
-| Schedule tick (active) | <1μs | ~50μs | ~50μs (active set only) |
-| Relationship query | <1μs | ~1ms | ~2ms |
-| Promotion (LLM) | N/A | 1–5s | 1–5s |
-| World DB file size | N/A | ~5MB | ~200MB (1M) / ~1.4GB (6.8M) |
-| Build-time generation | N/A | ~1s | ~5–10min (1M) |
+| Operation              | 8 NPCs (now) | 2,000 (parish) | 1M (pre-generated)          |
+| ---------------------- | ------------ | -------------- | --------------------------- |
+| Active set load        | <1ms         | ~50ms          | ~100ms (2,000 NPCs from DB) |
+| NPCs at location       | <1μs         | ~20μs          | ~1ms (SQLite index)         |
+| Tier assignment BFS    | <1μs         | ~100μs         | ~100μs (per parish)         |
+| Schedule tick (active) | <1μs         | ~50μs          | ~50μs (active set only)     |
+| Relationship query     | <1μs         | ~1ms           | ~2ms                        |
+| Promotion (LLM)        | N/A          | 1–5s           | 1–5s                        |
+| World DB file size     | N/A          | ~5MB           | ~200MB (1M) / ~1.4GB (6.8M) |
+| Build-time generation  | N/A          | ~1s            | ~5–10min (1M)               |

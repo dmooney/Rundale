@@ -77,7 +77,9 @@ A small chip bar rendered between ChatPanel and InputField:
   border: 1px solid var(--color-accent);
   border-radius: 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   white-space: nowrap;
 }
 
@@ -117,7 +119,7 @@ interface MapLocation {
   name: string;
   lat: number;
   lon: number;
-  adjacent: boolean;  // ← this flag is exactly what we need
+  adjacent: boolean; // ← this flag is exactly what we need
 }
 
 interface MapData {
@@ -138,7 +140,7 @@ Current flow in `+page.svelte`:
 ```typescript
 onEvent('world-update', async () => {
   worldState.set(await getWorldSnapshot());
-  mapData.set(await getMap());           // ← triggers QuickTravel re-derive
+  mapData.set(await getMap()); // ← triggers QuickTravel re-derive
   npcsHere.set(await getNpcsHere());
   // ...
 });
@@ -152,7 +154,7 @@ The `submitInput("go to Darcy's Pub")` call uses the existing movement pipeline 
 
 ## Data Flow
 
-```
+```text
 Player arrives at Crossroads:
   Backend emits: world-update event
   Frontend: fetches getMap() → MapData {
@@ -182,11 +184,12 @@ Player clicks [Darcy's Pub]:
 
 When NPCs mention location names in dialogue, auto-link them as clickable chips within the chat bubble:
 
-```
+```text
 Padraig: "You should visit [the fairy fort] before sunset."
 ```
 
 This requires:
+
 1. A known-locations list available to the frontend
 2. A text-scanning pass in `ChatPanel` that detects location names in NPC dialogue
 3. Replacing matched text with clickable `<button>` elements
@@ -206,8 +209,9 @@ function linkifyLocations(text: string): string {
   for (const loc of locations) {
     // Case-insensitive match, word-boundary aware
     const pattern = new RegExp(`\\b(${escapeRegex(loc.name)})\\b`, 'gi');
-    result = result.replace(pattern,
-      `<button class="inline-location" data-loc="${loc.name}">$1</button>`
+    result = result.replace(
+      pattern,
+      `<button class="inline-location" data-loc="${loc.name}">$1</button>`,
     );
   }
   return result;
@@ -218,16 +222,16 @@ function linkifyLocations(text: string): string {
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| No adjacent locations | QuickTravel component renders nothing (hidden via `{#if}`) |
-| Many adjacent locations (6+) | Chips wrap to multiple lines; `flex-wrap: wrap` handles this |
-| Long location name | Chip stays on one line (`white-space: nowrap`); wraps to next row if needed |
-| Click during streaming | Button is `disabled`; click does nothing |
-| Rapid double-click | First click submits; second is ignored (input disabled during movement processing) |
-| Location name with special chars | `submitInput()` sends plain text; backend fuzzy matching handles it |
-| Map not loaded yet | `adjacentLocations` derived from `$mapData ?? []` — empty array, no chips shown |
-| Player at isolated location | No adjacent locations → no chips shown |
+| Case                             | Behavior                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------- |
+| No adjacent locations            | QuickTravel component renders nothing (hidden via `{#if}`)                         |
+| Many adjacent locations (6+)     | Chips wrap to multiple lines; `flex-wrap: wrap` handles this                       |
+| Long location name               | Chip stays on one line (`white-space: nowrap`); wraps to next row if needed        |
+| Click during streaming           | Button is `disabled`; click does nothing                                           |
+| Rapid double-click               | First click submits; second is ignored (input disabled during movement processing) |
+| Location name with special chars | `submitInput()` sends plain text; backend fuzzy matching handles it                |
+| Map not loaded yet               | `adjacentLocations` derived from `$mapData ?? []` — empty array, no chips shown    |
+| Player at isolated location      | No adjacent locations → no chips shown                                             |
 
 ## Testing
 
@@ -248,10 +252,10 @@ function linkifyLocations(text: string): string {
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/components/QuickTravel.svelte` | **New** — chip bar component |
-| `ui/src/routes/+page.svelte` | Import and place `<QuickTravel />` between ChatPanel and InputField |
+| File                                   | Change                                                              |
+| -------------------------------------- | ------------------------------------------------------------------- |
+| `ui/src/components/QuickTravel.svelte` | **New** — chip bar component                                        |
+| `ui/src/routes/+page.svelte`           | Import and place `<QuickTravel />` between ChatPanel and InputField |
 
 ## Effort Estimate
 

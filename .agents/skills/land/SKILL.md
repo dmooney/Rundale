@@ -14,11 +14,15 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - If `$ARGUMENTS` set → `PR=$ARGUMENTS`.
    - Else → `PR=$(gh pr view --json number --jq .number)` from current branch. If none, stop and ask.
    - Fetch state in one call:
+
      ```sh
      gh pr view $PR --json number,title,headRefName,baseRefName,mergeable,mergeStateStatus,state,isDraft,statusCheckRollup,reviewDecision,body,url
      ```
+
      Save to a file; reread fields as needed.
+
    - Capture portability vars used downstream:
+
      ```sh
      BASE=$(gh pr view $PR --json baseRefName --jq .baseRefName)
      HEAD=$(gh pr view $PR --json headRefName --jq .headRefName)
@@ -34,11 +38,13 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
 
 3. **Rebase if DIRTY/BEHIND.** When `mergeStateStatus` is `DIRTY` or `BEHIND`:
    - Check out the PR branch in a clean worktree:
+
      ```sh
      gh pr checkout $PR
      git fetch origin $BASE
      git merge origin/$BASE --no-edit
      ```
+
    - Resolve conflicts file-by-file. For each `git diff --name-only --diff-filter=U`:
      - Read both sides. Read `git log --oneline origin/$BASE..HEAD` (PR intent) and `git log --oneline HEAD..origin/$BASE` (upstream intent).
      - Prefer the PR's intent for new logic; prefer the base's version for code already-merged upstream.
@@ -49,6 +55,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
 
 4. **Address unaddressed bot review threads.**
    - Inline threads:
+
      ```sh
      gh api graphql -f query='
        query($owner:String!,$repo:String!,$pr:Int!) {
@@ -64,26 +71,35 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
               | select(.isResolved == false and .isOutdated == false)
               | select(.comments.nodes[0].author.login | endswith("[bot]"))'
      ```
+
    - Review summary bodies (gemini sometimes leaves substantive feedback only here):
+
      ```sh
      gh api repos/:owner/:repo/pulls/$PR/reviews --jq '.[] | select(.user.login | endswith("[bot]")) | {id, state, body: (.body[:500])}'
      ```
+
    - For each unaddressed thread/review:
      - Read the cited path/line. Decide: **act** (legitimate bug/nit) or **dismiss** (false positive, out-of-scope, intentional).
      - Acting: edit code. Re-run `just check`. Commit (`fix: address <bot> review on <path>`). Push.
      - Resolve the thread once the fix lands:
+
        ```sh
        gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<threadId>
        ```
+
      - Dismissing: post a brief reply explaining why, then resolve. Don't leave threads open as "ignored".
+
    - **Bots COMMENT but never APPROVE.** Don't gate on `reviewDecision == APPROVED`; gate on threads-resolved + CI green.
 
 5. **Fix CI.** Refetch `statusCheckRollup`. For every check that isn't `SUCCESS` or `NEUTRAL`:
    - Pull logs:
+
      ```sh
      gh run view --log-failed --job=<jobId>
      ```
+
      `jobId` from `statusCheckRollup[].id` for failed entries.
+
    - Classify:
      - **Real failure:** code/test bug. Fix locally, `just check`, commit, push.
      - **Transient:** known patterns from the failure-mode catalog (cache reserve race, Playwright 403). Retry via `gh pr close $PR && gh pr reopen $PR` to retrigger the workflow.
@@ -98,9 +114,11 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - Title is conventional; body has `Fixes #N` for claimed issues.
 
 7. **Merge.**
+
    ```sh
    gh pr merge $PR --squash --delete-branch
    ```
+
    - Branch-deletion errors ("cannot delete branch ... used by worktree at ...") are harmless — the merge succeeded on remote.
    - Verify auto-close: `gh pr view $PR --json closingIssuesReferences`. If body lacked `Fixes #N`, fall back to `gh issue close N --comment "Resolved by PR #$PR"`.
 

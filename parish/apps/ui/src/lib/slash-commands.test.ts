@@ -87,7 +87,7 @@ const FEATURES_MD_COMMANDS: ReadonlyArray<{
  */
 const REGISTRY_ONLY_COMMANDS = new Set<string>([
 	'/preset', // in registry; missing from features.md slash commands list
-	'/exit',   // alias for /quit
+	'/exit', // alias for /quit
 ]);
 
 // ---------------------------------------------------------------------------

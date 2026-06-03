@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
-import { get } from 'svelte/store';
 import {
 	demoEnabled,
 	demoPaused,
 	demoTurnCount,
 	demoStatus,
-	demoConfig,
 } from '../stores/demo';
 import DemoPanel from './DemoPanel.svelte';
 

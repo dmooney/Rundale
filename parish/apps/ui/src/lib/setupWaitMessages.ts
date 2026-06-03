@@ -57,7 +57,7 @@ const HANDWRITTEN_LONG_WAIT_MESSAGES = [
 	'Keeping the cottage lights on while the big download settles itself...',
 	'Preparing a tasteful plaque: "Downloaded locally, runs locally"...',
 	'Reticulating the backup spleens, just to be thorough...',
-	'Nearly through the quiet part. The noisy progress numbers should return when Ollama starts the parcels.'
+	'Nearly through the quiet part. The noisy progress numbers should return when Ollama starts the parcels.',
 ] as const;
 
 const WAITING_ACTIONS = [
@@ -80,7 +80,7 @@ const WAITING_ACTIONS = [
 	'Measuring',
 	'Indexing',
 	'Whispering to',
-	'Making room for'
+	'Making room for',
 ] as const;
 
 const WAITING_OBJECTS = [
@@ -108,7 +108,7 @@ const WAITING_OBJECTS = [
 	'the model pantry',
 	'the manifest clerk notes',
 	'the one-time setup slate',
-	'the Ollama parcel tags'
+	'the Ollama parcel tags',
 ] as const;
 
 const WAITING_ENDINGS = [
@@ -123,7 +123,7 @@ const WAITING_ENDINGS = [
 	'while the storyteller finds the correct shelf.',
 	'and leaving the model name pinned to the ledger.',
 	'because even manifests deserve ceremony.',
-	'until the parcels start reporting their weight.'
+	'until the parcels start reporting their weight.',
 ] as const;
 
 const GENERATED_WAIT_MESSAGE_LIMIT = 540;
@@ -132,8 +132,7 @@ function buildLongWaitMessages() {
 	const messages = new Set<string>(HANDWRITTEN_LONG_WAIT_MESSAGES);
 	let generated = 0;
 
-	outer:
-	for (const action of WAITING_ACTIONS) {
+	outer: for (const action of WAITING_ACTIONS) {
 		for (const object of WAITING_OBJECTS) {
 			for (const ending of WAITING_ENDINGS) {
 				messages.add(`${action} ${object} ${ending}`);

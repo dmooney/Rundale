@@ -13,7 +13,7 @@ function osm(): TileSource {
 		attribution: '© OSM',
 		raster_saturation: -0.4,
 		raster_opacity: 0.85,
-		tms: false
+		tms: false,
 	};
 }
 
@@ -29,7 +29,7 @@ function historic(): TileSource {
 		attribution: 'NLS',
 		raster_saturation: 0.0,
 		raster_opacity: 1.0,
-		tms: false
+		tms: false,
 	};
 }
 
@@ -40,7 +40,7 @@ function cfg(active = 'osm', sources = [osm(), historic()]): UiConfig {
 		splash_text: '',
 		active_tile_source: active,
 		tile_sources: sources,
-		auto_pause_timeout_seconds: 300
+		auto_pause_timeout_seconds: 300,
 	};
 }
 

@@ -1,0 +1,43 @@
+# Repo-wide Prettier ignore (gitignore syntax: NO inline comments).
+# Prettier here owns formatting for docs/data (Markdown, JSON, YAML)
+# EXCEPT the paths below.
+
+# Owned by another formatter / scope
+parish/apps/ui/
+.opencode/
+.codex/
+target/
+node_modules/
+**/node_modules/
+.venv-dev/
+.svelte-kit/
+.pytest_cache/
+**/.pytest_cache/
+**/__pycache__/
+.mypy_cache/
+**/.ruff_cache/
+
+# Generated / vendored (regenerated; never hand-edited)
+THIRD_PARTY_NOTICES.md
+THIRD_PARTY_NOTICES.rust.md
+THIRD_PARTY_NOTICES.ui.md
+**/*-lock.json
+**/package-lock.json
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+parish/crates/parish-tauri/gen/
+rundale-bench/bench-site/
+
+# Asserted byte-for-byte / prompt content (formatting would break tests or
+# perturb eval prompts sent to judge models)
+parish/testing/
+docs/proofs/
+rundale-bench/artifacts/
+rundale-bench/v1/
+
+# Intentionally-malformed mod content (loader test data)
+mods/
+
+# Data we don't want reflowed
+*.jsonl
+*.log

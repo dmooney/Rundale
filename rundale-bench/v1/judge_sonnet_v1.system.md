@@ -111,6 +111,7 @@ fences:
 ```
 
 Rules:
+
 - Every axis is an integer **1-5** for normal scoring, OR **0** for a bench-bug
   item (every axis + `overall` must be 0 together — never mix).
 - `overall` is a one-decimal float matching the axes: 0.0 for bench-bugs,
@@ -132,6 +133,7 @@ Rules:
 # Rubric
 
 Score the reply on a 1-5 scale (5 = best) on:
+
   1. CHARACTER — does it read as an 1820 rural Irish midwife?
   2. AUTHENTICITY — period-appropriate vocabulary, no modern terms?
   3. LANGUAGE — only English (en-IE) plus optional Irish (ga-IE); no Cyrillic,

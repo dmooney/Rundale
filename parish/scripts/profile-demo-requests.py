@@ -20,7 +20,6 @@ import json
 import math
 import os
 import signal
-import statistics
 import subprocess
 import sys
 import tempfile
@@ -31,8 +30,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
@@ -142,6 +140,18 @@ class Recorder:
             return list(self._events)
 
 
+class _RoutingConfig(Protocol):
+    """Structural interface for objects that carry upstream routing config.
+
+    Both ``ProfilingServer`` and the lightweight ``argparse.Namespace`` stub
+    used in ``self_test`` satisfy this protocol.
+    """
+
+    upstream: str
+    small_upstream: str
+    small_model: str
+
+
 class ProfilingServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -161,6 +171,7 @@ class ProfilingServer(ThreadingHTTPServer):
         self.small_upstream = small_upstream.rstrip("/")
         self.small_model = small_model
         self.timeout_secs = timeout_secs
+        self.quiet: bool = False
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -317,7 +328,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
 
 
 def parse_json(raw: bytes) -> dict[str, Any]:
@@ -518,7 +531,7 @@ def build_upstream_url(upstream: str, path: str) -> str:
     return upstream + path
 
 
-def upstream_for_request(server: ProfilingServer, category: str, model: str) -> str:
+def upstream_for_request(server: _RoutingConfig, category: str, model: str) -> str:
     if model == server.small_model or category in SMALL_SLOT_CATEGORIES:
         return server.small_upstream
     return server.upstream
@@ -540,7 +553,9 @@ def copy_request_headers(headers: Any, req: urllib.request.Request) -> None:
         req.add_header(key, value)
 
 
-def copy_response_headers(headers: Any, handler: BaseHTTPRequestHandler, length: int | None) -> None:
+def copy_response_headers(
+    headers: Any, handler: BaseHTTPRequestHandler, length: int | None
+) -> None:
     has_content_length = False
     for key, value in headers.items():
         lower = key.lower()
@@ -557,7 +572,9 @@ def copy_response_headers(headers: Any, handler: BaseHTTPRequestHandler, length:
     handler.close_connection = True
 
 
-def start_proxy(args: argparse.Namespace, recorder: Recorder) -> tuple[ProfilingServer, threading.Thread]:
+def start_proxy(
+    args: argparse.Namespace, recorder: Recorder
+) -> tuple[ProfilingServer, threading.Thread]:
     server = ProfilingServer(
         (args.proxy_host, args.proxy_port),
         recorder,
@@ -744,7 +761,9 @@ def observed_api_activity_seconds(events: list[ApiEvent], fallback_seconds: floa
     return max(max(ends) - min(starts), 1.0)
 
 
-def summarize_events(category: str, events: list[ApiEvent], observed_seconds: float) -> dict[str, Any]:
+def summarize_events(
+    category: str, events: list[ApiEvent], observed_seconds: float
+) -> dict[str, Any]:
     durations = [event.duration_ms for event in events]
     minutes = max(observed_seconds / 60.0, 1e-9)
     return {
@@ -841,7 +860,7 @@ def render_report(
         f"- Duration target: {args.duration_secs:.0f}s",
         f"- Observed API activity window: {observed_seconds:.1f}s",
         f"- Human reading pause: {args.pause:g}s between demo turns",
-        f"- Provider forced for run: `custom`",
+        "- Provider forced for run: `custom`",
         f"- Parish base URL: `{proxy_url}`",
         f"- Main upstream (dialogue/simulation/demo-player): `{args.upstream}`",
         f"- Small upstream (intent/reaction): `{args.small_upstream}`",
@@ -864,10 +883,20 @@ def render_report(
         ]
     )
     for category in CATEGORY_ORDER:
-        row = summary["categories"].get(category) or summarize_events(category, [], observed_seconds)
+        row = summary["categories"].get(category) or summarize_events(
+            category, [], observed_seconds
+        )
         lines.append(render_category_row(row))
-    lines.append(render_category_row(summary["total_gameplay"], label="total_gameplay (excludes demo-player)"))
-    lines.append(render_category_row(summary["total_observed"], label="total_observed (includes demo-player)"))
+    lines.append(
+        render_category_row(
+            summary["total_gameplay"], label="total_gameplay (excludes demo-player)"
+        )
+    )
+    lines.append(
+        render_category_row(
+            summary["total_observed"], label="total_observed (includes demo-player)"
+        )
+    )
 
     lines.extend(
         [
@@ -890,7 +919,9 @@ def render_report(
             output_rate,
         )
         per_hour = cost * (3600.0 / max(observed_seconds, 1e-9))
-        lines.append(f"| {name} | ${input_rate:.2f} | ${output_rate:.2f} | ${cost:.6f} | ${per_hour:.4f} |")
+        lines.append(
+            f"| {name} | ${input_rate:.2f} | ${output_rate:.2f} | ${cost:.6f} | ${per_hour:.4f} |"
+        )
     lines.extend(["", "Price source URLs checked:"])
     lines.extend(f"- {provider}: {url}" for provider, url in PRICE_SOURCES)
 
@@ -901,11 +932,15 @@ def render_report(
     elif args.baseline:
         lines.append("No request-rate regression detected against the supplied baseline.")
     else:
-        lines.append("No baseline supplied. Use `--write-baseline <path>` after a trusted run, then pass `--baseline <path>` in later runs.")
+        lines.append(
+            "No baseline supplied. Use `--write-baseline <path>` after a trusted run, then pass `--baseline <path>` in later runs."
+        )
 
     if events:
         lines.extend(["", "## Request Events", ""])
-        lines.append("| # | +s | Category | Model | Stream | Status | ms | Est. in tok | Est. out tok | Error |")
+        lines.append(
+            "| # | +s | Category | Model | Stream | Status | ms | Est. in tok | Est. out tok | Error |"
+        )
         lines.append("|---:|---:|---|---|---:|---:|---:|---:|---:|---|")
         for event in events:
             err = (event.error or "").replace("|", "\\|")
@@ -927,10 +962,10 @@ def render_category_row(row: dict[str, Any], label: str | None = None) -> str:
     )
 
 
-def estimate_cost(input_tokens: int, output_tokens: int, input_rate: float, output_rate: float) -> float:
-    return (input_tokens / 1_000_000.0 * input_rate) + (
-        output_tokens / 1_000_000.0 * output_rate
-    )
+def estimate_cost(
+    input_tokens: int, output_tokens: int, input_rate: float, output_rate: float
+) -> float:
+    return (input_tokens / 1_000_000.0 * input_rate) + (output_tokens / 1_000_000.0 * output_rate)
 
 
 def check_regressions(
@@ -951,11 +986,7 @@ def check_regressions(
             )
     for category, row in summary["categories"].items():
         current = row["requests_per_minute"]
-        previous = (
-            baseline.get("categories", {})
-            .get(category, {})
-            .get("requests_per_minute")
-        )
+        previous = baseline.get("categories", {}).get(category, {}).get("requests_per_minute")
         if previous is not None and current > previous * (1.0 + threshold):
             regressions.append(
                 f"{category}: {current:.2f} req/min > baseline {previous:.2f} by more than {threshold:.0%}"
@@ -997,11 +1028,14 @@ def dry_run(args: argparse.Namespace) -> int:
 
 
 def self_test() -> int:
-    examples = {
+    examples: dict[str, dict[str, Any]] = {
         "demo-player": {
             "model": "m",
             "messages": [
-                {"role": "system", "content": "You are playing Rundale. Respond with {\"action\": \"...\"}."},
+                {
+                    "role": "system",
+                    "content": 'You are playing Rundale. Respond with {"action": "..."}.',
+                },
                 {"role": "user", "content": "Location: Kilteevan\nAction (complete the JSON):"},
             ],
         },
@@ -1026,20 +1060,29 @@ def self_test() -> int:
             "model": "m",
             "stream": True,
             "messages": [
-                {"role": "user", "content": "Return JSON with mood_changes and relationship_changes."},
+                {
+                    "role": "user",
+                    "content": "Return JSON with mood_changes and relationship_changes.",
+                },
             ],
         },
         "reaction": {
             "model": "m",
             "messages": [
-                {"role": "system", "content": "You decide whether a single NPC would visibly react."},
+                {
+                    "role": "system",
+                    "content": "You decide whether a single NPC would visibly react.",
+                },
                 {"role": "user", "content": "Choose one emoji or null."},
             ],
         },
         "travel": {
             "model": "m",
             "messages": [
-                {"role": "system", "content": "You are writing one line of ambient narration for a walking scene."},
+                {
+                    "role": "system",
+                    "content": "You are writing one line of ambient narration for a walking scene.",
+                },
                 {"role": "user", "content": "Write one new line in the same register."},
             ],
         },
@@ -1148,8 +1191,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--regression-threshold", type=float, default=0.25)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--quiet", action="store_true", dest="quiet", help="Suppress proxy request logging")
-    parser.add_argument("--verbose-proxy", action="store_false", dest="quiet", help="Print proxy request logging")
+    parser.add_argument(
+        "--quiet", action="store_true", dest="quiet", help="Suppress proxy request logging"
+    )
+    parser.add_argument(
+        "--verbose-proxy", action="store_false", dest="quiet", help="Print proxy request logging"
+    )
     parser.add_argument("--verbose", action="store_true")
     parser.set_defaults(quiet=True)
     args = parser.parse_args(argv)
@@ -1179,7 +1226,7 @@ def main(argv: list[str] | None = None) -> int:
     recorder = Recorder()
     server, thread = start_proxy(args, recorder)
     host, port = server.server_address[:2]
-    proxy_url = f"http://{host}:{port}"
+    proxy_url = f"http://{host.decode() if isinstance(host, (bytes, bytearray)) else host}:{port}"
     command = build_demo_command(args)
     print(f"Proxy: {proxy_url} -> main {args.upstream}, small {args.small_upstream}")
     print(f"Running: {' '.join(command)} for up to {args.duration_secs:.0f}s")
@@ -1216,6 +1263,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Summary: {summary_json}")
     if return_code not in (0, None) and not timed_out:
         print(f"demo exited with {return_code}; see {demo_log}", file=sys.stderr)
+        assert return_code is not None  # guard above rules out None
         return return_code
     if regressions:
         for item in regressions:

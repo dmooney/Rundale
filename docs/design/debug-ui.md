@@ -29,6 +29,7 @@ pub struct DebugSnapshot {
 ```
 
 #### `ClockDebug`
+
 - `game_time`: formatted datetime string
 - `time_of_day`, `season`, `festival`: display strings
 - `weather`: current weather
@@ -37,11 +38,13 @@ pub struct DebugSnapshot {
 - `real_elapsed_secs`: wall-clock seconds since game start
 
 #### `WorldDebug`
+
 - `player_location`: name + id
 - `location_count`: total locations in graph
 - `locations`: `Vec<LocationDebug>` — each with id, name, indoor/public, connection count, NPCs present (names)
 
 #### `NpcDebug` (full deep-dive)
+
 - `id`, `name`, `age`, `occupation`, `personality`
 - `location_name`, `location_id`
 - `home_name`, `workplace_name`
@@ -53,10 +56,12 @@ pub struct DebugSnapshot {
 - `knowledge`: `Vec<String>`
 
 #### `TierSummary`
+
 - `tier1_count`, `tier2_count`, `tier3_count`, `tier4_count`
 - `tier1_names`, `tier2_names`: Vec of NPC names
 
 #### `InferenceDebug`
+
 - `provider_name`, `model_name`, `base_url`
 - `cloud_provider`, `cloud_model`: Option strings
 - `has_queue`: bool (whether inference is configured)
@@ -64,6 +69,7 @@ pub struct DebugSnapshot {
 - `call_log`: `Vec<InferenceLogEntry>` — recent inference call history
 
 #### `InferenceLogEntry`
+
 - `request_id`: u64 — unique request identifier
 - `timestamp`: String — wall-clock time (HH:MM:SS)
 - `model`: String — model name used
@@ -80,6 +86,7 @@ pub struct DebugSnapshot {
 Clicking a log entry in the Inference tab opens a detail view showing the full system prompt, user prompt, and response text in scrollable `<pre>` blocks. A "Back to list" button returns to the call log list (same pattern as the NPC inspector).
 
 #### `DebugEvent`
+
 - `timestamp`: formatted game time
 - `category`: "schedule" | "tier" | "movement" | "encounter" | "system"
 - `message`: human-readable description
@@ -118,7 +125,7 @@ pub async fn get_debug_snapshot(state: ...) -> Result<DebugSnapshot, String>
 
 New Tauri event (emitted every 2 seconds when debug panel is open):
 
-```
+```text
 EVENT_DEBUG_UPDATE = "debug-update"
 ```
 
@@ -128,12 +135,12 @@ The frontend subscribes to `debug-update` only while the panel is visible (no ov
 
 ```typescript
 interface DebugSnapshot {
-    clock: ClockDebug;
-    world: WorldDebug;
-    npcs: NpcDebug[];
-    tier_summary: TierSummary;
-    events: DebugEvent[];
-    inference: InferenceDebug;
+  clock: ClockDebug;
+  world: WorldDebug;
+  npcs: NpcDebug[];
+  tier_summary: TierSummary;
+  events: DebugEvent[];
+  inference: InferenceDebug;
 }
 ```
 
@@ -153,15 +160,15 @@ export const selectedNpcId = writable<number | null>(null);
 
 The GUI supports selecting an individual NPC to see everything:
 
-| Section | Data |
-|---------|------|
-| Identity | Name, age, occupation, personality |
-| Location | Current (name), home, workplace |
-| Status | Mood, cognitive tier, state (Present / InTransit → dest @ ETA) |
-| Schedule | Hourly time blocks with location + activity |
-| Relationships | Target name, kind, strength bar, history count |
-| Memory | Last 10 entries: timestamp, content, location |
-| Knowledge | Local gossip/facts list |
+| Section       | Data                                                           |
+| ------------- | -------------------------------------------------------------- |
+| Identity      | Name, age, occupation, personality                             |
+| Location      | Current (name), home, workplace                                |
+| Status        | Mood, cognitive tier, state (Present / InTransit → dest @ ETA) |
+| Schedule      | Hourly time blocks with location + activity                    |
+| Relationships | Target name, kind, strength bar, history count                 |
+| Memory        | Last 10 entries: timestamp, content, location                  |
+| Knowledge     | Local gossip/facts list                                        |
 
 Clicking an NPC name in the NPC tab opens an inline expanded card.
 
@@ -179,17 +186,17 @@ Events are timestamped with game time and categorized for optional filtering.
 
 ## Implementation Files
 
-| File | Purpose |
-|------|---------|
-| `crates/parish-core/src/debug_snapshot.rs` | `DebugSnapshot` + builder |
-| `src/debug.rs` | Updated `/debug` commands to use snapshot |
-| `crates/parish-tauri/src/commands.rs` | `get_debug_snapshot` command |
-| `crates/parish-tauri/src/events.rs` | `EVENT_DEBUG_UPDATE` constant |
-| `crates/parish-tauri/src/lib.rs` | Debug tick task (2s interval) |
-| `apps/ui/src/lib/types.ts` | TypeScript debug interfaces |
-| `apps/ui/src/lib/ipc.ts` | `getDebugSnapshot()` + `onDebugUpdate()` |
-| `apps/ui/src/stores/debug.ts` | Debug state store |
-| `apps/ui/src/components/DebugPanel.svelte` | Main debug panel component |
+| File                                       | Purpose                                   |
+| ------------------------------------------ | ----------------------------------------- |
+| `crates/parish-core/src/debug_snapshot.rs` | `DebugSnapshot` + builder                 |
+| `src/debug.rs`                             | Updated `/debug` commands to use snapshot |
+| `crates/parish-tauri/src/commands.rs`      | `get_debug_snapshot` command              |
+| `crates/parish-tauri/src/events.rs`        | `EVENT_DEBUG_UPDATE` constant             |
+| `crates/parish-tauri/src/lib.rs`           | Debug tick task (2s interval)             |
+| `apps/ui/src/lib/types.ts`                 | TypeScript debug interfaces               |
+| `apps/ui/src/lib/ipc.ts`                   | `getDebugSnapshot()` + `onDebugUpdate()`  |
+| `apps/ui/src/stores/debug.ts`              | Debug state store                         |
+| `apps/ui/src/components/DebugPanel.svelte` | Main debug panel component                |
 
 ## Related
 

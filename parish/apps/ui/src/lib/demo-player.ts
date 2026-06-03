@@ -1,6 +1,12 @@
 import { get } from 'svelte/store';
 import type { Readable } from 'svelte/store';
-import { demoEnabled, demoPaused, demoTurnCount, demoStatus, demoConfig } from '../stores/demo';
+import {
+	demoEnabled,
+	demoPaused,
+	demoTurnCount,
+	demoStatus,
+	demoConfig,
+} from '../stores/demo';
 import { streamingActive, textLog, worldState } from '../stores/game';
 import { getDemoContext, getLlmPlayerAction, submitInput } from './ipc';
 
@@ -11,44 +17,56 @@ function sleep(ms: number): Promise<void> {
 // Wait until `store` is false, with a safety timeout so a missed stream-end
 // event never permanently freezes the demo loop.
 //
-// Uses `let unsub` (not `const`) to avoid the Svelte TDZ bug: Svelte fires
-// the subscription callback synchronously with the current value. If the store
-// is already false, the callback fires before the `const` assignment completes,
-// causing a ReferenceError. A pre-declared `let` avoids this.
-function waitForFalse(store: Readable<boolean>, timeoutMs = 30_000): Promise<void> {
+// `unsub` is declared with `const` and `cleanup` as a hoisted function
+// declaration so the two can mutually reference each other without TDZ issues.
+// `timerHandle` is `let` because it is assigned conditionally (only when the
+// store is not already false), so prefer-const does not apply.
+function waitForFalse(
+	store: Readable<boolean>,
+	timeoutMs = 30_000,
+): Promise<void> {
 	return new Promise((resolve) => {
-		let unsub: (() => void) | undefined;
-		let timer: ReturnType<typeof setTimeout> | undefined;
+		// `timerHandle` must be `let` — it is only assigned in the non-resolved
+		// branch below and cleanup() must be able to clear it regardless.
+		// eslint-disable-next-line prefer-const -- assigned conditionally, not a simple initializer
+		let timerHandle: ReturnType<typeof setTimeout> | undefined;
 
-		const cleanup = () => {
-			unsub?.();
-			if (timer !== undefined) clearTimeout(timer);
-		};
+		// Hoisted function declaration so both `const unsub` and `timerHandle`
+		// are reachable from cleanup without TDZ issues.
+		function cleanup() {
+			unsub();
+			if (timerHandle !== undefined) clearTimeout(timerHandle);
+		}
 
-		// Use a `resolved` flag so the synchronous Svelte subscription case
-		// (store already false → callback fires before `unsub` is assigned)
-		// is handled correctly: skip cleanup in the callback, then clean up
-		// immediately after the subscribe call returns.
+		// Svelte's `subscribe` runs the callback synchronously once, before
+		// `const unsub` is initialized. `started` guards against the callback
+		// touching `unsub` during that synchronous run (TDZ): on the sync path
+		// we resolve in the callback and release the subscription below, after
+		// `unsub` exists; on later (async) runs we can `cleanup()` directly.
 		let resolved = false;
-		unsub = store.subscribe((v) => {
-			if (!v) {
-				resolved = true;
-				if (unsub) {
-					cleanup();
-					resolve();
-				}
-			}
+		let started = false;
+		const unsub = store.subscribe((v) => {
+			if (v) return;
+			resolved = true;
+			resolve();
+			if (started) cleanup();
 		});
+		started = true;
 
 		if (resolved) {
-			cleanup();
-			resolve();
+			// Store was already false: callback resolved synchronously above.
+			// No timer was scheduled yet; just release the subscription.
+			unsub();
 			return;
 		}
 
 		// Safety net: if stream-end never arrives, don't hang forever.
-		timer = setTimeout(() => {
-			console.warn('demo-player: waitForFalse timed out after', timeoutMs, 'ms');
+		timerHandle = setTimeout(() => {
+			console.warn(
+				'demo-player: waitForFalse timed out after',
+				timeoutMs,
+				'ms',
+			);
 			cleanup();
 			resolve();
 		}, timeoutMs);
@@ -91,7 +109,7 @@ export async function runDemoTurn(): Promise<void> {
 				e.source === 'system' &&
 				sceneHead.length > 0 &&
 				e.content.startsWith(sceneHead)
-			)
+			),
 	);
 	ctx.recent_log = filtered.slice(-40).map((e) => `[${e.source}] ${e.content}`);
 
@@ -108,7 +126,9 @@ export async function runDemoTurn(): Promise<void> {
 	// Frontend store's extra_prompt always wins — null means "cleared by user".
 	ctx.extra_prompt = config.extra_prompt;
 
-	const action = (await getLlmPlayerAction(ctx)).trim().replace(/^["']|["']$/g, '');
+	const action = (await getLlmPlayerAction(ctx))
+		.trim()
+		.replace(/^["']|["']$/g, '');
 
 	demoStatus.set('acting');
 
@@ -119,8 +139,7 @@ export async function runDemoTurn(): Promise<void> {
 	let streamingStarted = wasActiveAtStart;
 
 	// Track whether streaming became active during the submit call.
-	let unsub: (() => void) | undefined;
-	unsub = streamingActive.subscribe((v) => {
+	const unsub = streamingActive.subscribe((v) => {
 		if (v) streamingStarted = true;
 	});
 

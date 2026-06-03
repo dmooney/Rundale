@@ -13,7 +13,9 @@ import {
 } from './game';
 import type { LanguageHint } from '$lib/types';
 
-const hint: LanguageHint[] = [{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' }];
+const hint: LanguageHint[] = [
+	{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' },
+];
 
 describe('pushErrorLog', () => {
 	beforeEach(() => {
@@ -130,7 +132,12 @@ describe('messageHints eviction (audit H3)', () => {
 	});
 
 	it('drops hint entries whose message is no longer in the log', () => {
-		messageHints.set(new Map([['m1', hint], ['m2', hint]]));
+		messageHints.set(
+			new Map([
+				['m1', hint],
+				['m2', hint],
+			]),
+		);
 		// Only m2 survives in the log.
 		pruneMessageHints([{ id: 'm2', source: 'Saoirse', content: 'hi' }]);
 		const m = get(messageHints);
@@ -150,7 +157,9 @@ describe('messageHints eviction (audit H3)', () => {
 		// trimmed update, so messageHints must not exceed the surviving log.
 		for (let i = 0; i < 600; i++) {
 			const id = `turn-${i}`;
-			textLog.update((log) => trimTextLog([...log, { id, source: 'Saoirse', content: 'x' }]));
+			textLog.update((log) =>
+				trimTextLog([...log, { id, source: 'Saoirse', content: 'x' }]),
+			);
 			messageHints.update((m) => {
 				m.set(id, hint);
 				return m;

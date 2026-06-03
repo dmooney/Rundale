@@ -18,7 +18,7 @@ The world's actual lore is far richer than this: `mods/rundale/{world,npcs,festi
 Two existing recall mechanisms fall short:
 
 - **Hand-authored `knowledge` bullets** — high quality but only four per NPC; they can't cover the breadth of the parish.
-- **Keyword long-term-memory recall** — only retrieves *that NPC's personal memories*, and only on literal token overlap (words > 4 chars). It can't surface shared world lore, and synonyms miss.
+- **Keyword long-term-memory recall** — only retrieves _that NPC's personal memories_, and only on literal token overlap (words > 4 chars). It can't surface shared world lore, and synonyms miss.
 
 ## Goal
 
@@ -28,7 +28,7 @@ Ground Tier 1 dialogue in the parish's own JSON lore. Each turn, retrieve the to
 
 A small retrieval-augmented-generation (RAG) layer, factored as a standalone `parish-rag` crate, prototyped in PR #486. The crate is deliberately minimal — a demo of the pattern, not a vector database.
 
-```
+```text
 mods/rundale/*.json ──► build_rundale_corpus ──► Vec<LoreChunk>   (one fact per chunk, ~280 chunks)
                                                       │
                                           AnyEmbedder::index (embed each chunk)
@@ -46,26 +46,26 @@ mods/rundale/*.json ──► build_rundale_corpus ──► Vec<LoreChunk>   (o
 
 ### Components
 
-| Component | Responsibility |
-| --- | --- |
+| Component                                     | Responsibility                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LoreChunk` / `build_rundale_corpus(mod_dir)` | Read the mod's JSON and split it into one-fact-per-chunk passages: per location (description + folklore as separate chunks), per NPC (identity + personality + each knowledge entry + each relationship), per festival. Chunk granularity is the lever that keeps a single recall from blowing out the prompt. |
-| `AnyEmbedder` | Unified handle over embedding backends, mirroring `parish-inference::AnyClient`. Two variants: `HashEmbedder` and `OllamaEmbedder`. |
-| `LoreDocument` / `LoreIndex` | An embedded chunk and the in-memory vector store. `search()` is a linear cosine-similarity scan returning the top-k — fine for a few hundred chunks. |
-| `format_recall_block(hits)` | Render retrieved hits as the "KNOWLEDGE YOU RECALL (things you know from living here):" block. Returns an empty string when there are no hits, so callers append unconditionally. |
+| `AnyEmbedder`                                 | Unified handle over embedding backends, mirroring `parish-inference::AnyClient`. Two variants: `HashEmbedder` and `OllamaEmbedder`.                                                                                                                                                                            |
+| `LoreDocument` / `LoreIndex`                  | An embedded chunk and the in-memory vector store. `search()` is a linear cosine-similarity scan returning the top-k — fine for a few hundred chunks.                                                                                                                                                           |
+| `format_recall_block(hits)`                   | Render retrieved hits as the "KNOWLEDGE YOU RECALL (things you know from living here):" block. Returns an empty string when there are no hits, so callers append unconditionally.                                                                                                                              |
 
 ### Embedders
 
-- **`HashEmbedder` (default)** — deterministic hashing-trick embedder. Tokenises, drops stopwords, hashes each token into a fixed-width L2-normalised vector with a signed hash. No network, no model, byte-identical across runs — which makes it the embedder used in tests and the offline default. Limitation: it captures *token overlap*, not semantics, so synonym queries won't match.
+- **`HashEmbedder` (default)** — deterministic hashing-trick embedder. Tokenises, drops stopwords, hashes each token into a fixed-width L2-normalised vector with a signed hash. No network, no model, byte-identical across runs — which makes it the embedder used in tests and the offline default. Limitation: it captures _token overlap_, not semantics, so synonym queries won't match.
 - **`OllamaEmbedder`** — calls Ollama's `/api/embeddings` (e.g. `nomic-embed-text`) for genuine semantic retrieval. This is the production-quality path when a local Ollama is available.
 
-The split mirrors the rest of the project: deterministic offline fallback for reproducibility, real model for quality. RAG keeps its *own* embedding handle rather than reusing `AnyClient`, because embeddings hit a different endpoint with a different request shape than chat completions; coupling them would force an awkward abstraction.
+The split mirrors the rest of the project: deterministic offline fallback for reproducibility, real model for quality. RAG keeps its _own_ embedding handle rather than reusing `AnyClient`, because embeddings hit a different endpoint with a different request shape than chat completions; coupling them would force an awkward abstraction.
 
 ## Where it plugs in
 
 Retrieval happens in **per-turn context assembly**, not the system prompt:
 
 - Injected inside `build_enhanced_context_with_config` (`crates/parish-npc/src/ticks.rs`), immediately **after** the existing keyword long-term-memory recall and **before** gossip context.
-- Rationale: the query changes every turn, so there is no caching benefit to putting it in the (otherwise stable) system prompt; and placing it next to the existing LTM recall reads naturally. The "KNOWLEDGE YOU RECALL" header is intentionally distinct from the LTM "You recall: …" header so the model can tell *parish lore* apart from *this NPC's personal memories*.
+- Rationale: the query changes every turn, so there is no caching benefit to putting it in the (otherwise stable) system prompt; and placing it next to the existing LTM recall reads naturally. The "KNOWLEDGE YOU RECALL" header is intentionally distinct from the LTM "You recall: …" header so the model can tell _parish lore_ apart from _this NPC's personal memories_.
 
 ### The async boundary
 
@@ -75,8 +75,8 @@ Retrieval happens in **per-turn context assembly**, not the system prompt:
 
 Two independent knobs:
 
-- **`rag-recall` feature flag** — toggles whether the feature exists at runtime. Per repo convention (CLAUDE.md rule 6) the feature ships **default-on**. Because `FeatureFlags::is_enabled` returns false for unset flags, the flag is *seeded* to `true` at first config load (a new `FeatureFlags::seed_default` helper), after which every check site is a plain `config.flags.is_enabled("rag-recall")`. Disable with `/flag disable rag-recall`.
-- **`[engine.rag]` config section** — tunes *behaviour*, not existence:
+- **`rag-recall` feature flag** — toggles whether the feature exists at runtime. Per repo convention (CLAUDE.md rule 6) the feature ships **default-on**. Because `FeatureFlags::is_enabled` returns false for unset flags, the flag is _seeded_ to `true` at first config load (a new `FeatureFlags::seed_default` helper), after which every check site is a plain `config.flags.is_enabled("rag-recall")`. Disable with `/flag disable rag-recall`.
+- **`[engine.rag]` config section** — tunes _behaviour_, not existence:
 
 ```toml
 [engine.rag]
@@ -112,7 +112,7 @@ CLAUDE.md rule 2 requires CLI, web server, and Tauri to share behaviour, and sha
 
 ## Relationship to the emotion system (PR #443)
 
-This work is sequenced **after** PR #443 (the structured emotion system). The two don't conflict semantically — emotion shapes *how* an NPC speaks, lore recall shapes *what facts* they have — but they touch the same plumbing (`ticks.rs`, `manager.rs`, `engine.rs`, the harness, and the server/Tauri dialogue wiring). #443 is larger and further along, so RAG lore recall lands on top of it. In the assembled Tier 1 prompt the two compose cleanly: the emotion preamble sets tone, and the "KNOWLEDGE YOU RECALL" block supplies grounded facts.
+This work is sequenced **after** PR #443 (the structured emotion system). The two don't conflict semantically — emotion shapes _how_ an NPC speaks, lore recall shapes _what facts_ they have — but they touch the same plumbing (`ticks.rs`, `manager.rs`, `engine.rs`, the harness, and the server/Tauri dialogue wiring). #443 is larger and further along, so RAG lore recall lands on top of it. In the assembled Tier 1 prompt the two compose cleanly: the emotion preamble sets tone, and the "KNOWLEDGE YOU RECALL" block supplies grounded facts.
 
 ## Verification
 

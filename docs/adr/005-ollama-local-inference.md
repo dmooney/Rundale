@@ -22,18 +22,18 @@ Use **Ollama** as the local inference server, running on `localhost:11434` and a
 
 **Model allocation by size class:**
 
-| Tier | Size class | Purpose |
-|------|-----------|---------|
-| Tier 1 (immediate) | ~9B dialogue-tuned | Full NPC dialogue, rich interaction |
-| Tier 2 (nearby) | ~9B JSON-tuned | Lighter NPC-to-NPC interaction |
-| Tier 3 (distant) | ~9B JSON-tuned | Batch simulation of many NPCs |
-| Player input parsing | ~3B JSON / function-calling | Natural language intent detection |
+| Tier                 | Size class                  | Purpose                             |
+| -------------------- | --------------------------- | ----------------------------------- |
+| Tier 1 (immediate)   | ~9B dialogue-tuned          | Full NPC dialogue, rich interaction |
+| Tier 2 (nearby)      | ~9B JSON-tuned              | Lighter NPC-to-NPC interaction      |
+| Tier 3 (distant)     | ~9B JSON-tuned              | Batch simulation of many NPCs       |
+| Player input parsing | ~3B JSON / function-calling | Natural language intent detection   |
 
 Specific picks are maintained in [docs/design/inference-pipeline.md](../design/inference-pipeline.md#recommended-models-april-2026) and refreshed as the open-model ecosystem evolves. This ADR was originally accepted with Qwen3 14B as the Tier 1 reference model; as of April 2026 the ecosystem has converged on 9B dialogue models (Gemma 4 9B, Qwen 3.5 9B) as the new Tier 1 baseline.
 
 **Inference pipeline:**
 
-```
+```text
 Simulation Threads -> Inference Queue (Tokio mpsc) -> Inference Worker -> Ollama REST API -> Response Router -> World State Update
 ```
 
@@ -87,7 +87,7 @@ Specialist fine-tunes (e.g. `gemma4-rundale:9b` from the [training plan](../plan
 
 ## Escape Hatch (revisit trigger)
 
-If the Background-lane critic produces visible flicker in playtest (the silent bubble replacement happens *after* the player has begun reading and the swap is jarring), reopen this ADR and amend to allow vLLM/TGI as the dialogue-tier runtime. Trigger criteria:
+If the Background-lane critic produces visible flicker in playtest (the silent bubble replacement happens _after_ the player has begun reading and the swap is jarring), reopen this ADR and amend to allow vLLM/TGI as the dialogue-tier runtime. Trigger criteria:
 
 - Playtest reports of bubble-swap flicker on more than ~10 % of turns.
 - Critic wall-clock 95th-percentile exceeds 1500 ms regularly (i.e. the cap is fired routinely, so the rejection sampler is silently no-op'd most of the time).

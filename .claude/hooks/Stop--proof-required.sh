@@ -35,12 +35,12 @@ log() { echo "[Stop--proof-required] $*" >&2; }
 
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 if [ "$STOP_ACTIVE" = "true" ]; then
-  exit 0
+    exit 0
 fi
 
 if [ "${CLAUDE_SKIP_PROOF_HOOK:-0}" = "1" ]; then
-  log "bypass: CLAUDE_SKIP_PROOF_HOOK=1"
-  exit 0
+    log "bypass: CLAUDE_SKIP_PROOF_HOOK=1"
+    exit 0
 fi
 
 TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
@@ -48,7 +48,7 @@ CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 [ -z "$CWD" ] && CWD="$PWD"
 
 if ! ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)"; then
-  exit 0
+    exit 0
 fi
 
 # ── Sentinel bypass — most-recent assistant message only ──────────────
@@ -59,18 +59,18 @@ fi
 # an earlier assistant message no longer leaks bypass authority forward
 # to later stops.
 if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  LAST_ASSISTANT_TEXT="$(
-    jq -srj '
+    LAST_ASSISTANT_TEXT="$(
+        jq -srj '
       [.[] | select(.type == "assistant")] | last // {} |
       (.message.content // [])
       | map(select(.type == "text") | .text)
       | join("\n")
     ' "$TRANSCRIPT" 2>/dev/null || true
-  )"
-  if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
-    log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
-    exit 0
-  fi
+    )"
+    if printf '%s' "$LAST_ASSISTANT_TEXT" | grep -q '\[skip-proof-hook\]'; then
+        log "bypass: [skip-proof-hook] sentinel in most-recent assistant message"
+        exit 0
+    fi
 fi
 
 CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb)$'
@@ -105,10 +105,10 @@ RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|engine/|client/|core/
 # ── Code-change detection ──────────────────────────────────────────────
 # Source 1: tracked diff vs HEAD + untracked code files.
 DIFF_CHANGED="$(
-  {
-    git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
-    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-  } | grep -E "$CODE_REGEX" || true
+    {
+        git -C "$ROOT" diff --name-only HEAD 2>/dev/null || true
+        git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+    } | grep -E "$CODE_REGEX" || true
 )"
 
 # Source 2: transcript tool_use entries that edited code files. Survives
@@ -116,14 +116,14 @@ DIFF_CHANGED="$(
 # clean by the time Stop fires.
 TRANSCRIPT_EDITED=""
 if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  TRANSCRIPT_EDITED="$(
-    jq -rc '
+    TRANSCRIPT_EDITED="$(
+        jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
       | select(.name == "Edit" or .name == "Write" or .name == "MultiEdit" or .name == "NotebookEdit")
       | .input.file_path // .input.notebook_path // empty
     ' "$TRANSCRIPT" 2>/dev/null | grep -E "$CODE_REGEX" || true
-  )"
+    )"
 fi
 
 CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$' | sort -u | grep -vE "$EXEMPT_PATH_REGEX" || true)"
@@ -147,39 +147,39 @@ CHANGED="$(printf '%s\n%s\n' "$DIFF_CHANGED" "$TRANSCRIPT_EDITED" | grep -v '^$'
 # `.proofs/A/judge.md` + `.proofs/B/ac.md` does NOT satisfy bundle A.
 
 _proof_bundle_dirs() {
-  {
-    if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-      jq -rc '
+    {
+        if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+            jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Write" or .name == "Edit" or .name == "MultiEdit")
         | .input.file_path // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | sed "s|^$ROOT/||" \
-        | grep -E '\.proofs/.*/(evidence|judge)\.md$' \
-        | sed 's|/[^/]*$||' || true
-      # Bash scan: any command that names a .proofs/<id>/(evidence|judge).md
-      # target is treated as session work. Covers redirect/tee plus
-      # cp/mv/install/python/curl/etc. (the original git-diff fallback is
-      # gone since .proofs/ is gitignored). False positives from
-      # read-only commands like `cat .proofs/x/judge.md` are harmless —
-      # the AC check that follows passes if the dir has an AC file
-      # alongside.
-      #
-      # Disk walk of .proofs/ is intentionally NOT used as a fallback:
-      # .proofs/ persists across branches and sessions, so stale bundles
-      # from prior work would block unrelated sessions (regresses the
-      # session-scoped gate).
-      jq -rc '
+                | sed "s|^$ROOT/||" \
+                | grep -E '\.proofs/.*/(evidence|judge)\.md$' \
+                | sed 's|/[^/]*$||' || true
+            # Bash scan: any command that names a .proofs/<id>/(evidence|judge).md
+            # target is treated as session work. Covers redirect/tee plus
+            # cp/mv/install/python/curl/etc. (the original git-diff fallback is
+            # gone since .proofs/ is gitignored). False positives from
+            # read-only commands like `cat .proofs/x/judge.md` are harmless —
+            # the AC check that follows passes if the dir has an AC file
+            # alongside.
+            #
+            # Disk walk of .proofs/ is intentionally NOT used as a fallback:
+            # .proofs/ persists across branches and sessions, so stale bundles
+            # from prior work would block unrelated sessions (regresses the
+            # session-scoped gate).
+            jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -oE '\.proofs/[^/[:space:]\"]+/(evidence|judge)\.md' \
-        | sed 's|/[^/]*$||' || true
-    fi
-  } | grep -v '^$' | sort -u || true
+                | grep -oE '\.proofs/[^/[:space:]\"]+/(evidence|judge)\.md' \
+                | sed 's|/[^/]*$||' || true
+        fi
+    } | grep -v '^$' | sort -u || true
 }
 
 PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
@@ -190,21 +190,21 @@ PROOF_BUNDLE_DIRS="$(_proof_bundle_dirs)"
 # same session) are skipped — there's nothing to validate.
 BUNDLE_MISSING_AC=""
 if [ -n "$PROOF_BUNDLE_DIRS" ]; then
-  while IFS= read -r bundle_dir; do
-    [ -z "$bundle_dir" ] && continue
-    [ -d "$ROOT/$bundle_dir" ] || continue
-    if [ ! -f "$ROOT/$bundle_dir/acceptance-criteria.md" ]; then
-      BUNDLE_MISSING_AC="$bundle_dir"
-      break
-    fi
-  done <<< "$PROOF_BUNDLE_DIRS"
+    while IFS= read -r bundle_dir; do
+        [ -z "$bundle_dir" ] && continue
+        [ -d "$ROOT/$bundle_dir" ] || continue
+        if [ ! -f "$ROOT/$bundle_dir/acceptance-criteria.md" ]; then
+            BUNDLE_MISSING_AC="$bundle_dir"
+            break
+        fi
+    done <<<"$PROOF_BUNDLE_DIRS"
 fi
 
 if [ -z "$CHANGED" ]; then
-  # No code changes — still block if a proof bundle written this session
-  # is missing its acceptance-criteria.md.
-  if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+    # No code changes — still block if a proof bundle written this session
+    # is missing its acceptance-criteria.md.
+    if [ -n "$BUNDLE_MISSING_AC" ]; then
+        jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
 
 Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
@@ -219,9 +219,9 @@ with each criterion verified against the game log.
 
 Intentional bypass: include '[skip-proof-hook]' in your message or set
 CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+        exit 0
+    fi
     exit 0
-  fi
-  exit 0
 fi
 
 # Did any runtime-shipping path change? Drives the proof-tier decision
@@ -257,77 +257,77 @@ LIVE_PROOF=""
 TEST_PROOF=""
 
 if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-  # LIVE-1: direct MCP tool invocations.
-  LIVE_PROOF="$(
-    jq -rc '
+    # LIVE-1: direct MCP tool invocations.
+    LIVE_PROOF="$(
+        jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
       | select(.name | test("^mcp__(parish|claude-in-chrome)__"))
       | .name
     ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
-  )"
+    )"
 
-  # LIVE-2: live-harness skill invocations.
-  if [ -z "$LIVE_PROOF" ]; then
-    LIVE_PROOF="$(
-      jq -rc '
+    # LIVE-2: live-harness skill invocations.
+    if [ -z "$LIVE_PROOF" ]; then
+        LIVE_PROOF="$(
+            jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Skill")
         | select(.input.skill == "parish-engine")
         | "skill: \(.input.skill)"
       ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
-    )"
-  fi
+        )"
+    fi
 
-  # LIVE-3: Bash calls that boot a real process against the workspace.
-  if [ -z "$LIVE_PROOF" ]; then
-    LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(engine|tauri|server|client)\b|parish-mcp-backend\.sh[[:space:]]+start'
-    LIVE_PROOF="$(
-      jq -rc '
+    # LIVE-3: Bash calls that boot a real process against the workspace.
+    if [ -z "$LIVE_PROOF" ]; then
+        LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(engine|tauri|server|client)\b|parish-mcp-backend\.sh[[:space:]]+start'
+        LIVE_PROOF="$(
+            jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E -m1 "$LIVE_BASH_PATTERN" \
-        | head -c 160 || true
-    )"
-  fi
+                | grep -E -m1 "$LIVE_BASH_PATTERN" \
+                | head -c 160 || true
+        )"
+    fi
 
-  # TEST-1: static/unit-test skills.
-  TEST_PROOF="$(
-    jq -rc '
+    # TEST-1: static/unit-test skills.
+    TEST_PROOF="$(
+        jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
       | select(.name == "Skill")
       | select(.input.skill == "check")
       | "skill: \(.input.skill)"
     ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
-  )"
+    )"
 
-  # TEST-2: Bash test/check commands.
-  if [ -z "$TEST_PROOF" ]; then
-    TEST_BASH_PATTERN='cargo[[:space:]]+(test|nextest)|npm[[:space:]]+(test|run[[:space:]]+(test|check|e2e))|npx[[:space:]]+playwright|just[[:space:]]+(check|verify|agent-check|ui-test|ui-e2e)'
-    TEST_PROOF="$(
-      jq -rc '
+    # TEST-2: Bash test/check commands.
+    if [ -z "$TEST_PROOF" ]; then
+        TEST_BASH_PATTERN='cargo[[:space:]]+(test|nextest)|npm[[:space:]]+(test|run[[:space:]]+(test|check|e2e))|npx[[:space:]]+playwright|just[[:space:]]+(check|verify|agent-check|ui-test|ui-e2e)'
+        TEST_PROOF="$(
+            jq -rc '
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Bash")
         | .input.command // empty
       ' "$TRANSCRIPT" 2>/dev/null \
-        | grep -E -m1 "$TEST_BASH_PATTERN" \
-        | head -c 160 || true
-    )"
-  fi
+                | grep -E -m1 "$TEST_BASH_PATTERN" \
+                | head -c 160 || true
+        )"
+    fi
 fi
 
 # Decision matrix.
 if [ -n "$LIVE_PROOF" ]; then
-  log "live proof found: $LIVE_PROOF"
-  # Even with live proof, block if any proof bundle is missing its AC file.
-  if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+    log "live proof found: $LIVE_PROOF"
+    # Even with live proof, block if any proof bundle is missing its AC file.
+    if [ -n "$BUNDLE_MISSING_AC" ]; then
+        jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
 
 Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
@@ -342,15 +342,15 @@ with each criterion verified against the game log.
 
 Intentional bypass: include '[skip-proof-hook]' in your message or set
 CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+        exit 0
+    fi
     exit 0
-  fi
-  exit 0
 fi
 
 if [ -z "$RUNTIME_CHANGED" ] && [ -n "$TEST_PROOF" ]; then
-  log "test proof accepted (no runtime paths touched): $TEST_PROOF"
-  if [ -n "$BUNDLE_MISSING_AC" ]; then
-    jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
+    log "test proof accepted (no runtime paths touched): $TEST_PROOF"
+    if [ -n "$BUNDLE_MISSING_AC" ]; then
+        jq -n --arg reason "ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
 
 Stop blocked by .claude/hooks/Stop--proof-required.sh:
 ACCEPTANCE CRITERIA MISSING: proof bundle '$BUNDLE_MISSING_AC/' has no
@@ -365,9 +365,9 @@ with each criterion verified against the game log.
 
 Intentional bypass: include '[skip-proof-hook]' in your message or set
 CLAUDE_SKIP_PROOF_HOOK=1." '{"decision":"block","reason":$reason}'
+        exit 0
+    fi
     exit 0
-  fi
-  exit 0
 fi
 
 # ── Block ──────────────────────────────────────────────────────────────
@@ -377,16 +377,16 @@ TRAIL=""
 [ "$EXTRA" -gt 8 ] && TRAIL=$'\n  - ...'
 
 if [ -n "$RUNTIME_CHANGED" ]; then
-  RUNTIME_PREVIEW="$(printf '%s\n' "$RUNTIME_CHANGED" | head -6 | sed 's/^/  - /')"
-  TIER_BANNER="LIVE proof required: a runtime-shipping path changed this session."
-  TIER_NOTE="Runtime-shipping files touched:
+    RUNTIME_PREVIEW="$(printf '%s\n' "$RUNTIME_CHANGED" | head -6 | sed 's/^/  - /')"
+    TIER_BANNER="LIVE proof required: a runtime-shipping path changed this session."
+    TIER_NOTE="Runtime-shipping files touched:
 ${RUNTIME_PREVIEW}
 
 Unit tests (cargo test, just check) are NOT sufficient on their own —
 they don't exercise the Tauri / server / CLI startup seams. You must
 additionally drive the change through a real process before claiming
 done."
-  EXAMPLES="  Backend (Rust, gameplay, Tauri)
+    EXAMPLES="  Backend (Rust, gameplay, Tauri)
     - bash parish/scripts/parish-mcp-backend.sh start  (then mcp__parish__*)
     - cargo run -p parish-tauri  (live desktop window)
     - cargo run -p parish-engine -- --headless  (REPL)
@@ -398,9 +398,9 @@ done."
     - /parish-engine browser
     - npx playwright e2e/<spec>.spec.ts  (real browser, not just type-check)"
 else
-  TIER_BANNER="TEST proof required: code changed this session."
-  TIER_NOTE=""
-  EXAMPLES="  - cargo test / cargo nextest
+    TIER_BANNER="TEST proof required: code changed this session."
+    TIER_NOTE=""
+    EXAMPLES="  - cargo test / cargo nextest
   - npm run check / npm run e2e / npx playwright
   - just check / just verify / just agent-check
   - /check

@@ -6,11 +6,11 @@ Provides smooth RGB palette computation that interpolates between time-of-day ke
 
 ## Why a sibling crate
 
-The palette logic is presentation-layer infrastructure shared by every UI surface. It depends only on `parish-config` (for `PaletteConfig`), and has no game-state dependencies. Keeping it as a sibling crate (rather than a module of `parish-world`) signals that it is *not* world state — it's a derived view of world state used by renderers.
+The palette logic is presentation-layer infrastructure shared by every UI surface. It depends only on `parish-config` (for `PaletteConfig`), and has no game-state dependencies. Keeping it as a sibling crate (rather than a module of `parish-world`) signals that it is _not_ world state — it's a derived view of world state used by renderers.
 
 ## Pipeline
 
-```
+```text
 parish-config::PaletteConfig (tuning) ──► parish-palette::compute_palette()
                                                      │
                                                      ▼

@@ -6,6 +6,7 @@ are hand-authored. Plain-script convention (matches test_grade.py):
 
     python3 rundale-bench/test_phase1.py
 """
+
 from __future__ import annotations
 
 import argparse
@@ -68,8 +69,15 @@ def _records():
 
 
 def _args():
-    return argparse.Namespace(suite="v1", split="dev", limit=None, tier=None,
-                              judge="judge_sonnet_v1", model_id="stub-model", provider_id="simulator")
+    return argparse.Namespace(
+        suite="v1",
+        split="dev",
+        limit=None,
+        tier=None,
+        judge="judge_sonnet_v1",
+        model_id="stub-model",
+        provider_id="simulator",
+    )
 
 
 def _assert_raises(exc, fn):
@@ -132,7 +140,9 @@ def test_cache_key_sensitive_to_each_input():
 def test_dialogue_run_writes_bundle():
     with sandbox(), stub_call_chat("Aye, a chroí, rest now."):
         judge = rb.load_judge("judge_sonnet_v1", "v1")
-        data = rb.run_dialogue_bundled(rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge)
+        data = rb.run_dialogue_bundled(
+            rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge
+        )
         pending = jb.list_pending()
         assert len(pending) == 1
         bundle = jb.read_json(pending[0])
@@ -149,9 +159,17 @@ def test_cache_hit_skips_requeue():
         judge = rb.load_judge("judge_sonnet_v1", "v1")
         for rec in _records():
             key = cache.cache_key(rec["id"], reply, judge["rubric_sha256"], judge["model"])
-            cache.put(key, {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0,
-                            "flags": {"non_latin_detected": False, "refused": False, "judge_retry": False}})
-        data = rb.run_dialogue_bundled(rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge)
+            cache.put(
+                key,
+                {
+                    "axes": {a: 4 for a in jb.AXES},
+                    "overall": 4.0,
+                    "flags": {"non_latin_detected": False, "refused": False, "judge_retry": False},
+                },
+            )
+        data = rb.run_dialogue_bundled(
+            rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge
+        )
         assert data["summary"]["cache_hits"] == 2
         assert data["summary"]["bundles_queued"] == 0
         assert jb.list_pending() == []
@@ -163,18 +181,26 @@ def test_ingest_stores_and_refreshes():
     reply = "Aye, a chroí, rest now."
     with sandbox() as tmp, stub_call_chat(reply):
         judge = rb.load_judge("judge_sonnet_v1", "v1")
-        data = rb.run_dialogue_bundled(rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge)
+        data = rb.run_dialogue_bundled(
+            rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge
+        )
         run_path = tmp / "artifacts" / "run_stub_dialogue_TEST.json"
         run_path.write_text(json.dumps({"slices": {"dialogue": data}}), encoding="utf-8")
 
         pending = jb.list_pending()[0]
         bundle = jb.read_json(pending)
         result = {
-            "version": 1, "slice": "dialogue", "rubric_sha256": bundle["rubric_sha256"],
+            "version": 1,
+            "slice": "dialogue",
+            "rubric_sha256": bundle["rubric_sha256"],
             "items": [
-                {"prompt_id": it["prompt_id"], "axes": {a: 4 for a in jb.AXES}, "overall": 4.0,
-                 "rationales": {a: "ok" for a in jb.AXES},
-                 "flags": {"non_latin_detected": False, "refused": False}}
+                {
+                    "prompt_id": it["prompt_id"],
+                    "axes": {a: 4 for a in jb.AXES},
+                    "overall": 4.0,
+                    "rationales": {a: "ok" for a in jb.AXES},
+                    "flags": {"non_latin_detected": False, "refused": False},
+                }
                 for it in bundle["items"]
             ],
         }
@@ -193,14 +219,19 @@ def test_ingest_stores_and_refreshes():
 def test_ingest_finalize_errors_on_pending():
     with sandbox(), stub_call_chat("Aye."):
         judge = rb.load_judge("judge_sonnet_v1", "v1")
-        rb.run_dialogue_bundled(rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge)
+        rb.run_dialogue_bundled(
+            rb.parse_target("stub@http://x/v1"), _records(), rb.CostTracker(), _args(), judge
+        )
         _assert_raises(SystemExit, lambda: rb.cmd_ingest(["--finalize"]))
 
 
 # ── criterion 7: malformed judge output handled, not crashed ─────────────────
 def test_malformed_item_marked_failure():
     bundle = {"rubric_sha256": "x", "items": [{"prompt_id": "p1"}]}
-    result = {"rubric_sha256": "x", "items": [{"prompt_id": "p1", "axes": {"character": 9}, "overall": 4.0}]}
+    result = {
+        "rubric_sha256": "x",
+        "items": [{"prompt_id": "p1", "axes": {"character": 9}, "overall": 4.0}],
+    }
     valid, failed = jb.validate_result(result, bundle)
     assert valid == []
     assert len(failed) == 1 and failed[0]["axes"] is None
@@ -209,8 +240,10 @@ def test_malformed_item_marked_failure():
 
 def test_rubric_mismatch_rejects_whole_result():
     bundle = {"rubric_sha256": "aaa", "items": [{"prompt_id": "p1"}]}
-    result = {"rubric_sha256": "bbb", "items": [
-        {"prompt_id": "p1", "axes": {a: 4 for a in jb.AXES}, "overall": 4.0}]}
+    result = {
+        "rubric_sha256": "bbb",
+        "items": [{"prompt_id": "p1", "axes": {a: 4 for a in jb.AXES}, "overall": 4.0}],
+    }
     valid, failed = jb.validate_result(result, bundle)
     assert valid == [] and len(failed) == 1
     assert "rubric_sha256 mismatch" in failed[0]["error"]
@@ -230,8 +263,10 @@ def test_extract_json_tolerates_prose_and_fences():
 
 def test_dropped_prompt_is_failure():
     bundle = {"rubric_sha256": "x", "items": [{"prompt_id": "p1"}, {"prompt_id": "p2"}]}
-    result = {"rubric_sha256": "x", "items": [
-        {"prompt_id": "p1", "axes": {a: 4 for a in jb.AXES}, "overall": 4.0}]}
+    result = {
+        "rubric_sha256": "x",
+        "items": [{"prompt_id": "p1", "axes": {a: 4 for a in jb.AXES}, "overall": 4.0}],
+    }
     valid, failed = jb.validate_result(result, bundle)
     assert len(valid) == 1
     assert any(f["prompt_id"] == "p2" for f in failed)
@@ -249,9 +284,9 @@ def test_skills_exist_with_headings():
     assert "judge_sonnet_v1.system.md" in inner_txt and "JSON" in inner_txt
 
 
-# ── criterion 9: legacy qwen path untouched (additive refactor) ──────────────
-def test_legacy_qwen_judge_not_subagent():
-    assert rb._judge_is_subagent(rb.load_judge("judge_v1", "v1")) is False
+# (Removed test_legacy_qwen_judge_not_subagent: the legacy `judge_v1.json`
+# config it loaded was deleted in #1149 "enforce Sonnet-subagent as only valid
+# judge path". The test referenced a config that no longer exists by design.)
 
 
 def main() -> int:

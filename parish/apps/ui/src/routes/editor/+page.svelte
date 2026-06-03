@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { editorListMods } from '$lib/editor-ipc';
 	import {
 		editorMods,
 		editorSnapshot,
 		editorTab,
 		editorDirty,
-		editorValidation,
 		editorIssueCount,
 		editorSelectedNpcId,
 		editorSelectedLocationId
@@ -51,7 +51,7 @@
 
 <div class="editor-page" data-testid="editor-page">
 	<div class="editor-header">
-		<a href="/" class="back-link">&larr; Game</a>
+		<a href={resolve('/')} class="back-link">&larr; Game</a>
 		<h1 class="editor-title">Parish Designer</h1>
 		{#if snap}
 			<span class="mod-name">{snap.manifest.name} v{snap.manifest.version}</span>
@@ -62,7 +62,7 @@
 	</div>
 
 	<div class="tab-bar">
-		{#each tabs as t}
+		{#each tabs as t (t.id)}
 			<button
 				class="tab-btn"
 				class:active={tab === t.id}

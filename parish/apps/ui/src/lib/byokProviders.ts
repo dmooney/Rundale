@@ -53,14 +53,14 @@ export function toByokMeta(p: AvailableProviderInfo): ByokProviderMeta {
 		blurb: p.blurb ?? '',
 		signupUrl: safeSignupUrl(p.signup_url),
 		needsBaseUrl: p.needs_base_url,
-		keyless: p.keyless
+		keyless: p.keyless,
 	};
 }
 
 export function findProvider(
 	id: string,
 	featured: ByokProviderMeta[],
-	other: ByokProviderMeta[]
+	other: ByokProviderMeta[],
 ): ByokProviderMeta | undefined {
 	return [...featured, ...other].find((p) => p.id === id);
 }
@@ -82,7 +82,7 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		blurb: "Claude — the engine's native dialogue partner.",
 		signupUrl: 'https://console.anthropic.com/settings/keys',
 		needsBaseUrl: false,
-		keyless: false
+		keyless: false,
 	},
 	{
 		id: 'openai',
@@ -90,7 +90,7 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		blurb: 'GPT-class models, broadest tooling.',
 		signupUrl: 'https://platform.openai.com/api-keys',
 		needsBaseUrl: false,
-		keyless: false
+		keyless: false,
 	},
 	{
 		id: 'openrouter',
@@ -98,7 +98,7 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		blurb: 'One key, dozens of model providers.',
 		signupUrl: 'https://openrouter.ai/keys',
 		needsBaseUrl: false,
-		keyless: false
+		keyless: false,
 	},
 	{
 		id: 'groq',
@@ -106,7 +106,7 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		blurb: 'Fast tokens, generous free tier.',
 		signupUrl: 'https://console.groq.com/keys',
 		needsBaseUrl: false,
-		keyless: false
+		keyless: false,
 	},
 	{
 		id: 'google',
@@ -114,6 +114,6 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		blurb: 'Free tier with quota — Gemini family.',
 		signupUrl: 'https://aistudio.google.com/app/apikey',
 		needsBaseUrl: false,
-		keyless: false
-	}
+		keyless: false,
+	},
 ];

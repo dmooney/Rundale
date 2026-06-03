@@ -10,7 +10,9 @@ import type { TileSource } from '$lib/types';
  * component.
  */
 export function subscribeTileSource(
-	getController: () => { setTileSource: (source: TileSource | undefined) => void } | null,
+	getController: () => {
+		setTileSource: (source: TileSource | undefined) => void;
+	} | null,
 ): () => void {
 	return tiles.subscribe((state) => {
 		const controller = getController();

@@ -22,6 +22,7 @@ you can pipe it into `add_relative_to.py`:
 
 Assumes cwd is the repo root and the baseline commit is reachable from HEAD.
 """
+
 import argparse
 import json
 import math
@@ -33,12 +34,7 @@ def offsets_m(anchor_lat, anchor_lon, point_lat, point_lon):
     """Return (dnorth_m, deast_m) from anchor to point using WGS-84 ENU."""
     R = 6_371_000.0
     dnorth = (point_lat - anchor_lat) * (math.pi / 180) * R
-    deast = (
-        (point_lon - anchor_lon)
-        * (math.pi / 180)
-        * R
-        * math.cos(math.radians(anchor_lat))
-    )
+    deast = (point_lon - anchor_lon) * (math.pi / 180) * R * math.cos(math.radians(anchor_lat))
     return dnorth, deast
 
 
@@ -82,7 +78,7 @@ def main():
         )
         sys.exit(1)
 
-    baseline = {l["id"]: l for l in json.loads(baseline_text)["locations"]}
+    baseline = {loc["id"]: loc for loc in json.loads(baseline_text)["locations"]}
 
     if args.anchor_id not in baseline:
         print(

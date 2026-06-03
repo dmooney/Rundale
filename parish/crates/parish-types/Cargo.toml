@@ -7,11 +7,10 @@ publish = false
 description = "Foundational shared types for the Parish engine (zero internal deps)"
 
 [dependencies]
-serde      = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
-chrono     = { workspace = true }
-thiserror  = { workspace = true }
-tokio      = { workspace = true, features = ["sync"] }
-rand       = { workspace = true }
-tracing    = { workspace = true }
-
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+rand = { workspace = true }
+tracing = { workspace = true }

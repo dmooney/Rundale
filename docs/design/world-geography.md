@@ -38,6 +38,7 @@ Used for period accuracy, atmosphere, and verifying that generated location data
 #### Raw GIS data — free downloads
 
 **GSI Goldmine / geologicalmaps.net (best available)**
+
 - The Geological Survey of Ireland's 1-inch historical sheets drawn on the same OS base survey as the 6-inch maps, covering all of Ireland
 - Free TIFF downloads per sheet; CC Attribution 4.0 license; ~450,000-page archive
 - The geological overlay is secondary — the base layer shows roads, settlements, drainage, townlands, and parish names, making these genuine 19th-century topographic sources
@@ -45,24 +46,28 @@ Used for period accuracy, atmosphere, and verifying that generated location data
 - Full archive (reports + maps): https://secure.decc.gov.ie/goldmine/index.html
 
 **irelandmapped.ie — OS200 Project (launched June 2024)**
+
 - Open-access digital archive from University of Limerick + Queen's University Belfast, funded by the Irish Research Council / AHRC
 - Connects First Edition 6-inch maps (surveyed 1829–1842) with OS Memoirs, Letters, and Name Books
 - Shapefile download confirmed; ArcGIS and OpenLayers integration; IIIF image links
 - https://www.irelandmapped.ie
 
 **David Rumsey Map Collection**
+
 - Has 19th-century Ireland coverage including the Railway Commissioners' map
 - Built-in georeferencing tool; export any map as GeoTIFF directly from the website
 - Thinner Irish coverage than UK but free and accessible
 - https://www.davidrumsey.com (search "Ireland")
 
 **OpenHistoricalMap**
+
 - OSM-format vector data with date-tagged historical features; daily planet dump on Amazon S3
 - Overpass API available for spatial queries by bounding box + date range
 - Ireland 1800s coverage is sparse (volunteer-traced); worth querying before investing
 - https://www.openhistoricalmap.org
 
 **British Library Mechanical Curator → Wikimedia Commons**
+
 - The BL digitized ~1 million images from 19th-century books; a georeferencing project has worked through the Ireland-relevant subset
 - Individual high-res scans available; coverage is map-by-map rather than systematic
 - Category: https://commons.wikimedia.org/wiki/Category:19th-century_maps_of_Ireland
@@ -91,12 +96,12 @@ The world is a **graph of location nodes**, not a continuous coordinate grid.
 
 ### Resolution by Distance
 
-| Area             | Detail Level                          |
-|------------------|---------------------------------------|
-| Starting parish  | ~30-50 location nodes (dense, intimate) |
-| Roscommon town   | ~10 nodes (visitor-level detail)      |
-| Galway/Athlone   | Sparse                                |
-| Dublin/Cork      | ~5 nodes (you're a stranger here)     |
+| Area            | Detail Level                            |
+| --------------- | --------------------------------------- |
+| Starting parish | ~30-50 location nodes (dense, intimate) |
+| Roscommon town  | ~10 nodes (visitor-level detail)        |
+| Galway/Athlone  | Sparse                                  |
+| Dublin/Cork     | ~5 nodes (you're a stranger here)       |
 
 ### Location Properties
 

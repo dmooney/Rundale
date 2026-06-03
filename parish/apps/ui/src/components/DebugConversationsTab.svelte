@@ -10,7 +10,7 @@
 	{#if snap.conversations.exchanges.length === 0}
 		<div class="field muted">(no exchanges)</div>
 	{:else}
-		{#each [...snap.conversations.exchanges].reverse() as ex}
+		{#each [...snap.conversations.exchanges].reverse() as ex, i (ex.timestamp + "#" + i)}
 			<div class="conv-entry">
 				<div class="field muted">[{ex.timestamp}] @ {ex.location_name}<BugChip kind="conversation" label={`${ex.speaker_name} @ ${ex.timestamp}`} detail={ex} /></div>
 				<div class="field">Player: {ex.player_input}</div>

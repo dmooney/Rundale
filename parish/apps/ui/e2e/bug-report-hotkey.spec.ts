@@ -13,12 +13,16 @@ import { test, expect } from './fixtures';
 // navigates to '/', and waits for network idle — the same setup every other
 // e2e spec uses. Aliasing it to `page` keeps the bodies below unchanged.
 test.describe('Bug report modal — hotkey isolation', () => {
-	test('typing "m" in the description does not open the map', async ({ parishPage: page }) => {
+	test('typing "m" in the description does not open the map', async ({
+		parishPage: page,
+	}) => {
 		// Open the bug-report modal from the status-bar 🐛 button.
 		const bugButton = page.locator('.bug-toggle');
 		await expect(bugButton).toBeVisible();
 		await bugButton.click();
-		await expect(page.locator('[data-testid="bug-report-modal"]')).toBeVisible({ timeout: 10_000 });
+		await expect(page.locator('[data-testid="bug-report-modal"]')).toBeVisible({
+			timeout: 10_000,
+		});
 		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
 
 		// Type text containing "m"/"M" into the description textarea.
@@ -32,10 +36,14 @@ test.describe('Bug report modal — hotkey isolation', () => {
 		await expect(description).toHaveValue('Map breaks when I press m');
 	});
 
-	test('"m" still toggles the map when not typing in a field', async ({ parishPage: page }) => {
+	test('"m" still toggles the map when not typing in a field', async ({
+		parishPage: page,
+	}) => {
 		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
 		// Ensure focus is not in any input/textarea.
-		await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+		await page.evaluate(() =>
+			(document.activeElement as HTMLElement | null)?.blur(),
+		);
 		await page.keyboard.press('m');
 		await expect(page.locator('[data-testid="full-map"]')).toBeVisible();
 	});

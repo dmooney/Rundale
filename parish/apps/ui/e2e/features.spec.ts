@@ -7,9 +7,11 @@ import { test, expect, installTauriMock, emitEvent } from './fixtures';
 async function pressKey(page: import('@playwright/test').Page, key: string) {
 	await page.evaluate(
 		({ key }) => {
-			window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+			window.dispatchEvent(
+				new KeyboardEvent('keydown', { key, bubbles: true }),
+			);
 		},
-		{ key }
+		{ key },
 	);
 }
 
@@ -37,7 +39,16 @@ test.describe('Debug panel', () => {
 		const debugPanel = page.locator('[data-testid="debug-panel"]');
 		const tabButtons = debugPanel.locator('.tab-btn');
 
-		const tabs = ['Overview', 'NPCs', 'World', 'Weather', 'Gossip', 'Conv', 'Events', 'Inference'];
+		const tabs = [
+			'Overview',
+			'NPCs',
+			'World',
+			'Weather',
+			'Gossip',
+			'Conv',
+			'Events',
+			'Inference',
+		];
 		for (let i = 0; i < tabs.length; i++) {
 			await tabButtons.nth(i).click();
 			await expect(tabButtons.nth(i)).toHaveClass(/active/);
@@ -176,7 +187,9 @@ test.describe('Sidebar toggle', () => {
 	});
 
 	test('sidebar shows language hints on load', async ({ page }) => {
-		await expect(page.getByTestId('sidebar').getByText('Baile Átha Cliath')).toBeVisible();
+		await expect(
+			page.getByTestId('sidebar').getByText('Baile Átha Cliath'),
+		).toBeVisible();
 		await expect(page.getByText('[EE-fa]')).toBeVisible();
 	});
 });
@@ -188,17 +201,19 @@ test.describe('Reactions', () => {
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('reaction bar appears for NPC messages with reactions', async ({ page }) => {
+	test('reaction bar appears for NPC messages with reactions', async ({
+		page,
+	}) => {
 		await emitEvent(page, 'text-log', {
 			id: 'npc-msg-1',
 			source: 'Séamas Ó Briain',
-			content: 'Welcome to the tavern!'
+			content: 'Welcome to the tavern!',
 		});
 
 		await emitEvent(page, 'npc-reaction', {
 			message_id: 'npc-msg-1',
 			emoji: '\u{1F44D}',
-			source: 'player'
+			source: 'player',
 		});
 
 		const reactionBar = page.locator('[data-testid="reaction-bar"]');
@@ -210,7 +225,7 @@ test.describe('Reactions', () => {
 		await emitEvent(page, 'text-log', {
 			id: 'npc-msg-2',
 			source: 'Séamas Ó Briain',
-			content: 'Good day to you!'
+			content: 'Good day to you!',
 		});
 
 		const bubbleAnchor = page.locator('.bubble-anchor').first();

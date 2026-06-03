@@ -14,12 +14,14 @@ via `<judge-id>.json` files alongside the slices; every judge grader
 verifies `rubric_sha256` against `hashlib.sha256(judge["rubric"].encode())`
 and raises `RuntimeError` on drift.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import re
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
@@ -37,7 +39,7 @@ def _strip_json_fence(text: str) -> str:
     m = _JSON_FENCE_RE.match(t)
     if m is None:
         return t
-    inner = t[m.end():]
+    inner = t[m.end() :]
     if inner.endswith("```"):
         inner = inner[: -len("```")]
     return inner.strip()
@@ -55,7 +57,7 @@ _DIALOGUE_KEY_RE = re.compile(
 )
 
 
-def _extract_dialogue_field_heuristic(text: str) -> Optional[str]:
+def _extract_dialogue_field_heuristic(text: str) -> str | None:
     m = _DIALOGUE_KEY_RE.match(text)
     if m is None:
         return None
@@ -172,14 +174,14 @@ def extract_dialogue_for_judging(reply: str) -> str:
     return reply
 
 
-def _tokens(s: Optional[str]) -> set[str]:
+def _tokens(s: str | None) -> set[str]:
     if not s:
         return set()
     cleaned = _WORD_RE.sub(" ", s.lower())
     return {t for t in cleaned.split() if t}
 
 
-def _jaccard(a: Optional[str], b: Optional[str]) -> float:
+def _jaccard(a: str | None, b: str | None) -> float:
     """None vs None → 1.0; None vs string → 0.0; else token-set Jaccard."""
     if a is None and b is None:
         return 1.0
@@ -195,6 +197,7 @@ def _jaccard(a: Optional[str], b: Optional[str]) -> float:
 # ---------------------------------------------------------------------------
 # intent slice — deterministic
 # ---------------------------------------------------------------------------
+
 
 def grade_intent(pred: dict, gold: dict) -> dict:
     """Score one intent prediction against gold.
@@ -219,6 +222,7 @@ def grade_intent(pred: dict, gold: dict) -> dict:
 # ---------------------------------------------------------------------------
 # schema validation — hand-rolled, supports the subset rundale-bench uses
 # ---------------------------------------------------------------------------
+
 
 def _validate(value: Any, schema: dict, path: str = "$") -> list[str]:
     errors: list[str] = []
@@ -247,12 +251,13 @@ def _validate(value: Any, schema: dict, path: str = "$") -> list[str]:
             if key in props:
                 errors.extend(_validate(val, props[key], f"{path}.{key}"))
 
-    if (t == "array" or (isinstance(t, list) and "array" in t and isinstance(value, list))):
-        if isinstance(value, list):
-            item_schema = schema.get("items")
-            if item_schema:
-                for i, item in enumerate(value):
-                    errors.extend(_validate(item, item_schema, f"{path}[{i}]"))
+    if (
+        t == "array" or (isinstance(t, list) and "array" in t and isinstance(value, list))
+    ) and isinstance(value, list):
+        item_schema = schema.get("items")
+        if item_schema:
+            for i, item in enumerate(value):
+                errors.extend(_validate(item, item_schema, f"{path}[{i}]"))
 
     return errors
 
@@ -296,6 +301,7 @@ def grade_schema(pred: Any, schema: dict) -> dict:
 # ---------------------------------------------------------------------------
 # judge-backed graders (Phase 3+)
 # ---------------------------------------------------------------------------
+
 
 def verify_judge_rubric(judge: dict) -> None:
     """Raise if rubric_sha256 doesn't match hash of the rubric text.
@@ -371,17 +377,21 @@ def grade_dialogue(reply: str, judge: dict, invoke: Callable[..., dict]) -> dict
                 "craft": {"type": "integer"},
                 "overall": {"type": "number"},
             },
-            "required": ["character", "authenticity", "language", "responsiveness", "craft", "overall"],
+            "required": [
+                "character",
+                "authenticity",
+                "language",
+                "responsiveness",
+                "craft",
+                "overall",
+            ],
         },
     }
     # Judge scores the dialogue the player sees, not the raw envelope.
     # `_non_latin` still scans the full reply so script leaks anywhere
     # in the model's output are still flagged.
     dialogue = extract_dialogue_for_judging(reply)
-    user = (
-        "Reply to judge — score the candidate label `Model X` only:\n\n"
-        f"Model X: {dialogue}\n"
-    )
+    user = f"Reply to judge — score the candidate label `Model X` only:\n\nModel X: {dialogue}\n"
     nl = _non_latin(reply)
     try:
         scores = invoke(judge["rubric"], user, schema)
@@ -398,8 +408,12 @@ def grade_dialogue(reply: str, judge: dict, invoke: Callable[..., dict]) -> dict
         }
     except Exception as e:
         return {
-            "character": 0, "authenticity": 0, "language": 0,
-            "responsiveness": 0, "craft": 0, "overall": 0.0,
+            "character": 0,
+            "authenticity": 0,
+            "language": 0,
+            "responsiveness": 0,
+            "craft": 0,
+            "overall": 0.0,
             "non_latin_chars": nl,
             "error": str(e),
         }
@@ -412,8 +426,11 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
     length_ok = 5 <= len(reply.strip()) <= 400
     if nl or not length_ok:
         return {
-            "schema_valid": True, "in_character": 0,
-            "length_ok": length_ok, "non_latin_chars": nl, "score": 0.0,
+            "schema_valid": True,
+            "in_character": 0,
+            "length_ok": length_ok,
+            "non_latin_chars": nl,
+            "score": 0.0,
         }
     schema = {
         "name": "reaction_score",
@@ -432,15 +449,20 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
             raise ValueError(f"judge returned non-dict: {type(scores).__name__}")
         ic = int(scores.get("in_character") or 0)
         return {
-            "schema_valid": True, "in_character": ic,
-            "length_ok": length_ok, "non_latin_chars": nl,
+            "schema_valid": True,
+            "in_character": ic,
+            "length_ok": length_ok,
+            "non_latin_chars": nl,
             "score": ic / 5.0,
         }
     except Exception as e:
         return {
-            "schema_valid": True, "in_character": 0,
-            "length_ok": length_ok, "non_latin_chars": nl,
-            "score": 0.0, "error": str(e),
+            "schema_valid": True,
+            "in_character": 0,
+            "length_ok": length_ok,
+            "non_latin_chars": nl,
+            "score": 0.0,
+            "error": str(e),
         }
 
 
@@ -464,9 +486,17 @@ def grade_pairwise(
     nl_a = _non_latin(reply_a)
     nl_b = _non_latin(reply_b)
     if nl_a and not nl_b:
-        return {"winner": "B", "reason": f"reply A contains non-Latin: {list(nl_a)}", "auto_disqualified": "A"}
+        return {
+            "winner": "B",
+            "reason": f"reply A contains non-Latin: {list(nl_a)}",
+            "auto_disqualified": "A",
+        }
     if nl_b and not nl_a:
-        return {"winner": "A", "reason": f"reply B contains non-Latin: {list(nl_b)}", "auto_disqualified": "B"}
+        return {
+            "winner": "A",
+            "reason": f"reply B contains non-Latin: {list(nl_b)}",
+            "auto_disqualified": "B",
+        }
 
     schema = {
         "name": "pairwise_judgment",

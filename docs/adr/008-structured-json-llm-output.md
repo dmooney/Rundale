@@ -32,7 +32,7 @@ All LLM responses use **structured JSON schemas** enforced via prompt engineerin
   "mood": "current emotional state",
   "internal_thought": "what they're actually thinking (hidden from player)",
   "knowledge_gained": ["any new information learned"],
-  "relationship_changes": [{"npc_id": "...", "delta": 0.0}]
+  "relationship_changes": [{ "npc_id": "...", "delta": 0.0 }]
 }
 ```
 

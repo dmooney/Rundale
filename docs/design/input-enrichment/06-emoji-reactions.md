@@ -10,20 +10,20 @@ Three reaction flows: (1) player reacts to NPC messages with emoji, (2) NPCs rea
 
 Period-appropriate gestures mapped to emoji. The UI shows emoji but NPC context receives natural language:
 
-| Emoji | NPC sees | Keyboard shortcut |
-|-------|----------|-------------------|
-| 😊 | "smiled warmly" | 1 |
-| 😠 | "looked angry" | 2 |
-| 😢 | "looked sorrowful" | 3 |
-| 😳 | "looked startled" | 4 |
-| 🤔 | "looked thoughtful" | 5 |
-| 😏 | "smirked knowingly" | 6 |
-| 👀 | "raised an eyebrow" | 7 |
-| 🤫 | "made a hushing gesture" | 8 |
-| 😂 | "laughed heartily" | 9 |
-| 🙄 | "rolled their eyes" | 0 |
-| 🍺 | "raised a glass" | - |
-| ✝️ | "crossed themselves" | = |
+| Emoji | NPC sees                 | Keyboard shortcut |
+| ----- | ------------------------ | ----------------- |
+| 😊    | "smiled warmly"          | 1                 |
+| 😠    | "looked angry"           | 2                 |
+| 😢    | "looked sorrowful"       | 3                 |
+| 😳    | "looked startled"        | 4                 |
+| 🤔    | "looked thoughtful"      | 5                 |
+| 😏    | "smirked knowingly"      | 6                 |
+| 👀    | "raised an eyebrow"      | 7                 |
+| 🤫    | "made a hushing gesture" | 8                 |
+| 😂    | "laughed heartily"       | 9                 |
+| 🙄    | "rolled their eyes"      | 0                 |
+| 🍺    | "raised a glass"         | -                 |
+| ✝️    | "crossed themselves"     | =                 |
 
 This palette is defined as shared data, used by both frontend and backend.
 
@@ -34,8 +34,8 @@ This palette is defined as shared data, used by both frontend and backend.
 
 export interface ReactionDef {
   emoji: string;
-  description: string;  // what the NPC sees
-  key: string;           // keyboard shortcut (for reaction picker)
+  description: string; // what the NPC sees
+  key: string; // keyboard shortcut (for reaction picker)
 }
 
 export const REACTION_PALETTE: ReactionDef[] = [
@@ -177,7 +177,9 @@ Add hover state and reaction picker per NPC message:
   cursor: pointer;
   border-radius: 4px;
   line-height: 1;
-  transition: transform 0.1s, background 0.1s;
+  transition:
+    transform 0.1s,
+    background 0.1s;
 }
 
 .reaction-btn:hover {
@@ -216,14 +218,14 @@ Add hover state and reaction picker per NPC message:
 
 interface Reaction {
   emoji: string;
-  source: string;  // "player" or NPC name
+  source: string; // "player" or NPC name
 }
 
 interface TextLogEntry {
   source: string;
   content: string;
   streaming?: boolean;
-  reactions?: Reaction[];   // NEW
+  reactions?: Reaction[]; // NEW
 }
 ```
 
@@ -243,12 +245,12 @@ When the player reacts, optimistically add the reaction to the local store immed
 
 ```typescript
 // In the reactToMessage wrapper or a store action:
-textLog.update(log => {
+textLog.update((log) => {
   const entry = log[messageIndex];
   if (entry) {
     const reactions = entry.reactions ?? [];
     // Replace existing player reaction (one per message) or add
-    const existing = reactions.findIndex(r => r.source === 'player');
+    const existing = reactions.findIndex((r) => r.source === 'player');
     if (existing >= 0) {
       reactions[existing] = { emoji, source: 'player' };
     } else {
@@ -353,7 +355,7 @@ New event listener in `+page.svelte`:
 
 ```typescript
 onEvent('npc-reaction', (payload: NpcReactionPayload) => {
-  textLog.update(log => {
+  textLog.update((log) => {
     const entry = log[payload.message_index];
     if (entry) {
       const reactions = entry.reactions ?? [];
@@ -503,7 +505,7 @@ Assign each `TextLogEntry` a unique ID on creation:
 
 ```typescript
 interface TextLogEntry {
-  id: string;             // NEW: unique ID (e.g., crypto.randomUUID())
+  id: string; // NEW: unique ID (e.g., crypto.randomUUID())
   source: string;
   content: string;
   streaming?: boolean;
@@ -527,7 +529,7 @@ Now reactions reference `message_id` instead of an index — robust against log 
 
 ## Data Flow — Complete Example
 
-```
+```text
 1. NPC says something:
    Backend emits: text-log { id: "abc-123", source: "Padraig", content: "The rent was raised..." }
    Frontend: textLog gets new entry with id "abc-123"
@@ -554,28 +556,28 @@ Now reactions reference `message_id` instead of an index — robust against log 
 
 ## Phased Implementation
 
-| Phase | Scope | Effort |
-|-------|-------|--------|
-| **Phase 1** | Player → NPC reactions (hover picker, context injection) | Medium |
-| **Phase 2** | NPC → Player reactions (rule-based, keyword matching) | Low |
-| **Phase 3** | NPC → NPC reactions (Tier 2 integration) | Medium |
-| **Phase 4** | LLM-generated NPC reactions (structured output extension) | Low |
+| Phase       | Scope                                                     | Effort |
+| ----------- | --------------------------------------------------------- | ------ |
+| **Phase 1** | Player → NPC reactions (hover picker, context injection)  | Medium |
+| **Phase 2** | NPC → Player reactions (rule-based, keyword matching)     | Low    |
+| **Phase 3** | NPC → NPC reactions (Tier 2 integration)                  | Medium |
+| **Phase 4** | LLM-generated NPC reactions (structured output extension) | Low    |
 
 Phase 1 is the most impactful — it gives the player a new input modality. Phases 2-4 add life to the room.
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| React to own message | Not supported — picker only appears on NPC messages |
-| React to system message | Not supported — picker only for NPC bubbles |
-| Multiple reactions from player | One reaction per message; re-clicking replaces |
-| React during streaming | Picker doesn't appear on the streaming message (incomplete) |
-| NPC reacts to old message | Index/ID valid as long as message is in textLog; silently ignored if not found |
-| Reaction to whispered message | Allowed (only target NPC's context affected) |
-| Many NPCs react simultaneously | All reactions render in the reaction bar; may wrap to multiple lines |
-| NPC reaction generation latency | Rule-based is instant; LLM-based emitted after brief delay |
-| Save/load with reactions | ReactionLog on NPCs is serialized; textLog reactions are ephemeral (session-only) |
+| Case                            | Behavior                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| React to own message            | Not supported — picker only appears on NPC messages                               |
+| React to system message         | Not supported — picker only for NPC bubbles                                       |
+| Multiple reactions from player  | One reaction per message; re-clicking replaces                                    |
+| React during streaming          | Picker doesn't appear on the streaming message (incomplete)                       |
+| NPC reacts to old message       | Index/ID valid as long as message is in textLog; silently ignored if not found    |
+| Reaction to whispered message   | Allowed (only target NPC's context affected)                                      |
+| Many NPCs react simultaneously  | All reactions render in the reaction bar; may wrap to multiple lines              |
+| NPC reaction generation latency | Rule-based is instant; LLM-based emitted after brief delay                        |
+| Save/load with reactions        | ReactionLog on NPCs is serialized; textLog reactions are ephemeral (session-only) |
 
 ## Testing
 
@@ -603,19 +605,19 @@ Phase 1 is the most impactful — it gives the player a new input modality. Phas
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/lib/reactions.ts` | **New** — reaction palette definitions |
-| `ui/src/lib/types.ts` | Add `Reaction`, `id` to `TextLogEntry`, reaction fields |
-| `ui/src/lib/ipc.ts` | Add `reactToMessage()` command |
-| `ui/src/components/ChatPanel.svelte` | Reaction picker on hover, reaction bar rendering |
-| `ui/src/stores/game.ts` | Handle `npc-reaction` events |
-| `ui/src/routes/+page.svelte` | Wire up `npc-reaction` event listener |
+| File                                      | Change                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `ui/src/lib/reactions.ts`                 | **New** — reaction palette definitions                                           |
+| `ui/src/lib/types.ts`                     | Add `Reaction`, `id` to `TextLogEntry`, reaction fields                          |
+| `ui/src/lib/ipc.ts`                       | Add `reactToMessage()` command                                                   |
+| `ui/src/components/ChatPanel.svelte`      | Reaction picker on hover, reaction bar rendering                                 |
+| `ui/src/stores/game.ts`                   | Handle `npc-reaction` events                                                     |
+| `ui/src/routes/+page.svelte`              | Wire up `npc-reaction` event listener                                            |
 | `crates/parish-core/src/npc/reactions.rs` | **New** — ReactionDef, ReactionLog, reaction_description, generate_rule_reaction |
-| `crates/parish-core/src/npc/mod.rs` | Add `reaction_log: ReactionLog` to `Npc` struct |
-| `crates/parish-core/src/npc/ticks.rs` | Inject reaction context into enhanced context |
-| `crates/parish-core/src/ipc/types.rs` | Add `NpcReactionPayload`, `id` to `TextLogPayload` |
-| `crates/parish-server/src/routes.rs` | Add `react_to_message` handler, NPC reaction generation in conversation flow |
+| `crates/parish-core/src/npc/mod.rs`       | Add `reaction_log: ReactionLog` to `Npc` struct                                  |
+| `crates/parish-core/src/npc/ticks.rs`     | Inject reaction context into enhanced context                                    |
+| `crates/parish-core/src/ipc/types.rs`     | Add `NpcReactionPayload`, `id` to `TextLogPayload`                               |
+| `crates/parish-server/src/routes.rs`      | Add `react_to_message` handler, NPC reaction generation in conversation flow     |
 
 ## Effort Estimate
 

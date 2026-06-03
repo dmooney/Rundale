@@ -10,7 +10,7 @@
 </script>
 
 <ul id="mention-listbox" class="mention-dropdown" role="listbox" aria-label="Mention NPC">
-	{#each npcs as npc, i}
+	{#each npcs as npc, i (npc.name)}
 		<li
 			id="mention-option-{i}"
 			role="option"

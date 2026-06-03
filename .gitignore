@@ -1,10 +1,18 @@
 parish/target/
+# Node modules anywhere (root tooling package, ui app, bench site)
+node_modules/
 parish/node_modules/
+# Python dev-tooling virtualenv (ruff/mypy/yamllint/pytest)
+.venv-dev/
 *.swp
 *.swo
 *~
 __pycache__/
 *.py[cod]
+# Python dev-tool caches (pytest/mypy/ruff)
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .env
 *.db
 *.db-journal

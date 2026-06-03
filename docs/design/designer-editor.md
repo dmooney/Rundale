@@ -29,6 +29,7 @@ roadmap for follow-up work.
 What a game designer working on Parish actually needs day-to-day:
 
 **Content authoring**
+
 - Edit NPC fields (name, age, occupation, brief description, personality)
 - Tune NPC intelligence across 6 dimensions with sliders
 - Author seasonal schedules: "who is where at 3pm on a Sunday in winter?"
@@ -43,6 +44,7 @@ What a game designer working on Parish actually needs day-to-day:
 - Edit engine tuning in `parish.toml` (speeds, encounter probs, cognitive tiers)
 
 **Validation & safety**
+
 - Preflight validation: run `WorldGraph::validate()` + cross-reference checks (home/workplace/relationship targets exist)
 - Surface serde errors with file + field paths
 - Deterministic JSON formatting on save so `git diff` stays clean
@@ -50,6 +52,7 @@ What a game designer working on Parish actually needs day-to-day:
 - Undo within a session (at minimum: "reload from disk" as a hard reset)
 
 **Exploration & inspection**
+
 - Switch between mods in `mods/`
 - Browse a save file: branches → snapshots → NPC dynamic state, clock, weather, gossip network, conversation log
 - Dump a snapshot to JSON (seed a test fixture)
@@ -58,11 +61,13 @@ What a game designer working on Parish actually needs day-to-day:
 - Visualize the location graph
 
 **Live iteration**
+
 - Run `GameTestHarness` scripts against unsaved edits (no LLM, no restart)
 - Preview location descriptions with substituted placeholders
 - (Eventually) hot-reload a running game session
 
 **Workflow**
+
 - Content author guide / tooltips explaining each field
 - Duplicate an NPC or location as a template for the next
 - Bulk operations (e.g. "find all NPCs whose workplace is Darcy's Pub")
@@ -91,6 +96,7 @@ the running game loaded from. See "Running-game isolation" in Gotchas for why
 this separation is the single most important architectural rule of the feature.
 
 **Why embed in the existing UI** instead of a separate crate/binary:
+
 - Reuses the IPC abstraction at `apps/ui/src/lib/ipc.ts:29` (one codebase, two transports)
 - Reuses Svelte stores, CSS variable theme, typography, and the paper aesthetic
 - Designers can flip between playing and editing in one window
@@ -100,7 +106,8 @@ this separation is the single most important architectural rule of the feature.
 ## Reusable primitives (use these, don't rebuild)
 
 **Backend**
-- `crates/parish-core/src/game_mod.rs` — `GameMod::load()` is the *reference implementation* for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
+
+- `crates/parish-core/src/game_mod.rs` — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
 - `crates/parish-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `ParishError::WorldGraph(String)`
 - `crates/parish-types/src/error.rs` — `ParishError` enum (use for all editor errors)
 - `crates/parish-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
@@ -109,6 +116,7 @@ this separation is the single most important architectural rule of the feature.
 - `crates/parish-world/src/description.rs::render_description` — reuse for live placeholder preview
 
 **Frontend**
+
 - `apps/ui/src/lib/ipc.ts` — transport-agnostic command/event layer; editor commands reuse the existing `command<T>(...)` helper (line 33)
 - `apps/ui/src/stores/` — Svelte writable store pattern (see `game.ts` for a model; `debug.ts` for the closest analog)
 - `apps/ui/src/components/DebugPanel.svelte` (703 lines) — closest UI analog: tabbed introspection, NPC detail view, expandable sections. Lift its `tab-bar`/`tab-btn` CSS classes verbatim.
@@ -133,7 +141,7 @@ Internally split into three cohesive sub-deliverables that can land sequentially
 
 Create a new module with these files:
 
-```
+```text
 crates/parish-core/src/editor/
 ├── mod.rs              # Re-exports
 ├── types.rs            # DTOs: ModSummary, EditorModSnapshot, ValidationReport, ValidationIssue
@@ -144,6 +152,7 @@ crates/parish-core/src/editor/
 ```
 
 Key types:
+
 - `ModSummary { id, name, title, version, description, path }`
 - `EditorModSnapshot { manifest, npcs, locations, festivals, encounters, anachronisms, pronunciations }`
 - `ValidationReport { errors: Vec<ValidationIssue>, warnings: Vec<ValidationIssue> }`
@@ -158,7 +167,8 @@ hide a working `npcs.json` from the designer. Post-save revalidation uses
 `validate_snapshot`, not `GameMod::load`, for the same reason.
 
 Reuses:
-- `crates/parish-core/src/game_mod.rs:420` `GameMod::load` as a *reference implementation* only
+
+- `crates/parish-core/src/game_mod.rs:420` `GameMod::load` as a _reference implementation_ only
 - `crates/parish-world/src/graph.rs:130` `WorldGraph::validate` (needs to become `pub`)
 - `crates/parish-world/src/description.rs::render_description` for placeholder preview
 - `crates/parish-persistence/src/picker.rs:63` `discover_saves` + `database.rs::list_branches` / `load_latest_snapshot` for the save inspector
@@ -185,20 +195,20 @@ and pure handler functions that call into `editor::*`. No game-state access.
 
 Commands (all pure functions, no game session required):
 
-| Command | Purpose |
-|---|---|
-| `editor_list_mods()` | List directories under `mods/` |
-| `editor_open_mod(path)` | Returns `EditorModSnapshot` with all parsed content |
-| `editor_validate(path)` | Returns `ValidationReport` |
-| `editor_upsert_npc(path, npc)` | Update or insert; returns validation |
-| `editor_delete_npc(path, id)` | Remove by id |
-| `editor_upsert_location(path, loc)` | Update or insert (with auto-bidirectional edges) |
-| `editor_delete_location(path, id)` | Remove (errors if NPCs reference it) |
-| `editor_save_to_disk(path)` | Write dirty docs back with deterministic formatting |
-| `editor_reload_from_disk(path)` | Hard reset to on-disk state |
-| `editor_list_saves()` | Scan save directory for `.db` files |
-| `editor_open_save(path)` | Return list of branches + snapshot metadata |
-| `editor_read_snapshot(path, snap_id)` | Return deserialized `GameSnapshot` JSON |
+| Command                               | Purpose                                             |
+| ------------------------------------- | --------------------------------------------------- |
+| `editor_list_mods()`                  | List directories under `mods/`                      |
+| `editor_open_mod(path)`               | Returns `EditorModSnapshot` with all parsed content |
+| `editor_validate(path)`               | Returns `ValidationReport`                          |
+| `editor_upsert_npc(path, npc)`        | Update or insert; returns validation                |
+| `editor_delete_npc(path, id)`         | Remove by id                                        |
+| `editor_upsert_location(path, loc)`   | Update or insert (with auto-bidirectional edges)    |
+| `editor_delete_location(path, id)`    | Remove (errors if NPCs reference it)                |
+| `editor_save_to_disk(path)`           | Write dirty docs back with deterministic formatting |
+| `editor_reload_from_disk(path)`       | Hard reset to on-disk state                         |
+| `editor_list_saves()`                 | Scan save directory for `.db` files                 |
+| `editor_open_save(path)`              | Return list of branches + snapshot metadata         |
+| `editor_read_snapshot(path, snap_id)` | Return deserialized `GameSnapshot` JSON             |
 
 All commands return `Result<T, String>` (string errors for easy UI display).
 
@@ -219,7 +229,8 @@ All commands return `Result<T, String>` (string errors for easy UI display).
 ### Frontend — `apps/ui/src/`
 
 New files:
-```
+
+```text
 apps/ui/src/
 ├── routes/editor/
 │   ├── +page.svelte                  # Top-level editor shell
@@ -246,6 +257,7 @@ apps/ui/src/
 ```
 
 Modify:
+
 - `apps/ui/src/lib/ipc.ts` — export the internal `command<T>(...)` helper (currently private at line 33) so `editor-ipc.ts` can reuse the same transport logic without duplication
 - `apps/ui/src/routes/+page.svelte` — add a menu entry / keyboard shortcut that `goto('/editor')`s
 
@@ -256,6 +268,7 @@ save inspector's modal/list layout.
 ### Validation semantics
 
 `editor_validate()` should catch:
+
 - All existing `WorldGraph::validate()` failures (orphans, non-bidirectional edges, bad targets)
 - NPC `home` / `workplace` reference a nonexistent location
 - NPC `relationships[].target_id` references a nonexistent NPC
@@ -299,6 +312,7 @@ for minimal code because the underlying functions already exist:
 ### Files to create / modify (Phase 1 checklist)
 
 **Rust — new**
+
 - `crates/parish-core/src/editor/mod.rs`
 - `crates/parish-core/src/editor/types.rs`
 - `crates/parish-core/src/editor/handlers.rs`
@@ -311,6 +325,7 @@ for minimal code because the underlying functions already exist:
 - `crates/parish-server/tests/editor_routes.rs`
 
 **Rust — modify**
+
 - `crates/parish-core/src/lib.rs` — `pub mod editor;`
 - `crates/parish-core/src/ipc/mod.rs` — `pub mod editor;`
 - `crates/parish-npc/src/data.rs:24-36` — make `NpcFile` / `NpcFileEntry` + subtypes `pub` and derive `Serialize` (+ re-export from `parish-npc/src/lib.rs`)
@@ -320,6 +335,7 @@ for minimal code because the underlying functions already exist:
 - `crates/parish-server/src/lib.rs:130` — register editor routes behind `PARISH_ENABLE_EDITOR` gate
 
 **Frontend — new**
+
 - `apps/ui/src/routes/editor/+page.svelte`
 - `apps/ui/src/routes/editor/+page.ts`
 - `apps/ui/src/lib/editor-ipc.ts`
@@ -329,6 +345,7 @@ for minimal code because the underlying functions already exist:
 - `apps/ui/e2e/editor.spec.ts`
 
 **Frontend — modify**
+
 - `apps/ui/src/lib/ipc.ts` — export the internal `command<T>(...)` helper so `editor-ipc.ts` can reuse it
 - `apps/ui/src/routes/+page.svelte` — add a menu entry / shortcut that `goto('/editor')`s
 
@@ -372,27 +389,33 @@ for minimal code because the underlying functions already exist:
 ## Verification
 
 **Backend unit tests** (`cargo test -p parish-core editor::`):
+
 - `validate_snapshot` reports the correct `field_path` for: missing relationship target, missing NPC home, schedule location orphan, non-bidirectional edge, duplicate location id, lat/lon out of range
 - `persist::save_npcs` round-trip: build an `EditorModSnapshot` in a `tempfile::TempDir` → save → re-load with the granular loader → assert equality
 - `format::write_json_deterministic` is idempotent: write twice, bytes are identical
 
 **Upstream schema test** (`cargo test -p parish-npc`):
+
 - Load the real `mods/rundale/npcs.json`, re-serialize via the newly `Serialize`-derived `NpcFile`, deserialize again, assert structural equality (modulo the known reciprocal-relationship reshuffle). This catches drift between editor and game loader — the single most important schema test.
 
 **Integration tests** (`cargo test -p parish-server`):
+
 - New `crates/parish-server/tests/editor_routes.rs`: start an in-process server with a temp mods dir, hit each `/api/editor-*` endpoint, assert JSON shape
 - Assert editor routes return 404 when `PARISH_ENABLE_EDITOR` is unset
 
 **Frontend e2e** (Playwright, `apps/ui/e2e/editor.spec.ts`):
+
 - Against Tauri mocks: navigate to `/editor`, open `rundale`, edit an NPC name, see dirty indicator, save, verify mock IPC payload
 - Trigger a validation error, verify it appears in the validator panel
 - Browse a save snapshot, verify NPC and clock data render
 - Against real `parish --web` (new spec): full happy-path, catches mode parity regressions
 
 **The critical acceptance test (manual, one-shot):**
+
 > **Open `mods/rundale/npcs.json` in the editor, save without changes, run `git diff`. The diff MUST be empty.** Any non-empty diff indicates schema drift — the editor's round-trip is not clean and will silently corrupt source files over time. This invariant must hold before the feature ships.
 
 **Standard checks**
+
 - `just check` (fmt + clippy + tests) — must pass
 - `just verify` — must pass
 - `just ui-check` (svelte-check) — must pass

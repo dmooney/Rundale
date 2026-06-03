@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
@@ -8,7 +9,7 @@
 
 	let logEl: HTMLDivElement;
 	let hoveredMessageId: string | null = $state(null);
-	const pendingReactions = new Set<string>();
+	const pendingReactions = new SvelteSet<string>();
 
 	$effect(() => {
 		const _ = $textLog;
@@ -172,7 +173,7 @@
 				{#if entry.subtype === 'tabular'}
 					{@const rows = parseTabularRows(entry.content)}
 					<div class="tabular-grid">
-						{#each rows as row}
+						{#each rows as row, ri (ri)}
 							{#if row.kind === 'header'}
 								<div class="tabular-header">{row.text}</div>
 							{:else}
@@ -184,7 +185,7 @@
 				{:else if isSplash}
 					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
 				{:else}
-					<span class="content">{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
+					<span class="content">{#each parseEmotes(entry.content) as seg, si (si)}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs, rsi (rsi)}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 				{/if}
 			</div>
 		{:else}
@@ -192,7 +193,6 @@
 			<div class="bubble-row {entryType(entry)}">
 				<div class="bubble-wrapper">
 					<span class="label">{displayLabel(entry)}</span>
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						class="bubble-anchor"
@@ -224,13 +224,13 @@
 					>
 						<div class="bubble">
 							<span class="content"
-								>{#each renderSegments(entry) as seg}{#if seg.animate}{#key seg.animationKey}<span class="stream-chunk" class:emote={seg.isAction}>{seg.text}</span>{/key}{:else if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text, entry.id) as rs}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
+								>{#each renderSegments(entry) as seg, si (si)}{#if seg.animate}{#key seg.animationKey}<span class="stream-chunk" class:emote={seg.isAction}>{seg.text}</span>{/key}{:else if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text, entry.id) as rs, rsi (rsi)}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 						</div>
 
 						<!-- Reaction picker (floats over bubble, NPC messages only) -->
 						{#if hoveredMessageId && hoveredMessageId === entry.id && entryType(entry) === 'npc'}
 							<div class="reaction-picker" role="toolbar" aria-label="React to message" data-testid="reaction-picker">
-								{#each REACTION_PALETTE as reaction}
+								{#each REACTION_PALETTE as reaction (reaction.emoji)}
 									<button
 										type="button"
 										class="reaction-btn"
@@ -248,7 +248,7 @@
 					<!-- Existing reactions -->
 					{#if entry.reactions && entry.reactions.length > 0}
 						<div class="reaction-bar" data-testid="reaction-bar">
-							{#each entry.reactions as r}
+							{#each entry.reactions as r (r.emoji + r.source)}
 								<span class="reaction-badge" title={r.source}>
 									{r.emoji}
 									{#if r.source !== 'player'}

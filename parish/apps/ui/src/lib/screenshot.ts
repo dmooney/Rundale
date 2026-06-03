@@ -20,7 +20,8 @@ import { toPng } from 'html-to-image';
  */
 export async function captureScreen(): Promise<string> {
 	const target =
-		(document.querySelector('.app-shell') as HTMLElement | null) ?? document.body;
+		(document.querySelector('.app-shell') as HTMLElement | null) ??
+		document.body;
 	if (!target) {
 		throw new Error('No DOM target available to screenshot.');
 	}
@@ -31,6 +32,6 @@ export async function captureScreen(): Promise<string> {
 	// and pushed captures past the timeout. `pixelRatio` is capped at 2 so HiDPI
 	// displays (devicePixelRatio 3+) don't multiply the pixels to encode.
 	return await toPng(target, {
-		pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+		pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
 	});
 }

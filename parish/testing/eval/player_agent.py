@@ -71,12 +71,14 @@ def parish_post(path: str, body: dict) -> dict:
 def github_models_complete(messages: list[dict]) -> str:
     if not GITHUB_TOKEN:
         sys.exit("ERROR: GITHUB_TOKEN is not set. Generate a PAT with models:read scope.")
-    payload = json.dumps({
-        "model": PLAYER_MODEL,
-        "messages": messages,
-        "max_tokens": 60,
-        "temperature": 0.8,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": PLAYER_MODEL,
+            "messages": messages,
+            "max_tokens": 60,
+            "temperature": 0.8,
+        }
+    ).encode()
     req = urllib.request.Request(
         GITHUB_MODELS_URL,
         data=payload,
@@ -111,7 +113,9 @@ def build_state_summary(snapshot: dict, npcs: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free: bool) -> list[dict]:
+def run_session(
+    scenario_name: str, scenario_lines: list[str], turns: int, free: bool
+) -> list[dict]:
     """Execute a play session and return the turn log."""
     log = []
     history: list[dict] = []  # conversation history for the player model
@@ -122,8 +126,11 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
     except Exception as e:
         print(f"Warning: could not start new game: {e}", file=sys.stderr)
 
-    scripted = [l.strip() for l in scenario_lines
-                if l.strip() and (not l.strip().startswith("#") or l.strip() == "# llm")]
+    scripted = [
+        ln.strip()
+        for ln in scenario_lines
+        if ln.strip() and (not ln.strip().startswith("#") or ln.strip() == "# llm")
+    ]
     scripted_idx = 0
 
     for turn in range(turns):
@@ -178,18 +185,20 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
             print(f"  Error: {e}", file=sys.stderr)
             result = {"error": str(e)}
 
-        log.append({
-            "turn": turn + 1,
-            "command": command,
-            "llm_generated": is_llm_turn,
-            "state": {
-                "location": snapshot.get("location"),
-                "clock": snapshot.get("clock"),
-                "weather": snapshot.get("weather"),
-                "npc_count": len(npcs),
-            },
-            "result": result,
-        })
+        log.append(
+            {
+                "turn": turn + 1,
+                "command": command,
+                "llm_generated": is_llm_turn,
+                "state": {
+                    "location": snapshot.get("location"),
+                    "clock": snapshot.get("clock"),
+                    "weather": snapshot.get("weather"),
+                    "npc_count": len(npcs),
+                },
+                "result": result,
+            }
+        )
 
         # Brief pause to respect rate limits (on top of the 0.5 s above).
         if is_llm_turn:
@@ -200,14 +209,18 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
 
 def main():
     parser = argparse.ArgumentParser(description="Rundale player agent")
-    parser.add_argument("--scenario", default="smoke",
-                        help="Scenario name (file in testing/eval/scenarios/)")
-    parser.add_argument("--turns", type=int, default=20,
-                        help="Maximum number of turns to play")
-    parser.add_argument("--free", action="store_true",
-                        help="LLM generates every command (ignore scripted lines)")
-    parser.add_argument("--output", default=None,
-                        help="Output JSON path (default: eval/logs/<scenario>-<timestamp>.json)")
+    parser.add_argument(
+        "--scenario", default="smoke", help="Scenario name (file in testing/eval/scenarios/)"
+    )
+    parser.add_argument("--turns", type=int, default=20, help="Maximum number of turns to play")
+    parser.add_argument(
+        "--free", action="store_true", help="LLM generates every command (ignore scripted lines)"
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Output JSON path (default: eval/logs/<scenario>-<timestamp>.json)",
+    )
     args = parser.parse_args()
 
     scenario_path = SCENARIOS_DIR / f"{args.scenario}.txt"
@@ -216,9 +229,11 @@ def main():
 
     scenario_lines = scenario_path.read_text().splitlines()
 
-    print(f"Running scenario '{args.scenario}' for up to {args.turns} turns "
-          f"({'free-play' if args.free else 'scripted+llm'}) "
-          f"with player model {PLAYER_MODEL}")
+    print(
+        f"Running scenario '{args.scenario}' for up to {args.turns} turns "
+        f"({'free-play' if args.free else 'scripted+llm'}) "
+        f"with player model {PLAYER_MODEL}"
+    )
 
     session_log = run_session(args.scenario, scenario_lines, args.turns, args.free)
 

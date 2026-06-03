@@ -6,11 +6,11 @@ argument-hint: 'triage | fix-one <issue#> | drain [scope filter]'
 
 One skill for the whole issue lifecycle. Pick the mode:
 
-| Mode | What it does |
-|---|---|
-| **triage** | Classify un-triaged open issues by theme + priority and apply labels. *Labels* issues. |
-| **fix-one** | Take a single issue end-to-end: diagnose → implement → test → commit. |
-| **drain** | Multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green. *Closes* issues. |
+| Mode        | What it does                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| **triage**  | Classify un-triaged open issues by theme + priority and apply labels. _Labels_ issues.         |
+| **fix-one** | Take a single issue end-to-end: diagnose → implement → test → commit.                          |
+| **drain**   | Multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green. _Closes_ issues. |
 
 The canonical label vocabulary and rubric live in
 [`docs/agent/triage-vocabulary.md`](../../../docs/agent/triage-vocabulary.md) — read it before triage or drain.
@@ -41,7 +41,7 @@ Run a triage pass over open issues that lack a `P*` priority or any theme label.
 
 5. **Apply.** Compute the new label set as **(existing labels with any `P*` priority stripped) + (chosen
    theme labels) + (chosen priority)** — stripping the old priority is critical so a re-triage doesn't leave
-   both `P1` *and* `P2`. Pre-existing non-priority labels (`bug`, `security`, `ready-for-test`,
+   both `P1` _and_ `P2`. Pre-existing non-priority labels (`bug`, `security`, `ready-for-test`,
    `in-progress`, etc.) are preserved. Pass the set to `mcp__github__issue_write` with `method: "update"`.
    Dispatch in parallel batches of 5–10 to stay clear of secondary rate limits.
 
@@ -55,6 +55,7 @@ Run a triage pass over open issues that lack a `P*` priority or any theme label.
    without an open PR — those usually need closing, not implementation.
 
 **Triage notes:**
+
 - New labels added to `triage-vocabulary.md` are auto-created on first use by `issue_write` but ship without
   colors/descriptions. Set the color in the GitHub UI afterward.
 - If a new theme is needed that isn't in the vocabulary, **stop and ask the user** before inventing a label.
@@ -84,11 +85,11 @@ Work a single GitHub issue end-to-end. Pass the issue number.
 ## Mode: drain
 
 Multi-wave bug-fix cleanup. Cycle: triage → wave-dispatch fix agents → wake-loop sweep → merge as PRs go
-green → stop when the bug backlog is clear. This mode *closes* issues; the **triage** mode above *labels*
+green → stop when the bug backlog is clear. This mode _closes_ issues; the **triage** mode above _labels_
 them. Optional argument scopes the work (e.g. `"P0/P1 only"`, `"frontend bugs"`, `"ignore feat: PRs"`).
 
 1. **Triage the work set.** `gh issue list --state open --limit 100 --json
-   number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`, `security`, or
+number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`, `security`, or
    `performance` labels AND no open PR linked. Sort by priority (`P0` first). Defer `enhancement` /
    `scaling` unless the user overrides — bugs ship first. Bundle related issues into single PRs (e.g. all
    Gemini-workflow security issues in one PR; all inference-client bugs in one PR).
@@ -129,8 +130,8 @@ them. Optional argument scopes the work (e.g. `"P0/P1 only"`, `"frontend bugs"`,
 
    Then: `gh pr merge <n> --squash --delete-branch`. Branch-deletion errors are harmless when an agent
    worktree still holds the branch — the merge succeeded. Verify auto-close via `gh pr view <n> --json
-   closingIssuesReferences`; if the PR body lacked `Fixes #N` syntax, fall back to `gh issue close N
-   --comment "Resolved by PR #M"`.
+closingIssuesReferences`; if the PR body lacked `Fixes #N` syntax, fall back to `gh issue close N
+--comment "Resolved by PR #M"`.
 
    **Bots COMMENT but never APPROVE.** Don't wait for `state: APPROVED` — gate on thread resolution + CI
    green. The user has explicitly said: "use judgement that comments have been dealt with."
@@ -146,7 +147,7 @@ them. Optional argument scopes the work (e.g. `"P0/P1 only"`, `"frontend bugs"`,
 
 7. **Verify-close before working.** Before dispatching a fix, check whether the issue is already fixed in
    tree: `git log --all --oneline -S '<symbol>' -- <path>` plus a grep of the cited code. If yes, `gh issue
-   close N --comment "Fixed in commit <sha> — <one-line evidence>. (Stale ready-for-test label.)"` — saves a
+close N --comment "Fixed in commit <sha> — <one-line evidence>. (Stale ready-for-test label.)"` — saves a
    wasted PR. Common for `ready-for-test`-labeled issues.
 
 8. **Stop conditions.** When all bug-fix PRs are merged AND no new bug issues filed → schedule one final
@@ -158,8 +159,8 @@ them. Optional argument scopes the work (e.g. `"P0/P1 only"`, `"frontend bugs"`,
 Patterns burned-in across two long sessions on this repo. Reference, not procedure.
 
 - **Chimera PR.** When an agent's worktree-discipline fails, multiple agents push to the same branch and the
-  PR accumulates unrelated commits. *Recovery:* split via cherry-pick onto fresh branches, or rewrite the PR
-  title/body to acknowledge the bundle. *Prevention:* the WORKTREE DISCIPLINE block in step 2.
+  PR accumulates unrelated commits. _Recovery:_ split via cherry-pick onto fresh branches, or rewrite the PR
+  title/body to acknowledge the bundle. _Prevention:_ the WORKTREE DISCIPLINE block in step 2.
 
 - **Codex out of usage.** If codex stops responding mid-cleanup, gemini still works. Don't block on codex
   re-review; use judgement.

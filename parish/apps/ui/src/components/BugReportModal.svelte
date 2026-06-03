@@ -73,6 +73,7 @@
 						<p class="result-message">{result.message}</p>
 						{#if result.issue_url}
 							<p>
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- result.issue_url is an external GitHub issue URL, not a SvelteKit route -->
 								<a href={result.issue_url} target="_blank" rel="noreferrer noopener"
 									>Open issue #{result.issue_number}</a
 								>

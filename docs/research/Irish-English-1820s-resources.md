@@ -1,12 +1,12 @@
 # Early 19th Century Irish English: Corpora, Sources & Dialect Features
 
-*Reference document for Parish — a Rust TUI game set in 1820s rural County Roscommon, Ireland*
+_Reference document for Parish — a Rust TUI game set in 1820s rural County Roscommon, Ireland_
 
------
+---
 
 ## Free Primary Sources
 
-### P.W. Joyce — *English As We Speak It in Ireland* (1910)
+### P.W. Joyce — _English As We Speak It in Ireland_ (1910)
 
 The single best resource for 1820s-era Irish English. Joyce was born in 1827 in rural Limerick/Cork, so his childhood memories are literally from the period Parish is set in. The book catalogues hundreds of real speech examples, organised by feature: idioms calqued from Irish, grammar, swearing, proverbs, pronunciation, and vocabulary. He draws heavily on period literature (Gerald Griffin, Kickham, Crofton Croker) and his own first-hand experience.
 
@@ -20,10 +20,10 @@ The single best resource for 1820s-era Irish English. Joyce was born in 1827 in 
 1. Sources of Anglo-Irish Dialect
 1. Affirming, Assenting, and Saluting
 1. Asserting by Negative of Opposite
-1. Idioms Derived from the Irish Language *(most useful for Parish)*
+1. Idioms Derived from the Irish Language _(most useful for Parish)_
 1. The Devil and his Territory
 1. Swearing
-1. Grammar and Pronunciation *(most useful for Parish)*
+1. Grammar and Pronunciation _(most useful for Parish)_
 1. Proverbs
 1. Exaggeration and Redundancy
 1. Comparisons
@@ -31,9 +31,9 @@ The single best resource for 1820s-era Irish English. Joyce was born in 1827 in 
 1. A Variety of Phrases
 1. Vocabulary and Index
 
------
+---
 
-### Gerald Griffin — *The Collegians* (1829)
+### Gerald Griffin — _The Collegians_ (1829)
 
 A novel by a Limerick man, set in contemporary Munster. The dialogue is packed with authentic Hiberno-English of exactly the Parish period. Danny Mann speaks with “d” for “th” throughout. Joyce cites Griffin constantly as one of the most faithful dialect sources for southern Irish English. The lower-class characters’ speech is the gold — the gentry speak more standardised English.
 
@@ -41,41 +41,41 @@ A novel by a Limerick man, set in contemporary Munster. The dialogue is packed w
 - **Project Gutenberg (if available):** search for “Gerald Griffin Collegians”
 - **Ricorso (Chapters 1–3 online):** <http://www.ricorso.net/rx/library/authors/classic/Griffin_G/Collegians_01-03.htm>
 
------
+---
 
-### Charles Kickham — *Knocknagow* (1879)
+### Charles Kickham — _Knocknagow_ (1879)
 
 Set in Tipperary, slightly later than Parish but documenting speech patterns that were already well-established by the 1820s. Another source Joyce cites constantly. Features constructions like “‘Twas to dhrame it I did sir” and “Is it yourself that’s in it?”
 
 - **Internet Archive:** search “Knocknagow Kickham” at <https://archive.org>
 - **Project Gutenberg:** <https://www.gutenberg.org/ebooks/44645>
 
------
+---
 
-### William Carleton — *Traits and Stories of the Irish Peasantry* (1830s)
+### William Carleton — _Traits and Stories of the Irish Peasantry_ (1830s)
 
 Carleton gives the northern/Ulster dialect very fully, especially Tyrone and eastern Ulster. Less idiomatic than Griffin but strong on vocabulary and pronunciation. Useful for northern influences that would have reached Roscommon.
 
 - **Internet Archive:** <https://archive.org/search?query=carleton+traits+stories+irish+peasantry>
 - **Project Gutenberg:** <https://www.gutenberg.org/ebooks/author/2498>
 
------
+---
 
-### Crofton Croker — *Fairy Legends and Traditions of the South of Ireland* (1825)
+### Crofton Croker — _Fairy Legends and Traditions of the South of Ireland_ (1825)
 
 Contemporary with Parish’s setting. Contains dialect dialogue in the context of folk tales.
 
 - **Internet Archive:** <https://archive.org/search?query=crofton+croker+fairy+legends>
 
------
+---
 
 ### Reference works (period instructional material)
 
 These supply the gentry / middling-farmer register and are programmatically convertible into instruction pairs (Talkie-1930-13B's reference-work-mining methodology). The cottier signal still has to come from the literary sources above; reference works almost exclusively document the educated registers.
 
-- **Period etiquette manuals** — e.g. *Hints on Etiquette and the Usages of Society* (1830s, multiple editions). Documents the salutations, forms of address, and conversational moves expected of the gentry and aspiring middling farmers.
+- **Period etiquette manuals** — e.g. _Hints on Etiquette and the Usages of Society_ (1830s, multiple editions). Documents the salutations, forms of address, and conversational moves expected of the gentry and aspiring middling farmers.
   - **Internet Archive search:** <https://archive.org/search?query=hints+on+etiquette+1830>
-- **Period letter-writing manuals** — e.g. *The Complete Letter-Writer*, *The Universal Letter-Writer* (multiple 18th–19th-century editions). Templates for tenant-to-landlord, suitor-to-father, employer-to-servant correspondence.
+- **Period letter-writing manuals** — e.g. _The Complete Letter-Writer_, _The Universal Letter-Writer_ (multiple 18th–19th-century editions). Templates for tenant-to-landlord, suitor-to-father, employer-to-servant correspondence.
   - **Internet Archive search:** <https://archive.org/search?query=complete+letter-writer+19th+century>
 - **Old Moore's Almanack** and contemporaneous almanacs — calendar / seasonal vocabulary, agricultural terminology, weather idioms, market-day phrasing.
   - **Internet Archive search:** <https://archive.org/search?query=old+moore+almanack>
@@ -84,7 +84,7 @@ These supply the gentry / middling-farmer register and are programmatically conv
 
 These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md).
 
------
+---
 
 ## Academic Corpora
 
@@ -103,9 +103,9 @@ The motherlode. ~6,500 texts, ~4 million words. Mostly personal letters from 173
 
 **Key publication using CORIECOR:**
 
-- Amador-Moreno, C.P. (2019). *Orality in Written Texts: Using Historical Corpora to Investigate Irish English 1700–1900*. Routledge. — <https://www.routledge.com/Orality-in-Written-Texts-Using-Historical-Corpora-to-Investigate-Irish/Amador-Moreno/p/book/9781315754321>
+- Amador-Moreno, C.P. (2019). _Orality in Written Texts: Using Historical Corpora to Investigate Irish English 1700–1900_. Routledge. — <https://www.routledge.com/Orality-in-Written-Texts-Using-Historical-Corpora-to-Investigate-Irish/Amador-Moreno/p/book/9781315754321>
 
------
+---
 
 ### Raymond Hickey’s Corpus of Irish English
 
@@ -114,52 +114,52 @@ The motherlode. ~6,500 texts, ~4 million words. Mostly personal letters from 173
 - **A Sound Atlas of Irish English (2004):** 1,500+ recordings with DVD. Modern speakers, but useful for phonological patterns.
 - **Irish English Resource Centre (online):** <http://www.raymondhickey.com/index_(IERC).html>
 
------
+---
 
 ### Directly Relevant to Roscommon
 
-- **Henry, Patrick Leo (1957). *An Anglo-Irish Dialect of North Roscommon: Phonology, Accidence, Syntax.*** Dublin: Department of English, University College. — This is literally your setting. Documents a slightly later period but the substrate features were already established by the 1820s. Hard to find but check university libraries or interlibrary loan.
+- **Henry, Patrick Leo (1957). _An Anglo-Irish Dialect of North Roscommon: Phonology, Accidence, Syntax._** Dublin: Department of English, University College. — This is literally your setting. Documents a slightly later period but the substrate features were already established by the 1820s. Hard to find but check university libraries or interlibrary loan.
 
------
+---
 
 ## Key Grammatical Features for 1820s NPC Dialogue
 
 ### Constructions Calqued from Irish
 
-|Feature                           |Example                                             |Irish Source                       |
-|----------------------------------|----------------------------------------------------|-----------------------------------|
-|**Habitual “do be”**              |“I do be seeing him every day”                      |Irish habitual synthetic verb forms|
-|**After-perfect** (hot news)      |“He’s after breaking the window”                    |*tá sé tar éis … a bhriseadh*      |
-|**Cleft sentences**               |“’Tis to rob me you want” / “Is it reading you are?”|Irish copula + fronting            |
-|**“In it” for existence**         |“Is it yourself that’s in it?”                      |Irish *ann* (in existence)         |
-|**“On me/him” for detriment**     |“He lost my knife on me”                            |Irish preposition *air* + pronoun  |
-|**Infinitive for past narrative** |“Some of them boys to get about Danny Mann”         |Irish narrative infinitive         |
-|**“And” + subject + verbal noun** |“He fell, and he crossing the bridge”               |Irish circumstantial clause        |
-|**“Will” for “shall”**            |“Will I make us a cup of tea?”                      |No shall/will distinction in Irish |
-|**Emphatic pronoun reduplication**|“I can speak Irish, so I can”                       |Irish emphatic suffixes (-sa, -se) |
+| Feature                            | Example                                              | Irish Source                        |
+| ---------------------------------- | ---------------------------------------------------- | ----------------------------------- |
+| **Habitual “do be”**               | “I do be seeing him every day”                       | Irish habitual synthetic verb forms |
+| **After-perfect** (hot news)       | “He’s after breaking the window”                     | _tá sé tar éis … a bhriseadh_       |
+| **Cleft sentences**                | “’Tis to rob me you want” / “Is it reading you are?” | Irish copula + fronting             |
+| **“In it” for existence**          | “Is it yourself that’s in it?”                       | Irish _ann_ (in existence)          |
+| **“On me/him” for detriment**      | “He lost my knife on me”                             | Irish preposition _air_ + pronoun   |
+| **Infinitive for past narrative**  | “Some of them boys to get about Danny Mann”          | Irish narrative infinitive          |
+| **“And” + subject + verbal noun**  | “He fell, and he crossing the bridge”                | Irish circumstantial clause         |
+| **“Will” for “shall”**             | “Will I make us a cup of tea?”                       | No shall/will distinction in Irish  |
+| **Emphatic pronoun reduplication** | “I can speak Irish, so I can”                        | Irish emphatic suffixes (-sa, -se)  |
 
 ### Vocabulary & Discourse Markers
 
-|Term                      |Meaning                        |Notes                               |
-|--------------------------|-------------------------------|------------------------------------|
-|**Wisha** / **Musha**     |Interjection, “well” / “indeed”|From Irish *mhuise*                 |
-|**Arrah**                 |Interjection, mild exasperation|From Irish *ara*                    |
-|**Yerra**                 |“Ah, well” / dismissive        |From Irish *a Dhia ara*             |
-|**Wirra** / **Wirrasthru**|“Alas” / lament                |From Irish *a Mhuire* (O Mary)      |
-|**Avourneen**             |“My darling”                   |From Irish *a mhúirnín*             |
-|**Acushla**               |“Pulse (of my heart)”          |From Irish *a chuisle*              |
-|**Gossoon**               |Boy                            |From Irish *gasúr* / French *garçon*|
-|**Colleen**               |Girl                           |From Irish *cailín*                 |
-|**Omadhaun**              |Fool                           |From Irish *amadán*                 |
-|**Spalpeen**              |Itinerant labourer / rascal    |From Irish *spailpín*               |
-|**Boccagh** / **Boccough**|Lame person, beggar            |From Irish *bacach*                 |
-|**Banshee**               |Fairy woman (death omen)       |From Irish *bean sí*                |
-|**Keen**                  |To lament / wail for the dead  |From Irish *caoineadh*              |
-|**Boreen**                |Small lane / track             |From Irish *bóithrín*               |
-|**Praties** / **Praters** |Potatoes                       |Common period usage                 |
-|**I’ll engage**           |“I assert” / “I warrant”       |Period emphatic                     |
-|**I’ll go bail**          |“I warrant” / “you can be sure”|Common period emphatic              |
-|**’Tis a folly to talk**  |“In short” / “to cut it short” |From Irish *ní’l tracht air*        |
+| Term                       | Meaning                         | Notes                                |
+| -------------------------- | ------------------------------- | ------------------------------------ |
+| **Wisha** / **Musha**      | Interjection, “well” / “indeed” | From Irish _mhuise_                  |
+| **Arrah**                  | Interjection, mild exasperation | From Irish _ara_                     |
+| **Yerra**                  | “Ah, well” / dismissive         | From Irish _a Dhia ara_              |
+| **Wirra** / **Wirrasthru** | “Alas” / lament                 | From Irish _a Mhuire_ (O Mary)       |
+| **Avourneen**              | “My darling”                    | From Irish _a mhúirnín_              |
+| **Acushla**                | “Pulse (of my heart)”           | From Irish _a chuisle_               |
+| **Gossoon**                | Boy                             | From Irish _gasúr_ / French _garçon_ |
+| **Colleen**                | Girl                            | From Irish _cailín_                  |
+| **Omadhaun**               | Fool                            | From Irish _amadán_                  |
+| **Spalpeen**               | Itinerant labourer / rascal     | From Irish _spailpín_                |
+| **Boccagh** / **Boccough** | Lame person, beggar             | From Irish _bacach_                  |
+| **Banshee**                | Fairy woman (death omen)        | From Irish _bean sí_                 |
+| **Keen**                   | To lament / wail for the dead   | From Irish _caoineadh_               |
+| **Boreen**                 | Small lane / track              | From Irish _bóithrín_                |
+| **Praties** / **Praters**  | Potatoes                        | Common period usage                  |
+| **I’ll engage**            | “I assert” / “I warrant”        | Period emphatic                      |
+| **I’ll go bail**           | “I warrant” / “you can be sure” | Common period emphatic               |
+| **’Tis a folly to talk**   | “In short” / “to cut it short”  | From Irish _ní’l tracht air_         |
 
 ### Pronunciation Notes (for flavour text / phonetic spelling)
 
@@ -177,7 +177,7 @@ In the 1820s, there would be a sharp register divide:
 - **Small farmers / labourers / cottiers**: Heavy Irish influence, possibly Irish-dominant bilinguals speaking English as L2. More phonological transfer, more calques, Irish words mixed in freely.
 - **Irish-only speakers**: Still a majority in rural Roscommon in the 1820s. By 1841, over 50% of the population still spoke Irish; the real collapse came during and after the Famine.
 
------
+---
 
 ## For Fine-Tuning / NPC Voice Model
 
@@ -194,9 +194,9 @@ The Joyce text from Gutenberg is likely the best training seed:
 1. Extract all quoted dialogue examples with their feature tags (chapter = feature category)
 1. Pair with “standard English” equivalents where Joyce provides them
 1. Use as few-shot examples for NPC dialogue generation, or as QLoRA fine-tuning data
-1. Supplement with Griffin’s *Collegians* dialogue (also public domain)
+1. Supplement with Griffin’s _Collegians_ dialogue (also public domain)
 
------
+---
 
 ## LLM Landscape for Irish / Hiberno-English
 
@@ -246,11 +246,11 @@ Parish sits in a triple no-man’s-land that no existing model covers:
 
 Rather than hunting for a pre-existing model, build your own fine-tune. Take a small generative model that fits your hardware (Llama 3.2 3B, Gemma 2B, Qwen 2.5 3B — whatever fits VRAM on the RX 9070 or Mac Mini M4) and QLoRA fine-tune with:
 
-1. **Joyce’s *English As We Speak It in Ireland*** — Public domain, extractable from Gutenberg HTML. Hundreds of categorised dialogue examples with feature tags (chapter = feature category).
-1. **Griffin’s *The Collegians* dialogue** — Public domain. Authentic 1829 Munster peasant speech.
-1. **Carleton’s *Traits and Stories* dialogue** — Public domain. Northern/Ulster peasant speech.
+1. **Joyce’s _English As We Speak It in Ireland_** — Public domain, extractable from Gutenberg HTML. Hundreds of categorised dialogue examples with feature tags (chapter = feature category).
+1. **Griffin’s _The Collegians_ dialogue** — Public domain. Authentic 1829 Munster peasant speech.
+1. **Carleton’s _Traits and Stories_ dialogue** — Public domain. Northern/Ulster peasant speech.
 1. **Hand-crafted NPC utterance examples** — Write a set yourself using the grammar rules documented above. This is your “style anchor” for the fine-tune.
-1. **Irish-language phrases from RIA corpus** — For code-switching flavour: exclamations, blessings, curses, greetings (*a Mhuire*, *go raibh maith agat*, *mo léan*, etc.)
+1. **Irish-language phrases from RIA corpus** — For code-switching flavour: exclamations, blessings, curses, greetings (_a Mhuire_, _go raibh maith agat_, _mo léan_, etc.)
 
 ### Dialect-oracle corpus spec (fully disjoint author split)
 
@@ -258,9 +258,9 @@ The [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md) tr
 
 The 5-author corpus above is too thin to support a meaningful disjoint split, so the plan adds three more public-domain Anglo-Irish authors of the same era:
 
-- **Samuel Lover, *Handy Andy* (1842)** — comic Munster servant + gentry register. Gutenberg.
-- **William Hamilton Maxwell, *Wild Sports of the West* (1832)** — Connacht sporting + cottier dialogue. Internet Archive.
-- **Charles Lever, *Charles O'Malley* (1841)** — gentry + military + servant register. Gutenberg.
+- **Samuel Lover, _Handy Andy_ (1842)** — comic Munster servant + gentry register. Gutenberg.
+- **William Hamilton Maxwell, _Wild Sports of the West_ (1832)** — Connacht sporting + cottier dialogue. Internet Archive.
+- **Charles Lever, _Charles O'Malley_ (1841)** — gentry + military + servant register. Gutenberg.
 
 With 8 authors a clean 4/4 split becomes possible:
 
@@ -270,13 +270,13 @@ With 8 authors a clean 4/4 split becomes possible:
 
 This is a design requirement, not a knob — without the disjoint split, the oracle's loglik becomes a tautological reward.
 
------
+---
 
 ## For Fine-Tuning / NPC Voice Model — training data format
 
 **Training data format suggestion:** Structure as instruction pairs —
 
-```
+```text
 System: You are an NPC in 1820s rural County Roscommon, Ireland. Speak in period-accurate Hiberno-English with Irish substrate grammar. Your social class is: {cottier|small_farmer|middling_farmer|gentry|priest|schoolmaster}
 
 User: {situation/prompt}
@@ -287,16 +287,16 @@ The 19M-word RIA corpus is technically large enough for a meaningful QLoRA fine-
 
 **What you’d be building doesn’t exist yet.** No one has made a generative model for historical Hiberno-English. For a game set in 1820s Roscommon, you’re the first.
 
------
+---
 
 ## Further Reading
 
-- Filppula, M. (1999). *The Grammar of Irish English: Language in Hibernian Style*. Routledge.
-- Hickey, R. (2007). *Irish English: History and Present-Day Forms*. Cambridge University Press.
-- Dolan, T.P. (ed.). *A Dictionary of Hiberno-English*. Gill & Macmillan. (Multiple editions)
-- Cesiri, D. (2002). *Nineteenth-Century Irish English: A Corpus-Based Linguistic and Discursive Analysis*. (Dissertation)
-- Bliss, A.J. (1979). *Spoken English in Ireland 1600–1740: Twenty-Seven Representative Texts*. Cadenus Press.
+- Filppula, M. (1999). _The Grammar of Irish English: Language in Hibernian Style_. Routledge.
+- Hickey, R. (2007). _Irish English: History and Present-Day Forms_. Cambridge University Press.
+- Dolan, T.P. (ed.). _A Dictionary of Hiberno-English_. Gill & Macmillan. (Multiple editions)
+- Cesiri, D. (2002). _Nineteenth-Century Irish English: A Corpus-Based Linguistic and Discursive Analysis_. (Dissertation)
+- Bliss, A.J. (1979). _Spoken English in Ireland 1600–1740: Twenty-Seven Representative Texts_. Cadenus Press.
 
------
+---
 
-*Last updated: March 2026*
+_Last updated: March 2026_

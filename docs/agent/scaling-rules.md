@@ -9,7 +9,7 @@ verify the corresponding rule is respected before merging.
 
 ---
 
-### Rule 1: No global mutable game state
+## Rule 1: No global mutable game state
 
 Per-session state must live on `AppState` (Axum / Tauri) or `GlobalState`
 (headless CLI). Nothing that varies per user or per game session may be
@@ -152,14 +152,14 @@ in-memory test fixtures, and future CDN-backed mod delivery impossible.
 
 ## Quick-reference table
 
-| Rule | Keyword | Seam file | Issue |
-|------|---------|-----------|-------|
-| 1 | No global state | `ipc/state.rs` | — |
-| 2 | `SessionStore` only | `session_store.rs` | #614 |
-| 3 | `EventBus` + `Topic` | `event_bus.rs` | #616 |
-| 4 | `InferenceClient` | `parish-inference/src/client.rs` | #617 (in-flight) |
-| 5 | `account_id` keying | `identity.rs` | #615 / #618 (in-flight) |
-| 6 | Idempotency-Key | (middleware, in-flight) | #619 (in-flight) |
-| 7 | `request_id` + tracing | `middleware.rs` | #621 |
-| 8 | Sticky-session routing | `parish_sid` cookie | — |
-| 9 | `ModSource` trait | `mod_source.rs` | #622 |
+| Rule | Keyword                | Seam file                        | Issue                   |
+| ---- | ---------------------- | -------------------------------- | ----------------------- |
+| 1    | No global state        | `ipc/state.rs`                   | —                       |
+| 2    | `SessionStore` only    | `session_store.rs`               | #614                    |
+| 3    | `EventBus` + `Topic`   | `event_bus.rs`                   | #616                    |
+| 4    | `InferenceClient`      | `parish-inference/src/client.rs` | #617 (in-flight)        |
+| 5    | `account_id` keying    | `identity.rs`                    | #615 / #618 (in-flight) |
+| 6    | Idempotency-Key        | (middleware, in-flight)          | #619 (in-flight)        |
+| 7    | `request_id` + tracing | `middleware.rs`                  | #621                    |
+| 8    | Sticky-session routing | `parish_sid` cookie              | —                       |
+| 9    | `ModSource` trait      | `mod_source.rs`                  | #622                    |

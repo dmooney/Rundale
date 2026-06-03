@@ -12,7 +12,7 @@ const THEME: ThemeColors = {
 	mapEdge: '#8f7e56',
 	mapSelected: '#f4cf75',
 	mapRelative: '#7dd7ff',
-	mapStroke: '#1a140a'
+	mapStroke: '#1a140a',
 };
 
 function osm(): TileSource {
@@ -26,7 +26,7 @@ function osm(): TileSource {
 		attribution: '© OpenStreetMap contributors',
 		raster_saturation: -0.4,
 		raster_opacity: 0.85,
-		tms: false
+		tms: false,
 	};
 }
 
@@ -41,7 +41,7 @@ function tmsSource(): TileSource {
 		attribution: 'example',
 		raster_saturation: 0.0,
 		raster_opacity: 1.0,
-		tms: true
+		tms: true,
 	};
 }
 
@@ -51,14 +51,24 @@ describe('buildStyle', () => {
 		const src = style.sources['map-tiles'];
 		expect(src).toBeDefined();
 		expect(src.type).toBe('raster');
-		const raster = src as { tiles: string[]; scheme?: string; attribution: string };
-		expect(raster.tiles).toEqual(['https://tile.openstreetmap.org/{z}/{x}/{y}.png']);
+		const raster = src as {
+			tiles: string[];
+			scheme?: string;
+			attribution: string;
+		};
+		expect(raster.tiles).toEqual([
+			'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+		]);
 		expect(raster.scheme).toBeUndefined();
 		expect(raster.attribution).toBe('© OpenStreetMap contributors');
 
 		const rasterLayer = style.layers.find((l) => l.id === 'map-tiles-layer');
 		expect(rasterLayer).toBeDefined();
-		expect((rasterLayer as { paint: { 'raster-saturation': number } }).paint['raster-saturation']).toBe(-0.4);
+		expect(
+			(rasterLayer as { paint: { 'raster-saturation': number } }).paint[
+				'raster-saturation'
+			],
+		).toBe(-0.4);
 		// No flat-bg layer should be present on the full map when tiles render.
 		expect(style.layers.find((l) => l.id === 'background')).toBeUndefined();
 	});
@@ -74,7 +84,9 @@ describe('buildStyle', () => {
 		const style = buildStyle('full', THEME, empty);
 		expect(style.sources['map-tiles']).toBeUndefined();
 		expect(style.layers.find((l) => l.id === 'background')).toBeDefined();
-		expect(style.layers.find((l) => l.id === 'map-tiles-layer')).toBeUndefined();
+		expect(
+			style.layers.find((l) => l.id === 'map-tiles-layer'),
+		).toBeUndefined();
 	});
 
 	it('full map with no tileSource at all falls back to flat background', () => {
@@ -133,14 +145,13 @@ describe('buildStyle', () => {
 		const style = buildStyle('full', THEME, osm());
 		const solid = style.layers.find((l) => l.id === 'edges-solid');
 		expect(solid).toBeDefined();
-		expect((solid as { paint: { 'line-color': unknown } }).paint['line-color']).toEqual([
-			'case',
-			['get', 'traversing'],
-			THEME.accent,
-			THEME.border
-		]);
+		expect(
+			(solid as { paint: { 'line-color': unknown } }).paint['line-color'],
+		).toEqual(['case', ['get', 'traversing'], THEME.accent, THEME.border]);
 		// Traversing edges should also be more opaque than normal ones.
-		const opacity = (solid as { paint: { 'line-opacity': unknown } }).paint['line-opacity'];
+		const opacity = (solid as { paint: { 'line-opacity': unknown } }).paint[
+			'line-opacity'
+		];
 		expect(opacity).toEqual(['case', ['get', 'traversing'], 1, 0.85]);
 	});
 
@@ -171,7 +182,7 @@ describe('buildStyle', () => {
 			'case',
 			['any', ['get', 'isPlayer'], ['get', 'lit']],
 			1,
-			0
+			0,
 		]);
 	});
 });

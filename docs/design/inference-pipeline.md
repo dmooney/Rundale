@@ -10,18 +10,18 @@
 
 The engine recognizes four inference categories. Each has a different latency expectation tied to its role in the player turn:
 
-| Category   | ttft budget | total budget | Rationale |
-|------------|-------------|--------------|-----------|
-| Intent     | < 200 ms    | < 500 ms     | Player typed a command — every ms compounds onto every later turn |
-| Reaction   | < 400 ms    | < 800 ms     | NPC greeting on arrival; subsecond keeps the scene fluid |
-| Simulation | < 800 ms    | < 1500 ms    | Background world tick; runs concurrently with player turn — must finish before next player input arrives |
-| Dialogue   | < 1000 ms ttft | streaming, no total cap | First token must land quickly; rest streams under the player's reading speed |
+| Category   | ttft budget    | total budget            | Rationale                                                                                                |
+| ---------- | -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| Intent     | < 200 ms       | < 500 ms                | Player typed a command — every ms compounds onto every later turn                                        |
+| Reaction   | < 400 ms       | < 800 ms                | NPC greeting on arrival; subsecond keeps the scene fluid                                                 |
+| Simulation | < 800 ms       | < 1500 ms               | Background world tick; runs concurrently with player turn — must finish before next player input arrives |
+| Dialogue   | < 1000 ms ttft | streaming, no total cap | First token must land quickly; rest streams under the player's reading speed                             |
 
 These budgets are not enforced in code today — they are the success criteria for the `/inf-bench` harness (`crates/parish-inference/examples/inf_bench.rs`) and the gate against which provider/model choices are validated.
 
 ## Pipeline Architecture
 
-```
+```text
                   ┌─ Interactive lane (cap 16) ─┐
 Simulation Tiers ─┼─ Background  lane (cap 32) ─┼─► Single-flight Worker ─► OpenAI-compatible API ─► Response Router ─► World State
                   └─ Batch       lane (cap 64) ─┘
@@ -31,10 +31,10 @@ The inference queue is **one** `InferenceQueue` struct (`crates/parish-inference
 
 ### Priority Lanes
 
-| Lane        | Capacity | Used for |
-|-------------|----------|----------|
-| Interactive | 16       | Tier 1 player-facing dialogue (streaming) |
-| Background  | 32       | Tier 2 nearby NPC simulation (JSON) |
+| Lane        | Capacity | Used for                                   |
+| ----------- | -------- | ------------------------------------------ |
+| Interactive | 16       | Tier 1 player-facing dialogue (streaming)  |
+| Background  | 32       | Tier 2 nearby NPC simulation (JSON)        |
 | Batch       | 64       | Tier 3 distant NPC batch simulation (JSON) |
 
 Capacities are set at queue construction in each frontend — see `crates/parish-server/src/routes.rs:205-207`, `crates/parish-tauri/src/commands.rs:305-307`, and `crates/parish-engine/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
@@ -59,13 +59,13 @@ tokio::select! {
 
 Parish makes LLM calls from five inbound paths. Three go through the priority queue; two bypass it by resolving a per-category client directly via `GameConfig::resolve_category_client()` (`crates/parish-core/src/ipc/config.rs:90`).
 
-| Use case                   | Category   | Path                       | Streaming      | Output              | Call site |
-|----------------------------|------------|----------------------------|----------------|---------------------|-----------|
-| Player dialogue (Tier 1)   | Dialogue   | Interactive lane           | Yes            | Text + JSON tail    | `crates/parish-tauri/src/commands.rs:825` (and server / CLI equivalents) |
-| Nearby NPC sim (Tier 2)    | Simulation | Background lane            | No             | JSON                | `crates/parish-npc/src/ticks.rs:533` |
-| Distant NPC batch (Tier 3) | Simulation | Batch lane                 | No             | JSON                | `crates/parish-npc/src/ticks.rs:853` |
-| NPC arrival reactions      | Reaction   | Direct call (bypass queue) | Optional       | Plain text, ≤100 tok | `crates/parish-npc/src/reactions.rs:876` |
-| Player intent parsing      | Intent     | Direct call (bypass queue) | No             | JSON                | `crates/parish-tauri/src/commands.rs:495-503` |
+| Use case                   | Category   | Path                       | Streaming | Output               | Call site                                                                |
+| -------------------------- | ---------- | -------------------------- | --------- | -------------------- | ------------------------------------------------------------------------ |
+| Player dialogue (Tier 1)   | Dialogue   | Interactive lane           | Yes       | Text + JSON tail     | `crates/parish-tauri/src/commands.rs:825` (and server / CLI equivalents) |
+| Nearby NPC sim (Tier 2)    | Simulation | Background lane            | No        | JSON                 | `crates/parish-npc/src/ticks.rs:533`                                     |
+| Distant NPC batch (Tier 3) | Simulation | Batch lane                 | No        | JSON                 | `crates/parish-npc/src/ticks.rs:853`                                     |
+| NPC arrival reactions      | Reaction   | Direct call (bypass queue) | Optional  | Plain text, ≤100 tok | `crates/parish-npc/src/reactions.rs:876`                                 |
+| Player intent parsing      | Intent     | Direct call (bypass queue) | No        | JSON                 | `crates/parish-tauri/src/commands.rs:495-503`                            |
 
 Queue-based calls compete for the single in-flight worker slot. Direct-category calls run concurrently on their own per-category `OpenAiClient` instances, limited only by each provider's HTTP connection pool. Effective parallelism is therefore `1 (worker) + N (direct-category clients, one per Intent/Reaction call in flight)`.
 
@@ -75,13 +75,13 @@ Reaction timeouts are caller-supplied (the `reactions.rs` helper takes `timeout_
 
 `InferenceRequest` (`crates/parish-inference/src/lib.rs`) carries optional shape and lifecycle controls in addition to the prompt:
 
-| Field           | Type                              | Purpose |
-|-----------------|-----------------------------------|---------|
-| `json_mode`     | `bool`                            | Sends `response_format: {"type":"json_object"}` — loose JSON, no enforced shape |
-| `json_schema`   | `Option<JsonSchemaSpec>`          | Sends `response_format: {"type":"json_schema", "json_schema": {...}}` — enforced shape via constrained decode. **Wins over `json_mode` when both are set.** |
-| `cancel`        | `Option<CancellationToken>`       | `tokio_util::sync::CancellationToken`; firing it races the in-flight future via `tokio::select!` and drops the connection. Tested end-to-end: vllm-mlx frees the slot in 1-30 ms post-cancel |
-| `token_tx`      | `Option<mpsc::Sender<String>>`    | When `Some`, the worker uses streaming generate and forwards tokens via a proxy channel that also records `ttft_ms` + `output_tokens` |
-| `max_tokens`    | `Option<u32>`                     | Hard cap on output. Strongly recommended when streaming reasoning models or pairing with `cancel` |
+| Field         | Type                           | Purpose                                                                                                                                                                                      |
+| ------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `json_mode`   | `bool`                         | Sends `response_format: {"type":"json_object"}` — loose JSON, no enforced shape                                                                                                              |
+| `json_schema` | `Option<JsonSchemaSpec>`       | Sends `response_format: {"type":"json_schema", "json_schema": {...}}` — enforced shape via constrained decode. **Wins over `json_mode` when both are set.**                                  |
+| `cancel`      | `Option<CancellationToken>`    | `tokio_util::sync::CancellationToken`; firing it races the in-flight future via `tokio::select!` and drops the connection. Tested end-to-end: vllm-mlx frees the slot in 1-30 ms post-cancel |
+| `token_tx`    | `Option<mpsc::Sender<String>>` | When `Some`, the worker uses streaming generate and forwards tokens via a proxy channel that also records `ttft_ms` + `output_tokens`                                                        |
+| `max_tokens`  | `Option<u32>`                  | Hard cap on output. Strongly recommended when streaming reasoning models or pairing with `cancel`                                                                                            |
 
 `InferenceQueue` has three send methods of progressively wider surface:
 
@@ -114,13 +114,13 @@ Worker captures streaming stats via `StreamStats { ttft, tokens }` and records t
 
 Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
 
-| Category | ttft p50 | total p50 | total p95 | budget | verdict |
-|----------|----------|-----------|-----------|--------|---------|
-| Intent | 61 ms | 451 ms | 734 ms | ttft<200 / total<500 | FAIL p95 (1B intent slot is the fix) |
-| Reaction | 33 ms | 147 ms | 1127 ms | ttft<400 / total<800 | FAIL p95 (bimodal; first-meeting introductions saturate the 100-tok cap at ~1060 ms) |
-| **Tier 2 Sim** | 46 ms | 1089 ms | 1095 ms | total<1500 | **PASS** |
-| **Tier 3 Batch** | 144 ms | **30459 ms** | 30667 ms | total<1500 (wrong) | **FAIL by 20x** — needs its own budget on the Batch lane |
-| Dialogue | 1.1 ms cached | — | — | ttft<1000 | **PASS** (prefix cache delivers) |
+| Category         | ttft p50      | total p50    | total p95 | budget               | verdict                                                                              |
+| ---------------- | ------------- | ------------ | --------- | -------------------- | ------------------------------------------------------------------------------------ |
+| Intent           | 61 ms         | 451 ms       | 734 ms    | ttft<200 / total<500 | FAIL p95 (1B intent slot is the fix)                                                 |
+| Reaction         | 33 ms         | 147 ms       | 1127 ms   | ttft<400 / total<800 | FAIL p95 (bimodal; first-meeting introductions saturate the 100-tok cap at ~1060 ms) |
+| **Tier 2 Sim**   | 46 ms         | 1089 ms      | 1095 ms   | total<1500           | **PASS**                                                                             |
+| **Tier 3 Batch** | 144 ms        | **30459 ms** | 30667 ms  | total<1500 (wrong)   | **FAIL by 20x** — needs its own budget on the Batch lane                             |
+| Dialogue         | 1.1 ms cached | —            | —         | ttft<1000            | **PASS** (prefix cache delivers)                                                     |
 
 Tier 3 deserves its own row because the 6-NPC batch produces ~600 tokens (hitting the production cap) and the constrained decoder runs at ~20 tok/s — 30 s/batch on this engine. Options: smaller batch size, drop schema, or cloud-route Tier 3 (Gemini Flash-Lite handles this in <2 s). See evidence.md for the full breakdown.
 
@@ -176,12 +176,12 @@ After the LLM responds, all modes execute the same pipeline:
 
 The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, Google Gemini, Groq, xAI, Mistral, DeepSeek, Together, vLLM, or any custom endpoint) via `OpenAiClient`. Per-category provider routing lets different inbound paths use different models. The engine defines **four** categories, resolved by `GameConfig::resolve_category_client()`:
 
-| Category   | Purpose                                              | Default |
-|------------|------------------------------------------------------|---------|
-| Dialogue   | Player-facing NPC conversation (Tier 1)              | Cloud if configured, else base provider |
-| Simulation | Background NPC sim (Tier 2 + Tier 3 batch)           | Base provider (usually local) |
-| Intent     | Player input classification (direct, low-latency)    | Base provider (usually local) |
-| Reaction   | NPC arrival greetings (direct, short timeout)        | Base provider (usually local) |
+| Category   | Purpose                                           | Default                                 |
+| ---------- | ------------------------------------------------- | --------------------------------------- |
+| Dialogue   | Player-facing NPC conversation (Tier 1)           | Cloud if configured, else base provider |
+| Simulation | Background NPC sim (Tier 2 + Tier 3 batch)        | Base provider (usually local)           |
+| Intent     | Player input classification (direct, low-latency) | Base provider (usually local)           |
+| Reaction   | NPC arrival greetings (direct, short timeout)     | Base provider (usually local)           |
 
 Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client and swaps per-category clients atomically.
 
@@ -191,24 +191,24 @@ Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud`
 
 #### Linux / Windows + Ollama (RX 9070 16 GB + i9-13900KS, matches ADR-005)
 
-| Category                    | Local pick                 | Cloud pick                          | Why |
-|-----------------------------|----------------------------|-------------------------------------|-----|
-| Dialogue                    | Gemma 4 9B or Qwen 3.5 9B  | Claude Sonnet 4.6                   | Quality-critical; 9B fits in 16 GB VRAM with headroom |
-| Simulation (Tier 2 nearby)  | Qwen 3.5 9B                | Gemini 2.5 Flash                    | Structured JSON throughput matters more than prose quality |
-| Simulation (Tier 3 batch)   | Qwen 3.5 9B                | **Gemini 2.5 Flash-Lite**           | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
-| Intent                      | Ministral 3 3B             | — (always local)                    | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private |
-| Reaction                    | Ministral 3 3B             | Gemini 2.5 Flash-Lite               | Short, fast responses; shares the 3B model with Intent |
+| Category                   | Local pick                | Cloud pick                | Why                                                                                                                  |
+| -------------------------- | ------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B | Claude Sonnet 4.6         | Quality-critical; 9B fits in 16 GB VRAM with headroom                                                                |
+| Simulation (Tier 2 nearby) | Qwen 3.5 9B               | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
+| Simulation (Tier 3 batch)  | Qwen 3.5 9B               | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
+| Intent                     | Ministral 3 3B            | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
+| Reaction                   | Ministral 3 3B            | Gemini 2.5 Flash-Lite     | Short, fast responses; shares the 3B model with Intent                                                               |
 
 #### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
 
 Two-slot Qwen loadout (recommended):
 
-| Category   | Local pick                                    | Cloud pick                  | Notes |
-|------------|------------------------------------------------|-----------------------------|-------|
-| Dialogue   | `mlx-community/Qwen2.5-14B-Instruct-4bit` (slot :8000) | Claude Sonnet 4.6     | Dialogue ttft p50 128 ms / p95 367 ms, total p95 2377 ms, 17.5 tok/s. Opus-blind quality 4.76/5, 0% script-flaw on the 100-prompt scan |
-| Simulation | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash    | PASS on Tier 2 (~3x faster than gemma-3-4b). Tier 3 still over the 1500 ms budget but ~3x improved — Tier 3 is intentionally relaxed |
-| Reaction   | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash-Lite | PASS |
-| Intent     | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | — (always local) | PASS — small Qwen unblocks the previously-failing Intent path |
+| Category   | Local pick                                              | Cloud pick            | Notes                                                                                                                                  |
+| ---------- | ------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Dialogue   | `mlx-community/Qwen2.5-14B-Instruct-4bit` (slot :8000)  | Claude Sonnet 4.6     | Dialogue ttft p50 128 ms / p95 367 ms, total p95 2377 ms, 17.5 tok/s. Opus-blind quality 4.76/5, 0% script-flaw on the 100-prompt scan |
+| Simulation | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash      | PASS on Tier 2 (~3x faster than gemma-3-4b). Tier 3 still over the 1500 ms budget but ~3x improved — Tier 3 is intentionally relaxed   |
+| Reaction   | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash-Lite | PASS                                                                                                                                   |
+| Intent     | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | — (always local)      | PASS — small Qwen unblocks the previously-failing Intent path                                                                          |
 
 Both models load through vllm-mlx 0.3.x's clean mlx_lm path
 (`mllm=False`) — neither matches the MLLM pattern that traps gemma-3.
@@ -301,6 +301,7 @@ model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 ```
 
 Pre-launch:
+
 ```sh
 uv tool install vllm-mlx
 # or: pip install vllm-mlx
@@ -314,9 +315,10 @@ vllm-mlx serve mlx-community/Qwen2.5-1.5B-Instruct-4bit \
     --port 8001 --enable-prefix-cache --continuous-batching &
 ```
 
-The engine auto-spawns the *base* `vllm-mlx serve <model> --port 8000` if nothing is reachable, and stops it on shutdown. Cold-load is ~3.3 s with persisted prefix cache per process. Total memory ~9.3 GB resident across both processes. Single-slot fallback (one process, one model) works for hosts with tighter memory — point base at the 1.5B and drop the per-category overrides.
+The engine auto-spawns the _base_ `vllm-mlx serve <model> --port 8000` if nothing is reachable, and stops it on shutdown. Cold-load is ~3.3 s with persisted prefix cache per process. Total memory ~9.3 GB resident across both processes. Single-slot fallback (one process, one model) works for hosts with tighter memory — point base at the 1.5B and drop the per-category overrides.
 
 Legacy single-slot config:
+
 ```toml
 [provider]
 name = "vllm-mlx"
@@ -383,7 +385,7 @@ pub struct InferenceLogEntry {
 
 ### Architecture
 
-```
+```text
 InferenceRequest → spawn_inference_worker() → generate()/generate_stream()
                          │                              │
                          │  records Instant::now()       │  measures elapsed
@@ -435,10 +437,10 @@ Config is released before any other lock is acquired to minimise the race window
 
 `handle_npc_conversation()` checks the inference queue presence together with NPC presence in a single locked block. The two failure cases are distinguished:
 
-| Condition | Response to player |
-|-----------|-------------------|
-| No NPC at current location, queue absent or present | Random idle-world flavour message |
-| NPC present, but `inference_queue` is `None` | Clear message: "There's someone here, but the LLM is not configured — set a provider with /provider." |
+| Condition                                           | Response to player                                                                                    |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| No NPC at current location, queue absent or present | Random idle-world flavour message                                                                     |
+| NPC present, but `inference_queue` is `None`        | Clear message: "There's someone here, but the LLM is not configured — set a provider with /provider." |
 
 This prevents the confusing case where the player tries to speak to a character and receives a "wind stirs" message with no indication that the LLM is unconfigured.
 
@@ -446,10 +448,10 @@ This prevents the confusing case where the player tries to speak to a character 
 
 Two fire-and-forget tasks are spawned in `spawn_background_ticks()`:
 
-| Task | Interval | Purpose |
-|------|----------|---------|
-| World tick | 5 s | Broadcasts `world-update` snapshot; ticks NPC schedules |
-| Theme tick | 500 ms | Broadcasts `theme-update` palette |
+| Task       | Interval | Purpose                                                 |
+| ---------- | -------- | ------------------------------------------------------- |
+| World tick | 5 s      | Broadcasts `world-update` snapshot; ticks NPC schedules |
+| Theme tick | 500 ms   | Broadcasts `theme-update` palette                       |
 
 Both log `tracing::debug!` at startup. Serialisation errors inside either loop surface via `EventBus::emit()`'s warn logging. The Tokio runtime logs task panics automatically; no additional panic wrappers are used.
 

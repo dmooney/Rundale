@@ -15,12 +15,14 @@ This document proposes adding that view as a new panel alongside chat — a comp
 ## Goals & non-goals
 
 **Goals**
+
 - A pixel-art scene panel that visualizes the player's current location and the NPCs present.
 - Per-NPC pixel portraits usable inline in the chat (speaker headers) and the Designer editor.
 - Time-of-day / season / weather mood applied via the existing `parish-palette` output.
 - Deterministic, snapshot-testable, no required art assets for the MVP.
 
 **Non-goals (v1)**
+
 - No player avatar movement / walking controller — gameplay stays text/click-driven.
 - No replacement of the MapLibre map or the lat/lon world graph.
 - No tile-based "overworld" parish map. (Possible future; out of scope here.)
@@ -40,7 +42,7 @@ Same inputs always produce the same bytes. NPC sprites are composed from a parts
 
 ### Crate layout
 
-```
+```text
 crates/parish-sprite/
 ├── Cargo.toml
 └── src/
@@ -61,17 +63,17 @@ Constraints: backend-agnostic (no `tauri`/`axum`/`tower`/`wry`/`tao` deps), re-e
 
 ### Files touched outside the new crate
 
-| File | Change |
-|------|--------|
-| `crates/parish-core/Cargo.toml`, `src/lib.rs` | Add + re-export `parish-sprite` |
-| `crates/parish-core/tests/architecture_fitness.rs` | Register crate, assert no backend deps |
-| `crates/parish-server/src/routes.rs` (or equiv) | `GET /api/sprite/npc/{id}.png`, `GET /api/scene/{location_id}.png?t=<minute>&w=<weather>` |
-| `crates/parish-tauri/src/commands.rs` | IPC commands `get_npc_sprite`, `get_location_scene` |
-| `crates/parish-cli/src/...` | `parish sprites dump <out_dir>` for headless snapshot diffs |
-| `apps/ui/src/components/LocationScenePanel.svelte` | **New** — the visible feature |
-| `apps/ui/src/components/CharacterPortrait.svelte` | **New** — inline chat portraits |
-| `apps/ui/src/routes/+page.svelte` | Slot scene panel above chat; portrait per message author |
-| `apps/ui/src/components/editor/NpcDetail.svelte`, `LocationDetail.svelte` | Portrait/scene preview + "regenerate seed" debug button |
+| File                                                                      | Change                                                                                    |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `crates/parish-core/Cargo.toml`, `src/lib.rs`                             | Add + re-export `parish-sprite`                                                           |
+| `crates/parish-core/tests/architecture_fitness.rs`                        | Register crate, assert no backend deps                                                    |
+| `crates/parish-server/src/routes.rs` (or equiv)                           | `GET /api/sprite/npc/{id}.png`, `GET /api/scene/{location_id}.png?t=<minute>&w=<weather>` |
+| `crates/parish-tauri/src/commands.rs`                                     | IPC commands `get_npc_sprite`, `get_location_scene`                                       |
+| `crates/parish-cli/src/...`                                               | `parish sprites dump <out_dir>` for headless snapshot diffs                               |
+| `apps/ui/src/components/LocationScenePanel.svelte`                        | **New** — the visible feature                                                             |
+| `apps/ui/src/components/CharacterPortrait.svelte`                         | **New** — inline chat portraits                                                           |
+| `apps/ui/src/routes/+page.svelte`                                         | Slot scene panel above chat; portrait per message author                                  |
+| `apps/ui/src/components/editor/NpcDetail.svelte`, `LocationDetail.svelte` | Portrait/scene preview + "regenerate seed" debug button                                   |
 
 The MapLibre map (`MapPanel.svelte`, `FullMapOverlay.svelte`) and `mods/rundale/world.json` are **not** modified.
 

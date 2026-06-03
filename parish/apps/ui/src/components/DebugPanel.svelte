@@ -58,7 +58,7 @@ import DebugInferenceTab from './DebugInferenceTab.svelte';
 
 	const snap = $derived($debugSnapshot);
 	const tab = $derived($debugTab);
-	const npcId = $derived($selectedNpcId);
+	const _npcId = $derived($selectedNpcId);
 </script>
 
 {#if $debugVisible && snap}
@@ -74,7 +74,7 @@ import DebugInferenceTab from './DebugInferenceTab.svelte';
 		</div>
 
 		<div class="tab-bar">
-			{#each tabs as tabName, i}
+			{#each tabs as tabName, i (tabName)}
 				<button
 					class="tab-btn"
 					class:active={tab === i}

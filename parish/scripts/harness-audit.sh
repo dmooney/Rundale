@@ -23,7 +23,7 @@ fixtures_total=$(find parish/testing/fixtures -name '*.txt' -type f | wc -l)
 fixtures_test=$(find parish/testing/fixtures -name 'test_*.txt' -type f | wc -l)
 fixtures_play=$(find parish/testing/fixtures -name 'play_*.txt' -type f | wc -l)
 fixtures_banshee=$(find parish/testing/fixtures -name 'banshee_*.txt' -type f | wc -l)
-fixtures_other=$(( fixtures_total - fixtures_test - fixtures_play - fixtures_banshee ))
+fixtures_other=$((fixtures_total - fixtures_test - fixtures_play - fixtures_banshee))
 
 baselines=0
 if [[ -d parish/testing/evals/baselines ]]; then
@@ -39,7 +39,7 @@ echo "  banshee_* (feature):    ${fixtures_banshee}"
 echo "  other:                  ${fixtures_other}"
 echo
 echo "Eval baselines (drift sensors): ${baselines}"
-if (( baselines > 0 )); then
+if ((baselines > 0)); then
     while IFS= read -r f; do
         echo "  $(basename "$f" .json)"
     done < <(find parish/testing/evals/baselines -name '*.json' -type f | sort)
@@ -103,7 +103,7 @@ printf "  %-26s %-9s %-9s %s\n" "Subsystem" "Fixture" "Roadmap" "Notes"
 printf "  %-26s %-9s %-9s %s\n" "─────────" "───────" "───────" "─────"
 gaps=0
 for entry in "${SUBSYSTEMS[@]}"; do
-    IFS='|' read -r name fixture_kw roadmap_kw <<< "$entry"
+    IFS='|' read -r name fixture_kw roadmap_kw <<<"$entry"
     if find parish/testing/fixtures -iname "*${fixture_kw}*" | grep -q .; then
         fix_status="yes"
     else

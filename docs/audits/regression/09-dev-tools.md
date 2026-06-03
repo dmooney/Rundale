@@ -2,7 +2,7 @@
 
 Scope: `parish-geo-tool` (OSM extraction, lat/lon pinning, world graph
 building), `parish-npc-tool`. These don't ship to end users at runtime
-but are used to *generate* shipped data (`mods/rundale/world.json` etc.),
+but are used to _generate_ shipped data (`mods/rundale/world.json` etc.),
 so regressions can poison the default mod silently.
 
 ## 1. Sub-features audited
@@ -18,15 +18,15 @@ so regressions can poison the default mod silently.
 
 ## 2. Coverage matrix
 
-| Sub-feature / module | In-source tests | Integration / dedicated tests dir |
-|---|---|---|
-| `parish-geo-tool` (whole crate) | 90 in-source `#[test]` markers across 12 source files | **none** — `crates/parish-geo-tool/tests/` does not exist |
-| `parish-npc-tool` (whole crate) | 10 in-source `#[test]` markers in `main.rs` | **none** — `crates/parish-npc-tool/tests/` does not exist |
-| Coordinate resolver (absolute + relative + graph-delta) | likely in-source in `parish-geo-tool/src/` (need closer inspection) | none |
-| Overpass / Nominatim HTTP integration | unclear from grep; no `tests/http_mock_*` exists for geo-tool | none |
-| `geo_kind` real/manual/fictional dispatch | in-source only | none |
-| `realign_rundale_coords` (data-mutating subcommand) | in-source only | none |
-| CLI argument parsing (clap) | in-source only | none |
+| Sub-feature / module                                    | In-source tests                                                     | Integration / dedicated tests dir                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
+| `parish-geo-tool` (whole crate)                         | 90 in-source `#[test]` markers across 12 source files               | **none** — `crates/parish-geo-tool/tests/` does not exist |
+| `parish-npc-tool` (whole crate)                         | 10 in-source `#[test]` markers in `main.rs`                         | **none** — `crates/parish-npc-tool/tests/` does not exist |
+| Coordinate resolver (absolute + relative + graph-delta) | likely in-source in `parish-geo-tool/src/` (need closer inspection) | none                                                      |
+| Overpass / Nominatim HTTP integration                   | unclear from grep; no `tests/http_mock_*` exists for geo-tool       | none                                                      |
+| `geo_kind` real/manual/fictional dispatch               | in-source only                                                      | none                                                      |
+| `realign_rundale_coords` (data-mutating subcommand)     | in-source only                                                      | none                                                      |
+| CLI argument parsing (clap)                             | in-source only                                                      | none                                                      |
 
 ## 3. Strong spots
 
@@ -62,7 +62,7 @@ so regressions can poison the default mod silently.
 - **[P2] No CLI argument-parsing smoke test for either tool.** clap
   errors are usually fine, but flag renames are silent until the next
   user runs the command. Suggested: one `cargo run -p parish-geo-tool
-  -- --help` snapshot.
+-- --help` snapshot.
 
 ## 5. Recommendations
 

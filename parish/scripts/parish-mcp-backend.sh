@@ -108,10 +108,10 @@ cmd_running() {
 }
 
 case "${1:-status}" in
-    start)  cmd_start ;;
-    stop)   cmd_stop ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
     status) cmd_status ;;
-    logs)   cmd_logs ;;
+    logs) cmd_logs ;;
     *)
         echo "usage: $0 {start|stop|status|logs}" >&2
         exit 1

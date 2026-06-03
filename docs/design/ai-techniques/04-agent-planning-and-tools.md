@@ -7,10 +7,10 @@
 ## Problem
 
 NPCs today react locally: Tier 1 answers the player, Tier 2 shifts mood, Tier 3
-summarises. There is no *deliberation*: an NPC cannot form a plan
+summarises. There is no _deliberation_: an NPC cannot form a plan
 ("I'll walk to the forge, ask Séan about the debt, then go to the chapel"), and
 when dialogue references a fact, it's because the fact was jammed into the
-prompt — the NPC never *asked* for it.
+prompt — the NPC never _asked_ for it.
 
 ## SOTA techniques
 
@@ -18,7 +18,7 @@ prompt — the NPC never *asked* for it.
 
 Tier 1 / Tier 2 wraps the LLM in a scratchpad loop:
 
-```
+```text
 Thought: I don't know where Máire is right now.
 Action: locate(npc="Máire")
 Observation: Máire is at the market cross.
@@ -46,7 +46,7 @@ tool call. Schema declared via `schemars` (doc 02) and exposed to the LLM via
 function-calling (Ollama/OpenAI-compat).
 
 **v2 (mutating, gated).** Once v1 is stable, graduate a tight set of
-effect-producing tools so an NPC who says *"I'll fetch the priest"* actually
+effect-producing tools so an NPC who says _"I'll fetch the priest"_ actually
 dispatches Máire:
 
 - `dispatch(npc, destination, errand)` — schedules an NPC movement.
@@ -120,8 +120,8 @@ cheap and catches the bulk of continuity bugs that reach Tier 4.
 
 ## Papers / references
 
-- Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models* (2022).
-- Yao et al., *Tree of Thoughts* (2023).
-- Wang et al., *Voyager: An Open-Ended Embodied Agent with LLMs* (2023).
-- Park et al., *Generative Agents* (2023) — hierarchical planning section.
-- Schick et al., *Toolformer: Language Models Can Teach Themselves to Use Tools* (2023).
+- Yao et al., _ReAct: Synergizing Reasoning and Acting in Language Models_ (2022).
+- Yao et al., _Tree of Thoughts_ (2023).
+- Wang et al., _Voyager: An Open-Ended Embodied Agent with LLMs_ (2023).
+- Park et al., _Generative Agents_ (2023) — hierarchical planning section.
+- Schick et al., _Toolformer: Language Models Can Teach Themselves to Use Tools_ (2023).

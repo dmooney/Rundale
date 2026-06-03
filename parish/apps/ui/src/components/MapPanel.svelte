@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { mapData, fullMapOpen, pushErrorLog, formatIpcError, uiConfig } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
@@ -92,7 +93,7 @@
 		const cy = size.height / 2;
 
 		// Count off-map edges per visible node.
-		const offMap = new Map<string, number>();
+		const offMap = new SvelteMap<string, number>();
 		for (const [a, b] of m.edges) {
 			if (visible.has(a) && !visible.has(b))
 				offMap.set(a, (offMap.get(a) ?? 0) + 1);
@@ -238,7 +239,7 @@
 		if (!m) return undefined;
 		const dest = m.locations.find((l) => l.id === destId);
 		if (!dest) return undefined;
-		const neighborIds = new Set<string>();
+		const neighborIds = new SvelteSet<string>();
 		for (const [a, b] of m.edges) {
 			if (a === destId) neighborIds.add(b);
 			else if (b === destId) neighborIds.add(a);
@@ -267,7 +268,7 @@
 	{#if $mapData}
 		<nav aria-label="Nearby locations">
 			<ul class="sr-only-list" role="list">
-				{#each $mapData.locations.filter(l => l.id !== $mapData?.player_location) as loc}
+				{#each $mapData.locations.filter(l => l.id !== $mapData?.player_location) as loc (loc.id)}
 					<li>
 						<button
 							tabindex="0"
@@ -308,7 +309,7 @@
 				width={containerSize.width}
 				height={containerSize.height}
 			>
-				{#each stubs as stub}
+				{#each stubs as stub, _si (_si)}
 					<line
 						x1={stub.x1}
 						y1={stub.y1}

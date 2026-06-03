@@ -21,7 +21,7 @@ export const knownNouns = derived(
 				nouns.push({
 					text: loc.name,
 					category: 'location',
-					priority: loc.visited ? (loc.adjacent ? 0 : 2) : 3
+					priority: loc.visited ? (loc.adjacent ? 0 : 2) : 3,
 				});
 			}
 		}
@@ -30,13 +30,15 @@ export const knownNouns = derived(
 			nouns.push({
 				text: npc.name,
 				category: 'npc',
-				priority: 1
+				priority: 1,
 			});
 		}
 
-		nouns.sort((a, b) => a.priority - b.priority || a.text.localeCompare(b.text));
+		nouns.sort(
+			(a, b) => a.priority - b.priority || a.text.localeCompare(b.text),
+		);
 		return nouns;
-	}
+	},
 );
 
 /**

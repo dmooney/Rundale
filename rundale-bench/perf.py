@@ -11,14 +11,17 @@ leaderboard renders the matrix (Phase 4).
 without a network. The measurement loop calls the shared `call_chat`, so it
 inherits the same retry/timeout behavior the engine uses.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
@@ -33,7 +36,9 @@ def _nearest_rank(sorted_vals: list[float], pct: float) -> float:
     return sorted_vals[rank - 1]
 
 
-def summarize_perf(samples: list[dict], price_in_per_mtok: float, price_out_per_mtok: float) -> dict:
+def summarize_perf(
+    samples: list[dict], price_in_per_mtok: float, price_out_per_mtok: float
+) -> dict:
     """Aggregate per-call measurements into the perf row.
 
     `samples` items: {latency_ms, tokens_in, tokens_out, error}. Errored calls
@@ -55,7 +60,9 @@ def summarize_perf(samples: list[dict], price_in_per_mtok: float, price_out_per_
     total_in = sum(s.get("tokens_in", 0) or 0 for s in ok)
     total_out = sum(s.get("tokens_out", 0) or 0 for s in ok)
     total_tokens = total_in + total_out
-    total_cost = total_in / 1_000_000 * price_in_per_mtok + total_out / 1_000_000 * price_out_per_mtok
+    total_cost = (
+        total_in / 1_000_000 * price_in_per_mtok + total_out / 1_000_000 * price_out_per_mtok
+    )
     usd_per_mtok = (total_cost * 1_000_000 / total_tokens) if total_tokens else 0.0
 
     return {
@@ -77,53 +84,62 @@ def measure_provider(
     *,
     warmup: int = 5,
     measure: int = 20,
-    system: Optional[str] = None,
+    system: str | None = None,
     max_tokens: int = 200,
-    call: Callable = None,
+    call: Callable[..., Any] | None = None,
 ) -> dict:
     """Run warm-up (discarded) + measurement calls against one provider.
 
     `call` defaults to eval_lib.call_chat; injectable for tests. Returns the
     perf row dict (not yet written to disk).
     """
-    if call is None:
-        from eval_lib import call_chat as call  # lazy: keeps import light for tests
     from eval_lib import Target
 
-    target = Target(model=provider.model_name_at_provider,
-                    base_url=provider.base_url,
-                    api_key_env=provider.api_key_env)
+    if call is None:
+        from eval_lib import call_chat  # lazy: keeps import light for tests
+
+        _call: Callable[..., Any] = call_chat
+    else:
+        _call = call
+
+    target = Target(
+        model=provider.model_name_at_provider,
+        base_url=provider.base_url,
+        api_key_env=provider.api_key_env,
+    )
 
     # Warm-up: prime connection / cold-start; results discarded.
     for _ in range(warmup):
-        try:
-            call(target, system, warmup_prompt, max_tokens=max_tokens)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            _call(target, system, warmup_prompt, max_tokens=max_tokens)
 
     samples: list[dict] = []
     for i in range(measure):
         prompt = prompts[i % len(prompts)]
         t0 = time.perf_counter()
         try:
-            _text, usage = call(target, system, prompt, max_tokens=max_tokens)
+            _text, usage = _call(target, system, prompt, max_tokens=max_tokens)
             latency_ms = (time.perf_counter() - t0) * 1000.0
-            samples.append({
-                "latency_ms": latency_ms,
-                "tokens_in": usage.get("prompt_tokens", 0),
-                "tokens_out": usage.get("completion_tokens", 0),
-                "error": None,
-            })
+            samples.append(
+                {
+                    "latency_ms": latency_ms,
+                    "tokens_in": usage.get("prompt_tokens", 0),
+                    "tokens_out": usage.get("completion_tokens", 0),
+                    "error": None,
+                }
+            )
         except Exception as e:
             samples.append({"latency_ms": None, "tokens_in": 0, "tokens_out": 0, "error": str(e)})
 
     row = summarize_perf(samples, provider.price_in_per_mtok, provider.price_out_per_mtok)
-    row.update({
-        "model_id": model.id,
-        "provider_id": provider.provider_id,
-        "model_name_at_provider": provider.model_name_at_provider,
-        "measured_utc": datetime.now(timezone.utc).isoformat(),
-    })
+    row.update(
+        {
+            "model_id": model.id,
+            "provider_id": provider.provider_id,
+            "model_name_at_provider": provider.model_name_at_provider,
+            "measured_utc": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     return row
 
 

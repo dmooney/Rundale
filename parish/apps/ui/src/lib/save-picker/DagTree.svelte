@@ -249,7 +249,7 @@
 	<div class="dag-scroll">
 		<div class="dag-container" style="width: {layout.width}px; height: {layout.height}px;">
 			<svg class="dag-edges" width={layout.width} height={layout.height}>
-				{#each layout.edges as edge}
+				{#each layout.edges as edge, _ei (_ei)}
 					<path
 						d="M {edge.x1} {edge.y1} C {edge.x1} {edge.y1 - GAP_Y * 0.5}, {edge.x2} {edge.y2 + GAP_Y * 0.5}, {edge.x2} {edge.y2}"
 						fill="none"

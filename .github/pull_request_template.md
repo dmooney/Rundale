@@ -1,6 +1,5 @@
 ## Summary
 
-
 ## Proof Evidence
 
 - [ ] Proof bundle prepared in `.proofs/{task-id}/` (gitignored — not committed).

@@ -23,16 +23,19 @@ The game engine is async (Tokio), but the persistence layer must handle a sync d
 Use **SQLite in WAL (Write-Ahead Log) mode** as the persistence backend, with a three-layer write strategy:
 
 **Layer 1 -- Journal (Real-time)**
+
 - Every state mutation is appended to the journal as it occurs
 - Append-only writes are cheap and sequential
 - This is the crash recovery net: on restart, replay the journal from the last snapshot
 
 **Layer 2 -- Snapshot (Periodic)**
+
 - Full compaction of current world state every ~30-60 seconds
 - Runs on a background thread via `tokio::task::spawn_blocking` to avoid blocking the async runtime
 - This is the "clean" save point that the journal builds on top of
 
 **Layer 3 -- Branch (Named reference)**
+
 - A branch is a snapshot plus its journal tail
 - Fork copies the current snapshot and starts a new journal
 - Load switches to a different snapshot and journal

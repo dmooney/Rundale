@@ -40,7 +40,10 @@ function parseSegments(content: string): MessageSegment[] {
   while ((match = regex.exec(content)) !== null) {
     // Text before the asterisk match
     if (match.index > lastIndex) {
-      segments.push({ text: content.slice(lastIndex, match.index), italic: false });
+      segments.push({
+        text: content.slice(lastIndex, match.index),
+        italic: false,
+      });
     }
     // The matched action text (without asterisks)
     segments.push({ text: match[1], italic: true });
@@ -167,12 +170,14 @@ Modify `build_enhanced_context()` to accept `EnrichedInput` instead of a raw str
 #### Context Template Modification
 
 Current context (in `tier1_context.txt`):
-```
+
+```text
 The player {player_action}
 ```
 
 With action awareness:
-```
+
+```text
 // If actions + dialogue:
 The player *slides a coin across the bar* and says: "Any news today?"
 
@@ -241,7 +246,7 @@ if !enriched.actions.is_empty() && enriched.dialogue.is_none() {
 
 ## Data Flow
 
-```
+```text
 Player types: "*tips hat* Good morning @Padraig"
 
 Frontend:
@@ -273,15 +278,15 @@ Chat log renders:
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Unmatched `*` | Treated as literal text, no extraction |
-| Empty `**` | Ignored (empty action string filtered out) |
-| Nested `*foo *bar* baz*` | Outer match: `foo *bar` — regex is non-greedy |
-| `*action*` in NPC response | Also rendered italic in ChatPanel (consistent) |
-| Multiple actions `*waves* *smiles*` | Both extracted as separate action items |
+| Case                                     | Behavior                                                      |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Unmatched `*`                            | Treated as literal text, no extraction                        |
+| Empty `**`                               | Ignored (empty action string filtered out)                    |
+| Nested `*foo *bar* baz*`                 | Outer match: `foo *bar` — regex is non-greedy                 |
+| `*action*` in NPC response               | Also rendered italic in ChatPanel (consistent)                |
+| Multiple actions `*waves* *smiles*`      | Both extracted as separate action items                       |
 | Action + movement `*runs* go to the pub` | Movement keyword detected → `IntentKind::Move` takes priority |
-| Very long action text | No limit enforced — truncation happens at the LLM token level |
+| Very long action text                    | No limit enforced — truncation happens at the LLM token level |
 
 ## Testing
 
@@ -292,7 +297,7 @@ Chat log renders:
 3. **extract_actions** with multiple: `*waves* *smiles*` → actions: ["waves", "smiles"]
 4. **extract_actions** with mention: `@Padraig *tips hat*` → mention: Some("Padraig"), actions: ["tips hat"]
 5. **extract_actions** with no actions: `hello there` → actions: [], dialogue: Some("hello there")
-6. **extract_actions** with unmatched asterisk: `5 * 3 = 15` → actions: [], dialogue: Some("5 * 3 = 15")
+6. **extract_actions** with unmatched asterisk: `5 * 3 = 15` → actions: [], dialogue: Some("5 \* 3 = 15")
 7. **format_player_input** for each case: pure dialogue, pure action, mixed, empty
 
 ### Frontend (Vitest)
@@ -304,12 +309,12 @@ Chat log renders:
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `crates/parish-core/src/input/mod.rs` | Add `EnrichedInput` struct, `extract_actions()` function |
-| `crates/parish-server/src/routes.rs` | Use `extract_actions()` in `handle_game_input()`, pass to conversation handler |
+| File                                  | Change                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `crates/parish-core/src/input/mod.rs` | Add `EnrichedInput` struct, `extract_actions()` function                                 |
+| `crates/parish-server/src/routes.rs`  | Use `extract_actions()` in `handle_game_input()`, pass to conversation handler           |
 | `crates/parish-core/src/npc/ticks.rs` | Modify `build_enhanced_context()` to accept `EnrichedInput`, add `format_player_input()` |
-| `ui/src/components/ChatPanel.svelte` | Add `parseSegments()`, render italic action text |
+| `ui/src/components/ChatPanel.svelte`  | Add `parseSegments()`, render italic action text                                         |
 
 ## Effort Estimate
 

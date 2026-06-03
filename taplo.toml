@@ -1,0 +1,27 @@
+# taplo config — TOML formatting + linting (Cargo.toml, parish.toml, mods/**).
+# https://taplo.tamasfe.dev/configuration/file.html
+
+# Intentionally-malformed loader-test fixtures (e.g. bad-mod/) must never be
+# reformatted or validated — their broken syntax is the test.
+exclude = [
+    "parish/testing/**",
+    "**/target/**",
+    ".venv-dev/**",
+    "**/node_modules/**",
+]
+
+[formatting]
+# Cargo and the ecosystem expect these defaults; keep them explicit so the
+# formatter never fights `cargo` on Cargo.toml.
+align_entries = false
+# Don't column-align trailing comments — taplo would pad `hour = 6.0  # ...`
+# out to the longest comment line in the table (huge whitespace runs in ui.toml).
+align_comments = false
+# Preserve array layout exactly as authored: do not collapse the deliberately
+# one-per-line phrase/message lists in mod content, nor expand inline RGB
+# triples. Authors choose multiline vs inline per array; the formatter respects it.
+array_auto_expand = false
+array_auto_collapse = false
+indent_string = "    "
+reorder_keys = false
+reorder_arrays = false

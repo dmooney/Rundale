@@ -22,22 +22,22 @@ to an ADR + feature flag (`crates/parish-config/src/flags.rs`) before shipping.
 
 ## Gap map (where SOTA would move the needle)
 
-| Gap | Today | Opportunity |
-| --- | --- | --- |
-| Retrieval | Keyword overlap | Semantic embeddings + RAG |
-| Memory consolidation | Importance threshold promotion | Reflection, summarisation agents |
-| Truth gating | Prompts leak world facts | Symbolic knowledge graph per NPC (doc 10) |
-| Dialogue reliability | Post-hoc JSON parse | Constrained decoding (grammar) |
-| Dialogue quality | Single-shot generation | Self-refine, inner monologue, critic passes |
-| NPC agency | Schedule + mood deltas | Tool-using agents; effect-producing v2 tools |
-| Narrative pacing | Pure sandbox | AI director with archetype pool (doc 11) |
-| Authoring throughput | Hand-crafted mods | LLM-assisted authoring with review (doc 12) |
-| Local perf | Sequential Ollama calls | Prompt cache, speculative decoding, Utility lane |
-| Voice | Hand-written prompts | LoRA-tuned period dialect model, emoji-filtered distillation |
-| Player adaptation | Static persona prompt | Online player modelling |
-| Social spread | Probabilistic rules | Graph diffusion + theory-of-mind + rumour mutation |
-| Multimodal | Text only | TTS (+ `pronunciations.json`), ASR, diffusion portraits |
-| Evaluation | Unit tests + /prove | LLM-as-judge, adversarial-player harness |
+| Gap                  | Today                          | Opportunity                                                  |
+| -------------------- | ------------------------------ | ------------------------------------------------------------ |
+| Retrieval            | Keyword overlap                | Semantic embeddings + RAG                                    |
+| Memory consolidation | Importance threshold promotion | Reflection, summarisation agents                             |
+| Truth gating         | Prompts leak world facts       | Symbolic knowledge graph per NPC (doc 10)                    |
+| Dialogue reliability | Post-hoc JSON parse            | Constrained decoding (grammar)                               |
+| Dialogue quality     | Single-shot generation         | Self-refine, inner monologue, critic passes                  |
+| NPC agency           | Schedule + mood deltas         | Tool-using agents; effect-producing v2 tools                 |
+| Narrative pacing     | Pure sandbox                   | AI director with archetype pool (doc 11)                     |
+| Authoring throughput | Hand-crafted mods              | LLM-assisted authoring with review (doc 12)                  |
+| Local perf           | Sequential Ollama calls        | Prompt cache, speculative decoding, Utility lane             |
+| Voice                | Hand-written prompts           | LoRA-tuned period dialect model, emoji-filtered distillation |
+| Player adaptation    | Static persona prompt          | Online player modelling                                      |
+| Social spread        | Probabilistic rules            | Graph diffusion + theory-of-mind + rumour mutation           |
+| Multimodal           | Text only                      | TTS (+ `pronunciations.json`), ASR, diffusion portraits      |
+| Evaluation           | Unit tests + /prove            | LLM-as-judge, adversarial-player harness                     |
 
 ## Topic notes
 
@@ -72,23 +72,23 @@ to an ADR + feature flag (`crates/parish-config/src/flags.rs`) before shipping.
 
 ## Effort & dependencies (rough)
 
-| Topic | Effort | Best after |
-| --- | --- | --- |
-| 01 semantic memory + historical RAG | ~1 week (+ corpus curation) | — |
-| 02 structured generation | ~3 days | — |
-| 03 quality loops (incl. inner monologue) | ~4 days + ~1 week | 05 Utility |
-| 04 agent planning (v1 read-only) | ~1 week | 02 |
-| 04 agent planning (v2 mutating) | +1 week | 04 v1, 07 |
-| 05 inference perf (KV cache, spec decode) | ~1 day + audit | — |
-| 05 Utility lane | ~4 days | — (foundational) |
-| 05 long-context packing | ~1 week | 01 |
-| 06 distillation from emoji-filtered traces | ~3 weeks + GPU | 02, 04 |
-| 07 social sim (beliefs, rumour mutation) | ~1 week | 10 |
-| 08 TTS with pronunciations | ~2 weeks | — |
-| 09 eval harness | ~4 days | 02 |
-| 10 knowledge graph | ~2 weeks | 01 |
-| 11 drama manager | ~1.5 weeks | 02, 10 |
-| 12 LLM-assisted authoring | ~2 weeks | 02, 09 |
+| Topic                                      | Effort                      | Best after       |
+| ------------------------------------------ | --------------------------- | ---------------- |
+| 01 semantic memory + historical RAG        | ~1 week (+ corpus curation) | —                |
+| 02 structured generation                   | ~3 days                     | —                |
+| 03 quality loops (incl. inner monologue)   | ~4 days + ~1 week           | 05 Utility       |
+| 04 agent planning (v1 read-only)           | ~1 week                     | 02               |
+| 04 agent planning (v2 mutating)            | +1 week                     | 04 v1, 07        |
+| 05 inference perf (KV cache, spec decode)  | ~1 day + audit              | —                |
+| 05 Utility lane                            | ~4 days                     | — (foundational) |
+| 05 long-context packing                    | ~1 week                     | 01               |
+| 06 distillation from emoji-filtered traces | ~3 weeks + GPU              | 02, 04           |
+| 07 social sim (beliefs, rumour mutation)   | ~1 week                     | 10               |
+| 08 TTS with pronunciations                 | ~2 weeks                    | —                |
+| 09 eval harness                            | ~4 days                     | 02               |
+| 10 knowledge graph                         | ~2 weeks                    | 01               |
+| 11 drama manager                           | ~1.5 weeks                  | 02, 10           |
+| 12 LLM-assisted authoring                  | ~2 weeks                    | 02, 09           |
 
 ## Prioritisation heuristic
 

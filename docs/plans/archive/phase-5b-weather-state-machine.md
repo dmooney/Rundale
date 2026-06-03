@@ -2,7 +2,7 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../../requirements/roadmap.md) | [Docs Index](../../index.md)
 >
-> **Status: Complete** — *palette-tinting tasks below have since been reverted; weather no longer affects the UI palette.*
+> **Status: Complete** — _palette-tinting tasks below have since been reverted; weather no longer affects the UI palette._
 >
 > **Depends on:** Phase 5A (event bus for `WeatherChanged` events)
 > **Depended on by:** 5D (weather context in Tier 3 prompts), 5E (weather drives Tier 4 rules)
@@ -77,11 +77,11 @@ impl WeatherEngine {
 **Transition probability design:**
 
 | Season | Clear bias | Rain bias | Storm probability |
-|--------|-----------|-----------|-------------------|
-| Spring | 0.35 | 0.30 | 0.05 |
-| Summer | 0.50 | 0.15 | 0.03 |
-| Autumn | 0.20 | 0.40 | 0.08 |
-| Winter | 0.15 | 0.45 | 0.10 |
+| ------ | ---------- | --------- | ----------------- |
+| Spring | 0.35       | 0.30      | 0.05              |
+| Summer | 0.50       | 0.15      | 0.03              |
+| Autumn | 0.20       | 0.40      | 0.08              |
+| Winter | 0.15       | 0.45      | 0.10              |
 
 - Minimum duration: **2 game-hours** before any transition attempt.
 - Transition check: once per game-hour after minimum elapsed.
@@ -105,11 +105,11 @@ Modify the Tier 2 prompt construction in `npc/ticks.rs`:
 
 Update `palette.rs` to handle the new `PartlyCloudy`, `LightRain`, and `HeavyRain` variants:
 
-| Weather | RGB Multiplier | Desaturation | Brightness |
-|---------|---------------|-------------|------------|
-| PartlyCloudy | (0.97, 0.97, 0.98) | 8% | 96% |
-| LightRain | (0.90, 0.92, 0.96) | 15% | 88% |
-| HeavyRain | (0.85, 0.87, 0.93) | 25% | 80% |
+| Weather      | RGB Multiplier     | Desaturation | Brightness |
+| ------------ | ------------------ | ------------ | ---------- |
+| PartlyCloudy | (0.97, 0.97, 0.98) | 8%           | 96%        |
+| LightRain    | (0.90, 0.92, 0.96) | 15%          | 88%        |
+| HeavyRain    | (0.85, 0.87, 0.93) | 25%          | 80%        |
 
 ### 6. Publish `WeatherChanged` events
 
@@ -126,17 +126,17 @@ When `WeatherEngine::tick()` returns `Some(new_weather)`:
 
 ## Tests
 
-| Test | What it verifies |
-|------|------------------|
-| `test_weather_engine_initial_state` | Engine starts with the given weather |
-| `test_weather_no_transition_before_min_duration` | No transitions in the first 2 game-hours |
-| `test_weather_transitions_after_min_duration` | Seeded RNG produces expected transition after 2 hours |
-| `test_weather_seasonal_bias` | Winter produces more rain states over 100 ticks than summer |
-| `test_weather_no_skip_states` | Clear never jumps directly to Storm |
-| `test_npc_rain_override` | NPC scheduled outdoors moves indoors when raining |
-| `test_farmer_tolerates_light_rain` | Farmer stays outdoors in LightRain |
-| `test_palette_new_variants` | PartlyCloudy, LightRain, HeavyRain produce correct tint values |
-| `test_weather_changed_event_published` | WeatherChanged event fires on transition |
+| Test                                             | What it verifies                                               |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| `test_weather_engine_initial_state`              | Engine starts with the given weather                           |
+| `test_weather_no_transition_before_min_duration` | No transitions in the first 2 game-hours                       |
+| `test_weather_transitions_after_min_duration`    | Seeded RNG produces expected transition after 2 hours          |
+| `test_weather_seasonal_bias`                     | Winter produces more rain states over 100 ticks than summer    |
+| `test_weather_no_skip_states`                    | Clear never jumps directly to Storm                            |
+| `test_npc_rain_override`                         | NPC scheduled outdoors moves indoors when raining              |
+| `test_farmer_tolerates_light_rain`               | Farmer stays outdoors in LightRain                             |
+| `test_palette_new_variants`                      | PartlyCloudy, LightRain, HeavyRain produce correct tint values |
+| `test_weather_changed_event_published`           | WeatherChanged event fires on transition                       |
 
 ## Acceptance Criteria
 

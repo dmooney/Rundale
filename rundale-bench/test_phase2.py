@@ -3,6 +3,7 @@
 
 No network, no model calls. Run: python3 rundale-bench/test_phase2.py
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -71,9 +72,12 @@ def _capture(fn):
 
 
 def _write_run(tmp, model_id, tier, summary, results=None):
-    out = {"tier": tier, "slice": "dialogue",
-           "candidate": {"model_id": model_id, "provider_id": "x", "resolved_target": "t"},
-           "slices": {"dialogue": {"summary": summary, "results": results or []}}}
+    out = {
+        "tier": tier,
+        "slice": "dialogue",
+        "candidate": {"model_id": model_id, "provider_id": "x", "resolved_target": "t"},
+        "slices": {"dialogue": {"summary": summary, "results": results or []}},
+    }
     (tmp / "artifacts" / f"run_{model_id}_dialogue_{tier}_T.json").write_text(json.dumps(out))
 
 
@@ -86,6 +90,7 @@ def test_tiers_resolve():
 
 def test_tier_ids_are_valid_dialogue_ids():
     from eval_lib import load_slice
+
     valid = {r["id"] for r in load_slice("dialogue", version="v1", split="dev")}
     for tier in ("screen", "contender"):
         for i in rb.tier_prompt_ids(tier, "dialogue", "v1"):
@@ -108,7 +113,16 @@ def test_resolve_models_forms():
 # ── criterion 2: catalog-driven multi-model run ──────────────────────────────
 def test_run_writes_per_model():
     with sandbox() as tmp, stub_call_chat():
-        rb.cmd_run(["--tier", "screen", "--models", "qwen2.5-7b-mlx,claude-haiku-4-5", "--slice", "dialogue"])
+        rb.cmd_run(
+            [
+                "--tier",
+                "screen",
+                "--models",
+                "qwen2.5-7b-mlx,claude-haiku-4-5",
+                "--slice",
+                "dialogue",
+            ]
+        )
         runs = sorted((tmp / "artifacts").glob("run_*.json"))
         assert len(runs) == 2
         for p in runs:
@@ -126,18 +140,29 @@ def test_additive_run_keeps_cache_warm():
     with sandbox():
         judge = rb.load_judge("judge_sonnet_v1", "v1")
         from eval_lib import load_slice
+
         screen_ids = set(rb.tier_prompt_ids("screen", "dialogue", "v1"))
         for rec in load_slice("dialogue", version="v1", split="dev"):
             if rec["id"] in screen_ids:
                 key = cache.cache_key(rec["id"], reply_a, judge["rubric_sha256"], judge["model"])
-                cache.put(key, {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0,
-                                "flags": {"non_latin_detected": False, "refused": False, "judge_retry": False}})
+                cache.put(
+                    key,
+                    {
+                        "axes": {a: 4 for a in jb.AXES},
+                        "overall": 4.0,
+                        "flags": {
+                            "non_latin_detected": False,
+                            "refused": False,
+                            "judge_retry": False,
+                        },
+                    },
+                )
         a_keys_before = sorted(p.name for p in cache.JUDGMENTS_DIR.glob("*.json"))
         with stub_call_chat("Distinct reply from model B."):
             rb.cmd_run(["--tier", "screen", "--models", "+grok-4-fast", "--slice", "dialogue"])
         a_keys_after = sorted(p.name for p in cache.JUDGMENTS_DIR.glob("*.json"))
         assert a_keys_before == a_keys_after  # A's cache untouched (run writes no judgments)
-        assert len(jb.list_pending()) == 1    # only B queued
+        assert len(jb.list_pending()) == 1  # only B queued
         b = jb.read_json(jb.list_pending()[0])
         assert b["candidate"]["model_id"] == "grok-4-fast"
 
@@ -145,29 +170,85 @@ def test_additive_run_keeps_cache_warm():
 # ── criterion 4: promotion logic ─────────────────────────────────────────────
 def test_promotion_logic_table():
     aggs = {
-        "pass-model": {"overall": 4.6, "character": 5, "authenticity": 4, "language": 5, "responsiveness": 5, "craft": 4},
-        "low-overall": {"overall": 3.2, "character": 4, "authenticity": 3, "language": 4, "responsiveness": 3, "craft": 3},
-        "weak-axis": {"overall": 4.5, "character": 5, "authenticity": 2, "language": 5, "responsiveness": 5, "craft": 5},
+        "pass-model": {
+            "overall": 4.6,
+            "character": 5,
+            "authenticity": 4,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 4,
+        },
+        "low-overall": {
+            "overall": 3.2,
+            "character": 4,
+            "authenticity": 3,
+            "language": 4,
+            "responsiveness": 3,
+            "craft": 3,
+        },
+        "weak-axis": {
+            "overall": 4.5,
+            "character": 5,
+            "authenticity": 2,
+            "language": 5,
+            "responsiveness": 5,
+            "craft": 5,
+        },
     }
     decisions = {d.model_id: d for d in promo.promote(aggs, "screen")}
     assert decisions["pass-model"].promoted and decisions["pass-model"].to_tier == "contender"
     assert not decisions["low-overall"].promoted  # overall 3.2 < 3.5
-    assert not decisions["weak-axis"].promoted     # min axis 2 <= 2.0
+    assert not decisions["weak-axis"].promoted  # min axis 2 <= 2.0
     # overrides
     forced = {d.model_id: d for d in promo.promote(aggs, "screen", include={"low-overall"})}
     assert forced["low-overall"].promoted
     blocked = {d.model_id: d for d in promo.promote(aggs, "screen", exclude={"pass-model"})}
     assert not blocked["pass-model"].promoted
     # contender->finalist floor is stricter (axis_floor 3.0)
-    cf = promo.decide("x", {"overall": 4.1, "character": 3, "authenticity": 4, "language": 4, "responsiveness": 4, "craft": 4}, "contender")
+    cf = promo.decide(
+        "x",
+        {
+            "overall": 4.1,
+            "character": 3,
+            "authenticity": 4,
+            "language": 4,
+            "responsiveness": 4,
+            "craft": 4,
+        },
+        "contender",
+    )
     assert not cf.promoted  # min axis 3 <= 3.0
 
 
 # ── criterion 5: promote reads real run aggregates ───────────────────────────
 def test_promote_reads_runs():
     with sandbox() as tmp:
-        _write_run(tmp, "good", "screen", {"overall": 4.2, "character": 4, "authenticity": 4, "language": 5, "responsiveness": 4, "craft": 4})
-        _write_run(tmp, "meh", "screen", {"overall": 3.0, "character": 3, "authenticity": 3, "language": 3, "responsiveness": 3, "craft": 3})
+        _write_run(
+            tmp,
+            "good",
+            "screen",
+            {
+                "overall": 4.2,
+                "character": 4,
+                "authenticity": 4,
+                "language": 5,
+                "responsiveness": 4,
+                "craft": 4,
+            },
+        )
+        _write_run(
+            tmp,
+            "meh",
+            "screen",
+            {
+                "overall": 3.0,
+                "character": 3,
+                "authenticity": 3,
+                "language": 3,
+                "responsiveness": 3,
+                "craft": 3,
+            },
+        )
         out = _capture(lambda: rb.cmd_promote(["--from", "screen"]))
         assert "PROMOTE  good" in out
         assert "promoted: good" in out
@@ -179,12 +260,17 @@ def test_rejudge_dry_run_detects_stale():
     with sandbox() as tmp:
         judge = rb.load_judge("judge_sonnet_v1", "v1")
         # A run with two samples; cache them under an OLD rubric sha.
-        results = [{"id": "dialogue-0001", "reply": "Aye one."}, {"id": "dialogue-0002", "reply": "Aye two."}]
+        results = [
+            {"id": "dialogue-0001", "reply": "Aye one."},
+            {"id": "dialogue-0002", "reply": "Aye two."},
+        ]
         _write_run(tmp, "m", "screen", {"overall": 4.0}, results)
         old_sha = "0" * 64
         for r in results:
-            cache.put(cache.cache_key(r["id"], r["reply"], old_sha, judge["model"]),
-                      {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0, "flags": {}})
+            cache.put(
+                cache.cache_key(r["id"], r["reply"], old_sha, judge["model"]),
+                {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0, "flags": {}},
+            )
         samples = rb.collect_samples("dialogue")
         assert len(samples) == 2
         stale = rb.stale_samples(samples, judge)  # current sha != old_sha -> all stale
@@ -199,8 +285,10 @@ def test_rejudge_no_stale_when_cached_current():
         judge = rb.load_judge("judge_sonnet_v1", "v1")
         results = [{"id": "dialogue-0001", "reply": "Aye one."}]
         _write_run(tmp, "m", "screen", {"overall": 4.0}, results)
-        cache.put(cache.cache_key("dialogue-0001", "Aye one.", judge["rubric_sha256"], judge["model"]),
-                  {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0, "flags": {}})
+        cache.put(
+            cache.cache_key("dialogue-0001", "Aye one.", judge["rubric_sha256"], judge["model"]),
+            {"axes": {a: 4 for a in jb.AXES}, "overall": 4.0, "flags": {}},
+        )
         assert rb.stale_samples(rb.collect_samples("dialogue"), judge) == []
 
 
@@ -209,20 +297,33 @@ def test_classify_since_reasons():
     judge = rb.load_judge("judge_sonnet_v1", "v1")
     # model swap
     swap = json.dumps({"model": "old-model", "rubric_sha256": judge["rubric_sha256"]})
-    assert rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: swap) == "judge model swap"
+    assert (
+        rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: swap)
+        == "judge model swap"
+    )
     # rubric drift
     drift = json.dumps({"model": judge["model"], "rubric_sha256": "deadbeef"})
-    assert rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: drift) == "rubric drift"
+    assert (
+        rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: drift) == "rubric drift"
+    )
     # unchanged
     same = json.dumps({"model": judge["model"], "rubric_sha256": judge["rubric_sha256"]})
-    assert rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: same) == "new responses"
+    assert (
+        rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: same) == "new responses"
+    )
     # missing at ref
-    assert rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: None) == "new judge config"
+    assert (
+        rb.classify_since("REF", "judge_sonnet_v1", "v1", show=lambda r, p: None)
+        == "new judge config"
+    )
 
 
 def test_rejudge_requeues_stale():
     with sandbox() as tmp:
-        results = [{"id": "dialogue-0001", "reply": "Aye one."}, {"id": "dialogue-0002", "reply": "Aye two."}]
+        results = [
+            {"id": "dialogue-0001", "reply": "Aye one."},
+            {"id": "dialogue-0002", "reply": "Aye two."},
+        ]
         _write_run(tmp, "m", "screen", {"overall": 4.0}, results)
         # No cache seeded -> all stale -> non-dry rejudge queues one bundle for model m.
         rb.cmd_rejudge([])
@@ -234,13 +335,26 @@ def test_rejudge_requeues_stale():
 # ── criterion 8: skip-promotion direct finalist run ──────────────────────────
 def test_skip_promotion_finalist():
     with sandbox() as tmp, stub_call_chat():
-        rb.cmd_run(["--tier", "finalist", "--models", "+qwen2.5-7b-mlx", "--slice", "dialogue", "--skip-promotion"])
+        rb.cmd_run(
+            [
+                "--tier",
+                "finalist",
+                "--models",
+                "+qwen2.5-7b-mlx",
+                "--slice",
+                "dialogue",
+                "--skip-promotion",
+            ]
+        )
         out = json.loads(next((tmp / "artifacts").glob("run_*.json")).read_text())
         assert out["tier"] == "finalist"
         assert out["skip_promotion"] is True
         assert out["promoted_from"] is None
         from eval_lib import load_slice
-        assert out["slices"]["dialogue"]["summary"]["records"] == len(load_slice("dialogue", version="v1", split="dev"))
+
+        assert out["slices"]["dialogue"]["summary"]["records"] == len(
+            load_slice("dialogue", version="v1", split="dev")
+        )
 
 
 def main() -> int:

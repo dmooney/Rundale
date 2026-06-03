@@ -7,21 +7,21 @@ publish = false
 description = "NPC simulation, memory, schedules, and reaction systems for the Parish engine"
 
 [dependencies]
-parish-types     = { workspace = true }
-parish-config    = { workspace = true }
+parish-types = { workspace = true }
+parish-config = { workspace = true }
 parish-inference = { workspace = true }
-parish-world     = { workspace = true }
-serde            = { workspace = true }
-serde_json       = { workspace = true }
-anyhow           = { workspace = true }
-thiserror        = { workspace = true }
-tracing          = { workspace = true }
-chrono           = { workspace = true }
-rand             = { workspace = true }
-regex            = { workspace = true }
-tokio            = { workspace = true }
+parish-world = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 rand_chacha = { workspace = true }
-wiremock    = { workspace = true }
+wiremock = { workspace = true }
 # serde_json and tokio are already in [dependencies]; no need to repeat them

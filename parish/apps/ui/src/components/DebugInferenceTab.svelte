@@ -76,7 +76,7 @@
 	<div class="section">
 		<h4>Quick Presets</h4>
 		<div class="preset-row">
-			{#each PRESET_PROVIDERS as provider}
+			{#each PRESET_PROVIDERS as provider (provider)}
 				{@const isLocal = provider === 'ollama' || provider === 'lmstudio'}
 				{@const isConfigured = snap.inference.configured_providers.includes(provider)}
 				<button class="preset-btn" type="button" onclick={() => applyPreset(provider)}>
@@ -118,7 +118,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each snap.inference.categories as cat}
+					{#each snap.inference.categories as cat (cat.role)}
 						<tr>
 							<td>{cat.role}</td>
 							<td class:muted={!cat.provider}>{cat.provider ?? `(${snap.inference.provider_name})`}</td>
@@ -141,7 +141,7 @@
 			{@const avgMs = Math.round(snap.inference.call_log.reduce((s, e) => s + e.duration_ms, 0) / snap.inference.call_log.length)}
 			{@const errorCount = snap.inference.call_log.filter(e => e.error).length}
 			<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
-			{#each [...snap.inference.call_log].reverse() as entry}
+			{#each [...snap.inference.call_log].reverse() as entry (entry.request_id)}
 				{@const npcLabel = npcLabelFromEntry(entry)}
 				<div class="log-row-wrap">
 					<button class="log-row" class:log-row-error={entry.error} onclick={() => onSelectLog(entry.request_id)}>

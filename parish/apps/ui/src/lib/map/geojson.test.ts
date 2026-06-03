@@ -3,15 +3,29 @@ import {
 	locationsToGeoJSON,
 	edgesToGeoJSON,
 	computeOffMapCounts,
-	edgeKey
+	edgeKey,
 } from './geojson';
 import type { MapData } from '$lib/types';
 
 function buildMap(overrides: Partial<MapData> = {}): MapData {
 	return {
 		locations: [
-			{ id: 'a', name: 'Alpha', lat: 53.59, lon: -8.15, adjacent: false, hops: 0 },
-			{ id: 'b', name: 'Beta Church', lat: 53.6, lon: -8.14, adjacent: true, hops: 1 },
+			{
+				id: 'a',
+				name: 'Alpha',
+				lat: 53.59,
+				lon: -8.15,
+				adjacent: false,
+				hops: 0,
+			},
+			{
+				id: 'b',
+				name: 'Beta Church',
+				lat: 53.6,
+				lon: -8.14,
+				adjacent: true,
+				hops: 1,
+			},
 			{
 				id: 'c',
 				name: 'Gamma',
@@ -19,18 +33,18 @@ function buildMap(overrides: Partial<MapData> = {}): MapData {
 				lon: -8.13,
 				adjacent: false,
 				hops: 2,
-				visited: false
-			}
+				visited: false,
+			},
 		],
 		edges: [
 			['a', 'b'],
-			['b', 'c']
+			['b', 'c'],
 		],
 		player_location: 'a',
 		transport_label: 'on foot',
 		transport_id: 'walking',
 		edge_traversals: [['a', 'b', 4]],
-		...overrides
+		...overrides,
 	};
 }
 
@@ -81,7 +95,7 @@ describe('locationsToGeoJSON', () => {
 
 	it('filters to the given id set when provided', () => {
 		const fc = locationsToGeoJSON(buildMap(), {
-			filterIds: new Set(['a', 'b'])
+			filterIds: new Set(['a', 'b']),
 		});
 		expect(fc.features).toHaveLength(2);
 		expect(fc.features.map((f) => f.properties.id).sort()).toEqual(['a', 'b']);
@@ -99,10 +113,10 @@ describe('edgesToGeoJSON', () => {
 	it('normalizes traversal weights to 0..1', () => {
 		const fc = edgesToGeoJSON(buildMap());
 		const ab = fc.features.find(
-			(f) => f.properties.src === 'a' && f.properties.dst === 'b'
+			(f) => f.properties.src === 'a' && f.properties.dst === 'b',
 		);
 		const bc = fc.features.find(
-			(f) => f.properties.src === 'b' && f.properties.dst === 'c'
+			(f) => f.properties.src === 'b' && f.properties.dst === 'c',
 		);
 		expect(ab?.properties.traversalWeight).toBeCloseTo(1); // 4 / 4
 		expect(bc?.properties.traversalWeight).toBeCloseTo(0); // no traversals
@@ -118,7 +132,7 @@ describe('edgesToGeoJSON', () => {
 
 	it('marks active travel path edges as traversing', () => {
 		const fc = edgesToGeoJSON(buildMap(), {
-			traversingEdgeKeys: new Set([edgeKey('a', 'b')])
+			traversingEdgeKeys: new Set([edgeKey('a', 'b')]),
 		});
 		const ab = fc.features.find((f) => f.properties.src === 'a');
 		const bc = fc.features.find((f) => f.properties.src === 'b');
@@ -128,7 +142,7 @@ describe('edgesToGeoJSON', () => {
 
 	it('filters edges whose endpoints are not all in the visible set', () => {
 		const fc = edgesToGeoJSON(buildMap(), {
-			filterIds: new Set(['a', 'b'])
+			filterIds: new Set(['a', 'b']),
 		});
 		expect(fc.features).toHaveLength(1);
 		expect(fc.features[0].properties.src).toBe('a');
@@ -140,7 +154,7 @@ describe('computeOffMapCounts', () => {
 		const edges: Array<[string, string]> = [
 			['a', 'b'],
 			['a', 'c'],
-			['b', 'c']
+			['b', 'c'],
 		];
 		const visible = new Set(['a', 'b']);
 		const counts = computeOffMapCounts(edges, visible);

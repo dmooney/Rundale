@@ -13,9 +13,14 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:e2e": "playwright test",
 		"test:e2e:update": "playwright test --update-snapshots",
-		"notices": "npx --yes license-checker-rseidelsohn --production --excludePrivatePackages --clarificationsFile ./license-clarifications.json --markdown --out ../../THIRD_PARTY_NOTICES.ui.md"
+		"notices": "npx --yes license-checker-rseidelsohn --production --excludePrivatePackages --clarificationsFile ./license-clarifications.json --markdown --out ../../THIRD_PARTY_NOTICES.ui.md",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.39.4",
 		"@playwright/test": "^1.56.0",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.60.1",
@@ -23,10 +28,17 @@
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "^5.3.1",
 		"@types/node": "^25.6.0",
+		"eslint": "^9.39.4",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "^3.18.0",
+		"globals": "^17.6.0",
 		"jsdom": "^29.0.1",
+		"prettier": "^3.8.3",
+		"prettier-plugin-svelte": "^4.0.1",
 		"svelte": "^5.55.7",
 		"svelte-check": "^4.4.2",
 		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.60.0",
 		"vite": "^7.3.2",
 		"vitest": "^4.1.1"
 	},

@@ -4,10 +4,10 @@
 
 > Status: **DEFERRED** — design captured for a future implementation. Do
 > **not** implement until PR #443 (`feat(emotion): structured character
-> emotion system`) has landed and completed human playtest. See the
-> "Conflict Analysis" section for why. This document is the *NPC-side*
+emotion system`) has landed and completed human playtest. See the
+> "Conflict Analysis" section for why. This document is the _NPC-side_
 > counterpart to [night-visions.md](night-visions.md), which covers
-> *player* dreams; the two are distinct features that share thematic
+> _player_ dreams; the two are distinct features that share thematic
 > ground.
 
 > Branch when implementation begins: `claude/npc-sleep-dream-mechanics-2jgwH`
@@ -16,9 +16,10 @@
 
 ## Context
 
-Today, NPCs in Rundale "sleep" only in the sense that their scheduled `activity` string is `"sleeping"` (see `mods/rundale/npcs.json` — e.g., Padraig Darcy sleeps 00–05h, winter extends to 00–06h, Sunday lie-ins). There is no sleep *state*, no fatigue, no dream content, and no memory consolidation. NPCs currently accumulate memory in a 20-entry `ShortTermMemory` ring buffer (`crates/parish-npc/src/memory.rs:18–157`) plus a 50-entry keyword-indexed `LongTermMemory`. As game sessions lengthen, short-term memory overflow means NPCs forget days in bulk without any abstraction pass.
+Today, NPCs in Rundale "sleep" only in the sense that their scheduled `activity` string is `"sleeping"` (see `mods/rundale/npcs.json` — e.g., Padraig Darcy sleeps 00–05h, winter extends to 00–06h, Sunday lie-ins). There is no sleep _state_, no fatigue, no dream content, and no memory consolidation. NPCs currently accumulate memory in a 20-entry `ShortTermMemory` ring buffer (`crates/parish-npc/src/memory.rs:18–157`) plus a 50-entry keyword-indexed `LongTermMemory`. As game sessions lengthen, short-term memory overflow means NPCs forget days in bulk without any abstraction pass.
 
 This plan adds:
+
 1. A real `NpcState::Sleeping` with a `fatigue` scalar and gameplay consequences for missed sleep.
 2. A dream-time memory consolidation pass that runs when an NPC exits their sleep window: the day's `ShortTermMemory` is reflected into higher-level summaries, older summaries are recompacted further, and a small set of "core memories" are promoted so they never decay. Patterned on the Generative Agents reflection tree plus an explicit core-memory tier.
 
@@ -29,7 +30,7 @@ The outcome: NPCs retain coherent multi-week narratives ("Padraig still grumbles
 ## User decisions (captured during planning)
 
 1. **Sleep scope:** Medium — add `NpcState::Sleeping` + `fatigue: f32`. Not the heavy REM/NREM phase model.
-2. **Consolidation architecture:** Hybrid — Generative Agents-style reflection tree *plus* an explicit "core memory" tier that is exempt from compaction.
+2. **Consolidation architecture:** Hybrid — Generative Agents-style reflection tree _plus_ an explicit "core memory" tier that is exempt from compaction.
 3. **Trigger:** End of each NPC's individual sleep window (when their schedule's `activity` transitions out of `"sleeping"`). Not a single global midnight cron; not a capacity-overflow trigger.
 4. **Dream purpose:** Consolidate the day's memories into a detailed summary; recompact older summaries further over time; natural forgetting as a side effect; core memories elevated to never compact.
 
@@ -45,17 +46,17 @@ PR #443 (emotion system) is open, not yet playtested, and touches several of the
 
 ### File overlap table
 
-| File | #443 uses | This plan will add | Overlap |
-|---|---|---|---|
-| `crates/parish-npc/src/lib.rs` | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations` | **High** — same struct |
-| `crates/parish-npc/src/manager.rs` | Tier 4 emits structured emotion impulses | Tier 4 fatigue-biased rules; end-of-sleep-window detection | **High** |
-| `crates/parish-npc/src/ticks.rs` | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas | New `run_dream_consolidation` pass; fatigue tick | Medium |
-| `crates/parish-persistence/src/snapshot.rs` | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical |
-| `crates/parish-config/src/engine.rs` | `NpcConfig.emotions_enabled` flag | `NpcConfig.dreams_enabled` flag | Medium |
-| `crates/parish-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion` | `/debug dreams`, `/stub-fatigue`, `/force-dream` | Low — parallel patterns |
-| `crates/parish-core/prompts/*.prompt.yml` | `npc_tier1` emotion preamble | New `npc_dream_consolidation.prompt.yml` | Low — new file |
-| `crates/parish-npc/src/memory.rs` | (untouched by #443) | Consolidation logic, core-memory marker, decay of old summaries | None |
-| `crates/parish-npc/src/types.rs` | (untouched by #443) | Extend `NpcState` with `Sleeping` variant | None |
+| File                                               | #443 uses                                                                                             | This plan will add                                                              | Overlap                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| `crates/parish-npc/src/lib.rs`                     | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations`     | **High** — same struct  |
+| `crates/parish-npc/src/manager.rs`                 | Tier 4 emits structured emotion impulses                                                              | Tier 4 fatigue-biased rules; end-of-sleep-window detection                      | **High**                |
+| `crates/parish-npc/src/ticks.rs`                   | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas                      | New `run_dream_consolidation` pass; fatigue tick                                | Medium                  |
+| `crates/parish-persistence/src/snapshot.rs`        | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed                                 | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical     |
+| `crates/parish-config/src/engine.rs`               | `NpcConfig.emotions_enabled` flag                                                                     | `NpcConfig.dreams_enabled` flag                                                 | Medium                  |
+| `crates/parish-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion`                                                                     | `/debug dreams`, `/stub-fatigue`, `/force-dream`                                | Low — parallel patterns |
+| `crates/parish-core/prompts/*.prompt.yml`          | `npc_tier1` emotion preamble                                                                          | New `npc_dream_consolidation.prompt.yml`                                        | Low — new file          |
+| `crates/parish-npc/src/memory.rs`                  | (untouched by #443)                                                                                   | Consolidation logic, core-memory marker, decay of old summaries                 | None                    |
+| `crates/parish-npc/src/types.rs`                   | (untouched by #443)                                                                                   | Extend `NpcState` with `Sleeping` variant                                       | None                    |
 
 ### Design coupling (bigger reason than files)
 
@@ -158,7 +159,7 @@ pub enum NpcState {
 
 In `crates/parish-npc/src/ticks.rs`, during each game-clock advancement:
 
-1. For each NPC, compute their *current* scheduled activity via `SeasonalSchedule::entry_at(hour)` (already exists).
+1. For each NPC, compute their _current_ scheduled activity via `SeasonalSchedule::entry_at(hour)` (already exists).
 2. If previous-tick activity did NOT contain `"sleeping"` and current-tick activity DOES → set `sleep_state = Sleeping`, emit `GameEvent::NpcSleepStart`.
 3. If previous-tick activity DID contain `"sleeping"` and current-tick activity does NOT → this is the **consolidation trigger**:
    - set `sleep_state = Awake`;
@@ -168,7 +169,7 @@ In `crates/parish-npc/src/ticks.rs`, during each game-clock advancement:
 
 ### Fatigue dynamics
 
-```
+```text
 // Per-tick, while Awake:
 fatigue += AWAKE_FATIGUE_RATE * dt_hours;  // e.g. 0.05/hour, so ~16h awake = 0.8
 
@@ -219,10 +220,11 @@ After writing the level-0 entry, check if higher-level recompaction should fire:
 
 - If `consolidations` contains ≥ 7 level-0 entries: take the oldest 7, run the dream-consolidation prompt again with `level = 1` and those seven summaries as input (instead of raw memories). Replace them with a single level-1 entry.
 - If ≥ 4 level-1 entries: recompact into a level-2 entry. (Analogous threshold for each level.)
-- Core memories are *never* touched by recompaction — they're stored separately.
+- Core memories are _never_ touched by recompaction — they're stored separately.
 
 Tunable constants (put in a `MemoryConfig` or constants block):
-```
+
+```text
 const LEVEL_0_BATCH: usize = 7;   // week → weekly summary
 const LEVEL_1_BATCH: usize = 4;   // month-ish
 const LEVEL_2_BATCH: usize = 3;   // season-ish
@@ -245,7 +247,7 @@ When dialogue with an NPC runs (Tier 1 prompt assembly), memory retrieval should
 
 Prompt shape for Tier 1 gains a new section (templated):
 
-```
+```text
 You remember:
 CORE: <core_memories summaries joined>
 YESTERDAY: <consolidations[0].summary>
@@ -261,7 +263,7 @@ Location: `crates/parish-core/prompts/npc_dream_consolidation.prompt.yml`. Follo
 
 System message sketch (condensed — full text to be written at implementation):
 
-```
+```text
 You are helping simulate the inner life of an NPC in 1820 rural Ireland.
 It is dawn. The NPC is waking. Summarise their just-ended day as a dream —
 the shape of what happened, compressed. Preserve the emotional texture.
@@ -288,7 +290,7 @@ Add to `crates/parish-config/src/engine.rs` `NpcConfig`:
 - `sleep_state_enabled: bool` (default `true`) — if off, `NpcState::Sleeping` never entered; fatigue not tracked or surfaced.
 - `dreams_enabled: bool` (default `true`) — if off, no consolidation runs; only raw memories and existing `LongTermMemory` are used. Useful for offline / cheap-mode / automated-test runs where Ollama round-trips are undesirable.
 
-Both follow the `emotions_enabled` pattern from #443 exactly: kill-switch for *externally visible behaviour*, but underlying state evolution (fatigue ticking when enabled) is independent. Document in PR body with the same "flag reveals accurate state" wording.
+Both follow the `emotions_enabled` pattern from #443 exactly: kill-switch for _externally visible behaviour_, but underlying state evolution (fatigue ticking when enabled) is independent. Document in PR body with the same "flag reveals accurate state" wording.
 
 ---
 
@@ -348,10 +350,12 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 ## Files to modify when implementation begins (after #443)
 
 **New files:**
+
 - `crates/parish-core/prompts/npc_dream_consolidation.prompt.yml`
 - `parish/testing/fixtures/play_prove_dreams.txt`
 
 **Extend:**
+
 - `crates/parish-npc/src/lib.rs` — `Npc` new fields.
 - `crates/parish-npc/src/memory.rs` — `SleepState`, `ConsolidationEntry`, `CoreMemory`, `CorePromotionReason`, consolidation + recompaction functions.
 - `crates/parish-npc/src/types.rs` — `NpcState::Sleeping` variant.
@@ -373,34 +377,41 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 Summarised from web search performed during planning. The design above deliberately reuses patterns validated in this literature rather than inventing new ones.
 
 ### Foundational
+
 - **Generative Agents (Park et al., UIST 2023)** — memory stream of natural-language events; importance × recency × relevance retrieval; recursive reflection trees abstracting leaves into higher-level insights. Core inspiration for the hybrid reflection-tree approach here. https://arxiv.org/abs/2304.03442
 - **Survey: Memory Mechanism of LLM-based Agents (Zhang et al., 2024)** — three-stage taxonomy: construction, update, query. https://arxiv.org/abs/2404.13501
 
 ### Memory-as-OS / retrieval paradigms
+
 - **MemGPT** — OS-style hierarchy; LLM pages memory between in-context and external storage via tools. https://arxiv.org/abs/2310.08560
 - **Mem0** — production-ready scalable memory; entity/relation triplets into a knowledge graph with conflict resolution. +26% over OpenAI memory on LLM-as-judge. https://arxiv.org/abs/2504.19413
 - **A-Mem (2025)** — store/retrieve/update/summarise/discard as callable tools trained via GRPO; large token reductions vs baseline. https://arxiv.org/pdf/2502.12110
 
 ### Sleep- and dream-inspired (most relevant)
-- **LightMem (2025)** — Atkinson-Shiffrin staged memory; *offline sleep-time update* decoupled from online inference. Closest architectural precedent for our end-of-sleep-window trigger. https://arxiv.org/html/2510.18866v1
+
+- **LightMem (2025)** — Atkinson-Shiffrin staged memory; _offline sleep-time update_ decoupled from online inference. Closest architectural precedent for our end-of-sleep-window trigger. https://arxiv.org/html/2510.18866v1
 - **"Language Models Need Sleep" / SleepGate** — key decay, learned gating, consolidation modules; a dreaming phase generates synthetic curricula via RL. https://openreview.net/forum?id=iiZy6xyVVE
 - **Active Dreaming Memory** — biologically-inspired episodic consolidation for lifelong learning. https://www.researchgate.net/publication/398306877
 - **Learning to Forget (2025)** — sleep-inspired consolidation specifically to resolve proactive interference. Supports the "natural forgetting is a feature" angle.
 
 ### Episodic/semantic hierarchy + forgetting
+
 - **Position: Episodic Memory is the Missing Piece for Long-Term LLM Agents (2025)** — argues episodic memory (autobiographical events) is the missing cognitive layer. https://arxiv.org/pdf/2502.06975
 - **Human-Like Remembering and Forgetting (ACT-R-inspired)** — HAI 2025. ACT-R activation decay in agent memory.
 - **MemoryBank** — exponential Ebbinghaus decay in multi-turn dialogues; reinforcement-on-access resets the curve. Relevant to how often-accessed `ConsolidationEntry` items should resist recompaction.
 
 ### Benchmarks (for later evaluation)
+
 - **LoCoMo** — very long-term conversational memory eval, 35-session dialogues with explicit personas and temporal event graphs. https://arxiv.org/abs/2402.17753
 - **LongMemEval** — five memory abilities: info extraction, multi-session reasoning, temporal reasoning, knowledge updates, abstention. https://arxiv.org/abs/2410.10813
 
 ### Role-play / character-specific
+
 - **Character-LLM (Shao et al., EMNLP 2023)** — trainable agents acting as specific characters with detailed persona knowledge. https://arxiv.org/abs/2310.10158
 - **Survey: Role-Playing Language Agents (2024)** — persona, memory handling, prompt engineering, symbolic + neural decision logic. https://arxiv.org/abs/2404.18231
 
 ### Design patterns that recur across this literature (and drive this plan)
+
 1. **Decouple online write from offline consolidate** — our end-of-sleep trigger.
 2. **Hierarchical abstraction** episodic → semantic → reflection — our `level 0 / 1 / 2` consolidations.
 3. **Importance/salience scoring to gate promotion** — our `CORE_MEMORY_IMPORTANCE_THRESHOLD` reusing the existing `try_promote` signal.

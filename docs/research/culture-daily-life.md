@@ -1,6 +1,6 @@
 # Culture & Daily Life in 1820s Ireland
 
-*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
+_Research document for Rundale — an interactive fiction game set in 1820s rural Ireland._
 
 ## Daily Routines by Social Class
 
@@ -60,21 +60,21 @@ The material above suggests several concrete systems for Rundale. **NPC daily sc
 
 [1] **Verified with clarification.** Friction matches were invented by John Walker in England in 1826, with the first sale recorded in April 1827. In the early 1820s, they simply did not exist. The original text said "matches were dear"; in fact, they were unavailable, making the banking of fires even more essential. — Wikipedia, "Match"; historyofmatches.com.
 
-[2] **Corrected (minor).** The standard Irish spelling is *cuairt* (not "cuaird," though the Munster dialect variant "cuaird" exists). The word means circuit, round, visit — referring to the custom of neighbours dropping by in the evening. — Wiktionary, "cuairt"; Teanglann.ie.
+[2] **Corrected (minor).** The standard Irish spelling is _cuairt_ (not "cuaird," though the Munster dialect variant "cuaird" exists). The word means circuit, round, visit — referring to the custom of neighbours dropping by in the evening. — Wiktionary, "cuairt"; Teanglann.ie.
 
-[3] **Verified.** A céilí (from Gaelic *céile*, "companion") is a social gathering including storytelling, singing, instrumental music, jokes, and dancing. The *fear an tí* (man of the house) hosted gatherings with important social functions including courting and sharing news. — Wikipedia, "Cèilidh."
+[3] **Verified.** A céilí (from Gaelic _céile_, "companion") is a social gathering including storytelling, singing, instrumental music, jokes, and dancing. The _fear an tí_ (man of the house) hosted gatherings with important social functions including courting and sharing news. — Wikipedia, "Cèilidh."
 
-[4] **Verified.** *Fear siúil* literally means "walking man" (*fear* = man, *siúil* = walk), referring to travelling men and itinerant workers. — Wikipedia, "Irish Travellers."
+[4] **Verified.** _Fear siúil_ literally means "walking man" (_fear_ = man, _siúil_ = walk), referring to travelling men and itinerant workers. — Wikipedia, "Irish Travellers."
 
-[5] **Corrected (minor).** The pronunciation is more accurately rendered as "MEE-hal" rather than "MEH-hall." The *th* is silent in Irish. The word refers to a work party of community members labouring cooperatively. — Teanglann.ie, "meitheal."
+[5] **Corrected (minor).** The pronunciation is more accurately rendered as "MEE-hal" rather than "MEH-hall." The _th_ is silent in Irish. The word refers to a work party of community members labouring cooperatively. — Teanglann.ie, "meitheal."
 
-[6] **Verified.** *Bean chaointe* is indeed a keening woman (professional mourner at wakes and funerals), derived from *caoineadh* (to weep/wail). These were professional mourners whose laments blended singing, weeping, and poetic expression. — Wikipedia, "Keening"; Oriel Arts, "An Bhean Chaointe."
+[6] **Verified.** _Bean chaointe_ is indeed a keening woman (professional mourner at wakes and funerals), derived from _caoineadh_ (to weep/wail). These were professional mourners whose laments blended singing, weeping, and poetic expression. — Wikipedia, "Keening"; Oriel Arts, "An Bhean Chaointe."
 
 [7] **Verified.** Wake games with sexual connotations (e.g., "Priest of the Parish," "Hide the Gulley") were documented into the 20th century. At the 1720 synod of Cashel and Emly, clergy officially condemned the games. Despite disapproval, people largely ignored clerical denunciations; games continued into the 20th century in Connacht and Munster. — Cabinet Magazine, "Irish Wake Amusements"; Irish Central, "Traditional Irish wakes."
 
-[8] **Verified.** "Pattern" is a corruption of the word "patron" (as in patron saint), deriving from Irish *pátrún*. Patterns were celebrated on the feast day of the parish's patron saint, often held at holy wells. — Wikipedia, "Pattern (devotional)."
+[8] **Verified.** "Pattern" is a corruption of the word "patron" (as in patron saint), deriving from Irish _pátrún_. Patterns were celebrated on the feast day of the parish's patron saint, often held at holy wells. — Wikipedia, "Pattern (devotional)."
 
-[9] **Verified.** St. Brigid's Day (*Lá Fhéile Bríde*) falls on 1 February, coinciding with Imbolc, the ancient Gaelic festival marking the beginning of spring. In 2023, it became an official Irish public holiday. — Wikipedia, "Imbolc."
+[9] **Verified.** St. Brigid's Day (_Lá Fhéile Bríde_) falls on 1 February, coinciding with Imbolc, the ancient Gaelic festival marking the beginning of spring. In 2023, it became an official Irish public holiday. — Wikipedia, "Imbolc."
 
 [10] **Verified.** Bealtaine (from Old Irish meaning "bright fire") is the Gaelic May Day festival, traditionally held on 1 May, marking the beginning of summer and the pastoral season. — Wikipedia, "Beltane."
 

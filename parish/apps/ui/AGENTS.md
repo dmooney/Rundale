@@ -8,8 +8,8 @@ Svelte 5 + TypeScript SPA. Single frontend across all three modes (Tauri, web, h
 just ui-test                           # vitest units
 just ui-e2e                            # Playwright (auto-starts server)
 just screenshots                       # regenerate docs/screenshots/*.png
-pnpm --dir parish/apps/ui run dev      # local dev server
-pnpm --dir parish/apps/ui run check    # svelte-check + tsc
+npm --prefix parish/apps/ui run dev    # local dev server
+npm --prefix parish/apps/ui run check  # svelte-check + tsc
 ```
 
 ## Local gotchas

@@ -23,7 +23,7 @@ $PY rundale-bench/build_site_data.py
 
 echo
 echo "### Criterion 4 — Astro builds static dist/"
-( cd rundale-bench/bench-site && pnpm build >/dev/null )
+(cd rundale-bench/bench-site && pnpm build >/dev/null)
 test -f rundale-bench/bench-site/dist/index.html && echo "OK dist/index.html"
 ls rundale-bench/bench-site/dist/models/*/index.html >/dev/null 2>&1 && echo "OK dist/models/<id>/index.html"
 test -f rundale-bench/bench-site/dist/perf/index.html && echo "OK dist/perf/index.html"
@@ -32,7 +32,7 @@ echo
 echo "### Criterion 8 — publish workflow wired"
 wf=.github/workflows/publish-bench-site.yml
 for needle in "configure-pages" "upload-pages-artifact" "deploy-pages" "rundale-bench/bench-site/dist" "pages: write"; do
-  grep -q "$needle" "$wf" && echo "OK workflow has: $needle"
+    grep -q "$needle" "$wf" && echo "OK workflow has: $needle"
 done
 
 echo

@@ -20,6 +20,7 @@ Usage::
 
 Or use the justfile recipe `multiaxis-from-cache`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -82,20 +83,23 @@ def build_schema(axes: list[str]) -> dict:
     }
 
 
-def score_one(rubric: str, reply: str, judge_target: Target, tracker: CostTracker, axes: list[str]) -> dict:
+def score_one(
+    rubric: str, reply: str, judge_target: Target, tracker: CostTracker, axes: list[str]
+) -> dict:
     schema = build_schema(axes)
     # Strip the runtime metadata envelope so the judge scores the
     # player-visible dialogue, not raw scaffolding (see #994).
     dialogue = extract_dialogue_for_judging(reply)
     user = f"Reply to score:\n\n{dialogue}\n"
     try:
-        text, usage = call_chat(judge_target, rubric, user, schema=schema,
-                                temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
+        text, usage = call_chat(
+            judge_target, rubric, user, schema=schema, temperature=0, max_tokens=_JUDGE_MAX_TOKENS
+        )
         tracker.record(judge_target, usage)
         if not text:
             raise ValueError("empty content (reasoning model truncated?)")
         out = json.loads(text)
-        scored = {a: int(out.get(a) or 0) for a in axes}
+        scored: dict[str, int | float | str] = {a: int(out.get(a) or 0) for a in axes}
         scored["total"] = float(out.get("total") or 0.0)
         scored["reason"] = str(out.get("reason") or "")[:200]
         return scored
@@ -104,27 +108,39 @@ def score_one(rubric: str, reply: str, judge_target: Target, tracker: CostTracke
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--samples", required=True, help="cached dialogue_samples_*.json")
-    ap.add_argument("--rubric-file", default=None,
-                    help="path to rubric text; defaults to DEFAULT_RUBRIC bundled here")
-    ap.add_argument("--axes", default=",".join(DEFAULT_AXES),
-                    help="comma-separated axis names (must match the rubric's expectations)")
+    ap.add_argument(
+        "--rubric-file",
+        default=None,
+        help="path to rubric text; defaults to DEFAULT_RUBRIC bundled here",
+    )
+    ap.add_argument(
+        "--axes",
+        default=",".join(DEFAULT_AXES),
+        help="comma-separated axis names (must match the rubric's expectations)",
+    )
     ap.add_argument("--judge-model", default="mistralai/mistral-large-2512")
     ap.add_argument("--judge-url", default="https://openrouter.ai/api/v1")
     ap.add_argument("--judge-env", default="OPENROUTER_API_KEY")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="cap samples per candidate")
-    ap.add_argument("--workers", type=int, default=8,
-                    help="parallel judge requests (default 8). 1 = serial.")
+    ap.add_argument("--limit", type=int, default=None, help="cap samples per candidate")
+    ap.add_argument(
+        "--workers", type=int, default=8, help="parallel judge requests (default 8). 1 = serial."
+    )
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
 
     axes = [a.strip() for a in args.axes.split(",") if a.strip()]
-    rubric = Path(args.rubric_file).read_text(encoding="utf-8") if args.rubric_file else DEFAULT_RUBRIC
+    rubric = (
+        Path(args.rubric_file).read_text(encoding="utf-8") if args.rubric_file else DEFAULT_RUBRIC
+    )
 
     data = json.loads(Path(args.samples).read_text(encoding="utf-8"))
-    judge_target = Target(model=args.judge_model, base_url=args.judge_url, api_key_env=args.judge_env)
+    judge_target = Target(
+        model=args.judge_model, base_url=args.judge_url, api_key_env=args.judge_env
+    )
     tracker = CostTracker()
     started = time.time()
 
@@ -141,8 +157,11 @@ def main() -> None:
             capped.append(s)
         eligible = capped
     total_n = len(eligible)
-    print(f"scoring {total_n} replies × {len(axes)} axes with {args.judge_model} "
-          f"({args.workers} workers)", flush=True)
+    print(
+        f"scoring {total_n} replies × {len(axes)} axes with {args.judge_model} "
+        f"({args.workers} workers)",
+        flush=True,
+    )
 
     lock = threading.Lock()
     completed = [0]
@@ -167,9 +186,11 @@ def main() -> None:
             completed[0] += 1
             done = completed[0]
             tag = " ERR" if scored.get("error") else ""
-            print(f"  [{done:4d}/{total_n}] {dt:5.1f}s  total={scored['total']:4.1f}{tag}  "
-                  f"${tracker.usd:7.4f} cum  {s['candidate'][:30]:30s} {s['prompt_id']}",
-                  flush=True)
+            print(
+                f"  [{done:4d}/{total_n}] {dt:5.1f}s  total={scored['total']:4.1f}{tag}  "
+                f"${tracker.usd:7.4f} cum  {s['candidate'][:30]:30s} {s['prompt_id']}",
+                flush=True,
+            )
         return rec
 
     indexed = list(enumerate(eligible, 1))
@@ -195,11 +216,13 @@ def main() -> None:
         aggregates[cand] = ag
 
     ranked = sorted(aggregates.items(), key=lambda kv: -kv[1]["total_mean"])
-    print(f"\n0-10 multiaxis standings (total = mean of axes):")
+    print("\n0-10 multiaxis standings (total = mean of axes):")
     header = f"{'candidate':50s}  n   total " + " ".join(f"{a[:5]:>5}" for a in axes)
     print(header)
     for cand, ag in ranked:
-        line = f"{cand:50s} {ag['total_n']:3d}  {ag['total_mean']:5.2f} " + " ".join(f"{ag[a + '_mean']:5.2f}" for a in axes)
+        line = f"{cand:50s} {ag['total_n']:3d}  {ag['total_mean']:5.2f} " + " ".join(
+            f"{ag[a + '_mean']:5.2f}" for a in axes
+        )
         print(line)
     print(f"\n{tracker.summary()} in {time.time() - started:.1f}s")
 
@@ -212,9 +235,12 @@ def main() -> None:
         "aggregates": aggregates,
         "ranked": [{"candidate": c, **ag} for c, ag in ranked],
         "per_record": per_record,
-        "cost": {"calls": tracker.calls, "usd": tracker.usd,
-                 "prompt_tokens": tracker.prompt_tokens,
-                 "completion_tokens": tracker.completion_tokens},
+        "cost": {
+            "calls": tracker.calls,
+            "usd": tracker.usd,
+            "prompt_tokens": tracker.prompt_tokens,
+            "completion_tokens": tracker.completion_tokens,
+        },
     }
     if args.output:
         out_path = Path(args.output)

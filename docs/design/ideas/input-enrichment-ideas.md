@@ -96,7 +96,7 @@ The NPC system prompt would note this was whispered privately. Other NPCs presen
 
 Hover over (or tap) any NPC message in the chat log to reveal a reaction picker. Click to attach a reaction emoji beneath the message:
 
-```
+```text
 Padraig Darcy:
   "Ah, the land agent was here again. Raised the rent on
    Murphy's place by a full shilling."
@@ -111,7 +111,7 @@ Padraig Darcy:
 
 When the player says something, present NPCs can spontaneously attach reactions to the player's message — **without generating a full dialogue response**:
 
-```
+```text
 You:
   "I heard Father Callahan was seen at the fairy fort."
    😳 (Padraig)   🤫 (Siobhan)
@@ -126,7 +126,7 @@ You:
 
 When an NPC speaks, other NPCs present can react too:
 
-```
+```text
 Padraig Darcy:
   "The harvest will be poor this year, mark my words."
    😟 (Siobhan)   🙄 (Niamh)
@@ -140,24 +140,24 @@ Padraig Darcy:
 
 Period-appropriate gestures mapped to emoji. The UI shows emoji but the NPC context receives the natural language description:
 
-| Emoji | NPC sees | When to use |
-|-------|----------|-------------|
-| 😊 | "smiled warmly" | Approval, friendliness |
-| 😠 | "looked angry" | Disagreement, offense |
-| 😢 | "looked sorrowful" | Sympathy, sadness |
-| 😳 | "looked startled" | Surprise, shock |
-| 🤔 | "looked thoughtful" | Pondering, interest |
-| 😏 | "smirked knowingly" | Skepticism, irony |
-| 👀 | "raised an eyebrow" | Curiosity, suspicion |
-| 🤫 | "made a hushing gesture" | Secrecy, warning |
-| 😂 | "laughed heartily" | Amusement |
-| 🙄 | "rolled their eyes" | Dismissal, impatience |
-| 🍺 | "raised a glass" | Toast, camaraderie |
-| ✝️ | "crossed themselves" | Piety, superstition, shock |
+| Emoji | NPC sees                 | When to use                |
+| ----- | ------------------------ | -------------------------- |
+| 😊    | "smiled warmly"          | Approval, friendliness     |
+| 😠    | "looked angry"           | Disagreement, offense      |
+| 😢    | "looked sorrowful"       | Sympathy, sadness          |
+| 😳    | "looked startled"        | Surprise, shock            |
+| 🤔    | "looked thoughtful"      | Pondering, interest        |
+| 😏    | "smirked knowingly"      | Skepticism, irony          |
+| 👀    | "raised an eyebrow"      | Curiosity, suspicion       |
+| 🤫    | "made a hushing gesture" | Secrecy, warning           |
+| 😂    | "laughed heartily"       | Amusement                  |
+| 🙄    | "rolled their eyes"      | Dismissal, impatience      |
+| 🍺    | "raised a glass"         | Toast, camaraderie         |
+| ✝️    | "crossed themselves"     | Piety, superstition, shock |
 
 ### Implementation sketch
 
-```
+```text
 ChatPanel.svelte:
   - Each message gets a hover → reaction picker (row of emoji buttons)
   - Reactions stored in textLog entries: reactions: [{emoji, source}]
@@ -180,7 +180,7 @@ Tier 2 ticks:
 
 **Effort**: Medium-High — reaction UI + backend context tracking + NPC reaction generation.
 
-**Why this is worth the effort**: Reactions are the fastest form of player expression. They let you participate in a conversation without composing a sentence. And NPC reactions make a room full of characters feel alive — you can *see* Siobhan's worry and Niamh's eye-roll without either of them saying a word.
+**Why this is worth the effort**: Reactions are the fastest form of player expression. They let you participate in a conversation without composing a sentence. And NPC reactions make a room full of characters feel alive — you can _see_ Siobhan's worry and Niamh's eye-roll without either of them saying a word.
 
 ---
 
@@ -208,6 +208,7 @@ The MapPanel already handles click-to-travel. This brings that affordance closer
 Allow Shift+Enter to insert a newline for longer messages. The input field expands vertically (up to ~4 lines) then scrolls. Enter alone still submits.
 
 Useful for:
+
 - Longer roleplay actions: describing a complex gesture
 - Dictating a letter or message in-game
 - Composing a prayer or song verse (period-appropriate)
@@ -303,11 +304,11 @@ Let the player reference a specific previous NPC statement by clicking "reply" o
 
 Let the player control the "volume" of their speech with prefixes or a toggle:
 
-| Prefix | Range | Effect |
-|--------|-------|--------|
-| *(normal)* | Room | Only NPCs present hear you |
-| `!` or CAPS | Shout | NPCs in adjacent locations may hear/react |
-| `>` | Whisper | Only targeted NPC hears |
+| Prefix      | Range    | Effect                                     |
+| ----------- | -------- | ------------------------------------------ |
+| _(normal)_  | Room     | Only NPCs present hear you                 |
+| `!` or CAPS | Shout    | NPCs in adjacent locations may hear/react  |
+| `>`         | Whisper  | Only targeted NPC hears                    |
 | `(thought)` | Internal | No NPC hears — narrated as inner monologue |
 
 A shout at the crossroads might draw NPCs from the pub. A whisper ensures privacy. Inner monologue lets the player think "on screen" for roleplay flavor.
@@ -350,11 +351,11 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 
 ### Implementation options
 
-| Approach | Platforms | Latency | Offline | Dependencies |
-|----------|-----------|---------|---------|-------------|
-| **Web Speech API** | Windows + macOS | Low | No* | None — built into WebView |
-| **Whisper.cpp sidecar** | All (incl. Linux) | Medium | Yes | ~75MB model, `cpal` for mic capture |
-| **Whisper via Ollama** | All | Medium | Yes | Ollama (already required) |
+| Approach                | Platforms         | Latency | Offline | Dependencies                        |
+| ----------------------- | ----------------- | ------- | ------- | ----------------------------------- |
+| **Web Speech API**      | Windows + macOS   | Low     | No\*    | None — built into WebView           |
+| **Whisper.cpp sidecar** | All (incl. Linux) | Medium  | Yes     | ~75MB model, `cpal` for mic capture |
+| **Whisper via Ollama**  | All               | Medium  | Yes     | Ollama (already required)           |
 
 \* Web Speech API on some platforms sends audio to cloud services for recognition.
 
@@ -365,11 +366,11 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 
 ### Platform support matrix
 
-| Platform | WebView | Web Speech API | Whisper sidecar |
-|----------|---------|----------------|-----------------|
-| Windows | WebView2 (Chromium) | Works | Works |
-| macOS | WKWebView | Works (uses Siri STT) | Works |
-| Linux | WebKitGTK | Unreliable | Works (recommended path) |
+| Platform | WebView             | Web Speech API        | Whisper sidecar          |
+| -------- | ------------------- | --------------------- | ------------------------ |
+| Windows  | WebView2 (Chromium) | Works                 | Works                    |
+| macOS    | WKWebView           | Works (uses Siri STT) | Works                    |
+| Linux    | WebKitGTK           | Unreliable            | Works (recommended path) |
 
 ### Frontend implementation sketch
 
@@ -426,24 +427,24 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 
 ## Priority Ranking
 
-| Idea | Effort | Impact | Status |
-|------|--------|--------|--------|
-| `/slash` command autocomplete | Low | High | **Shipped (Wave 1)** — unified dropdown with @mention |
-| Input history (Up/Down) | Low | High | **Shipped (Wave 1)** — localStorage, 50 entries |
-| Push-to-talk voice input | Low | High | Build next — Web Speech API phase first |
-| `*action*` emotes | Low | Medium | **Shipped (Wave 1)** — italic rendering + backend action context |
-| Multi-line input | Low | Medium | **Shipped (Wave 1)** — Shift+Enter for newline |
-| Typing indicator | Low-Med | Medium | Build soon — makes NPCs feel alive |
-| Location quick-travel chips | Low | Medium | **Shipped (Wave 1)** — adjacent location pills above input |
-| Bidirectional emoji reactions | Med-High | High | Build soon — makes rooms feel alive |
-| Whisper syntax | Medium | Medium | Build later — needs context scoping |
-| Reply-to context | Medium | Medium | Build later |
-| Inline rich preview | Medium | Low-Med | Nice to have |
-| Tone indicator | Medium | Low-Med | Nice to have |
-| Tab-complete nouns | Medium | Medium | **Shipped (Wave 2)** — derived noun store + Tab cycling |
-| Voice range modifiers | Med-High | High | Build later — great emergent gameplay |
-| Contextual suggestions | High | High | Build later — needs LLM or rules |
-| Streamer mode | Very High | Niche | Someday/maybe |
+| Idea                          | Effort    | Impact  | Status                                                           |
+| ----------------------------- | --------- | ------- | ---------------------------------------------------------------- |
+| `/slash` command autocomplete | Low       | High    | **Shipped (Wave 1)** — unified dropdown with @mention            |
+| Input history (Up/Down)       | Low       | High    | **Shipped (Wave 1)** — localStorage, 50 entries                  |
+| Push-to-talk voice input      | Low       | High    | Build next — Web Speech API phase first                          |
+| `*action*` emotes             | Low       | Medium  | **Shipped (Wave 1)** — italic rendering + backend action context |
+| Multi-line input              | Low       | Medium  | **Shipped (Wave 1)** — Shift+Enter for newline                   |
+| Typing indicator              | Low-Med   | Medium  | Build soon — makes NPCs feel alive                               |
+| Location quick-travel chips   | Low       | Medium  | **Shipped (Wave 1)** — adjacent location pills above input       |
+| Bidirectional emoji reactions | Med-High  | High    | Build soon — makes rooms feel alive                              |
+| Whisper syntax                | Medium    | Medium  | Build later — needs context scoping                              |
+| Reply-to context              | Medium    | Medium  | Build later                                                      |
+| Inline rich preview           | Medium    | Low-Med | Nice to have                                                     |
+| Tone indicator                | Medium    | Low-Med | Nice to have                                                     |
+| Tab-complete nouns            | Medium    | Medium  | **Shipped (Wave 2)** — derived noun store + Tab cycling          |
+| Voice range modifiers         | Med-High  | High    | Build later — great emergent gameplay                            |
+| Contextual suggestions        | High      | High    | Build later — needs LLM or rules                                 |
+| Streamer mode                 | Very High | Niche   | Someday/maybe                                                    |
 
 ## Wave 1 Implementation Notes
 
