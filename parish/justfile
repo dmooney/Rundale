@@ -79,6 +79,12 @@ setup:
 ui-install:
     eval "$(fnm env)" && cd apps/ui && npm install
 
+# Install the language servers Claude Code uses for symbol navigation in the
+# Svelte/TypeScript UI. Idempotent; safe to re-run. Restart the editor/agent
+# session afterwards so the new binaries are picked up.
+setup-lsp:
+    npm install -g svelte-language-server typescript-language-server typescript
+
 # ─── Build ───────────────────────────────────────────────────────────────────
 
 # Build the workspace in debug mode

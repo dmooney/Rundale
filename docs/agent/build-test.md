@@ -88,6 +88,18 @@ just tauri-build    # production bundle
 
 System packages on Linux: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
+## Editor / LSP
+
+Symbol-level navigation needs language servers on PATH. If a session warns that
+`svelte-language-server` or `typescript-language-server` are missing, install
+them once:
+
+```sh
+just setup-lsp        # npm install -g svelte-language-server typescript-language-server typescript
+```
+
+Restart the editor/agent session afterwards so the new binaries are picked up.
+
 ## Quality gates
 
 - `/check` — both gate levels: `just check` (fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
