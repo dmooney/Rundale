@@ -42,8 +42,8 @@ runs on Cloud Run **Gen 2** subject to three structural constraints:
 3. **WebSocket sessions capped at 60 min** by Cloud Run's max request timeout.
    The frontend already reconnects on drop, but this should be verified.
 
-These constraints mean Cloud Run hosts Rundale as a *single always-on
-container* rather than an elastically-scaled service — appropriate given the
+These constraints mean Cloud Run hosts Rundale as a _single always-on
+container_ rather than an elastically-scaled service — appropriate given the
 in-memory, stateful nature of the game world.
 
 ## Recommended approach
@@ -69,11 +69,11 @@ spec:
     metadata:
       annotations:
         run.googleapis.com/execution-environment: gen2
-        run.googleapis.com/cpu-throttling: "false"
-        autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/cpu-throttling: 'false'
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '1'
     spec:
-      timeoutSeconds: 3600   # 60-min max; required for long WS sessions
+      timeoutSeconds: 3600 # 60-min max; required for long WS sessions
       containers:
         - image: REGION-docker.pkg.dev/PROJECT/parish/parish:TAG
           volumeMounts:
@@ -91,16 +91,16 @@ spec:
 
 Set on the service (`--set-env-vars` / `--set-secrets`):
 
-| Var | Value | Notes |
-|---|---|---|
-| `PARISH_PROVIDER` | `google` | Matches the enum in `crates/parish-config/src/provider.rs:28` |
-| `PARISH_MODEL` | e.g. `gemini-1.5-flash` | Pick per cost/quality target |
-| `PARISH_API_KEY` | *Secret Manager ref* | Gemini API key |
-| `PARISH_WS_SIGNING_KEY` | *Secret Manager ref* | Required in release builds (WS token signing) |
-| `CF_ACCESS_AUD` | *empty or set* | Release-build `cf_access_guard` fails closed if unset — see Authentication |
-| `PARISH_PUBLIC_URL` | `https://<cloud-run-url>` | Used by OAuth redirects |
-| `GOOGLE_CLIENT_ID` / `_SECRET` | *optional* | Only if using in-app Google OAuth sign-in |
-| `RUST_LOG` | `info` | |
+| Var                            | Value                     | Notes                                                                      |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------------- |
+| `PARISH_PROVIDER`              | `google`                  | Matches the enum in `crates/parish-config/src/provider.rs:28`              |
+| `PARISH_MODEL`                 | e.g. `gemini-1.5-flash`   | Pick per cost/quality target                                               |
+| `PARISH_API_KEY`               | _Secret Manager ref_      | Gemini API key                                                             |
+| `PARISH_WS_SIGNING_KEY`        | _Secret Manager ref_      | Required in release builds (WS token signing)                              |
+| `CF_ACCESS_AUD`                | _empty or set_            | Release-build `cf_access_guard` fails closed if unset — see Authentication |
+| `PARISH_PUBLIC_URL`            | `https://<cloud-run-url>` | Used by OAuth redirects                                                    |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | _optional_                | Only if using in-app Google OAuth sign-in                                  |
+| `RUST_LOG`                     | `info`                    |                                                                            |
 
 ### 4. GCS bucket for saves
 
@@ -132,7 +132,7 @@ Doing none of these leaves the world open, and in a release build the
 ## Files affected (when implemented)
 
 - `deploy/Dockerfile` — drop `cloudflared` download; `$PORT` passthrough kept.
-- `deploy/cloud-run.yaml` *(new)* — Knative descriptor (Gen 2, no CPU
+- `deploy/cloud-run.yaml` _(new)_ — Knative descriptor (Gen 2, no CPU
   throttling, min=max=1, GCS FUSE volume, env/secret refs).
 - No Rust changes for the happy path. Only `crates/parish-persistence/src/` if
   SQLite-on-FUSE journaling needs adjusting.
@@ -140,19 +140,23 @@ Doing none of these leaves the world open, and in a release build the
 ## Verification plan
 
 1. **Local image smoke test**
+
    ```sh
    docker build -f deploy/Dockerfile -t parish:local .
    docker run --rm -p 8080:8080 -e PORT=8080 \
      -e PARISH_PROVIDER=simulator parish:local
    curl -fsS http://localhost:8080/api/health
    ```
+
 2. **Deploy**
+
    ```sh
    gcloud artifacts repositories create parish \
      --repository-format=docker --location=REGION
    gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/parish/parish:TAG
    gcloud run services replace deploy/cloud-run.yaml --region=REGION
    ```
+
 3. **Health + startup** — `curl https://<url>/api/health` returns 200; logs
    show the Axum server bound and the session registry initialised.
 4. **Persistence** — play to a checkpoint, deploy a new revision, reload, and

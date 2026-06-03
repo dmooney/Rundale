@@ -57,20 +57,20 @@ System commands use `/` prefix for now (placeholder — may change to a prefix-f
 
 ### Command List
 
-| Command        | Description                                                             |
-|----------------|-------------------------------------------------------------------------|
-| `/pause`       | Freeze all simulation ticks, TUI stays up                              |
-| `/resume`      | Unfreeze simulation                                                     |
-| `/speed [preset]` | Show or set game speed (`slow`/`normal`/`fast`/`fastest`/`ludicrous`) |
-| `/quit`        | Persist current state, clean shutdown                                   |
-| `/save`        | Manual snapshot to current branch                                       |
-| `/fork <name>` | Snapshot current state, create new named branch, continue on new branch |
-| `/load <name>` | Load a branch head, resume from that point                              |
-| `/branches`    | List all branches with timestamps and brief context                     |
-| `/log`         | Show history of current branch (git log style)                          |
-| `/status`      | Current branch name, in-game date, play time, NPC count by tier         |
-| `/help`        | Show help reference                                                     |
-| `/map`         | (Future) Simple ASCII parish layout                                     |
+| Command           | Description                                                             |
+| ----------------- | ----------------------------------------------------------------------- |
+| `/pause`          | Freeze all simulation ticks, TUI stays up                               |
+| `/resume`         | Unfreeze simulation                                                     |
+| `/speed [preset]` | Show or set game speed (`slow`/`normal`/`fast`/`fastest`/`ludicrous`)   |
+| `/quit`           | Persist current state, clean shutdown                                   |
+| `/save`           | Manual snapshot to current branch                                       |
+| `/fork <name>`    | Snapshot current state, create new named branch, continue on new branch |
+| `/load <name>`    | Load a branch head, resume from that point                              |
+| `/branches`       | List all branches with timestamps and brief context                     |
+| `/log`            | Show history of current branch (git log style)                          |
+| `/status`         | Current branch name, in-game date, play time, NPC count by tier         |
+| `/help`           | Show help reference                                                     |
+| `/map`            | (Future) Simple ASCII parish layout                                     |
 
 ## Debug Commands
 
@@ -78,17 +78,17 @@ System commands use `/` prefix for now (placeholder — may change to a prefix-f
 
 Debug commands use the same `/` prefix as system commands. All are feature-gated and compile out of release builds.
 
-| Command | Description |
-|---------|-------------|
-| `/debug npcs` | List all NPCs with location, mood, activity, tier |
-| `/debug npc <name\|id>` | Full state dump for a single NPC |
-| `/debug inference` | Queue status, throughput, recent request previews |
-| `/debug tiers` | NPC tier assignments and last tick times |
-| `/debug world` | Game clock, weather, season, player location |
-| `/debug tasks` | Background task health and error counts |
-| `/debug log [subsystem]` | Recent tracing log entries by subsystem |
-| `/debug perf` | Frame time, inference latency percentiles |
-| `/debug panel` | Toggle live debug panel overlay |
+| Command                  | Description                                       |
+| ------------------------ | ------------------------------------------------- |
+| `/debug npcs`            | List all NPCs with location, mood, activity, tier |
+| `/debug npc <name\|id>`  | Full state dump for a single NPC                  |
+| `/debug inference`       | Queue status, throughput, recent request previews |
+| `/debug tiers`           | NPC tier assignments and last tick times          |
+| `/debug world`           | Game clock, weather, season, player location      |
+| `/debug tasks`           | Background task health and error counts           |
+| `/debug log [subsystem]` | Recent tracing log entries by subsystem           |
+| `/debug perf`            | Frame time, inference latency percentiles         |
+| `/debug panel`           | Toggle live debug panel overlay                   |
 
 ## Related
 

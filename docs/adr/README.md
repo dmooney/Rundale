@@ -6,32 +6,32 @@ This directory contains Architecture Decision Records (ADRs) for the Rundale gam
 
 ## ADR Index
 
-| Number | Title | Status | Date |
-|--------|-------|--------|------|
-| [001](001-graph-based-world.md) | Graph-Based World Representation | Accepted | 2026-03-18 |
-| [002](002-cognitive-lod-tiers.md) | Cognitive Level-of-Detail Tiers | Accepted | 2026-03-18 |
-| [003](003-sqlite-wal-persistence.md) | SQLite WAL Persistence | Accepted | 2026-03-18 |
-| [004](004-git-like-branching-saves.md) | Git-Like Branching Save System | Accepted | 2026-03-18 |
-| [005](005-ollama-local-inference.md) | Ollama Local Inference | Accepted | 2026-03-18 |
-| [006](006-natural-language-input.md) | Natural Language Input | Accepted | 2026-03-18 |
-| [007](007-time-scale-20min-day.md) | Time Scale: 20 Minutes per Day | Accepted | 2026-03-18 |
-| [008](008-structured-json-llm-output.md) | Structured JSON LLM Output | Accepted | 2026-03-18 |
-| [009](009-real-geography-fictional-people.md) | Real Geography, Fictional People | Accepted | 2026-03-18 |
-| [010](010-prompt-injection-defenses.md) | Prompt Injection Defenses | Accepted | 2026-03-18 |
-| [011](011-geo-tool-osm-pipeline.md) | Geo-Tool OSM Pipeline | Accepted | 2026-03-18 |
-| [012](012-documentation-hierarchy.md) | Hierarchical Documentation Organization | Accepted | 2026-03-22 |
-| [013](013-cloud-llm-dialogue.md) | Cloud LLM for Player Dialogue | Accepted | 2026-03-22 |
-| [014](014-web-mobile-architecture.md) | Web & Mobile Architecture | Accepted | 2026-03-23 |
-| [015](015-ambient-sound-system.md) | Ambient Sound System | Accepted | 2026-03-24 |
-| [016](016-tauri-svelte-gui.md) | Replace egui with Tauri 2 + Svelte GUI | Accepted | 2026-03-24 |
-| [017](017-per-category-inference-providers.md) | Per-Category Inference Providers | Accepted | 2026-03-23 |
-| [018](018-npc-intelligence-dimensions.md) | NPC Multidimensional Intelligence | Accepted | 2026-03-25 |
-| [019](019-json-structured-output-for-npc-dialogue.md) | JSON Structured Output for NPC Dialogue | Accepted | 2026-04-22 |
-| [020](020-npc-tool-use.md) | NPC Function-Calling / Tool-Use Output | Proposed | 2026-04-26 |
-| [021](021-npc-memory-retrieval.md) | Embedding-Based NPC Memory Retrieval | Proposed | 2026-04-26 |
-| [022](022-engine-config-extraction.md) | Extract Engine Tuning into Configuration | Accepted | 2026-03-25 |
-| [023](023-web-testing-server.md) | Web Server Mode for Chrome GUI Testing | Accepted | 2026-03-26 |
-| [024](024-documentation-reorg-v2.md) | Documentation Reorganization v2 | Accepted | 2026-05-25 |
+| Number                                                | Title                                    | Status   | Date       |
+| ----------------------------------------------------- | ---------------------------------------- | -------- | ---------- |
+| [001](001-graph-based-world.md)                       | Graph-Based World Representation         | Accepted | 2026-03-18 |
+| [002](002-cognitive-lod-tiers.md)                     | Cognitive Level-of-Detail Tiers          | Accepted | 2026-03-18 |
+| [003](003-sqlite-wal-persistence.md)                  | SQLite WAL Persistence                   | Accepted | 2026-03-18 |
+| [004](004-git-like-branching-saves.md)                | Git-Like Branching Save System           | Accepted | 2026-03-18 |
+| [005](005-ollama-local-inference.md)                  | Ollama Local Inference                   | Accepted | 2026-03-18 |
+| [006](006-natural-language-input.md)                  | Natural Language Input                   | Accepted | 2026-03-18 |
+| [007](007-time-scale-20min-day.md)                    | Time Scale: 20 Minutes per Day           | Accepted | 2026-03-18 |
+| [008](008-structured-json-llm-output.md)              | Structured JSON LLM Output               | Accepted | 2026-03-18 |
+| [009](009-real-geography-fictional-people.md)         | Real Geography, Fictional People         | Accepted | 2026-03-18 |
+| [010](010-prompt-injection-defenses.md)               | Prompt Injection Defenses                | Accepted | 2026-03-18 |
+| [011](011-geo-tool-osm-pipeline.md)                   | Geo-Tool OSM Pipeline                    | Accepted | 2026-03-18 |
+| [012](012-documentation-hierarchy.md)                 | Hierarchical Documentation Organization  | Accepted | 2026-03-22 |
+| [013](013-cloud-llm-dialogue.md)                      | Cloud LLM for Player Dialogue            | Accepted | 2026-03-22 |
+| [014](014-web-mobile-architecture.md)                 | Web & Mobile Architecture                | Accepted | 2026-03-23 |
+| [015](015-ambient-sound-system.md)                    | Ambient Sound System                     | Accepted | 2026-03-24 |
+| [016](016-tauri-svelte-gui.md)                        | Replace egui with Tauri 2 + Svelte GUI   | Accepted | 2026-03-24 |
+| [017](017-per-category-inference-providers.md)        | Per-Category Inference Providers         | Accepted | 2026-03-23 |
+| [018](018-npc-intelligence-dimensions.md)             | NPC Multidimensional Intelligence        | Accepted | 2026-03-25 |
+| [019](019-json-structured-output-for-npc-dialogue.md) | JSON Structured Output for NPC Dialogue  | Accepted | 2026-04-22 |
+| [020](020-npc-tool-use.md)                            | NPC Function-Calling / Tool-Use Output   | Proposed | 2026-04-26 |
+| [021](021-npc-memory-retrieval.md)                    | Embedding-Based NPC Memory Retrieval     | Proposed | 2026-04-26 |
+| [022](022-engine-config-extraction.md)                | Extract Engine Tuning into Configuration | Accepted | 2026-03-25 |
+| [023](023-web-testing-server.md)                      | Web Server Mode for Chrome GUI Testing   | Accepted | 2026-03-26 |
+| [024](024-documentation-reorg-v2.md)                  | Documentation Reorganization v2          | Accepted | 2026-05-25 |
 
 > Note: ADRs 022 and 023 were previously misnumbered `018` (a three-way
 > collision); they were renumbered to the next free numbers in the 2026-05

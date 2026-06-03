@@ -8,7 +8,7 @@
 A Tier 1 reply can be grammatically fine yet wrong for Rundale: wrong dialect,
 wrong century, out-of-character knowledge, or violates an NPC's mood.
 `crates/parish-npc/src/anachronism.rs` catches word-level leaks but misses
-*semantic* anachronism ("sure, I'll check my calendar on Tuesday").
+_semantic_ anachronism ("sure, I'll check my calendar on Tuesday").
 
 ## SOTA techniques
 
@@ -26,8 +26,8 @@ critic runs on a smaller sidekick model (the 3B we already use for intent).
 ### 2. LLM-as-judge + rejection sampling
 
 - Generate N=3 candidates in parallel.
-- Rank with a judge prompt using rubric: *dialect*, *persona fit*, *mood fit*,
-  *factual consistency with memory*.
+- Rank with a judge prompt using rubric: _dialect_, _persona fit_, _mood fit_,
+  _factual consistency with memory_.
 - Return the top-ranked; discard the rest but log them for preference data
   (feeds `06-personalization-and-learning`).
 
@@ -45,7 +45,7 @@ pass — cheap, catches regressions.
 Maintain a small corpus of "gold" 1820s-authentic lines (curated from
 `mods/rundale/` dialogue reviews). Retrieve the 3 nearest examples by
 embedding (reuse `01-semantic-memory`) and inject as few-shot exemplars. This
-is retrieval-augmented *style*, not retrieval-augmented *facts*.
+is retrieval-augmented _style_, not retrieval-augmented _facts_.
 
 ### 5. Uncertainty-aware abstention
 
@@ -62,7 +62,7 @@ Foreshadowed already by the `internal_thought` field Tier 1 emits today
 (ADR-008). Split the turn into two calls:
 
 1. **Think** — a cheap utility-model pass on the NPC's private scratchpad:
-   goals, secrets to withhold, register choice, what they *won't* say.
+   goals, secrets to withhold, register choice, what they _won't_ say.
 2. **Speak** — the main Tier 1 generation, conditioned on the think-trace
    but instructed not to quote it verbatim.
 
@@ -79,7 +79,7 @@ from doc 05 (~150–300 ms on a 1–3B model).
 Add a `CriticJob` variant to `parish-inference::job`. It runs on the Background
 lane with a shared KV cache off the original Tier 1 context (see
 `05-inference-performance`). The draft is shown immediately; if the critic
-flags, a *correction* bubble replaces the turn before the player can respond.
+flags, a _correction_ bubble replaces the turn before the player can respond.
 
 ### 8. Inference-time rejection sampler (Stage 3 of the Rundale dialect model)
 
@@ -129,15 +129,15 @@ The sampler wraps the existing JSON serving contract without modifying it
 
 - Cascading latency. Budget: draft ≤ 600ms, critic ≤ 300ms; hard cancel past
   900ms and ship the draft.
-- Over-correction produces bland output. Measure by judge rubric *before*
+- Over-correction produces bland output. Measure by judge rubric _before_
   shipping self-refine to players.
 - Judge model bias (favouring verbose responses). Use pairwise preference, not
   absolute scoring, where possible.
 
 ## Papers / references
 
-- Madaan et al., *Self-Refine: Iterative Refinement with Self-Feedback* (2023).
-- Shinn et al., *Reflexion: Language Agents with Verbal Reinforcement Learning* (2023).
-- Zheng et al., *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena* (2023).
-- Bai et al., *Constitutional AI* (Anthropic, 2022).
-- Kadavath et al., *Language Models (Mostly) Know What They Know* (2022).
+- Madaan et al., _Self-Refine: Iterative Refinement with Self-Feedback_ (2023).
+- Shinn et al., _Reflexion: Language Agents with Verbal Reinforcement Learning_ (2023).
+- Zheng et al., _Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena_ (2023).
+- Bai et al., _Constitutional AI_ (Anthropic, 2022).
+- Kadavath et al., _Language Models (Mostly) Know What They Know_ (2022).

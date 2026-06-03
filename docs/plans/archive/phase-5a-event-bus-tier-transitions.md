@@ -146,16 +146,16 @@ pub fn deflate_npc_state(npc: &Npc) -> NpcSummary
 
 ## Tests
 
-| Test | What it verifies |
-|------|------------------|
-| `test_event_bus_publish_subscribe` | Subscriber receives published events |
-| `test_event_bus_multiple_subscribers` | All subscribers get all events |
-| `test_event_bus_no_subscribers_no_panic` | Publishing with no subscribers succeeds silently |
-| `test_inflate_produces_context` | Inflate builds a non-empty summary including NPC name and recent activity |
-| `test_inflate_injects_memory` | Inflated summary appears as a MemoryEntry in short-term memory |
-| `test_deflate_captures_state` | Deflate captures mood, location, and recent memories |
-| `test_tier_transition_fires_on_promotion` | Moving player toward distant NPC triggers inflate |
-| `test_tier_transition_fires_on_demotion` | Moving player away triggers deflate |
+| Test                                      | What it verifies                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------- |
+| `test_event_bus_publish_subscribe`        | Subscriber receives published events                                      |
+| `test_event_bus_multiple_subscribers`     | All subscribers get all events                                            |
+| `test_event_bus_no_subscribers_no_panic`  | Publishing with no subscribers succeeds silently                          |
+| `test_inflate_produces_context`           | Inflate builds a non-empty summary including NPC name and recent activity |
+| `test_inflate_injects_memory`             | Inflated summary appears as a MemoryEntry in short-term memory            |
+| `test_deflate_captures_state`             | Deflate captures mood, location, and recent memories                      |
+| `test_tier_transition_fires_on_promotion` | Moving player toward distant NPC triggers inflate                         |
+| `test_tier_transition_fires_on_demotion`  | Moving player away triggers deflate                                       |
 
 ## Acceptance Criteria
 

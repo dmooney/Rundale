@@ -123,11 +123,13 @@ sudo xcode-select --reset
 ```
 
 **Ollama not responding:**
+
 - Ensure the Ollama app is running (check the menu bar icon).
 - Verify the port: `curl http://localhost:11434/api/tags`.
 - If you installed via Homebrew, start the service: `brew services start ollama`.
 
 **Model runs slowly:**
+
 - On Apple Silicon, ensure Ollama is using Metal (it should by default). Check with `ollama ps` to see GPU utilization.
 - Close other memory-intensive applications — the model needs free unified memory.
 - Try a smaller model (`gemma4:e2b`) if performance is poor.
@@ -233,16 +235,19 @@ xvfb-run -a cargo tauri dev -- -- --screenshot docs/screenshots
 Build tools or WebKit2GTK dev headers are missing. See the Build Essentials section above.
 
 **Ollama not responding:**
+
 - Check the service status: `systemctl status ollama`.
 - Start it if stopped: `sudo systemctl start ollama` or run `ollama serve` manually.
 - Verify the port: `curl http://localhost:11434/api/tags`.
 
 **GUI mode fails to start:**
+
 - Ensure WebKit2GTK 4.1 dev headers are installed (see Build Essentials).
 - Ensure a display server is running (X11 or Wayland).
 - On a headless server, use `xvfb-run` (see screenshot capture section above).
 
 **Model runs slowly:**
+
 - Check GPU utilization with `nvidia-smi` (NVIDIA) or `rocm-smi` (AMD).
 - Try a smaller model (`gemma4:e2b`) for CPU-only systems.
 
@@ -305,15 +310,18 @@ cargo run -- --headless
 
 **`cargo build` fails with linker errors:**
 You need the MSVC C++ Build Tools. Install them via:
+
 - The [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) standalone installer, or
 - The full Visual Studio installer (select "Desktop development with C++").
 
 **Ollama not responding:**
+
 - Check that the Ollama service is running in the system tray.
 - Verify the port: `curl http://localhost:11434/api/tags`.
 - Firewall software may block localhost connections — add an exception if needed.
 
 **Model runs slowly:**
+
 - Check GPU utilization while the model is running.
 - Try a smaller model (`gemma4:e2b`) for CPU-only systems.
 

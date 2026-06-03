@@ -17,18 +17,18 @@
 
 ## Key dependencies
 
-| Crate / Package | Purpose |
-|---|---|
-| tokio | Async runtime (`features = ["full"]`) |
-| tauri 2 | Desktop GUI framework |
-| @tauri-apps/api v2 | TypeScript IPC bindings |
-| svelte 5 + sveltekit | Frontend framework (static adapter) |
-| reqwest | HTTP client for Ollama / LLM APIs |
-| serde + serde_json | JSON serialization for LLM structured output |
-| rusqlite | SQLite persistence (`features = ["bundled"]`) |
-| anyhow / thiserror | Error handling |
-| tracing | Structured logging |
-| chrono | Time |
-| axum | Web server |
-| vitest + @testing-library/svelte | Frontend component tests |
-| @playwright/test | E2E browser tests |
+| Crate / Package                  | Purpose                                       |
+| -------------------------------- | --------------------------------------------- |
+| tokio                            | Async runtime (`features = ["full"]`)         |
+| tauri 2                          | Desktop GUI framework                         |
+| @tauri-apps/api v2               | TypeScript IPC bindings                       |
+| svelte 5 + sveltekit             | Frontend framework (static adapter)           |
+| reqwest                          | HTTP client for Ollama / LLM APIs             |
+| serde + serde_json               | JSON serialization for LLM structured output  |
+| rusqlite                         | SQLite persistence (`features = ["bundled"]`) |
+| anyhow / thiserror               | Error handling                                |
+| tracing                          | Structured logging                            |
+| chrono                           | Time                                          |
+| axum                             | Web server                                    |
+| vitest + @testing-library/svelte | Frontend component tests                      |
+| @playwright/test                 | E2E browser tests                             |

@@ -54,40 +54,40 @@ The **dispensary doctor**, if present in the parish, represents the tension betw
 
 ## Fact-Check Notes
 
-[1] **Verified.** *Bean feasa* (wise woman) and *fear feasa* (wise man) as terms for Irish folk healers who combined herbal medicine with prayers, charms, and ritual. — Confirmed by multiple scholarly and folklore sources, including research published in *Folklore* (Vol. 116, No. 1) via Taylor & Francis, and documented extensively by the Irish Folklore Commission and RTÉ Brainstorm.
+[1] **Verified.** _Bean feasa_ (wise woman) and _fear feasa_ (wise man) as terms for Irish folk healers who combined herbal medicine with prayers, charms, and ritual. — Confirmed by multiple scholarly and folklore sources, including research published in _Folklore_ (Vol. 116, No. 1) via Taylor & Francis, and documented extensively by the Irish Folklore Commission and RTÉ Brainstorm.
 
-[2] **Verified.** *Bean ghlúine* meaning "knee-woman" as a term for midwife. — Confirmed by Wiktionary (citing Ó Dónaill's *Foclóir Gaeilge–Béarla*, 1977) and de Bhaldraithe's *English-Irish Dictionary* (1959). The name likely refers to the kneeling birthing position.
+[2] **Verified.** _Bean ghlúine_ meaning "knee-woman" as a term for midwife. — Confirmed by Wiktionary (citing Ó Dónaill's _Foclóir Gaeilge–Béarla_, 1977) and de Bhaldraithe's _English-Irish Dictionary_ (1959). The name likely refers to the kneeling birthing position.
 
-[3] **Verified.** Bone-setting as a hereditary skill passed within specific families in Ireland. — Confirmed by Kingston, R., "A Tale of Two Bone-setters," *Béascna* 8 (2013): 89–102. The concept of an inherited "gift" is well documented, with families practising across multiple generations.
+[3] **Verified.** Bone-setting as a hereditary skill passed within specific families in Ireland. — Confirmed by Kingston, R., "A Tale of Two Bone-setters," _Béascna_ 8 (2013): 89–102. The concept of an inherited "gift" is well documented, with families practising across multiple generations.
 
 [4] **Unverified.** 20–30% child mortality before age five in 1820s Ireland. — No Ireland-specific data exists for this period, as civil registration did not begin until 1864. The figure is consistent with general estimates for pre-industrial Western European societies (30–50% under-five mortality), but the lower bound of 20% may understate the reality for the rural Irish poor.
 
-[5] **Verified.** Comfrey known as "knitbone," used as a poultice, with scientifically confirmed anti-inflammatory properties. — Confirmed by a clinical overview in *Molecules* (PMC3491633) and *The Pharmaceutical Journal*. Allantoin and rosmarinic acid are the key active compounds; multiple randomized controlled trials support its topical anti-inflammatory efficacy.
+[5] **Verified.** Comfrey known as "knitbone," used as a poultice, with scientifically confirmed anti-inflammatory properties. — Confirmed by a clinical overview in _Molecules_ (PMC3491633) and _The Pharmaceutical Journal_. Allantoin and rosmarinic acid are the key active compounds; multiple randomized controlled trials support its topical anti-inflammatory efficacy.
 
-[6] **Verified.** Holy wells associated with specific ailments, with ritual circuits and rag trees. — Confirmed by multiple sources including the Irish Post, Emerald Isle heritage resources, and Wikipedia's article on clootie wells. Ireland has over 3,000 documented holy wells, each associated with particular cures (eyes, skin, fertility, etc.), with pattern days (*pátrún*) as annual gatherings.
+[6] **Verified.** Holy wells associated with specific ailments, with ritual circuits and rag trees. — Confirmed by multiple sources including the Irish Post, Emerald Isle heritage resources, and Wikipedia's article on clootie wells. Ireland has over 3,000 documented holy wells, each associated with particular cures (eyes, skin, fertility, etc.), with pattern days (_pátrún_) as annual gatherings.
 
 [7] **Verified.** Jenner's smallpox vaccine developed in 1796. — Confirmed by WHO, CDC, and PMC (Edward Jenner and the History of Smallpox and Vaccination). Jenner inoculated James Phipps on 14 May 1796 using cowpox matter from dairymaid Sarah Nelms.
 
-[8] **Verified.** Life expectancy around 35–40 years in early 19th-century Ireland. — Supported by Statista and the *Economic and Social Review* ("Life Expectancy in Ireland since the 1870s"), which places life expectancy at birth at just over 38 years in the early 1840s. Conditions in the 1820s were likely similar, making 35–40 a reasonable range.
+[8] **Verified.** Life expectancy around 35–40 years in early 19th-century Ireland. — Supported by Statista and the _Economic and Social Review_ ("Life Expectancy in Ireland since the 1870s"), which places life expectancy at birth at just over 38 years in the early 1840s. Conditions in the 1820s were likely similar, making 35–40 a reasonable range.
 
-[9] **Verified.** Dispensary system funded by Grand Jury levies. — Confirmed by *The Irish Story* and *History Ireland*. The 1805 Act authorised county grand juries to match voluntary subscriptions for dispensaries. By the early 1830s there were approximately 450 dispensaries, but distribution was uneven, with poorer and more remote areas underserved.
+[9] **Verified.** Dispensary system funded by Grand Jury levies. — Confirmed by _The Irish Story_ and _History Ireland_. The 1805 Act authorised county grand juries to match voluntary subscriptions for dispensaries. By the early 1830s there were approximately 450 dispensaries, but distribution was uneven, with poorer and more remote areas underserved.
 
-[10] **Verified.** First public asylums in Ireland being established around the 1820s. — Confirmed by NCBI (*The Cost of Insanity in Nineteenth-Century Ireland*). Acts of 1817 and 1821 provided for district asylums for the lunatic poor. The Richmond Asylum opened in 1814; between the 1820s and 1860s, twenty-one asylums were built. The Connacht District Lunatic Asylum at Ballinasloe did not open until 1833.
+[10] **Verified.** First public asylums in Ireland being established around the 1820s. — Confirmed by NCBI (_The Cost of Insanity in Nineteenth-Century Ireland_). Acts of 1817 and 1821 provided for district asylums for the lunatic poor. The Richmond Asylum opened in 1814; between the 1820s and 1860s, twenty-one asylums were built. The Connacht District Lunatic Asylum at Ballinasloe did not open until 1833.
 
 ## Bibliography
 
-- "An Bhean Feasa – The Bean Feasa Tradition." *Bean Feasa* (WordPress). https://beanfeasa9.wordpress.com/
-- "Bean feasa." *Ireland's Folklore and Traditions* (WordPress). https://irishfolklore.wordpress.com/tag/bean-feasa/
-- "Bean ghlúine." *Wiktionary*. https://en.wiktionary.org/wiki/bean_ghl%C3%BAine
-- "Comfrey: A Clinical Overview." *Molecules* (PMC3491633). https://pmc.ncbi.nlm.nih.gov/articles/PMC3491633/
-- "Comfrey: Ancient and Modern Uses." *The Pharmaceutical Journal*. https://pharmaceutical-journal.com/article/news/comfrey-ancient-and-modern-uses
-- "Clootie well." *Wikipedia*. https://en.wikipedia.org/wiki/Clootie_well
-- "Edward Jenner and the History of Smallpox and Vaccination." *PMC* (PMC1200696). https://pmc.ncbi.nlm.nih.gov/articles/PMC1200696/
-- "'A Hopeless and Thankless Job': The Dispensary Doctor in Ireland." *The Irish Story*. https://www.theirishstory.com/2019/12/13/a-hopeless-and-thankless-job-the-dispensary-doctor-in-ireland/
-- "Holy Wells in Ireland." *Emerald Isle*. https://emeraldisle.ie/holy-wells-in-ireland
-- "Introduction — The Cost of Insanity in Nineteenth-Century Ireland." *NCBI Bookshelf*. https://www.ncbi.nlm.nih.gov/books/NBK481816/
-- Kingston, R. "A Tale of Two Bone-setters." *Béascna* 8 (2013): 89–102.
-- "Life Expectancy in Ireland since the 1870s." *The Economic and Social Review* 48, no. 2 (2017): 127–143. https://www.esr.ie/article/view/730/157
-- "Pre-Famine Public Health." *History Ireland*. https://www.historyireland.com/18th-19th-century-history/pre-famine-public-health/
-- "Reading the Bean Feasa." *Folklore* 116, no. 1. Taylor & Francis. https://www.tandfonline.com/doi/abs/10.1080/0015587052000337707
-- "The Strange World of Irish Folk Cures and Faith Healers." *RTÉ Brainstorm*. https://www.rte.ie/brainstorm/2022/0817/1316007-ireland-folk-cures-faith-healers-herbal-remedies/
+- "An Bhean Feasa – The Bean Feasa Tradition." _Bean Feasa_ (WordPress). https://beanfeasa9.wordpress.com/
+- "Bean feasa." _Ireland's Folklore and Traditions_ (WordPress). https://irishfolklore.wordpress.com/tag/bean-feasa/
+- "Bean ghlúine." _Wiktionary_. https://en.wiktionary.org/wiki/bean_ghl%C3%BAine
+- "Comfrey: A Clinical Overview." _Molecules_ (PMC3491633). https://pmc.ncbi.nlm.nih.gov/articles/PMC3491633/
+- "Comfrey: Ancient and Modern Uses." _The Pharmaceutical Journal_. https://pharmaceutical-journal.com/article/news/comfrey-ancient-and-modern-uses
+- "Clootie well." _Wikipedia_. https://en.wikipedia.org/wiki/Clootie_well
+- "Edward Jenner and the History of Smallpox and Vaccination." _PMC_ (PMC1200696). https://pmc.ncbi.nlm.nih.gov/articles/PMC1200696/
+- "'A Hopeless and Thankless Job': The Dispensary Doctor in Ireland." _The Irish Story_. https://www.theirishstory.com/2019/12/13/a-hopeless-and-thankless-job-the-dispensary-doctor-in-ireland/
+- "Holy Wells in Ireland." _Emerald Isle_. https://emeraldisle.ie/holy-wells-in-ireland
+- "Introduction — The Cost of Insanity in Nineteenth-Century Ireland." _NCBI Bookshelf_. https://www.ncbi.nlm.nih.gov/books/NBK481816/
+- Kingston, R. "A Tale of Two Bone-setters." _Béascna_ 8 (2013): 89–102.
+- "Life Expectancy in Ireland since the 1870s." _The Economic and Social Review_ 48, no. 2 (2017): 127–143. https://www.esr.ie/article/view/730/157
+- "Pre-Famine Public Health." _History Ireland_. https://www.historyireland.com/18th-19th-century-history/pre-famine-public-health/
+- "Reading the Bean Feasa." _Folklore_ 116, no. 1. Taylor & Francis. https://www.tandfonline.com/doi/abs/10.1080/0015587052000337707
+- "The Strange World of Irish Folk Cures and Faith Healers." _RTÉ Brainstorm_. https://www.rte.ie/brainstorm/2022/0817/1316007-ireland-folk-cures-faith-healers-herbal-remedies/

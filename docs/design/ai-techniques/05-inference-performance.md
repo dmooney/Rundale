@@ -15,7 +15,7 @@ on machines with a single GPU.
 ### 1. Prompt / KV cache reuse
 
 Every Tier 1 turn rebuilds a prompt that is mostly identical: world rules,
-scene description, NPC persona, long-term memory summary, *then* the new turn.
+scene description, NPC persona, long-term memory summary, _then_ the new turn.
 llama.cpp and vLLM both support **prefix caching** — reuse the KV tensors for
 the shared prefix, pay only for the changed tail.
 
@@ -63,7 +63,7 @@ Ship per-tier model ids already supported by ADR-017 per-category routing.
 ### 5. LoRA adapters per NPC archetype
 
 Instead of one persona prompt per NPC, train small LoRA adapters per
-*archetype* (landlord, priest, fisherman, publican). Swap adapters per
+_archetype_ (landlord, priest, fisherman, publican). Swap adapters per
 request — llama.cpp and vLLM both support hot-swap. Smaller prompt, sharper
 voice, and a natural place to encode period dialect.
 
@@ -86,7 +86,7 @@ activity. Classify via a heuristic or a tiny model.
 
 ### 8. Utility lane — small-LM for non-dialogue tasks
 
-A large share of our current LLM calls are *not prose*: intent
+A large share of our current LLM calls are _not prose_: intent
 classification, mood extraction, gossip distortion (doc 07), anachronism
 flagging (doc 03), memory-importance scoring, knowledge-graph triple
 extraction (doc 10), inner-monologue (doc 03). All run well on 0.5–3B local
@@ -120,7 +120,7 @@ simplifies because we stop hand-curating context. Anthropic prompt caching
 near-free on subsequent turns.
 
 Best paired with doc 01 semantic memory and doc 10 knowledge graph: use
-retrieval to *prioritise* what goes in the long context, not to *replace*
+retrieval to _prioritise_ what goes in the long context, not to _replace_
 it.
 
 ## Minimal first cut
@@ -144,8 +144,8 @@ it.
 
 ## Papers / references
 
-- Leviathan et al., *Fast Inference from Transformers via Speculative Decoding* (2022).
-- Chen et al., *Accelerating LLM Decoding with Speculative Sampling* (2023).
-- Kwon et al., *Efficient Memory Management for LLM Serving with PagedAttention* (vLLM, 2023).
-- Hu et al., *LoRA: Low-Rank Adaptation of LLMs* (2021).
-- Anthropic, *Prompt Caching* docs (2024).
+- Leviathan et al., _Fast Inference from Transformers via Speculative Decoding_ (2022).
+- Chen et al., _Accelerating LLM Decoding with Speculative Sampling_ (2023).
+- Kwon et al., _Efficient Memory Management for LLM Serving with PagedAttention_ (vLLM, 2023).
+- Hu et al., _LoRA: Low-Rank Adaptation of LLMs_ (2021).
+- Anthropic, _Prompt Caching_ docs (2024).

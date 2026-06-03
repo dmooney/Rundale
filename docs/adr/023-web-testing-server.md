@@ -34,7 +34,7 @@ browser and uses the appropriate transport (Tauri invoke/listen vs fetch/WebSock
 
 ### Architecture
 
-```
+```text
 parish-core::ipc      ← shared types + handler functions
     ↑           ↑
 src-tauri/     crates/parish-server/

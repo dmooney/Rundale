@@ -39,6 +39,7 @@ Ordered, one commit per step (conventional-commit prefix in parens).
    `bug-report` flag and env vars (`PARISH_BUG_REPORT_TOKEN`/`_REPO`/`_DRY_RUN`).
 
 ## Tests to add/update
+
 - `parish-core`: `bug_report` unit tests (C1–C3); `wiring_parity` (C4).
 - `parish-mcp`: translate test + tool-name pin (C5).
 - `parish-tauri`: mcp_bridge route-table parity test includes the new route.
@@ -47,6 +48,7 @@ Ordered, one commit per step (conventional-commit prefix in parens).
   button + modal (rule #10).
 
 ## Proof
+
 - `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/fixtures/play_bug-report-tool.txt` → state setup.
 - `parish-mcp-backend.sh start` with `PARISH_BUG_REPORT_DRY_RUN=1` → call
   `mcp__parish__parish_file_bug` → capture transcript + composed body (C6).

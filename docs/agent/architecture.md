@@ -8,27 +8,27 @@ See [docs/design/overview.md](../design/overview.md) for the full architecture a
 
 The workspace has **16 member crates** (see `parish/Cargo.toml`). Shared game logic is split across focused leaf crates; `parish-core` is a thin composition layer that re-exports them under stable names used by the binaries and frontends.
 
-| Crate | Role |
-|---|---|
-| `parish-core` | Composition crate: re-exports `parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, and `parish-types` under `crate::{config, inference, input, npc, palette, persistence, world, error, dice}`. Also owns the IPC layer (`ipc/`), mod loader (`game_mod`), game session wiring (`game_session`), editor subsystem (`editor/`), and the shared `prompts/` + `debug_snapshot` modules. |
-| `parish-engine` | In-process engine entry point (`cargo run -p parish-engine`). Modes: `--headless` (stdin/stdout REPL), `--script FILE` (batch fixture driver), no flag (Tauri-launch). Owns `main.rs` (clap CLI + mode routing), `headless.rs`, `testing.rs` (`GameTestHarness` + `--script` mode), `app.rs`, `debug.rs`, and a CLI-override `config.rs`. Re-exports `parish_core` modules via `pub use parish_core::*`. |
-| `parish-server` | Axum web backend (no Tauri dep). Library export `run_server` plus its own `main.rs` so the server boots directly via `cargo run -p parish-server -- --port 3001`. Modules: `lib.rs` (`run_server`, tick loops), `main.rs` (clap + tracing), `state.rs`, `routes.rs`, `ws.rs`, `sync_routes.rs` (synchronous `POST /api/command` + `GET /api/state` for thin clients), `sync_types.rs`, `drain.rs`, `auth.rs`, `cf_auth.rs`, `middleware.rs`, `session.rs`, `editor_routes.rs`. |
-| `parish-client` | Thin HTTP client (binary `parish`). No engine in-process — calls `POST /api/command` / `GET /api/state` on a running `parish-server`. Modes: `parish "<cmd>"` single-shot, `--script FILE`, `--json`, no-arg REPL. Persists the `parish_sid` cookie between runs. See [README §Ways to run Parish](../../README.md#ways-to-run-parish). |
-| `parish-tauri` | Tauri 2 desktop backend. `tauri.conf.json` → `frontendDist: ../../parish/apps/ui/dist`. Sources: `lib.rs` (AppState + run), `main.rs`, `commands.rs`, `editor_commands.rs`, `events.rs`. |
-| `parish-config` | Engine configuration: TOML + env + CLI overrides, feature flags, provider selection. `engine.rs`, `flags.rs`, `provider.rs`. |
-| `parish-inference` | LLM client + queue: `client.rs`, provider impls (`openai_client.rs`, `anthropic_client.rs`), `rate_limit.rs`, `setup.rs` (Ollama bootstrap), `simulator.rs` (Markov fallback for tests), `utf8_stream.rs`. |
-| `parish-input` | Player input parsing & command detection, split across six modules: `commands.rs` (Command enum + validators), `intent_types.rs`, `parser.rs` (system commands + classification), `intent_local.rs` (keyword-matching pre-pass), `intent_llm.rs` (async LLM fallback), `mention.rs`. |
-| `parish-npc` | NPC data model (`data.rs`, `types.rs`), mood (`mood.rs`), memory (`memory.rs`), scheduling (`ticks.rs`), autonomous speaker selection (`autonomous.rs`), overhear/witness memories (`overhear.rs`), reactions (`reactions.rs`), tier-4 rules engine (`tier4.rs`), anachronism detector (`anachronism.rs`), banshee death system (`banshee.rs`), transitions (`transitions.rs`), and the `NpcManager` (`manager.rs`). |
-| `parish-palette` | Day/night palette interpolation. Backend-agnostic presentation-layer infrastructure consumed by every UI surface; depends only on `parish-types` (Season/Weather) and `parish-config` (PaletteConfig). |
-| `parish-persistence` | SQLite save/load: `database.rs`, WAL journal (`journal.rs`, `journal_bridge.rs`), save picker (`picker.rs`), snapshot (`snapshot.rs`), file lock (`lock.rs`). |
-| `parish-world` | World state: `graph.rs`, `movement.rs`, `description.rs`, `encounter.rs`, `geo.rs`, `transport.rs`, `weather.rs`. |
-| `parish-types` | Shared primitive types: `error.rs` (`ParishError` via `thiserror`), `ids.rs`, `time.rs`, `events.rs`, `conversation.rs`, `dice.rs`, `gossip.rs`. |
-| `parish-geo-tool` | OSM extraction CLI (binary `parish-geo-tool`). |
-| `parish-npc-tool` | Build-time NPC authoring tool (binary `parish-npc-tool`). |
+| Crate                | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `parish-core`        | Composition crate: re-exports `parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, and `parish-types` under `crate::{config, inference, input, npc, palette, persistence, world, error, dice}`. Also owns the IPC layer (`ipc/`), mod loader (`game_mod`), game session wiring (`game_session`), editor subsystem (`editor/`), and the shared `prompts/` + `debug_snapshot` modules.                     |
+| `parish-engine`      | In-process engine entry point (`cargo run -p parish-engine`). Modes: `--headless` (stdin/stdout REPL), `--script FILE` (batch fixture driver), no flag (Tauri-launch). Owns `main.rs` (clap CLI + mode routing), `headless.rs`, `testing.rs` (`GameTestHarness` + `--script` mode), `app.rs`, `debug.rs`, and a CLI-override `config.rs`. Re-exports `parish_core` modules via `pub use parish_core::*`.                                                                       |
+| `parish-server`      | Axum web backend (no Tauri dep). Library export `run_server` plus its own `main.rs` so the server boots directly via `cargo run -p parish-server -- --port 3001`. Modules: `lib.rs` (`run_server`, tick loops), `main.rs` (clap + tracing), `state.rs`, `routes.rs`, `ws.rs`, `sync_routes.rs` (synchronous `POST /api/command` + `GET /api/state` for thin clients), `sync_types.rs`, `drain.rs`, `auth.rs`, `cf_auth.rs`, `middleware.rs`, `session.rs`, `editor_routes.rs`. |
+| `parish-client`      | Thin HTTP client (binary `parish`). No engine in-process — calls `POST /api/command` / `GET /api/state` on a running `parish-server`. Modes: `parish "<cmd>"` single-shot, `--script FILE`, `--json`, no-arg REPL. Persists the `parish_sid` cookie between runs. See [README §Ways to run Parish](../../README.md#ways-to-run-parish).                                                                                                                                        |
+| `parish-tauri`       | Tauri 2 desktop backend. `tauri.conf.json` → `frontendDist: ../../parish/apps/ui/dist`. Sources: `lib.rs` (AppState + run), `main.rs`, `commands.rs`, `editor_commands.rs`, `events.rs`.                                                                                                                                                                                                                                                                                       |
+| `parish-config`      | Engine configuration: TOML + env + CLI overrides, feature flags, provider selection. `engine.rs`, `flags.rs`, `provider.rs`.                                                                                                                                                                                                                                                                                                                                                   |
+| `parish-inference`   | LLM client + queue: `client.rs`, provider impls (`openai_client.rs`, `anthropic_client.rs`), `rate_limit.rs`, `setup.rs` (Ollama bootstrap), `simulator.rs` (Markov fallback for tests), `utf8_stream.rs`.                                                                                                                                                                                                                                                                     |
+| `parish-input`       | Player input parsing & command detection, split across six modules: `commands.rs` (Command enum + validators), `intent_types.rs`, `parser.rs` (system commands + classification), `intent_local.rs` (keyword-matching pre-pass), `intent_llm.rs` (async LLM fallback), `mention.rs`.                                                                                                                                                                                           |
+| `parish-npc`         | NPC data model (`data.rs`, `types.rs`), mood (`mood.rs`), memory (`memory.rs`), scheduling (`ticks.rs`), autonomous speaker selection (`autonomous.rs`), overhear/witness memories (`overhear.rs`), reactions (`reactions.rs`), tier-4 rules engine (`tier4.rs`), anachronism detector (`anachronism.rs`), banshee death system (`banshee.rs`), transitions (`transitions.rs`), and the `NpcManager` (`manager.rs`).                                                           |
+| `parish-palette`     | Day/night palette interpolation. Backend-agnostic presentation-layer infrastructure consumed by every UI surface; depends only on `parish-types` (Season/Weather) and `parish-config` (PaletteConfig).                                                                                                                                                                                                                                                                         |
+| `parish-persistence` | SQLite save/load: `database.rs`, WAL journal (`journal.rs`, `journal_bridge.rs`), save picker (`picker.rs`), snapshot (`snapshot.rs`), file lock (`lock.rs`).                                                                                                                                                                                                                                                                                                                  |
+| `parish-world`       | World state: `graph.rs`, `movement.rs`, `description.rs`, `encounter.rs`, `geo.rs`, `transport.rs`, `weather.rs`.                                                                                                                                                                                                                                                                                                                                                              |
+| `parish-types`       | Shared primitive types: `error.rs` (`ParishError` via `thiserror`), `ids.rs`, `time.rs`, `events.rs`, `conversation.rs`, `dice.rs`, `gossip.rs`.                                                                                                                                                                                                                                                                                                                               |
+| `parish-geo-tool`    | OSM extraction CLI (binary `parish-geo-tool`).                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `parish-npc-tool`    | Build-time NPC authoring tool (binary `parish-npc-tool`).                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Repository layout
 
-```
+```text
 Rundale (on Parish engine)/
 ├── parish/                 # Engine code (Rust workspace + frontends)
 │   ├── crates/                 # 16 workspace members (see table above)
@@ -108,13 +108,13 @@ The HTTP server implements `Idempotency-Key` replay (#619) for mutating routes v
 
 **Supported routes** (POST):
 
-| Route | Handler |
-|---|---|
-| `POST /api/save-game` | `routes::save_game` |
-| `POST /api/create-branch` | `routes::create_branch` |
-| `POST /api/new-save-file` | `routes::new_save_file` |
-| `POST /api/new-game` | `routes::new_game` |
-| `POST /api/editor-save` | `editor_routes::editor_save` |
+| Route                     | Handler                      |
+| ------------------------- | ---------------------------- |
+| `POST /api/save-game`     | `routes::save_game`          |
+| `POST /api/create-branch` | `routes::create_branch`      |
+| `POST /api/new-save-file` | `routes::new_save_file`      |
+| `POST /api/new-game`      | `routes::new_game`           |
+| `POST /api/editor-save`   | `editor_routes::editor_save` |
 
 **Cache:** process-wide LRU, capacity 1 000 entries, TTL 24 h. Stored on `GlobalState::idempotency_cache`.
 
@@ -124,7 +124,7 @@ The HTTP server implements `Idempotency-Key` replay (#619) for mutating routes v
 
 The web server (`parish-server`) keeps one `SessionEntry` in memory per active visitor. Each entry holds a full copy of the game state: world graph, NPC manager, inference queue, and associated tick tasks. Memory usage is approximately:
 
-```
+```text
 sessions * ~50 MB = total per-process memory footprint
 ```
 

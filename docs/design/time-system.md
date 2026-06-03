@@ -13,13 +13,13 @@
 
 Speed is adjustable at runtime via the `/speed` command, inspired by SimCity:
 
-| Command | Preset | Factor | Real time per game day |
-|---------|--------|--------|----------------------|
-| `/speed slow` | Slow | 18.0 | 80 minutes |
-| `/speed normal` | Normal (default) | 36.0 | 40 minutes |
-| `/speed fast` | Fast | 72.0 | 20 minutes |
-| `/speed fastest` | Fastest | 144.0 | 10 minutes |
-| `/speed ludicrous` | Ludicrous | 864.0 | 100 seconds |
+| Command            | Preset           | Factor | Real time per game day |
+| ------------------ | ---------------- | ------ | ---------------------- |
+| `/speed slow`      | Slow             | 18.0   | 80 minutes             |
+| `/speed normal`    | Normal (default) | 36.0   | 40 minutes             |
+| `/speed fast`      | Fast             | 72.0   | 20 minutes             |
+| `/speed fastest`   | Fastest          | 144.0  | 10 minutes             |
+| `/speed ludicrous` | Ludicrous        | 864.0  | 100 seconds            |
 
 `/speed` alone shows the current pace. Speed changes recalibrate the clock
 seamlessly — current game time is preserved, only the rate of passage changes.
@@ -36,12 +36,12 @@ seamlessly — current game time is preserved, only the rate of passage changes.
 
 The four traditional Irish seasonal festivals map to the game's seasons:
 
-| Festival      | Season Start   | Approximate Date |
-|---------------|----------------|------------------|
-| **Imbolc**    | Start of spring | ~February 1     |
-| **Bealtaine** | Start of summer | ~May 1          |
-| **Lughnasa**  | Start of autumn | ~August 1       |
-| **Samhain**   | Start of winter | ~November 1     |
+| Festival      | Season Start    | Approximate Date |
+| ------------- | --------------- | ---------------- |
+| **Imbolc**    | Start of spring | ~February 1      |
+| **Bealtaine** | Start of summer | ~May 1           |
+| **Lughnasa**  | Start of autumn | ~August 1        |
+| **Samhain**   | Start of winter | ~November 1      |
 
 These are potential moments where the mythological layer surfaces. Not scripted yet — but the temporal hooks should exist in the time system.
 

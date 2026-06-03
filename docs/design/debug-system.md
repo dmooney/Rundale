@@ -30,17 +30,17 @@ All debug code is behind `#[cfg(feature = "debug")]`:
 
 Debug commands extend the existing `/` command system. All prefixed with `/debug`.
 
-| Command | Description |
-|---------|-------------|
-| `/debug npcs` | List all NPCs: name, location, mood, current activity, tier assignment |
-| `/debug npc <name\|id>` | Full state dump for a single NPC (see below) |
-| `/debug inference` | Inference queue status with recent request previews |
-| `/debug tiers` | NPC tier assignments: count per tier, NPC names, last tick time |
-| `/debug world` | Game clock, real elapsed time, speed factor, weather, season, player location, total NPC count |
-| `/debug tasks` | Background task health: status, last activity, error counts |
-| `/debug log [subsystem]` | Recent tracing log entries, optionally filtered by subsystem |
-| `/debug perf` | Performance metrics: frame time, inference latency percentiles, memory usage |
-| `/debug panel` | Toggle the live debug panel overlay |
+| Command                  | Description                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `/debug npcs`            | List all NPCs: name, location, mood, current activity, tier assignment                         |
+| `/debug npc <name\|id>`  | Full state dump for a single NPC (see below)                                                   |
+| `/debug inference`       | Inference queue status with recent request previews                                            |
+| `/debug tiers`           | NPC tier assignments: count per tier, NPC names, last tick time                                |
+| `/debug world`           | Game clock, real elapsed time, speed factor, weather, season, player location, total NPC count |
+| `/debug tasks`           | Background task health: status, last activity, error counts                                    |
+| `/debug log [subsystem]` | Recent tracing log entries, optionally filtered by subsystem                                   |
+| `/debug perf`            | Performance metrics: frame time, inference latency percentiles, memory usage                   |
+| `/debug panel`           | Toggle the live debug panel overlay                                                            |
 
 ### `/debug npc <name|id>` — Full NPC State Dump
 
@@ -70,13 +70,13 @@ Displays:
 
 Lists all background async tasks with health indicators:
 
-| Task | Tracked Metrics |
-|------|-----------------|
-| Inference worker | Status (idle/busy), queue depth, requests processed, errors, last activity |
-| Autosave | Last save time, next scheduled save, save duration, errors |
-| Tier 2 simulation | Last tick time, NPCs processed, tick duration |
-| Tier 3 batch | Last batch time, NPCs processed, batch duration |
-| Tier 4 rules engine | Last tick time, events generated |
+| Task                | Tracked Metrics                                                            |
+| ------------------- | -------------------------------------------------------------------------- |
+| Inference worker    | Status (idle/busy), queue depth, requests processed, errors, last activity |
+| Autosave            | Last save time, next scheduled save, save duration, errors                 |
+| Tier 2 simulation   | Last tick time, NPCs processed, tick duration                              |
+| Tier 3 batch        | Last batch time, NPCs processed, batch duration                            |
+| Tier 4 rules engine | Last tick time, events generated                                           |
 
 Health states:
 
@@ -131,7 +131,7 @@ pub struct DebugState {
 
 Each subsystem publishes metrics through lightweight, bounded channels:
 
-```
+```text
 InferenceWorker ──→ metrics_tx ──→ DebugState
 AutosaveTask ─────→ metrics_tx ──→ DebugState
 TierSimulation ───→ metrics_tx ──→ DebugState

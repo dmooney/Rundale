@@ -56,14 +56,14 @@ pub fn tick_tier4(
 
 **Rules:**
 
-| Event | Probability | Conditions |
-|-------|-------------|------------|
-| Illness | 2% per NPC per season | Any NPC |
-| Recovery | 80% per ill NPC per season | NPC is currently ill |
-| Death | 0.5% per NPC per year (÷4 per season) | Age > 60: 2% per season; age > 75: 5% |
-| Birth | 5% per married couple per season | Both NPCs healthy, at least one age 18-45 |
-| Trade | 10% per merchant NPC per season | NPC has occupation containing "shop" or "trade" |
-| SeasonalShift | 100% for affected occupations | Farmers, teachers (see below) |
+| Event         | Probability                           | Conditions                                      |
+| ------------- | ------------------------------------- | ----------------------------------------------- |
+| Illness       | 2% per NPC per season                 | Any NPC                                         |
+| Recovery      | 80% per ill NPC per season            | NPC is currently ill                            |
+| Death         | 0.5% per NPC per year (÷4 per season) | Age > 60: 2% per season; age > 75: 5%           |
+| Birth         | 5% per married couple per season      | Both NPCs healthy, at least one age 18-45       |
+| Trade         | 10% per merchant NPC per season       | NPC has occupation containing "shop" or "trade" |
+| SeasonalShift | 100% for affected occupations         | Farmers, teachers (see below)                   |
 
 **Implementation**: Pure `match` + `rng.gen_range()`. No network calls, no async.
 
@@ -91,12 +91,12 @@ pub fn seasonal_schedule_override(
 ) -> Option<DailySchedule>
 ```
 
-| Occupation | Season | Override |
-|------------|--------|---------|
-| Farmer | Summer | Start at 5am (was 7am), end at 21:00 (was 18:00) |
-| Farmer | Winter | Start at 8am, end at 16:00 |
-| Teacher | Summer | No school — stay home all day |
-| Publican | Winter | Open later (11am), close later (midnight) |
+| Occupation | Season | Override                                         |
+| ---------- | ------ | ------------------------------------------------ |
+| Farmer     | Summer | Start at 5am (was 7am), end at 21:00 (was 18:00) |
+| Farmer     | Winter | Start at 8am, end at 16:00                       |
+| Teacher    | Summer | No school — stay home all day                    |
+| Publican   | Winter | Open later (11am), close later (midnight)        |
 
 ### 4. Festival event hooks
 
@@ -110,12 +110,12 @@ pub fn check_festival(from: DateTime<Utc>, to: DateTime<Utc>) -> Option<Festival
 
 Festivals (already defined in `time.rs`):
 
-| Festival | Date | Effect |
-|----------|------|--------|
-| Imbolc | Feb 1 | Community gathering, spring anticipation |
-| Bealtaine | May 1 | Celebration, bonfires, outdoor activity |
-| Lughnasa | Aug 1 | Harvest fair, trading, games |
-| Samhain | Nov 1 | Solemn mood, supernatural atmosphere |
+| Festival  | Date  | Effect                                   |
+| --------- | ----- | ---------------------------------------- |
+| Imbolc    | Feb 1 | Community gathering, spring anticipation |
+| Bealtaine | May 1 | Celebration, bonfires, outdoor activity  |
+| Lughnasa  | Aug 1 | Harvest fair, trading, games             |
+| Samhain   | Nov 1 | Solemn mood, supernatural atmosphere     |
 
 When a festival is detected:
 
@@ -162,19 +162,19 @@ let events = tokio::task::spawn_blocking(move || {
 
 ## Tests
 
-| Test | What it verifies |
-|------|------------------|
-| `test_tier4_deterministic_with_seed` | Seeded RNG produces repeatable events |
-| `test_tier4_illness_probability` | Over 10,000 runs, illness rate is ~2% |
-| `test_tier4_death_age_scaling` | Elderly NPCs die at higher rate than young |
-| `test_tier4_no_birth_if_no_couples` | No births without married couples |
-| `test_tier4_seasonal_shift_farmer` | Farmer gets longer hours in summer |
-| `test_tier4_seasonal_shift_teacher` | Teacher stays home in summer |
-| `test_festival_detection` | check_festival finds Imbolc on Feb 1 |
-| `test_festival_between_dates` | Festival detected when range spans the date |
-| `test_festival_context_injection` | Festival name appears in NPC prompt context |
+| Test                                     | What it verifies                                  |
+| ---------------------------------------- | ------------------------------------------------- |
+| `test_tier4_deterministic_with_seed`     | Seeded RNG produces repeatable events             |
+| `test_tier4_illness_probability`         | Over 10,000 runs, illness rate is ~2%             |
+| `test_tier4_death_age_scaling`           | Elderly NPCs die at higher rate than young        |
+| `test_tier4_no_birth_if_no_couples`      | No births without married couples                 |
+| `test_tier4_seasonal_shift_farmer`       | Farmer gets longer hours in summer                |
+| `test_tier4_seasonal_shift_teacher`      | Teacher stays home in summer                      |
+| `test_festival_detection`                | check_festival finds Imbolc on Feb 1              |
+| `test_festival_between_dates`            | Festival detected when range spans the date       |
+| `test_festival_context_injection`        | Festival name appears in NPC prompt context       |
 | `test_tier4_event_publishes_world_event` | Each Tier4Event generates a WorldEvent::LifeEvent |
-| `test_tier4_runs_on_spawn_blocking` | Async test verifies non-blocking execution |
+| `test_tier4_runs_on_spawn_blocking`      | Async test verifies non-blocking execution        |
 
 ## Acceptance Criteria
 

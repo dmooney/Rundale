@@ -74,7 +74,7 @@ First line must be `Evidence type: live gameplay transcript`. Include:
 
 Independent verdict. Must end with all three lines verbatim:
 
-```
+```text
 Verdict: sufficient
 Technical debt: clear
 Acceptance criteria: met
@@ -85,7 +85,7 @@ Include risk-check (save compatibility, prompt budget, mode parity, architecture
 ## 9. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
-- Body explains the *why*, not the *what*; ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
+- Body explains the _why_, not the _what_; ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - PR title prefix matches commit.
 - PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
 

@@ -1,6 +1,6 @@
 # Clothing & Textiles in 1820s Ireland
 
-*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
+_Research document for Rundale — an interactive fiction game set in 1820s rural Ireland._
 
 ## Clothing as Social Marker
 
@@ -22,7 +22,7 @@ The older garment that the shawl was displacing was the **cloak**, known in Iris
 
 ## Bánín and Homespun
 
-Much of the cloth worn by ordinary people was **homespun** — produced in the home from locally grown flax or locally reared wool. The most distinctive homespun fabric was **bánín** (from *bán*, meaning white), an undyed, cream-coloured woollen cloth particularly associated with the west of Ireland and Connacht. [8] Bánín had a soft, natural beauty and a warmth that made it ideal for the damp Irish climate, but its undyed state was also an indicator of poverty, since dyeing required materials and skill that not every household possessed. A man in a bánín jacket was almost certainly from the west, almost certainly poor, and almost certainly Irish-speaking. The fabric carried cultural meaning beyond its practical function — it was the cloth of the Gaelic world, of the cottier and the smallholder, and it distinguished its wearer from the middling farmer in his dyed frieze or the gentleman in his imported broadcloth.
+Much of the cloth worn by ordinary people was **homespun** — produced in the home from locally grown flax or locally reared wool. The most distinctive homespun fabric was **bánín** (from _bán_, meaning white), an undyed, cream-coloured woollen cloth particularly associated with the west of Ireland and Connacht. [8] Bánín had a soft, natural beauty and a warmth that made it ideal for the damp Irish climate, but its undyed state was also an indicator of poverty, since dyeing required materials and skill that not every household possessed. A man in a bánín jacket was almost certainly from the west, almost certainly poor, and almost certainly Irish-speaking. The fabric carried cultural meaning beyond its practical function — it was the cloth of the Gaelic world, of the cottier and the smallholder, and it distinguished its wearer from the middling farmer in his dyed frieze or the gentleman in his imported broadcloth.
 
 ## Linen: From Flax Field to Fabric
 
@@ -58,17 +58,17 @@ Clothing and textiles offer rich material for grounding Rundale in physical, soc
 
 [2] **Verified.** Men wearing knee breeches, linen shirts, and frieze coats. — George Moore's recollections (cited in Rachel Sayers, "The History of Irish Dress 1850-1900") describe men in "knee breeches, frieze coats, and stovepipe hats" at chapel, noting they "had not yet adopted trousers and were still wearing the knee-breeches of their ancestors."
 
-[3] **Verified.** Brogues as rough, heavy shoes of untanned or lightly tanned leather. — Wikipedia ("Brogue shoe") and multiple sources confirm brogues originated as rudimentary shoes "constructed using untanned hide" in Ireland and Scotland. The word derives from the Irish *bróg*, meaning "leg covering."
+[3] **Verified.** Brogues as rough, heavy shoes of untanned or lightly tanned leather. — Wikipedia ("Brogue shoe") and multiple sources confirm brogues originated as rudimentary shoes "constructed using untanned hide" in Ireland and Scotland. The word derives from the Irish _bróg_, meaning "leg covering."
 
 [4] **Verified, with caveat.** Brogues punched with holes to drain water in boggy ground. — This is the widely cited traditional explanation. However, Wikipedia notes this claim "is now thought to be untrue as the earliest mentions of brogues mention no such holes." The perforations may have been a later practical adaptation rather than an original design feature.
 
-[5] **Verified.** The red petticoat as iconic outer skirt dyed with madder. — Library Ireland ("Red Petticoats," from Asenath Nicholson's account) and multiple sources confirm the red petticoat as a ubiquitous feature of rural Irish women's dress. Wild madder (*madar*) was used as a dyestuff, with native varieties found in the Burren, County Clare, and imported madder also widely used.
+[5] **Verified.** The red petticoat as iconic outer skirt dyed with madder. — Library Ireland ("Red Petticoats," from Asenath Nicholson's account) and multiple sources confirm the red petticoat as a ubiquitous feature of rural Irish women's dress. Wild madder (_madar_) was used as a dyestuff, with native varieties found in the Burren, County Clare, and imported madder also widely used.
 
 [6] **Verified.** The shawl as the defining garment of Irish women by the 19th century. — By the 19th century, the shawl had become "the only distinctively national garment which is to be found all over Ireland" for women (cited in TOTA, "Irish Dress in the 19th Century"). Irish American Mom confirms the shawl's prominence in photographs and accounts of 19th-century Irish women.
 
-[7] **Verified.** The *brat* as the traditional Irish cloak worn for centuries, with hooded form. — Wikipedia ("Kinsale cloak") and multiple sources confirm the *brat* as the traditional Irish mantle or cloak, worn since prehistoric times. Historian Mairead Dunlevy describes it as "the most colourful, versatile and warmest garment in the early Irish wardrobe." Cloaks varied in colour by region (red in Cork, blue in Waterford). The Kinsale cloak was the last surviving form, worn into the 20th century.
+[7] **Verified.** The _brat_ as the traditional Irish cloak worn for centuries, with hooded form. — Wikipedia ("Kinsale cloak") and multiple sources confirm the _brat_ as the traditional Irish mantle or cloak, worn since prehistoric times. Historian Mairead Dunlevy describes it as "the most colourful, versatile and warmest garment in the early Irish wardrobe." Cloaks varied in colour by region (red in Cork, blue in Waterford). The Kinsale cloak was the last surviving form, worn into the 20th century.
 
-[8] **Verified.** Bánín as undyed, cream-coloured woollen cloth from *bán* (white), associated with the west of Ireland. — Wiktionary and STABLE of Ireland confirm bánín is "a diminutive of the word *bán*, which means white" and refers to undyed homespun wool cloth. The term *Fear an bháinín* ("the man of the bánín") specifically denoted a Connemara labourer.
+[8] **Verified.** Bánín as undyed, cream-coloured woollen cloth from _bán_ (white), associated with the west of Ireland. — Wiktionary and STABLE of Ireland confirm bánín is "a diminutive of the word _bán_, which means white" and refers to undyed homespun wool cloth. The term _Fear an bháinín_ ("the man of the bánín") specifically denoted a Connemara labourer.
 
 [9] **Verified.** Linen industry overwhelmingly concentrated in Ulster. — The Open University, Google Arts & Culture (Irish Linen Centre & Lisburn Museum), and multiple sources confirm the linen industry was centred in Ulster, with Lisburn at its heart. By the late 1790s, linen and related goods accounted for 56.5% of Irish exports.
 
@@ -76,9 +76,9 @@ Clothing and textiles offer rich material for grounding Rundale in physical, soc
 
 [11] **Verified.** Belfast and Lisburn as the great linen markets. — The Open University confirms Belfast came to "dominate linen cloth exports" and northern bleachers built their own White Linen Hall there. Lisburn, along with Banbridge, Lurgan, and other towns, served as major specialized linen markets.
 
-[12] **Verified.** Weld as a yellow-flowered dye plant; lichens producing purples, russets, and reddish-browns. — A survey of 500 historical textile samples found 80% of yellows were dyed with weld (*Reseda luteola*). Celtic SCA Resources and Weavers of Ireland confirm lichen dyes produced purples, pinks, and browns, and were known as *crottle* (from Irish *crotal*). Dyeing in early Ireland was considered "a somewhat magical process" and "strictly a women's craft."
+[12] **Verified.** Weld as a yellow-flowered dye plant; lichens producing purples, russets, and reddish-browns. — A survey of 500 historical textile samples found 80% of yellows were dyed with weld (_Reseda luteola_). Celtic SCA Resources and Weavers of Ireland confirm lichen dyes produced purples, pinks, and browns, and were known as _crottle_ (from Irish _crotal_). Dyeing in early Ireland was considered "a somewhat magical process" and "strictly a women's craft."
 
-[13] **Verified, with nuance.** Madder "also imported, though some was grown locally." — Wild madder (*madar*) is native to parts of Ireland (notably the Burren in Clare), confirming some local growth. However, cultivated madder root (*Rubia tinctorum*) for larger-scale dyeing was indeed imported, as the document states.
+[13] **Verified, with nuance.** Madder "also imported, though some was grown locally." — Wild madder (_madar_) is native to parts of Ireland (notably the Burren in Clare), confirming some local growth. However, cultivated madder root (_Rubia tinctorum_) for larger-scale dyeing was indeed imported, as the document states.
 
 [14] **Verified.** English factory-produced cloth flooding Irish markets and undercutting homespun. — Encyclopedia.com and the Ulster American Folk Park confirm that the English state "periodically dumped cheaper English yarn and cloth in Ireland" and that by the 1820s industrial spun yarn was undermining cottage spinning. Power looms could produce "four times as much cloth" as handlooms.
 
@@ -87,24 +87,24 @@ Clothing and textiles offer rich material for grounding Rundale in physical, soc
 ## Bibliography
 
 - "Frieze (textile)." Wikipedia. https://en.wikipedia.org/wiki/Frieze_(textile)
-- Sayers, Rachel. "The History of Irish Dress 1850-1900." *What Grandma Wore*, 2020. https://whatgrandmawore.wordpress.com/2020/01/27/guest-post-by-rachel-sayers-the-history-of-irish-dress-1850-1900/
-- "The Dress of the Connemara People." *Scenery and Antiquities of Ireland*, Library Ireland. https://www.libraryireland.com/SceneryIreland/2-X-6.php
+- Sayers, Rachel. "The History of Irish Dress 1850-1900." _What Grandma Wore_, 2020. https://whatgrandmawore.wordpress.com/2020/01/27/guest-post-by-rachel-sayers-the-history-of-irish-dress-1850-1900/
+- "The Dress of the Connemara People." _Scenery and Antiquities of Ireland_, Library Ireland. https://www.libraryireland.com/SceneryIreland/2-X-6.php
 - "Brogue shoe." Wikipedia. https://en.wikipedia.org/wiki/Brogue_shoe
-- "Irish Brogues and Other Simple Shoes." *Preindustrial Craftsmanship*, 2013. https://paleotool.com/2013/12/06/irish-brogues-and-other-simple-shoes/
-- "Red Petticoats." *Ireland's Welcome to the Stranger*, Library Ireland. https://www.libraryireland.com/irelandswelcome/red-petticoats.php
-- "Irish Dress in the 19th Century." *TOTA*. https://www.tota.world/article/217/
+- "Irish Brogues and Other Simple Shoes." _Preindustrial Craftsmanship_, 2013. https://paleotool.com/2013/12/06/irish-brogues-and-other-simple-shoes/
+- "Red Petticoats." _Ireland's Welcome to the Stranger_, Library Ireland. https://www.libraryireland.com/irelandswelcome/red-petticoats.php
+- "Irish Dress in the 19th Century." _TOTA_. https://www.tota.world/article/217/
 - "Kinsale cloak." Wikipedia. https://en.wikipedia.org/wiki/Kinsale_cloak
-- "The Brat." *Saffron Cloth*. https://saffroncloth.wordpress.com/womens-clothing/brat/
-- "The Báinín Jacket." *STABLE of Ireland*. https://www.stableofireland.com/en-us/blogs/journal/the-bainin-jacket-with-the-help-of-manchan-magan
+- "The Brat." _Saffron Cloth_. https://saffroncloth.wordpress.com/womens-clothing/brat/
+- "The Báinín Jacket." _STABLE of Ireland_. https://www.stableofireland.com/en-us/blogs/journal/the-bainin-jacket-with-the-help-of-manchan-magan
 - "bainin." Wiktionary. https://en.wiktionary.org/wiki/bainin
-- "The Belfast Linen Industry." *OpenLearn*, Open University. https://www.open.edu/openlearn/history-the-arts/history/heritage/the-belfast-linen-industry
-- "The Story of Irish Linen: Flax to Fabric." *Google Arts & Culture*, Irish Linen Centre & Lisburn Museum. https://artsandculture.google.com/story/the-story-of-irish-linen-flax-to-fabric-irish-linen-centre-lisburn-museum/twVRPGdTeZMGIg
-- "Irish grown flax fibre to Linen." *Mallon Linen*. https://mallonlinen.co.uk/flaxtolinenprocess/
-- "From Flax to Linen: The Retting Process." *Vala Alta*. https://valaalta.co/blogs/writings/retting
-- "The Cottage Linen Weavers." *Ulster American Folk Park*. https://www.ulsteramericanfolkpark.org/guest-blog/cottage-linen-weavers
-- "Dyes and Dyeing in Medieval Ireland and Scotland." *SCA Celtic Resources*, 2014. https://celticsca.wordpress.com/2014/02/23/dyes-and-dyeing-in-medieval-ireland-and-scotland/
-- "Natural Dyeing in Irish Weaving." *Weavers of Ireland*. https://weaversofireland.com/en-us/blogs/blog/natural-dyeing-in-irish-weaving-from-bog-myrtle-to-woad
-- "The Shawl: An Irish Fashion Statement of Old." *Irish American Mom*. https://www.irishamericanmom.com/the-shawl-an-irish-fashion-statement-of-old-plus-a-beautiful-pashmina-giveaway-to-celebrate-st-patricks-day/
-- Sayers, Rachel. "The History of Irish Dress 1750-1850." *What Grandma Wore*, 2020. https://whatgrandmawore.wordpress.com/2020/01/27/guest-blog-post-from-rachel-sayers-the-history-of-irish-dress-1750-1850/
-- "Factory-Based Textile Manufacture." *Encyclopedia.com*. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/factory-based-textile-manufacture
-- "The Colourful Irish Arans." *Explore Blarney*. https://explore.blarney.com/colorful-irish-arans/
+- "The Belfast Linen Industry." _OpenLearn_, Open University. https://www.open.edu/openlearn/history-the-arts/history/heritage/the-belfast-linen-industry
+- "The Story of Irish Linen: Flax to Fabric." _Google Arts & Culture_, Irish Linen Centre & Lisburn Museum. https://artsandculture.google.com/story/the-story-of-irish-linen-flax-to-fabric-irish-linen-centre-lisburn-museum/twVRPGdTeZMGIg
+- "Irish grown flax fibre to Linen." _Mallon Linen_. https://mallonlinen.co.uk/flaxtolinenprocess/
+- "From Flax to Linen: The Retting Process." _Vala Alta_. https://valaalta.co/blogs/writings/retting
+- "The Cottage Linen Weavers." _Ulster American Folk Park_. https://www.ulsteramericanfolkpark.org/guest-blog/cottage-linen-weavers
+- "Dyes and Dyeing in Medieval Ireland and Scotland." _SCA Celtic Resources_, 2014. https://celticsca.wordpress.com/2014/02/23/dyes-and-dyeing-in-medieval-ireland-and-scotland/
+- "Natural Dyeing in Irish Weaving." _Weavers of Ireland_. https://weaversofireland.com/en-us/blogs/blog/natural-dyeing-in-irish-weaving-from-bog-myrtle-to-woad
+- "The Shawl: An Irish Fashion Statement of Old." _Irish American Mom_. https://www.irishamericanmom.com/the-shawl-an-irish-fashion-statement-of-old-plus-a-beautiful-pashmina-giveaway-to-celebrate-st-patricks-day/
+- Sayers, Rachel. "The History of Irish Dress 1750-1850." _What Grandma Wore_, 2020. https://whatgrandmawore.wordpress.com/2020/01/27/guest-blog-post-from-rachel-sayers-the-history-of-irish-dress-1750-1850/
+- "Factory-Based Textile Manufacture." _Encyclopedia.com_. https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/factory-based-textile-manufacture
+- "The Colourful Irish Arans." _Explore Blarney_. https://explore.blarney.com/colorful-irish-arans/

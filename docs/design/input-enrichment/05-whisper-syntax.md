@@ -22,7 +22,7 @@ Two trigger syntaxes, both detected in the frontend before submission:
 
 Natural extension of the existing `@mention` system. The `(whisper)` modifier follows the mention:
 
-```
+```text
 @Padraig (whisper) I saw Father Callahan at the fairy fort
 @Siobhan (whisper) Don't tell anyone, but I found gold
 ```
@@ -31,7 +31,7 @@ Natural extension of the existing `@mention` system. The `(whisper)` modifier fo
 
 Shorter, MUD-style syntax:
 
-```
+```text
 >Padraig the land agent is cheating you
 >Siobhan I have a secret to tell you
 ```
@@ -48,8 +48,8 @@ After extracting plain text via `getPlainText()`, detect whisper syntax before s
 
 ```typescript
 interface WhisperInfo {
-  target: string;    // NPC name
-  message: string;   // The whispered content
+  target: string; // NPC name
+  message: string; // The whispered content
 }
 
 function detectWhisper(text: string): WhisperInfo | null {
@@ -137,7 +137,7 @@ Extend `submitInput` to accept optional whisper metadata:
 ```typescript
 export async function submitInput(
   text: string,
-  opts?: { whisper?: boolean; target?: string }
+  opts?: { whisper?: boolean; target?: string },
 ) {
   const payload: SubmitInputRequest = { text };
   if (opts?.whisper && opts.target) {
@@ -161,15 +161,15 @@ interface TextLogEntry {
   source: string;
   content: string;
   streaming?: boolean;
-  whisper?: boolean;          // NEW
-  whisper_target?: string;    // NEW
+  whisper?: boolean; // NEW
+  whisper_target?: string; // NEW
 }
 
 interface TextLogPayload {
   source: string;
   content: string;
-  whisper?: boolean;          // NEW
-  whisper_target?: string;    // NEW
+  whisper?: boolean; // NEW
+  whisper_target?: string; // NEW
 }
 ```
 
@@ -365,7 +365,7 @@ This is enforced in `build_enhanced_context()`:
 
 ## Data Flow
 
-```
+```text
 Player types: "@Padraig (whisper) I saw Father Callahan at the fairy fort"
 
 Frontend:
@@ -394,17 +394,17 @@ Later, Tier 2 tick runs:
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Whisper to NPC not present | System message: "Padraig is not here." |
-| Whisper to unknown name | Fuzzy match against NPCs at location; fail → "No one by that name is here." |
-| Whisper with no message | Treat as empty input; ignored |
-| `>` at start of non-whisper text | Only triggers if followed by a name + space + message |
-| `>` in middle of text | Not detected as whisper (must be at position 0) |
-| Only one NPC present | Whisper still works but is functionally identical to normal speech |
-| Whisper + action: `@Padraig (whisper) *slides note*` | Combine whisper and action enrichment — both flags set |
-| NPC responds to whisper loudly | The NPC's response is also marked whisper; prompt instructs them to whisper back |
-| Save/load with private memories | `private` field serialized via serde; survives persistence |
+| Case                                                 | Behavior                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Whisper to NPC not present                           | System message: "Padraig is not here."                                           |
+| Whisper to unknown name                              | Fuzzy match against NPCs at location; fail → "No one by that name is here."      |
+| Whisper with no message                              | Treat as empty input; ignored                                                    |
+| `>` at start of non-whisper text                     | Only triggers if followed by a name + space + message                            |
+| `>` in middle of text                                | Not detected as whisper (must be at position 0)                                  |
+| Only one NPC present                                 | Whisper still works but is functionally identical to normal speech               |
+| Whisper + action: `@Padraig (whisper) *slides note*` | Combine whisper and action enrichment — both flags set                           |
+| NPC responds to whisper loudly                       | The NPC's response is also marked whisper; prompt instructs them to whisper back |
+| Save/load with private memories                      | `private` field serialized via serde; survives persistence                       |
 
 ## Testing
 
@@ -430,16 +430,16 @@ Later, Tier 2 tick runs:
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/components/InputField.svelte` | Add `detectWhisper()`, modify submit to pass whisper metadata |
-| `ui/src/components/ChatPanel.svelte` | Whisper-specific rendering (dashed border, italic, label) |
-| `ui/src/lib/types.ts` | Add `whisper` and `whisper_target` to `TextLogEntry`, `TextLogPayload`, `SubmitInputRequest` |
-| `ui/src/lib/ipc.ts` | Extend `submitInput()` to accept whisper options |
-| `crates/parish-server/src/routes.rs` | Add `handle_whisper_conversation()`, modify `submit_input` handler |
-| `crates/parish-core/src/ipc/types.rs` | Add whisper fields to `TextLogPayload` |
-| `crates/parish-core/src/npc/memory.rs` | Add `private` field to `MemoryEntry`, add `context_string_public()` |
-| `crates/parish-core/src/npc/ticks.rs` | Use `context_string_public()` for Tier 2 context building |
+| File                                   | Change                                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ui/src/components/InputField.svelte`  | Add `detectWhisper()`, modify submit to pass whisper metadata                                |
+| `ui/src/components/ChatPanel.svelte`   | Whisper-specific rendering (dashed border, italic, label)                                    |
+| `ui/src/lib/types.ts`                  | Add `whisper` and `whisper_target` to `TextLogEntry`, `TextLogPayload`, `SubmitInputRequest` |
+| `ui/src/lib/ipc.ts`                    | Extend `submitInput()` to accept whisper options                                             |
+| `crates/parish-server/src/routes.rs`   | Add `handle_whisper_conversation()`, modify `submit_input` handler                           |
+| `crates/parish-core/src/ipc/types.rs`  | Add whisper fields to `TextLogPayload`                                                       |
+| `crates/parish-core/src/npc/memory.rs` | Add `private` field to `MemoryEntry`, add `context_string_public()`                          |
+| `crates/parish-core/src/npc/ticks.rs`  | Use `context_string_public()` for Tier 2 context building                                    |
 
 ## Effort Estimate
 

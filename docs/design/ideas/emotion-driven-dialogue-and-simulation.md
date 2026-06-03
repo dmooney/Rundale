@@ -8,7 +8,7 @@ This is a design brainstorm for integrating richer emotional dynamics into Runda
 
 ## Why now
 
-Anthropic’s April 2, 2026 paper/report on *Emotion Concepts and their Function in a Large Language Model* argues that LLMs can carry **functional emotion representations** (171 concept vectors in their study) that are:
+Anthropic’s April 2, 2026 paper/report on _Emotion Concepts and their Function in a Large Language Model_ argues that LLMs can carry **functional emotion representations** (171 concept vectors in their study) that are:
 
 - general across contexts,
 - causally linked to behavior,
@@ -49,7 +49,7 @@ Map the numeric state + context into one of curated labels (e.g., `calm`, `guard
 
 ### Layer C: Appraisal tags (explanatory)
 
-Track *why* the emotion changed:
+Track _why_ the emotion changed:
 
 - `threat_to_status`
 - `resource_scarcity`
@@ -202,7 +202,7 @@ Potential extension to NPC structured output (illustrative):
     "appraisal": ["threat_to_status", "public_humiliation"]
   },
   "policy": "deflect",
-  "relationship_changes": [{"npc_id": "player", "delta": -0.05}]
+  "relationship_changes": [{ "npc_id": "player", "delta": -0.05 }]
 }
 ```
 

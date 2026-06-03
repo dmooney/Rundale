@@ -6,15 +6,16 @@ The Parish web server supports optional Google sign-in so visitors can claim the
 
 The web server (`crates/parish-server/`) reads three environment variables on startup:
 
-| Variable | Purpose |
-|----------|---------|
-| `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | OAuth client secret from Google Cloud Console |
-| `PARISH_PUBLIC_URL` | Public base URL of the server (defaults to `http://localhost:3001`). Falls back to `PARISH_BASE_URL` if unset. |
+| Variable               | Purpose                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`     | OAuth client ID from Google Cloud Console                                                                      |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret from Google Cloud Console                                                                  |
+| `PARISH_PUBLIC_URL`    | Public base URL of the server (defaults to `http://localhost:3001`). Falls back to `PARISH_BASE_URL` if unset. |
 
 These are loaded via `dotenvy::dotenv()`, so a `.env` file at the repo root works. If either `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing or empty, OAuth is silently disabled and the `/auth/login/google` + `/auth/callback/google` routes are not registered.
 
 Relevant code:
+
 - `crates/parish-server/src/lib.rs` — `build_oauth_config()` reads the env vars
 - `crates/parish-server/src/auth.rs` — OAuth flow, hard-codes the `openid email profile` scopes and the `/auth/callback/google` redirect path
 
@@ -52,7 +53,7 @@ PARISH_PUBLIC_URL=http://localhost:3001
 
 Start the web server. On startup you should see:
 
-```
+```text
 INFO Google OAuth enabled
 ```
 

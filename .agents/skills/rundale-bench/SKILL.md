@@ -23,19 +23,19 @@ Model-quality eval with three modes:
   "eval-dialogue A B", "A/B these two on dialogue". A single-target "eval"/"benchmark" is **bench**, not
   eval-dialogue — when in doubt, pick bench. Jump to the **eval-dialogue mode** section below.
 
-### Mode-selection cheat sheet
+## Mode-selection cheat sheet
 
-| User says... | Mode |
-| --- | --- |
-| "eval qwen3.7 on opencode-go" | **bench** (single target, all slices) |
-| "evaluate kimi-k2.6 on opencode-go" | **bench** |
-| "benchmark glm-5.1 on opencode-go" | **bench** |
-| "run the bench on minimax-m2.7" | **bench** |
-| "/rundale-bench bench …" | **bench** (explicit) |
-| "compare qwen3.6 vs qwen3.7 on dialogue" | **eval-dialogue** (two specs, dialogue-only) |
-| "A/B these on dialogue: spec_a, spec_b" | **eval-dialogue** |
-| "/rundale-bench eval-dialogue A B" | **eval-dialogue** (explicit) |
-| "drain the judging queue" / "/rundale-bench drain-queue" | **drain-queue** |
+| User says...                                             | Mode                                         |
+| -------------------------------------------------------- | -------------------------------------------- |
+| "eval qwen3.7 on opencode-go"                            | **bench** (single target, all slices)        |
+| "evaluate kimi-k2.6 on opencode-go"                      | **bench**                                    |
+| "benchmark glm-5.1 on opencode-go"                       | **bench**                                    |
+| "run the bench on minimax-m2.7"                          | **bench**                                    |
+| "/rundale-bench bench …"                                 | **bench** (explicit)                         |
+| "compare qwen3.6 vs qwen3.7 on dialogue"                 | **eval-dialogue** (two specs, dialogue-only) |
+| "A/B these on dialogue: spec_a, spec_b"                  | **eval-dialogue**                            |
+| "/rundale-bench eval-dialogue A B"                       | **eval-dialogue** (explicit)                 |
+| "drain the judging queue" / "/rundale-bench drain-queue" | **drain-queue**                              |
 
 ---
 
@@ -53,23 +53,29 @@ and uses Sonnet subagents to judge — no other prompts needed from the user.
    `--model-id` and `--provider-id` can be passed through correctly. Abort if the env var named in the spec
    is unset — they won't get past the first HTTP call.
 2. **Generate samples + queue judge bundles** (every slice end-to-end):
+
    ```sh
    just -f rundale-bench/justfile bench-it '<target-spec>'
    ```
+
    This is the unified recipe: it invokes `rundale_bench.py --slice all --judge judge_sonnet_v1` for every
    slice (dialogue / intent / reaction / tier2-sim / tier3-sim / gaeilge) and then runs the perf probe in
    one go. The judge slices write bundles to `rundale-bench/.bench-queue/pending/` instead of scoring inline.
+
 3. **Drain the judging queue.** Same as the **drain-queue mode** below: list `.bench-queue/pending/*.json`,
    skip any that already have `.bench-queue/done/<stem>.json`, and dispatch up to **8 Agent subagents per
    message** running the `/rundale-bench-judge` skill on each bundle. Each subagent returns a JSON object;
    write it verbatim to `done/<stem>.json`. Loop until `pending/` is fully matched.
 4. **Ingest + finalise:**
+
    ```sh
    python3 rundale-bench/rundale_bench.py ingest --finalize
    ```
+
    Validates results, writes content-addressed judgments under `docs/proofs/rundale-bench/judgments/`, and
    folds scores back into the run JSONs. `--finalize` errors if anything is unscored — go back to step 3 and
    re-dispatch the missing bundles.
+
 5. **Report** in chat: target id; per-slice aggregate (one row each for dialogue, intent, reaction,
    tier2-sim, tier3-sim, gaeilge); perf p50 / p95 / tokens-per-second; total USD spend. Flag any slice where
    `> 10%` of records errored with HTTP 4xx — those signal a provider quirk worth investigating.
@@ -155,7 +161,7 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
 
 ### Steps
 
-1. **Classify each target.** `base_url` starting with `http://localhost` is *local*, else *cloud*. Cloud
+1. **Classify each target.** `base_url` starting with `http://localhost` is _local_, else _cloud_. Cloud
    targets need their `$VAR` set; verify with `printenv $VAR` and abort if any required key is missing.
 2. **Pre-flight local targets only.** If any target is local, check `which vllm-mlx`. If missing, tell the
    user to run `uv tool install vllm-mlx`. Skip for pure-cloud runs.
@@ -166,25 +172,30 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
    when the candidate itself is Opus — Sonnet-vs-Sonnet runs are still legitimate (the rubric is mechanical
    enough that family-relatedness is a small effect), but flag the overlap in the report header. State
    the judge model id (`claude-sonnet-4-6`) and date in the report header.
-4. **Spawn local vllm-mlx processes** on consecutive ports from `:8000` for each *local* target. Use
+4. **Spawn local vllm-mlx processes** on consecutive ports from `:8000` for each _local_ target. Use
    `--enable-prefix-cache --continuous-batching`. Save pids for cleanup. Wait for `/v1/models` to respond
    (Monitor with an `until curl ... ; do sleep 2; done` loop). Skip entirely for all-cloud runs.
 5. **Generate dialogue samples.** First make a per-run temp dir so concurrent invocations don't collide on
    `/tmp/cand_*.txt`:
+
    ```sh
    RUN_DIR=$(mktemp -d -t eval-dialogue-XXXXXX)
    ```
+
    Then for each candidate:
+
    ```sh
    python3 parish/scripts/local-eval/gen_dlg.py '<target-spec>' "$RUN_DIR/cand_<letter>.txt"
    ```
+
    `gen_dlg.py` uses the canonical 5 prompts and writes a transcript plus a `=== Cost: ... ===` footer.
    Record the cost line per candidate.
+
 6. **Dispatch the Sonnet judge.** Build a single in-prompt bundle — one section per prompt, each
    candidate labelled `Model X`, `Model Y`, … (no model-name leakage in the prompt body — the mapping
    stays in your context for the final report). Dispatch one `Agent` call:
 
-   ```
+   ```text
    Agent(
      subagent_type: "general-purpose",
      model: "sonnet",
@@ -197,6 +208,7 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
    Ingest its JSON verbatim — do not re-score, do not adjust. If Sonnet's aggregate line has obvious
    arithmetic errors (it sometimes mis-averages), recompute the aggregates yourself from the per-prompt
    lines and note the discrepancy in the report. Do not change the per-prompt scores.
+
 7. **Aggregate.** Mean each axis across the 5 prompts per candidate. Build a markdown table sorted by
    **Overall** descending, with a `Cost (USD)` column from the `gen_dlg.py` footer.
 8. **Write the report** to `docs/proofs/local-perf/quality_eval_<UTC-stamp>.md`: judge model + URL; candidate
@@ -208,7 +220,7 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
 
 ### Judge rubric (paste verbatim into the judge system prompt)
 
-```
+```text
 You are an impartial judge scoring fictional dialogue from rural
 Ireland in 1820. Each model plays Brigid O'Brien, a 42-year-old
 midwife. Score each candidate reply on a 1-5 scale (5 = best) on:

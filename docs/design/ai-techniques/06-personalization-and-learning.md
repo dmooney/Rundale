@@ -9,7 +9,7 @@
 Every player gets the same Rundale voice. A player who enjoys dry, long
 exchanges gets the same register as one who types terse verbs. NPCs neither
 mirror the player's idiolect nor improve from feedback. We also have no
-pipeline to *learn* from the thousands of good conversations players will
+pipeline to _learn_ from the thousands of good conversations players will
 generate.
 
 ## SOTA techniques
@@ -58,9 +58,9 @@ per turn. That log is a free preference signal:
 
 1. **Harvest:** for every Tier 1 turn routed to cloud (Claude Opus /
    Sonnet), persist `(system prompt, context, response, emoji reactions,
-   follow-up length)` to `training/traces/`.
+follow-up length)` to `training/traces/`.
 2. **Filter:** keep turns whose reactions skew positive
-   (emoji sentiment score > τ) *and* whose follow-up engagement is
+   (emoji sentiment score > τ) _and_ whose follow-up engagement is
    non-trivial. Discard turns with negative or no reaction.
 3. **Fine-tune:** LoRA adapter over a local base (Qwen 2.5 7B, Mistral
    Nemo, Gemma 2 9B) on the filtered set. Merge or hot-swap at inference.
@@ -84,7 +84,7 @@ shipping.
 
 ### 5. Persona steering vectors (activation engineering)
 
-Representation-engineering techniques (RepE, ITI) let us *steer* base models
+Representation-engineering techniques (RepE, ITI) let us _steer_ base models
 with a single activation vector — e.g. a "1820s Connacht dialect" vector
 learned from a few dozen examples. Cheaper than a LoRA and swappable at
 request time. Early research but viable on llama.cpp with patching.
@@ -122,8 +122,8 @@ player, each NPC has a personalised retrieval-augmented style. The NPC
 
 ## Papers / references
 
-- Rafailov et al., *Direct Preference Optimization* (2023).
-- Ethayarajh et al., *KTO: Model Alignment as Prospect-Theoretic Optimization* (2024).
-- Li & Liang, *Prefix-Tuning* (2021) — relevant to cheap per-player adapters.
-- Zou et al., *Representation Engineering: A Top-Down Approach to AI Transparency* (2023).
-- Li et al., *Inference-Time Intervention* (ITI, 2023).
+- Rafailov et al., _Direct Preference Optimization_ (2023).
+- Ethayarajh et al., _KTO: Model Alignment as Prospect-Theoretic Optimization_ (2024).
+- Li & Liang, _Prefix-Tuning_ (2021) — relevant to cheap per-player adapters.
+- Zou et al., _Representation Engineering: A Top-Down Approach to AI Transparency_ (2023).
+- Li et al., _Inference-Time Intervention_ (ITI, 2023).

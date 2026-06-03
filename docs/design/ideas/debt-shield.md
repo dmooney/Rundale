@@ -8,7 +8,7 @@ Debt Shield is a multi-layered, automated system that prevents the accumulation 
 
 ## Architecture
 
-```
+```text
 +-------------------------------------------------------------+
 |                    LAYER 0: PREVENTION                       |
 |  Developer types code -> pre-commit hooks catch debt locally  |
@@ -32,7 +32,7 @@ Debt Shield is a multi-layered, automated system that prevents the accumulation 
 
 ## Phase Ordering (Pipeline-First)
 
-```
+```text
 Phase 3 (Autonomous Pipeline) -> Phase 2 (Adversarial Agent) -> Phase 0 (Foundation)
 -> Phase 1 (Measurement) -> Phase 4 (Architectural)
 ```
@@ -41,14 +41,14 @@ The novel pieces (adversarial agent, autonomous pipeline) are built first becaus
 
 ## Hyperaggressive Posture
 
-| Dimension | Standard | Hyperaggressive |
-|---|---|---|
-| Auto-land scope | Simple fixes only | All non-logic changes: format, lint fixes, dead code removal, doc additions, dep patches, `#[allow]` cleanup, clippy fixes |
-| Adversarial agent trigger | On-demand (`@debt-review`) | Every PR, every push, gating (blocker/critical block merge) |
-| Debt ratio CI threshold | Report only | Fail CI if ratio > 10% or ratio increases by >2% since last scan |
-| Clippy posture | `-W clippy::pedantic` with targeted allows | `-D clippy::pedantic` at crate root, only explicit `#[allow]` with comments permitted |
-| Pre-commit | Warn | Block (reject commits that fail checks) |
-| Adversarial agent skepticism | Balanced review | Hostile critic -- assume nothing acceptable until proven otherwise |
+| Dimension                    | Standard                                   | Hyperaggressive                                                                                                            |
+| ---------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Auto-land scope              | Simple fixes only                          | All non-logic changes: format, lint fixes, dead code removal, doc additions, dep patches, `#[allow]` cleanup, clippy fixes |
+| Adversarial agent trigger    | On-demand (`@debt-review`)                 | Every PR, every push, gating (blocker/critical block merge)                                                                |
+| Debt ratio CI threshold      | Report only                                | Fail CI if ratio > 10% or ratio increases by >2% since last scan                                                           |
+| Clippy posture               | `-W clippy::pedantic` with targeted allows | `-D clippy::pedantic` at crate root, only explicit `#[allow]` with comments permitted                                      |
+| Pre-commit                   | Warn                                       | Block (reject commits that fail checks)                                                                                    |
+| Adversarial agent skepticism | Balanced review                            | Hostile critic -- assume nothing acceptable until proven otherwise                                                         |
 
 ---
 
@@ -58,35 +58,36 @@ The adversarial agent and debt scanner use this exhaustive taxonomy to classify 
 
 ### By Intent (Fowler Quadrant)
 
-| Quadrant | Description |
-|---|---|
-| **Prudent & Deliberate** | Conscious choice with a concrete repayment plan (e.g., "we'll refactor after launch") |
-| **Reckless & Deliberate** | Conscious choice with negligence -- no plan to repay |
-| **Prudent & Inadvertent** | Retroactive discovery -- "now we know how it should have been designed" |
-| **Reckless & Inadvertent** | Accrued through ignorance or lack of experience |
+| Quadrant                   | Description                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------- |
+| **Prudent & Deliberate**   | Conscious choice with a concrete repayment plan (e.g., "we'll refactor after launch") |
+| **Reckless & Deliberate**  | Conscious choice with negligence -- no plan to repay                                  |
+| **Prudent & Inadvertent**  | Retroactive discovery -- "now we know how it should have been designed"               |
+| **Reckless & Inadvertent** | Accrued through ignorance or lack of experience                                       |
 
 ### By Nature (Concrete Manifestations)
 
-| Category | Sub-Type | Manifestation (Principal) | Interest Payment |
-|---|---|---|---|
-| **Code Debt** | Duplication | Cloned logic with slight variations | Bug fix must be applied in multiple places, inevitably missing one |
-| | Complexity / God Objects | Cyclomatic complexity > 15, Single Responsibility Principle violations, files > 600 lines | Extreme difficulty understanding, testing, and modifying; high cognitive load |
-| | Poor Naming | Non-semantic variable/class names (`tmp`, `data`, `obj1`) | Code is unreadable; mental mapping between domain and code is impossible |
-| | Comment Debt | Outdated/misleading comments or commented-out code blocks | False narrative leads developers to misunderstand actual behavior |
-| **Design/Architecture Debt** | Structural Erosion | Violations of defined architectural patterns | Architecture invariants (scalability, modularity) silently break down |
-| | Tight Coupling | Change in module A always requires cascading changes in B and C | Cost of change becomes non-linear |
-| | Technical Silos | Critical component in legacy language no one on team knows | Changes are high-risk, slow, dependent on external expertise |
-| **Testing Debt** | Lack of Tests | No unit, integration, or end-to-end tests | Refactoring is gambling; releases are manual and terrifying |
-| | Slow/Brittle Tests | Test suite takes hours or tests fail randomly (flaky) | Loss of trust in test suite; developers ignore failures |
-| | Inadequate Coverage | Happy-path testing only; no edge cases or error handling | Production failures for predictable scenarios |
-| **Documentation Debt** | Missing/Outdated Docs | API specs don't match implementation; no ADRs | Onboarding time explodes; decisions re-litigated |
-| **Infrastructure Debt** | Manual Processes | Manual build, deployment, environment provisioning | Deployments are high-ceremony, high-risk events |
-| | Outdated Dependencies | End-of-life framework or unmaintained third-party library | Accumulating security vulnerabilities; upgrade cost grows exponentially |
-| **Knowledge Debt** | Tribal Knowledge | Only one person understands a critical subsystem | Key-person risk; work grinds to a halt if they leave |
+| Category                     | Sub-Type                 | Manifestation (Principal)                                                                 | Interest Payment                                                              |
+| ---------------------------- | ------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Code Debt**                | Duplication              | Cloned logic with slight variations                                                       | Bug fix must be applied in multiple places, inevitably missing one            |
+|                              | Complexity / God Objects | Cyclomatic complexity > 15, Single Responsibility Principle violations, files > 600 lines | Extreme difficulty understanding, testing, and modifying; high cognitive load |
+|                              | Poor Naming              | Non-semantic variable/class names (`tmp`, `data`, `obj1`)                                 | Code is unreadable; mental mapping between domain and code is impossible      |
+|                              | Comment Debt             | Outdated/misleading comments or commented-out code blocks                                 | False narrative leads developers to misunderstand actual behavior             |
+| **Design/Architecture Debt** | Structural Erosion       | Violations of defined architectural patterns                                              | Architecture invariants (scalability, modularity) silently break down         |
+|                              | Tight Coupling           | Change in module A always requires cascading changes in B and C                           | Cost of change becomes non-linear                                             |
+|                              | Technical Silos          | Critical component in legacy language no one on team knows                                | Changes are high-risk, slow, dependent on external expertise                  |
+| **Testing Debt**             | Lack of Tests            | No unit, integration, or end-to-end tests                                                 | Refactoring is gambling; releases are manual and terrifying                   |
+|                              | Slow/Brittle Tests       | Test suite takes hours or tests fail randomly (flaky)                                     | Loss of trust in test suite; developers ignore failures                       |
+|                              | Inadequate Coverage      | Happy-path testing only; no edge cases or error handling                                  | Production failures for predictable scenarios                                 |
+| **Documentation Debt**       | Missing/Outdated Docs    | API specs don't match implementation; no ADRs                                             | Onboarding time explodes; decisions re-litigated                              |
+| **Infrastructure Debt**      | Manual Processes         | Manual build, deployment, environment provisioning                                        | Deployments are high-ceremony, high-risk events                               |
+|                              | Outdated Dependencies    | End-of-life framework or unmaintained third-party library                                 | Accumulating security vulnerabilities; upgrade cost grows exponentially       |
+| **Knowledge Debt**           | Tribal Knowledge         | Only one person understands a critical subsystem                                          | Key-person risk; work grinds to a halt if they leave                          |
 
 ### Measurement & Quantification
 
 **Debt Principal (Proxy Metrics)**
+
 - **Cyclomatic Complexity**: Values > 10-15 indicate testability/understandability debt
 - **Coupling Between Objects (CBO)**: High counts signal architectural rigidity
 - **Duplication Percentage**: % of duplicated lines (from tools like SonarQube)
@@ -94,14 +95,17 @@ The adversarial agent and debt scanner use this exhaustive taxonomy to classify 
 - **Test Coverage**: % of lines/branches/paths covered, paired with mutation testing scores
 
 **Debt Interest (Effort & Risk Impact)**
+
 - **Issue Resolution Rate Variance**: How much slower developers resolve bugs in high-debt vs. low-debt modules
 - **Feature Lead Time**: Total time from idea to production -- growing lead time = interest payment
 - **Defect Escape Rate**: Defects found in production vs. pre-production
 
 **SQALE Debt Ratio Formula**
-```
+
+```text
 debt_ratio = (cost_to_fix_all_issues / estimated_development_cost) * 100
 ```
+
 - **Cost to Fix All Issues**: Sum of estimated fix minutes for all lint/smell findings
 - **Estimated Development Cost**: 30 minutes per line of code (configurable)
 - **Thresholds**: A < 5%, B < 10%, C < 20%, D < 50%, E >= 50%
@@ -114,7 +118,7 @@ debt_ratio = (cost_to_fix_all_issues / estimated_development_cost) * 100
 
 ### Flow
 
-```
+```text
 Weekly Debt Scanner
        |
        v
@@ -144,17 +148,17 @@ Debt Land (.github/workflows/debt-land.yml)
 
 ### Change Classification for Auto-Land
 
-| Auto-Land Allowed | Requires Human Review |
-|---|---|
-| Clippy warning fixes | Logic/behavior changes |
-| `#[allow]` cleanup | Architecture/API changes |
-| Formatting fixes (`cargo fmt`) | New abstractions or traits |
-| Dependency patch bumps (0.x.Y, x.y.Z) | Major version upgrades |
-| Dead code removal | Module relocations |
-| Doc comment additions/ fixes | New feature gating |
-| Conventional `#[allow(clippy::*)]` additions with comments | Config changes |
-| Witness marker removal (`todo!` / `unimplemented!` calls) | New dependencies added |
-| Simple renames (no logic change) | Test fixture changes |
+| Auto-Land Allowed                                          | Requires Human Review      |
+| ---------------------------------------------------------- | -------------------------- |
+| Clippy warning fixes                                       | Logic/behavior changes     |
+| `#[allow]` cleanup                                         | Architecture/API changes   |
+| Formatting fixes (`cargo fmt`)                             | New abstractions or traits |
+| Dependency patch bumps (0.x.Y, x.y.Z)                      | Major version upgrades     |
+| Dead code removal                                          | Module relocations         |
+| Doc comment additions/ fixes                               | New feature gating         |
+| Conventional `#[allow(clippy::*)]` additions with comments | Config changes             |
+| Witness marker removal (`todo!` / `unimplemented!` calls)  | New dependencies added     |
+| Simple renames (no logic change)                           | Test fixture changes       |
 
 ### Safety Mechanisms
 
@@ -211,7 +215,7 @@ jobs:
                - Body: "Closes #${{ github.event.issue.number }}"
                - Label: auto-debt-fix
             6. Do NOT change any behavior. Only fix the specific debt described in the issue.
-          claude_args: "--max-turns 15 --max-budget-usd 2.00 --output-format json --permission-mode bypassPermissions"
+          claude_args: '--max-turns 15 --max-budget-usd 2.00 --output-format json --permission-mode bypassPermissions'
 ```
 
 ### File: `.github/workflows/debt-land.yml`
@@ -328,7 +332,7 @@ jobs:
 
 ### Skill: `.agents/skills/debt-review/SKILL.md`
 
-```
+````text
 ---
 name: debt-review
 description: >
@@ -445,7 +449,7 @@ After reviewing, output a structured summary:
     "verdict": "blocked"
   }
 }
-```
+````
 
 ## Verdict
 
@@ -463,7 +467,8 @@ After reviewing, output a structured summary:
 - The review check is added as a **required status check** in branch protection rules.
 - Blocker/Critical findings cause the check to fail (exit code 1), which blocks merge.
 - Major/Minor findings post as PR review comments but do not fail the check.
-```
+
+````text
 
 ### Workflow: `.github/workflows/debt-review.yml`
 
@@ -534,7 +539,7 @@ jobs:
             exit 1
           fi
           echo "Debt review: no blocker or critical findings"
-```
+````
 
 ---
 
@@ -597,7 +602,20 @@ repos:
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
-        args: [feat, fix, refactor, docs, test, chore, style, perf, ci, build, revert]
+        args:
+          [
+            feat,
+            fix,
+            refactor,
+            docs,
+            test,
+            chore,
+            style,
+            perf,
+            ci,
+            build,
+            revert,
+          ]
 ```
 
 ### File: `parish/clippy.toml`
@@ -681,7 +699,7 @@ name: Debt Scanner
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Sunday 3 AM UTC
+    - cron: '0 3 * * 0' # Sunday 3 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -1180,54 +1198,54 @@ fn feature_flags_documented() {
 
 ### New Files (14)
 
-| File | Phase | Purpose |
-|---|---|---|
-| `.github/workflows/debt-fix.yml` | 3 | Issue -> Claude Code fix -> PR |
-| `.github/workflows/debt-land.yml` | 3 | PR -> verify CI -> classify -> auto-merge |
-| `.github/workflows/debt-scanner.yml` | 1 | Weekly scan + SQALE + issue creation |
-| `.github/workflows/debt-review.yml` | 2 | Adversarial PR review (gating) |
-| `.agents/skills/debt-review/SKILL.md` | 2 | Hostile debt auditor skill definition |
-| `.pre-commit-config.yaml` | 0 | Human-facing git hooks |
-| `parish/clippy.toml` | 0 | Clippy thresholds |
-| `parish/scripts/debt-scanner.sh` | 1 | Clippy JSON parser + SQALE calculator |
-| `parish/scripts/debt-issue-creator.sh` | 1 | Converts scan findings to GitHub issues |
-| `parish/scripts/parish-lint.sh` | 4 | Custom Parish-specific lint rules |
-| `parish/scripts/check-commit-msg.sh` | 0 | Conventional commit validator |
-| `parish/scripts/check-secrets.sh` | 0 | Secret pattern scanner |
-| `parish/scripts/check-large-files.sh` | 0 | Large file blocker |
-| `docs/design/debt-shield.md` | -- | This document |
+| File                                   | Phase | Purpose                                   |
+| -------------------------------------- | ----- | ----------------------------------------- |
+| `.github/workflows/debt-fix.yml`       | 3     | Issue -> Claude Code fix -> PR            |
+| `.github/workflows/debt-land.yml`      | 3     | PR -> verify CI -> classify -> auto-merge |
+| `.github/workflows/debt-scanner.yml`   | 1     | Weekly scan + SQALE + issue creation      |
+| `.github/workflows/debt-review.yml`    | 2     | Adversarial PR review (gating)            |
+| `.agents/skills/debt-review/SKILL.md`  | 2     | Hostile debt auditor skill definition     |
+| `.pre-commit-config.yaml`              | 0     | Human-facing git hooks                    |
+| `parish/clippy.toml`                   | 0     | Clippy thresholds                         |
+| `parish/scripts/debt-scanner.sh`       | 1     | Clippy JSON parser + SQALE calculator     |
+| `parish/scripts/debt-issue-creator.sh` | 1     | Converts scan findings to GitHub issues   |
+| `parish/scripts/parish-lint.sh`        | 4     | Custom Parish-specific lint rules         |
+| `parish/scripts/check-commit-msg.sh`   | 0     | Conventional commit validator             |
+| `parish/scripts/check-secrets.sh`      | 0     | Secret pattern scanner                    |
+| `parish/scripts/check-large-files.sh`  | 0     | Large file blocker                        |
+| `docs/design/debt-shield.md`           | --    | This document                             |
 
 ### Modified Files (5)
 
-| File | Phase | Change |
-|---|---|---|
-| `.github/workflows/ci.yml` | 0 | Add reviewdog diff-only clippy linting step |
-| `parish/crates/parish-core/tests/architecture_fitness.rs` | 4 | Add mode parity, docs coverage, dep graph tests |
-| `.agents/skills/techdebt/SKILL.md` | 3 | Integrate with autonomous pipeline |
-| `AGENTS.md` | 4 | Document new workflows, skills, and debt-shield system |
-| All library crate `src/lib.rs` | 0 | Add `#![deny(clippy::pedantic)]` and `#![deny(clippy::nursery)]` crate attributes |
+| File                                                      | Phase | Change                                                                            |
+| --------------------------------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| `.github/workflows/ci.yml`                                | 0     | Add reviewdog diff-only clippy linting step                                       |
+| `parish/crates/parish-core/tests/architecture_fitness.rs` | 4     | Add mode parity, docs coverage, dep graph tests                                   |
+| `.agents/skills/techdebt/SKILL.md`                        | 3     | Integrate with autonomous pipeline                                                |
+| `AGENTS.md`                                               | 4     | Document new workflows, skills, and debt-shield system                            |
+| All library crate `src/lib.rs`                            | 0     | Add `#![deny(clippy::pedantic)]` and `#![deny(clippy::nursery)]` crate attributes |
 
 ### Supporting Files
 
-| File | Purpose |
-|---|---|
-| `.github/debt-baseline.json` | Stored scan baseline for trend comparison (auto-generated, checked in) |
-| `DEBT_REPORT.md` | Human-readable debt report at repo root (auto-generated, checked in) |
+| File                         | Purpose                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `.github/debt-baseline.json` | Stored scan baseline for trend comparison (auto-generated, checked in)                      |
+| `DEBT_REPORT.md`             | Human-readable debt report at repo root (auto-generated, checked in)                        |
 | `.github/triage-labels.json` | Update with `debt`, `auto-fixable`, `auto-debt-fix`, `debt-tracking`, `needs-review` labels |
 
 ---
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Auto-merged PR introduces a regression | Squash-merge enables one-click revert. CI verification is mandatory before auto-merge. Change classification prevents logic changes from auto-merging. |
-| Adversarial agent produces false positives | Agents are instructed to cite specific lines and patterns. Major/Minor findings are advisory only. The gating posture is limited to Blocker/Critical (security, data loss, architecture violations). |
-| Debt scanner creates too many issues (noise) | Issues are only created for major severity and above (configurable). Issues are grouped by file+category. The `MIN_SEVERITY` threshold can be adjusted. |
-| Claude Code in CI is expensive | `--max-budget-usd 2.00` per fix dispatch. `--max-turns 10` for review, `--max-turns 15` for fix. Adversarial review costs ~$0.50-1.00 per PR. Weekly scan issues are batched. |
-| Pre-commit hooks slow down development | `fail_fast: true` on fmt (fastest check). Clippy runs `--workspace --all-targets` but only on `.rs` file changes. Can be bypassed with `--no-verify` in emergencies. |
-| Debt ratio CI failure blocks unrelated work | Thresholds are configurable (10% ratio, 2% increase). Workflow can be re-run. Baseline updates automatically on successful scans. |
-| Claude Code not available in CI (auth/network) | Uses `ANTHROPIC_API_KEY` from secrets. Fallback: the existing Gemini dispatch pattern is already proven in this repo. |
+| Risk                                           | Mitigation                                                                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auto-merged PR introduces a regression         | Squash-merge enables one-click revert. CI verification is mandatory before auto-merge. Change classification prevents logic changes from auto-merging.                                               |
+| Adversarial agent produces false positives     | Agents are instructed to cite specific lines and patterns. Major/Minor findings are advisory only. The gating posture is limited to Blocker/Critical (security, data loss, architecture violations). |
+| Debt scanner creates too many issues (noise)   | Issues are only created for major severity and above (configurable). Issues are grouped by file+category. The `MIN_SEVERITY` threshold can be adjusted.                                              |
+| Claude Code in CI is expensive                 | `--max-budget-usd 2.00` per fix dispatch. `--max-turns 10` for review, `--max-turns 15` for fix. Adversarial review costs ~$0.50-1.00 per PR. Weekly scan issues are batched.                        |
+| Pre-commit hooks slow down development         | `fail_fast: true` on fmt (fastest check). Clippy runs `--workspace --all-targets` but only on `.rs` file changes. Can be bypassed with `--no-verify` in emergencies.                                 |
+| Debt ratio CI failure blocks unrelated work    | Thresholds are configurable (10% ratio, 2% increase). Workflow can be re-run. Baseline updates automatically on successful scans.                                                                    |
+| Claude Code not available in CI (auth/network) | Uses `ANTHROPIC_API_KEY` from secrets. Fallback: the existing Gemini dispatch pattern is already proven in this repo.                                                                                |
 
 ---
 

@@ -2,13 +2,13 @@
 
 **Status:** design proposal · **Branch:** `claude/evaluate-talkie-llm-rLn9H` · **Date:** 2026-05-24
 
-Companion to [`gemma4-rundale-training-plan.md`](gemma4-rundale-training-plan.md). That document specifies a QLoRA fine-tune of `google/gemma-4-9b-it` for 1820s Hiberno-English NPC dialogue. This document evaluates the newly released **Talkie-1930** model and recommends which of its *training methods* to fold into that plan, under a set of tightened constraints.
+Companion to [`gemma4-rundale-training-plan.md`](gemma4-rundale-training-plan.md). That document specifies a QLoRA fine-tune of `google/gemma-4-9b-it` for 1820s Hiberno-English NPC dialogue. This document evaluates the newly released **Talkie-1930** model and recommends which of its _training methods_ to fold into that plan, under a set of tightened constraints.
 
 ## What Talkie is
 
-On 27 April 2026, Radford et al. released **Talkie-1930-13B**: a 13B Apache-2.0 LLM pretrained on 260B tokens of *exclusively pre-1931 English text*, plus an instruction-tuned variant `talkie-1930-13b-it` whose instruction data was mined from period reference works — etiquette manuals, letter-writing manuals, dictionaries, encyclopedias, cookbooks, and poetry/fable collections.
+On 27 April 2026, Radford et al. released **Talkie-1930-13B**: a 13B Apache-2.0 LLM pretrained on 260B tokens of _exclusively pre-1931 English text_, plus an instruction-tuned variant `talkie-1930-13b-it` whose instruction data was mined from period reference works — etiquette manuals, letter-writing manuals, dictionaries, encyclopedias, cookbooks, and poetry/fable collections.
 
-We are **not** adopting Talkie's weights as the Rundale base. Gemma 4 9B IT remains the base. What is valuable is Talkie's *methodology*, parts of which port cleanly into our pipeline.
+We are **not** adopting Talkie's weights as the Rundale base. Gemma 4 9B IT remains the base. What is valuable is Talkie's _methodology_, parts of which port cleanly into our pipeline.
 
 ## Constraints shaping this proposal
 
@@ -21,7 +21,7 @@ We are **not** adopting Talkie's weights as the Rundale base. Gemma 4 9B IT rema
 
 1. **Hard period cutoff at the corpus level** — modernity isn't in the prior, so it can't leak into output.
 2. **Instruction-response pairs mined from period reference works** — programmatic supervision, no hand authoring.
-3. **Preference tuning with a model judge** — Talkie used Claude; the *pattern* is what matters, the judge is swappable.
+3. **Preference tuning with a model judge** — Talkie used Claude; the _pattern_ is what matters, the judge is swappable.
 4. **Separation of pretraining → SFT → preference tuning** as distinct, individually-evaluable stages.
 
 (1), (2), and (3) port cheaply at single-fine-tune scale. (4) is structural staging advice.
@@ -32,14 +32,14 @@ The base plan already lists **RunPod (A100-80GB, ~$1.89/h)** as a fallback. We p
 
 ### Why RunPod over alternatives
 
-| Service | Hourly | Pros | Cons |
-|---|---|---|---|
-| **RunPod A100-80GB** (recommended) | ~$1.89 | Pay-per-second, persistent network volume (~$0.10/GB/mo), ssh + Jupyter, mature CUDA tooling, already in the plan | Build the image; cold-start ~2 min |
-| Lambda Labs A100-40GB | ~$1.10 | Cheaper hourly, simpler ops | 40 GB tighter for DPO triple co-residency; less flexible storage |
-| Modal (A100) | ~$2-3 | Excellent DX — `@modal.function(gpu="A100")`; orchestrate from a laptop; auto-scales | Costs more; fewer fine-tuning examples |
-| Google Colab Pro+ | ~$50/mo | Notebook-first, low friction | A100 sometimes unavailable; 24 h runtime cap; disconnect risk across a multi-stage pipeline |
-| Vast.ai | ~$0.40-1.00 | Cheapest A100s available | Reliability varies; spot-style availability |
-| HF AutoTrain / Together / Fireworks | per-token | Zero-ops, upload JSONL → trained LoRA | Locked pipeline, **no DPO with custom local judges** — limits us to Port 1 only |
+| Service                             | Hourly      | Pros                                                                                                              | Cons                                                                                        |
+| ----------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **RunPod A100-80GB** (recommended)  | ~$1.89      | Pay-per-second, persistent network volume (~$0.10/GB/mo), ssh + Jupyter, mature CUDA tooling, already in the plan | Build the image; cold-start ~2 min                                                          |
+| Lambda Labs A100-40GB               | ~$1.10      | Cheaper hourly, simpler ops                                                                                       | 40 GB tighter for DPO triple co-residency; less flexible storage                            |
+| Modal (A100)                        | ~$2-3       | Excellent DX — `@modal.function(gpu="A100")`; orchestrate from a laptop; auto-scales                              | Costs more; fewer fine-tuning examples                                                      |
+| Google Colab Pro+                   | ~$50/mo     | Notebook-first, low friction                                                                                      | A100 sometimes unavailable; 24 h runtime cap; disconnect risk across a multi-stage pipeline |
+| Vast.ai                             | ~$0.40-1.00 | Cheapest A100s available                                                                                          | Reliability varies; spot-style availability                                                 |
+| HF AutoTrain / Together / Fireworks | per-token   | Zero-ops, upload JSONL → trained LoRA                                                                             | Locked pipeline, **no DPO with custom local judges** — limits us to Port 1 only             |
 
 **Pick RunPod.** Cheapest option that is still flexible enough for the dual-judge DPO stage, which the managed services can't host. Modal is a fine secondary if scriptable orchestration matters more than ~$15.
 
@@ -47,16 +47,16 @@ The base plan already lists **RunPod (A100-80GB, ~$1.89/h)** as a fallback. We p
 
 80 GB of dedicated VRAM lets the actor, frozen reference, and both judges be **co-resident** during DPO scoring with comfortable margin:
 
-| Component | Footprint | Notes |
-|---|---|---|
-| Gemma 4 9B base (NF4) | ~5 GB | bitsandbytes 4-bit |
-| LoRA adapters + grads + paged 8-bit optimizer | ~1 GB | r=16, 7 modules |
-| Activations (seq 4096, mb 4, ckpt) | ~10 GB | fits easily on 80 GB |
-| **SFT subtotal** | **~16 GB** | |
-| DPO frozen reference (NF4) | ~5 GB | inference only |
-| Talkie-1930-13B-IT at q4 (period judge) | ~7.5 GB | inference only |
-| Qwen 3.5 9B at q4 (coherence judge) | ~5.5 GB | inference only |
-| **DPO co-residence** | **~34 GB** | well under 80 GB |
+| Component                                     | Footprint  | Notes                |
+| --------------------------------------------- | ---------- | -------------------- |
+| Gemma 4 9B base (NF4)                         | ~5 GB      | bitsandbytes 4-bit   |
+| LoRA adapters + grads + paged 8-bit optimizer | ~1 GB      | r=16, 7 modules      |
+| Activations (seq 4096, mb 4, ckpt)            | ~10 GB     | fits easily on 80 GB |
+| **SFT subtotal**                              | **~16 GB** |                      |
+| DPO frozen reference (NF4)                    | ~5 GB      | inference only       |
+| Talkie-1930-13B-IT at q4 (period judge)       | ~7.5 GB    | inference only       |
+| Qwen 3.5 9B at q4 (coherence judge)           | ~5.5 GB    | inference only       |
+| **DPO co-residence**                          | **~34 GB** | well under 80 GB     |
 
 The base plan's "tight at 12-14 GB on RX 9070 16 GB at seq 1536" risk disappears. We run the RunPod tier (`gemma4-rundale-training-plan.md:108` — seq 4096 / mb 4 / grad-accum 4).
 
@@ -71,26 +71,26 @@ A100-80GB on Gemma 4 9B QLoRA at seq 4096 / mb 4 / grad-accum 4: ~6 h for 3 epoc
 Without 500 hand-written rows as stylistic ground truth, all style signal comes from extracted dialogue and mined reference pairs. Several modules move onto the critical path:
 
 - **`curate/dialogue_extractor.py`** must produce clean speaker-attributed spans, not just regex hits.
-- **`curate/feature_tagger.py`** must *gate*, not just label: drop cottier-class spans with zero substrate features.
+- **`curate/feature_tagger.py`** must _gate_, not just label: drop cottier-class spans with zero substrate features.
 - **`curate/class_assigner.py`** must require explicit class evidence (verb-of-saying speaker → known-class lookup, OR substrate-feature density above threshold).
-- **`curate/joyce_pairs.py`** is promoted to *primary labeled signal* — Joyce 1910 explicitly defines dialect forms ("X — i.e. Y"), our only gold-standard supervision.
+- **`curate/joyce_pairs.py`** is promoted to _primary labeled signal_ — Joyce 1910 explicitly defines dialect forms ("X — i.e. Y"), our only gold-standard supervision.
 
-### Talkie *as judge* replaces Claude *as judge*
+### Talkie _as judge_ replaces Claude _as judge_
 
 Talkie's pre-1931 prior IS the period-appropriateness rubric. Use it as a **log-likelihood scorer** (one forward pass per candidate) under a fixed Roscommon-1820s system prompt. Open-weights, runs on the same pod at q4 (~7.5 GB), zero marginal cost.
 
-For the orthogonal "is this dialogue *coherent* / in-character / mood-appropriate" axis, Talkie's general reasoning is capped. Use **Qwen 3.5 9B at q4** as the coherence judge — a different model family from the Gemma actor, so judge-actor correlation is mitigated. Also runs on the same pod.
+For the orthogonal "is this dialogue _coherent_ / in-character / mood-appropriate" axis, Talkie's general reasoning is capped. Use **Qwen 3.5 9B at q4** as the coherence judge — a different model family from the Gemma actor, so judge-actor correlation is mitigated. Also runs on the same pod.
 
 The original "train a small period-only LM as a perplexity oracle" idea is obsolete — Talkie already is that oracle, at 13B instead of 1B.
 
 ### Data mix without anchors
 
-| | Original | Revised |
-|---|---|---|
-| Literary-extracted dialogue (Joyce/Griffin/Carleton/Croker/Kickham) | 70% | **75%** |
-| Joyce 1910 dialect↔standard pairs | 25% | **20%** |
-| Reference-work instruction pairs (NEW — Talkie-style) | — | **5%** |
-| Hand-written anchor (3× weighted) | 5% | **0%** (removed) |
+|                                                                     | Original | Revised          |
+| ------------------------------------------------------------------- | -------- | ---------------- |
+| Literary-extracted dialogue (Joyce/Griffin/Carleton/Croker/Kickham) | 70%      | **75%**          |
+| Joyce 1910 dialect↔standard pairs                                   | 25%      | **20%**          |
+| Reference-work instruction pairs (NEW — Talkie-style)               | —        | **5%**           |
+| Hand-written anchor (3× weighted)                                   | 5%       | **0%** (removed) |
 
 ## Recommendation — two methodology ports
 
@@ -100,9 +100,9 @@ Both are compatible with cloud + no anchors + no API judges.
 
 New mining stage alongside `instruction_pairs.py`. Sources:
 
-- **Joyce, *English As We Speak It in Ireland* (1910)** — already ingested; glossary entries → bidirectional `"What does X mean?"` pairs.
+- **Joyce, _English As We Speak It in Ireland_ (1910)** — already ingested; glossary entries → bidirectional `"What does X mean?"` pairs.
 - **Period etiquette + letter-writing manuals** (Internet Archive) — gentry / middling-farmer register.
-- **Period almanacs / *Old Moore's Almanack*** — situated knowledge across classes.
+- **Period almanacs / _Old Moore's Almanack_** — situated knowledge across classes.
 - **Period dictionaries** filtered to the game's domain.
 
 Implementation: `training/src/parish_train/build/reference_pairs.py`. Rows tagged `meta.source = "reference-work"`. Target: 3-5k pairs.
@@ -144,14 +144,14 @@ No frontier-API spend at any stage. Marginal cost: ~$5 of additional GPU time ov
 
 **Modify in `gemma4-rundale-training-plan.md`:**
 
-- *Decisions:* strike the hand-written anchor row; record the no-anchor decision, the cheap-judge constraint, and that **RunPod is now the primary host (not fallback)**.
-- *Data ingestion:* add etiquette / letter-writing / almanac / dictionary rows.
-- *Instruction-pair construction:* replace the 70/25/5 mix with 75/20/5; remove anchor weighting.
-- *Data curation:* elevate `feature_tagger.py` to a *gate* and `class_assigner.py` to evidence-based assignment.
-- *Training stack:* insert a "Stage 2: DPO with local dual judges (Talkie + Qwen)" subsection between SFT and packaging.
-- *Hardware fit check:* replace the RX 9070 budget table with the A100-80GB co-residence table above.
-- *Evaluation:* add the dual-judge scoring scheme as both training signal and regression sensor.
-- New *Methodology lineage* section: credit Talkie for the reference-work-mining and judge-model patterns; note explicitly that we use Talkie as the judge, not as the base.
+- _Decisions:_ strike the hand-written anchor row; record the no-anchor decision, the cheap-judge constraint, and that **RunPod is now the primary host (not fallback)**.
+- _Data ingestion:_ add etiquette / letter-writing / almanac / dictionary rows.
+- _Instruction-pair construction:_ replace the 70/25/5 mix with 75/20/5; remove anchor weighting.
+- _Data curation:_ elevate `feature_tagger.py` to a _gate_ and `class_assigner.py` to evidence-based assignment.
+- _Training stack:_ insert a "Stage 2: DPO with local dual judges (Talkie + Qwen)" subsection between SFT and packaging.
+- _Hardware fit check:_ replace the RX 9070 budget table with the A100-80GB co-residence table above.
+- _Evaluation:_ add the dual-judge scoring scheme as both training signal and regression sensor.
+- New _Methodology lineage_ section: credit Talkie for the reference-work-mining and judge-model patterns; note explicitly that we use Talkie as the judge, not as the base.
 
 **Modify elsewhere:**
 

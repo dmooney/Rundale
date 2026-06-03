@@ -21,19 +21,23 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 # Oath: <task-id>
 
 ## Scope
+
 - parish/crates/parish-core/src/...
 - parish/crates/parish-server/src/...
 
 ## Postconditions (Tier 0)
+
 - [ ] `just check` (includes `just witness-scan`)
 - [ ] `cargo test -p parish-core <targeted-test>`
 - [ ] `rg -n "<new_symbol>" <expected_callsite_file>` returns >= 1 match
 
 ## Postconditions (Tier 1)
+
 - [ ] Reviewer confirms new function is wired from caller -> callee.
 - [ ] Reviewer confirms no fallback/placeholder branch handles primary flow.
 
 ## Honest failure text
+
 "Partial completion: <x>/<y> checks passed. Missing: <...>."
 ```
 
@@ -41,15 +45,15 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 `just witness-scan` inspects every file under `parish/crates/`, `parish/apps/`, `docs/`, `parish/testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
 
-| Pattern | Catches |
-|---|---|
-| `//​ unchanged`, `//​ existing` | AI stubs that left original code in place |
-| `//​ … rest of the function`, `//​ …` | Ellipsis omissions |
-| `/*​ … ​*/` | Block-comment omissions |
+| Pattern                                            | Catches                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| `//​ unchanged`, `//​ existing`                    | AI stubs that left original code in place                    |
+| `//​ … rest of the function`, `//​ …`              | Ellipsis omissions                                           |
+| `/*​ … ​*/`                                        | Block-comment omissions                                      |
 | `todo!(…)`, `unimplemented!(…)`, `unreachable!(…)` | Rust macro placeholders (with or without a message argument) |
-| `panic!("Not implemented…")`, `panic!("todo…")` | Rust panic stubs (case-insensitive prefix match) |
-| `pass # TODO` | Python placeholders |
-| `return nil //​ placeholder` | Go placeholders |
+| `panic!("Not implemented…")`, `panic!("todo…")`    | Rust panic stubs (case-insensitive prefix match)             |
+| `pass # TODO`                                      | Python placeholders                                          |
+| `return nil //​ placeholder`                       | Go placeholders                                              |
 
 ## Witness log
 
@@ -57,7 +61,7 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 Log format:
 
-```
+```text
 - Date (UTC): YYYY-MM-DD HH:MM
 - Branch: `<branch-name>`
 - Commit: `<sha>`

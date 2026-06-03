@@ -116,17 +116,17 @@ The map could be more than navigation:
 
 ## Recommended Phasing
 
-| Phase | Scope | Effort |
-|-------|-------|--------|
-| ~~**Quick win**~~ | ~~Label collision avoidance (#3) — fix overlap with force-directed nudge~~ | **Done** |
-| ~~**Phase A**~~ | ~~GTA minimap (#1) + `/map` hotkey for full view (#2c — zoomable graph)~~ | **Done** |
-| ~~**Phase B**~~ | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~ | **Done** |
-| ~~**Phase C**~~ | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~ | **Done** |
-| ~~**Phase D (map)**~~ | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~ | **Done** |
-| ~~**Phase D.1 (tiles)**~~ | ~~`/tiles` slash command + configurable tile-source registry (OSM + Ireland Historic 6" 1829–1842 via NLS), gated behind `period-map-tiles` feature flag~~ | **Done** |
+| Phase                             | Scope                                                                                                                                                                                                  | Effort                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| ~~**Quick win**~~                 | ~~Label collision avoidance (#3) — fix overlap with force-directed nudge~~                                                                                                                             | **Done**                             |
+| ~~**Phase A**~~                   | ~~GTA minimap (#1) + `/map` hotkey for full view (#2c — zoomable graph)~~                                                                                                                              | **Done**                             |
+| ~~**Phase B**~~                   | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~                                                                                                                                     | **Done**                             |
+| ~~**Phase C**~~                   | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~                                                                                                                                                 | **Done**                             |
+| ~~**Phase D (map)**~~             | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~                                   | **Done**                             |
+| ~~**Phase D.1 (tiles)**~~         | ~~`/tiles` slash command + configurable tile-source registry (OSM + Ireland Historic 6" 1829–1842 via NLS), gated behind `period-map-tiles` feature flag~~                                             | **Done**                             |
 | **Phase D.2 (offline) — partial** | `TileCache` bundled-dir fallback wired (3-tier lookup: user cache → bundled dir → upstream) + `bundled_tiles_dir` config field. Tile-population path **deferred** — see "Offline tile bundling" below. | Small (infra), Large (data pipeline) |
-| **Phase D (TUI)** | TUI ASCII map (#8) | Medium |
-| **Phase E** | Narrative annotations (#10) + NPC trails | Large |
+| **Phase D (TUI)**                 | TUI ASCII map (#8)                                                                                                                                                                                     | Medium                               |
+| **Phase E**                       | Narrative annotations (#10) + NPC trails                                                                                                                                                               | Large                                |
 
 ## Open Questions
 
@@ -170,6 +170,7 @@ The feature is gated behind the **`period-map-tiles`** flag
 `/flag disable period-map-tiles`.
 
 **Scope limits (defer to later phases):**
+
 - Only XYZ raster URL templates (`{z}/{x}/{y}.png`, optional TMS y-flip)
   — no WMS/WMTS adapters yet.
 - No custom MapLibre style (still the Phase D sepia-via-desaturation look).
@@ -202,7 +203,7 @@ We considered two paths and shelved both for now:
 
 1. **Tile-scrape against NLS S3** (`mapseries-tilesets.s3.amazonaws.com/os/<county>1/`).
    The bucket is publicly served and has no robots.txt, but NLS migrated their
-   *official* tile service to MapTiler Cloud (April 2022, metered: 100k/mo
+   _official_ tile service to MapTiler Cloud (April 2022, metered: 100k/mo
    free, $0.10/1k overage). Scraping the legacy S3 endpoint at island scale
    (~6.3M tiles for z=12–17, ~30–60 GB) would be high-traffic against
    infrastructure NLS no longer markets, and conflicts with NLS guidance that
@@ -239,8 +240,8 @@ once-per-server-instance-ever. For dev / small-audience use this is fine.
 Historic 6" OS Ireland sheets: **CC-BY** (no version specified by NLS;
 ≥ 3.0 implied). Verified against the live NLS copyright page and the
 per-sheet viewer's licence link (`#noncommercial` anchor). Required
-attribution: *"Reproduced with the permission of the National Library of
-Scotland"*. Downstream may be relicensed under CC-BY-SA via the standard
+attribution: _"Reproduced with the permission of the National Library of
+Scotland"_. Downstream may be relicensed under CC-BY-SA via the standard
 one-way CC compatibility direction. The repo previously claimed CC-BY-SA 3.0
 at multiple sites — those have been corrected.
 

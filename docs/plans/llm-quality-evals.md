@@ -6,7 +6,7 @@
 
 ## Goal
 
-Continuous, **quantitative** quality regression sensors over Tier 1 / Tier 2 NPC output — independent of, and complementary to, the existing pentest plan. The pentest plan red-teams for security; this plan tracks output *quality* over model swaps, prompt edits, and gameplay changes.
+Continuous, **quantitative** quality regression sensors over Tier 1 / Tier 2 NPC output — independent of, and complementary to, the existing pentest plan. The pentest plan red-teams for security; this plan tracks output _quality_ over model swaps, prompt edits, and gameplay changes.
 
 This is the deferred LLM-as-judge piece from Phase 3 of the harness-engineering plan ([PR #538](https://github.com/dmooney/Rundale/pull/538)). When that PR lands, Phase 3 introduces capture-on-green snapshot baselines + structural rubrics in `crates/parish-cli/tests/eval_baselines.rs`; those are computational sensors. This plan adds the inferential sensors the article calls out as the hardest piece of the Behaviour harness.
 
@@ -38,7 +38,7 @@ Proposed. No code yet. Once accepted, lands as a small standalone PR with a `jus
 
 Promptfoo is already on the table for the pentest plan; reuse it. The two suites live side-by-side:
 
-```
+```text
 testing/evals/
 ├── baselines/                # Phase 3 — structural snapshots (already shipped)
 │   ├── test_movement_errors.json
@@ -61,7 +61,7 @@ testing/evals/
 
 Default to the four-judge harness defined in the [Gemma 4 Rundale training plan](gemma4-rundale-training-plan.md#evaluation): deterministic anachronism wordlist (`judge_anachronism`) + Talkie-1930-13B-IT loglik (`judge_talkie`) + tiny ~250M Rundale dialect oracle loglik (`judge_dialect_oracle`) + DeepSeek V4-pro 1–10 coherence/mood/in-character rubric (`judge_deepseek`), aggregated by Borda rank. Rubrics live in YAML next to the prompts; each rubric is a single-line judge prompt plus a numeric threshold. Failures emit a one-line summary plus the offending sample in the run artifact.
 
-The same four-judge harness triple-purposes as (a) DPO training signal during fine-tuning, (b) regression sensor for `/prove` and this plan, (c) inference-time best-of-K selector behind the `inference-rejection-sampler` flag — so a quality drop here is the *same number* used to gate a model swap or a serving change.
+The same four-judge harness triple-purposes as (a) DPO training signal during fine-tuning, (b) regression sensor for `/prove` and this plan, (c) inference-time best-of-K selector behind the `inference-rejection-sampler` flag — so a quality drop here is the _same number_ used to gate a model swap or a serving change.
 
 A frontier API model (Claude Sonnet 4.6 batch + cache; previously the default) is now the **optional fallback** for the coherence axis when DeepSeek V4-pro fails calibration or post-2026-05-31 pricing makes it unattractive. Cost note: the same workload at ~95 % of the quality runs ~$12 on DeepSeek (current discount) vs ~$38 on Sonnet 4.6.
 

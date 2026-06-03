@@ -28,7 +28,9 @@ response is now a single JSON object:
   "action": "nods slowly",
   "mood": "contemplative",
   "internal_thought": "This stranger asks too many questions",
-  "language_hints": [{"word": "bóthar", "pronunciation": "BOH-her", "meaning": "road"}],
+  "language_hints": [
+    { "word": "bóthar", "pronunciation": "BOH-her", "meaning": "road" }
+  ],
   "mentioned_people": []
 }
 ```
@@ -41,12 +43,14 @@ streaming finishes.
 ## Consequences
 
 **Positive:**
+
 - Eliminates separator detection, holdback buffer, and multi-fallback parsing.
 - JSON mode is natively supported by Ollama, OpenAI, and all major providers.
 - Streaming UX is preserved — dialogue appears token-by-token.
 - Metadata (mood, action, language hints) is reliably extracted.
 
 **Negative:**
+
 - Research suggests forcing JSON can degrade creative output by 17-26% for
   complex schemas. Our schema is simple (one free-text string field), so the
   impact is expected to be minimal.
@@ -54,6 +58,7 @@ streaming finishes.
   prompt with a JSON-only instruction instead.
 
 **Neutral:**
+
 - The `NpcJsonResponse` struct and `NpcMetadata` struct coexist — the former is
   the deserialization target, the latter is the downstream-facing type used by
   the rest of the codebase.

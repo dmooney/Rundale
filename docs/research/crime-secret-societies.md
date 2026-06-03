@@ -54,7 +54,7 @@ These historical realities suggest several rich systems for Rundale. **Secret so
 
 [5] **Verified.** The Ribbonmen emerged from the Defender tradition in the early 19th century, with the movement becoming active around 1810 and gaining significant traction between 1816 and 1824. They were most prominent in Ulster, north Leinster, and north Connacht, and defined themselves primarily in opposition to the Orange Order. — Wikipedia, "Ribbonism"; Britannica, "Ribbonism"; neverfeltbetter.wordpress.com, "Ireland's Wars: Ribbonmen."
 
-[6] **Verified.** The Rockite movement of 1821–1824 was centered on Munster, originating in western County Limerick. Named after the pseudonymous "Captain Rock," the Rockites killed over 100 people, and the state responded with over 100 executions and 600 transportations. James S. Donnelly Jr.'s *Captain Rock* (2009) is the definitive study. — Project MUSE; History Ireland; The Irish Story.
+[6] **Verified.** The Rockite movement of 1821–1824 was centered on Munster, originating in western County Limerick. Named after the pseudonymous "Captain Rock," the Rockites killed over 100 people, and the state responded with over 100 executions and 600 transportations. James S. Donnelly Jr.'s _Captain Rock_ (2009) is the definitive study. — Project MUSE; History Ireland; The Irish Story.
 
 [7] **Verified with refinement.** The Terry Alts were founded in 1828 in the Corofin/Kilnaboy area of County Clare and were active until approximately 1831. They focused on preventing land consolidation and targeted "land-grabbers." The text originally said "late 1820s and early 1830s," which has been made more precise. — Wikipedia, "Terry Alts"; Clare Library; History Ireland, "The Terry Alt Movement 1829–31."
 
@@ -62,7 +62,7 @@ These historical realities suggest several rich systems for Rundale. **Secret so
 
 [9] **Verified.** Faction fighting was widespread at fairs and pattern days in 18th- and 19th-century Ireland. Combatants typically used shillelaghs (blackthorn sticks), stones, and improvised weapons. Pattern days, originally pilgrimages to holy wells, routinely evolved into gatherings with drinking, dancing, and faction fights. — Wikipedia, "Faction fighting in Ireland"; National Museum of Ireland, "19th Century Faction Fighting."
 
-[10] **Verified.** Transportation to Australian penal colonies for terms of 7, 14 years, or life was the standard sentence for agrarian offences. Hanging was imposed for murder and for administering unlawful oaths. During the Rockite agitation alone, over 100 were executed and 600 transported. — Donnelly, *Captain Rock*; Encyclopedia.com, "Tithe War."
+[10] **Verified.** Transportation to Australian penal colonies for terms of 7, 14 years, or life was the standard sentence for agrarian offences. Hanging was imposed for murder and for administering unlawful oaths. During the Rockite agitation alone, over 100 were executed and 600 transported. — Donnelly, _Captain Rock_; Encyclopedia.com, "Tithe War."
 
 [11] **Verified.** The Whiteboys' initial activities included tearing down fences and hedges over common land, digging up pasture, and levelling enclosures. They also maimed cattle and attacked tithe proctors. — Wikipedia, "Whiteboys"; irishcentral.com, "The original rebels: Ireland's infamous Whiteboys."
 
@@ -70,7 +70,7 @@ These historical realities suggest several rich systems for Rundale. **Secret so
 
 - Britannica. "Ribbonism." https://www.britannica.com/topic/Ribbonism
 - Clare Library. "Agrarian Conflict in Clare: 1815–1831." https://www.clarelibrary.ie/eolas/coclare/history/agrarian_conflict/agrarian_conflict_in_clare_terry_alts.htm
-- Donnelly, James S. Jr. *Captain Rock: The Irish Agrarian Rebellion of 1821–1824.* Collins Press, 2009. Also: https://muse.jhu.edu/article/228974/summary
+- Donnelly, James S. Jr. _Captain Rock: The Irish Agrarian Rebellion of 1821–1824._ Collins Press, 2009. Also: https://muse.jhu.edu/article/228974/summary
 - Encyclopedia.com. "Whiteboys and Whiteboyism." https://www.encyclopedia.com/international/encyclopedias-almanacs-transcripts-and-maps/whiteboys-and-whiteboyism
 - Heritage History. "Secret Societies of All Ages, Vol. 2." https://heritage-history.com/index.php?author=heckethorn&book=secret2&c=read&story=irish
 - History Ireland. "The Terry Alt Movement 1829–31." https://www.historyireland.com/18th-19th-century-history/the-terry-alt-movement-1829-31-by-james-s-donnelly-jr/

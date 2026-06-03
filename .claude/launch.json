@@ -19,7 +19,10 @@
     {
       "name": "parish-e2e",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "source $HOME/.cargo/env && cargo run -- --web 3099"],
+      "runtimeArgs": [
+        "-c",
+        "source $HOME/.cargo/env && cargo run -- --web 3099"
+      ],
       "cwd": "parish",
       "port": 3099
     }

@@ -1,6 +1,6 @@
 # Repository Layout
 
-```
+```text
 parish/
   crates/              14 workspace members (types, config, world, npc, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend

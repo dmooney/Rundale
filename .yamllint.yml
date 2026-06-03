@@ -1,0 +1,34 @@
+# yamllint config — YAML *linting* (Prettier owns YAML *formatting*).
+# Relaxed for GitHub Actions workflows + prompt YAML; we lint for real defects
+# (syntax, duplicate keys, bad indentation), not cosmetic line width.
+extends: default
+
+rules:
+  # Prettier controls wrapping; long action `run:` lines are normal.
+  line-length: disable
+  # GitHub Actions `${{ expr }}` expressions read as flow-mapping braces to
+  # yamllint; brace spacing inside them is mandatory Actions syntax, not a defect.
+  braces: disable
+  # `on:` in workflows is the canonical key; don't flag it as a truthy value.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  # Comment spacing is cosmetic; Prettier doesn't touch YAML comments.
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+  # Document start marker (---) is optional.
+  document-start: disable
+  # Allow Prettier's 2-space indent style on sequences.
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+
+ignore: |
+  node_modules/
+  .venv-dev/
+  target/
+  parish/apps/ui/
+  rundale-bench/bench-site/
+  **/pnpm-lock.yaml
+  parish/testing/

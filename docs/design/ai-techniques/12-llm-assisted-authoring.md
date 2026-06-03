@@ -13,7 +13,7 @@ characters and relationships are still bespoke.
 
 ## SOTA technique
 
-A toolchain that treats mod content as *LLM-fillable holes* inside
+A toolchain that treats mod content as _LLM-fillable holes_ inside
 author-provided anchors:
 
 - Author pins: parish bounds, a handful of anchor NPCs, a few anchor
@@ -76,7 +76,7 @@ fail the authoring pipeline before a PR is opened.
 1. `parish-authoring` binary with subcommands `populate`, `schedule`,
    `relate`. Claude tool-use mode (cloud) as the first backend.
 2. A single worked example: `parish-authoring populate --scenario
-   kiltoom-1820` producing a review-ready diff.
+kiltoom-1820` producing a review-ready diff.
 3. Designer Editor integration (button: "Generate candidates") that opens
    the diff viewer.
 
@@ -98,10 +98,10 @@ generated content has a quality gate.
 
 ## Papers / references
 
-- Smith & Whitehead, *Analyzing the Expressive Range of a Level Generator*
+- Smith & Whitehead, _Analyzing the Expressive Range of a Level Generator_
   (2010) — review for procedural authoring of humane content.
-- Kreminski & Wardrip-Fruin, *Gardening Games: A Computational-Creativity
-  Perspective on PCG* (2018).
-- Todd et al., *GPT-4 Plays Minecraft: Open-Ended Game Design with LLMs*
+- Kreminski & Wardrip-Fruin, _Gardening Games: A Computational-Creativity
+  Perspective on PCG_ (2018).
+- Todd et al., _GPT-4 Plays Minecraft: Open-Ended Game Design with LLMs_
   (2023).
-- Park et al., *Generative Agents* (2023) — population authoring via LLM.
+- Park et al., _Generative Agents_ (2023) — population authoring via LLM.

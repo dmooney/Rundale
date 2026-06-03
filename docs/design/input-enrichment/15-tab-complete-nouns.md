@@ -26,9 +26,9 @@ import { derived } from 'svelte/store';
 import { mapData, npcsHere, worldState } from './game';
 
 export interface KnownNoun {
-  text: string;       // the completable string
+  text: string; // the completable string
   category: 'location' | 'npc' | 'command';
-  priority: number;   // lower = higher priority (for sort order)
+  priority: number; // lower = higher priority (for sort order)
 }
 
 /**
@@ -46,7 +46,7 @@ export const knownNouns = derived(
         nouns.push({
           text: loc.name,
           category: 'location',
-          priority: loc.adjacent ? 0 : 2,  // adjacent locations rank higher
+          priority: loc.adjacent ? 0 : 2, // adjacent locations rank higher
         });
       }
     }
@@ -61,9 +61,11 @@ export const knownNouns = derived(
     }
 
     // Sort by priority, then alphabetically
-    nouns.sort((a, b) => a.priority - b.priority || a.text.localeCompare(b.text));
+    nouns.sort(
+      (a, b) => a.priority - b.priority || a.text.localeCompare(b.text),
+    );
     return nouns;
-  }
+  },
 );
 ```
 
@@ -87,23 +89,25 @@ When Tab is pressed, find the word being typed (the "prefix") and match it again
 
 ```typescript
 interface CompletionState {
-  active: boolean;           // currently cycling completions
-  prefix: string;            // the original text before first Tab
-  matches: KnownNoun[];      // all matching nouns
-  currentIndex: number;      // which match is currently shown
-  prefixStart: number;       // character offset where the prefix starts in the full text
+  active: boolean; // currently cycling completions
+  prefix: string; // the original text before first Tab
+  matches: KnownNoun[]; // all matching nouns
+  currentIndex: number; // which match is currently shown
+  prefixStart: number; // character offset where the prefix starts in the full text
 }
 
 function findMatches(prefix: string, nouns: KnownNoun[]): KnownNoun[] {
   if (prefix.length === 0) return [];
   const lower = prefix.toLowerCase();
 
-  return nouns.filter(noun => {
+  return nouns.filter((noun) => {
     const nounLower = noun.text.toLowerCase();
     // Match if prefix appears at start of any word in the noun
     // e.g., "pub" matches "Darcy's Pub", "cross" matches "The Crossroads"
-    return nounLower.startsWith(lower) ||
-           nounLower.split(/[\s']+/).some(word => word.startsWith(lower));
+    return (
+      nounLower.startsWith(lower) ||
+      nounLower.split(/[\s']+/).some((word) => word.startsWith(lower))
+    );
   });
 }
 ```
@@ -128,7 +132,11 @@ function extractPrefix(): { prefix: string; start: number } | null {
 
   // Walk backward from cursor to find word start
   let start = cursorPos;
-  while (start > 0 && fullText[start - 1] !== ' ' && fullText[start - 1] !== '\n') {
+  while (
+    start > 0 &&
+    fullText[start - 1] !== ' ' &&
+    fullText[start - 1] !== '\n'
+  ) {
     start--;
   }
 
@@ -240,9 +248,13 @@ function applyCompletion() {
 
   // On subsequent Tab presses, we need to replace the previously completed text
   // Track the current completion length to know what to replace
-  const currentCompletionLen = completion.currentIndex === 0 && !completion.active
-    ? completion.prefix.length
-    : (completion.matches[(completion.currentIndex - 1 + completion.matches.length) % completion.matches.length]?.text.length ?? completion.prefix.length);
+  const currentCompletionLen =
+    completion.currentIndex === 0 && !completion.active
+      ? completion.prefix.length
+      : (completion.matches[
+          (completion.currentIndex - 1 + completion.matches.length) %
+            completion.matches.length
+        ]?.text.length ?? completion.prefix.length);
 
   // Replace text in the node
   const newText = before + match.text + after;
@@ -261,7 +273,7 @@ function applyCompletion() {
 **Simpler approach** — track the "replaced region" length:
 
 ```typescript
-let replacedLength = $state(0);  // length of the currently inserted completion text
+let replacedLength = $state(0); // length of the currently inserted completion text
 
 function applyCompletion() {
   if (!editorEl || !completion.active) return;
@@ -277,7 +289,8 @@ function applyCompletion() {
   const text = node.textContent ?? '';
 
   // The region to replace: from prefixStart, length = replacedLength (or prefix length on first Tab)
-  const replaceLen = replacedLength > 0 ? replacedLength : completion.prefix.length;
+  const replaceLen =
+    replacedLength > 0 ? replacedLength : completion.prefix.length;
   const before = text.slice(0, completion.prefixStart);
   const after = text.slice(completion.prefixStart + replaceLen);
 
@@ -298,7 +311,7 @@ function applyCompletion() {
 
 Show the completion inline with a dimmed suffix, similar to IDE ghost text:
 
-```
+```text
 Player types: "go to cross|"  (cursor at |)
 After Tab:    "go to The Crossroads|"
 ```
@@ -326,7 +339,7 @@ function handleInput() {
 
 If we add objects, inventory, or topic nouns, the backend could provide a dedicated endpoint:
 
-```
+```text
 GET /api/known-nouns → { locations: [...], npcs: [...], objects: [...] }
 ```
 
@@ -334,7 +347,7 @@ For now, deriving from existing stores is sufficient and avoids a new IPC round-
 
 ## Data Flow
 
-```
+```text
 Player types: "go to cr"
 
 Player presses Tab:
@@ -361,31 +374,32 @@ Player presses Space (or any non-Tab key):
 
 ## Interaction with Other Features
 
-| Feature | Interaction |
-|---------|-------------|
-| @mention dropdown | Tab selects mention when dropdown is open (existing behavior, takes priority) |
-| /slash dropdown | Tab selects command when dropdown is open (from idea #1, takes priority) |
-| Input history (Up/Down) | No conflict — Tab and arrows are independent |
-| Emote `*asterisks*` | Tab can complete nouns inside asterisks: `*waves at Padr` → Tab → `*waves at Padraig` |
+| Feature                 | Interaction                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| @mention dropdown       | Tab selects mention when dropdown is open (existing behavior, takes priority)         |
+| /slash dropdown         | Tab selects command when dropdown is open (from idea #1, takes priority)              |
+| Input history (Up/Down) | No conflict — Tab and arrows are independent                                          |
+| Emote `*asterisks*`     | Tab can complete nouns inside asterisks: `*waves at Padr` → Tab → `*waves at Padraig` |
 
 Priority order when Tab is pressed:
+
 1. Mention dropdown open → select mention (existing)
 2. Slash dropdown open → select command (idea #1)
 3. Neither dropdown open → noun tab-completion (this feature)
 
 ## Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| No matches for prefix | Tab does nothing |
-| Single match | Tab completes immediately; pressing Tab again cycles back to same match |
-| Prefix is already a complete match | Tab still activates (might have longer matches) |
-| Empty input + Tab | No prefix extracted → Tab does nothing |
-| Tab in middle of word | Prefix is text from last space to cursor; completion replaces that segment |
+| Case                                 | Behavior                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| No matches for prefix                | Tab does nothing                                                                                              |
+| Single match                         | Tab completes immediately; pressing Tab again cycles back to same match                                       |
+| Prefix is already a complete match   | Tab still activates (might have longer matches)                                                               |
+| Empty input + Tab                    | No prefix extracted → Tab does nothing                                                                        |
+| Tab in middle of word                | Prefix is text from last space to cursor; completion replaces that segment                                    |
 | NPC leaves location while completing | `knownNouns` updates reactively; completion state uses stale matches (harmless — user just presses Tab again) |
-| Completion text contains spaces | Works correctly — "The Crossroads" replaces "cross" |
-| Completion text contains apostrophes | Works correctly — "Darcy's Pub" replaces "dar" |
-| Tab after @mention chip | Prefix starts after chip's trailing nbsp; works normally |
+| Completion text contains spaces      | Works correctly — "The Crossroads" replaces "cross"                                                           |
+| Completion text contains apostrophes | Works correctly — "Darcy's Pub" replaces "dar"                                                                |
+| Tab after @mention chip              | Prefix starts after chip's trailing nbsp; works normally                                                      |
 
 ## Testing
 
@@ -409,11 +423,11 @@ Priority order when Tab is pressed:
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `ui/src/stores/nouns.ts` | **New** — derived store for known nouns |
-| `ui/src/components/InputField.svelte` | Add Tab-completion logic (extractPrefix, findMatches, applyCompletion, handleKeydown changes) |
-| `ui/src/components/InputField.test.ts` | Add tab-completion tests |
+| File                                   | Change                                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `ui/src/stores/nouns.ts`               | **New** — derived store for known nouns                                                       |
+| `ui/src/components/InputField.svelte`  | Add Tab-completion logic (extractPrefix, findMatches, applyCompletion, handleKeydown changes) |
+| `ui/src/components/InputField.test.ts` | Add tab-completion tests                                                                      |
 
 ## Effort Estimate
 

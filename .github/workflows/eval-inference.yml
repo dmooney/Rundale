@@ -2,11 +2,11 @@ name: Inference Eval
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # nightly at 02:00 UTC
+    - cron: "0 2 * * *" # nightly at 02:00 UTC
   workflow_dispatch:
     inputs:
       scenario:
-        description: 'Scenario to run (all = smoke+intent+reactions+tier2+dialogue)'
+        description: "Scenario to run (all = smoke+intent+reactions+tier2+dialogue)"
         type: choice
         default: all
         options: [all, smoke, intent, reactions, tier2, dialogue, full_session]
@@ -44,7 +44,7 @@ jobs:
       - name: Build
         working-directory: parish
         # Build parish-server (HTTP/WS server binary)
-        
+
         run: cargo build -p parish-server --release
 
       - name: Upload binary
@@ -63,11 +63,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - {scenario: smoke,     turns: 10}
-          - {scenario: intent,    turns: 25}
-          - {scenario: reactions, turns: 15}
-          - {scenario: tier2,     turns: 12}
-          - {scenario: dialogue,  turns: 20}
+          - { scenario: smoke, turns: 10 }
+          - { scenario: intent, turns: 25 }
+          - { scenario: reactions, turns: 15 }
+          - { scenario: tier2, turns: 12 }
+          - { scenario: dialogue, turns: 20 }
       fail-fast: false
 
     # Skip scenarios not requested when running via workflow_dispatch
@@ -100,7 +100,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Start parish web server
         working-directory: parish
@@ -159,7 +159,7 @@ jobs:
 
             Session log:
             ${{ steps.read_log.outputs.log }}
-          max-completion-tokens: '600'
+          max-completion-tokens: "600"
 
       - name: Parse verdict and write summary
         shell: python3 {0}
@@ -259,7 +259,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Start parish web server
         working-directory: parish
@@ -315,7 +315,7 @@ jobs:
 
             Session log:
             ${{ steps.read_log.outputs.log }}
-          max-completion-tokens: '800'
+          max-completion-tokens: "800"
 
       - name: Parse verdict
         shell: python3 {0}

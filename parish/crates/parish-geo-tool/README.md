@@ -5,12 +5,15 @@ This crate contains command-line tools for geographic workflows in Parish.
 ## Binaries
 
 ### `parish-geo-tool`
+
 Primary extractor/transformer for OpenStreetMap-to-Parish world generation.
 
 ### `realign_rundale_coords`
+
 Classifies and corrects map coordinates for mixed real/fictional worlds.
 
 It is designed for Rundale's `mods/rundale/world.json` where:
+
 - `geo_kind: "real"` locations are geocoded (true anchor points), and
 - `geo_kind: "fictional"` locations are moved by inferred deltas so local layout is preserved.
 
@@ -72,7 +75,7 @@ just realign-coords-run --world mods/rundale/world.json --baseline-world /tmp/wo
 
 `realign_rundale_coords` uses Nominatim as its only online geocoder. When a real location's `name` ends in a type word (`Village`, `Town`, `Parish`, `Hamlet`, `Townland`, `Cross`, `Crossroads`), the tool retries with the suffix stripped — so `Kilteevan Village` falls back to `Kilteevan`, which matches the OSM townland.
 
-When Nominatim returns no hits for any query variant, the tool logs a warning to stderr and keeps the location's existing `lat`/`lon`. The pipeline still runs; only the skipped location's delta is omitted from the fictional realignment. If *every* real location is skipped, the tool errors out with a message pointing at `--no-geocode` / `--baseline-world`.
+When Nominatim returns no hits for any query variant, the tool logs a warning to stderr and keeps the location's existing `lat`/`lon`. The pipeline still runs; only the skipped location's delta is omitted from the fictional realignment. If _every_ real location is skipped, the tool errors out with a message pointing at `--no-geocode` / `--baseline-world`.
 
 **This is a stopgap.** At island scale (thousands of places), Nominatim's rate limits (~1 req/sec) and usage policy make it unsuitable as the production geocoder. The planned replacement is a local canonical placename registry built from logainm.ie and townlands.ie bulk exports plus a Geofabrik Ireland OSM extract, with village centers derived from civic-POI clusters. Tracked as Stage B–D follow-ups.
 
@@ -113,8 +116,9 @@ Any location can declare its position as an offset from another location's posit
 }
 ```
 
-The tool resolves `relative_to` chains in topological order (errors on cycles or unknown anchors) and writes the resulting absolute `lat`/`lon` back — the pair stored in JSON is a cache of the last resolution. Fictional locations with `relative_to` track their anchor exactly and are *not* graph-delta'd, so they stay pinned relative to the anchor no matter how it moves.
+The tool resolves `relative_to` chains in topological order (errors on cycles or unknown anchors) and writes the resulting absolute `lat`/`lon` back — the pair stored in JSON is a cache of the last resolution. Fictional locations with `relative_to` track their anchor exactly and are _not_ graph-delta'd, so they stay pinned relative to the anchor no matter how it moves.
 
 Typical use cases:
+
 - A fictional cottage located 50 m south of a historic church: `relative_to: { anchor: <church_id>, dnorth_m: -50, deast_m: 0 }`
 - A fairy fort co-located with a real archaeological site: `relative_to: { anchor: <site_id>, dnorth_m: 0, deast_m: 0 }`

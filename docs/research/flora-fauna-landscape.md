@@ -22,7 +22,7 @@ The terrain of the midlands was shaped by **drumlins**, the smooth, elongated hi
 
 ### Wildlife: Creatures of Field, Bog, and Water
 
-The fauna of 1820s Roscommon reflected a landscape shaped by centuries of human use. The **red fox** was ubiquitous, both a pest to poultry-keepers and a figure of admiration in folklore for its cunning. The **badger** inhabited setts in hedgerow banks and woodland edges, emerging at dusk to forage. The native **Irish hare** (*Lepus timidus hibernicus*), a distinctive subspecies of the mountain hare endemic to Ireland, was widespread. [8] Unlike its Scottish relatives, it rarely turned white in winter, though its coat could become lighter and greyer in severe cold. The **otter** thrived along the Shannon, Suck, and their tributaries, hunting fish in the clear waters. **Pine martens** survived in small numbers in remaining woodland, while the **stoat** (*Mustela erminea hibernica*), a distinct Irish subspecies, was a common sight darting along stone walls. [9] **Red deer**, once widespread, had been reduced to scattered herds by 1820, found mainly in the wilder parts of Kerry and Wicklow, though occasional individuals lingered in remoter Connacht woodlands.
+The fauna of 1820s Roscommon reflected a landscape shaped by centuries of human use. The **red fox** was ubiquitous, both a pest to poultry-keepers and a figure of admiration in folklore for its cunning. The **badger** inhabited setts in hedgerow banks and woodland edges, emerging at dusk to forage. The native **Irish hare** (_Lepus timidus hibernicus_), a distinctive subspecies of the mountain hare endemic to Ireland, was widespread. [8] Unlike its Scottish relatives, it rarely turned white in winter, though its coat could become lighter and greyer in severe cold. The **otter** thrived along the Shannon, Suck, and their tributaries, hunting fish in the clear waters. **Pine martens** survived in small numbers in remaining woodland, while the **stoat** (_Mustela erminea hibernica_), a distinct Irish subspecies, was a common sight darting along stone walls. [9] **Red deer**, once widespread, had been reduced to scattered herds by 1820, found mainly in the wilder parts of Kerry and Wicklow, though occasional individuals lingered in remoter Connacht woodlands.
 
 The **bird life** of the 1820s was notably richer than today's. The **corncrake**, whose rasping call from meadow grass is now almost extinct in Ireland, was then a common summer visitor [10], its voice a defining sound of the rural night. **Curlew** and **snipe** populated the boglands and wet meadows, their calls — the curlew's long, mournful whistle and the snipe's drumming display flight — forming the soundtrack of the countryside. **Skylarks** sang overhead in every field. **Ravens** were widespread, associated in folklore with battlefields and prophecy. **Eagles** — both golden and white-tailed — still survived in parts of the west and northwest [11], though persecution by farmers and gamekeepers was driving them toward the extinction that would come later in the century.
 
@@ -52,7 +52,7 @@ The natural landscape of 1820s Roscommon offers rich material for Rundale's worl
 
 [1] **Verified.** Raised bogs in the midlands as dome-shaped formations with sphagnum moss; blanket bogs to the west and in mountains. — Confirmed by Wetland Surveys Ireland, the Irish Peatland Conservation Council, and RTÉ Brainstorm. Raised bogs are most abundant in central Ireland's lowlands with peat depths of 9–12 metres; blanket bogs are shallower (1.2–3 metres) and found in wetter upland and western areas.
 
-[2] **Verified.** The *sleán* as a specialised turf-cutting spade. — Confirmed by Irish Turf heritage resources and Ask About Ireland. The sleán has a narrow blade set at a right angle to the handle, designed for cutting neat rectangular sods. Regional variations existed for different bog types.
+[2] **Verified.** The _sleán_ as a specialised turf-cutting spade. — Confirmed by Irish Turf heritage resources and Ask About Ireland. The sleán has a narrow blade set at a right angle to the handle, designed for cutting neat rectangular sods. Regional variations existed for different bog types.
 
 [3] **Verified.** Bog oak preserved for thousands of years beneath peat. — Confirmed by multiple Irish heritage sources. Ancient tree trunks, blackened and hardened by the acidic, anaerobic conditions of the bog, are regularly uncovered during turf cutting.
 
@@ -64,33 +64,33 @@ The natural landscape of 1820s Roscommon offers rich material for Rundale's worl
 
 [7] **Corrected.** The River Suck as forming Roscommon's boundary. — The original text described the Suck as forming "Roscommon's western boundary." The River Suck actually forms the boundary between County Roscommon and County Galway, running along the southwestern/western portion of the county, not the entire western boundary. Text amended to "much of Roscommon's boundary with County Galway."
 
-[8] **Corrected.** Hare species in Ireland. — The original text claimed "three species of hare existed in Ireland" including the brown hare. This is inaccurate for the 1820s. The only native hare species was the Irish hare (*Lepus timidus hibernicus*), an endemic subspecies of the mountain hare. The European brown hare was not established in Ireland until much later (primarily in Northern Ireland). The claim that it "turned white in winter" is also misleading for the Irish subspecies, which rarely turns white. Text has been corrected. Sources: Vincent Wildlife Trust Ireland; Wikipedia (*Lepus timidus hibernicus*).
+[8] **Corrected.** Hare species in Ireland. — The original text claimed "three species of hare existed in Ireland" including the brown hare. This is inaccurate for the 1820s. The only native hare species was the Irish hare (_Lepus timidus hibernicus_), an endemic subspecies of the mountain hare. The European brown hare was not established in Ireland until much later (primarily in Northern Ireland). The claim that it "turned white in winter" is also misleading for the Irish subspecies, which rarely turns white. Text has been corrected. Sources: Vincent Wildlife Trust Ireland; Wikipedia (_Lepus timidus hibernicus_).
 
-[9] **Corrected.** The stoat described as "Ireland's only native mustelid besides the otter and marten." — This omitted the badger (*Meles meles*), which is also a native Irish mustelid. Ireland has four native mustelid species: stoat, otter, pine marten, and badger. The Irish stoat (*Mustela erminea hibernica*) is a distinct subspecies endemic to Ireland and the Isle of Man. Text corrected to remove the inaccurate exclusivity claim. Sources: Vincent Wildlife Trust Ireland; National Biodiversity Data Centre.
+[9] **Corrected.** The stoat described as "Ireland's only native mustelid besides the otter and marten." — This omitted the badger (_Meles meles_), which is also a native Irish mustelid. Ireland has four native mustelid species: stoat, otter, pine marten, and badger. The Irish stoat (_Mustela erminea hibernica_) is a distinct subspecies endemic to Ireland and the Isle of Man. Text corrected to remove the inaccurate exclusivity claim. Sources: Vincent Wildlife Trust Ireland; National Biodiversity Data Centre.
 
 [10] **Verified.** The corncrake as a common summer visitor in the 19th century, now almost extinct. — Confirmed by BirdWatch Ireland and NPWS. Corncrakes were once found in every parish in Ireland. The population has declined by over 96% since the 1970s, with only about 150 remaining pairs (2019), confined mainly to Donegal, Mayo, and Connemara.
 
 [11] **Verified.** Golden and white-tailed eagles surviving in parts of the west and northwest in the early 19th century. — Confirmed by the Golden Eagle Trust and academic research. In the early 19th century, the golden eagle population exceeded 50 pairs. Both species were driven to extinction by the early 20th century through persecution (poisoning, shooting, trapping) and habitat change. The golden eagle's last breeding pairs were at Glenveagh (1910) and North Mayo coast (c. 1912).
 
-[12] **Corrected.** *Fraochán* identified as an Irish word for blackberry. — *Fraochán* actually means bilberry (whortleberry), not blackberry. The word derives from *fraoch* (heather), as bilberries grow among heather on bogs and moors. The Irish word for blackberry is *sméar* (or *sméara dubha*). The text has been corrected to list blackberries and bilberries separately, with *fraochán* correctly associated with bilberries. Sources: Wiktionary; RTÉ Brainstorm (Bilberry Sunday); Transparent Language Irish Language Blog.
+[12] **Corrected.** _Fraochán_ identified as an Irish word for blackberry. — _Fraochán_ actually means bilberry (whortleberry), not blackberry. The word derives from _fraoch_ (heather), as bilberries grow among heather on bogs and moors. The Irish word for blackberry is _sméar_ (or _sméara dubha_). The text has been corrected to list blackberries and bilberries separately, with _fraochán_ correctly associated with bilberries. Sources: Wiktionary; RTÉ Brainstorm (Bilberry Sunday); Transparent Language Irish Language Blog.
 
 ## Bibliography
 
-- "A Guide to Identifying the Small Mustelids of Ireland." *National Biodiversity Data Centre / Vincent Wildlife Trust*. https://biodiversityireland.ie/app/uploads/2023/01/GuidetoSmallMustelidsofIreland20Feb2023.pdf
-- "All You Ever Wanted to Know about Bog Butter." *RTÉ Brainstorm*. https://www.rte.ie/brainstorm/2024/0911/1469409-ireland-bog-butter-history-food-archaeology/
-- "A Brief History of Ireland's Native Woodlands." *Coillte*. https://www.coillte.ie/a-brief-history-of-irelands-native-woodlands/
-- "Corncrake." *BirdWatch Ireland*. https://birdwatchireland.ie/birds/corncrake/
-- "Despirited Forests, Deforested Landscapes." *Études Irlandaises*. https://journals.openedition.org/etudesirlandaises/6812
-- "Fraochán." *Wiktionary*. https://en.wiktionary.org/wiki/fraoch%C3%A1n
-- "History of Forestry in Ireland." *Teagasc*. https://teagasc.ie/crops/forestry/advice/general-topics/history-of-forestry-in-ireland/
-- "Irish Hare." *Vincent Wildlife Trust Ireland*. https://www.vincentwildlife.ie/species/irish-hare
-- "Irish Stoat." *Vincent Wildlife Trust Ireland*. https://www.vincentwildlife.ie/species/irish-stoat
-- "It's Bilberry Sunday This Weekend." *RTÉ Brainstorm*. https://www.rte.ie/brainstorm/2025/0725/1525282-bilberries-bilberry-sunday-ireland-folklore-lughnasa-festival/
-- "*Lepus timidus hibernicus*." *Wikipedia*. https://en.wikipedia.org/wiki/Lepus_timidus_hibernicus
-- "Peatlands & Bogs (Factfile 4)." *Wetland Surveys Ireland*. http://www.wetlandsurveysireland.com/wetlands/factfile-5-peatlands--bogs/
-- "Re-introduction of the Golden Eagle into the Republic of Ireland." *Biological Conservation* (ScienceDirect). https://www.sciencedirect.com/science/article/abs/pii/S0006320701001410
-- "River Shannon." *Britannica*. https://www.britannica.com/place/River-Shannon
-- "River Shannon." *Wikipedia*. https://en.wikipedia.org/wiki/River_Shannon
-- "Sphagnum Moss — the Bog Builder." *Irish Peatland Conservation Council*. https://www.ipcc.ie/a-to-z-peatlands/peatland-species/sphagnum-moss-the-bog-builder/
-- "The Slean: Ireland's Iconic Tool for Cutting Turf." *Irish Turf*. https://irishturf.ie/turf-slean
-- "Why Is Ireland Home to So Many Bogs?" *RTÉ Brainstorm*. https://www.rte.ie/brainstorm/2026/0212/1557853-ireland-bogs-ecology-nature-climate-change-peat-weather/
+- "A Guide to Identifying the Small Mustelids of Ireland." _National Biodiversity Data Centre / Vincent Wildlife Trust_. https://biodiversityireland.ie/app/uploads/2023/01/GuidetoSmallMustelidsofIreland20Feb2023.pdf
+- "All You Ever Wanted to Know about Bog Butter." _RTÉ Brainstorm_. https://www.rte.ie/brainstorm/2024/0911/1469409-ireland-bog-butter-history-food-archaeology/
+- "A Brief History of Ireland's Native Woodlands." _Coillte_. https://www.coillte.ie/a-brief-history-of-irelands-native-woodlands/
+- "Corncrake." _BirdWatch Ireland_. https://birdwatchireland.ie/birds/corncrake/
+- "Despirited Forests, Deforested Landscapes." _Études Irlandaises_. https://journals.openedition.org/etudesirlandaises/6812
+- "Fraochán." _Wiktionary_. https://en.wiktionary.org/wiki/fraoch%C3%A1n
+- "History of Forestry in Ireland." _Teagasc_. https://teagasc.ie/crops/forestry/advice/general-topics/history-of-forestry-in-ireland/
+- "Irish Hare." _Vincent Wildlife Trust Ireland_. https://www.vincentwildlife.ie/species/irish-hare
+- "Irish Stoat." _Vincent Wildlife Trust Ireland_. https://www.vincentwildlife.ie/species/irish-stoat
+- "It's Bilberry Sunday This Weekend." _RTÉ Brainstorm_. https://www.rte.ie/brainstorm/2025/0725/1525282-bilberries-bilberry-sunday-ireland-folklore-lughnasa-festival/
+- "_Lepus timidus hibernicus_." _Wikipedia_. https://en.wikipedia.org/wiki/Lepus_timidus_hibernicus
+- "Peatlands & Bogs (Factfile 4)." _Wetland Surveys Ireland_. http://www.wetlandsurveysireland.com/wetlands/factfile-5-peatlands--bogs/
+- "Re-introduction of the Golden Eagle into the Republic of Ireland." _Biological Conservation_ (ScienceDirect). https://www.sciencedirect.com/science/article/abs/pii/S0006320701001410
+- "River Shannon." _Britannica_. https://www.britannica.com/place/River-Shannon
+- "River Shannon." _Wikipedia_. https://en.wikipedia.org/wiki/River_Shannon
+- "Sphagnum Moss — the Bog Builder." _Irish Peatland Conservation Council_. https://www.ipcc.ie/a-to-z-peatlands/peatland-species/sphagnum-moss-the-bog-builder/
+- "The Slean: Ireland's Iconic Tool for Cutting Turf." _Irish Turf_. https://irishturf.ie/turf-slean
+- "Why Is Ireland Home to So Many Bogs?" _RTÉ Brainstorm_. https://www.rte.ie/brainstorm/2026/0212/1557853-ireland-bogs-ecology-nature-climate-change-peat-weather/

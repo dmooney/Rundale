@@ -83,6 +83,7 @@ Many "wrong" names are in-canon (Concannon, Niamh Darcy, Curraghboy, sídhe).
 # Arguments
 
 `$ARGUMENTS` — optional. Examples:
+
 - (empty) — default 5-12 cycle audit with `N=8..15` turns each.
 - `quick` — single cycle, `N=8`, only flag P0/P1.
 - `deep` — up to 20 cycles, vary `N` (8/12/18/20), include MCP nudges.

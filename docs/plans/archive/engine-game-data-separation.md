@@ -9,6 +9,7 @@
 ## Current State Assessment
 
 ### Already well-separated (engine-quality):
+
 - World graph data structure + BFS pathfinding (`crates/parish-core/src/world/graph.rs`)
 - Time system mechanics: GameClock, TimeOfDay, Season, GameSpeed (`world/time.rs` — except festivals)
 - Movement resolution (`world/movement.rs`)
@@ -22,27 +23,28 @@
 - All Tauri IPC commands + Svelte UI components (fully generic)
 
 ### Already externalized as data files:
+
 - `data/parish.json` — 15 locations with names, description templates, connections, mythological significance
 - `data/npcs.json` — 8 NPCs with names, personalities, schedules, relationships, knowledge
 
 ### Hardcoded game content that needs extraction:
 
-| Content | Location | Lines |
-|---------|----------|-------|
-| Tier 1 system prompt (1820, County Roscommon, Acts of Union, Catholic Emancipation, cultural guidelines, Irish language instructions) | `crates/parish-core/src/npc/mod.rs` | 336-391 |
-| Tier 2 system prompt ("Irish parish in 1820") | `crates/parish-core/src/npc/ticks.rs` | 159-186 |
-| Anachronism dictionary (~60+ terms with origin years) | `src/npc/anachronism.rs` | 69-441 |
-| Irish festival definitions (Imbolc, Bealtaine, Lughnasa, Samhain) | `crates/parish-core/src/world/time.rs` | 89-127 |
-| Loading phrases (24 Irish-themed strings) | `crates/parish-core/src/loading.rs` | 19-44 |
-| Spinner frames (Celtic crosses) | `crates/parish-core/src/loading.rs` | 10 |
-| Spinner colors (Irish palette) | `crates/parish-core/src/loading.rs` | 47-54 |
-| Encounter flavor text (rural Irish encounters) | `crates/parish-core/src/world/encounter.rs` | 40-52 |
-| Start date (1820-03-20 08:00) | `crates/parish-core/src/world/mod.rs` | 120, 159 |
-| Default location ("The Crossroads" with Irish description) | `crates/parish-core/src/world/mod.rs` | 104-115 |
-| Test NPC ("Padraig O'Brien") | `crates/parish-core/src/npc/mod.rs` | 142-168 |
-| `IrishWordHint` struct name | `crates/parish-core/src/npc/mod.rs` | 22-35 |
-| "Focail (Irish Words)" UI label | `ui/src/components/Sidebar.svelte` |
-| parish-geo-tool (entire binary is Ireland-specific) | `crates/parish-geo-tool/src/` |
+| Content                                                                                                                               | Location                                    | Lines    |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
+| Tier 1 system prompt (1820, County Roscommon, Acts of Union, Catholic Emancipation, cultural guidelines, Irish language instructions) | `crates/parish-core/src/npc/mod.rs`         | 336-391  |
+| Tier 2 system prompt ("Irish parish in 1820")                                                                                         | `crates/parish-core/src/npc/ticks.rs`       | 159-186  |
+| Anachronism dictionary (~60+ terms with origin years)                                                                                 | `src/npc/anachronism.rs`                    | 69-441   |
+| Irish festival definitions (Imbolc, Bealtaine, Lughnasa, Samhain)                                                                     | `crates/parish-core/src/world/time.rs`      | 89-127   |
+| Loading phrases (24 Irish-themed strings)                                                                                             | `crates/parish-core/src/loading.rs`         | 19-44    |
+| Spinner frames (Celtic crosses)                                                                                                       | `crates/parish-core/src/loading.rs`         | 10       |
+| Spinner colors (Irish palette)                                                                                                        | `crates/parish-core/src/loading.rs`         | 47-54    |
+| Encounter flavor text (rural Irish encounters)                                                                                        | `crates/parish-core/src/world/encounter.rs` | 40-52    |
+| Start date (1820-03-20 08:00)                                                                                                         | `crates/parish-core/src/world/mod.rs`       | 120, 159 |
+| Default location ("The Crossroads" with Irish description)                                                                            | `crates/parish-core/src/world/mod.rs`       | 104-115  |
+| Test NPC ("Padraig O'Brien")                                                                                                          | `crates/parish-core/src/npc/mod.rs`         | 142-168  |
+| `IrishWordHint` struct name                                                                                                           | `crates/parish-core/src/npc/mod.rs`         | 22-35    |
+| "Focail (Irish Words)" UI label                                                                                                       | `ui/src/components/Sidebar.svelte`          |          |
+| parish-geo-tool (entire binary is Ireland-specific)                                                                                   | `crates/parish-geo-tool/src/`               |          |
 
 ## Recommended Approach
 
@@ -50,7 +52,7 @@
 
 A mod is a directory with a `mod.toml` manifest and data files:
 
-```
+```text
 mods/
 └── rundale/
     ├── mod.toml                # Manifest: name, version, start_date, start_location, etc.
@@ -116,6 +118,7 @@ pub struct GameMod {
 ```
 
 Key design decisions:
+
 - **Load at startup, immutable thereafter** — mods are read once and passed by reference
 - **No trait-based plugin system** — too complex for this stage. A data-driven approach (JSON/TOML files + prompt templates) gives 95% of the benefit
 - **Prompt templates use simple `{placeholder}` interpolation** — same pattern already used in description templates
@@ -147,7 +150,7 @@ pub struct FestivalDef {
 
 The Tier 1 system prompt (`build_tier1_system_prompt`) becomes:
 
-```
+```text
 You are {name}, a {age}-year-old {occupation} in {setting_description}.
 
 {historical_context}
@@ -173,6 +176,7 @@ The `IrishWordHint` struct becomes `LanguageHint` — the concept of "NPCs use a
 #### 6. WorldState initialization takes mod config
 
 `WorldState::from_mod()` replaces both `WorldState::new()` and `WorldState::from_parish_file()`:
+
 - Start date from `mod.toml`
 - World graph from `world.json`
 - Start location from `mod.toml`
@@ -180,6 +184,7 @@ The `IrishWordHint` struct becomes `LanguageHint` — the concept of "NPCs use a
 #### 7. UI customization
 
 `ui.toml` provides:
+
 ```toml
 [sidebar]
 hints_label = "Focail (Irish Words)"
@@ -224,30 +229,35 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 ### Migration Path
 
 **Phase 1: Define mod structure + GameMod loader**
+
 - Create `mods/rundale/` directory with `mod.toml`
 - Add `GameMod` struct and loader to `parish-core`
 - Move `data/*.json` to the mod directory
 - No behavior changes yet — just loading from new paths
 
 **Phase 2: Extract prompt templates**
+
 - Move system prompt strings to template files
 - Rename `IrishWordHint` → `LanguageHint`
 - `build_tier1_system_prompt()` reads template from `GameMod`
 - `build_tier2_prompt()` reads template from `GameMod`
 
 **Phase 3: Extract hardcoded data**
+
 - Festivals: enum → data-driven from `festivals.json`
 - Anachronisms: static dict → loaded from `anachronisms.json`
 - Encounters: hardcoded text → loaded from `encounters.json`
 - Loading: hardcoded phrases/colors → loaded from `loading.toml`
 
 **Phase 4: Wire through WorldState + App**
+
 - `WorldState` constructor takes `&GameMod`
 - `App` holds `GameMod` and passes references where needed
 - Start date + start location from mod manifest
 - Remove `WorldState::new()` fallback (or make it load a built-in default mod)
 
 **Phase 5: UI customization**
+
 - Add `get_ui_config` IPC command
 - Frontend reads labels/theme from config instead of hardcoding
 - Rename "Focail" sidebar label to come from mod config
@@ -255,6 +265,7 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 ## Files to Modify
 
 ### New files:
+
 - `mods/rundale/mod.toml`
 - `mods/rundale/prompts/tier1_system.txt`
 - `mods/rundale/prompts/tier1_context.txt`
@@ -267,10 +278,12 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 - `crates/parish-core/src/game_mod.rs` — GameMod struct + loader
 
 ### Move:
+
 - `data/parish.json` → `mods/rundale/world.json`
 - `data/npcs.json` → `mods/rundale/npcs.json`
 
 ### Modify:
+
 - `crates/parish-core/src/lib.rs` — add `game_mod` module
 - `crates/parish-core/src/npc/mod.rs` — `build_tier1_system_prompt()` uses template, rename `IrishWordHint` → `LanguageHint`
 - `crates/parish-core/src/npc/ticks.rs` — `build_tier2_prompt()` uses template

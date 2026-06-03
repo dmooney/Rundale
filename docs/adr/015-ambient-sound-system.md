@@ -39,7 +39,7 @@ Text descriptions of sound ("You hear a fiddle from Darcy's Pub") add atmosphere
 
 ### Architecture Summary
 
-```
+```text
 src/audio/
 ├── mod.rs           # AudioManager: owns rodio OutputStream, manages Sinks
 ├── catalog.rs       # SoundCatalog: maps (LocationKind, TimeOfDay, Season) → asset paths
@@ -80,10 +80,10 @@ assets/audio/        # OGG/WAV files, organized by category
 
 ## Alternatives Considered
 
-| Alternative | Reason Rejected |
-|---|---|
-| Text-only ambient sounds | Doesn't meet the user's goal of actual audio playback |
-| kira game audio library | Over-engineered for our discrete spatial model |
-| cpal directly | Too low-level; rodio provides the mixing/decoding layer we need |
-| Bevy audio | Would require adopting the Bevy ECS; massive dependency for one feature |
-| Web Audio API (Phase 7) | Future consideration for web/mobile; rodio handles native desktop now |
+| Alternative              | Reason Rejected                                                         |
+| ------------------------ | ----------------------------------------------------------------------- |
+| Text-only ambient sounds | Doesn't meet the user's goal of actual audio playback                   |
+| kira game audio library  | Over-engineered for our discrete spatial model                          |
+| cpal directly            | Too low-level; rodio provides the mixing/decoding layer we need         |
+| Bevy audio               | Would require adopting the Bevy ECS; massive dependency for one feature |
+| Web Audio API (Phase 7)  | Future consideration for web/mobile; rodio handles native desktop now   |

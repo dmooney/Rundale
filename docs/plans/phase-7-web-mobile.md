@@ -10,7 +10,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Cloud Server                             │
 │  ┌──────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
@@ -194,22 +194,22 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 
 ## New Dependencies
 
-| Crate | Purpose | Used In |
-|-------|---------|---------|
-| `axum` | HTTP/WebSocket server | Server |
-| `axum-extra` | WebSocket utilities | Server |
-| `tower` | Middleware (CORS, rate limiting) | Server |
-| `tower-http` | Static file serving, CORS | Server |
-| `tokio-tungstenite` | WebSocket protocol | Server |
-| `trunk` | WASM build tool | Web (build-time) |
-| `wasm-bindgen` | Rust↔JS interop | Web client |
-| `web-sys` | Browser API bindings | Web client |
-| `gloo-net` | WebSocket client for WASM | Web client |
-| `tauri` (v2) | Mobile app framework | Mobile |
+| Crate               | Purpose                          | Used In          |
+| ------------------- | -------------------------------- | ---------------- |
+| `axum`              | HTTP/WebSocket server            | Server           |
+| `axum-extra`        | WebSocket utilities              | Server           |
+| `tower`             | Middleware (CORS, rate limiting) | Server           |
+| `tower-http`        | Static file serving, CORS        | Server           |
+| `tokio-tungstenite` | WebSocket protocol               | Server           |
+| `trunk`             | WASM build tool                  | Web (build-time) |
+| `wasm-bindgen`      | Rust↔JS interop                  | Web client       |
+| `web-sys`           | Browser API bindings             | Web client       |
+| `gloo-net`          | WebSocket client for WASM        | Web client       |
+| `tauri` (v2)        | Mobile app framework             | Mobile           |
 
 ## Workspace Structure
 
-```
+```text
 Parish/
 ├── Cargo.toml              # Workspace root
 ├── crates/

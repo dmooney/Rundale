@@ -27,32 +27,39 @@ These problems are especially costly for AI agents working with context limits �
 Organize documentation in a strict hierarchy optimized for progressive disclosure:
 
 ### Layer 1: Entry Points (minimal context needed)
+
 - **README.md** — Project overview, quick start, documentation tree diagram
 - **CLAUDE.md** — Agent quick reference: build commands, standards, module tree, gotchas
 
 ### Layer 2: Navigation Hub
+
 - **docs/index.md** — Single source of truth for phase status, links to all documents organized by category, with "Key Design Docs" column linking phases to relevant design docs
 
 ### Layer 3: Status & Planning
+
 - **docs/requirements/roadmap.md** — Authoritative per-item status (checkboxes)
-- **docs/plans/*.md** — Detailed implementation plans per phase (each has its own Status header)
+- **docs/plans/\*.md** — Detailed implementation plans per phase (each has its own Status header)
 - **docs/plans/open-questions.md** — Design decisions (all resolved)
 
 ### Layer 4: Design & Architecture
+
 - **docs/design/overview.md** — Architecture overview with complete module tree, links to all subsystem docs
-- **docs/design/*.md** — 14 subsystem design documents
+- **docs/design/\*.md** — 14 subsystem design documents
 
 ### Layer 5: Decisions & Reference
+
 - **docs/adr/README.md** — ADR index with template
-- **docs/adr/*.md** — Individual architecture decision records
-- **docs/research/*.md** — Historical research informing design
+- **docs/adr/\*.md** — Individual architecture decision records
+- **docs/research/\*.md** — Historical research informing design
 
 ### Layer 6: Development Operations
+
 - **docs/archive/journal.md** — Cross-session development notes (archived)
 - **docs/archive/known-issues.md** — Active bugs (with severity and current state) (archived)
 - **docs/maybe-bad-ideas.md** — Ideas under consideration (shipped items separated)
 
 ### Status reconciliation rules
+
 1. **roadmap.md** is the authoritative source for per-item completion status
 2. **docs/index.md** phase table must match roadmap.md summary status
 3. **README.md** shows only the current-phase summary sentence
@@ -60,6 +67,7 @@ Organize documentation in a strict hierarchy optimized for progressive disclosur
 5. When a phase is completed, all four locations must be updated in the same commit
 
 ### Navigation rules
+
 1. Every document (except README.md) has a breadcrumb back to docs/index.md
 2. docs/index.md links every phase to its relevant design docs (not just the plan)
 3. Design docs link to related ADRs and vice versa
@@ -68,12 +76,14 @@ Organize documentation in a strict hierarchy optimized for progressive disclosur
 ## Consequences
 
 ### Positive
+
 - Agents can find information in 1-2 document reads instead of scanning multiple files
 - Status is consistent across all documents (single source of truth in roadmap.md)
 - Module trees accurately reflect the actual source code
 - Progressive disclosure means agents only load detailed docs when needed
 
 ### Negative
+
 - Maintaining cross-references adds overhead to every documentation update
 - The reconciliation rules require discipline — status must be updated in multiple places per commit
 - New contributors must learn the hierarchy (mitigated by the tree diagram in README.md)

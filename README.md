@@ -1,6 +1,6 @@
 # Rundale
 
-An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Parish** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](https://en.wikipedia.org/wiki/Great_Famine_(Ireland)).
+An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Parish** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](<https://en.wikipedia.org/wiki/Great_Famine_(Ireland)>).
 
 The player arrives as a newcomer to Kilteevan Village, about two miles south-east of Roscommon town in County Roscommon. The village and surrounding area is populated with numerous non-player characters. NPCs are driven by LLM inference. A cognitive level-of-detail (LOD) system simulates NPCs at varying fidelity based on proximity to the player. The geography is based on real early 19th century Ireland. The characters and establishments are fictional.
 
@@ -8,10 +8,10 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 
 <table>
   <tr>
-    <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" width="160"/><br/><b>Map</b></a></td>
-    <td align="center"><a href="docs/screenshots/ledger.png"><img src="docs/screenshots/thumbnails/ledger-thumbnail.png" width="160"/><br/><b>Ledger</b></a></td>
-    <td align="center"><a href="docs/screenshots/npc-designer.png"><img src="docs/screenshots/thumbnails/npc-designer-thumbnail.png" width="160"/><br/><b>NPCs</b></a></td>
-    <td align="center"><a href="docs/screenshots/location-designer.png"><img src="docs/screenshots/thumbnails/location-designer-thumbnail.png" width="160"/><br/><b>Locations</b></a></td>
+    <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" alt="Map view of Kilteevan and surrounding area" width="160"/><br/><b>Map</b></a></td>
+    <td align="center"><a href="docs/screenshots/ledger.png"><img src="docs/screenshots/thumbnails/ledger-thumbnail.png" alt="Ledger panel showing game log entries" width="160"/><br/><b>Ledger</b></a></td>
+    <td align="center"><a href="docs/screenshots/npc-designer.png"><img src="docs/screenshots/thumbnails/npc-designer-thumbnail.png" alt="NPC designer panel for editing character details" width="160"/><br/><b>NPCs</b></a></td>
+    <td align="center"><a href="docs/screenshots/location-designer.png"><img src="docs/screenshots/thumbnails/location-designer-thumbnail.png" alt="Location designer panel for editing world locations" width="160"/><br/><b>Locations</b></a></td>
   </tr>
 </table>
 
@@ -41,13 +41,13 @@ flowchart LR
     MCP -. HTTP .-> Server
 ```
 
-| Binary | Mode | Has engine in-process? | When to use |
-|---|---|---|---|
-| `parish-tauri` | `just run` | yes | Default desktop experience — full GUI. |
-| `parish-engine` | `--headless` (`just run-headless`), `--script FILE` | yes | Single-process terminal play; deterministic `--script` runs drive the test harness. |
-| `parish-server` | `--port PORT` (`just web`) | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions. |
-| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell** | Drive a running `parish-server` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
-| `parish-mcp` | MCP server (`bash parish/scripts/parish-mcp-backend.sh start`) | no — bridge | Expose `mcp__parish__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend. |
+| Binary          | Mode                                                                        | Has engine in-process?              | When to use                                                                                                               |
+| --------------- | --------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `parish-tauri`  | `just run`                                                                  | yes                                 | Default desktop experience — full GUI.                                                                                    |
+| `parish-engine` | `--headless` (`just run-headless`), `--script FILE`                         | yes                                 | Single-process terminal play; deterministic `--script` runs drive the test harness.                                       |
+| `parish-server` | `--port PORT` (`just web`)                                                  | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions.              |
+| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell**                 | Drive a running `parish-server` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
+| `parish-mcp`    | MCP server (`bash parish/scripts/parish-mcp-backend.sh start`)              | no — bridge                         | Expose `mcp__parish__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend.              |
 
 Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
 
@@ -278,7 +278,7 @@ through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ## Repository Layout
 
-```
+```text
 parish/
   crates/              16 workspace members (types, config, world, npc, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
@@ -294,16 +294,16 @@ The game icon was generated with **ChatGPT** (OpenAI image generation) from a ha
 
 ## Documentation
 
-| Start here | What you'll find |
-|------------|------------------|
-| [docs/index.md](docs/index.md) | Master hub — phase status, links to everything |
-| [docs/repository-layout.md](docs/repository-layout.md) | Top-level directory tree and crate index |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Bug reporting + inference-log artefact guide |
-| [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
-| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases |
-| [docs/research/README.md](docs/research/README.md) | Research documents covering life in 1820's Ireland |
-| [docs/adr/README.md](docs/adr/README.md) | Architecture decision records and rationale |
-| [AGENTS.md](AGENTS.md) | Agent guide — index into [docs/agent/](docs/agent/README.md) for build, style, and gotchas |
+| Start here                                                   | What you'll find                                                                           |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| [docs/index.md](docs/index.md)                               | Master hub — phase status, links to everything                                             |
+| [docs/repository-layout.md](docs/repository-layout.md)       | Top-level directory tree and crate index                                                   |
+| [docs/troubleshooting.md](docs/troubleshooting.md)           | Bug reporting + inference-log artefact guide                                               |
+| [docs/design/overview.md](docs/design/overview.md)           | Architecture, tech stack, module tree, LLM providers                                       |
+| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases                                                 |
+| [docs/research/README.md](docs/research/README.md)           | Research documents covering life in 1820's Ireland                                         |
+| [docs/adr/README.md](docs/adr/README.md)                     | Architecture decision records and rationale                                                |
+| [AGENTS.md](AGENTS.md)                                       | Agent guide — index into [docs/agent/](docs/agent/README.md) for build, style, and gotchas |
 
 ## Licence
 

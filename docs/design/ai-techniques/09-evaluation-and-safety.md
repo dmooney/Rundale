@@ -5,7 +5,7 @@ and a new `just ai-eval`.
 
 ## Problem
 
-Unit tests and `/prove` verify that features *run*. They don't catch quiet
+Unit tests and `/prove` verify that features _run_. They don't catch quiet
 regressions in voice quality, period authenticity, or character consistency
 — which are exactly the things that ruin Rundale. We also lack a red-team
 corpus to regression-check prompt injection beyond the lexical
@@ -92,7 +92,7 @@ for reproducing bugs and, later, for producing preference-data triples
 
 ### 8. Human-in-the-loop review tooling
 
-Designer Editor gains a *review panel*: authors scroll recent conversations,
+Designer Editor gains a _review panel_: authors scroll recent conversations,
 thumb up/down per turn, tag with rubric failures. Feeds both the golden set
 and the future DPO/KTO pipeline.
 
@@ -123,8 +123,8 @@ famine) must pass; modern slurs must not.
 
 ## Papers / references
 
-- Zheng et al., *Judging LLM-as-a-Judge* (MT-Bench, 2023).
-- Liang et al., *HELM — Holistic Evaluation of Language Models* (2022).
-- Perez et al., *Red Teaming Language Models with Language Models* (2022).
-- Kadavath et al., *Language Models (Mostly) Know What They Know* (2022).
-- Dubois et al., *AlpacaFarm* (2023) — simulated feedback loops.
+- Zheng et al., _Judging LLM-as-a-Judge_ (MT-Bench, 2023).
+- Liang et al., _HELM — Holistic Evaluation of Language Models_ (2022).
+- Perez et al., _Red Teaming Language Models with Language Models_ (2022).
+- Kadavath et al., _Language Models (Mostly) Know What They Know_ (2022).
+- Dubois et al., _AlpacaFarm_ (2023) — simulated feedback loops.

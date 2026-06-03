@@ -14,7 +14,7 @@ API for driving the game without a TUI or LLM. It enables:
 
 ## Architecture
 
-```
+```text
 ┌──────────────────────────────────────────┐
 │            GameTestHarness               │
 │                                          │
@@ -50,17 +50,17 @@ API for driving the game without a TUI or LLM. It enables:
 
 ## ActionResult Variants
 
-| Variant | When |
-|---------|------|
-| `Moved { to, minutes, narration }` | Player moved to a new location |
-| `Looked { description }` | Player looked around |
-| `AlreadyHere` | Tried to move to current location |
-| `NotFound { target }` | Destination not in world graph |
-| `SystemCommand { response }` | `/pause`, `/status`, `/speed`, `/help`, etc. |
-| `NpcResponse { npc, dialogue }` | Canned NPC response consumed |
-| `NpcNotAvailable` | NPC present but no canned response |
-| `UnknownInput` | Input not recognized locally |
-| `Quit` | `/quit` executed |
+| Variant                            | When                                         |
+| ---------------------------------- | -------------------------------------------- |
+| `Moved { to, minutes, narration }` | Player moved to a new location               |
+| `Looked { description }`           | Player looked around                         |
+| `AlreadyHere`                      | Tried to move to current location            |
+| `NotFound { target }`              | Destination not in world graph               |
+| `SystemCommand { response }`       | `/pause`, `/status`, `/speed`, `/help`, etc. |
+| `NpcResponse { npc, dialogue }`    | Canned NPC response consumed                 |
+| `NpcNotAvailable`                  | NPC present but no canned response           |
+| `UnknownInput`                     | Input not recognized locally                 |
+| `Quit`                             | `/quit` executed                             |
 
 ## Script Mode
 
@@ -83,15 +83,15 @@ Lines starting with `#` are comments. Empty lines are skipped.
 The headless CLI (`crates/parish-engine/src/headless.rs`) and test harness (`crates/parish-engine/src/testing.rs`) support
 commands that mirror GUI-only features, enabling full play-testing without Tauri:
 
-| Command | Description | Handler Source |
-|---------|-------------|----------------|
-| `/map` | Text-based map: lists all locations with connections, marks player with `*` | `WorldGraph::location_ids()` + `neighbors()` |
-| `/npcs` | NPCs at current location: name, occupation, mood, introduced status | `NpcManager::npcs_at()` + `display_name()` |
-| `/time` | Detailed time info: hour:minute, time_of_day, season, weather, speed, festival | `GameClock::now()` + `.season()` + `.check_festival()` |
-| `/wait [N]` | Advance time by N game minutes (default 15), tick NPC schedules | `GameClock::advance()` + `tick_schedules()` |
-| `/tick` | Manually tick NPC schedules without advancing time | `assign_tiers()` + `tick_schedules()` |
-| `/new` | Start a fresh game: reload world/NPCs from mod files, reset persistence | Same init path as `GameTestHarness::new()` |
-| `/where` | Alias for `/status` | Parsed as `Command::Status` |
+| Command     | Description                                                                    | Handler Source                                         |
+| ----------- | ------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `/map`      | Text-based map: lists all locations with connections, marks player with `*`    | `WorldGraph::location_ids()` + `neighbors()`           |
+| `/npcs`     | NPCs at current location: name, occupation, mood, introduced status            | `NpcManager::npcs_at()` + `display_name()`             |
+| `/time`     | Detailed time info: hour:minute, time_of_day, season, weather, speed, festival | `GameClock::now()` + `.season()` + `.check_festival()` |
+| `/wait [N]` | Advance time by N game minutes (default 15), tick NPC schedules                | `GameClock::advance()` + `tick_schedules()`            |
+| `/tick`     | Manually tick NPC schedules without advancing time                             | `assign_tiers()` + `tick_schedules()`                  |
+| `/new`      | Start a fresh game: reload world/NPCs from mod files, reset persistence        | Same init path as `GameTestHarness::new()`             |
+| `/where`    | Alias for `/status`                                                            | Parsed as `Command::Status`                            |
 
 ### Time Advancement Design
 
@@ -101,6 +101,7 @@ synchronously on stdin — adding background ticks would require switching to
 async stdin with `tokio::select!`, which is a significant refactor.
 
 Instead, the CLI uses **explicit time control**:
+
 - `/wait N` advances the game clock by N minutes and ticks NPC schedules
 - `/tick` runs NPC schedule assignment without advancing time
 - The game clock still runs in real-time between commands (via `speed_factor`)
@@ -142,27 +143,27 @@ time, and verifying schedule-driven NPC behavior.
 
 Test scripts live in `testing/fixtures/`:
 
-| File | Purpose |
-|------|---------|
-| `test_walkthrough.txt` | Full navigation across multiple locations |
-| `test_movement_errors.txt` | Already-here, not-found, various verbs |
-| `test_commands.txt` | All system commands |
-| `test_speed.txt` | Game speed preset commands |
-| `test_debug.txt` | Debug subsystem commands |
-| `test_all_locations.txt` | Navigate to and look at all 15 parish locations |
-| `test_fuzzy_names.txt` | Fuzzy location name matching (partial, apostrophes, articles) |
-| `test_multi_hop.txt` | Multi-hop pathfinding to non-adjacent locations |
-| `test_movement_verbs.txt` | All 8 movement verbs (go/walk/head/stroll/saunter/mosey/run/dash) |
-| `test_time_progression.txt` | Time-of-day advancement through many round trips |
-| `test_pause_resume_cycle.txt` | Pause/resume state machine and idempotency |
-| `test_debug_all_npcs.txt` | `/debug schedule/memory/rels` for all 8 NPCs |
-| `test_debug_at_locations.txt` | `/debug here/tiers/clock` at multiple locations |
-| `test_npc_locations.txt` | NPC presence verification at expected locations |
-| `test_edge_cases.txt` | Already-here, not-found, repeated commands, unknown inputs |
-| `test_look_variants.txt` | `look`, `l`, `look around` at multiple locations |
-| `test_grand_tour.txt` | Visit all 15 locations with look + status at each |
-| `test_speed_assertions.txt` | Speed preset changes with status verification |
-| `test_new_commands.txt` | CLI-parity commands: `/map`, `/npcs`, `/time`, `/wait`, `/tick`, `/where` |
+| File                          | Purpose                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `test_walkthrough.txt`        | Full navigation across multiple locations                                 |
+| `test_movement_errors.txt`    | Already-here, not-found, various verbs                                    |
+| `test_commands.txt`           | All system commands                                                       |
+| `test_speed.txt`              | Game speed preset commands                                                |
+| `test_debug.txt`              | Debug subsystem commands                                                  |
+| `test_all_locations.txt`      | Navigate to and look at all 15 parish locations                           |
+| `test_fuzzy_names.txt`        | Fuzzy location name matching (partial, apostrophes, articles)             |
+| `test_multi_hop.txt`          | Multi-hop pathfinding to non-adjacent locations                           |
+| `test_movement_verbs.txt`     | All 8 movement verbs (go/walk/head/stroll/saunter/mosey/run/dash)         |
+| `test_time_progression.txt`   | Time-of-day advancement through many round trips                          |
+| `test_pause_resume_cycle.txt` | Pause/resume state machine and idempotency                                |
+| `test_debug_all_npcs.txt`     | `/debug schedule/memory/rels` for all 8 NPCs                              |
+| `test_debug_at_locations.txt` | `/debug here/tiers/clock` at multiple locations                           |
+| `test_npc_locations.txt`      | NPC presence verification at expected locations                           |
+| `test_edge_cases.txt`         | Already-here, not-found, repeated commands, unknown inputs                |
+| `test_look_variants.txt`      | `look`, `l`, `look around` at multiple locations                          |
+| `test_grand_tour.txt`         | Visit all 15 locations with look + status at each                         |
+| `test_speed_assertions.txt`   | Speed preset changes with status verification                             |
+| `test_new_commands.txt`       | CLI-parity commands: `/map`, `/npcs`, `/time`, `/wait`, `/tick`, `/where` |
 
 ## Captured Script Mode (`run_script_captured`)
 
@@ -228,11 +229,11 @@ fn test_example() {
 
 ## Integration Test Files
 
-| File | Tests | Purpose |
-|------|-------|---------|
-| `tests/game_harness_integration.rs` | 23 | Multi-step harness scenarios, NPC responses, script fixture smoke tests |
-| `tests/world_graph_integration.rs` | 21 | World graph validation, pathfinding, descriptions |
-| `tests/headless_script_tests.rs` | 68 | Comprehensive fixture-driven tests with assertions on every ActionResult |
+| File                                | Tests | Purpose                                                                  |
+| ----------------------------------- | ----- | ------------------------------------------------------------------------ |
+| `tests/game_harness_integration.rs` | 23    | Multi-step harness scenarios, NPC responses, script fixture smoke tests  |
+| `tests/world_graph_integration.rs`  | 21    | World graph validation, pathfinding, descriptions                        |
+| `tests/headless_script_tests.rs`    | 68    | Comprehensive fixture-driven tests with assertions on every ActionResult |
 
 The `headless_script_tests.rs` file uses `run_script_captured()` to exercise
 all 18 fixture scripts with real assertions on game state — verifying locations,
@@ -248,10 +249,10 @@ test with a "live | baseline" diff window and the canonical fix.
 
 The same file applies three structural rubrics to every baselined fixture:
 
-| Rubric | Catches |
-|---|---|
-| `rubric_anachronisms_are_empty` | NpcResponse drift that introduces out-of-period words |
-| `rubric_movement_minutes_are_positive` | Frozen game clock — Moved with `minutes == 0` |
+| Rubric                                   | Catches                                                 |
+| ---------------------------------------- | ------------------------------------------------------- |
+| `rubric_anachronisms_are_empty`          | NpcResponse drift that introduces out-of-period words   |
+| `rubric_movement_minutes_are_positive`   | Frozen game clock — Moved with `minutes == 0`           |
 | `rubric_look_descriptions_are_non_empty` | Silent renderer failure — Looked with empty description |
 
 Baselined fixtures (`BASELINED_FIXTURES` in the test): `test_movement_errors`,
@@ -303,11 +304,11 @@ cd ui && npx playwright test --update-snapshots       # or: just ui-e2e-update
 
 ### Test Files
 
-| File | Tests | Purpose |
-|------|-------|---------|
-| `e2e/app.spec.ts` | 10 | Layout, status bar, chat, map, sidebar, theme, events |
-| `e2e/interactions.spec.ts` | 5 | Input, streaming, paused state, festival badge |
-| `e2e/screenshots.spec.ts` | 8 | Screenshot capture + visual regression baselines |
+| File                       | Tests | Purpose                                               |
+| -------------------------- | ----- | ----------------------------------------------------- |
+| `e2e/app.spec.ts`          | 10    | Layout, status bar, chat, map, sidebar, theme, events |
+| `e2e/interactions.spec.ts` | 5     | Input, streaming, paused state, festival badge        |
+| `e2e/screenshots.spec.ts`  | 8     | Screenshot capture + visual regression baselines      |
 
 ### Visual Regression Baselines
 
@@ -316,15 +317,15 @@ intentional, update them with `npx playwright test --update-snapshots`.
 
 ## Query APIs
 
-| Method | Returns |
-|--------|---------|
-| `player_location()` | Location name (`&str`) |
-| `location_id()` | `LocationId` |
-| `time_of_day()` | `TimeOfDay` |
-| `season()` | `Season` |
-| `text_log()` | Full `&[String]` log |
-| `last_output()` | Last non-empty log line |
-| `npcs_here()` | NPC names at current location |
-| `exits()` | Formatted exit string |
-| `weather()` | Weather string |
-| `is_paused()` | Clock pause state |
+| Method              | Returns                       |
+| ------------------- | ----------------------------- |
+| `player_location()` | Location name (`&str`)        |
+| `location_id()`     | `LocationId`                  |
+| `time_of_day()`     | `TimeOfDay`                   |
+| `season()`          | `Season`                      |
+| `text_log()`        | Full `&[String]` log          |
+| `last_output()`     | Last non-empty log line       |
+| `npcs_here()`       | NPC names at current location |
+| `exits()`           | Formatted exit string         |
+| `weather()`         | Weather string                |
+| `is_paused()`       | Clock pause state             |

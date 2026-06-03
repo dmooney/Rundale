@@ -34,7 +34,7 @@ Ireland's most important agricultural exports told the story of a colonial econo
 
 The monetary system of 1820s Ireland was a patchwork. The **Irish pound**, which had traded at a discount to the British pound since the eighteenth century, was formally abolished in **1826** and merged with sterling.[9] Before that date, transactions could involve Irish pounds, British pounds, or a confusing mixture of both, and in rural areas, **barter** remained common — labour exchanged for potato ground, butter for shop goods, a day's work for a day's meals. **Local tokens** issued by merchants circulated in some areas. For most of the rural poor, cash was scarce and precious, to be hoarded for rent day and spent with extreme reluctance.
 
-Where the official economy failed to provide, the **unofficial economy** stepped in. **Smuggling** was widespread, both coastal and inland. Along the western and southern coasts, boats brought in **tobacco, tea, spirits, and silk** from the Continent, evading customs duties that made these goods unaffordable through legal channels. Inland, the most significant form of smuggling was the production and sale of **poitin** (also spelled *poitín*) — illicit whiskey distilled from grain or potatoes in hidden stills scattered across the countryside.[10] Poitin was ubiquitous in rural Ireland, cheaper and often preferred to legal spirits, and its suppression was a running battle between **revenue police** and communities that regarded distilling as a natural right.
+Where the official economy failed to provide, the **unofficial economy** stepped in. **Smuggling** was widespread, both coastal and inland. Along the western and southern coasts, boats brought in **tobacco, tea, spirits, and silk** from the Continent, evading customs duties that made these goods unaffordable through legal channels. Inland, the most significant form of smuggling was the production and sale of **poitin** (also spelled _poitín_) — illicit whiskey distilled from grain or potatoes in hidden stills scattered across the countryside.[10] Poitin was ubiquitous in rural Ireland, cheaper and often preferred to legal spirits, and its suppression was a running battle between **revenue police** and communities that regarded distilling as a natural right.
 
 ## The Shopkeeper and Publican Class
 
@@ -78,7 +78,7 @@ The fundamental economic reality — that most people were poor, that security w
 
 [9] **Verified.** The Irish pound was merged with sterling in 1826 under the Assimilation of Currencies Act. The conversion rate had long been fixed at 13 Irish pounds to 12 sterling. — Wikipedia, "Irish pound"; History Ireland, "Using Other People's Money."
 
-[10] **Verified.** Poitin (from Irish *pota*, "little pot") was widely distilled from grain, potatoes, or sugar using small copper pot stills. Distilling without a licence had been illegal since 1556 but was ubiquitous in rural areas. — Wikipedia, "Poitin"; RTE Brainstorm, "A short history of Irish Poitin."
+[10] **Verified.** Poitin (from Irish _pota_, "little pot") was widely distilled from grain, potatoes, or sugar using small copper pot stills. Distilling without a licence had been illegal since 1556 but was ubiquitous in rural areas. — Wikipedia, "Poitin"; RTE Brainstorm, "A short history of Irish Poitin."
 
 [11] **Verified.** The Poor Relief (Ireland) Act 1838 was the first comprehensive poor law for Ireland, establishing the workhouse system. Before 1838, Ireland had no statutory system of poor relief comparable to England's Elizabethan Poor Law, though limited Houses of Industry existed in some areas. — Wikipedia, "Irish poor laws"; The Workhouse, "The 1838 Irish Poor Law Act."
 
@@ -86,8 +86,8 @@ The fundamental economic reality — that most people were poor, that security w
 
 ## Bibliography
 
-- Encyclopedia.com. "Agriculture: 1690 to 1845." *Encyclopedia of Irish History and Culture*.
-- Encyclopedia.com. "Tithe War (1830-1838)." *Encyclopedia of Irish History and Culture*.
+- Encyclopedia.com. "Agriculture: 1690 to 1845." _Encyclopedia of Irish History and Culture_.
+- Encyclopedia.com. "Tithe War (1830-1838)." _Encyclopedia of Irish History and Culture_.
 - Ferguson's Irish Linen. "History of Linen." https://fergusonsirishlinen.com/pages/about-linen
 - History Ireland. "Using Other People's Money: Farewell to the Irish Pound." https://historyireland.com/using-other-peoples-money-farewell-to-the-irish-pound/
 - Irish Times. "Butter days — An Irishman's Diary on the Cork Butter Exchange." https://www.irishtimes.com/opinion/butter-days-an-irishman-s-diary-on-the-cork-butter-exchange-and-the-world-s-largest-butter-market-1.3494976

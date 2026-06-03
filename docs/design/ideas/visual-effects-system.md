@@ -47,7 +47,7 @@ A new `effects.ts` store tracks active and queued effects. It exposes:
 interface ActiveEffect {
   id: string;
   type: EffectType;
-  startedAt: number;       // real ms timestamp
+  startedAt: number; // real ms timestamp
   durationMs: number;
   payload?: Record<string, unknown>;
 }
@@ -73,7 +73,7 @@ type Trigger = (
   world: WorldSnapshot,
   textLog: TextLogEntry[],
   activeEffects: ActiveEffect[],
-  lastEvaluated: number
+  lastEvaluated: number,
 ) => SpawnRequest | null;
 ```
 
@@ -96,6 +96,7 @@ Triggers check this before firing.
 
 **What it does:**
 A fast, two-stage flash:
+
 1. The entire viewport bleeds to near-white (`background: rgba(255,255,240,0.92)`) over
    60ms, then snaps back in 200ms.
 2. Simultaneously, all text briefly inverts (dark on light, the reverse of night palette).
@@ -164,8 +165,8 @@ animate via `@keyframes aurora-shift`. The gradient hue shifts using CSS `hue-ro
 filter on the whole element. Opacity is kept at 0.12–0.18 so it doesn't overwhelm the
 dark night palette.
 
-An entry message may optionally appear in the system log: *"A shimmer of pale light dances
-above the horizon."*
+An entry message may optionally appear in the system log: _"A shimmer of pale light dances
+above the horizon."_
 
 ---
 
@@ -189,7 +190,7 @@ green-blue) and different path timing.
 visits 6–8 waypoints in a cubic-eased sequence. Each wisp element has unique keyframe
 names generated at spawn time via inline `<style>` injection.
 
-**Lore note:** In Irish tradition, will-o'-the-wisps (*tine sídhe*, fairy fire) lead
+**Lore note:** In Irish tradition, will-o'-the-wisps (_tine sídhe_, fairy fire) lead
 travellers astray. The wisps never stay still — they always seem just about to go
 somewhere else.
 
@@ -198,6 +199,7 @@ somewhere else.
 ### 6. The Fairy
 
 **Trigger:** A special rare event. Probability rolls when:
+
 - Player is near a fairy fort (ráth) location, OR
 - It is Bealtaine (May 1) or Samhain (November 1), OR
 - An NPC mentions the fairies (text log scan for "fairy", "faerie", "sídhe", "púca")
@@ -242,16 +244,30 @@ in alternating horizontal directions with a 80ms period over 600ms total.
 
 **Implementation:**
 The target `<p>` element gets class `wind-shudder` which applies:
+
 ```css
 @keyframes wind-shudder {
-  0%   { transform: translateX(0); }
-  15%  { transform: translateX(-2px) rotate(-0.2deg); }
-  35%  { transform: translateX(1.5px) rotate(0.15deg); }
-  55%  { transform: translateX(-1px); }
-  75%  { transform: translateX(0.5px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-2px) rotate(-0.2deg);
+  }
+  35% {
+    transform: translateX(1.5px) rotate(0.15deg);
+  }
+  55% {
+    transform: translateX(-1px);
+  }
+  75% {
+    transform: translateX(0.5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 ```
+
 `animation: wind-shudder 0.6s ease-in-out 1` (plays once, then class is removed).
 
 This is the subtlest effect in the system — players may not consciously notice it,
@@ -374,7 +390,7 @@ and `animation: ink-expand 1.5s ease-out forwards`. Keywords mapped to CSS class
 
 ## Trigger Data Flow
 
-```
+```text
 WorldSnapshot (weather, hour, season, festival, location_name)
     │
     ▼
@@ -403,12 +419,12 @@ recent entry's content string.
 
 Some effects shouldn't coexist:
 
-| If active      | Suppress          |
-|----------------|-------------------|
-| Lightning      | Ember Drift (while flash)  |
-| Fog Creep      | Rain on Glass (opacity halved) |
-| Aurora         | Bog Light (one atmospheric bg effect at a time) |
-| Frost Crystals | Ember Drift       |
+| If active      | Suppress                                           |
+| -------------- | -------------------------------------------------- |
+| Lightning      | Ember Drift (while flash)                          |
+| Fog Creep      | Rain on Glass (opacity halved)                     |
+| Aurora         | Bog Light (one atmospheric bg effect at a time)    |
+| Frost Crystals | Ember Drift                                        |
 | Fairy          | Wind-Shudder (don't shake while fairy is visiting) |
 
 The effect manager checks the `suppressedBy` field on each effect definition before
@@ -434,6 +450,7 @@ settings panel. The store serialises this preference to `localStorage`.
 ## Implementation Phases
 
 ### Phase 1 — Infrastructure (no visible effects yet)
+
 - `effects.ts` store with `ActiveEffect`, `spawnEffect`, `clearEffect`
 - `cooldowns.ts` registry
 - `EffectsLayer.svelte` component skeleton in app shell
@@ -441,24 +458,28 @@ settings panel. The store serialises this preference to `localStorage`.
 - `prefers-reduced-motion` guard
 
 ### Phase 2 — Atmospheric overlays (weather + time)
+
 - Rain on Glass
 - Fog Creep
 - Time-of-Day Shimmer
 - Frost Crystals
 
 ### Phase 3 — Dramatic events
+
 - Lightning Flash
 - Wind-Shudder Text
 - Ember Drift
 - Crows at Dusk
 
 ### Phase 4 — Mythological / rare
+
 - Bog Light (Will-o'-the-Wisp)
 - Northern Lights / Aurora
 - Festival Candle-glow
 - The Fairy
 
 ### Phase 5 — NPC-reactive
+
 - Ink Bleed
 
 ---

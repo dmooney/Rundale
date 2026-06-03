@@ -11,6 +11,7 @@ Accepted (2026-03-23)
 Rundale currently supports three UI modes — TUI (Ratatui), GUI (egui/eframe), and headless — all running as local desktop processes. The Parish engine, LLM inference, and persistence are tightly coupled to the local process. To reach players on web browsers and mobile devices (iOS/Android), we need a client-server architecture where thin clients connect to a cloud-hosted game server.
 
 Key constraints:
+
 - The existing egui GUI already renders the full game interface (map, chat, sidebar, theme).
 - eframe natively supports WASM compilation, making browser deployment straightforward.
 - Tauri v2 supports iOS and Android alongside desktop, using webview-based rendering.
@@ -22,6 +23,7 @@ Key constraints:
 Adopt a **thin-client, thick-server** architecture using Rust-native technologies throughout:
 
 ### Server
+
 - **axum** HTTP/WebSocket server hosts the game engine
 - Each player gets an isolated `GameSession` (world state, NPC manager, persistence)
 - Communication via WebSocket with JSON-serialized message protocol
@@ -29,18 +31,21 @@ Adopt a **thin-client, thick-server** architecture using Rust-native technologie
 - SQLite persistence per session (extending Phase 4)
 
 ### Web Client
+
 - **egui compiled to WebAssembly** via eframe's native WASM support
 - Built with `trunk` (Rust WASM bundler)
 - Connects to server via WebSocket (`gloo-net`)
 - Reuses the same panel rendering code as the desktop GUI
 
 ### Mobile Client
+
 - **Tauri v2** wraps the WASM web client for iOS and Android
 - Same egui frontend runs inside Tauri's webview
 - Native app lifecycle management (pause/resume, push notifications)
 - Touch-optimized layout adaptations
 
 ### Shared UI Crate
+
 - `parish-ui` crate extracts egui panel components (chat, map, sidebar, status bar, theme)
 - Desktop GUI, web client, and mobile client all depend on this crate
 - Panels accept data structs as input, decoupled from game engine internals

@@ -10,26 +10,26 @@ Weather is a simulation driver. Weather state is part of world state and affects
 
 The `Weather` enum in `crates/parish-types/src/ids.rs` defines seven conditions:
 
-| Variant         | Description           |
-|-----------------|-----------------------|
-| `Clear`         | Sunny / no cover      |
-| `PartlyCloudy`  | Mixed sun and cloud   |
-| `Overcast`      | Heavy cloud cover     |
-| `LightRain`     | Drizzle / light rain  |
-| `HeavyRain`     | Sustained rain        |
-| `Fog`           | Low visibility        |
-| `Storm`         | Wind, thunder, gale   |
+| Variant        | Description          |
+| -------------- | -------------------- |
+| `Clear`        | Sunny / no cover     |
+| `PartlyCloudy` | Mixed sun and cloud  |
+| `Overcast`     | Heavy cloud cover    |
+| `LightRain`    | Drizzle / light rain |
+| `HeavyRain`    | Sustained rain       |
+| `Fog`          | Low visibility       |
+| `Storm`        | Wind, thunder, gale  |
 
 ## Effects on Simulation
 
-| Weather Condition | Effect                                                        |
-|-------------------|---------------------------------------------------------------|
-| **Rain**          | Keeps people indoors, changes encounter patterns              |
-| **Harsh winters** | Strain resources, shift NPC conversations                     |
-| **Beautiful evenings** | Bring people outdoors                                    |
-| **Fog**           | Affects atmosphere and NPC behavior                           |
-| **Overcast**      | Muted mood, reduced outdoor activity                          |
-| **Storms**        | Disruptive, affects travel and NPC schedules                  |
+| Weather Condition      | Effect                                           |
+| ---------------------- | ------------------------------------------------ |
+| **Rain**               | Keeps people indoors, changes encounter patterns |
+| **Harsh winters**      | Strain resources, shift NPC conversations        |
+| **Beautiful evenings** | Bring people outdoors                            |
+| **Fog**                | Affects atmosphere and NPC behavior              |
+| **Overcast**           | Muted mood, reduced outdoor activity             |
+| **Storms**             | Disruptive, affects travel and NPC schedules     |
 
 ## Related
 

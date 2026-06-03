@@ -14,15 +14,15 @@ paths:
 One skill for every way of running the engine to observe behaviour. Pick the section that matches the
 job; they share a build step (`cargo build` first) and the same `--script` JSON harness underneath.
 
-| You want to… | Section |
-|---|---|
-| Run fixture scripts and check JSON output | **Script harness** |
-| Prove a specific feature is live at runtime | **Prove a feature** |
-| Autonomously explore / stress the game | **Exploratory play-test** |
-| Get a deterministic, no-LLM regression sensor | **Eval rubrics & baselines** |
-| See a feature in the live Tauri app (dialogue, streaming, IPC) | **Auto-player / demo** |
-| Click through the web UI in a real browser | **Browser UI session** |
-| Regenerate GUI screenshots | **GUI screenshots** |
+| You want to…                                                   | Section                      |
+| -------------------------------------------------------------- | ---------------------------- |
+| Run fixture scripts and check JSON output                      | **Script harness**           |
+| Prove a specific feature is live at runtime                    | **Prove a feature**          |
+| Autonomously explore / stress the game                         | **Exploratory play-test**    |
+| Get a deterministic, no-LLM regression sensor                  | **Eval rubrics & baselines** |
+| See a feature in the live Tauri app (dialogue, streaming, IPC) | **Auto-player / demo**       |
+| Click through the web UI in a real browser                     | **Browser UI session**       |
+| Regenerate GUI screenshots                                     | **GUI screenshots**          |
 
 `/prove`, `/play`, and `/rubric` form a ladder: rubric (deterministic, machine-checked) → prove (you read
 the JSON) → play (autonomous exploration). Demo and browser sessions cover paths the headless harness can't
@@ -50,6 +50,7 @@ Run fixture scripts through `--script` mode, which emits structured JSON per com
 5. **Report** which scripts passed and flag any anomalies.
 
 Script command reference:
+
 - Movement: `go to <location>`, `walk to <location>`
 - Look: `look`, `look around`
 - System: `/status`, `/time`, `/map`, `/npcs`, `/wait [N]`, `/tick`
@@ -117,6 +118,7 @@ The **deterministic** half of the harness: snapshot baselines + structural rubri
 LLM judge required.
 
 What this checks:
+
 1. **Snapshot baselines.** Each fixture in `BASELINED_FIXTURES` (`crates/parish-cli/tests/eval_baselines.rs`)
    is run through `run_script_captured`, serialized to JSON, and diffed against
    `testing/evals/baselines/<fixture>.json`. Any drift fails with a "live | baseline" diff window.
@@ -126,6 +128,7 @@ What this checks:
    - `rubric_look_descriptions_are_non_empty` — no Looked with empty description (catches a silent renderer failure).
 
 Steps:
+
 1. Run the suite: `cargo test -p parish --test eval_baselines`.
 2. **Baseline test fails** — read the "live | baseline" diff:
    - Unintentional drift (a regression): fix the code, rerun.
@@ -134,6 +137,7 @@ Steps:
 3. **Rubric test fails** — the panic names the fixture, step, and canonical fix. Fix the code, rerun.
 
 Adding a fixture to the baseline set:
+
 1. Confirm its output is deterministic — run it twice and `diff` the JSON. Differences in `new_log_lines`
    are fine (not part of `ScriptResult`); differences elsewhere are not.
 2. Add the stem to `BASELINED_FIXTURES` and a matching `#[test] fn baseline_<fixture>()`.
@@ -168,6 +172,7 @@ grep -E "chat \[|demo turn|WARN" "$DEMO_LOG"
 auto-player's pick each turn.
 
 Verify:
+
 - Player actions are single-line natural language — no reasoning preamble or JSON artifacts.
 - NPC dialogue is Irish-authentic and responds to what the player actually said.
 - `demo turn` fires each turn — if absent, the LLM call is hanging or failing.
@@ -187,6 +192,7 @@ Interactive Chrome test against the web server via browser MCP tools. Follow the
 `docs/plans/archive/chrome-test-plan.md`.
 
 Setup:
+
 1. **Build frontend**: `cd apps/ui && npm run build`.
 2. **Check server**: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/`.
 3. **Start if needed**: `cargo run -- --web 3001` (background; wait for 200 on health check).
@@ -195,6 +201,7 @@ Setup:
 5. **Navigate** a tab to `http://127.0.0.1:3001`.
 
 Test execution — take screenshots at key points, track pass/fail:
+
 - **Required:** Page Load (status bar, map, NPCs sidebar, chat panel, input render); Navigation (travel to
   ≥2 locations, verify map/status/NPCs update); Edge Cases (invalid location, already-here, empty submit);
   System Commands (`/help`, `/status`, `/pause`, `/resume`); Console Check (read console for errors at start
@@ -220,5 +227,6 @@ Regenerate Rundale GUI screenshots after UI changes via headless Playwright — 
 4. **Report** which were generated; remind the user to commit them alongside the UI change.
 
 Notes:
+
 - To update visual-regression baselines: `npx playwright test e2e/screenshots.spec.ts --update-snapshots`.
 - Full E2E suite: `npx playwright test` or `just ui-e2e`.

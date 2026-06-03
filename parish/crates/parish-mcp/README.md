@@ -8,21 +8,21 @@ Parish/Rundale instance — and, in the future, any Tauri app — over JSON-RPC.
 
 Exposes a small, curated set of MCP tools that map onto Parish's IPC surface:
 
-| Tool | Effect |
-| --- | --- |
-| `parish_world_snapshot` | Read the current world snapshot. |
-| `parish_map` | Read the location graph plus the player's position. |
-| `parish_npcs_here` | List NPCs co-located with the player. |
-| `parish_save_state` | Read save-file / branch metadata. |
-| `parish_submit_input` | Send player input (movement, action, dialogue). |
-| `parish_new_game` | Start a fresh game on a new branch. |
-| `parish_save_game` | Save the current branch. |
-| `parish_load_branch` | Load a named branch by id. |
-| `parish_setup_status` | Reads BYOK setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`. |
-| `parish_setup_byok` | Persists a BYOK provider config (writes key to OS keychain, rebuilds the live inference worker). |
-| `parish_latest_screenshot` | Reads metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
-| `parish_file_bug` | Files a bug report (`title`, optional `description`/`context`) — bundles a live screenshot + recent logs + game state into a GitHub issue and returns the URL. Dry-run / no-token mode writes the report to disk (`created:false`, `bundle_path` set). |
-| `tauri_invoke` | Generic escape hatch — call any backend command by name. |
+| Tool                       | Effect                                                                                                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `parish_world_snapshot`    | Read the current world snapshot.                                                                                                                                                                                                                       |
+| `parish_map`               | Read the location graph plus the player's position.                                                                                                                                                                                                    |
+| `parish_npcs_here`         | List NPCs co-located with the player.                                                                                                                                                                                                                  |
+| `parish_save_state`        | Read save-file / branch metadata.                                                                                                                                                                                                                      |
+| `parish_submit_input`      | Send player input (movement, action, dialogue).                                                                                                                                                                                                        |
+| `parish_new_game`          | Start a fresh game on a new branch.                                                                                                                                                                                                                    |
+| `parish_save_game`         | Save the current branch.                                                                                                                                                                                                                               |
+| `parish_load_branch`       | Load a named branch by id.                                                                                                                                                                                                                             |
+| `parish_setup_status`      | Reads BYOK setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`.                                                                                                                                                             |
+| `parish_setup_byok`        | Persists a BYOK provider config (writes key to OS keychain, rebuilds the live inference worker).                                                                                                                                                       |
+| `parish_latest_screenshot` | Reads metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window.                                                                                     |
+| `parish_file_bug`          | Files a bug report (`title`, optional `description`/`context`) — bundles a live screenshot + recent logs + game state into a GitHub issue and returns the URL. Dry-run / no-token mode writes the report to disk (`created:false`, `bundle_path` set). |
+| `tauri_invoke`             | Generic escape hatch — call any backend command by name.                                                                                                                                                                                               |
 
 Behind the scenes these go through a [`TauriBackend`](src/backend.rs) trait. The
 default implementation (`ParishHttpBackend`) talks to a running
@@ -79,6 +79,7 @@ flowchart TB
 ```
 
 **Key invariants the diagram encodes:**
+
 - `parish-mcp` is a thin protocol bridge — it never touches game state
   directly. All mutations flow through HTTP to whichever backend is
   configured.
@@ -136,12 +137,12 @@ The full list lives in
 [`parish-tauri/src/mcp_bridge.rs::build_router`](../parish-tauri/src/mcp_bridge.rs);
 in summary:
 
-| Category | Exposed by bridge | Reads / writes |
-| --- | --- | --- |
-| Health & snapshots | `/api/health`, `/api/world-snapshot`, `/api/map`, `/api/npcs-here`, `/api/save-state`, `/api/transcript`, `/api/setup-snapshot` | reads |
-| Player commands | `/api/submit-input`, `/api/new-game`, `/api/save-game`, `/api/load-branch` | writes |
-| Screenshots | `/api/latest-screenshot`, `/api/take-screenshot` | read / write |
-| BYOK + onboarding | `/api/setup-status`, `/api/submit-byok`, `/api/byok-env-keys`, `/api/preset-models`, `/api/list-available-providers`, `/api/onboarding-options`, `/api/start-local-inference` | read / write |
+| Category           | Exposed by bridge                                                                                                                                                             | Reads / writes |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Health & snapshots | `/api/health`, `/api/world-snapshot`, `/api/map`, `/api/npcs-here`, `/api/save-state`, `/api/transcript`, `/api/setup-snapshot`                                               | reads          |
+| Player commands    | `/api/submit-input`, `/api/new-game`, `/api/save-game`, `/api/load-branch`                                                                                                    | writes         |
+| Screenshots        | `/api/latest-screenshot`, `/api/take-screenshot`                                                                                                                              | read / write   |
+| BYOK + onboarding  | `/api/setup-status`, `/api/submit-byok`, `/api/byok-env-keys`, `/api/preset-models`, `/api/list-available-providers`, `/api/onboarding-options`, `/api/start-local-inference` | read / write   |
 
 Routes that `parish-server` ships but the bridge intentionally **does
 NOT** expose include `/api/debug-snapshot`, `/api/theme`,
@@ -234,18 +235,18 @@ back through the bridge.
 
 Two extensions remain open:
 
-1. *MCP-trigger.* Today the model can only *read* the latest saved
+1. _MCP-trigger._ Today the model can only _read_ the latest saved
    file; it cannot ask the live window to capture one. Adding
    MCP-trigger means an event round-trip in `mcp_bridge.rs`: store a
    oneshot `Sender` keyed by request id in a new `pending_screenshots:
-   Mutex<HashMap<String, oneshot::Sender<...>>>` field, emit a
+Mutex<HashMap<String, oneshot::Sender<...>>>` field, emit a
    `request-screenshot` Tauri event, await the receiver with a
    reasonable timeout (~10 s). The frontend already has a `request_id`
    plumbing pattern for similar flows; ~50 extra lines.
 
-2. *Inline image vs. path-only in the MCP response.* MCP `tools/call`
+2. _Inline image vs. path-only in the MCP response._ MCP `tools/call`
    responses support `content: [{type: "image", data: "<base64>",
-   mimeType: "image/png"}]` so the model can see the screenshot
+mimeType: "image/png"}]` so the model can see the screenshot
    directly. Today the parish-mcp envelope only emits text parts (see
    `tool_call_result` in `src/mcp.rs`). Returning an image part means
    adding a `returns_image` flag to `ToolDef` and a parallel branch in
@@ -258,7 +259,7 @@ Two extensions remain open:
 - **Event push (`notifications/*`).** Today the model has to poll
   `parish_world_snapshot` between turns to see NPC reactions, weather
   ticks, autosave fires, and setup progress. A `WebSocket → MCP
-  notification` fan-in would let the bridge push these proactively. ~80
+notification` fan-in would let the bridge push these proactively. ~80
   lines, mostly in `mcp_bridge.rs` and a new `pending_notifications`
   channel on `McpServer`.
 

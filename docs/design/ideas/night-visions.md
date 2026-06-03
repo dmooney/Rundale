@@ -18,8 +18,8 @@ pure, deterministic, seeded from the game clock, and needs no LLM
 call. On festival mornings (Samhain, Bealtaine, Imbolc, Lughnasa) the
 dream's closing line swaps to a festival-specific coda.
 
-This is the first gameplay surface that *reflects the player's week
-back at them as atmosphere*, rather than stating it factually.
+This is the first gameplay surface that _reflects the player's week
+back at them as atmosphere_, rather than stating it factually.
 
 ## Why this is parked
 
@@ -39,7 +39,7 @@ than a real mechanic:
 - **No warmth / weather exposure.** Sleeping through a storm under a
   ditch should have consequences; the engine can't model them.
 
-Night Visions is a *payoff* layer that rides on top of those systems.
+Night Visions is a _payoff_ layer that rides on top of those systems.
 Shipping it first would set the wrong expectation — players would
 learn that `/sleep` is a dream-button, then be confused when later
 patches make sleep expensive and location-sensitive.
@@ -93,7 +93,7 @@ A dream is generated when **all** of these are true:
   the clock but does not dream.
 - The sleep duration is at least ~4 hours (short naps stay silent).
 
-Dreams should surface *occasionally*, not every night, to keep the
+Dreams should surface _occasionally_, not every night, to keep the
 feature special. A reasonable starting point: 60% chance on any
 eligible night, rising toward 100% on festival eves and when the
 player is near a mythology-hook location (Fairy Fort, Holy Well).
@@ -105,27 +105,27 @@ as a tiebreaker) so a given night produces a reproducible vision.
 Four fragments joined into a single italicised passage:
 
 1. **Opening** — one of a handful of stock lines
-   (*"A dream comes upon you:"*, *"Sleep takes you down into a vision:"*).
+   (_"A dream comes upon you:"_, _"Sleep takes you down into a vision:"_).
 2. **Setting** — `"You stand at {remembered_place}, in {season_phrase},
-   with {weather_phrase}"`.
+with {weather_phrase}"`.
    - `remembered_place`: a location in `visited_locations` other than
-     the current one, so dreams feel like *memory*, not a re-dressing
+     the current one, so dreams feel like _memory_, not a re-dressing
      of the room you fell asleep in.
    - `season_phrase` / `weather_phrase`: flat match on
      `Season` and `Weather`, one line each.
 3. **Figure** — the most recent NPC from `ConversationLog`, drawn from
-   a small table of dream-verbs (*"stands with their back to you,
-   speaking low in Irish…"*). Falls back to the player's own name if
+   a small table of dream-verbs (_"stands with their back to you,
+   speaking low in Irish…"_). Falls back to the player's own name if
    introduced, else to a folklore archetype (old woman in a grey
    shawl, barefoot child, red-haired man at a ford).
 4. **Omen** — one line from a table of Irish folklore images
    (banshee keen, white horse, fairy-fort lights, Cailleach's shawl,
    salmon swallowing the moon, …).
-5. **Coda** — generic (*"You wake before you can name it."*) unless
+5. **Coda** — generic (_"You wake before you can name it."_) unless
    the current date is a festival, in which case a dedicated coda
-   fires: Samhain's *"…the distance between worlds feels like nothing
-   at all."*, Bealtaine's *"…fires on the hills, and a May dew on the
-   sill."*, Imbolc's Brigid line, Lughnasa's ripe corn.
+   fires: Samhain's _"…the distance between worlds feels like nothing
+   at all."_, Bealtaine's _"…fires on the hills, and a May dew on the
+   sill."_, Imbolc's Brigid line, Lughnasa's ripe corn.
 
 ### Why pure templates (at least to start)
 
@@ -210,53 +210,53 @@ dream logic in any combination.
 
 ### Weather phrases (one per `Weather` variant)
 
-| Weather | Phrase |
-|---|---|
-| Clear | a still, clear air |
-| PartlyCloudy | clouds drawn thin across the moon |
-| Overcast | a low sky pressing close |
-| LightRain | a light rain that wets without sound |
-| HeavyRain | heavy rain drumming on a roof you cannot see |
-| Fog | a fog that eats the road ten steps ahead |
-| Storm | a wind that rises and rises and does not break |
+| Weather      | Phrase                                         |
+| ------------ | ---------------------------------------------- |
+| Clear        | a still, clear air                             |
+| PartlyCloudy | clouds drawn thin across the moon              |
+| Overcast     | a low sky pressing close                       |
+| LightRain    | a light rain that wets without sound           |
+| HeavyRain    | heavy rain drumming on a roof you cannot see   |
+| Fog          | a fog that eats the road ten steps ahead       |
+| Storm        | a wind that rises and rises and does not break |
 
 ### Season phrases (one per `Season` variant)
 
-| Season | Phrase |
-|---|---|
-| Spring | spring light before the grass remembers itself |
-| Summer | long summer dusk, the sky the colour of whey |
+| Season | Phrase                                               |
+| ------ | ---------------------------------------------------- |
+| Spring | spring light before the grass remembers itself       |
+| Summer | long summer dusk, the sky the colour of whey         |
 | Autumn | autumn half-dark, smoke curling low along the fields |
-| Winter | bare winter cold, the stars hard as flint |
+| Winter | bare winter cold, the stars hard as flint            |
 
 ### Festival codas
 
-| Festival | Coda |
-|---|---|
-| Samhain | You wake on Samhain night, and the distance between worlds feels like nothing at all. |
-| Bealtaine | You wake into Bealtaine morning — fires on the hills, and a May dew on the sill. |
-| Imbolc | You wake into Imbolc's first thin light, and Brigid's name is on your breath. |
-| Lughnasa | You wake into Lughnasa, the corn ripe in your fingers though no corn is there. |
+| Festival  | Coda                                                                                  |
+| --------- | ------------------------------------------------------------------------------------- |
+| Samhain   | You wake on Samhain night, and the distance between worlds feels like nothing at all. |
+| Bealtaine | You wake into Bealtaine morning — fires on the hills, and a May dew on the sill.      |
+| Imbolc    | You wake into Imbolc's first thin light, and Brigid's name is on your breath.         |
+| Lughnasa  | You wake into Lughnasa, the corn ripe in your fingers though no corn is there.        |
 
 ## Connections to existing systems
 
-| System | How Night Visions uses it |
-|---|---|
-| `GameClock` / `TimeOfDay` / `Festival` | Sleeping-hour gate; festival coda selection; seed derivation. |
-| `Weather` / `Season` | Setting-line phrasing. |
-| `WorldState::visited_locations` + `locations` | Pool of "remembered" places to name in dreams. |
-| `ConversationLog` | Most-recent-speaker name in the figure line. |
-| `WorldState::player_name` | Fallback when there is no recent conversation. |
-| `FeatureFlags` (`night-visions`) | Kill-switch. |
-| (future) `PlayerState::fatigue` | Actual reason to sleep; scales dream probability. |
-| (future) player home / eligible sleep locations | Gates whether sleep is even possible here. |
-| (future) mythology hooks / liminal sites | Raises dream probability near the Fairy Fort, Holy Well, graveyard, etc. |
+| System                                          | How Night Visions uses it                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `GameClock` / `TimeOfDay` / `Festival`          | Sleeping-hour gate; festival coda selection; seed derivation.            |
+| `Weather` / `Season`                            | Setting-line phrasing.                                                   |
+| `WorldState::visited_locations` + `locations`   | Pool of "remembered" places to name in dreams.                           |
+| `ConversationLog`                               | Most-recent-speaker name in the figure line.                             |
+| `WorldState::player_name`                       | Fallback when there is no recent conversation.                           |
+| `FeatureFlags` (`night-visions`)                | Kill-switch.                                                             |
+| (future) `PlayerState::fatigue`                 | Actual reason to sleep; scales dream probability.                        |
+| (future) player home / eligible sleep locations | Gates whether sleep is even possible here.                               |
+| (future) mythology hooks / liminal sites        | Raises dream probability near the Fairy Fort, Holy Well, graveyard, etc. |
 
 ## Relationship to the `/omen` work (PR #487)
 
-`/omen` triggers liminal moments at mythological *sites* — the Fairy
+`/omen` triggers liminal moments at mythological _sites_ — the Fairy
 Fort at dusk, the Holy Well on a pattern day. Night Visions triggers
-on *time* — a sleeping player at any eligible location. The two are
+on _time_ — a sleeping player at any eligible location. The two are
 complementary: `/omen` is place-bound, Night Visions is time-bound,
 and they can share the same folklore tables and tone.
 
@@ -272,7 +272,7 @@ and they can share the same folklore tables and tone.
   tilts from "atmosphere" into "quest hook", which is a different
   design pillar.
 - Does `/sleep` itself live in gameplay or in a meta-layer? If the
-  player has to *say* "I want to lie down" via natural language, the
+  player has to _say_ "I want to lie down" via natural language, the
   intent parser needs a new verb; if it's only a slash command, it
   sits next to `/wait`.
 - What's the right **dream frequency**? Every eligible night is too
@@ -286,7 +286,7 @@ The prototype on branch `claude/serene-bardeen-6VMVM` had all the
 generator pieces working against the simulator provider:
 
 - `parish_world::night_vision::{NightVision, generate_vision,
-  is_sleeping_hour}` — 8 unit tests
+is_sleeping_hour}` — 8 unit tests
 - `Command::Sleep(u32)` + `/sleep [hours]` parsing with clamp to
   `[1, 24]` — 5 unit tests
 - `handle_command` wiring with feature-flag kill-switch — 4 unit tests
@@ -296,4 +296,3 @@ generator pieces working against the simulator provider:
 Those snippets are salvageable once the prerequisite systems land;
 reviving them should mostly be a `git show` from that branch plus the
 gating work for fatigue / home-location.
-

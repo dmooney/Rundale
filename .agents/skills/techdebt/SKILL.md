@@ -1,6 +1,6 @@
 ---
 name: techdebt
-description: "Technical-debt reduction in two modes: (1) a continuous TODO.md sweeper that consumes/discovers debt and dispatches focused fix agents until none remains, and (2) a crate-layout audit that produces a behaviour-preserving refactor PR (renames → manifests → splits → extractions → README) for the Rust workspace. Use for ongoing debt cleanup or when auditing crate structure."
+description: 'Technical-debt reduction in two modes: (1) a continuous TODO.md sweeper that consumes/discovers debt and dispatches focused fix agents until none remains, and (2) a crate-layout audit that produces a behaviour-preserving refactor PR (renames → manifests → splits → extractions → README) for the Rust workspace. Use for ongoing debt cleanup or when auditing crate structure.'
 disable-model-invocation: false
 argument-hint: '[path] | crate-audit [phase]'
 paths:
@@ -100,19 +100,24 @@ scope. Optional LOC threshold for big-file detection (default `1500`).
 silently — don't pad the PR.
 
 ### Step 1 — Baseline
+
 Confirm the tree is clean and tests pass before touching anything. If `cargo test --workspace` is red on
 `main`, stop and tell the user — refactoring on a broken baseline buries the cause.
+
 ```sh
 git status                          # must be clean
 cd parish && cargo build --workspace
 cd parish && cargo test --workspace --lib
 ```
+
 The Cargo workspace lives in `parish/` — run cargo from there (or via `just`). If there's a Tauri crate,
 exclude it from local verification (`--exclude parish-tauri`) — it needs system libs CI handles. Note this in
 the PR description.
 
 ### Step 2 — Phase 1: naming hygiene
+
 Enumerate `crates/*` and look for:
+
 1. **Missing workspace prefix.** If the convention is `parish-*`, every dir under `crates/` should match.
    Flag stragglers (`geo-tool/`, `npc-cli/`).
 2. **Binary name vs. crate name drift.** Inside each `Cargo.toml`, check `[package].name` and `[[bin]].name`
@@ -125,7 +130,9 @@ Each rename = one commit, prefix `refactor:`. Body lists every callsite class to
 binary name, justfile recipes, docs, deploy artifacts).
 
 ### Step 3 — Phase 2: manifest standardization
+
 For every `crates/*/Cargo.toml`:
+
 - `description = "..."` — required, one line, mentions "Parish" or the engine for searchability.
 - `edition = "2021"` (or the workspace standard) — must match across crates.
 - `[lib]` block — present if `src/lib.rs` exists, with `name = "<crate_name_with_underscores>"` and an
@@ -133,20 +140,26 @@ For every `crates/*/Cargo.toml`:
 - License field if the workspace uses one.
 
 Pull existing descriptions in one pass:
+
 ```sh
 for d in crates/*/; do
   desc=$(grep '^description' "$d/Cargo.toml" 2>/dev/null | head -1)
   printf "%-22s %s\n" "$(basename $d)" "$desc"
 done
 ```
+
 One commit, `chore: standardize Cargo.toml descriptions and [lib] blocks`. Skip if already consistent.
 
 ### Step 4 — Phase 3: big-file splits
+
 Find single-file libs over the threshold:
+
 ```sh
 find crates -name 'lib.rs' -o -name 'main.rs' | xargs wc -l | sort -n | tail -10
 ```
+
 For each file over threshold:
+
 1. **Read it end-to-end first.** Don't split blind. Identify natural module boundaries (commands vs. parsing
    vs. types vs. LLM-call vs. local-fastpath, etc.).
 2. **Plan the split.** Write the target module list before moving code. 4–8 modules is the sweet spot; one
@@ -164,7 +177,9 @@ One commit per split: `refactor(<crate>): split single-file lib.rs into N module
 and what each contains. If a split exposes a real bug (Gemini will find them), see Step 7.
 
 ### Step 5 — Phase 4: crate extraction candidates
+
 Look for **self-contained leaf modules** that could become their own crate. All four must hold:
+
 - **Leaf in the dep graph.** Imports only `parish-types` / external crates — no calls into siblings.
 - **Distinct concern.** Used by multiple crates, or the parent's identity would be tighter without it.
 - **Stable surface.** Public API is small and not in flux.
@@ -179,13 +194,16 @@ use` re-exports. Extraction commit: `refactor: extract <new-crate> from <parent>
 `Cargo.toml` members list and add the new crate to the README listing.
 
 ### Step 6 — Phase 5: README freshness
+
 The repository-layout block in `README.md` must list **every** `crates/*` directory with a one-line
 description matching the crate's `Cargo.toml description`. Order roughly bottom-up by dependency layer (types
 → config → leaves → core → binaries). This phase often catches the audit's only user-visible defect — a
 README that documents 5 crates when there are 14.
 
 ### Step 7 — Pre-existing bugs surfaced during the refactor
+
 Reviewers will flag bugs in the moved code. Most are pre-existing — the split just gave them a fresh diff.
+
 1. **Verify pre-existing.** `git show <pre-split-sha>^:<old-path>` and check the same lines exist verbatim.
    Quote the pre-split sha and line range in your reply.
 2. **Triage.** Real defect → file a follow-up issue with the proposed fix and file:line reference (title
@@ -197,17 +215,21 @@ Reviewers will flag bugs in the moved code. Most are pre-existing — the split 
    review and safe to merge.
 
 ### Step 8 — Verification gates before push
+
 In order:
+
 ```sh
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings  # exclude parish-tauri locally
 cargo test --workspace --lib --exclude parish-tauri
 git grep -F "<every-renamed-thing>"                    # zero hits
 ```
+
 Read the test count — it should be ≥ baseline. A drop usually means a `#[cfg(test)] mod tests` got orphaned
 during a split.
 
 ### Step 9 — PR mechanics
+
 - **Title:** `refactor: audit and tidy crate structure` (or scope-specific if narrower).
 - **Body:** a section per phase listing what landed, then a "Deferred follow-ups" section listing extractions
   needing precursor work and bugs filed as separate issues. Link the issues by number.
@@ -218,6 +240,7 @@ during a split.
   the user's stated policy on whether to wait or merge through.
 
 ### Crate-audit failure modes to avoid
+
 - **Mixing fixes with moves.** Ruins the byte-identity guarantee. Always separate.
 - **Renames without a stale-grep gate.** Forgetting a Dockerfile or justfile recipe ships a broken main.
 - **Splitting before reading.** Boundaries picked from filenames usually produce a worse layout.
