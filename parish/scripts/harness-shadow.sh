@@ -38,17 +38,29 @@ rm -f "$LEDGER"
 
 # Each invocation tags its records with a case label so the summary can break
 # divergences down by corpus area. Test failures are tolerated (the shadow run
-# is a measurement, not a gate) — we capture exit codes for the report only.
+# is a measurement, not a gate) — but we capture and surface each cargo exit
+# code so a compile/test failure can't masquerade as a clean (empty) ledger.
+corpus_status=0
 run_case() {
   local case_label="$1"; shift
   echo "=== shadow corpus: $case_label ==="
   PARISH_HARNESS_SHADOW_CASE="$case_label" cargo test --manifest-path "$MANIFEST" "$@" 2>&1 \
     | grep -E "test result|FAILED|error\[" || true
+  # ${PIPESTATUS[0]} is cargo's exit code (grep/|| true would otherwise mask it).
+  local rc=${PIPESTATUS[0]}
+  if [ "$rc" -ne 0 ]; then
+    echo "WARNING: cargo test for '$case_label' exited $rc — ledger may be incomplete for this case."
+    corpus_status=1
+  fi
 }
 
 run_case engine-unit         -p parish-engine --lib
 run_case engine-integration  -p parish-engine --tests
 run_case core                -p parish-core --lib
+
+if [ "$corpus_status" -ne 0 ]; then
+  echo "NOTE: at least one corpus case had test failures; the divergence ledger below may be partial."
+fi
 
 echo
 echo "=== summarizing $LEDGER -> $SUMMARY ==="

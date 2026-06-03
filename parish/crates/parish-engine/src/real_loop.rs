@@ -76,16 +76,22 @@ impl GameTestHarness {
         );
 
         // Preserve the post-legacy state, roll back to the pre-state, run the
-        // real loop, then restore the post-legacy state.
+        // real loop, then restore the post-legacy state. The snapshot covers
+        // world + NPCs; `App` config (flags, provider, theme) is captured and
+        // restored separately, since a shadowed system command (e.g. `/flag`)
+        // mutates config and the real-loop replay must not leak that into the
+        // legacy timeline.
         let post_snapshot = parish_core::persistence::snapshot::GameSnapshot::capture(
             &self.app.world,
             &self.app.npc_manager,
         );
+        let post_config = self.app.snapshot_config();
         pre_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
 
         let real = std::panic::catch_unwind(AssertUnwindSafe(|| self.execute_via_real_loop(input)));
 
         post_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
+        self.app.apply_config(&post_config);
 
         let real_events =
             real.unwrap_or_else(|_| vec![("real-loop-panic".to_string(), serde_json::Value::Null)]);
