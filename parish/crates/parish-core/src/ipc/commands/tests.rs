@@ -84,6 +84,37 @@ fn status_command() {
 }
 
 #[test]
+fn wait_one_minute_uses_singular_narration() {
+    // #1163: `/wait 1` must read "You wait for 1 minute...", not the
+    // hardcoded plural "1 minutes". The pluralization lives in
+    // `minute_word`, but this guards the Wait handler's call site so a
+    // future edit can't silently re-hardcode the plural.
+    let (mut world, mut npc, mut config) = default_state();
+    let result = handle_command(Command::Wait(1), &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.contains("You wait for 1 minute..."),
+        "expected singular minute, got {:?}",
+        result.response
+    );
+    assert!(
+        !result.response.contains("1 minutes"),
+        "1-minute wait must not use the plural, got {:?}",
+        result.response
+    );
+}
+
+#[test]
+fn wait_multiple_minutes_uses_plural_narration() {
+    let (mut world, mut npc, mut config) = default_state();
+    let result = handle_command(Command::Wait(5), &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.contains("You wait for 5 minutes..."),
+        "expected plural minutes, got {:?}",
+        result.response
+    );
+}
+
+#[test]
 fn toggle_improv() {
     let (mut world, mut npc, mut config) = default_state();
     assert!(!config.improv_enabled);
