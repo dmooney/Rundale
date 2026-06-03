@@ -216,7 +216,7 @@ fn sort_set_semantic_runs(events: &mut [(String, Value)]) {
         while j < events.len() && events[j].0 == name {
             j += 1;
         }
-        events[i..j].sort_by(|a, b| a.1.to_string().cmp(&b.1.to_string()));
+        events[i..j].sort_by_key(|a| a.1.to_string());
         i = j;
     }
 }

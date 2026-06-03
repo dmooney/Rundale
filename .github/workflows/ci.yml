@@ -273,7 +273,9 @@ jobs:
 
       - name: Run harness corpus in shadow mode
         shell: bash
-        run: bash parish/scripts/harness-shadow.sh /tmp/harness-shadow-ledger.md
+        # Jobs default to working-directory: parish, so the script path is
+        # relative to that; the script itself resolves the repo root internally.
+        run: bash scripts/harness-shadow.sh /tmp/harness-shadow-ledger.md
 
       - name: Upload divergence ledger
         if: always()
