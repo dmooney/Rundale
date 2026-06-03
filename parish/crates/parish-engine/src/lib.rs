@@ -13,6 +13,8 @@ pub mod config;
 pub mod debug;
 pub mod emitter;
 pub mod headless;
+#[cfg(test)]
+mod mode_parity;
 pub mod real_loop;
 pub mod shadow;
 pub mod testing;
