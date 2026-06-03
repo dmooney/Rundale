@@ -61,7 +61,7 @@ unchanged.
   normalization off to confirm residual diffs touch only the allowed fields.
 - Divergence ledger — `target/harness-shadow-ledger.jsonl`, one JSON record per
   mismatch: `{case, input, old, new}`. Summarized into
-  `.proofs/harness-mock-shadow/initial-ledger.md`.
+  `docs/proofs/harness-shadow/initial-ledger.md`.
 
 ## Observable signal
 

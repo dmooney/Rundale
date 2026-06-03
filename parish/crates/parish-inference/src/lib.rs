@@ -58,9 +58,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+pub use mock_client::{MockClient, MockMatcher};
 use openai_client::OpenAiClient;
 pub use openai_client::{JsonSchemaSpec, ResponseFormat};
-pub use mock_client::{MockClient, MockMatcher};
 use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;

@@ -33,7 +33,9 @@ use parish_core::game_loop::system_command::{
     BoxFuture, SystemCommandHost, apply_inference_log_sub,
 };
 use parish_core::input::Command;
-use parish_core::ipc::{CapturingEmitter, CommandResult, EventEmitter, TextPresentation, handle_command, text_log};
+use parish_core::ipc::{
+    CapturingEmitter, CommandResult, EventEmitter, TextPresentation, handle_command, text_log,
+};
 use parish_core::persistence::snapshot::GameSnapshot;
 
 use crate::app::App;
@@ -71,7 +73,10 @@ impl CliCommandHost {
     /// `capture` instead of stdout. The shared dispatcher logic is identical —
     /// only the output sink differs — so the real-loop harness exercises the
     /// exact same orchestration as the live CLI.
-    pub fn new_capturing(app: Arc<tokio::sync::Mutex<App>>, capture: Arc<CapturingEmitter>) -> Self {
+    pub fn new_capturing(
+        app: Arc<tokio::sync::Mutex<App>>,
+        capture: Arc<CapturingEmitter>,
+    ) -> Self {
         Self {
             app,
             quit_requested: Arc::new(AtomicBool::new(false)),
@@ -424,10 +429,7 @@ impl SystemCommandHost for CliCommandHost {
                     let app = app.lock().await;
                     app.world.current_location().name.clone()
                 };
-                cap.emit_event(
-                    "world-update",
-                    serde_json::json!({ "location": location }),
-                );
+                cap.emit_event("world-update", serde_json::json!({ "location": location }));
             });
         }
         // CLI has no world-update event; the REPL reads fresh state at each turn.

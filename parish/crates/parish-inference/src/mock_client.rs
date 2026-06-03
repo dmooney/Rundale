@@ -228,8 +228,14 @@ mod tests {
     #[tokio::test]
     async fn empty_queue_returns_deterministic_fallback() {
         let mock = MockClient::new();
-        let a = mock.generate("m", "anything", None, None, None).await.unwrap();
-        let b = mock.generate("m", "different", None, None, None).await.unwrap();
+        let a = mock
+            .generate("m", "anything", None, None, None)
+            .await
+            .unwrap();
+        let b = mock
+            .generate("m", "different", None, None, None)
+            .await
+            .unwrap();
         assert_eq!(a, MOCK_FALLBACK_TEXT);
         assert_eq!(a, b, "fallback must be deterministic");
     }
@@ -248,7 +254,10 @@ mod tests {
             received.push_str(&tok);
         }
         // Multiple tokens were emitted, and together they reconstruct the text.
-        assert!(received.split_whitespace().count() > 1, "expected multiple tokens");
+        assert!(
+            received.split_whitespace().count() > 1,
+            "expected multiple tokens"
+        );
         assert_eq!(received.trim(), full.trim());
         assert_eq!(full, "Have you any news from the fair?");
     }

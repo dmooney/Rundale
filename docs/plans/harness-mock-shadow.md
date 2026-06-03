@@ -55,7 +55,7 @@ every step (shadow mode off).
 - `ci: non-gating harness-shadow job emitting the divergence ledger`
 - `just harness-shadow`: `PARISH_HARNESS_SHADOW=1 cargo test -p parish-engine
   -p parish-core` (covers all five files), then summarize the JSONL into
-  `.proofs/harness-mock-shadow/initial-ledger.md`.
+  `docs/proofs/harness-shadow/initial-ledger.md`.
 - `.github/workflows/…`: new job, `continue-on-error: true` (non-gating),
   uploads the ledger artifact.
 - Run it for real; commit `initial-ledger.md` → **C6**.

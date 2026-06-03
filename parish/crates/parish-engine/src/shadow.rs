@@ -82,6 +82,35 @@ fn canonical_to_json(canonical: &Canonical) -> Value {
     )
 }
 
+/// Reduces an event stream to the ordered list of non-empty, trimmed
+/// player-visible text lines (one `("text-log", {"content": line})` per line).
+///
+/// This is the comparison representation for shadow mode: it focuses on *what
+/// text the player sees, in what order*, which is precisely the drift the
+/// consolidation targets (#985 wrong dialogue, #1028 wrong name). It folds away
+/// representational differences that are not player-visible — event metadata
+/// like `source` attribution, and whether multi-line content arrives as one
+/// event or several — so the ledger surfaces genuine output divergences rather
+/// than emitter-shape noise. Non-`text-log` events are dropped.
+pub fn text_output_lines(events: &[(String, Value)]) -> Vec<(String, Value)> {
+    let mut out = Vec::new();
+    for (name, payload) in events {
+        if name != "text-log" {
+            continue;
+        }
+        let Some(content) = payload.get("content").and_then(|c| c.as_str()) else {
+            continue;
+        };
+        for line in content.split('\n') {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                out.push(("text-log".to_string(), Value::String(trimmed.to_string())));
+            }
+        }
+    }
+    out
+}
+
 /// Compares two event streams for the same input. Returns `Some(record)` iff
 /// their canonical forms differ; `None` when they match.
 pub fn compare(
@@ -263,6 +292,40 @@ mod tests {
             normalize(&b),
             "text-log order carries meaning and must not be sorted away"
         );
+    }
+
+    #[test]
+    fn text_output_lines_folds_source_and_multiline_noise() {
+        // Legacy: two separate events, no source. Real: one multi-line event
+        // with a source field and a blank line. Same visible text ⇒ equal.
+        let legacy = vec![
+            (
+                "text-log".to_string(),
+                json!({ "content": "You walk north." }),
+            ),
+            ("text-log".to_string(), json!({ "content": "You arrive." })),
+        ];
+        let real = vec![
+            (
+                "text-log".to_string(),
+                json!({ "content": "You walk north.\n\nYou arrive.", "source": "system", "id": "msg-3" }),
+            ),
+            ("world-update".to_string(), json!({ "location": "x" })),
+        ];
+        assert_eq!(text_output_lines(&legacy), text_output_lines(&real));
+    }
+
+    #[test]
+    fn text_output_lines_preserves_genuine_text_differences() {
+        let a = vec![(
+            "text-log".to_string(),
+            json!({ "content": "Padraig: hello" }),
+        )];
+        let b = vec![(
+            "text-log".to_string(),
+            json!({ "content": "LLM is not configured", "source": "system" }),
+        )];
+        assert_ne!(text_output_lines(&a), text_output_lines(&b));
     }
 
     // ── Shadow comparison + ledger (C5) ──────────────────────────────────────

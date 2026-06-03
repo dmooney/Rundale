@@ -63,28 +63,33 @@ impl GameTestHarness {
         pre_snapshot: parish_core::persistence::snapshot::GameSnapshot,
         legacy_lines: Vec<String>,
     ) {
-        let legacy_events: Vec<(String, serde_json::Value)> = legacy_lines
-            .iter()
-            .map(|line| ("text-log".to_string(), serde_json::json!({ "content": line })))
-            .collect();
+        let legacy_events: Vec<(String, serde_json::Value)> = crate::shadow::text_output_lines(
+            &legacy_lines
+                .iter()
+                .map(|line| {
+                    (
+                        "text-log".to_string(),
+                        serde_json::json!({ "content": line }),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
 
         // Preserve the post-legacy state, roll back to the pre-state, run the
         // real loop, then restore the post-legacy state.
-        let post_snapshot =
-            parish_core::persistence::snapshot::GameSnapshot::capture(&self.app.world, &self.app.npc_manager);
+        let post_snapshot = parish_core::persistence::snapshot::GameSnapshot::capture(
+            &self.app.world,
+            &self.app.npc_manager,
+        );
         pre_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
 
         let real = std::panic::catch_unwind(AssertUnwindSafe(|| self.execute_via_real_loop(input)));
 
         post_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
 
-        let real_events = real.unwrap_or_else(|_| {
-            vec![("real-loop-panic".to_string(), serde_json::Value::Null)]
-        });
-        let real_text: Vec<(String, serde_json::Value)> = real_events
-            .into_iter()
-            .filter(|(name, _)| name == "text-log")
-            .collect();
+        let real_events =
+            real.unwrap_or_else(|_| vec![("real-loop-panic".to_string(), serde_json::Value::Null)]);
+        let real_text = crate::shadow::text_output_lines(&real_events);
 
         if let Some(record) =
             crate::shadow::compare(&self.shadow_case, input, &legacy_events, &real_text)
@@ -129,7 +134,8 @@ impl GameTestHarness {
                 // unwinding or `self.app` would be left default — corrupting the
                 // harness (the shadow wrapper relies on this safety).
                 let app_arc = Arc::new(Mutex::new(std::mem::take(&mut self.app)));
-                let host = CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
+                let host =
+                    CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
                 let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
                     rt.block_on(handle_system_command(&host, cmd))
                 }));
@@ -274,16 +280,28 @@ mod tests {
         );
     }
 
-    /// C7 — with shadow mode off (the default), `execute` writes no ledger and
-    /// behaves exactly as the legacy path.
+    /// C7 — with shadow mode off, `execute` writes no ledger and behaves
+    /// exactly as the legacy path. Shadow is force-disabled here so the test is
+    /// independent of the ambient `PARISH_HARNESS_SHADOW` env (the corpus CI
+    /// run sets it on process-wide).
     #[test]
-    fn shadow_disabled_by_default_writes_no_ledger() {
+    fn shadow_disabled_writes_no_ledger() {
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("ledger.jsonl");
+
         let mut h = GameTestHarness::new();
-        assert!(!h.shadow_enabled(), "shadow must be off by default");
+        h.shadow_enabled = false;
+        h.shadow_ledger = ledger.clone();
+        assert!(!h.shadow_enabled());
+
         let before = h.player_location().to_string();
         let _ = h.execute("look");
         // Legacy behaviour intact (look doesn't move the player).
         assert_eq!(h.player_location(), before);
+        assert!(
+            !ledger.exists(),
+            "disabled shadow must not write a ledger file"
+        );
     }
 
     /// C5 — with shadow mode on, `execute` runs both engines without disturbing
