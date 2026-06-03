@@ -165,7 +165,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 		// Empty editor — no text node yet, insert one
 		if (node.nodeType !== Node.TEXT_NODE) {
 			const textNode = document.createTextNode(match.text);
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable caret control; Svelte does not manage text nodes or selection inside the editor surface
 			editorEl.textContent = '';
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable caret control; Svelte does not manage text nodes or selection inside the editor surface
 			editorEl.appendChild(textNode);
 			completion.replacedLength = match.text.length;
 			const newRange = document.createRange();
@@ -256,6 +258,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	/** Clears the editor content. */
 	function clearEditor() {
 		if (editorEl) {
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable reset; Svelte does not manage the text content of the editor surface
 			editorEl.textContent = '';
 		}
 		editorText = '';
@@ -264,6 +267,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	/** Sets the editor's plain-text content and places cursor at end. */
 	function setEditorText(text: string) {
 		if (!editorEl) return;
+		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable programmatic fill; Svelte does not manage text nodes or selection inside the editor surface
 		editorEl.textContent = text;
 		editorText = text;
 		// Place cursor at end
@@ -423,9 +427,12 @@ import ModelDropdown from './ModelDropdown.svelte';
 			chip.textContent = `@${npcName}`;
 			chip.setAttribute('role', 'img');
 			chip.setAttribute('aria-label', `Mention: ${npcName}`);
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable chip insertion; Svelte does not manage mention chip nodes or caret inside the editor surface
 			editorEl.textContent = '';
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable chip insertion; Svelte does not manage mention chip nodes or caret inside the editor surface
 			editorEl.appendChild(chip);
 			const trailing = document.createTextNode('\u00A0');
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable chip insertion; Svelte does not manage mention chip nodes or caret inside the editor surface
 			editorEl.appendChild(trailing);
 			const range = document.createRange();
 			range.setStart(trailing, 1);
@@ -569,7 +576,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 			range.insertNode(trailing);
 			range.insertNode(chip);
 		} else {
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable chip insertion fallback; Svelte does not manage mention chip nodes or caret inside the editor surface
 			editorEl.appendChild(chip);
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable chip insertion fallback; Svelte does not manage mention chip nodes or caret inside the editor surface
 			editorEl.appendChild(trailing);
 		}
 
@@ -865,6 +874,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		const sel = window.getSelection();
 		if (!sel || sel.rangeCount === 0) {
 			// No selection (e.g. editor never focused) — append to end.
+			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable paste insertion; Svelte does not manage text nodes or selection inside the editor surface
 			editorEl.appendChild(document.createTextNode(text));
 		} else {
 			const range = sel.getRangeAt(0);
@@ -907,7 +917,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	{#if $npcsHere.length > 0}
 		<div class="npc-chips" data-testid="npc-chips">
 			<span class="npc-label">Speak To</span>
-			{#each $npcsHere as npc}
+			{#each $npcsHere as npc (npc.real_name)}
 				<button
 					class="npc-chip"
 					aria-label="Speak to {npc.name}"
@@ -930,7 +940,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	{#if adjacentLocations.length > 0}
 		<div class="travel-chips">
 			<span class="travel-label">Go To</span>
-			{#each adjacentLocations as loc}
+			{#each adjacentLocations as loc (loc.id)}
 				<button
 					class="travel-chip"
 					aria-label="Travel to {loc.name}{loc.travel_minutes !== undefined ? `, ${loc.travel_minutes} minute walk` : ''}"

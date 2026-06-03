@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { MODEL_CATALOG, detectModelTrigger, filterModels } from './model-catalog';
+import {
+	MODEL_CATALOG,
+	detectModelTrigger,
+	filterModels,
+} from './model-catalog';
 
 describe('model catalog', () => {
 	it('exposes Anthropic, Ollama, and OpenRouter providers', () => {
@@ -18,7 +22,9 @@ describe('model catalog', () => {
 	it('filters by substring in model name (case-insensitive)', () => {
 		const matches = filterModels('OPUS');
 		expect(matches.length).toBeGreaterThan(0);
-		expect(matches.every((m) => m.name.toLowerCase().includes('opus'))).toBe(true);
+		expect(matches.every((m) => m.name.toLowerCase().includes('opus'))).toBe(
+			true,
+		);
 	});
 
 	it('filters by provider label', () => {
@@ -34,20 +40,23 @@ describe('model catalog', () => {
 
 describe('detectModelTrigger', () => {
 	it('matches `/model ` with empty query', () => {
-		expect(detectModelTrigger('/model ')).toEqual({ prefix: '/model', query: '' });
+		expect(detectModelTrigger('/model ')).toEqual({
+			prefix: '/model',
+			query: '',
+		});
 	});
 
 	it('matches `/model claude` with the partial query', () => {
 		expect(detectModelTrigger('/model claude')).toEqual({
 			prefix: '/model',
-			query: 'claude'
+			query: 'claude',
 		});
 	});
 
 	it('matches per-category `/model.dialogue gpt`', () => {
 		expect(detectModelTrigger('/model.dialogue gpt')).toEqual({
 			prefix: '/model.dialogue',
-			query: 'gpt'
+			query: 'gpt',
 		});
 	});
 
@@ -55,7 +64,7 @@ describe('detectModelTrigger', () => {
 		for (const cat of ['dialogue', 'simulation', 'intent', 'reaction']) {
 			expect(detectModelTrigger(`/model.${cat} `)).toEqual({
 				prefix: `/model.${cat}`,
-				query: ''
+				query: '',
 			});
 		}
 	});
@@ -77,11 +86,11 @@ describe('detectModelTrigger', () => {
 	it('is case-insensitive on the prefix and normalises to lowercase', () => {
 		expect(detectModelTrigger('/MODEL claude')).toEqual({
 			prefix: '/model',
-			query: 'claude'
+			query: 'claude',
 		});
 		expect(detectModelTrigger('/Model.Dialogue gpt')).toEqual({
 			prefix: '/model.dialogue',
-			query: 'gpt'
+			query: 'gpt',
 		});
 	});
 });

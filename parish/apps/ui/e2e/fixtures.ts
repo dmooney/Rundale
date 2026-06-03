@@ -13,22 +13,20 @@ import {
 	PALETTES,
 	MAP_DATA,
 	NPCS,
-	IRISH_HINTS,
-	TEXT_LOG,
 	UI_CONFIG,
 	DEBUG_SNAPSHOT,
 	SAVE_FILES,
 	SAVE_STATE,
 	SETUP_SNAPSHOT,
 	EDITOR_MODS,
-	EDITOR_SNAPSHOT
+	EDITOR_SNAPSHOT,
 } from './mock-data';
-import type { ThemePalette, WorldSnapshot, TextLogEntry } from '../src/lib/types';
+import type { ThemePalette, TextLogEntry } from '../src/lib/types';
 
 /** Minimal 1×1 transparent PNG — fulfills tile requests instantly. */
 const BLANK_PNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-	'base64'
+	'base64',
 );
 
 /**
@@ -37,7 +35,7 @@ const BLANK_PNG = Buffer.from(
  */
 export async function installTileRouteMock(page: Page): Promise<void> {
 	await page.route('**/tiles/**', (route) =>
-		route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG })
+		route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG }),
 	);
 }
 
@@ -48,7 +46,11 @@ export async function installTileRouteMock(page: Page): Promise<void> {
 export async function installTauriMock(
 	page: Page,
 	timeOfDay: string = 'morning',
-	options?: { debugSnapshot?: unknown; saveFiles?: unknown; saveState?: unknown }
+	options?: {
+		debugSnapshot?: unknown;
+		saveFiles?: unknown;
+		saveState?: unknown;
+	},
 ): Promise<void> {
 	await installTileRouteMock(page);
 	const snapshot = SNAPSHOTS[timeOfDay];
@@ -75,7 +77,7 @@ export async function installTauriMock(
 			saveState,
 			setupSnapshot,
 			editorMods,
-			editorSnapshot
+			editorSnapshot,
 		}) => {
 			// ── Callback registry (mirrors Tauri's transformCallback) ────────
 			const callbacks: Record<number, (data: unknown) => void> = {};
@@ -83,7 +85,10 @@ export async function installTauriMock(
 
 			// ── Event listener registry ─────────────────────────────────────
 			// Maps event name → array of { id, callbackId }
-			const eventListeners: Record<string, Array<{ id: number; callbackId: number }>> = {};
+			const eventListeners: Record<
+				string,
+				Array<{ id: number; callbackId: number }>
+			> = {};
 			let nextEventId = 1;
 
 			// ── Mock invoke responses ───────────────────────────────────────
@@ -98,16 +103,17 @@ export async function installTauriMock(
 				get_save_state: saveState,
 				get_setup_snapshot: setupSnapshot,
 				editor_list_mods: editorMods,
-				editor_open_mod: editorSnapshot
+				editor_open_mod: editorSnapshot,
 			};
 
 			// Expose for test helpers
-			(window as unknown as Record<string, unknown>).__TEST_MOCK_RESPONSES__ = mockResponses;
+			(window as unknown as Record<string, unknown>).__TEST_MOCK_RESPONSES__ =
+				mockResponses;
 
 			// ── Test event emitter ──────────────────────────────────────────
 			(window as unknown as Record<string, unknown>).__TEST_EMIT_EVENT__ = (
 				event: string,
-				payload: unknown
+				payload: unknown,
 			) => {
 				const listeners = eventListeners[event] || [];
 				for (const listener of listeners) {
@@ -120,19 +126,24 @@ export async function installTauriMock(
 			};
 
 			// ── __TAURI_EVENT_PLUGIN_INTERNALS__ ────────────────────────────
-			(window as unknown as Record<string, unknown>).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+			(
+				window as unknown as Record<string, unknown>
+			).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
 				unregisterListener: (event: string, eventId: number) => {
 					if (eventListeners[event]) {
 						eventListeners[event] = eventListeners[event].filter(
-							(l: { id: number }) => l.id !== eventId
+							(l: { id: number }) => l.id !== eventId,
 						);
 					}
-				}
+				},
 			};
 
 			// ── __TAURI_INTERNALS__ ─────────────────────────────────────────
 			(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
-				transformCallback: (callback: (data: unknown) => void, _once?: boolean) => {
+				transformCallback: (
+					callback: (data: unknown) => void,
+					_once?: boolean,
+				) => {
 					const id = nextCallbackId++;
 					callbacks[id] = callback;
 					return id;
@@ -159,7 +170,7 @@ export async function installTauriMock(
 						const eventId = args?.eventId as number;
 						if (eventListeners[event]) {
 							eventListeners[event] = eventListeners[event].filter(
-								(l: { id: number }) => l.id !== eventId
+								(l: { id: number }) => l.id !== eventId,
 							);
 						}
 						return;
@@ -179,10 +190,10 @@ export async function installTauriMock(
 
 				metadata: {
 					currentWindow: { label: 'main' },
-					currentWebview: { label: 'main' }
+					currentWebview: { label: 'main' },
 				},
 
-				convertFileSrc: (path: string) => path
+				convertFileSrc: (path: string) => path,
 			};
 		},
 		{
@@ -196,22 +207,27 @@ export async function installTauriMock(
 			saveState,
 			setupSnapshot,
 			editorMods,
-			editorSnapshot
-		}
+			editorSnapshot,
+		},
 	);
 }
 
 /**
  * Emit a Tauri event into the page (triggers registered listeners).
  */
-export async function emitEvent(page: Page, event: string, payload: unknown): Promise<void> {
+export async function emitEvent(
+	page: Page,
+	event: string,
+	payload: unknown,
+): Promise<void> {
 	await page.evaluate(
 		({ event, payload }) => {
-			const emit = (window as unknown as Record<string, (e: string, p: unknown) => void>)
-				.__TEST_EMIT_EVENT__;
+			const emit = (
+				window as unknown as Record<string, (e: string, p: unknown) => void>
+			).__TEST_EMIT_EVENT__;
 			if (emit) emit(event, payload);
 		},
-		{ event, payload }
+		{ event, payload },
 	);
 }
 
@@ -221,30 +237,40 @@ export async function emitEvent(page: Page, event: string, payload: unknown): Pr
 export async function updateMockResponse(
 	page: Page,
 	command: string,
-	data: unknown
+	data: unknown,
 ): Promise<void> {
 	await page.evaluate(
 		({ command, data }) => {
-			const responses = (window as unknown as Record<string, Record<string, unknown>>)
-				.__TEST_MOCK_RESPONSES__;
+			const responses = (
+				window as unknown as Record<string, Record<string, unknown>>
+			).__TEST_MOCK_RESPONSES__;
 			if (responses) responses[command] = data;
 		},
-		{ command, data }
+		{ command, data },
 	);
 }
 
 /**
  * Apply a theme palette by emitting a theme-update event.
  */
-export async function applyTheme(page: Page, palette: ThemePalette): Promise<void> {
+export async function applyTheme(
+	page: Page,
+	palette: ThemePalette,
+): Promise<void> {
 	await emitEvent(page, 'theme-update', palette);
 }
 
 /**
  * Add a text log entry by emitting a text-log event.
  */
-export async function addTextLog(page: Page, entry: TextLogEntry): Promise<void> {
-	await emitEvent(page, 'text-log', { source: entry.source, content: entry.content });
+export async function addTextLog(
+	page: Page,
+	entry: TextLogEntry,
+): Promise<void> {
+	await emitEvent(page, 'text-log', {
+		source: entry.source,
+		content: entry.content,
+	});
 }
 
 // ── Extended test fixture ───────────────────────────────────────────────────
@@ -257,7 +283,7 @@ export const test = base.extend<{
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 		await use(page);
-	}
+	},
 });
 
 export { expect } from '@playwright/test';

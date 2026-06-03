@@ -29,7 +29,7 @@ const snapshot: WorldSnapshot = {
 	game_epoch_ms: morningEpoch(),
 	speed_factor: 0,
 	name_hints: [],
-	day_of_week: 'Monday'
+	day_of_week: 'Monday',
 };
 
 describe('StatusBar', () => {
@@ -87,10 +87,12 @@ describe('StatusBar', () => {
 	it('does not schedule another rAF frame after clockFrozen becomes true', async () => {
 		// Capture the rAF callback so we can invoke it manually.
 		let capturedCb: FrameRequestCallback | null = null;
-		const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-			capturedCb = cb;
-			return 1;
-		});
+		const rafSpy = vi
+			.spyOn(window, 'requestAnimationFrame')
+			.mockImplementation((cb) => {
+				capturedCb = cb;
+				return 1;
+			});
 
 		// Start with an unfrozen clock so the rAF loop is running.
 		worldState.set(snapshot); // paused: false

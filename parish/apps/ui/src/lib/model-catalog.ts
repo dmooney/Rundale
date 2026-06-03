@@ -89,7 +89,7 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 	{ name: 'Qwen/Qwen3-32B', provider: 'vLLM' },
 	{ name: 'Qwen/Qwen3-14B', provider: 'vLLM' },
 	{ name: 'Qwen/Qwen3-8B', provider: 'vLLM' },
-	{ name: 'Qwen/Qwen3-4B', provider: 'vLLM' }
+	{ name: 'Qwen/Qwen3-4B', provider: 'vLLM' },
 ];
 
 /// Filter the catalog by a free-text query. Matches a substring against
@@ -100,19 +100,25 @@ export function filterModels(query: string): ModelSuggestion[] {
 	if (trimmed === '') return MODEL_CATALOG;
 	const q = trimmed.toLowerCase();
 	return MODEL_CATALOG.filter(
-		(m) => m.name.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q)
+		(m) =>
+			m.name.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q),
 	);
 }
 
 /// Per-category subcommand suffixes accepted after `/model.` (matches
 /// `parish_config::InferenceCategory::from_name`).
-export const MODEL_CATEGORIES = ['dialogue', 'simulation', 'intent', 'reaction'] as const;
+export const MODEL_CATEGORIES = [
+	'dialogue',
+	'simulation',
+	'intent',
+	'reaction',
+] as const;
 
 /// If `text` matches `/model ` or `/model.<category> ` (with trailing
 /// space), returns the leading `/model[.cat]` prefix and the remainder
 /// the user has typed after the space. Otherwise returns `null`.
 export function detectModelTrigger(
-	text: string
+	text: string,
 ): { prefix: string; query: string } | null {
 	const match = /^\/model(\.[a-z]+)?\s(.*)$/i.exec(text);
 	if (!match) return null;

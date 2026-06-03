@@ -99,7 +99,7 @@
 	}
 </style>
 
-{#each files as file, fileIdx}
+{#each files as file, fileIdx (file.filename)}
 	{@const isActive = file.filename === saveState?.filename}
 	<div class="ledger-row" class:ledger-active={isActive}>
 		<span class="file-number">{fileIdx + 1}.</span>

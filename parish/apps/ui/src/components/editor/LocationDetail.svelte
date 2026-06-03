@@ -460,7 +460,7 @@
 							value={loc.relative_to.anchor}
 							onchange={(e) => applyRelativeField('anchor', e.currentTarget.value)}
 						>
-							{#each locations.filter((l) => l.id !== loc.id) as option}
+							{#each locations.filter((l) => l.id !== loc.id) as option (option.id)}
 								<option value={option.id}>{option.name}</option>
 							{/each}
 						</select>
@@ -527,7 +527,7 @@
 
 			<section class="section">
 				<h4 class="section-label">Connections ({loc.connections.length})</h4>
-				{#each loc.connections as conn}
+				{#each loc.connections as conn (conn.target)}
 					<div class="conn-row">
 						<span class="conn-target">{locationName(conn.target)}</span>
 						<span class="conn-desc">{conn.path_description}</span>
@@ -549,7 +549,7 @@
 
 			<section class="section">
 				<h4 class="section-label">Associated NPCs</h4>
-				{#each loc.associated_npcs as npc_id}
+				{#each loc.associated_npcs as npc_id (npc_id)}
 					<span class="assoc-npc">{npcName(npc_id)}</span>
 				{/each}
 				{#if loc.associated_npcs.length === 0}
@@ -576,7 +576,7 @@
 				<h4 class="section-label">Aliases</h4>
 				{#if loc.aliases && loc.aliases.length > 0}
 					<div class="alias-list">
-						{#each loc.aliases as alias}
+						{#each loc.aliases as alias (alias)}
 							<span class="alias-tag">{alias}</span>
 						{/each}
 					</div>

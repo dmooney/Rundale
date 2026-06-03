@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import StatusBar from '../components/StatusBar.svelte';
 	import ChatPanel from '../components/ChatPanel.svelte';
 	import MapPanel from '../components/MapPanel.svelte';
@@ -16,7 +17,7 @@
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError, syncFocailOnViewportChange } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, pushErrorLog, formatIpcError, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
 	import { startDemoLoop, stopDemo } from '../lib/demo-player';
 	import { SceneDeduplicator } from '../lib/scene-dedup';
@@ -325,13 +326,17 @@
 					...log
 				]);
 			}
-		} catch (_) {}
+		} catch (_) {
+			// ignore: best-effort, failure is non-fatal (mod config missing/unavailable)
+		}
 
 		// Fetch initial debug snapshot
 		try {
 			const debugSnap = await getDebugSnapshot();
 			debugSnapshot.set(debugSnap);
-		} catch (_) {}
+		} catch (_) {
+			// ignore: best-effort, debug snapshot is optional
+		}
 
 		const sm = createStreamManager();
 
@@ -353,7 +358,9 @@
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
 					mapData.set(map);
 					npcsHere.set(npcs);
-				} catch (_) {}
+				} catch (_) {
+					// ignore: best-effort map/NPC refresh; stale data is acceptable
+				}
 			}));
 
 			listeners.push(await onTextLog((payload) => {
@@ -460,7 +467,7 @@
 			}));
 
 			listeners.push(await onOpenDesigner(() => {
-				goto('/editor');
+				goto(resolve('/editor'));
 			}));
 
 			listeners.push(await onTravelStart((payload) => {
@@ -491,7 +498,9 @@
 			if (dc.auto_start) {
 				startDemoLoop();
 			}
-		} catch (_) {}
+		} catch (_) {
+			// ignore: best-effort, demo config is optional (web mode returns 404)
+		}
 
 		return () => {
 			window.removeEventListener('keydown', onTrackerKey);

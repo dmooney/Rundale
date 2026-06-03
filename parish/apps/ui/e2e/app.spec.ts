@@ -2,7 +2,13 @@
  * Core E2E tests: verify the full app renders with mocked Tauri IPC.
  */
 
-import { test, expect, installTauriMock, emitEvent, applyTheme } from './fixtures';
+import {
+	test,
+	expect,
+	installTauriMock,
+	emitEvent,
+	applyTheme,
+} from './fixtures';
 import { SNAPSHOTS, PALETTES, NPCS } from './mock-data';
 import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
@@ -16,7 +22,7 @@ test.describe('App layout', () => {
 	test('renders the app shell with all major sections', async ({ page }) => {
 		await expect(page.locator('.app-shell')).toBeVisible();
 		await expect(
-			page.locator('[data-testid="status-bar"]').getByText('Baile Átha Cliath')
+			page.locator('[data-testid="status-bar"]').getByText('Baile Átha Cliath'),
 		).toBeVisible();
 	});
 
@@ -29,14 +35,18 @@ test.describe('App layout', () => {
 
 	test('chat panel shows initial location description', async ({ page }) => {
 		await expect(
-			page.getByText('The streets of Dublin bustle with life', { exact: false })
+			page.getByText('The streets of Dublin bustle with life', {
+				exact: false,
+			}),
 		).toBeVisible();
 	});
 
 	test('map panel renders MapLibre canvas', async ({ page }) => {
 		// The minimap uses MapLibre GL (WebGL canvas), so assert the canvas is
 		// mounted inside the map panel rather than counting SVG markers.
-		const canvas = page.locator('[data-testid="map-panel"] canvas.maplibregl-canvas');
+		const canvas = page.locator(
+			'[data-testid="map-panel"] canvas.maplibregl-canvas',
+		);
 		await expect(canvas).toBeVisible();
 	});
 
@@ -45,7 +55,7 @@ test.describe('App layout', () => {
 		// not in the sidebar.
 		for (const npc of NPCS) {
 			await expect(
-				page.locator('.npc-chip', { hasText: npc.name })
+				page.locator('.npc-chip', { hasText: npc.name }),
 			).toBeVisible();
 		}
 	});
@@ -56,7 +66,9 @@ test.describe('App layout', () => {
 		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
 
-	test('sidebar shows name pronunciation hints from world snapshot', async ({ page }) => {
+	test('sidebar shows name pronunciation hints from world snapshot', async ({
+		page,
+	}) => {
 		// Verify pronunciation hints appear in the Focail panel
 		await expect(page.getByText('[EE-fa]')).toBeVisible();
 		await expect(page.getByText('— beauty, radiance')).toBeVisible();
@@ -72,7 +84,9 @@ test.describe('Theme application', () => {
 
 		// The configured fixed palette is applied on load.
 		const bgColor = await page.evaluate(() =>
-			getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+			getComputedStyle(document.documentElement)
+				.getPropertyValue('--color-bg')
+				.trim(),
 		);
 		expect(bgColor).toBe(DEFAULT_THEME_PALETTE.bg);
 	});
@@ -84,19 +98,27 @@ test.describe('Theme application', () => {
 
 		// Emit morning theme
 		await applyTheme(page, PALETTES.morning);
-		await expect.poll(() =>
-			page.evaluate(() =>
-				getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+		await expect
+			.poll(() =>
+				page.evaluate(() =>
+					getComputedStyle(document.documentElement)
+						.getPropertyValue('--color-bg')
+						.trim(),
+				),
 			)
-		).toBe(PALETTES.morning.bg);
+			.toBe(PALETTES.morning.bg);
 
 		// Switch to night theme
 		await applyTheme(page, PALETTES.night);
-		await expect.poll(() =>
-			page.evaluate(() =>
-				getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+		await expect
+			.poll(() =>
+				page.evaluate(() =>
+					getComputedStyle(document.documentElement)
+						.getPropertyValue('--color-bg')
+						.trim(),
+				),
 			)
-		).toBe(PALETTES.night.bg);
+			.toBe(PALETTES.night.bg);
 	});
 });
 
@@ -108,10 +130,12 @@ test.describe('Event handling', () => {
 
 		await emitEvent(page, 'text-log', {
 			source: 'system',
-			content: 'You arrive at the market square.'
+			content: 'You arrive at the market square.',
 		});
 
-		await expect(page.getByText('You arrive at the market square.')).toBeVisible();
+		await expect(
+			page.getByText('You arrive at the market square.'),
+		).toBeVisible();
 	});
 
 	test('world-update event refreshes status bar', async ({ page }) => {

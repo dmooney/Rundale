@@ -7,7 +7,7 @@ export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	panel_bg: '#f5f5d3',
 	input_bg: '#f0f0ce',
 	border: '#cec293',
-	muted: '#76663b'
+	muted: '#76663b',
 };
 
 /** Solarized Light — Ethan Schoonover's palette mapped to Parish color slots. */
@@ -18,7 +18,7 @@ export const SOLARIZED_LIGHT: ThemePalette = {
 	panel_bg: '#eee8d5', // base2
 	input_bg: '#e6dfc5', // between base2 and base3
 	border: '#93a1a1', // base1
-	muted: '#93a1a1' // base1
+	muted: '#93a1a1', // base1
 };
 
 /** Solarized Dark — Ethan Schoonover's palette mapped to Parish color slots. */
@@ -29,7 +29,7 @@ export const SOLARIZED_DARK: ThemePalette = {
 	panel_bg: '#073642', // base02
 	input_bg: '#0d3f4f', // slightly lighter than base02
 	border: '#586e75', // base01
-	muted: '#586e75' // base01
+	muted: '#586e75', // base01
 };
 
 export interface ThemePreference {
@@ -37,7 +37,10 @@ export interface ThemePreference {
 	mode: 'light' | 'dark' | 'auto' | '';
 }
 
-export const DEFAULT_PREFERENCE: ThemePreference = { name: 'default', mode: '' };
+export const DEFAULT_PREFERENCE: ThemePreference = {
+	name: 'default',
+	mode: '',
+};
 
 const PREF_KEY = 'parish-theme-preference';
 

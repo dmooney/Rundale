@@ -20,7 +20,9 @@ const STORAGE_KEY = 'parish.tile-source';
 function loadActiveIdFromStorage(): string | null {
 	// localStorage (not sessionStorage) — deliberate trade-off: tile-source preference is low-sensitivity UX data; persisting across sessions is a better UX than losing the choice on tab close.
 	try {
-		return typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+		return typeof localStorage !== 'undefined'
+			? localStorage.getItem(STORAGE_KEY)
+			: null;
 	} catch {
 		return null;
 	}
@@ -29,7 +31,8 @@ function loadActiveIdFromStorage(): string | null {
 function saveActiveIdToStorage(id: string): void {
 	// localStorage (not sessionStorage) — deliberate trade-off: tile-source preference is low-sensitivity UX data; persisting across sessions is a better UX than losing the choice on tab close.
 	try {
-		if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, id);
+		if (typeof localStorage !== 'undefined')
+			localStorage.setItem(STORAGE_KEY, id);
 	} catch {
 		// ignore quota / disabled-storage errors
 	}
@@ -45,7 +48,7 @@ interface TilesState {
 function createTilesStore() {
 	const initial: TilesState = {
 		activeId: loadActiveIdFromStorage() ?? '',
-		sources: new Map()
+		sources: new Map(),
 	};
 	const { subscribe, update } = writable<TilesState>(initial);
 

@@ -10,7 +10,7 @@
 </script>
 
 <ul id="slash-listbox" class="mention-dropdown" role="listbox" aria-label="Slash commands">
-	{#each commands as cmd, i}
+	{#each commands as cmd, i (cmd.command)}
 		<li
 			id="slash-option-{i}"
 			role="option"

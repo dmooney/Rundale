@@ -6,7 +6,7 @@ import {
 	buildEditorMapData,
 	getEditorMapCenter,
 	normalizeLocationCaches,
-	offsetLatLon
+	offsetLatLon,
 } from './editor-map';
 
 function makeLocation({
@@ -15,7 +15,7 @@ function makeLocation({
 	lat,
 	lon,
 	connections = [],
-	relative_to = null
+	relative_to = null,
 }: {
 	id: number;
 	name?: string;
@@ -37,7 +37,7 @@ function makeLocation({
 		aliases: [],
 		geo_kind: 'fictional',
 		relative_to,
-		geo_source: null
+		geo_source: null,
 	};
 }
 
@@ -48,20 +48,30 @@ describe('buildEditorMapData', () => {
 				id: 1,
 				lat: 53.5,
 				lon: -8.1,
-				connections: [{ target: 2, path_description: 'lane' }]
+				connections: [{ target: 2, path_description: 'lane' }],
 			}),
 			makeLocation({
 				id: 2,
 				lat: 53.51,
 				lon: -8.11,
-				connections: [{ target: 1, path_description: 'lane' }]
-			})
+				connections: [{ target: 1, path_description: 'lane' }],
+			}),
 		];
 
 		const preview = { id: 1, lat: 53.6, lon: -8.2 };
-		const { features, edgeFeatures } = buildEditorMapData(locations, 1, preview);
-		expect(features[0].geometry.coordinates).toEqual([preview.lon, preview.lat]);
-		expect(edgeFeatures[0].geometry.coordinates[0]).toEqual([preview.lon, preview.lat]);
+		const { features, edgeFeatures } = buildEditorMapData(
+			locations,
+			1,
+			preview,
+		);
+		expect(features[0].geometry.coordinates).toEqual([
+			preview.lon,
+			preview.lat,
+		]);
+		expect(edgeFeatures[0].geometry.coordinates[0]).toEqual([
+			preview.lon,
+			preview.lat,
+		]);
 	});
 
 	it('re-resolves relative locations from a dragged anchor preview', () => {
@@ -70,7 +80,7 @@ describe('buildEditorMapData', () => {
 			id: 2,
 			lat: 0,
 			lon: 0,
-			relative_to: { anchor: 1, dnorth_m: 100, deast_m: 50 }
+			relative_to: { anchor: 1, dnorth_m: 100, deast_m: 50 },
 		});
 		const preview = { id: 1, lat: 53.6, lon: -8.2 };
 		const expected = offsetLatLon(preview.lat, preview.lon, 100, 50);
@@ -88,11 +98,16 @@ describe('relative drag helpers', () => {
 			id: 2,
 			lat: 0,
 			lon: 0,
-			relative_to: { anchor: 1, dnorth_m: 0, deast_m: 0 }
+			relative_to: { anchor: 1, dnorth_m: 0, deast_m: 0 },
 		});
 		const draggedTo = offsetLatLon(anchor.lat, anchor.lon, 250, -125);
 
-		const moved = applyDraggedCoordinates(child, [anchor, child], draggedTo.lat, draggedTo.lon);
+		const moved = applyDraggedCoordinates(
+			child,
+			[anchor, child],
+			draggedTo.lat,
+			draggedTo.lon,
+		);
 		expect(moved.lat).toBeCloseTo(draggedTo.lat);
 		expect(moved.lon).toBeCloseTo(draggedTo.lon);
 		expect(moved.relative_to?.dnorth_m).toBeCloseTo(250, 3);
@@ -105,18 +120,23 @@ describe('relative drag helpers', () => {
 			id: 2,
 			lat: 0,
 			lon: 0,
-			relative_to: { anchor: 1, dnorth_m: 100, deast_m: 50 }
+			relative_to: { anchor: 1, dnorth_m: 100, deast_m: 50 },
 		});
 		const grandchild = makeLocation({
 			id: 3,
 			lat: 0,
 			lon: 0,
-			relative_to: { anchor: 2, dnorth_m: -20, deast_m: 10 }
+			relative_to: { anchor: 2, dnorth_m: -20, deast_m: 10 },
 		});
 
 		const normalized = normalizeLocationCaches([anchor, child, grandchild]);
 		const expectedChild = offsetLatLon(anchor.lat, anchor.lon, 100, 50);
-		const expectedGrandchild = offsetLatLon(expectedChild.lat, expectedChild.lon, -20, 10);
+		const expectedGrandchild = offsetLatLon(
+			expectedChild.lat,
+			expectedChild.lon,
+			-20,
+			10,
+		);
 
 		expect(normalized[1].lat).toBeCloseTo(expectedChild.lat);
 		expect(normalized[1].lon).toBeCloseTo(expectedChild.lon);
@@ -130,9 +150,9 @@ describe('getEditorMapCenter', () => {
 		const { features } = buildEditorMapData(
 			[
 				makeLocation({ id: 1, lat: 53.5, lon: -8.1 }),
-				makeLocation({ id: 2, lat: 53.51, lon: -8.11 })
+				makeLocation({ id: 2, lat: 53.51, lon: -8.11 }),
 			],
-			2
+			2,
 		);
 
 		expect(getEditorMapCenter(features, 2)).toEqual([-8.11, 53.51]);
@@ -143,10 +163,10 @@ describe('getEditorMapCenter', () => {
 		const { features } = buildEditorMapData(
 			[
 				makeLocation({ id: 1, lat: 53.5, lon: -8.1 }),
-				makeLocation({ id: 2, lat: 53.51, lon: -8.11 })
+				makeLocation({ id: 2, lat: 53.51, lon: -8.11 }),
 			],
 			1,
-			preview
+			preview,
 		);
 
 		expect(getEditorMapCenter(features, 1, preview)).toBeNull();

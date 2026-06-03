@@ -11,8 +11,6 @@ import type {
 	EditorModSnapshot,
 	ValidationReport,
 	EditorTab,
-	NpcFileEntry,
-	LocationData
 } from '$lib/editor-types';
 
 /** Available mods discovered on disk. */
@@ -39,24 +37,32 @@ export const editorValidation = writable<ValidationReport | null>(null);
 // ── Derived stores ─────────────────────────────────────────────────────────
 
 /** The NPC list from the current snapshot. */
-export const editorNpcs = derived(editorSnapshot, ($snap) => $snap?.npcs.npcs ?? []);
+export const editorNpcs = derived(
+	editorSnapshot,
+	($snap) => $snap?.npcs.npcs ?? [],
+);
 
 /** The location list from the current snapshot. */
-export const editorLocations = derived(editorSnapshot, ($snap) => $snap?.locations ?? []);
+export const editorLocations = derived(
+	editorSnapshot,
+	($snap) => $snap?.locations ?? [],
+);
 
 /** The currently selected NPC entry. */
 export const editorSelectedNpc = derived(
 	[editorNpcs, editorSelectedNpcId],
-	([$npcs, $id]) => ($id !== null ? $npcs.find((n) => n.id === $id) ?? null : null)
+	([$npcs, $id]) =>
+		$id !== null ? ($npcs.find((n) => n.id === $id) ?? null) : null,
 );
 
 /** The currently selected location entry. */
 export const editorSelectedLocation = derived(
 	[editorLocations, editorSelectedLocationId],
-	([$locs, $id]) => ($id !== null ? $locs.find((l) => l.id === $id) ?? null : null)
+	([$locs, $id]) =>
+		$id !== null ? ($locs.find((l) => l.id === $id) ?? null) : null,
 );
 
 /** Total error + warning count for the badge. */
 export const editorIssueCount = derived(editorValidation, ($v) =>
-	$v ? $v.errors.length + $v.warnings.length : 0
+	$v ? $v.errors.length + $v.warnings.length : 0,
 );

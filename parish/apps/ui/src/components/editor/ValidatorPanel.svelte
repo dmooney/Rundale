@@ -68,7 +68,7 @@
 		</div>
 
 		<div class="issue-list">
-			{#each allIssues as issue}
+			{#each allIssues as issue, i (i)}
 				<button
 					class="issue-row"
 					class:is-error={issue._severity === 'error'}

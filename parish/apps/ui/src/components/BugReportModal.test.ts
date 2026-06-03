@@ -11,12 +11,17 @@ async function flush() {
 	await tick();
 }
 
-const mockSubmitBugReport = vi.fn<(args: unknown) => Promise<BugReportResult>>(() =>
-	Promise.resolve({ created: false, bundle_path: '/tmp/bug/issue.md', message: 'Dry-run: composed bug report' })
+const mockSubmitBugReport = vi.fn<(args: unknown) => Promise<BugReportResult>>(
+	() =>
+		Promise.resolve({
+			created: false,
+			bundle_path: '/tmp/bug/issue.md',
+			message: 'Dry-run: composed bug report',
+		}),
 );
 
 vi.mock('$lib/ipc', () => ({
-	submitBugReport: (args: unknown) => mockSubmitBugReport(args)
+	submitBugReport: (args: unknown) => mockSubmitBugReport(args),
 }));
 
 import BugReportModal from './BugReportModal.svelte';
@@ -24,7 +29,7 @@ import {
 	bugReportVisible,
 	bugReportContext,
 	bugReportScreenshot,
-	closeBugReport
+	closeBugReport,
 } from '../stores/bugReport';
 
 describe('BugReportModal', () => {
@@ -40,13 +45,21 @@ describe('BugReportModal', () => {
 	});
 
 	it('submits title, description, screenshot and context', async () => {
-		bugReportContext.set({ kind: 'inference', label: 'call #3', detail: { request_id: 3 } });
+		bugReportContext.set({
+			kind: 'inference',
+			label: 'call #3',
+			detail: { request_id: 3 },
+		});
 		bugReportVisible.set(true);
 		const { getByTestId, getByLabelText } = render(BugReportModal);
 		await flush();
 
-		await fireEvent.input(getByLabelText('Title'), { target: { value: 'NPC stuck' } });
-		await fireEvent.input(getByLabelText('Description'), { target: { value: 'Never arrives' } });
+		await fireEvent.input(getByLabelText('Title'), {
+			target: { value: 'NPC stuck' },
+		});
+		await fireEvent.input(getByLabelText('Description'), {
+			target: { value: 'Never arrives' },
+		});
 		await fireEvent.click(getByTestId('bug-report-submit'));
 		await flush();
 
@@ -55,7 +68,11 @@ describe('BugReportModal', () => {
 			title: 'NPC stuck',
 			description: 'Never arrives',
 			screenshotDataUrl: 'data:image/png;base64,AAAA',
-			context: { kind: 'inference', label: 'call #3', detail: { request_id: 3 } }
+			context: {
+				kind: 'inference',
+				label: 'call #3',
+				detail: { request_id: 3 },
+			},
 		});
 		// Result is rendered after submit.
 		expect(getByTestId('bug-report-result').textContent).toContain('Dry-run');

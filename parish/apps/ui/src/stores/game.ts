@@ -1,5 +1,12 @@
 import { writable } from 'svelte/store';
-import type { WorldSnapshot, MapData, NpcInfo, LanguageHint, TextLogEntry, UiConfig } from '$lib/types';
+import type {
+	WorldSnapshot,
+	MapData,
+	NpcInfo,
+	LanguageHint,
+	TextLogEntry,
+	UiConfig,
+} from '$lib/types';
 
 export const worldState = writable<WorldSnapshot | null>(null);
 
@@ -33,7 +40,11 @@ function createLoadingColor() {
 	return {
 		subscribe: inner.subscribe,
 		set: (c: [number, number, number]) =>
-			inner.set([clampChannel(c?.[0]), clampChannel(c?.[1]), clampChannel(c?.[2])]),
+			inner.set([
+				clampChannel(c?.[0]),
+				clampChannel(c?.[1]),
+				clampChannel(c?.[2]),
+			]),
 	};
 }
 export const loadingColor = createLoadingColor();
@@ -50,7 +61,7 @@ export const uiConfig = writable<UiConfig>({
 	tile_sources: [],
 	auto_pause_timeout_seconds: 300,
 	app_icon_url: null,
-	favicon_url: null
+	favicon_url: null,
 });
 
 export const fullMapOpen = writable<boolean>(false);
@@ -86,7 +97,7 @@ export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
  */
 export function pushErrorLog(content: string): void {
 	textLog.update((log) =>
-		trimTextLog([...log, { source: 'system', subtype: 'error', content }])
+		trimTextLog([...log, { source: 'system', subtype: 'error', content }]),
 	);
 }
 
@@ -98,7 +109,11 @@ export function formatIpcError(err: unknown): string {
 }
 
 /** Adds a reaction to a message in the text log by message ID. */
-export function addReaction(messageId: string, emoji: string, source: string): void {
+export function addReaction(
+	messageId: string,
+	emoji: string,
+	source: string,
+): void {
 	textLog.update((log) => {
 		return log.map((entry) => {
 			if (entry.id !== messageId) return entry;
@@ -125,12 +140,16 @@ export function addReaction(messageId: string, emoji: string, source: string): v
  * while an NPC's 😊 already exists doesn't accidentally strip the NPC's
  * reaction on rollback.
  */
-export function removeReaction(messageId: string, emoji: string, source: string): void {
+export function removeReaction(
+	messageId: string,
+	emoji: string,
+	source: string,
+): void {
 	textLog.update((log) => {
 		return log.map((entry) => {
 			if (entry.id !== messageId) return entry;
 			const reactions = (entry.reactions ?? []).filter(
-				(r) => !(r.emoji === emoji && r.source === source)
+				(r) => !(r.emoji === emoji && r.source === source),
 			);
 			return { ...entry, reactions };
 		});

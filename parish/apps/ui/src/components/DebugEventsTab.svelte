@@ -10,7 +10,7 @@
 	{#if snap.event_bus.recent_events.length === 0}
 		<div class="field muted">(no game events captured)</div>
 	{:else}
-		{#each [...snap.event_bus.recent_events].reverse() as evt}
+		{#each [...snap.event_bus.recent_events].reverse() as evt, i (i)}
 			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.kind}]</span> {evt.summary}<BugChip kind="event" label={`${evt.kind} @ ${evt.timestamp}`} detail={evt} /></div>
 		{/each}
 	{/if}
@@ -20,7 +20,7 @@
 	{#if snap.events.length === 0}
 		<div class="field muted">(no events yet)</div>
 	{:else}
-		{#each [...snap.events].reverse() as evt}
+		{#each [...snap.events].reverse() as evt, i (i)}
 			<div class="field"><span class="muted">[{evt.timestamp}]</span> <span class="event-cat">[{evt.category}]</span> {evt.message}<BugChip kind="event" label={`${evt.category} @ ${evt.timestamp}`} detail={evt} /></div>
 		{/each}
 	{/if}

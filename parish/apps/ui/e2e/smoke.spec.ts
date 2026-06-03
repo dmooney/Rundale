@@ -12,7 +12,9 @@ test.describe('Parish Web UI', () => {
 		// Status bar should show a time-of-day label
 		const statusBar = page.locator('[data-testid="status-bar"]');
 		await expect(statusBar).toBeVisible({ timeout: 10_000 });
-		await expect(statusBar).toContainText(/Morning|Midday|Afternoon|Dusk|Night|Dawn/);
+		await expect(statusBar).toContainText(
+			/Morning|Midday|Afternoon|Dusk|Night|Dawn/,
+		);
 
 		// Chat panel should have the initial location description
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
@@ -36,7 +38,9 @@ test.describe('Parish Web UI', () => {
 		await page.goto('/');
 
 		// Wait for initial load
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
+		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
+			timeout: 10_000,
+		});
 
 		// Type a look command
 		const input = page.locator('[data-testid="input-field"]');
@@ -53,7 +57,9 @@ test.describe('Parish Web UI', () => {
 
 	test('player can move to a location', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
+		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
+			timeout: 10_000,
+		});
 
 		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('go to church');
@@ -63,7 +69,9 @@ test.describe('Parish Web UI', () => {
 		// Timeout is 30 s for the same cold-start reason as the sibling
 		// 'player can type a command' test above (#1086).
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText(/church|faintest notion/i, { timeout: 30_000 });
+		await expect(chatPanel).toContainText(/church|faintest notion/i, {
+			timeout: 30_000,
+		});
 	});
 
 	test('API endpoints return valid JSON', async ({ request }) => {
@@ -97,17 +105,28 @@ test.describe('Parish Web UI', () => {
 
 	test('screenshot at different states', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
+		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
+			timeout: 10_000,
+		});
 
 		// Wait for the app shell to be fully rendered before taking the screenshot.
 		await expect(page.locator('.app-shell')).toBeVisible();
-		await page.screenshot({ path: 'e2e-results/initial-load.png', fullPage: true });
+		await page.screenshot({
+			path: 'e2e-results/initial-load.png',
+			fullPage: true,
+		});
 
 		// After a command
 		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('/status');
 		await input.press('Enter');
-		await expect(page.locator('[data-testid="chat-panel"]')).toContainText('Location:', { timeout: 5_000 });
-		await page.screenshot({ path: 'e2e-results/after-status.png', fullPage: true });
+		await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+			'Location:',
+			{ timeout: 5_000 },
+		);
+		await page.screenshot({
+			path: 'e2e-results/after-status.png',
+			fullPage: true,
+		});
 	});
 });

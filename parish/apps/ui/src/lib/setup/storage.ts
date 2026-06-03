@@ -1,4 +1,8 @@
-import { formatSetupStatusMessage, compactSetupMessages, INITIAL_SETUP_MESSAGE } from './setup-messages';
+import {
+	formatSetupStatusMessage,
+	compactSetupMessages,
+	INITIAL_SETUP_MESSAGE,
+} from './setup-messages';
 
 export const SETUP_COMPLETE_SESSION_KEY = 'rundale-setup-complete';
 export const SETUP_ACTIVITY_SESSION_KEY = 'rundale-setup-activity';
@@ -31,10 +35,10 @@ export function readSetupActivity(): StoredSetupActivity | null {
 			currentPhrase:
 				typeof parsed.currentPhrase === 'string'
 					? formatSetupStatusMessage(parsed.currentPhrase)
-					: displayMessages.at(-1) ?? INITIAL_SETUP_MESSAGE,
+					: (displayMessages.at(-1) ?? INITIAL_SETUP_MESSAGE),
 			messages: compactSetupMessages(displayMessages),
 			completed: typeof parsed.completed === 'number' ? parsed.completed : 0,
-			total: typeof parsed.total === 'number' ? parsed.total : 0
+			total: typeof parsed.total === 'number' ? parsed.total : 0,
 		};
 	} catch {
 		return null;
@@ -62,12 +66,12 @@ export function persistSetupActivity(
 	currentPhrase: string,
 	messages: string[],
 	completed: number,
-	total: number
+	total: number,
 ): void {
 	try {
 		sessionStorage.setItem(
 			SETUP_ACTIVITY_SESSION_KEY,
-			JSON.stringify({ currentPhrase, messages, completed, total })
+			JSON.stringify({ currentPhrase, messages, completed, total }),
 		);
 	} catch {
 		// Ignore storage failures; this only preserves activity across remounts.

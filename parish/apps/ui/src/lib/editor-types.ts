@@ -158,7 +158,13 @@ export interface EditorSaveResponse {
 	validation: ValidationReport;
 }
 
-export type EditorDoc = 'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters' | 'anachronisms';
+export type EditorDoc =
+	| 'manifest'
+	| 'npcs'
+	| 'world'
+	| 'festivals'
+	| 'encounters'
+	| 'anachronisms';
 
 export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator' | 'saves';
 

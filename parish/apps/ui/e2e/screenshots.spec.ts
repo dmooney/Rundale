@@ -6,8 +6,14 @@
  * Update baselines: npx playwright test e2e/screenshots.spec.ts --update-snapshots
  */
 
-import { test, expect, installTauriMock, applyTheme, emitEvent, addTextLog } from './fixtures';
-import { SNAPSHOTS, PALETTES, TEXT_LOG } from './mock-data';
+import {
+	test,
+	expect,
+	installTauriMock,
+	applyTheme,
+	addTextLog,
+} from './fixtures';
+import { PALETTES, TEXT_LOG } from './mock-data';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -33,13 +39,13 @@ test.describe('Screenshot generation', () => {
 
 			// Wait for the last log entry to appear before taking the screenshot.
 			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-				TEXT_LOG[TEXT_LOG.length - 1].content
+				TEXT_LOG[TEXT_LOG.length - 1].content,
 			);
 
 			// Save to docs/screenshots/ for the project
 			await page.screenshot({
 				path: path.join(SCREENSHOT_DIR, `gui-${time}.png`),
-				fullPage: false
+				fullPage: false,
 			});
 		});
 	}
@@ -48,7 +54,10 @@ test.describe('Screenshot generation', () => {
 test.describe('Visual regression baselines', () => {
 	// Baselines are environment-specific (fonts, browser pixel rendering).
 	// Skip in CI; run manually with `--update-snapshots` to refresh locally.
-	test.skip(!!process.env.CI, 'visual-regression baselines are environment-specific');
+	test.skip(
+		!!process.env.CI,
+		'visual-regression baselines are environment-specific',
+	);
 
 	for (const time of TIMES_OF_DAY) {
 		test(`visual-regression-${time}`, async ({ page }) => {
@@ -66,12 +75,12 @@ test.describe('Visual regression baselines', () => {
 
 			// Wait for the last log entry to appear before comparing screenshots.
 			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-				TEXT_LOG[TEXT_LOG.length - 1].content
+				TEXT_LOG[TEXT_LOG.length - 1].content,
 			);
 
 			// Playwright visual comparison (stores baselines in snapshotDir)
 			await expect(page).toHaveScreenshot(`gui-${time}.png`, {
-				maxDiffPixelRatio: 0.02
+				maxDiffPixelRatio: 0.02,
 			});
 		});
 	}

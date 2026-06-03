@@ -27,16 +27,20 @@ import type {
 	DemoContextSnapshot,
 	DemoConfigPayload,
 	BugContext,
-	BugReportResult
+	BugReportResult,
 } from './types';
 
 // ── Transport detection ─────────────────────────────────────────────────────
 
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const IS_TAURI =
+	typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
-export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+export async function command<T>(
+	name: string,
+	args?: Record<string, unknown>,
+): Promise<T> {
 	if (IS_TAURI) {
 		const { invoke } = await import('@tauri-apps/api/core');
 		return invoke<T>(name, args);
@@ -46,7 +50,7 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	const resp = await fetch(endpoint, {
 		method: args ? 'POST' : 'GET',
 		headers: args ? { 'Content-Type': 'application/json' } : {},
-		body: args ? JSON.stringify(args) : undefined
+		body: args ? JSON.stringify(args) : undefined,
 	});
 	if (!resp.ok) {
 		throw new Error(`API error: ${resp.status} ${resp.statusText}`);
@@ -58,7 +62,8 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	return JSON.parse(text) as T;
 }
 
-export const getWorldSnapshot = () => command<WorldSnapshot>('get_world_snapshot');
+export const getWorldSnapshot = () =>
+	command<WorldSnapshot>('get_world_snapshot');
 
 export const getMap = () => command<MapData>('get_map');
 
@@ -69,7 +74,8 @@ export const getTheme = () => command<ThemePalette>('get_theme');
 export const submitInput = (text: string, addressedTo: string[] = []) =>
 	command<void>('submit_input', { text, addressedTo });
 
-export const getDebugSnapshot = () => command<DebugSnapshot>('get_debug_snapshot');
+export const getDebugSnapshot = () =>
+	command<DebugSnapshot>('get_debug_snapshot');
 
 export const getUiConfig = () => command<UiConfig>('get_ui_config');
 
@@ -85,20 +91,26 @@ export const getMods = (): Promise<ModEntry[]> => {
 	return fetch('/api/mods').then((r) => r.json());
 };
 
-export const switchMod = (modId: string): Promise<{ ok: boolean; error?: string }> => {
+export const switchMod = (
+	modId: string,
+): Promise<{ ok: boolean; error?: string }> => {
 	if (IS_TAURI) {
-		return Promise.resolve({ ok: false, error: 'not supported in desktop mode' });
+		return Promise.resolve({
+			ok: false,
+			error: 'not supported in desktop mode',
+		});
 	}
 	return fetch('/api/mods/switch', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ mod_id: modId })
+		body: JSON.stringify({ mod_id: modId }),
 	}).then((r) => r.json());
 };
 
 // ── Persistence commands ────────────────────────────────────────────────────
 
-export const discoverSaveFiles = () => command<SaveFileInfo[]>('discover_save_files');
+export const discoverSaveFiles = () =>
+	command<SaveFileInfo[]>('discover_save_files');
 
 export const saveGame = () => command<string>('save_game', {});
 
@@ -116,14 +128,19 @@ export const getSaveState = () => command<SaveState>('get_save_state');
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
-export const reactToMessage = (npcName: string, messageSnippet: string, emoji: string) =>
-	command<void>('react_to_message', { npcName, messageSnippet, emoji });
+export const reactToMessage = (
+	npcName: string,
+	messageSnippet: string,
+	emoji: string,
+) => command<void>('react_to_message', { npcName, messageSnippet, emoji });
 
 // ── Demo / auto-player commands ──────────────────────────────────────────────
 
-export const getDemoConfig = () => command<DemoConfigPayload>('get_demo_config');
+export const getDemoConfig = () =>
+	command<DemoConfigPayload>('get_demo_config');
 
-export const getDemoContext = () => command<DemoContextSnapshot>('get_demo_context');
+export const getDemoContext = () =>
+	command<DemoContextSnapshot>('get_demo_context');
 
 export const getLlmPlayerAction = (ctx: DemoContextSnapshot) =>
 	command<string>('get_llm_player_action', { ctx });
@@ -185,8 +202,10 @@ export const getLatestScreenshot = () =>
  * Only meaningful in Tauri mode — the server returns 501 for take-screenshot
  * and never emits the event, so this is never called in web mode.
  */
-export const notifyScreenshotCaptured = (request_id: string, info: ScreenshotInfo) =>
-	command<void>('notify_screenshot_captured', { request_id, info });
+export const notifyScreenshotCaptured = (
+	request_id: string,
+	info: ScreenshotInfo,
+) => command<void>('notify_screenshot_captured', { request_id, info });
 
 /**
  * Reports a screenshot capture failure back to the MCP bridge so it can
@@ -204,8 +223,9 @@ export interface RequestScreenshotPayload {
 }
 
 /** Registers a handler for agent-triggered screenshot requests. */
-export const onRequestScreenshot = (cb: (payload: RequestScreenshotPayload) => void) =>
-	onEvent<RequestScreenshotPayload>('request-screenshot', cb);
+export const onRequestScreenshot = (
+	cb: (payload: RequestScreenshotPayload) => void,
+) => onEvent<RequestScreenshotPayload>('request-screenshot', cb);
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
@@ -276,7 +296,10 @@ function ensureWebSocket(): void {
 function attachHandlers(socket: WebSocket): void {
 	socket.onmessage = (event) => {
 		try {
-			const data = JSON.parse(event.data) as { event: string; payload: unknown };
+			const data = JSON.parse(event.data) as {
+				event: string;
+				payload: unknown;
+			};
 			const callbacks = wsListeners.get(data.event);
 			if (callbacks) {
 				for (const cb of callbacks) {
@@ -333,7 +356,10 @@ export function disposeTransport(): void {
 	}
 }
 
-async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<UnlistenFn> {
+async function onEvent<T>(
+	event: string,
+	cb: EventCallback<T>,
+): Promise<UnlistenFn> {
 	if (IS_TAURI) {
 		const { listen } = await import('@tauri-apps/api/event');
 		return listen<T>(event, (e) => cb(e.payload));
@@ -444,7 +470,8 @@ export interface SetupSnapshot {
 	needs_onboarding: boolean;
 }
 
-export const getSetupSnapshot = () => command<SetupSnapshot>('get_setup_snapshot');
+export const getSetupSnapshot = () =>
+	command<SetupSnapshot>('get_setup_snapshot');
 
 export const onSetupStatus = (cb: (payload: SetupStatusPayload) => void) =>
 	onEvent<SetupStatusPayload>('setup-status', cb);
@@ -455,8 +482,9 @@ export const onSetupProgress = (cb: (payload: SetupProgressPayload) => void) =>
 export const onSetupDone = (cb: (payload: SetupDonePayload) => void) =>
 	onEvent<SetupDonePayload>('setup-done', cb);
 
-export const onSetupNeedsOnboarding = (cb: (payload: SetupStatusPayload) => void) =>
-	onEvent<SetupStatusPayload>('setup-needs-onboarding', cb);
+export const onSetupNeedsOnboarding = (
+	cb: (payload: SetupStatusPayload) => void,
+) => onEvent<SetupStatusPayload>('setup-needs-onboarding', cb);
 
 // ── BYOK onboarding commands ────────────────────────────────────────────────
 

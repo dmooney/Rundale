@@ -59,7 +59,7 @@ beforeEach(() => {
 	Object.defineProperty(globalThis, 'WebSocket', {
 		configurable: true,
 		writable: true,
-		value: MockWebSocket
+		value: MockWebSocket,
 	});
 	openSockets.length = 0;
 });

@@ -68,14 +68,14 @@
 		{#if selectedNpc.schedule.length > 0}
 			<div class="section">
 				<h5>Schedule</h5>
-				{#each selectedNpc.schedule as variant}
+				{#each selectedNpc.schedule as variant, vi (vi)}
 					{@const variantLabel = [variant.season ?? 'All seasons', variant.day_type ?? 'All days'].join(' · ')}
 					<div class="schedule-variant" class:variant-active={variant.is_active}>
 						<div class="variant-label">
 							{variantLabel}
 							{#if variant.is_active}<span class="active-badge">ACTIVE</span>{/if}
 						</div>
-						{#each variant.entries as entry}
+						{#each variant.entries as entry, ei (ei)}
 							<div class="schedule-entry" class:entry-current={entry.is_current}>
 								{String(entry.start_hour).padStart(2, '0')}:00\u2013{String(entry.end_hour).padStart(2, '0')}:00
 								{entry.location_name}
@@ -91,10 +91,10 @@
 		{#if selectedNpc.relationships.length > 0}
 			<div class="section">
 				<h5>Relationships</h5>
-				{#each selectedNpc.relationships as rel}
+				{#each selectedNpc.relationships as rel (rel.target_name)}
 					<div class="field"><span class="mono">{strengthBar(rel.strength)}</span> {rel.target_name} ({rel.kind}, {rel.strength.toFixed(1)}, {rel.history_count} events)</div>
 					{#if rel.history.length > 0}
-						{#each rel.history as evt}
+						{#each rel.history as evt, hi (hi)}
 							<div class="field indent muted">[{evt.timestamp}] {evt.description}</div>
 						{/each}
 					{/if}
@@ -105,7 +105,7 @@
 		{#if selectedNpc.memories.length > 0 || selectedNpc.long_term_memories.length > 0}
 			<div class="section">
 				<h5>Short-term Memory ({selectedNpc.memories.length})</h5>
-				{#each selectedNpc.memories as mem}
+				{#each selectedNpc.memories as mem, mi (mi)}
 					<div class="field"><span class="muted">[{mem.timestamp}]</span> {mem.content} <span class="muted">({mem.location_name})</span></div>
 				{/each}
 			</div>
@@ -114,7 +114,7 @@
 		{#if selectedNpc.long_term_memories.length > 0}
 			<div class="section">
 				<h5>Long-term Memory ({selectedNpc.long_term_memories.length})</h5>
-				{#each selectedNpc.long_term_memories as ltm}
+				{#each selectedNpc.long_term_memories as ltm, li (li)}
 					<div class="field"><span class="muted">[{ltm.timestamp}]</span> ({ltm.importance.toFixed(2)}) {ltm.content}</div>
 					{#if ltm.keywords.length > 0}
 						<div class="field indent muted">kw: {ltm.keywords.join(', ')}</div>
@@ -126,7 +126,7 @@
 		{#if selectedNpc.reactions.length > 0}
 			<div class="section">
 				<h5>Reactions ({selectedNpc.reactions.length})</h5>
-				{#each selectedNpc.reactions as r}
+				{#each selectedNpc.reactions as r, ri (ri)}
 					<div class="field"><span class="muted">[{r.timestamp}]</span> {r.emoji} {r.description}</div>
 					<div class="field indent muted">context: {r.context}</div>
 				{/each}
@@ -137,10 +137,10 @@
 			<div class="section">
 				<h5>Deflated Summary</h5>
 				<div class="field">@ {selectedNpc.deflated_summary.location_name} \u2014 {selectedNpc.deflated_summary.mood}</div>
-				{#each selectedNpc.deflated_summary.recent_activity as act}
+				{#each selectedNpc.deflated_summary.recent_activity as act, ai (ai)}
 					<div class="field indent muted">- {act}</div>
 				{/each}
-				{#each selectedNpc.deflated_summary.key_relationship_changes as ch}
+				{#each selectedNpc.deflated_summary.key_relationship_changes as ch, ci (ci)}
 					<div class="field indent muted">~ {ch}</div>
 				{/each}
 			</div>
@@ -149,7 +149,7 @@
 		{#if selectedNpc.knowledge.length > 0}
 			<div class="section">
 				<h5>Knowledge</h5>
-				{#each selectedNpc.knowledge as item}
+				{#each selectedNpc.knowledge as item, ki (ki)}
 					<div class="field">- {item}</div>
 				{/each}
 			</div>
@@ -157,7 +157,7 @@
 	</div>
 {:else}
 	<div class="npc-list">
-		{#each snap.npcs as npc}
+		{#each snap.npcs as npc (npc.id)}
 			<button class="npc-row" onclick={() => onSelectNpc(npc.id)}>
 				<span class="npc-name">{npc.name}</span>
 				<span class="npc-tier">[{npc.tier}]</span>

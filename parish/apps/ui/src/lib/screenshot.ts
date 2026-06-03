@@ -20,7 +20,8 @@ import { toPng } from 'html-to-image';
  */
 export async function captureScreen(): Promise<string> {
 	const target =
-		(document.querySelector('.app-shell') as HTMLElement | null) ?? document.body;
+		(document.querySelector('.app-shell') as HTMLElement | null) ??
+		document.body;
 	if (!target) {
 		throw new Error('No DOM target available to screenshot.');
 	}
@@ -29,6 +30,6 @@ export async function captureScreen(): Promise<string> {
 	// crisp on HiDPI displays without hardcoding 1x or 2x.
 	return await toPng(target, {
 		cacheBust: true,
-		pixelRatio: window.devicePixelRatio || 1
+		pixelRatio: window.devicePixelRatio || 1,
 	});
 }

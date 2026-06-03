@@ -6,11 +6,11 @@ import type { LanguageHint } from '$lib/types';
 
 const IRISH_HINTS: LanguageHint[] = [
 	{ word: 'sláinte', pronunciation: 'SLAWN-cha', meaning: 'health / cheers' },
-	{ word: 'craic', pronunciation: 'crack', meaning: 'fun, entertainment' }
+	{ word: 'craic', pronunciation: 'crack', meaning: 'fun, entertainment' },
 ];
 
 const NAME_HINTS: LanguageHint[] = [
-	{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' }
+	{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' },
 ];
 
 function resetStores() {
@@ -22,7 +22,7 @@ function resetStores() {
 		splash_text: '',
 		active_tile_source: '',
 		tile_sources: [],
-		auto_pause_timeout_seconds: 300
+		auto_pause_timeout_seconds: 300,
 	});
 }
 

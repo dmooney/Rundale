@@ -31,7 +31,7 @@
 		<p class="empty">No mods found in the <code>mods/</code> directory.</p>
 	{:else}
 		<div class="mod-list">
-			{#each mods as mod_item}
+			{#each mods as mod_item (mod_item.name)}
 				<button
 					class="mod-card"
 					onclick={() => openMod(mod_item)}

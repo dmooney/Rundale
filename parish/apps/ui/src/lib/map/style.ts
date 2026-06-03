@@ -389,7 +389,7 @@ const warnedMissingIds = new Set<string>();
 function warnMissingTileUrl(id: string) {
 	if (warnedMissingIds.has(id)) return;
 	warnedMissingIds.add(id);
-	// eslint-disable-next-line no-console
+
 	console.warn(
 		`[tiles] source '${id}' has no URL; falling back to flat background. ` +
 			`Set [engine.map.tile_sources.${id}] url = "..." in parish.toml ` +

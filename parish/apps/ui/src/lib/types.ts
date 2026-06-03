@@ -93,7 +93,6 @@ export interface LanguageHint {
 	meaning: string | null;
 }
 
-
 export interface ModEntry {
 	id: string;
 	name: string;

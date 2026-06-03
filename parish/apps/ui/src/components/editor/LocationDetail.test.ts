@@ -6,7 +6,7 @@ import {
 	editorDirty,
 	editorSelectedLocationId,
 	editorSnapshot,
-	editorValidation
+	editorValidation,
 } from '../../stores/editor';
 import type { EditorModSnapshot } from '$lib/editor-types';
 
@@ -21,7 +21,10 @@ const mockState = vi.hoisted(() => ({
 	lastMap: null as MapHarness | null,
 	lastMapOptions: null as Record<string, unknown> | null,
 	editorUpdateLocationsMock: vi.fn(async () => ({ errors: [], warnings: [] })),
-	editorSaveMock: vi.fn(async () => ({ saved: true, validation: { errors: [], warnings: [] } }))
+	editorSaveMock: vi.fn(async () => ({
+		saved: true,
+		validation: { errors: [], warnings: [] },
+	})),
 }));
 
 vi.mock('maplibre-gl', () => {
@@ -31,11 +34,14 @@ vi.mock('maplibre-gl', () => {
 
 	class FakeMap {
 		private sources = new Map<string, FakeGeoJSONSource>();
-		private handlers = new Map<string, Array<(...args: unknown[]) => unknown>>();
+		private handlers = new Map<
+			string,
+			Array<(...args: unknown[]) => unknown>
+		>();
 		private canvas = { style: { cursor: '' } };
 		dragPan = {
 			disable() {},
-			enable() {}
+			enable() {},
 		};
 
 		constructor(options: Record<string, unknown>) {
@@ -44,7 +50,11 @@ vi.mock('maplibre-gl', () => {
 			mockState.lastMapOptions = options;
 		}
 
-		on(event: string, layerOrCb: string | ((...args: unknown[]) => unknown), maybeCb?: (...args: unknown[]) => unknown) {
+		on(
+			event: string,
+			layerOrCb: string | ((...args: unknown[]) => unknown),
+			maybeCb?: (...args: unknown[]) => unknown,
+		) {
 			const layer = typeof layerOrCb === 'string' ? layerOrCb : '';
 			const cb = typeof layerOrCb === 'function' ? layerOrCb : maybeCb;
 			if (!cb) return;
@@ -92,10 +102,10 @@ vi.mock('maplibre-gl', () => {
 	return {
 		default: {
 			Map: FakeMap,
-			NavigationControl: FakeNavigationControl
+			NavigationControl: FakeNavigationControl,
 		},
 		Map: FakeMap,
-		NavigationControl: FakeNavigationControl
+		NavigationControl: FakeNavigationControl,
 	};
 });
 
@@ -117,15 +127,15 @@ vi.mock('$lib/ipc', () => ({
 				maxzoom: 19,
 				tms: false,
 				raster_opacity: 1,
-				raster_saturation: 0
-			}
-		]
-	}))
+				raster_saturation: 0,
+			},
+		],
+	})),
 }));
 
 vi.mock('$lib/editor-ipc', () => ({
 	editorUpdateLocations: mockState.editorUpdateLocationsMock,
-	editorSave: mockState.editorSaveMock
+	editorSave: mockState.editorSaveMock,
 }));
 
 function snapshot(): EditorModSnapshot {
@@ -139,7 +149,7 @@ function snapshot(): EditorModSnapshot {
 			description: 'test',
 			start_date: '1822-01-01',
 			start_location: 1,
-			period_year: 1822
+			period_year: 1822,
 		},
 		npcs: { npcs: [] },
 		locations: [
@@ -156,7 +166,7 @@ function snapshot(): EditorModSnapshot {
 				aliases: [],
 				geo_kind: 'manual',
 				relative_to: null,
-				geo_source: null
+				geo_source: null,
 			},
 			{
 				id: 2,
@@ -171,17 +181,17 @@ function snapshot(): EditorModSnapshot {
 				aliases: [],
 				geo_kind: 'manual',
 				relative_to: null,
-				geo_source: null
-			}
+				geo_source: null,
+			},
 		],
 		festivals: [],
 		encounters: {},
 		anachronisms: {
 			context_alert_prefix: '',
 			context_alert_suffix: '',
-			terms: []
+			terms: [],
 		},
-		validation: { errors: [], warnings: [] }
+		validation: { errors: [], warnings: [] },
 	};
 }
 
@@ -238,27 +248,29 @@ describe('LocationDetail', () => {
 			'click',
 			{
 				features: [{ properties: { id: 2 } }],
-				originalEvent: { shiftKey: true }
+				originalEvent: { shiftKey: true },
 			},
-			'editor-locations'
+			'editor-locations',
 		);
 
 		await waitFor(() => {
 			expect(mockState.editorUpdateLocationsMock).toHaveBeenCalledTimes(1);
 		});
 
-		const calls = mockState.editorUpdateLocationsMock.mock.calls as unknown as Array<[unknown]>;
+		const calls = mockState.editorUpdateLocationsMock.mock
+			.calls as unknown as Array<[unknown]>;
 		const updatedLocations = calls.at(-1)?.[0];
-		if (!updatedLocations) throw new Error('expected editorUpdateLocations to be called');
+		if (!updatedLocations)
+			throw new Error('expected editorUpdateLocations to be called');
 		const locations = updatedLocations as Array<{
 			id: number;
 			connections: Array<{ target: number; path_description: string }>;
 		}>;
 		expect(locations.find((loc) => loc.id === 1)?.connections).toEqual([
-			{ target: 2, path_description: 'an old lane between settlements' }
+			{ target: 2, path_description: 'an old lane between settlements' },
 		]);
 		expect(locations.find((loc) => loc.id === 2)?.connections).toEqual([
-			{ target: 1, path_description: 'an old lane between settlements' }
+			{ target: 1, path_description: 'an old lane between settlements' },
 		]);
 	});
 
@@ -291,8 +303,11 @@ describe('LocationDetail', () => {
 		// Mousedown on location 2 (not the currently selected location 1)
 		await map.trigger(
 			'mousedown',
-			{ features: [{ properties: { id: 2 } }], originalEvent: { shiftKey: false } },
-			'editor-locations'
+			{
+				features: [{ properties: { id: 2 } }],
+				originalEvent: { shiftKey: false },
+			},
+			'editor-locations',
 		);
 		// A move should not trigger any update because drag was never started
 		await map.trigger('mousemove', { lngLat: { lat: 53.52, lng: -8.12 } });
@@ -316,11 +331,14 @@ describe('LocationDetail', () => {
 		// Start dragging location 1 (the selected one)
 		await map.trigger(
 			'mousedown',
-			{ features: [{ properties: { id: 1 } }], originalEvent: { shiftKey: false } },
-			'editor-locations'
+			{
+				features: [{ properties: { id: 1 } }],
+				originalEvent: { shiftKey: false },
+			},
+			'editor-locations',
 		);
 		// Move the mouse — drag is in progress
-		await map.trigger('mousemove', { lngLat: { lat: 53.60, lng: -8.20 } });
+		await map.trigger('mousemove', { lngLat: { lat: 53.6, lng: -8.2 } });
 
 		// Simulate selection change mid-drag (click race) — location 2 becomes selected
 		editorSelectedLocationId.set(2);
@@ -333,12 +351,17 @@ describe('LocationDetail', () => {
 			expect(mockState.editorUpdateLocationsMock).toHaveBeenCalledTimes(1);
 		});
 
-		const calls = mockState.editorUpdateLocationsMock.mock.calls as unknown as Array<[unknown]>;
-		const updatedLocations = calls.at(-1)?.[0] as Array<{ id: number; lat: number; lon: number }>;
+		const calls = mockState.editorUpdateLocationsMock.mock
+			.calls as unknown as Array<[unknown]>;
+		const updatedLocations = calls.at(-1)?.[0] as Array<{
+			id: number;
+			lat: number;
+			lon: number;
+		}>;
 		// Location 1 coordinates should be updated
 		const loc1 = updatedLocations.find((l) => l.id === 1);
 		expect(loc1).toBeDefined();
-		expect(loc1!.lat).toBeCloseTo(53.60, 4);
+		expect(loc1!.lat).toBeCloseTo(53.6, 4);
 		// Location 2 should be unchanged
 		const loc2 = updatedLocations.find((l) => l.id === 2);
 		expect(loc2?.lat).toBeCloseTo(53.51, 4);

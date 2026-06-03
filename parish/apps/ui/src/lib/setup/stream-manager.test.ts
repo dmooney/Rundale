@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 import { createStreamManager } from './stream-manager';
-import { textLog, streamingActive, languageHints, messageHints } from '../../stores/game';
+import {
+	textLog,
+	streamingActive,
+	languageHints,
+	messageHints,
+} from '../../stores/game';
 
 beforeEach(() => {
 	textLog.set([]);

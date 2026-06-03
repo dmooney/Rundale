@@ -62,14 +62,17 @@ export function startTravel(payload: TravelStartPayload): void {
 	clearPendingTravelReset();
 
 	const raw = payload.duration_minutes * MS_PER_GAME_MINUTE;
-	const animationMs = Math.max(MIN_ANIMATION_MS, Math.min(MAX_ANIMATION_MS, raw));
+	const animationMs = Math.max(
+		MIN_ANIMATION_MS,
+		Math.min(MAX_ANIMATION_MS, raw),
+	);
 
 	travelState.set({
 		waypoints: payload.waypoints,
 		durationMinutes: payload.duration_minutes,
 		destination: payload.destination,
 		startedAt: performance.now(),
-		animationMs
+		animationMs,
 	});
 
 	// Auto-clear when animation completes
@@ -90,4 +93,3 @@ export function cancelTravel(): void {
 	clearPendingTravelReset();
 	travelState.set(null);
 }
-

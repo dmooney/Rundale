@@ -36,8 +36,10 @@
 			✓ {status.display_name ?? providerName}
 		</span>
 		<span class="sep">·</span>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- /auth/logout is a server-side OAuth endpoint, not a SvelteKit route -->
 		<a href="/auth/logout" class="auth-link">Sign out</a>
 	{:else}
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- /auth/login/{provider} is a server-side OAuth endpoint, not a SvelteKit route -->
 		<a href="/auth/login/{status.provider ?? 'google'}" class="auth-link">Login with {providerName}</a>
 	{/if}
 {/if}
