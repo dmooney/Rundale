@@ -21,6 +21,7 @@
 //! | `load_fresh_world_and_npcs` | [`save`] | server, Tauri, CLI |
 //! | `do_save_game` | [`save`] | server, Tauri |
 //! | `do_new_game` | [`save`] | server, Tauri |
+//! | `advance_world` | [`world_pump`] | server, Tauri, CLI, harness |
 //!
 //! ## CLI structural note
 //!
@@ -57,6 +58,7 @@ pub mod npc_turn;
 pub mod reactions;
 pub mod save;
 pub mod system_command;
+pub mod world_pump;
 
 pub use context::GameLoopContext;
 pub use inference::{InferenceSlots, rebuild_inference_worker};
@@ -68,3 +70,6 @@ pub use npc_turn::{
 pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
 pub use save::{NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs};
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
+pub use world_pump::{
+    AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
+};

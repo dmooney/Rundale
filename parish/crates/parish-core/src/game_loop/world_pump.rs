@@ -1,0 +1,443 @@
+//! Single backend-agnostic "advance the world by a tick" pump (rule #12).
+//!
+//! Every Parish runtime advances the simulation on a minute-advance: tick the
+//! weather engine, run NPC schedules, reassign cognitive tiers, run the banshee
+//! tick, propagate gossip, and dispatch the tier-4 rules engine. Before #1159
+//! that pump was copy-pasted into all four loops — the async background loops in
+//! `parish-server` and `parish-tauri`, the headless REPL in `parish-engine`, and
+//! the `GameTestHarness` (`advance_time` + the `Wait`/`Tick` arms) — so a string
+//! or behaviour could silently drift between them (it is how #1156's "1 minutes"
+//! reached the harness).
+//!
+//! [`advance_world`] is now the **only** place those atoms are advanced. Each
+//! runtime keeps its own *scheduling* (the server budgets gossip and skips
+//! tier-4; the harness backfills weather on bulk jumps) by passing the right
+//! [`AdvanceOptions`]; the pump returns an [`AdvanceReport`] so each runtime can
+//! render its own debug events / player-visible narration from the same data.
+//!
+//! All gameplay events (weather changes, NPC arrivals/departures, banshee
+//! deaths, tier-4 life events) are published on the world's own
+//! [`event_bus`](crate::world::WorldState::event_bus); the pump does not touch
+//! the frontend [`EventEmitter`](crate::ipc::EventEmitter) — runtimes forward
+//! bus events to their frontends separately, exactly as before.
+
+use std::collections::HashSet;
+
+use rand::Rng;
+
+use crate::npc::banshee::BansheeReport;
+use crate::npc::manager::{NpcManager, ScheduleEvent, TierTransition};
+use crate::npc::types::CogTier;
+use crate::npc::{Npc, NpcId};
+use crate::world::{Weather, WorldState};
+
+/// How the weather engine is advanced during a pump.
+#[derive(Debug, Clone, Copy)]
+pub enum WeatherMode {
+    /// One transition check at the current clock time, publishing
+    /// `WeatherChanged` on a transition (via
+    /// [`WorldState::tick_weather`](crate::world::WorldState::tick_weather)).
+    /// Used by the real-time loops and the per-turn synchronous pump.
+    Single,
+    /// Catch up one transition check per elapsed game-hour across `minutes`,
+    /// updating weather *state* but deliberately **not** publishing a
+    /// `WeatherChanged` per backfilled hour — a 226-day jump would otherwise
+    /// flood the broadcast bus and evict events tests drain for. Used by
+    /// `GameTestHarness::advance_time` for bulk time jumps.
+    Backfill { minutes: i64 },
+    /// Skip the weather engine entirely.
+    Skip,
+}
+
+/// How gossip propagates among co-located Tier-2 NPCs during a pump.
+#[derive(Debug, Clone, Copy)]
+pub enum GossipMode {
+    /// Do not propagate gossip this tick (headless REPL, per-turn pump).
+    Skip,
+    /// Propagate among every co-located Tier-2 group (Tauri, `advance_time`).
+    All,
+    /// Process at most `budget` groups starting from `cursor`, round-robin
+    /// across ticks so a single tick never walks the whole parish (server,
+    /// #466). The returned [`AdvanceReport::gossip_cursor`] carries the
+    /// advanced cursor back to the caller.
+    Budgeted { cursor: usize, budget: usize },
+}
+
+/// Per-runtime knobs for [`advance_world`]. Each call site reproduces its own
+/// scheduling by selecting which atoms run and how — this is the
+/// "per-runtime scheduling" the single core pump preserves.
+#[derive(Debug, Clone, Copy)]
+pub struct AdvanceOptions {
+    /// How (or whether) to tick the weather engine.
+    pub weather: WeatherMode,
+    /// Run the banshee tick (callers gate this on the `banshee` feature flag).
+    pub run_banshee: bool,
+    /// How (or whether) to propagate gossip among co-located Tier-2 NPCs.
+    pub gossip: GossipMode,
+    /// Dispatch the tier-4 rules engine when `needs_tier4_tick` is due. The
+    /// server intentionally leaves this `false` (its loop never ran tier-4).
+    pub run_tier4: bool,
+}
+
+/// What a single [`advance_world`] pump produced. Each runtime renders its own
+/// debug events / player narration from these fields and reads back the gossip
+/// cursor for the next budgeted tick.
+#[derive(Debug, Default)]
+pub struct AdvanceReport {
+    /// The new weather if a transition fired this tick, else `None`.
+    pub weather_change: Option<Weather>,
+    /// NPC arrivals/departures produced by the schedule tick (already
+    /// published on the world bus; returned so the caller can narrate them).
+    pub schedule_events: Vec<ScheduleEvent>,
+    /// Tier promotions/demotions produced by reassignment.
+    pub tier_transitions: Vec<TierTransition>,
+    /// Wails + deaths produced by the banshee tick (empty if it did not run).
+    pub banshee: BansheeReport,
+    /// Total rumours propagated this tick.
+    pub gossip_count: usize,
+    /// Advanced gossip cursor for the next [`GossipMode::Budgeted`] tick.
+    pub gossip_cursor: usize,
+    /// Number of tier-4 rules-engine events generated this tick (0 if tier-4
+    /// did not run or was not due).
+    pub tier4_event_count: usize,
+    /// The [`GameEvent`]s the tier-4 tick applied to NPC state and published on
+    /// the world bus this tick (births, deaths, illnesses, …). Returned so a
+    /// runtime can mirror them into its own debug panel; the bus already
+    /// carries them for frontend forwarding.
+    ///
+    /// [`GameEvent`]: parish_types::events::GameEvent
+    pub tier4_game_events: Vec<parish_types::events::GameEvent>,
+}
+
+/// Advances the world one pump: weather → schedules → tiers → banshee → gossip
+/// → tier-4, gated by `opts`. The canonical ordering matches the pre-#1159
+/// real-time loops (weather first, then schedules, then tiers). RNG is consumed
+/// only by weather, gossip, and tier-4, always in that relative order, so a
+/// seeded harness stays deterministic.
+pub fn advance_world(
+    world: &mut WorldState,
+    npc: &mut NpcManager,
+    rng: &mut impl Rng,
+    opts: AdvanceOptions,
+) -> AdvanceReport {
+    // 1. Weather (RNG).
+    let weather_change = match opts.weather {
+        WeatherMode::Single => world.tick_weather(rng),
+        WeatherMode::Backfill { minutes } => backfill_weather(world, minutes, rng),
+        WeatherMode::Skip => None,
+    };
+
+    // 2. NPC schedules → arrivals/departures published on the world bus.
+    let schedule_events =
+        npc.tick_schedules(&world.clock, &world.graph, world.weather, &world.event_bus);
+
+    // 3. Tier reassignment (post-move, matching the real-time loops).
+    let tier_transitions = npc.assign_tiers(world, &[]);
+
+    // 4. Banshee — herald and finalise doomed NPCs.
+    let banshee = if opts.run_banshee {
+        npc.tick_banshee(
+            &world.clock,
+            &world.graph,
+            &mut world.text_log,
+            &world.event_bus,
+            world.player_location,
+        )
+    } else {
+        BansheeReport::default()
+    };
+
+    // 5. Gossip (RNG).
+    let (gossip_count, gossip_cursor) = match opts.gossip {
+        GossipMode::Skip => (0, 0),
+        GossipMode::All => (propagate_gossip_all(world, npc, rng), 0),
+        GossipMode::Budgeted { cursor, budget } => {
+            if world.gossip_network.is_empty() {
+                (0, cursor)
+            } else {
+                let groups = npc.tier2_groups();
+                let mut total = 0usize;
+                let network = &mut world.gossip_network;
+                let next_cursor = budgeted_round_robin(&groups, cursor, budget, |npc_ids| {
+                    total += crate::npc::ticks::propagate_gossip_at_location(npc_ids, network, rng);
+                });
+                (total, next_cursor)
+            }
+        }
+    };
+
+    // 6. Tier-4 rules engine (RNG), when due.
+    let (tier4_event_count, tier4_game_events) = if opts.run_tier4 {
+        dispatch_tier4(world, npc, opts.run_banshee, rng)
+    } else {
+        (0, Vec::new())
+    };
+
+    AdvanceReport {
+        weather_change,
+        schedule_events,
+        tier_transitions,
+        banshee,
+        gossip_count,
+        gossip_cursor,
+        tier4_event_count,
+        tier4_game_events,
+    }
+}
+
+/// Bulk weather catch-up over `minutes`, one transition check per elapsed
+/// game-hour. Updates `world.weather` but publishes no `WeatherChanged` events
+/// (see [`WeatherMode::Backfill`]). Returns the last transition, if any.
+fn backfill_weather(world: &mut WorldState, minutes: i64, rng: &mut impl Rng) -> Option<Weather> {
+    let season = world.clock.season();
+    let now = world.clock.now();
+    let hours_elapsed = (minutes / 60).max(1) as u32;
+    let mut last = None;
+    for h in 0..hours_elapsed {
+        let check_time =
+            now - chrono::Duration::minutes((hours_elapsed.saturating_sub(h + 1) as i64) * 60);
+        if let Some(new_weather) = world.weather_engine.tick(check_time, season, rng) {
+            world.weather = new_weather;
+            last = Some(new_weather);
+        }
+    }
+    last
+}
+
+/// Propagates gossip among every co-located Tier-2 group, in sorted
+/// `LocationId` order for deterministic RNG sequencing. Returns rumours spread.
+fn propagate_gossip_all(world: &mut WorldState, npc: &NpcManager, rng: &mut impl Rng) -> usize {
+    if world.gossip_network.is_empty() {
+        return 0;
+    }
+    let groups = npc.tier2_groups();
+    let mut sorted_keys: Vec<_> = groups.keys().copied().collect();
+    sorted_keys.sort();
+    let mut total = 0usize;
+    for loc in sorted_keys {
+        let npc_ids = &groups[&loc];
+        if npc_ids.len() >= 2 {
+            total += crate::npc::ticks::propagate_gossip_at_location(
+                npc_ids,
+                &mut world.gossip_network,
+                rng,
+            );
+        }
+    }
+    total
+}
+
+/// Runs at most `budget` propagations across `groups`, starting from the group
+/// at position `cursor` in `LocationId` order and wrapping around (#466).
+/// Returns the new cursor to persist for the next tick, so the round-robin
+/// makes forward progress through the group list over successive ticks rather
+/// than re-hitting the same prefix every time.
+///
+/// Groups with fewer than 2 NPCs are skipped silently and do *not* consume
+/// budget — they are no-ops for gossip and counting them would let a cluster of
+/// sparse groups waste an entire tick's budget.
+///
+/// The propagation work itself is handed off via a `propagate` callback so the
+/// helper stays free of the specific `GossipNetwork` / `Rng` types it would
+/// otherwise name, keeping it unit-testable with a counting stub. This is the
+/// single home of the budgeting math that `parish-server` used to own (#1159).
+pub fn budgeted_round_robin<F>(
+    groups: &std::collections::HashMap<crate::world::LocationId, Vec<NpcId>>,
+    cursor: usize,
+    budget: usize,
+    mut propagate: F,
+) -> usize
+where
+    F: FnMut(&[NpcId]),
+{
+    // Sort groups by LocationId so the cursor addresses a stable order across
+    // ticks; `HashMap::iter` order would shift on every resize.
+    let mut sorted_keys: Vec<crate::world::LocationId> = groups.keys().copied().collect();
+    sorted_keys.sort();
+    let n = sorted_keys.len();
+    if n == 0 {
+        return 0;
+    }
+    let start = cursor % n;
+    let mut consumed = 0;
+    for i in 0..n {
+        if consumed >= budget {
+            return (start + i) % n;
+        }
+        let idx = (start + i) % n;
+        let loc = sorted_keys[idx];
+        if let Some(npc_ids) = groups.get(&loc)
+            && npc_ids.len() >= 2
+        {
+            propagate(npc_ids);
+            consumed += 1;
+        }
+    }
+    // Wrapped all the way around without hitting the budget — advance the cursor
+    // by the number of groups we actually processed so we still rotate each tick.
+    (start + consumed) % n
+}
+
+/// Dispatches the tier-4 rules engine if enough game time has elapsed. Applies
+/// the resulting events to NPC state, publishes the derived [`GameEvent`]s on
+/// the world bus, and records the tick. Returns `(tier4_event_count,
+/// applied_game_events)` — the count is the number of [`Tier4Event`]s rolled,
+/// the events are what was published (for debug-panel mirroring).
+///
+/// [`GameEvent`]: parish_types::events::GameEvent
+/// [`Tier4Event`]: crate::npc::tier4::Tier4Event
+fn dispatch_tier4(
+    world: &mut WorldState,
+    npc: &mut NpcManager,
+    banshee_on: bool,
+    rng: &mut impl Rng,
+) -> (usize, Vec<parish_types::events::GameEvent>) {
+    let now = world.clock.now();
+    if !npc.needs_tier4_tick(now) {
+        return (0, Vec::new());
+    }
+    let tier4_ids: HashSet<NpcId> = npc.npcs_in_tier(CogTier::Tier4).into_iter().collect();
+    let events = {
+        let mut tier4_refs: Vec<&mut Npc> = npc
+            .npcs_mut()
+            .values_mut()
+            .filter(|n| tier4_ids.contains(&n.id))
+            .collect();
+        // Sort by NpcId for deterministic RNG sequencing across ticks.
+        tier4_refs.sort_by_key(|n| n.id);
+        let season = world.clock.season();
+        let game_date = now.date_naive();
+        crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, rng)
+    };
+    let game_events = npc.apply_tier4_events(&events, now, banshee_on);
+    for evt in &game_events {
+        world.event_bus.publish(evt.clone());
+    }
+    npc.record_tier4_tick(now);
+    (events.len(), game_events)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::LocationId;
+
+    fn make_group(n: u32) -> (LocationId, Vec<NpcId>) {
+        // 2 NPCs so the group is gossip-eligible.
+        (LocationId(n), vec![NpcId(n * 10), NpcId(n * 10 + 1)])
+    }
+
+    // ── #466 / #1159 gossip budget round-robin (moved from parish-server) ──────
+
+    #[test]
+    fn gossip_budget_empty_returns_zero_cursor() {
+        let groups = std::collections::HashMap::new();
+        let mut calls = 0;
+        let new_cursor = budgeted_round_robin(&groups, 42, 20, |_| calls += 1);
+        assert_eq!(new_cursor, 0);
+        assert_eq!(calls, 0);
+    }
+
+    #[test]
+    fn gossip_budget_caps_at_budget_and_returns_next_cursor() {
+        // 50 eligible groups, budget 20 — expect 20 propagations and cursor=20.
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=50 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        let new_cursor = budgeted_round_robin(&groups, 0, 20, |_| calls += 1);
+        assert_eq!(calls, 20);
+        assert_eq!(new_cursor, 20, "cursor should advance by the budget");
+    }
+
+    #[test]
+    fn gossip_budget_round_robins_across_ticks() {
+        // 30 groups, budget 20. Tick 1 does 0..20, tick 2 should pick up at 20
+        // and wrap through 29, 0..9 — ending at cursor 10 (20+20 mod 30).
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=30 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+
+        let mut seen: Vec<LocationId> = Vec::new();
+        let new_cursor = budgeted_round_robin(&groups, 0, 20, |npc_ids| {
+            seen.push(LocationId(npc_ids[0].0 / 10));
+        });
+        assert_eq!(new_cursor, 20);
+        assert_eq!(seen.len(), 20);
+
+        let mut next_seen: Vec<LocationId> = Vec::new();
+        let next_cursor = budgeted_round_robin(&groups, new_cursor, 20, |npc_ids| {
+            next_seen.push(LocationId(npc_ids[0].0 / 10));
+        });
+        assert_eq!(next_cursor, 10, "wrap: (20+20) mod 30 = 10");
+        assert_eq!(next_seen.len(), 20);
+        assert_eq!(next_seen[0], LocationId(21));
+        assert_eq!(next_seen[19], LocationId(10));
+    }
+
+    #[test]
+    fn gossip_budget_skips_sparse_groups_without_consuming_budget() {
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=10u32 {
+            let (loc, mut npcs) = make_group(i);
+            if i.is_multiple_of(2) {
+                npcs.truncate(1);
+            }
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        let _ = budgeted_round_robin(&groups, 0, 3, |_| calls += 1);
+        assert_eq!(calls, 3, "sparse groups must not consume budget");
+    }
+
+    #[test]
+    fn gossip_budget_cursor_wraps_modulo_group_count() {
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=5 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        let new_cursor = budgeted_round_robin(&groups, 1_000_000, 2, |_| calls += 1);
+        assert_eq!(calls, 2);
+        assert_eq!(new_cursor, 2);
+    }
+
+    // ── advance_world wiring ───────────────────────────────────────────────────
+
+    #[test]
+    fn skip_options_consume_no_rng_and_publish_no_weather() {
+        // With everything skipped, the pump only ticks schedules + tiers; no
+        // weather transition is reported and the RNG is untouched, so a seeded
+        // harness stays deterministic (this is the harness per-turn config).
+        use crate::world::WorldState;
+        use rand::rngs::StdRng;
+        use rand::{RngCore, SeedableRng};
+
+        let mut world = WorldState::new();
+        let mut npc = NpcManager::new();
+        let mut rng_a = StdRng::seed_from_u64(7);
+        let mut rng_b = StdRng::seed_from_u64(7);
+
+        let report = advance_world(
+            &mut world,
+            &mut npc,
+            &mut rng_a,
+            AdvanceOptions {
+                weather: WeatherMode::Skip,
+                run_banshee: false,
+                gossip: GossipMode::Skip,
+                run_tier4: false,
+            },
+        );
+        assert!(report.weather_change.is_none());
+        assert_eq!(report.gossip_count, 0);
+        assert_eq!(report.tier4_event_count, 0);
+        // RNG untouched: a second generator at the same seed is still in lockstep.
+        assert_eq!(rng_a.next_u64(), rng_b.next_u64());
+    }
+}

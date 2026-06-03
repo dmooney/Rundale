@@ -270,16 +270,13 @@ fn minute_counts_pluralize_through_helper() {
 /// `parish_core::ipc::commands::handle_command`. Every entry MUST cite why
 /// the local handling exists and a tracking issue for its removal.
 ///
-/// The synchronous CLI/script/test harness in `parish-engine` has no async
-/// background game loop, so it inlines the world-advance pump (weather tick,
-/// schedule→narration, banshee, gossip, tier-4) that `parish-server` and
-/// `parish-tauri` drive from a continuous loop. Removing these arms requires
-/// extracting that pump into a shared `EventEmitter`-parameterized core
-/// helper — tracked in #1159.
-const ALLOWED_LOCAL_COMMAND_HANDLERS: &[(&str, &str)] = &[
-    ("crates/parish-engine/src/testing.rs", "Wait"),
-    ("crates/parish-engine/src/testing.rs", "Tick"),
-];
+/// Empty since #1159: the world-advance pump (weather tick, schedule→narration,
+/// banshee, gossip, tier-4) that every runtime drives now lives in exactly one
+/// place — `parish_core::game_loop::advance_world`. The synchronous
+/// CLI/script/test harness runs it once per turn from `GameTestHarness::execute`
+/// and delegates `Wait`/`Tick` to the shared `handle_command`, so no
+/// entry-point crate re-implements a command's orchestration body.
+const ALLOWED_LOCAL_COMMAND_HANDLERS: &[(&str, &str)] = &[];
 
 /// Rule #12 structural sensor: cross-runtime orchestration belongs in
 /// `parish-core`, parameterized over runtime concerns via traits — entry-point
