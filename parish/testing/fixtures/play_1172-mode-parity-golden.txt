@@ -1,0 +1,17 @@
+# 1172 — Mode-parity golden: shared per-turn dialogue chokepoint
+# ==============================================================
+# One canned dialogue exchange exercised through the live script harness.
+# The parity golden test (parish-engine/tests/mode_parity.rs) drives this
+# same canned response through harness / headless / live paths and asserts
+# the GameEvent stream matches. This fixture is the live-process companion
+# proof: it shows the exchange actually running and a DialogueOccurred-backed
+# record landing, via the shared chokepoint.
+#
+# Run with Rundale active.
+
+go to The Crossroads
+go to Darcy's Pub
+/debug here
+/stub Padraig Darcy: A fair morning to ye, and welcome to the pub.
+say @Padraig Darcy Good morning, Padraig.
+/status
