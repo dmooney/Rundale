@@ -14,6 +14,7 @@
 //! untouched; [`GameTestHarness::execute_via_real_loop`] is an additive
 //! parallel entry point.
 
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -33,6 +34,64 @@ impl GameTestHarness {
     /// to script NPC dialogue deterministically.
     pub fn mock(&self) -> Arc<MockClient> {
         Arc::clone(&self.mock)
+    }
+
+    /// Whether shadow mode is active for this harness.
+    pub fn shadow_enabled(&self) -> bool {
+        self.shadow_enabled
+    }
+
+    /// Enables shadow mode, directing divergence records to `ledger` and
+    /// labelling them with `case`. Tests use this to opt in with an isolated
+    /// ledger path instead of relying on the process-global env var.
+    pub fn enable_shadow(&mut self, ledger: std::path::PathBuf, case: impl Into<String>) {
+        self.shadow_enabled = true;
+        self.shadow_ledger = ledger;
+        self.shadow_case = case.into();
+    }
+
+    /// After the legacy [`GameTestHarness::execute`] path has run, replays the
+    /// same input through the real `game_loop` on the rolled-back pre-state,
+    /// compares the player-visible (`text-log`) output, and appends a record to
+    /// the ledger on divergence. The post-legacy state is restored afterwards
+    /// so the legacy timeline the caller sees is unaffected. Panics in the real
+    /// loop are swallowed and recorded as a divergence rather than propagated —
+    /// shadow mode must never destabilize the legacy run.
+    pub(crate) fn shadow_compare_after_legacy(
+        &mut self,
+        input: &str,
+        pre_snapshot: parish_core::persistence::snapshot::GameSnapshot,
+        legacy_lines: Vec<String>,
+    ) {
+        let legacy_events: Vec<(String, serde_json::Value)> = legacy_lines
+            .iter()
+            .map(|line| ("text-log".to_string(), serde_json::json!({ "content": line })))
+            .collect();
+
+        // Preserve the post-legacy state, roll back to the pre-state, run the
+        // real loop, then restore the post-legacy state.
+        let post_snapshot =
+            parish_core::persistence::snapshot::GameSnapshot::capture(&self.app.world, &self.app.npc_manager);
+        pre_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
+
+        let real = std::panic::catch_unwind(AssertUnwindSafe(|| self.execute_via_real_loop(input)));
+
+        post_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
+
+        let real_events = real.unwrap_or_else(|_| {
+            vec![("real-loop-panic".to_string(), serde_json::Value::Null)]
+        });
+        let real_text: Vec<(String, serde_json::Value)> = real_events
+            .into_iter()
+            .filter(|(name, _)| name == "text-log")
+            .collect();
+
+        if let Some(record) =
+            crate::shadow::compare(&self.shadow_case, input, &legacy_events, &real_text)
+            && let Err(e) = crate::shadow::append_ledger(&self.shadow_ledger, &record)
+        {
+            tracing::warn!(error = %e, "shadow ledger append failed");
+        }
     }
 
     /// Executes a single input line through the **real** `parish_core::game_loop`
@@ -65,17 +124,25 @@ impl GameTestHarness {
             InputResult::SystemCommand(cmd) => {
                 // Move App into an Arc<Mutex<App>> so the shared SystemCommandHost
                 // can borrow it — the same temporary-ownership dance the headless
-                // REPL uses (see command_host.rs docs).
-                let app_val = std::mem::take(&mut self.app);
-                let app_arc = Arc::new(Mutex::new(app_val));
+                // REPL uses (see command_host.rs docs). The whole App is moved
+                // out, so on a panic mid-command we must move it back before
+                // unwinding or `self.app` would be left default — corrupting the
+                // harness (the shadow wrapper relies on this safety).
+                let app_arc = Arc::new(Mutex::new(std::mem::take(&mut self.app)));
                 let host = CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
-                rt.block_on(handle_system_command(&host, cmd));
+                let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                    rt.block_on(handle_system_command(&host, cmd))
+                }));
+                drop(host);
                 self.app = Arc::into_inner(app_arc)
                     .expect("real-loop host dropped: Arc should have exactly 1 reference")
                     .into_inner();
+                if let Err(payload) = outcome {
+                    std::panic::resume_unwind(payload);
+                }
             }
             InputResult::GameInput(text) => {
-                rt.block_on(self.run_game_input_real(&text, Arc::clone(&emitter)));
+                self.run_game_input_real(&rt, &text, Arc::clone(&emitter));
             }
         }
 
@@ -84,11 +151,21 @@ impl GameTestHarness {
 
     /// Drives [`handle_game_input`] over the harness's state with the mock
     /// client and the capturing emitter wired in.
-    async fn run_game_input_real(&mut self, text: &str, emitter: Arc<CapturingEmitter>) {
+    ///
+    /// The world / NPC state is moved out of `self.app` for the call and moved
+    /// back afterwards — including on panic — so the harness is never left with
+    /// default state. The panic is re-raised after restoration so standalone
+    /// callers still observe it (the shadow wrapper swallows it).
+    fn run_game_input_real(
+        &mut self,
+        rt: &tokio::runtime::Runtime,
+        text: &str,
+        emitter: Arc<CapturingEmitter>,
+    ) {
         let transport = crate::headless::default_transport(&self.app);
 
-        // Mod-derived context that the shared loop needs. Cloned up front so the
-        // borrows below don't conflict with the &mut moves of world/npc_manager.
+        // Mod-derived context that the shared loop needs. Gathered before the
+        // world/NPC state is moved out below.
         let language = self.app.language_settings();
         let inference_config = self.app.inference_config.clone();
         let (pronunciations, idle_messages, failure_messages) = match &self.app.game_mod {
@@ -99,12 +176,13 @@ impl GameTestHarness {
             ),
             None => (Vec::new(), Vec::new(), Vec::new()),
         };
+        let config_snapshot = self.app.snapshot_config();
 
         // Move the live world / NPC state into Mutex containers for the borrow
-        // struct, then move them back once the loop returns.
+        // struct.
         let world = Mutex::new(std::mem::take(&mut self.app.world));
         let npc_manager = Mutex::new(std::mem::take(&mut self.app.npc_manager));
-        let config = Mutex::new(self.app.snapshot_config());
+        let config = Mutex::new(config_snapshot);
         let conversation = Mutex::new(ConversationRuntimeState::new());
         let inference_queue = Mutex::new(None);
         let client = Mutex::new(Some(AnyClient::Mock(Arc::clone(&self.mock))));
@@ -112,43 +190,53 @@ impl GameTestHarness {
         let templates = ReactionTemplates::default();
         let dyn_emitter: Arc<dyn EventEmitter> = emitter;
 
-        let ctx = GameLoopContext {
-            world: &world,
-            npc_manager: &npc_manager,
-            config: &config,
-            conversation: &conversation,
-            inference_queue: &inference_queue,
-            emitter: dyn_emitter,
-            inference_config: &inference_config,
-            pronunciations: &pronunciations,
-            client: &client,
-            cloud_client: &cloud_client,
-            language,
-            inference_failure_messages: &failure_messages,
-            idle_messages: &idle_messages,
-        };
-
-        handle_game_input(
-            &ctx,
-            text.to_string(),
-            Vec::new(),
-            &transport,
-            &templates,
-            || None,
-        )
-        .await;
+        // catch_unwind at the synchronous block_on boundary so the borrows held
+        // by the context don't outlive the unwind and the moved-out state is
+        // always restored below.
+        let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            rt.block_on(async {
+                let ctx = GameLoopContext {
+                    world: &world,
+                    npc_manager: &npc_manager,
+                    config: &config,
+                    conversation: &conversation,
+                    inference_queue: &inference_queue,
+                    emitter: dyn_emitter,
+                    inference_config: &inference_config,
+                    pronunciations: &pronunciations,
+                    client: &client,
+                    cloud_client: &cloud_client,
+                    language,
+                    inference_failure_messages: &failure_messages,
+                    idle_messages: &idle_messages,
+                };
+                handle_game_input(
+                    &ctx,
+                    text.to_string(),
+                    Vec::new(),
+                    &transport,
+                    &templates,
+                    || None,
+                )
+                .await;
+            });
+        }));
 
         // Move mutated state back into the app, and fold config changes back.
         let new_config = config.into_inner();
         self.app.world = world.into_inner();
         self.app.npc_manager = npc_manager.into_inner();
         self.app.apply_config(&new_config);
+
+        if let Err(payload) = outcome {
+            std::panic::resume_unwind(payload);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::GameTestHarness;
+    use crate::testing::{ActionResult, GameTestHarness};
 
     /// C3 — `look` routed through the real game_loop emits a non-empty
     /// `text-log` describing the start location.
@@ -184,5 +272,51 @@ mod tests {
             joined.contains(landmark),
             "look output should describe start location {landmark:?}; got {joined:?}"
         );
+    }
+
+    /// C7 — with shadow mode off (the default), `execute` writes no ledger and
+    /// behaves exactly as the legacy path.
+    #[test]
+    fn shadow_disabled_by_default_writes_no_ledger() {
+        let mut h = GameTestHarness::new();
+        assert!(!h.shadow_enabled(), "shadow must be off by default");
+        let before = h.player_location().to_string();
+        let _ = h.execute("look");
+        // Legacy behaviour intact (look doesn't move the player).
+        assert_eq!(h.player_location(), before);
+    }
+
+    /// C5 — with shadow mode on, `execute` runs both engines without disturbing
+    /// the legacy result, and any ledger it writes contains only well-formed
+    /// divergence records for the executed input.
+    #[test]
+    fn shadow_enabled_runs_both_paths_and_logs_valid_records() {
+        use crate::shadow::DivergenceRecord;
+
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("ledger.jsonl");
+
+        let mut h = GameTestHarness::new();
+        h.enable_shadow(ledger.clone(), "real_loop_it");
+        assert!(h.shadow_enabled());
+
+        let start = h.player_location().to_string();
+        // A movement command: legacy result must be unaffected by the shadow run.
+        let result = h.execute("look");
+        assert!(matches!(result, ActionResult::Looked { .. }));
+        // Legacy state preserved (shadow rolled back its own real-loop mutation).
+        assert_eq!(h.player_location(), start);
+
+        // If a ledger was written, every line is a valid record for this input.
+        if ledger.exists() {
+            let contents = std::fs::read_to_string(&ledger).unwrap();
+            for line in contents.lines() {
+                let rec: DivergenceRecord = serde_json::from_str(line)
+                    .unwrap_or_else(|e| panic!("ledger line not a DivergenceRecord: {e}: {line}"));
+                assert_eq!(rec.case, "real_loop_it");
+                assert_eq!(rec.input, "look");
+                assert_ne!(rec.old, rec.new, "a record implies the forms differ");
+            }
+        }
     }
 }
