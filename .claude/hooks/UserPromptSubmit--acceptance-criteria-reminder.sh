@@ -12,15 +12,15 @@ PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // ""')
 # Only act on implementation-task prompts. Match common verbs that precede code.
 if ! printf '%s' "$PROMPT" | grep -qiE \
     '\b(add|fix|implement|create|build|refactor|update|change|make|write|port|migrate|remove|delete|rename|extract|split|merge|enable|disable|wire|integrate)\b'; then
-  exit 0
+    exit 0
 fi
 
 # Skip if this looks like a pure doc / config / question prompt.
 if printf '%s' "$PROMPT" | grep -qiE \
     '\b(document|explain|describe|what|how|why|list|show|read|check|review|analyse|analyze)\b' \
-  && ! printf '%s' "$PROMPT" | grep -qiE \
-    '\b(implement|create|build|fix|add|refactor|update|change|make)\b'; then
-  exit 0
+    && ! printf '%s' "$PROMPT" | grep -qiE \
+        '\b(implement|create|build|fix|add|refactor|update|change|make)\b'; then
+    exit 0
 fi
 
 cat <<'REMINDER'

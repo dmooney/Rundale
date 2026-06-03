@@ -69,7 +69,7 @@ UNCOMMITTED_ADDS=$(git diff HEAD --numstat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}"
 UNSTAGED_ADDS=$(git diff --numstat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
     | awk '{s+=$1} END {print s+0}' || echo 0)
 
-TOTAL_ADDS=$(( COMMITTED_ADDS + UNCOMMITTED_ADDS + UNSTAGED_ADDS ))
+TOTAL_ADDS=$((COMMITTED_ADDS + UNCOMMITTED_ADDS + UNSTAGED_ADDS))
 
 # Trivial threshold: skip if <= 5 net added lines
 if [[ "$TOTAL_ADDS" -le 5 ]]; then

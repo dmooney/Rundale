@@ -55,7 +55,7 @@ done
 emit_transcript_inline() {
     [[ -f "$transcript" ]] || return 0
     local total
-    total=$(wc -l < "$transcript" | tr -d ' ')
+    total=$(wc -l <"$transcript" | tr -d ' ')
     echo
     echo '### Transcript'
     echo
@@ -136,7 +136,7 @@ EOF
 
 <!-- /parish-proof-bundle:${task_id} -->
 EOF
-} > "$staged"
+} >"$staged"
 
 # Cap individual section bodies so that even huge AC/evidence/judge
 # files can't bust the comment ceiling. Each section is hard-truncated
@@ -148,7 +148,7 @@ SECTION_BYTE_CAP=15000
 truncate_section_body() {
     local file="$1"
     local bytes
-    bytes=$(wc -c < "$file" | tr -d ' ')
+    bytes=$(wc -c <"$file" | tr -d ' ')
     if [[ "$bytes" -le "$SECTION_BYTE_CAP" ]]; then
         cat "$file"
     else
@@ -186,14 +186,14 @@ EOF
 EOF
 }
 
-staged_bytes=$(wc -c < "$staged" | tr -d ' ')
+staged_bytes=$(wc -c <"$staged" | tr -d ' ')
 if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
     # First fallback: drop the inline transcript section. The transcript
     # file is still listed under "Artifacts" for upload via the GitHub
     # UI. Re-check size after the rewrite — if AC/evidence/judge themselves
     # are huge, hard-truncate each section so the comment always fits.
-    emit_truncated_render > "$staged"
-    staged_bytes=$(wc -c < "$staged" | tr -d ' ')
+    emit_truncated_render >"$staged"
+    staged_bytes=$(wc -c <"$staged" | tr -d ' ')
     if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
         echo "render-proof-comment: ERROR — rendered body $staged_bytes bytes exceeds $COMMENT_BYTE_CAP even after section truncation. Reduce the bundle's source files manually." >&2
         exit 1
