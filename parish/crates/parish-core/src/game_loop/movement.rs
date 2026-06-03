@@ -213,6 +213,11 @@ pub async fn handle_movement(
                         token: batch.to_string(),
                         turn_id,
                         source: source.to_string(),
+                        // Arrival-reaction streams have no reconnect-resume
+                        // contract: their placeholder id is minted inside the
+                        // per-runtime emit closure above and isn't threaded
+                        // here. `None` preserves the prior wire shape (#1164).
+                        message_id: None,
                     })
                     .unwrap_or(serde_json::Value::Null),
                 );

@@ -44,6 +44,16 @@ pub struct WorldSnapshot {
     pub name_hints: Vec<LanguageHint>,
     /// Current day of week (e.g. "Monday", "Saturday").
     pub day_of_week: String,
+    /// Whether an NPC conversation turn is currently being processed by the
+    /// engine. Surfaced so the web frontend can re-assert `streamingActive`
+    /// from authoritative state after a WebSocket reconnect — otherwise a turn
+    /// that is in flight but has not yet emitted its next `stream-token`
+    /// (slow model, long pause) would leave the input field and quick-travel
+    /// chips usable, opening a duplicate-turn window (#1164). Defaults to
+    /// `false`; only the snapshot the reconnect resync re-fetches sets it from
+    /// `ConversationRuntimeState::conversation_in_progress`.
+    #[serde(default)]
+    pub turn_in_flight: bool,
 }
 
 // ── Map data ────────────────────────────────────────────────────────────────
@@ -164,10 +174,24 @@ impl From<RawPalette> for ThemePalette {
 pub struct StreamTokenPayload {
     /// The batch of token text to append to the current chat entry.
     pub token: String,
-    /// Stable ID for the NPC turn this token batch belongs to.
+    /// Stable ID for the NPC turn this token batch belongs to. This is the
+    /// same value as the placeholder `text-log` entry's `stream_turn_id`, so
+    /// the client keys streaming entries on it.
     pub turn_id: u64,
     /// Speaker label for this stream turn.
     pub source: String,
+    /// Message id of the `text-log` placeholder this stream fills, when known.
+    ///
+    /// Carried so a stream that *resumes after a WebSocket reconnect* can
+    /// rebind to a reactable `textLog` entry: `StreamManager.reset()` discards
+    /// the client's only copy of the placeholder id during the gap, and
+    /// without it the rebuilt NPC bubble has no `entry.id` (non-reactable, its
+    /// language hints unkeyed) (#1164). Populated for player-initiated NPC
+    /// conversation turns; `None` for arrival-reaction streams (which generate
+    /// their placeholder id inside the per-runtime emit closure and have no
+    /// reconnect-resume contract).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
 }
 
 /// Payload for `stream-turn-end` events.
@@ -427,11 +451,13 @@ mod tests {
             speed_factor: 36.0,
             name_hints: vec![],
             day_of_week: "Monday".to_string(),
+            turn_in_flight: false,
         };
         let json = serde_json::to_string(&snap).unwrap();
         let deser: WorldSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.location_name, "Crossroads");
         assert_eq!(deser.hour, 8);
+        assert!(!deser.turn_in_flight);
     }
 
     #[test]
@@ -480,10 +506,26 @@ mod tests {
             token: "hello".to_string(),
             turn_id: 7,
             source: "Siobhan Murphy".to_string(),
+            message_id: Some("msg-7".to_string()),
         };
         let json = serde_json::to_string(&token).unwrap();
         assert!(json.contains("hello"));
         assert!(json.contains("turn_id"));
+        assert!(json.contains("message_id"));
+        assert!(json.contains("msg-7"));
+
+        // `message_id` is omitted from the wire when `None` (arrival-reaction
+        // streams) and deserializes back to `None` for older payloads.
+        let no_id = StreamTokenPayload {
+            token: "hi".to_string(),
+            turn_id: 8,
+            source: "Peig".to_string(),
+            message_id: None,
+        };
+        let json_no_id = serde_json::to_string(&no_id).unwrap();
+        assert!(!json_no_id.contains("message_id"));
+        let deser: StreamTokenPayload = serde_json::from_str(&json_no_id).unwrap();
+        assert!(deser.message_id.is_none());
 
         let log = TextLogPayload {
             id: "msg-1".to_string(),

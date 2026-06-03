@@ -15,6 +15,13 @@ export interface WorldSnapshot {
 	speed_factor: number;
 	name_hints: LanguageHint[];
 	day_of_week: string;
+	/** Whether an NPC conversation turn is being processed by the engine.
+	 *  Set on the `/api/world-snapshot` resync the reconnect handler fetches so
+	 *  the client can re-assert `streamingActive` from authoritative state
+	 *  instead of clearing it mid-turn (#1164). `#[serde(default)]` on the Rust
+	 *  side, so it may be absent on world-update pushes — treat undefined as
+	 *  false. */
+	turn_in_flight?: boolean;
 }
 
 export interface MapLocation {
@@ -153,6 +160,12 @@ export interface StreamTokenPayload {
 	token: string;
 	turn_id: number;
 	source: string;
+	/** Message id of the `text-log` placeholder this stream fills. Carried so a
+	 *  stream that resumes after a WS reconnect can rebind to a reactable
+	 *  `textLog` entry even though `StreamManager.reset()` discarded the
+	 *  client's only copy of the id (#1164). Absent for arrival-reaction
+	 *  streams (Rust serializes `Option<String>` with `skip_serializing_if`). */
+	message_id?: string;
 }
 
 export interface StreamTurnEndPayload {

@@ -127,14 +127,15 @@ pub async fn run_npc_turn(
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
 
+    // Build the placeholder first so we can capture its message id: a stream
+    // that resumes after a WebSocket reconnect carries this id on every
+    // `stream-token` so the client can rebind to the reactable `textLog`
+    // entry even after `StreamManager.reset()` discarded its only copy (#1164).
+    let placeholder = text_log_for_stream_turn(display_label.clone(), String::new(), req_id);
+    let message_id = placeholder.id.clone();
     ctx.emitter.emit_event(
         "text-log",
-        serde_json::to_value(text_log_for_stream_turn(
-            display_label.clone(),
-            String::new(),
-            req_id,
-        ))
-        .unwrap_or(serde_json::Value::Null),
+        serde_json::to_value(placeholder).unwrap_or(serde_json::Value::Null),
     );
 
     // TODO #10 / #23 / #34: Qwen2.5-14B-4bit degenerates into verbatim
@@ -188,6 +189,7 @@ pub async fn run_npc_turn(
     // Stream tokens in a background task while awaiting the final response.
     let emitter_clone = Arc::clone(&ctx.emitter);
     let source = display_label.clone();
+    let stream_message_id = message_id.clone();
     let stream_handle = tokio::spawn(async move {
         crate::ipc::stream_npc_tokens(token_rx, |batch| {
             emitter_clone.emit_event(
@@ -196,6 +198,7 @@ pub async fn run_npc_turn(
                     token: batch.to_string(),
                     turn_id: req_id,
                     source: source.clone(),
+                    message_id: Some(stream_message_id.clone()),
                 })
                 .unwrap_or(serde_json::Value::Null),
             );
