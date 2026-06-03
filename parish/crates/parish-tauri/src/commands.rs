@@ -69,6 +69,7 @@ fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot 
         speed_factor: core.speed_factor,
         name_hints: vec![],
         day_of_week: core.day_of_week,
+        turn_in_flight: core.turn_in_flight,
     }
 }
 
@@ -1157,6 +1158,10 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                         token: batch.to_string(),
                         turn_id,
                         source: source.to_string(),
+                        // Arrival reactions have no reconnect-resume contract
+                        // (desktop transport never disconnects); `None` keeps
+                        // the wire shape unchanged (#1164).
+                        message_id: None,
                     },
                 );
             },
