@@ -7,7 +7,7 @@
 {#snippet hintList()}
 	{#if $nameHints.length > 0 || $languageHints.length > 0}
 		<ul class="hint-list">
-			{#each $nameHints as hint (hint.word)}
+			{#each $nameHints as hint, i (hint.word + "#" + i)}
 				<li class="hint-item name-hint hint-name">
 					<span class="word">{hint.word}</span>
 					<span class="pronunciation">[{hint.pronunciation}]</span>
@@ -16,7 +16,7 @@
 					{/if}
 				</li>
 			{/each}
-			{#each $languageHints as hint (hint.word)}
+			{#each $languageHints as hint, i (hint.word + "#" + i)}
 				<li class="hint-item hint-irish">
 					<span class="word">{hint.word}</span>
 					<span class="pronunciation">[{hint.pronunciation}]</span>

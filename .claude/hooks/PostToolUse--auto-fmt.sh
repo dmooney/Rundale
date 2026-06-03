@@ -16,29 +16,31 @@ command -v fnm >/dev/null 2>&1 && eval "$(fnm env 2>/dev/null)" 2>/dev/null || t
 dir=$(dirname "$FILE_PATH")
 
 prettier_fmt() {
-    # Resolve prettier from the nearest node_modules (ui or repo root); skip if none.
-    (cd "$dir" && npx --no-install prettier --write "$FILE_PATH" >/dev/null 2>&1) || true
+    # Resolve prettier from the nearest node_modules (ui or repo root); skip if
+    # none. Use basename: FILE_PATH may be relative, and it breaks once we cd
+    # into $dir — but the file is right there, so its basename resolves.
+    (cd "$dir" && npx --no-install prettier --write "$(basename "$FILE_PATH")" >/dev/null 2>&1) || true
 }
 
 case "$FILE_PATH" in
-    *.rs)
-        cargo fmt --quiet 2>/dev/null || true
-        ;;
-    *.ts | *.tsx | *.svelte | *.js | *.mjs | *.cjs | *.json | *.jsonc | *.md | *.yaml | *.yml)
-        prettier_fmt
-        ;;
-    *.py)
-        if command -v ruff >/dev/null 2>&1; then
-            ruff format "$FILE_PATH" >/dev/null 2>&1 || true
-            ruff check --fix "$FILE_PATH" >/dev/null 2>&1 || true
-        fi
-        ;;
-    *.sh)
-        command -v shfmt >/dev/null 2>&1 && shfmt -w "$FILE_PATH" 2>/dev/null || true
-        ;;
-    *.toml)
-        command -v taplo >/dev/null 2>&1 && taplo fmt "$FILE_PATH" >/dev/null 2>&1 || true
-        ;;
+*.rs)
+    cargo fmt --quiet 2>/dev/null || true
+    ;;
+*.ts | *.tsx | *.svelte | *.js | *.mjs | *.cjs | *.json | *.jsonc | *.md | *.yaml | *.yml)
+    prettier_fmt
+    ;;
+*.py)
+    if command -v ruff >/dev/null 2>&1; then
+        ruff format "$FILE_PATH" >/dev/null 2>&1 || true
+        ruff check --fix "$FILE_PATH" >/dev/null 2>&1 || true
+    fi
+    ;;
+*.sh)
+    command -v shfmt >/dev/null 2>&1 && shfmt -w "$FILE_PATH" 2>/dev/null || true
+    ;;
+*.toml)
+    command -v taplo >/dev/null 2>&1 && taplo fmt "$FILE_PATH" >/dev/null 2>&1 || true
+    ;;
 esac
 
 exit 0
