@@ -7,29 +7,29 @@ publish = false
 description = "Orchestration layer for the Parish engine: game session, IPC, mod loading, prompts"
 
 [dependencies]
-parish-types      = { workspace = true }
-parish-config     = { workspace = true }
-parish-inference  = { workspace = true }
-parish-world      = { workspace = true }
-parish-palette    = { workspace = true }
-parish-npc        = { workspace = true }
+parish-types = { workspace = true }
+parish-config = { workspace = true }
+parish-inference = { workspace = true }
+parish-world = { workspace = true }
+parish-palette = { workspace = true }
+parish-npc = { workspace = true }
 parish-persistence = { workspace = true }
-parish-input      = { workspace = true }
-tokio             = { workspace = true }
-tokio-util        = { workspace = true }
-reqwest           = { workspace = true, features = ["json"] }
-serde             = { workspace = true }
-serde_json        = { workspace = true }
-serde_yaml        = { workspace = true }
-anyhow            = { workspace = true }
-thiserror         = { workspace = true }
-tracing           = { workspace = true }
-chrono            = { workspace = true }
-toml              = { workspace = true }
-base64            = "0.22"
-uuid              = { workspace = true }
+parish-input = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+toml = { workspace = true }
+base64 = "0.22"
+uuid = { workspace = true }
 
 [dev-dependencies]
-tempfile   = { workspace = true }
-wiremock   = { workspace = true }
-regex      = { workspace = true }
+tempfile = { workspace = true }
+wiremock = { workspace = true }
+regex = { workspace = true }
