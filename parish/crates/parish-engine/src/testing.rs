@@ -113,6 +113,11 @@ pub struct GameTestHarness {
     simulator: Option<Arc<SimulatorClient>>,
     /// Seeded RNG shared across all weather/gossip calls for deterministic results.
     rng: StdRng,
+    /// Scriptable mock LLM backing the real-loop execution path
+    /// ([`Self::execute_via_real_loop`]). Distinct from `canned_responses`,
+    /// which feed the legacy path; the mock pins the inference seam for the
+    /// real `game_loop` so the two engines can be compared (#1159).
+    pub(crate) mock: Arc<crate::inference::MockClient>,
 }
 
 impl GameTestHarness {
@@ -264,6 +269,7 @@ impl GameTestHarness {
             db_sync,
             simulator: None,
             rng: StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
         }
     }
 
@@ -2587,6 +2593,7 @@ mod tests {
             db_sync: None,
             simulator: None,
             rng: rand::rngs::StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)

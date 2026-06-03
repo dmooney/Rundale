@@ -33,7 +33,7 @@ use parish_core::game_loop::system_command::{
     BoxFuture, SystemCommandHost, apply_inference_log_sub,
 };
 use parish_core::input::Command;
-use parish_core::ipc::{CommandResult, TextPresentation, handle_command};
+use parish_core::ipc::{CapturingEmitter, CommandResult, EventEmitter, TextPresentation, handle_command, text_log};
 use parish_core::persistence::snapshot::GameSnapshot;
 
 use crate::app::App;
@@ -46,6 +46,10 @@ pub struct CliCommandHost {
     pub quit_requested: Arc<AtomicBool>,
     /// Set to `true` when [`CommandEffect::RebuildInference`] is processed.
     pub rebuild_inference: Arc<AtomicBool>,
+    /// When set, `emit_text_log` / `emit_world_update` record events here
+    /// instead of printing to stdout. Used by the harness's real-loop path so
+    /// system-command output can be captured and compared (#1159).
+    capture: Option<Arc<CapturingEmitter>>,
 }
 
 impl CliCommandHost {
@@ -59,6 +63,20 @@ impl CliCommandHost {
             app,
             quit_requested: Arc::new(AtomicBool::new(false)),
             rebuild_inference: Arc::new(AtomicBool::new(false)),
+            capture: None,
+        }
+    }
+
+    /// Like [`Self::new`] but routes emitted text-log / world-update events into
+    /// `capture` instead of stdout. The shared dispatcher logic is identical —
+    /// only the output sink differs — so the real-loop harness exercises the
+    /// exact same orchestration as the live CLI.
+    pub fn new_capturing(app: Arc<tokio::sync::Mutex<App>>, capture: Arc<CapturingEmitter>) -> Self {
+        Self {
+            app,
+            quit_requested: Arc::new(AtomicBool::new(false)),
+            rebuild_inference: Arc::new(AtomicBool::new(false)),
+            capture: Some(capture),
         }
     }
 
@@ -380,6 +398,18 @@ impl SystemCommandHost for CliCommandHost {
     }
 
     fn emit_text_log(&self, msg: String, _presentation: TextPresentation) {
+        if let Some(cap) = &self.capture {
+            // Capturing mode: record a text-log event matching the shape the
+            // shared game-input path emits, so both can be normalized together.
+            if !msg.is_empty() {
+                cap.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log("system", msg))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
+            return;
+        }
         // CLI: just print to stdout.
         if !msg.is_empty() {
             println!("{}", msg);
@@ -387,6 +417,19 @@ impl SystemCommandHost for CliCommandHost {
     }
 
     fn emit_world_update(&self) -> BoxFuture<'_, ()> {
+        if let Some(cap) = self.capture.clone() {
+            let app = Arc::clone(&self.app);
+            return Box::pin(async move {
+                let location = {
+                    let app = app.lock().await;
+                    app.world.current_location().name.clone()
+                };
+                cap.emit_event(
+                    "world-update",
+                    serde_json::json!({ "location": location }),
+                );
+            });
+        }
         // CLI has no world-update event; the REPL reads fresh state at each turn.
         Box::pin(async move {})
     }

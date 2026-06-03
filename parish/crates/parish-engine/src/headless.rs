@@ -1197,7 +1197,7 @@ async fn print_arrival_reactions(app: &mut App) {
 }
 
 /// Returns the default transport mode from the game mod, or walking.
-fn default_transport(app: &App) -> TransportMode {
+pub(crate) fn default_transport(app: &App) -> TransportMode {
     app.game_mod
         .as_ref()
         .map(|gm| gm.transport.default_mode().clone())
