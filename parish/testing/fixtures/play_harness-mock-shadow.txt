@@ -1,0 +1,33 @@
+# Harness Mock + Shadow — representative differential driver
+# ==========================================================
+# Purpose: exercise all THREE command categories that the harness's legacy
+# router currently reimplements — system commands, movement/world actions, and
+# NPC dialogue — so that running this script through both the legacy path and
+# the real-loop path (PARISH_HARNESS_SHADOW=1) surfaces any divergence.
+#
+# Dialogue lines below rely on canned mock completions registered by the
+# shadow test driver (add_canned_response / AnyClient::Mock). With shadow mode
+# off this script behaves exactly as a normal legacy-harness play script.
+
+# 1. System commands — pure dispatch, no world mutation
+/status
+/time
+/npcs
+/debug here
+
+# 2. World / movement actions — world mutation + world-update events
+look
+go to the church
+look
+go to the tavern
+look
+
+# 3. NPC dialogue — the inference seam (served by the mock client)
+/npcs
+say Good morning to you
+say Have you any news from the fair?
+
+# 4. Mixed: action then system snapshot, to catch ordering divergences
+/wait 30
+/status
+look

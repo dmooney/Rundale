@@ -113,6 +113,20 @@ pub struct GameTestHarness {
     simulator: Option<Arc<SimulatorClient>>,
     /// Seeded RNG shared across all weather/gossip calls for deterministic results.
     rng: StdRng,
+    /// Scriptable mock LLM backing the real-loop execution path
+    /// ([`Self::execute_via_real_loop`]). Distinct from `canned_responses`,
+    /// which feed the legacy path; the mock pins the inference seam for the
+    /// real `game_loop` so the two engines can be compared (#1159).
+    pub(crate) mock: Arc<crate::inference::MockClient>,
+    /// When true, [`Self::execute`] also runs the real `game_loop` on a
+    /// rolled-back copy of the pre-state and records divergences to
+    /// `shadow_ledger`. Seeded from the `PARISH_HARNESS_SHADOW` env var at
+    /// construction; tests opt in explicitly via `enable_shadow`.
+    pub(crate) shadow_enabled: bool,
+    /// Divergence-ledger path used when `shadow_enabled`.
+    pub(crate) shadow_ledger: std::path::PathBuf,
+    /// `case` label written into each divergence record.
+    pub(crate) shadow_case: String,
 }
 
 impl GameTestHarness {
@@ -264,6 +278,10 @@ impl GameTestHarness {
             db_sync,
             simulator: None,
             rng: StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
+            shadow_enabled: crate::shadow::is_enabled(),
+            shadow_ledger: crate::shadow::ledger_path(),
+            shadow_case: crate::shadow::case_label(),
         }
     }
 
@@ -357,10 +375,35 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
+        // Shadow mode (off by default): snapshot the pre-state so the real
+        // game_loop can be run on an identical starting point after the legacy
+        // path completes. `None` when disabled ⇒ zero overhead, byte-for-byte
+        // legacy behavior.
+        let shadow_pre = self.shadow_enabled.then(|| {
+            (
+                crate::persistence::GameSnapshot::capture(&self.app.world, &self.app.npc_manager),
+                self.app.world.text_log.len(),
+            )
+        });
+
         let result = match input::classify_input(trimmed) {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
         };
+
+        // Capture the legacy path's player-visible output *before* the
+        // post-action pump below appends further lines — the real-loop path
+        // runs only the core handler, so comparing core output avoids tick
+        // noise.
+        let shadow_legacy_lines = shadow_pre.as_ref().map(|(_, pre_len)| {
+            self.app
+                .world
+                .text_log
+                .iter()
+                .skip(*pre_len)
+                .cloned()
+                .collect::<Vec<String>>()
+        });
 
         // Simulation tick after each action, through the single shared world
         // pump (rule #12). The harness's per-turn scheduling matches the
@@ -430,6 +473,12 @@ impl GameTestHarness {
                     Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
                 }
             }
+        }
+
+        // Shadow comparison: replay this input through the real game_loop on the
+        // rolled-back pre-state and record any divergence. No-op when disabled.
+        if let (Some((pre_snapshot, _)), Some(legacy_lines)) = (shadow_pre, shadow_legacy_lines) {
+            self.shadow_compare_after_legacy(trimmed, pre_snapshot, legacy_lines);
         }
 
         result
@@ -2467,6 +2516,10 @@ mod tests {
             db_sync: None,
             simulator: None,
             rng: rand::rngs::StdRng::seed_from_u64(0),
+            mock: Arc::new(crate::inference::MockClient::new()),
+            shadow_enabled: false,
+            shadow_ledger: crate::shadow::ledger_path(),
+            shadow_case: "test".to_string(),
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)
