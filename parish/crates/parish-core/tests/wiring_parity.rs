@@ -33,14 +33,19 @@
 //! After normalisation both sets must be identical.  Any asymmetry is
 //! reported with the canonical fix message.
 //!
-//! ## CLI coverage
+//! ## CLI coverage (issue #1174)
 //!
 //! The CLI (`parish-engine`) runs the same `parish-core` game loop and exposes
 //! game commands as slash-commands typed at the prompt rather than as HTTP
-//! routes or Tauri IPC calls.  It is therefore not a third registry to
-//! diff here — its coverage is verified indirectly by the shared `parish-core`
-//! tests.  A separate tracking issue will add CLI-specific parity if a
-//! dedicated command enumeration is introduced.
+//! routes or Tauri IPC calls, so it is not a third *route* registry to diff.
+//!
+//! What it DOES share with the other two entry points is the
+//! [`parish_core::game_loop::system_command::SystemCommandHost`] trait — the
+//! backend-specific dispatcher for every `CommandEffect`. All three production
+//! hosts (`AppStateCommandHost`, `TauriCommandHost`, `CliCommandHost`) must
+//! implement every effect handler, or a backend silently inherits a trait
+//! default no-op and drifts. `system_command_host_parity` (below) enforces
+//! that by static source-scan, closing the CLI/headless gap.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -267,4 +272,233 @@ pub const BAR: &[&str] = &[
 "#;
     let vals = parse_str_array_const(src);
     assert_eq!(vals, vec!["one", "two"]);
+}
+
+// ── SystemCommandHost wiring parity (issue #1174) ───────────────────────────────
+//
+// The CLI/headless path has no HTTP/IPC registry to diff, but it shares the
+// `SystemCommandHost` trait with the server and Tauri. Two of that trait's
+// effect handlers carry default impls (`reset_byok`, `inference_log_toggle`),
+// so a backend can silently inherit a no-op and drift. This test asserts each
+// production host overrides every effect handler, with an explicit allowlist
+// for intentional default-reliance.
+
+/// Effect-handler methods every production `SystemCommandHost` is expected to
+/// override. Excludes `run_command` (the dispatcher entry point, not a
+/// per-effect handler). Kept in sync with the trait by
+/// `host_method_set_matches_trait` below — adding/removing a trait method
+/// without updating this list fails that test.
+const EXPECTED_HOST_METHODS: &[&str] = &[
+    "quit",
+    "rebuild_inference",
+    "rebuild_cloud_client",
+    "toggle_map",
+    "open_designer",
+    "save_game",
+    "fork_branch",
+    "load_branch",
+    "list_branches",
+    "show_log",
+    "show_spinner",
+    "new_game",
+    "save_flags",
+    "apply_theme",
+    "apply_tiles",
+    "handle_debug",
+    "reset_byok",
+    "inference_log_toggle",
+    "emit_text_log",
+    "emit_world_update",
+];
+
+/// The three production entry-point hosts (crate label, source path relative to
+/// the workspace root). The `MockHost` test double in `system_command.rs` is
+/// intentionally excluded — it is not an entry point.
+const PRODUCTION_HOSTS: &[(&str, &str)] = &[
+    ("parish-server", "crates/parish-server/src/command_host.rs"),
+    ("parish-tauri", "crates/parish-tauri/src/command_host.rs"),
+    ("parish-engine", "crates/parish-engine/src/command_host.rs"),
+];
+
+/// `(crate, method)` pairs that intentionally inherit the trait's default
+/// implementation instead of overriding it. Every entry needs a comment
+/// justifying why the default is correct for that backend. Anything NOT listed
+/// here must be overridden; anything listed here that IS overridden is flagged
+/// as a stale exception (see `system_command_host_parity`).
+const DEFAULT_RELIANT_ALLOWLIST: &[(&str, &str)] = &[
+    // `reset_byok` re-opens the BYOK provider picker. Only the Tauri desktop
+    // has a provider-picker overlay to re-open, so it is the sole override.
+    // The web server and headless CLI currently inherit the no-op default;
+    // wiring real BYOK-reset there is a runtime feature tracked separately
+    // (it needs its own live proof). Listing them here makes the gap an
+    // explicit, reviewed exception rather than silent drift.
+    ("parish-server", "reset_byok"),
+    ("parish-engine", "reset_byok"),
+];
+
+/// Extract the `fn <name>` declarations inside the `SystemCommandHost` trait
+/// block (brace-matched), excluding `run_command`.
+fn system_command_host_trait_methods(src: &str) -> BTreeSet<String> {
+    let mut methods = BTreeSet::new();
+    let Some(start) = src.find("trait SystemCommandHost") else {
+        return methods;
+    };
+    let mut depth: i32 = 0;
+    let mut entered = false;
+    for line in src[start..].lines() {
+        for ch in line.chars() {
+            match ch {
+                '{' => {
+                    depth += 1;
+                    entered = true;
+                }
+                '}' => depth -= 1,
+                _ => {}
+            }
+        }
+        // Only collect `fn` decls at trait-body depth (1).
+        if entered
+            && depth >= 1
+            && let Some(name) = fn_name_on_line(line)
+            && name != "run_command"
+        {
+            methods.insert(name);
+        }
+        if entered && depth <= 0 {
+            break; // end of the trait block
+        }
+    }
+    methods
+}
+
+/// If `line` declares a function, return its name. Matches `fn <name>(` and
+/// `fn <name> (`; ignores the rest of the signature (which may wrap).
+fn fn_name_on_line(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let after_fn = trimmed
+        .strip_prefix("fn ")
+        .or_else(|| trimmed.strip_prefix("pub fn "))
+        .or_else(|| trimmed.strip_prefix("async fn "))?;
+    let name: String = after_fn
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    if name.is_empty() { None } else { Some(name) }
+}
+
+/// True if `src` (an impl file) overrides `method` (declares `fn <method>(`).
+fn impl_overrides(src: &str, method: &str) -> bool {
+    let needle_a = format!("fn {method}(");
+    let needle_b = format!("fn {method} (");
+    src.lines()
+        .any(|l| l.contains(&needle_a) || l.contains(&needle_b))
+}
+
+#[test]
+fn host_method_set_matches_trait() {
+    let ws = workspace_root();
+    let trait_src = ws.join("crates/parish-core/src/game_loop/system_command.rs");
+    let src = fs::read_to_string(&trait_src)
+        .unwrap_or_else(|e| panic!("could not read {}: {e}", trait_src.display()));
+
+    let actual = system_command_host_trait_methods(&src);
+    let expected: BTreeSet<String> = EXPECTED_HOST_METHODS
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    let missing: Vec<&String> = expected.difference(&actual).collect();
+    let extra: Vec<&String> = actual.difference(&expected).collect();
+
+    assert!(
+        missing.is_empty() && extra.is_empty(),
+        "EXPECTED_HOST_METHODS is out of sync with the SystemCommandHost trait \
+         (issue #1174).\n  In the list but not the trait: {missing:?}\n  \
+         In the trait but not the list: {extra:?}\n\n\
+         FIX: update EXPECTED_HOST_METHODS in wiring_parity.rs to match the \
+         trait's effect-handler methods (everything except `run_command`). If \
+         you added a handler, also wire it into all three production hosts \
+         (or add a justified DEFAULT_RELIANT_ALLOWLIST entry).",
+    );
+}
+
+#[test]
+fn system_command_host_parity() {
+    let ws = workspace_root();
+    let allow: BTreeSet<(&str, &str)> = DEFAULT_RELIANT_ALLOWLIST.iter().copied().collect();
+
+    let mut violations: Vec<String> = Vec::new();
+    let mut stale_allowlist: Vec<String> = Vec::new();
+
+    for (krate, rel_path) in PRODUCTION_HOSTS {
+        let path = ws.join(rel_path);
+        let src = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("could not read {}: {e}", path.display()));
+
+        for method in EXPECTED_HOST_METHODS {
+            let overridden = impl_overrides(&src, method);
+            let allowlisted = allow.contains(&(*krate, *method));
+
+            if !overridden && !allowlisted {
+                violations.push(format!(
+                    "{krate} does not override `SystemCommandHost::{method}` \
+                     — it silently inherits the trait default.\n        FIX: \
+                     add `fn {method}(...)` to {rel_path}, or add \
+                     (\"{krate}\", \"{method}\") to DEFAULT_RELIANT_ALLOWLIST \
+                     with a justifying comment."
+                ));
+            }
+            if overridden && allowlisted {
+                stale_allowlist.push(format!(
+                    "({krate}, {method}) is in DEFAULT_RELIANT_ALLOWLIST but \
+                     {krate} DOES override it — remove the stale exception."
+                ));
+            }
+        }
+    }
+
+    let mut msg = String::new();
+    if !violations.is_empty() {
+        msg.push_str(&format!(
+            "Wiring-parity violation — a SystemCommandHost effect is not wired \
+             from every entry point (issue #1174):\n    - {}\n",
+            violations.join("\n    - ")
+        ));
+    }
+    if !stale_allowlist.is_empty() {
+        msg.push_str(&format!(
+            "\nStale allowlist entries:\n    - {}\n",
+            stale_allowlist.join("\n    - ")
+        ));
+    }
+    assert!(
+        violations.is_empty() && stale_allowlist.is_empty(),
+        "{msg}\nEvery CommandEffect must be handled identically across the web \
+         server, Tauri desktop, and headless CLI. See CLAUDE.md §Mode parity \
+         and docs/agent/architecture.md.",
+    );
+}
+
+#[test]
+fn fn_name_on_line_extracts_names() {
+    assert_eq!(
+        fn_name_on_line("    fn quit(&self) -> Foo {").as_deref(),
+        Some("quit")
+    );
+    assert_eq!(
+        fn_name_on_line("    fn inference_log_toggle(").as_deref(),
+        Some("inference_log_toggle")
+    );
+    assert_eq!(fn_name_on_line("    // not a fn").as_deref(), None);
+    assert_eq!(
+        fn_name_on_line("pub fn helper() {").as_deref(),
+        Some("helper")
+    );
+}
+
+#[test]
+fn impl_overrides_detects_declarations() {
+    let src = "impl X {\n    fn save_game(&self) -> String { String::new() }\n}";
+    assert!(impl_overrides(src, "save_game"));
+    assert!(!impl_overrides(src, "reset_byok"));
 }
