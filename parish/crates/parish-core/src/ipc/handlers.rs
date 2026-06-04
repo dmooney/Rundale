@@ -888,6 +888,33 @@ pub fn prepare_npc_conversation_turn(
     })
 }
 
+/// Prepares a specific NPC turn after applying shared pre-turn identity work.
+///
+/// Player self-introductions must be detected before prompt construction so
+/// the current turn can address the player by name. This helper is the shared
+/// pre-response half of the dialogue chokepoint; pair it with
+/// [`crate::game_session::apply_npc_dialogue_turn`] after the response arrives.
+pub fn prepare_npc_conversation_turn_with_identity(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    player_input: &str,
+    speaker_id: NpcId,
+    transcript: &[ConversationLine],
+    improv_enabled: bool,
+    language: &LanguageSettings,
+) -> Option<NpcConversationSetup> {
+    detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
+    prepare_npc_conversation_turn(
+        world,
+        npc_manager,
+        player_input,
+        speaker_id,
+        transcript,
+        improv_enabled,
+        language,
+    )
+}
+
 /// Single-target convenience wrapper around [`prepare_npc_conversation_turn`].
 ///
 /// Used by headless CLI and other callers that address exactly one NPC.
@@ -906,6 +933,33 @@ pub fn prepare_npc_conversation(
         .into_iter()
         .next()?;
     prepare_npc_conversation_turn(
+        world,
+        npc_manager,
+        raw,
+        speaker_id,
+        &[],
+        improv_enabled,
+        language,
+    )
+}
+
+/// Single-target convenience wrapper around
+/// [`prepare_npc_conversation_turn_with_identity`].
+pub fn prepare_npc_conversation_with_identity(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    raw: &str,
+    target_name: Option<&str>,
+    improv_enabled: bool,
+    language: &LanguageSettings,
+) -> Option<NpcConversationSetup> {
+    let target_names = target_name
+        .map(|name| vec![name.to_string()])
+        .unwrap_or_default();
+    let speaker_id = resolve_npc_targets(world, npc_manager, &target_names)
+        .into_iter()
+        .next()?;
+    prepare_npc_conversation_turn_with_identity(
         world,
         npc_manager,
         raw,

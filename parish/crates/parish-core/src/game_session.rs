@@ -1,14 +1,17 @@
-//! Shared movement application logic for all game backends.
+//! Shared movement and dialogue application logic for all game backends.
 //!
-//! Provides [`apply_movement`] and [`apply_arrival_reactions`] — free
-//! functions that centralise the post-movement pipeline so that the
-//! Tauri desktop backend, the axum web server, and the test harness
+//! Provides [`apply_movement`], [`apply_arrival_reactions`], and
+//! [`apply_npc_dialogue_turn`] — free functions that centralise the
+//! post-movement and post-dialogue pipelines so that the Tauri desktop
+//! backend, the axum web server, the headless CLI, and the test harness
 //! never duplicate the same logic.
 //!
-//! The functions mutate [`WorldState`] and [`NpcManager`] in-place
+//! The movement functions mutate [`WorldState`] and [`NpcManager`] in-place
 //! (calling `world.log()` for every player-visible line) and return a
 //! [`GameEffects`] value describing what the caller must then broadcast
-//! to its own frontend or event bus.
+//! to its own frontend or event bus. Dialogue application mutates memory,
+//! conversation history, and publishes semantic [`GameEvent`]s on
+//! [`WorldState::event_bus`].
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,13 +27,14 @@ use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{
     ArrivalContext, NpcReaction, ReactionTemplates, generate_arrival_reactions,
 };
-use crate::npc::{LanguageSettings, Npc, NpcId};
+use crate::npc::{LanguageSettings, Npc, NpcId, NpcStreamResponse};
 use crate::world::description::{format_exits, render_description};
 use crate::world::encounter::check_encounter;
 use crate::world::movement::{MovementResult, resolve_movement_with_weather};
 use crate::world::time::TimeOfDay;
 use crate::world::transport::TransportMode;
 use crate::world::{Location, LocationId, WorldState};
+use parish_types::events::GameEvent;
 
 /// Monotonically increasing request ID counter for reaction inference calls.
 /// Starts at 100_000 to stay visually distinct from the dialogue queue IDs.
@@ -87,6 +91,34 @@ pub struct GameEffects {
     pub world_changed: bool,
     /// Cognitive-tier reassignments that occurred after movement.
     pub tier_transitions: Vec<TierTransition>,
+}
+
+/// Inputs for applying the shared post-response NPC dialogue side effects.
+///
+/// `player_input` is the raw command/input used for memory and scene-context
+/// records. `player_said` lets callers provide a cleaned utterance for the
+/// semantic `DialogueOccurred` event while preserving the raw command in NPC
+/// memory. Pass `None` to use `player_input` for both.
+pub struct NpcDialogueTurn<'a> {
+    /// NPC who produced this response.
+    pub speaker_id: NpcId,
+    /// Parsed Tier-1 NPC response.
+    pub response: &'a NpcStreamResponse,
+    /// Raw player command or utterance that triggered the response.
+    pub player_input: &'a str,
+    /// Optional cleaned player utterance for persisted dialogue events.
+    pub player_said: Option<&'a str>,
+    /// Inference request id when the response came from a live queue.
+    pub request_id: Option<u64>,
+}
+
+/// Effects returned by [`apply_npc_dialogue_turn`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DialogueTurnEffects {
+    /// Debug strings produced by memory and witness updates.
+    pub debug_events: Vec<String>,
+    /// Whether a `DialogueOccurred` event was published.
+    pub dialogue_event_published: bool,
 }
 
 // ── Core functions ────────────────────────────────────────────────────────────
@@ -286,6 +318,99 @@ pub fn apply_movement(
                 ..Default::default()
             }
         }
+    }
+}
+
+/// Applies all shared post-response side effects for one player→NPC turn.
+///
+/// This is the synchronous chokepoint used after an NPC response has already
+/// been obtained (from the live inference queue, the headless CLI, or the
+/// deterministic script harness). It updates Tier-1 NPC state and memory,
+/// records the local scene conversation exchange, records bystander witness
+/// memories, and publishes `GameEvent::DialogueOccurred` with the event-time
+/// location captured before any later schedule tick can move the NPC.
+pub fn apply_npc_dialogue_turn(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    turn: NpcDialogueTurn<'_>,
+) -> DialogueTurnEffects {
+    // Idempotent: live/headless prompt setup already calls this before
+    // inference so prompts can use the player's name. Canned harness turns do
+    // not have that setup phase, so this keeps their memory/event side effects
+    // in parity with the shipping paths.
+    crate::ipc::detect_and_record_player_name(
+        world,
+        npc_manager,
+        turn.player_input,
+        turn.speaker_id,
+    );
+
+    let game_time = world.clock.now();
+    let event_location = npc_manager
+        .get(turn.speaker_id)
+        .map(|npc| npc.location)
+        .unwrap_or(world.player_location);
+    let speaker_name = npc_manager
+        .get(turn.speaker_id)
+        .map(|npc| npc.name.clone())
+        .unwrap_or_else(|| format!("NPC {}", turn.speaker_id.0));
+
+    let player_name_for_mem = if npc_manager.knows_player_name(turn.speaker_id) {
+        world.player_name.clone()
+    } else {
+        None
+    };
+
+    let mut debug_events = Vec::new();
+    if let Some(npc) = npc_manager.get_mut(turn.speaker_id) {
+        debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
+            npc,
+            turn.response,
+            turn.player_input,
+            game_time,
+            &Default::default(),
+            player_name_for_mem.as_deref(),
+        ));
+    }
+
+    let useful_record =
+        !turn.player_input.trim().is_empty() || !turn.response.dialogue.trim().is_empty();
+    if useful_record {
+        world
+            .conversation_log
+            .add(crate::npc::conversation::ConversationExchange {
+                timestamp: game_time,
+                speaker_id: turn.speaker_id,
+                speaker_name: speaker_name.clone(),
+                player_input: turn.player_input.to_string(),
+                npc_dialogue: turn.response.dialogue.clone(),
+                location: event_location,
+            });
+
+        debug_events.extend(crate::npc::ticks::record_witness_memories(
+            npc_manager.npcs_mut(),
+            turn.speaker_id,
+            &speaker_name,
+            turn.player_input,
+            &turn.response.dialogue,
+            game_time,
+            event_location,
+        ));
+
+        world.event_bus.publish(GameEvent::DialogueOccurred {
+            npc_id: turn.speaker_id,
+            location: event_location,
+            summary: turn.response.dialogue.clone(),
+            player_said: Some(turn.player_said.unwrap_or(turn.player_input).to_string()),
+            npc_said: Some(turn.response.dialogue.clone()),
+            request_id: turn.request_id,
+            timestamp: game_time,
+        });
+    }
+
+    DialogueTurnEffects {
+        debug_events,
+        dialogue_event_published: useful_record,
     }
 }
 
@@ -696,6 +821,95 @@ mod tests {
         assert!(effects.travel_start.is_none());
         assert_eq!(effects.messages.len(), 1);
         assert!(effects.messages[0].text.contains("faintest notion"));
+    }
+
+    #[test]
+    fn apply_npc_dialogue_turn_records_memory_conversation_witness_and_event() {
+        let mut world = WorldState::new();
+        world.player_location = LocationId(1);
+        let mut mgr = NpcManager::new();
+
+        let mut speaker = Npc::new_test_npc();
+        speaker.id = NpcId(1);
+        speaker.name = "Seamus Byrne".to_string();
+        speaker.location = LocationId(1);
+        speaker.mood = "content".to_string();
+
+        let mut witness = Npc::new_test_npc();
+        witness.id = NpcId(2);
+        witness.name = "Bridie Kelly".to_string();
+        witness.location = LocationId(1);
+
+        mgr.add_npc(speaker);
+        mgr.add_npc(witness);
+
+        let mut rx = world.event_bus.subscribe();
+        let response = NpcStreamResponse {
+            dialogue: "Welcome, Brigid. I will remember that.".to_string(),
+            metadata: Some(crate::npc::NpcMetadata {
+                action: "responds".to_string(),
+                mood: "curious".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+            }),
+        };
+
+        let effects = apply_npc_dialogue_turn(
+            &mut world,
+            &mut mgr,
+            NpcDialogueTurn {
+                speaker_id: NpcId(1),
+                response: &response,
+                player_input: "My name is Brigid.",
+                player_said: Some("My name is Brigid."),
+                request_id: Some(42),
+            },
+        );
+
+        assert!(effects.dialogue_event_published);
+        assert_eq!(world.player_name.as_deref(), Some("Brigid"));
+        assert!(mgr.knows_player_name(NpcId(1)));
+        assert!(
+            effects
+                .debug_events
+                .iter()
+                .any(|event| event.contains("Seamus Byrne remembers")),
+            "speaker memory debug event missing: {:?}",
+            effects.debug_events
+        );
+        assert!(
+            effects
+                .debug_events
+                .iter()
+                .any(|event| event.contains("Bridie Kelly overheard")),
+            "witness debug event missing: {:?}",
+            effects.debug_events
+        );
+        assert_eq!(world.conversation_log.len(), 1);
+        let recent = world.conversation_log.recent_at(LocationId(1), 1);
+        assert_eq!(recent[0].speaker_name, "Seamus Byrne");
+        assert_eq!(recent[0].player_input, "My name is Brigid.");
+        assert_eq!(
+            recent[0].npc_dialogue,
+            "Welcome, Brigid. I will remember that."
+        );
+
+        let event = rx
+            .try_recv()
+            .expect("DialogueOccurred event should publish");
+        assert_eq!(
+            event,
+            GameEvent::DialogueOccurred {
+                npc_id: NpcId(1),
+                location: LocationId(1),
+                summary: "Welcome, Brigid. I will remember that.".to_string(),
+                player_said: Some("My name is Brigid.".to_string()),
+                npc_said: Some("Welcome, Brigid. I will remember that.".to_string()),
+                request_id: Some(42),
+                timestamp: world.clock.now(),
+            }
+        );
     }
 
     #[test]

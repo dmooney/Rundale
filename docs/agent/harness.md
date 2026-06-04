@@ -14,6 +14,7 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate) | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules`                             |
 | Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                           | Test fails listing the orphan(s)                          | `architecture_fitness.rs` → `no_orphaned_source_files`                                                         |
 | Change anything that affects gameplay JSON output                                                    | Snapshot baseline test fails with a `live                 | baseline` diff window                                                                                          | `parish/crates/parish-engine/tests/eval_baselines.rs` |
+| Diverge script-harness dialogue side effects from the real game loop                                  | Golden test diffs `DialogueOccurred` and shared state      | `parish/crates/parish-engine/tests/mode_parity.rs` → `cargo test -p parish-engine --test mode_parity`          |
 | Introduce an out-of-period word in a fixture                                                         | Rubric fails                                              | `eval_baselines.rs` → `rubric_anachronisms_are_empty`                                                          |
 | Accidentally return `Moved { minutes: 0 }` (frozen clock)                                            | Rubric fails                                              | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                   |
 | Silently break the location-description renderer                                                     | Rubric fails                                              | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                 |
@@ -56,7 +57,7 @@ These rules are still **convention only** — no test enforces them. If you find
 - Content-level proof quality beyond the committed judge verdict — `AGENTS.md` §4 and §10
 - No unexplained `#[allow]` — `AGENTS.md` §5
 - Feature flags for new engine/gameplay features — `AGENTS.md` §6
-- Mode-parity _wiring_ (every IPC handler called from every entry point) — `AGENTS.md` §2 (the _dep-level_ part is enforced; the wiring part isn't)
+- Mode-parity _wiring_ outside the dialogue turn chokepoint (every IPC handler called from every entry point) — `AGENTS.md` §2 (the _dep-level_ part is enforced; dialogue-turn event/state parity is covered by `parish-engine/tests/mode_parity.rs`)
 
 ## Turning a recurring mistake into a sensor
 

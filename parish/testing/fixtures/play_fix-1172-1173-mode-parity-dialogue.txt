@@ -1,0 +1,22 @@
+# Mode-Parity Dialogue Chokepoint Play-Test
+# =========================================
+# Exercises one deterministic addressed dialogue turn for issues #1172/#1173.
+
+/status
+/time
+/npcs
+/debug here
+
+/wait 120
+go to the crossroads
+go to Darcy's Pub
+/npcs
+/debug here
+
+/provider simulator
+talk to Padraig Darcy about my name is Brigid.
+
+/status
+/debug memory Padraig Darcy
+/debug here
+/npcs
