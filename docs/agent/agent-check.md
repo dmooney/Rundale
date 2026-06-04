@@ -66,9 +66,20 @@ The two long-lived archives under `docs/proofs/local-perf/` and `docs/proofs/run
 
 ## Belt-and-suspenders Lints
 
-- Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and must be posted as PR comments.
+- Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
 - Changed files are scanned for placeholder debt markers (`todo!()`, `unimplemented!()`, `pass # TODO`, etc.) that often indicate partial completion.
 
 ## Acceptance Criteria Requirement
 
 Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file is written **before any code**, using `/task-start <task-id>`, and lists observable criteria with the game commands that prove each one. The judge then verifies each criterion individually against the transcript.
+
+## Posting from a no-gh sandbox
+
+The web / MCP sandbox has no `gh`. Use `--via-mcp` (no network):
+
+```
+just attach-proof <id> --via-mcp        # validates locally, prints the block to stdout
+# or: bash parish/scripts/attach-proof.sh <id> --via-mcp
+```
+
+It runs the same local validation, then prints **only** the fenced bundle block to stdout (progress goes to stderr). Post it through the GitHub MCP — preferably as the PR **body** (`create_pull_request` / update body) so the gate is green on the first run, or as a comment via `add_issue_comment` (the gate reads both). Binary artifacts (screenshots / transcript) are uploaded separately in the GitHub UI; the CI gate only needs the text block.
