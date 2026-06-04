@@ -150,8 +150,15 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # `--retries 1` is the flaky-test detector (#1176): a test that fails
+      # then passes on the retry is reported as FLAKY (the run still goes
+      # green on a single blip, but the nondeterminism is surfaced in the
+      # summary instead of either hard-failing the PR or hiding silently).
+      # `--profile ci` picks up the matching retry/fail-fast policy in
+      # parish/.config/nextest.toml so the same behaviour is reproducible
+      # locally with `cargo nextest run --profile ci`.
       - name: Unit and integration tests
-        run: cargo nextest run --workspace --all-targets
+        run: cargo nextest run --workspace --all-targets --profile ci
 
   rust-coverage-ratchet:
     name: Rust coverage ratchet

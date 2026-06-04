@@ -1,0 +1,14 @@
+# cargo-nextest configuration.
+#
+# The `ci` profile is a one-shot flaky-test detector (#1176): a failed test is
+# retried once, so a test that fails then passes is reported as FLAKY instead
+# of either hard-failing the PR on a single nondeterministic blip or hiding the
+# flakiness entirely. `fail-fast = false` so one failure does not mask the rest
+# of the suite. CI runs `cargo nextest run --workspace --all-targets --profile ci`;
+# reproduce locally the same way.
+#
+# The default profile keeps retries = 0 so ordinary local `cargo nextest run`
+# stays fast and a genuine failure surfaces immediately.
+[profile.ci]
+retries = 1
+fail-fast = false
