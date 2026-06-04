@@ -60,12 +60,14 @@ check:
 agent-check *ARGS:
     bash parish/scripts/agent-check.sh {{ARGS}}
 
-# Attach a proof bundle to a PR as a structured comment. The bundle lives
-# at .proofs/<TASK_ID>/ (gitignored). Idempotent — re-running edits the
-# existing parish-proof-bundle comment instead of appending. PR_NUM
-# defaults to the PR for the current branch.
-attach-proof TASK_ID PR_NUM="":
-    bash parish/scripts/attach-proof.sh {{TASK_ID}} {{PR_NUM}}
+# Attach a proof bundle to a PR. The bundle lives at .proofs/<TASK_ID>/
+# (gitignored). By default it is written into the PR body (race-free) and is
+# idempotent. Extra args pass through: a PR number (defaults to the current
+# branch's PR) and/or a mode flag — --as-comment (legacy) or --via-mcp
+# (no-gh sandbox: emits the block on stdout for posting via the GitHub MCP).
+# E.g. `just attach-proof 1178 --via-mcp` or `just attach-proof 1178 42`.
+attach-proof TASK_ID *ARGS:
+    bash parish/scripts/attach-proof.sh {{TASK_ID}} {{ARGS}}
 
 # Pre-push gate: check + game harness walkthrough
 verify:
