@@ -24,7 +24,7 @@ use parish_core::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter}
 use parish_core::npc::reactions::ReactionTemplates;
 
 use crate::command_host::CliCommandHost;
-use crate::inference::{AnyClient, MockClient};
+use crate::inference::{AnyClient, InferenceQueue, MockClient};
 use crate::input::{self, InputResult};
 use crate::testing::GameTestHarness;
 
@@ -196,7 +196,25 @@ impl GameTestHarness {
         let npc_manager = Mutex::new(std::mem::take(&mut self.app.npc_manager));
         let config = Mutex::new(config_snapshot);
         let conversation = Mutex::new(ConversationRuntimeState::new());
-        let inference_queue = Mutex::new(None);
+        let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
+        let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
+        let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
+        let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+        let worker = {
+            let _guard = rt.enter();
+            parish_core::inference::spawn_inference_worker(
+                AnyClient::Mock(Arc::clone(&self.mock)),
+                interactive_rx,
+                background_rx,
+                batch_rx,
+                parish_core::inference::new_inference_log(),
+                parish_core::inference::file_log::InferenceFileLog::disabled(),
+                parish_core::config::Provider::simulator(),
+                inference_config.clone(),
+            )
+        };
+
+        let inference_queue = Mutex::new(Some(queue));
         let client = Mutex::new(Some(AnyClient::Mock(Arc::clone(&self.mock))));
         let cloud_client = Mutex::new(None);
         let templates = ReactionTemplates::default();
@@ -239,6 +257,7 @@ impl GameTestHarness {
         self.app.world = world.into_inner();
         self.app.npc_manager = npc_manager.into_inner();
         self.app.apply_config(&new_config);
+        worker.abort();
 
         if let Err(payload) = outcome {
             std::panic::resume_unwind(payload);

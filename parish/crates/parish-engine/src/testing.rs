@@ -717,7 +717,15 @@ impl GameTestHarness {
                     return self.handle_new_game_effect();
                 }
                 CommandEffect::RebuildInference | CommandEffect::RebuildCloudClient => {
-                    // No-op in test mode — no real inference clients
+                    // Script/harness mode has no async inference worker, but
+                    // `/provider simulator` should still enable deterministic
+                    // offline NPC dialogue so live script proofs can exercise
+                    // the dialogue path without a network/model dependency.
+                    if self.app.provider_name == "simulator" {
+                        self.simulator = Some(Arc::new(SimulatorClient::new()));
+                    } else {
+                        self.simulator = None;
+                    }
                 }
                 CommandEffect::SaveFlags => {
                     // No-op in test mode — flags are in-memory only
@@ -1267,44 +1275,25 @@ impl GameTestHarness {
                 dialogue: dialogue.clone(),
                 metadata: Some(crate::npc::NpcMetadata {
                     action: "responds".to_string(),
-                    mood: self
-                        .app
-                        .npc_manager
-                        .get(speaker_id)
-                        .map(|n| n.mood.clone())
-                        .unwrap_or_default(),
+                    mood: "neutral".to_string(),
                     internal_thought: None,
                     language_hints: Vec::new(),
                     mentioned_people: Vec::new(),
                 }),
             };
-            // Learn the player's name from a self-introduction before
-            // recording memory, matching the server/Tauri (`npc_turn`) and
-            // headless paths so harness runs reach mode parity (#1028, rule #2).
-            parish_core::ipc::detect_and_record_player_name(
+            let effects = parish_core::game_session::apply_npc_dialogue_turn(
                 &mut self.app.world,
                 &mut self.app.npc_manager,
-                text,
-                speaker_id,
+                parish_core::game_session::NpcDialogueTurn {
+                    speaker_id,
+                    response: &response,
+                    player_input: text,
+                    player_said: None,
+                    request_id: None,
+                },
             );
-            let game_time = self.app.world.clock.now();
-            let player_name_for_mem = if self.app.npc_manager.knows_player_name(speaker_id) {
-                self.app.world.player_name.clone()
-            } else {
-                None
-            };
-            if let Some(npc_mut) = self.app.npc_manager.get_mut(speaker_id) {
-                let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
-                    npc_mut,
-                    &response,
-                    text,
-                    game_time,
-                    &Default::default(),
-                    player_name_for_mem.as_deref(),
-                );
-                for event in debug_events {
-                    self.app.debug_event(event);
-                }
+            for event in effects.debug_events {
+                self.app.debug_event(event);
             }
 
             return ActionResult::NpcResponse {
@@ -1318,6 +1307,30 @@ impl GameTestHarness {
         if let Some(ref sim) = self.simulator {
             let dialogue = sim.generate_sync(text, None);
             self.app.world.log(format!("{}: {}", name, dialogue));
+            let response = crate::npc::NpcStreamResponse {
+                dialogue: dialogue.clone(),
+                metadata: Some(crate::npc::NpcMetadata {
+                    action: "responds".to_string(),
+                    mood: "neutral".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                }),
+            };
+            let effects = parish_core::game_session::apply_npc_dialogue_turn(
+                &mut self.app.world,
+                &mut self.app.npc_manager,
+                parish_core::game_session::NpcDialogueTurn {
+                    speaker_id,
+                    response: &response,
+                    player_input: text,
+                    player_said: None,
+                    request_id: None,
+                },
+            );
+            for event in effects.debug_events {
+                self.app.debug_event(event);
+            }
             return ActionResult::NpcResponse {
                 npc: name,
                 dialogue,
@@ -1402,10 +1415,34 @@ impl GameTestHarness {
 
         // No canned response — fall back to the simulator if configured.
         if let Some(ref sim) = self.simulator
-            && let Some((_, name, _)) = ordered_npcs.first()
+            && let Some((npc_id, name, _)) = ordered_npcs.first()
         {
             let dialogue = sim.generate_sync(text, None);
             self.app.world.log(format!("{}: {}", name, dialogue));
+            let response = crate::npc::NpcStreamResponse {
+                dialogue: dialogue.clone(),
+                metadata: Some(crate::npc::NpcMetadata {
+                    action: "responds".to_string(),
+                    mood: "neutral".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                }),
+            };
+            let effects = parish_core::game_session::apply_npc_dialogue_turn(
+                &mut self.app.world,
+                &mut self.app.npc_manager,
+                parish_core::game_session::NpcDialogueTurn {
+                    speaker_id: *npc_id,
+                    response: &response,
+                    player_input: text,
+                    player_said: None,
+                    request_id: None,
+                },
+            );
+            for event in effects.debug_events {
+                self.app.debug_event(event);
+            }
             return ActionResult::NpcResponse {
                 npc: name.clone(),
                 dialogue,
@@ -1420,7 +1457,7 @@ impl GameTestHarness {
         &mut self,
         npc_id: NpcId,
         name: String,
-        mood: String,
+        _mood: String,
         text: &str,
         anachronism_terms: &[String],
     ) -> Option<ActionResult> {
@@ -1438,85 +1475,27 @@ impl GameTestHarness {
             dialogue: dialogue.clone(),
             metadata: Some(crate::npc::NpcMetadata {
                 action: "responds".to_string(),
-                mood,
+                mood: "neutral".to_string(),
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
             }),
         };
-        // Learn the player's name from a self-introduction before recording
-        // memory, matching the server/Tauri (`npc_turn`) and headless paths
-        // so harness runs reach mode parity (#1028, rule #2).
-        parish_core::ipc::detect_and_record_player_name(
+        let player_line = strip_dialogue_verb(text);
+        let effects = parish_core::game_session::apply_npc_dialogue_turn(
             &mut self.app.world,
             &mut self.app.npc_manager,
-            text,
-            npc_id,
-        );
-        let game_time = self.app.world.clock.now();
-        let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
-            self.app.world.player_name.clone()
-        } else {
-            None
-        };
-        if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
-            let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
-                npc_mut,
-                &response,
-                text,
-                game_time,
-                &Default::default(),
-                player_name_for_mem.as_deref(),
-            );
-            for event in debug_events {
-                self.app.debug_event(event);
-            }
-        }
-
-        // Record conversation exchange for scene awareness
-        let location = self.app.world.player_location;
-        self.app
-            .world
-            .conversation_log
-            .add(crate::npc::conversation::ConversationExchange {
-                timestamp: game_time,
+            parish_core::game_session::NpcDialogueTurn {
                 speaker_id: npc_id,
-                speaker_name: name.clone(),
-                player_input: text.to_string(),
-                npc_dialogue: dialogue.clone(),
-                location,
-            });
-
-        // Record witness memories for bystander NPCs
-        let witness_events = crate::npc::ticks::record_witness_memories(
-            self.app.npc_manager.npcs_mut(),
-            npc_id,
-            &name,
-            text,
-            &dialogue,
-            game_time,
-            location,
+                response: &response,
+                player_input: text,
+                player_said: Some(&player_line),
+                request_id: None,
+            },
         );
-        for event in witness_events {
+        for event in effects.debug_events {
             self.app.debug_event(event);
         }
-
-        // Mirror the live game-loop behaviour: publish a full-text
-        // DialogueOccurred so the character-log subscriber records both
-        // **You:** and **NPC:** lines for canned-response runs.
-        let player_line = strip_dialogue_verb(text);
-        self.app
-            .world
-            .event_bus
-            .publish(parish_core::world::events::GameEvent::DialogueOccurred {
-                npc_id,
-                location,
-                summary: dialogue.clone(),
-                player_said: Some(player_line),
-                npc_said: Some(dialogue.clone()),
-                request_id: None,
-                timestamp: game_time,
-            });
 
         Some(ActionResult::NpcResponse {
             npc: name,

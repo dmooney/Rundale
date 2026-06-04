@@ -744,63 +744,32 @@ pub(crate) async fn handle_headless_new_game(app: &mut App) {
     print_arrival_reactions(app).await;
 }
 
-/// Applies a parsed NPC dialogue response — tier-1 state update, conversation
-/// log entry, and witness memory recording. Extracted from
-/// [`stream_headless_npc_dialogue`] to flatten control flow.
-#[allow(clippy::too_many_arguments)]
+/// Applies a parsed NPC dialogue response through the shared parish-core
+/// dialogue chokepoint.
 fn apply_npc_response(
     app: &mut App,
     npc_id: crate::npc::NpcId,
     response_text: &str,
     player_input: &str,
-    game_time: chrono::DateTime<chrono::Utc>,
-    location: parish_core::world::LocationId,
-    npc_display_name: &str,
-    npc_actual_name: String,
+    request_id: Option<u64>,
 ) {
     let parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
-    let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
-        app.world.player_name.clone()
-    } else {
-        None
-    };
-    if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-        let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
-            npc_mut,
-            &parsed,
-            player_input,
-            game_time,
-            &Default::default(),
-            player_name_for_mem.as_deref(),
-        );
-        for event in &debug_events {
-            app.debug_event(event.clone());
-        }
-    }
-    app.world
-        .conversation_log
-        .add(parish_core::npc::conversation::ConversationExchange {
-            timestamp: game_time,
+    let effects = parish_core::game_session::apply_npc_dialogue_turn(
+        &mut app.world,
+        &mut app.npc_manager,
+        parish_core::game_session::NpcDialogueTurn {
             speaker_id: npc_id,
-            speaker_name: npc_actual_name,
-            player_input: player_input.to_string(),
-            npc_dialogue: parsed.dialogue.clone(),
-            location,
-        });
-    let witness_events = parish_core::npc::ticks::record_witness_memories(
-        app.npc_manager.npcs_mut(),
-        npc_id,
-        npc_display_name,
-        player_input,
-        &parsed.dialogue,
-        game_time,
-        location,
+            response: &parsed,
+            player_input,
+            player_said: None,
+            request_id,
+        },
     );
-    for event in &witness_events {
-        app.debug_event(event.clone());
+    for event in effects.debug_events {
+        app.debug_event(event);
     }
 }
 
@@ -827,7 +796,6 @@ async fn stream_headless_npc_dialogue(
             mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
 
         let npc_display_name = setup.display_name;
-        let npc_actual_name = setup.npc_name;
         print!("{}: ", capitalize_first(&npc_display_name));
         std::io::stdout().flush().ok();
 
@@ -890,17 +858,12 @@ async fn stream_headless_npc_dialogue(
                         if let Some(err) = &response.error {
                             println!("[The parish storyteller has lost the thread: {}]", err);
                         } else {
-                            let game_time = app.world.clock.now();
-                            let location = app.world.player_location;
                             apply_npc_response(
                                 app,
                                 npc_id,
                                 &response.text,
                                 text,
-                                game_time,
-                                location,
-                                &npc_display_name,
-                                npc_actual_name.clone(),
+                                Some(*request_id),
                             );
                         }
                     }
@@ -967,30 +930,16 @@ async fn handle_headless_game_input(
                 None => (None, text.to_string()),
             };
 
-            // Detect player self-introduction before building the NPC prompt
-            if app.world.player_name.is_none()
-                && let Some(name) = parish_core::npc::detect_player_name(&dialogue)
-            {
-                app.world.player_name = Some(name);
-            }
-
             // Route to NPC conversation if one is present
             let lang = app.language_settings();
-            if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
-                &app.world,
+            if let Some(setup) = parish_core::ipc::prepare_npc_conversation_with_identity(
+                &mut app.world,
                 &mut app.npc_manager,
                 &dialogue,
                 target_name.as_deref(),
                 app.improv_enabled,
                 &lang,
             ) {
-                // Teach this NPC the player's name if introduced
-                if app.world.player_name.is_some()
-                    && parish_core::npc::detect_player_name(&dialogue).is_some()
-                {
-                    app.npc_manager.teach_player_name(setup.npc_id);
-                }
-
                 stream_headless_npc_dialogue(app, text, setup, request_id).await;
             } else {
                 app.idle_counter += 1;
