@@ -490,7 +490,14 @@ fn ltm_block(npc: &Npc, player_input: &str, world: &WorldState) -> Option<String
 /// prefix that the model-runtime prefix cache (vllm-mlx `--enable-prefix-cache`)
 /// depends on.
 fn mood_block(npc: &Npc) -> String {
-    format!("\n\nYour current mood: {}.", npc.mood)
+    let mood = npc.mood.trim();
+    if mood.is_empty() {
+        String::new()
+    } else if mood.ends_with('.') {
+        format!("\n\nYour current mood: {mood}")
+    } else {
+        format!("\n\nYour current mood: {mood}.")
+    }
 }
 
 /// Gossip context from the gossip network.
@@ -2566,6 +2573,59 @@ mod tests {
         let events = apply_tier1_response(&mut npc, &response, "hello", game_time);
         assert_eq!(npc.mood, "calm"); // mood should not change
         assert!(!events.iter().any(|e| e.contains("mood:")));
+    }
+
+    // --- mood_block unit tests ---
+
+    #[test]
+    fn mood_block_empty_mood_produces_empty_string() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = String::new();
+        assert_eq!(mood_block(&npc), "");
+    }
+
+    #[test]
+    fn mood_block_whitespace_only_mood_produces_empty_string() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "   ".to_string();
+        assert_eq!(mood_block(&npc), "");
+    }
+
+    #[test]
+    fn mood_block_normal_mood_appends_period() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "calm".to_string();
+        assert_eq!(mood_block(&npc), "\n\nYour current mood: calm.");
+    }
+
+    #[test]
+    fn mood_block_mood_already_ending_with_period_no_double_punctuation() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "calm.".to_string();
+        let result = mood_block(&npc);
+        assert_eq!(result, "\n\nYour current mood: calm.");
+        assert!(!result.contains("calm.."), "must not double the period");
+    }
+
+    /// Regression guard: the system prompt must be byte-stable when only the
+    /// NPC mood changes (mood lives in the dynamic context, not the system
+    /// prompt, so a mood change must not alter the system block).
+    #[test]
+    fn tier1_system_prompt_stable_across_mood_change() {
+        let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
+        let lang = LanguageSettings::english_only();
+
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "calm".to_string();
+        let prompt_before = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
+
+        npc.mood = "anxious".to_string();
+        let prompt_after = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
+
+        assert_eq!(
+            prompt_before, prompt_after,
+            "system prompt must be byte-identical across mood changes"
+        );
     }
 
     // --- Tier 3 tests ---

@@ -135,7 +135,9 @@ impl AnthropicClient {
                 role: "user",
                 content: prompt,
             }],
-            system: system.map(|s| vec![SystemBlock::with_cache_control(s)]),
+            system: system
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| vec![SystemBlock::with_cache_control(s)]),
             max_tokens: max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
             temperature,
             stream,
@@ -701,6 +703,38 @@ mod tests {
         assert!(
             json.get("system").is_none(),
             "system field must be absent when no system prompt is given"
+        );
+    }
+
+    /// An empty system string must also be treated as absent — sending an empty
+    /// `SystemBlock` to Anthropic wastes a cache slot and may cause API errors.
+    #[test]
+    fn anthropic_request_omits_system_when_empty_string() {
+        let c = AnthropicClient::new("https://api.anthropic.com", None);
+        let req = c.build_request("claude-sonnet-4-5", "hello", Some(""), false, None, None);
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(
+            json.get("system").is_none(),
+            "system field must be absent when system is an empty string"
+        );
+    }
+
+    /// A whitespace-only system string must also be omitted entirely.
+    #[test]
+    fn anthropic_request_omits_system_when_whitespace_only() {
+        let c = AnthropicClient::new("https://api.anthropic.com", None);
+        let req = c.build_request(
+            "claude-sonnet-4-5",
+            "hello",
+            Some("   \n\t  "),
+            false,
+            None,
+            None,
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(
+            json.get("system").is_none(),
+            "system field must be absent when system is whitespace only"
         );
     }
 
