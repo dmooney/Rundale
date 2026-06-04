@@ -138,7 +138,8 @@ REASONING_MLX_PREFIXES = ("mlx-community/gemma-4-",)
 
 
 def _is_reasoning_mlx_model(model_id: str) -> bool:
-    return any(model_id.startswith(p) for p in REASONING_MLX_PREFIXES)
+    mid = model_id.lower()
+    return any(mid.startswith(p) for p in REASONING_MLX_PREFIXES)
 
 
 # Markers a model writes when it leaks its own planning prose into the
