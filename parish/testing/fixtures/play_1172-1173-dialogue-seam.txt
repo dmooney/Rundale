@@ -1,0 +1,34 @@
+# 1172-1173-dialogue-seam — unified per-turn dialogue chokepoint
+# ==============================================================
+# Proves the harness ADDRESSED path ("talk to <name>") now runs the full
+# per-turn pipeline via the shared parish-core seam
+# (game_session::apply_npc_dialogue_turn). Before the fix,
+# handle_npc_interaction_for skipped record_witness_memories,
+# conversation_log.add and the DialogueOccurred publish, so a bystander never
+# recalled an overheard exchange and the journal/location log missed the line.
+#
+# Darcy's Pub holds two co-located NPCs (Padraig Darcy + Niamh Darcy), so an
+# addressed turn to Padraig must leave Niamh an "Overheard" witness memory.
+#
+# Run with Rundale active (PARISH_MODS_DIR) and PARISH_USER_DATA_DIR pointed
+# at a temp dir so the Darcy's Pub location log can be read afterward (C3).
+
+# --- Reach the two-NPC hub and confirm co-location ---
+go to The Crossroads
+go to Darcy's Pub
+/debug here
+/debug npcs
+
+# --- Baseline: bystander Niamh has not yet overheard anything ---
+/debug memory Niamh Darcy
+
+# --- Addressed turn: handle_addressed_npc -> handle_npc_interaction_for ---
+/stub Padraig Darcy: A fair evening to ye, and what news of the harvest?
+talk to Padraig Darcy about the harvest this year
+
+# --- C2: the addressed speaker recorded the exchange (unchanged) ---
+/debug memory Padraig Darcy
+# --- C1: the bystander now holds the "Overheard" witness memory (the fix) ---
+/debug memory Niamh Darcy
+
+/status

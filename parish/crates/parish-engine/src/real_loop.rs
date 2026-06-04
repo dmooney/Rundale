@@ -196,7 +196,11 @@ impl GameTestHarness {
         let npc_manager = Mutex::new(std::mem::take(&mut self.app.npc_manager));
         let config = Mutex::new(config_snapshot);
         let conversation = Mutex::new(ConversationRuntimeState::new());
+        // Filled inside the runtime below with a mock-backed queue so the
+        // dialogue path runs against the real worker rather than short-circuiting
+        // on a missing LLM (#1172 dialogue parity).
         let inference_queue = Mutex::new(None);
+        let mock = Arc::clone(&self.mock);
         let client = Mutex::new(Some(AnyClient::Mock(Arc::clone(&self.mock))));
         let cloud_client = Mutex::new(None);
         let templates = ReactionTemplates::default();
@@ -207,6 +211,27 @@ impl GameTestHarness {
         // always restored below.
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
             rt.block_on(async {
+                // Spin up a mock-backed inference worker so the dialogue path
+                // (handle_npc_conversation -> run_npc_turn) exercises the real
+                // queue. The worker serves scripted completions from `mock`;
+                // dropping the queue and aborting the worker at the end of the
+                // call tears it down with the per-call runtime.
+                let (itx, irx) = tokio::sync::mpsc::channel(16);
+                let (btx, brx) = tokio::sync::mpsc::channel(32);
+                let (xtx, xrx) = tokio::sync::mpsc::channel(64);
+                let worker = parish_core::inference::spawn_inference_worker(
+                    AnyClient::Mock(Arc::clone(&mock)),
+                    irx,
+                    brx,
+                    xrx,
+                    parish_core::inference::new_inference_log(),
+                    parish_core::inference::file_log::InferenceFileLog::disabled(),
+                    parish_core::config::Provider::default(),
+                    inference_config.clone(),
+                );
+                *inference_queue.lock().await =
+                    Some(parish_core::inference::InferenceQueue::new(itx, btx, xtx));
+
                 let ctx = GameLoopContext {
                     world: &world,
                     npc_manager: &npc_manager,
@@ -231,6 +256,11 @@ impl GameTestHarness {
                     || None,
                 )
                 .await;
+
+                // Tear down the worker: drop the queue (closing the sender side)
+                // and abort the spawned task so it never outlives the call.
+                *inference_queue.lock().await = None;
+                worker.abort();
             });
         }));
 

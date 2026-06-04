@@ -56,7 +56,7 @@ These rules are still **convention only** — no test enforces them. If you find
 - Content-level proof quality beyond the committed judge verdict — `AGENTS.md` §4 and §10
 - No unexplained `#[allow]` — `AGENTS.md` §5
 - Feature flags for new engine/gameplay features — `AGENTS.md` §6
-- Mode-parity _wiring_ (every IPC handler called from every entry point) — `AGENTS.md` §2 (the _dep-level_ part is enforced; the wiring part isn't)
+- Mode-parity _wiring_ (every IPC handler called from every entry point) — `AGENTS.md` §2 (the _dep-level_ part is enforced; the wiring part isn't). The per-turn **dialogue** chokepoint is no longer convention-only: all paths route through `parish_core::game_session::apply_npc_dialogue_turn`, and `parish-engine/tests/mode_parity.rs` (the parity _golden_) asserts the legacy harness path and the real `game_loop` publish an identical `GameEvent` stream (#1172 / #1173).
 
 ## Turning a recurring mistake into a sensor
 
