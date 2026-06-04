@@ -1,0 +1,147 @@
+{
+  "ran_at_utc": "2026-06-04T17:48:18.553384+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "gemma-4-12b-it": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 241,
+      "ttft_ms_p90": 247,
+      "total_ms_median": 4824,
+      "tokens_per_second_median": null,
+      "tokens_per_second_p90": null,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 241,
+          "total_ms": 5049,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 544,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 239,
+          "total_ms": 2626,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 289,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 228,
+          "total_ms": 5452,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 595,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 239,
+          "total_ms": 4845,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 496,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 236,
+          "total_ms": 5829,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 634,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 241,
+          "total_ms": 4404,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 492,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 247,
+          "total_ms": 4803,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 532,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 241,
+          "total_ms": 4484,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 524,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 248,
+          "total_ms": 5237,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 575,
+          "error": null
+        },
+        {
+          "candidate": "gemma-4-12b-it",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 243,
+          "total_ms": 3988,
+          "completion_tokens": null,
+          "prompt_tokens": null,
+          "tokens_per_second": null,
+          "reply_len": 475,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 65.16576075553894,
+  "cost": {
+    "usd": 0.0,
+    "calls": 30
+  }
+}

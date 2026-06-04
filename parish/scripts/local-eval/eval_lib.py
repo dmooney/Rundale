@@ -127,6 +127,20 @@ def _is_thinking_mlx_model(model_id: str) -> bool:
     return any(model_id.startswith(p) for p in THINKING_MLX_PREFIXES)
 
 
+# Local mlx-served models that are *mandatory* reasoners: their chat template
+# always opens a thought channel and `chat_template_kwargs={"enable_thinking":
+# False}` does NOT suppress it through vllm-mlx (unlike the Qwen3 family above).
+# gemma-4 ("gemma4_unified") spends ~250 tokens reasoning before its reply, so
+# we serve it with `--reasoning-parser gemma4` (thought → `reasoning_content`,
+# answer → `content`) and bump max_tokens so the reply phase has headroom rather
+# than truncating mid-thought. Mirrors the opencode-go reasoning bump below.
+REASONING_MLX_PREFIXES = ("mlx-community/gemma-4-",)
+
+
+def _is_reasoning_mlx_model(model_id: str) -> bool:
+    return any(model_id.startswith(p) for p in REASONING_MLX_PREFIXES)
+
+
 # Markers a model writes when it leaks its own planning prose into the
 # visible `content` field instead of emitting the in-character reply.
 # Tuned against the 11 bench-bugs surfaced in the opencode-go 2026-05-25
@@ -696,6 +710,17 @@ def call_chat(
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
         body["reasoning"] = _default_reasoning_for(target.model)
+    # Local mlx-served mandatory reasoners (gemma-4): the thought lands in
+    # reasoning_content via --reasoning-parser, but the model burns ~250-550
+    # tokens reasoning before it emits the in-character reply, so dialogue's
+    # max_tokens=200 / intent's 100 truncate it mid-thought and leave content
+    # empty. Give the reply phase headroom (1500 — normal completions land
+    # ~400-600 tokens; this caps the ~20% of prompts that run away reasoning at
+    # ~65s rather than letting them burn far longer). Mirrors the opencode-go
+    # bump above. vllm-mlx ignores every enable_thinking knob for this arch, so
+    # headroom + reasoning-parser is the only available path.
+    if _is_reasoning_mlx_model(target.model) and (max_tokens is None or max_tokens < 1500):
+        body["max_tokens"] = 1500
     # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
     # the <think>…</think> trace; otherwise the trace fills max_tokens and we
     # score the model's internal monologue rather than its reply.
@@ -775,7 +800,11 @@ def call_chat(
         #   to 2000 above so the reply phase has headroom in the first
         #   place.)
         if not text.strip():
-            if is_opencode_go:
+            if is_opencode_go or _is_reasoning_mlx_model(target.model):
+                # opencode-go / local gemma-4 report chain-of-thought in
+                # reasoning_content — that's the *thinking*, not the answer.
+                # Falling back would feed "* Character: Brigid…" planning prose
+                # to the judge. Leave empty so the failure mode stays visible.
                 pass
             else:
                 for field in ("reasoning_content", "reasoning"):
