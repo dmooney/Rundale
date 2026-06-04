@@ -105,7 +105,7 @@ first rung that yields a runnable spec:
    - **Local MLX** if the model is open-weights but no cloud host carries the size you were asked for (common
      for fresh small/mid models — the 12B may exist only on HF while the 26B/31B are already on OpenRouter).
      Do **not** silently substitute a different size; run the size requested, locally. See
-     [Local MLX serving](#local-mlx-serving-do-this-yourself) below.
+     [Local serving](#local-serving-do-this-yourself) below.
 4. **Only then ask** — and only for a genuinely irreducible fork: two or more _real_ models plausibly match
    the name and the choice changes the result, **or** every serving path needs a credential/tool that is
    absent and you cannot install it. "I don't know the exact id" and "is this local or cloud" are **not**
