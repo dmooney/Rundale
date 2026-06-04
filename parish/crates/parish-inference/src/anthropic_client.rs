@@ -118,7 +118,8 @@ impl AnthropicClient {
     ///
     /// `max_tokens` falls back to [`DEFAULT_MAX_TOKENS`] because Anthropic
     /// rejects requests that omit it. System prompt becomes the top-level
-    /// `system` field (not a message).
+    /// `system` block list with `cache_control: {type: "ephemeral"}` attached,
+    /// enabling Anthropic's prompt caching for BYOK cloud deployments.
     fn build_request<'a>(
         &self,
         model: &'a str,
@@ -134,7 +135,7 @@ impl AnthropicClient {
                 role: "user",
                 content: prompt,
             }],
-            system,
+            system: system.map(|s| vec![SystemBlock::with_cache_control(s)]),
             max_tokens: max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
             temperature,
             stream,
@@ -608,7 +609,9 @@ mod tests {
             None,
         );
         assert_eq!(req.model, "claude-sonnet-4-5");
-        assert_eq!(req.system, Some("be brief"));
+        let blocks = req.system.as_deref().expect("system must be Some");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].text, "be brief");
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
         assert_eq!(req.messages[0].content, "hi");
@@ -652,11 +655,53 @@ mod tests {
         let c = AnthropicClient::new("https://api.anthropic.com", None);
         let req = c.build_request("claude-sonnet-4-5", "hi", Some("sys"), false, None, None);
         let json = serde_json::to_value(&req).unwrap();
-        assert_eq!(json["system"], "sys");
+        // `system` is now a block list, not a bare string — assert the first
+        // block contains the text and there are no system-role messages.
+        assert_eq!(json["system"][0]["text"], "sys");
         assert_eq!(json["messages"][0]["role"], "user");
         // There must NOT be a "system"-role message — that's the key
         // schema difference from OpenAI's chat completions API.
         assert_eq!(json["messages"].as_array().unwrap().len(), 1);
+    }
+
+    /// Regression guard: the serialised `system` block must carry
+    /// `cache_control: {type: "ephemeral"}` so Anthropic's prompt caching
+    /// activates for BYOK cloud deployments (issue #1152, finding 4).
+    #[test]
+    fn anthropic_request_includes_cache_control() {
+        let c = AnthropicClient::new("https://api.anthropic.com", None);
+        let req = c.build_request(
+            "claude-sonnet-4-5",
+            "hello",
+            Some("You are a helpful NPC."),
+            false,
+            None,
+            None,
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        let block = &json["system"][0];
+        assert_eq!(block["type"], "text", "system block type must be 'text'");
+        assert_eq!(
+            block["text"], "You are a helpful NPC.",
+            "system block text must match"
+        );
+        assert_eq!(
+            block["cache_control"]["type"], "ephemeral",
+            "cache_control must be {{type: ephemeral}} to enable Anthropic prompt caching"
+        );
+    }
+
+    /// When no system prompt is provided, the `system` field must be absent
+    /// from the serialised JSON (not an empty array or null).
+    #[test]
+    fn anthropic_request_omits_system_when_none() {
+        let c = AnthropicClient::new("https://api.anthropic.com", None);
+        let req = c.build_request("claude-sonnet-4-5", "hello", None, false, None, None);
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(
+            json.get("system").is_none(),
+            "system field must be absent when no system prompt is given"
+        );
     }
 
     #[test]
@@ -1249,15 +1294,60 @@ struct Message<'a> {
     content: &'a str,
 }
 
+/// Cache-control breakpoint for Anthropic's prompt caching.
+///
+/// Setting `type = "ephemeral"` on a system-prompt block marks that block
+/// as a prefix-cache checkpoint, allowing Anthropic to reuse the KV-cache
+/// of the static persona text across turns for BYOK cloud deployments.
+/// This reduces per-turn token cost for the long static prefix (~600+ tokens).
+///
+/// Reference: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+#[derive(Serialize, Debug)]
+struct CacheControl {
+    #[serde(rename = "type")]
+    kind: &'static str,
+}
+
+/// One block in the structured `system` array.
+///
+/// Anthropic supports a list of content blocks as the top-level `system`
+/// field. Sending `cache_control: {type: "ephemeral"}` on the persona block
+/// activates Anthropic's prompt caching for the stable persona prefix.
+#[derive(Serialize, Debug)]
+struct SystemBlock<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    text: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<CacheControl>,
+}
+
+impl<'a> SystemBlock<'a> {
+    /// Creates a system block with Anthropic's ephemeral cache-control breakpoint.
+    fn with_cache_control(text: &'a str) -> Self {
+        Self {
+            kind: "text",
+            text,
+            cache_control: Some(CacheControl { kind: "ephemeral" }),
+        }
+    }
+}
+
 /// Request body for `POST /v1/messages`.
 #[derive(Serialize, Debug)]
 struct MessagesRequest<'a> {
     model: &'a str,
     messages: Vec<Message<'a>>,
-    /// Top-level system prompt. Anthropic does not accept a `system`-role
-    /// message; passing one would be treated as an unknown role.
+    /// Top-level system prompt as a structured block list.
+    ///
+    /// Anthropic supports both a bare string and a list of typed blocks.
+    /// We always use the block form so we can attach `cache_control:
+    /// {type: "ephemeral"}` to the static persona prefix, enabling Anthropic's
+    /// prompt caching for BYOK cloud deployments (issue #1152, finding 4).
+    ///
+    /// When `None`, the field is omitted (no system prompt).
     #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<&'a str>,
+    system: Option<Vec<SystemBlock<'a>>>,
     /// Required by Anthropic — see [`DEFAULT_MAX_TOKENS`].
     max_tokens: u32,
     #[serde(skip_serializing_if = "Option::is_none")]

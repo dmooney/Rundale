@@ -13,13 +13,9 @@ use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::IntoResponse;
 
 use parish_core::config::InferenceCategory;
-use parish_core::inference::{
-    build_inference_client_stack,
-    cache_capacity_from_env,
-    // AnyClient, InferenceQueue, spawn_inference_worker — now handled by
-    // parish_core::game_loop::rebuild_inference_worker (#696); tests import
-    // these locally via their own `use` blocks.
-};
+// AnyClient, InferenceQueue, spawn_inference_worker — handled by
+// parish_core::game_loop::rebuild_inference_worker (#696); tests import
+// these locally via their own `use` blocks.
 use parish_core::input::{Command, InputResult, classify_input};
 use parish_core::ipc::{
     LoadingPayload, MapData, NpcInfo, ReactRequest, ThemePalette, WorldSnapshot, text_log,
@@ -549,7 +545,7 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>) {
     };
 
     // Delegate to shared worker-lifecycle helper (#696).
-    let (any_client, url_warning) = parish_core::game_loop::rebuild_inference_worker(
+    let (_any_client, url_warning) = parish_core::game_loop::rebuild_inference_worker(
         &provider_name,
         &base_url,
         api_key.as_deref(),
@@ -569,15 +565,6 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>) {
         state
             .event_bus
             .emit_named(Topic::TextLog, "text-log", &text_log("system", warn));
-    }
-
-    // Update the trait-erased InferenceClient stack (#617) so it tracks the
-    // new provider.  This is server-specific; Tauri has no inference_client slot.
-    {
-        let cache_capacity = cache_capacity_from_env();
-        let trait_client = build_inference_client_stack(any_client, true, cache_capacity);
-        let mut ic = state.inference_client.lock().await;
-        *ic = Some(trait_client);
     }
 }
 

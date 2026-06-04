@@ -19,10 +19,8 @@ hf-hub = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 governor = { workspace = true }
-lru = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }
-async-trait = { workspace = true }
 
 [dev-dependencies]
 wiremock = { workspace = true }

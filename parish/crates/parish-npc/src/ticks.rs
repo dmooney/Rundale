@@ -485,6 +485,14 @@ fn ltm_block(npc: &Npc, player_input: &str, world: &WorldState) -> Option<String
     Some(format!("\n\n{ctx}"))
 }
 
+/// Current mood of the NPC — injected into the user-turn context rather than
+/// the system prompt so that mood changes do not bust the stable system-prompt
+/// prefix that the model-runtime prefix cache (vllm-mlx `--enable-prefix-cache`)
+/// depends on.
+fn mood_block(npc: &Npc) -> String {
+    format!("\n\nYour current mood: {}.", npc.mood)
+}
+
 /// Gossip context from the gossip network.
 fn gossip_block(world: &WorldState, npc: &Npc) -> Option<String> {
     let ctx = world.gossip_network.gossip_context_string(npc.id, 2);
@@ -513,6 +521,11 @@ pub fn build_enhanced_context_with_config(
     was_introduced: bool,
 ) -> String {
     let mut context = build_tier1_context(world);
+
+    // Mood goes into the dynamic context (not the system prompt) so that mood
+    // changes never bust the stable system-prompt prefix the model-runtime
+    // prefix cache depends on (vllm-mlx --enable-prefix-cache).
+    context.push_str(&mood_block(npc));
 
     context.push_str(&location_anchor_block(world));
 

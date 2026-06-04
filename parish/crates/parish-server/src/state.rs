@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use parish_core::config::InferenceConfig;
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
-use parish_core::inference::{AnyClient, InferenceClient, InferenceLog, InferenceQueue};
+use parish_core::inference::{AnyClient, InferenceLog, InferenceQueue};
 use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
 use parish_core::session_store::SessionStore;
@@ -60,18 +60,17 @@ pub use parish_core::ipc::{ConversationRuntimeState, SaveState, UiConfigSnapshot
 ///         → config
 ///           → client
 ///             → cloud_client
-///               → inference_client
-///                 → debug_events
-///                 → game_events
-///                   → inference_log
-///                     → editor_sessions
-///                       → active_ws
-///                         → save_path
-///                           → current_branch_id
-///                             → current_branch_name
-///                               → worker_handle
-///                                 → save_lock
-///                                   → save_db
+///               → debug_events
+///               → game_events
+///                 → inference_log
+///                   → editor_sessions
+///                     → active_ws
+///                       → save_path
+///                         → current_branch_id
+///                           → current_branch_name
+///                             → worker_handle
+///                               → save_lock
+///                                 → save_db
 /// ```
 ///
 /// Pair-by-pair rationale — every pair above is attested by at least
@@ -85,7 +84,7 @@ pub use parish_core::ipc::{ConversationRuntimeState, SaveState, UiConfigSnapshot
 /// - `conversation → config` — `tick_inactivity` (`routes.rs`), so
 ///   `conversation` slots between `inference_queue` and `config`.
 /// - `config → client` — `handle_game_input` (`routes.rs`).
-/// - `config → debug_events → game_events → inference_log` —
+/// - `cloud_client → debug_events → game_events → inference_log` —
 ///   `get_debug_snapshot` (`routes.rs`). `inference_log` is itself an
 ///   `Arc<Mutex<BoundedInferenceLog>>` (see
 ///   `parish-inference/src/lib.rs`), so it is a real coordination point,
@@ -127,19 +126,6 @@ pub struct AppState {
     pub client: Mutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
     pub cloud_client: Mutex<Option<AnyClient>>,
-    /// Trait-erased inference client stack (caching + metrics decorator, #617).
-    ///
-    /// All inference call sites that use the new `InferenceClient` trait go
-    /// through this `Arc`.  It is constructed by
-    /// `parish_inference::build_inference_client_stack` and wraps `client` or
-    /// `cloud_client` with an optional LRU cache and a metrics layer.
-    ///
-    /// `None` when no provider is configured (same lifecycle as `client`).
-    ///
-    /// Behind a `Mutex` so that `rebuild_inference` can swap it atomically
-    /// when the provider/key changes at runtime — same lifecycle as `client`.
-    /// Lock ordering: acquire after `cloud_client`, before `debug_events`.
-    pub inference_client: Mutex<Option<Arc<dyn InferenceClient>>>,
     /// Mutable runtime configuration.
     pub config: Mutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
@@ -348,14 +334,6 @@ pub fn build_app_state(
         })
         .unwrap_or_else(parish_core::npc::LanguageSettings::english_only);
 
-    // Build the trait-erased inference client stack (#617).
-    // Caching is enabled by default; callers can disable it by setting
-    // PARISH_INFERENCE_CACHE_CAPACITY=0.
-    let inference_client = client.as_ref().map(|c| {
-        let cache_capacity = parish_core::inference::cache_capacity_from_env();
-        parish_core::inference::build_inference_client_stack(c.clone(), true, cache_capacity)
-    });
-
     Arc::new(AppState {
         session_id,
         world: Mutex::new(world),
@@ -364,7 +342,6 @@ pub fn build_app_state(
         inference_log: parish_core::inference::new_inference_log(),
         client: Mutex::new(client),
         cloud_client: Mutex::new(cloud_client),
-        inference_client: Mutex::new(inference_client),
         config: Mutex::new(config),
         conversation: Mutex::new(ConversationRuntimeState::new()),
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(

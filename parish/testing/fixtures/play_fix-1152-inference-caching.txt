@@ -1,0 +1,5 @@
+look
+/status
+go to the village green
+look
+/map
