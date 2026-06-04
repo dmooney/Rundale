@@ -77,7 +77,7 @@ Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. 
 
 The web / MCP sandbox has no `gh`. Use `--via-mcp` (no network):
 
-```
+```sh
 just attach-proof <id> --via-mcp        # validates locally, prints the block to stdout
 # or: bash parish/scripts/attach-proof.sh <id> --via-mcp
 ```
