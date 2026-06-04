@@ -211,8 +211,10 @@ ui-format-check:
 ui-test:
     eval "$(fnm env)" && cd apps/ui && npx vitest run
 
-# Run Playwright E2E tests (headless Chromium, mocked Tauri IPC)
-ui-e2e:
+# Run Playwright E2E tests (headless Chromium, mocked Tauri IPC).
+# Depends on ui-build so Playwright's webServer serves a fresh dist rather
+# than a stale (or missing) bundle from before the last src/ change (#1179).
+ui-e2e: ui-build
     cd apps/ui && npx playwright test
 
 # Update Playwright visual regression baselines
