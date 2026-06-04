@@ -2,21 +2,21 @@
 
 ## Open
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-001 | Content Layout | P2 | `rundale/npcs.json:1-4172` | The Rundale NPC catalog is a single 174 KB JSON file. That preserves current load simplicity, but every NPC edit risks large review diffs, field-order churn, and cascading ID/reference mistakes. Add per-NPC editing/generation tooling or split-source support that preserves the canonical checked-in output byte order. |
-| TD-002 | Content Layout | P2 | `rundale/world.json:1-699` | Geography, aliases, routes, relative coordinate metadata, and validation-sensitive location names live in one monolithic file. Extract authoring helpers or add a stronger content validation report for route/location aliases, subordinate `relative_to` clusters, and cross-file references from festivals/encounters/transport before the world grows further. |
-| TD-003 | Prompt Contract | P1 | `rundale/prompts/*.txt`, `testbed/prompts/*.txt` | Plain-text prompt variables are case-sensitive and unknown placeholders pass through at runtime. Rundale and testbed intentionally use different placeholder names, but there is no content-level contract test that every checked-in placeholder is substituted by the active prompt builder. Add a fixture test that renders every base mod prompt and fails on leftover `{placeholder}` tokens. |
-| TD-004 | Stale Comments | P3 | `rundale/demo-prompt.txt:3` | The demo movement guidance references historical `TODO #1/#30` anchors. The instruction is now intentional prompt content; convert the label to an issue/regression-test reference so debt scans do not read the prompt as unresolved work. |
-| TD-005 | Provider Config Drift | P2 | `*-provider/providers/*.toml` | The 20 provider mods manually duplicate the provider schema and preset category conventions. Add a checked-in provider-mod fixture test that validates directory/file/id naming, required fields, featured visibility, non-empty base URLs where required, and preset category coverage so provider catalog edits fail locally before UI/onboarding drift reaches runtime. |
+| ID     | Category              | Severity | Location                                         | Description                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | --------------------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TD-001 | Content Layout        | P2       | `rundale/npcs.json:1-4172`                       | The Rundale NPC catalog is a single 174 KB JSON file. That preserves current load simplicity, but every NPC edit risks large review diffs, field-order churn, and cascading ID/reference mistakes. Add per-NPC editing/generation tooling or split-source support that preserves the canonical checked-in output byte order.                                                                       |
+| TD-002 | Content Layout        | P2       | `rundale/world.json:1-699`                       | Geography, aliases, routes, relative coordinate metadata, and validation-sensitive location names live in one monolithic file. Extract authoring helpers or add a stronger content validation report for route/location aliases, subordinate `relative_to` clusters, and cross-file references from festivals/encounters/transport before the world grows further.                                 |
+| TD-003 | Prompt Contract       | P1       | `rundale/prompts/*.txt`, `testbed/prompts/*.txt` | Plain-text prompt variables are case-sensitive and unknown placeholders pass through at runtime. Rundale and testbed intentionally use different placeholder names, but there is no content-level contract test that every checked-in placeholder is substituted by the active prompt builder. Add a fixture test that renders every base mod prompt and fails on leftover `{placeholder}` tokens. |
+| TD-004 | Stale Comments        | P3       | `rundale/demo-prompt.txt:3`                      | The demo movement guidance references historical `TODO #1/#30` anchors. The instruction is now intentional prompt content; convert the label to an issue/regression-test reference so debt scans do not read the prompt as unresolved work.                                                                                                                                                        |
+| TD-005 | Provider Config Drift | P2       | `*-provider/providers/*.toml`                    | The 20 provider mods manually duplicate the provider schema and preset category conventions. Add a checked-in provider-mod fixture test that validates directory/file/id naming, required fields, featured visibility, non-empty base URLs where required, and preset category coverage so provider catalog edits fail locally before UI/onboarding drift reaches runtime.                         |
 
 ## In Progress
 
-*(none)*
+_(none)_
 
 ## Done
 
-*(none)*
+_(none)_
 
 ## Progress Log
 
