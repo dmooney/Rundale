@@ -838,8 +838,6 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>, app: &tauri::AppHand
             },
         );
     }
-    // Note: Tauri has no trait-erased inference_client slot (unlike the server),
-    // so no additional slot update is needed here.
 }
 
 async fn touch_player_activity(state: &Arc<AppState>) {

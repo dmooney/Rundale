@@ -639,7 +639,6 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         \n\
         Personality: {personality}\n\
         {intel_guidance}\
-        Current mood: {mood}\n\
         \n\
         Respond in character as {name}. You MUST respond with a JSON object. \
         Put the \"dialogue\" field FIRST. The dialogue should contain only what you say aloud — \
@@ -665,7 +664,6 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         } else {
             format!("Mind and manner: {intel_guidance}\n")
         },
-        mood = npc.mood,
         improv_section = improv_section,
     );
 
@@ -917,7 +915,13 @@ mod tests {
         assert!(prompt.contains("Padraig O'Brien"));
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
-        assert!(prompt.contains("content"));
+        // Mood is NOT in the system prompt — it lives in the dynamic context
+        // so that mood changes never bust the stable system-prompt prefix that
+        // the model-runtime prefix cache (vllm-mlx --enable-prefix-cache) depends on.
+        assert!(
+            !prompt.contains("content"),
+            "mood must not appear in the static system prompt"
+        );
         assert!(
             prompt.contains("JSON object"),
             "prompt should instruct JSON object response format"
@@ -1291,7 +1295,12 @@ mod tests {
         assert!(prompt.contains("Padraig O'Brien"), "NPC name missing");
         assert!(prompt.contains("58"), "NPC age missing");
         assert!(prompt.contains("Publican"), "NPC occupation missing");
-        assert!(prompt.contains("content"), "NPC mood missing");
+        // Mood is NOT in the system prompt; it is injected in the dynamic context
+        // so mood changes do not bust the stable prefix-cache prefix.
+        assert!(
+            !prompt.contains("content"),
+            "mood must not appear in the static system prompt"
+        );
 
         // Anachronism and cultural guidelines are part of the contract; a
         // future edit that removes them will trip this test intentionally.
@@ -1359,6 +1368,31 @@ mod tests {
                 "anti-farewell directive missing gated token {tok:?}"
             );
         }
+    }
+
+    /// Regression guard: the Tier 1 system prompt must be byte-identical across
+    /// two calls that change only the NPC's `mood` field between them.
+    ///
+    /// This protects the model-runtime prefix cache contract (vllm-mlx
+    /// `--enable-prefix-cache`): the system prompt is the stable prefix shared
+    /// across turns, and any field that mutates between turns must NOT appear in
+    /// it. If mood is accidentally re-added, this test fails immediately.
+    #[test]
+    fn tier1_system_prompt_stable_across_mood_change() {
+        let mut npc = Npc::new_test_npc();
+        let lang = LanguageSettings::english_only();
+
+        npc.mood = "cheerful".to_string();
+        let prompt_before = build_tier1_system_prompt(&npc, false, &lang);
+
+        npc.mood = "melancholy".to_string();
+        let prompt_after = build_tier1_system_prompt(&npc, false, &lang);
+
+        assert_eq!(
+            prompt_before, prompt_after,
+            "system prompt must be byte-identical across mood changes — \
+             mood must live in the dynamic context, not the static system prompt"
+        );
     }
 
     /// Tier 1 context prompt: every `{placeholder}` must be substituted.

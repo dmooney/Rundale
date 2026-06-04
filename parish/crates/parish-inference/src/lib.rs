@@ -6,7 +6,6 @@ pub mod client;
 pub(crate) mod client_base;
 pub mod file_log;
 pub mod hf_downloader;
-pub mod inference_client;
 pub mod mock_client;
 pub mod openai_client;
 pub mod rate_limit;
@@ -45,11 +44,6 @@ pub(crate) fn strip_json_fence(raw: &str) -> &str {
 }
 
 pub use anthropic_client::AnthropicClient;
-pub use inference_client::{
-    AnyClientAdapter, CachingInferenceClient, ClientInferenceRequest, ClientInferenceResponse,
-    DEFAULT_CACHE_CAPACITY, InferenceClient, InferenceParams, Message, MeteredInferenceClient,
-    build_inference_client_stack, cache_capacity_from_env, hash_messages,
-};
 pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
 

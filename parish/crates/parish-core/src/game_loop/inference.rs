@@ -9,8 +9,7 @@
 //! Each runtime calls [`rebuild_inference_worker`] to handle the mechanical
 //! worker lifecycle, then handles the backend-specific side effects itself:
 //!
-//! - **`parish-server`**: additionally updates the `inference_client` trait
-//!   slot and emits a URL warning via the event bus.
+//! - **`parish-server`**: additionally emits a URL warning via the event bus.
 //! - **`parish-tauri`**: emits a URL warning via `app.emit`.
 //! - **`parish-engine`**: continues to use its own inline implementation (the
 //!   headless `App` struct is not yet on `Arc<Mutex<T>>`; deferred to a future
@@ -50,7 +49,7 @@ pub struct InferenceSlots<'a> {
 /// Returns `(new_client, url_warning)`.
 ///
 /// - `new_client` is the freshly built `AnyClient` so callers can update any
-///   additional slots (e.g. the server's trait-erased `inference_client` slot).
+///   additional slots as needed (e.g. the server's `cloud_client` slot).
 /// - `url_warning` is `Some(message)` when the base URL looks malformed
 ///   (doesn't start with `http://` or `https://`).  Callers are responsible
 ///   for surfacing this to the player via their runtime's emit path.
