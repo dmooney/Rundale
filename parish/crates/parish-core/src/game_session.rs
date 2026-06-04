@@ -289,6 +289,136 @@ pub fn apply_movement(
     }
 }
 
+/// One NPC dialogue turn, ready to be applied by [`apply_dialogue_turn`].
+///
+/// Bundles the per-turn inputs that every backend already has on hand by the
+/// time an NPC reply is parsed, so the shared chokepoint can run the same
+/// cross-cutting pipeline regardless of caller (#1173).
+pub struct DialogueTurn<'a> {
+    /// The NPC who is replying.
+    pub npc_id: NpcId,
+    /// The NPC's canonical name, recorded on the conversation exchange and
+    /// attributed to witness memories.
+    pub speaker_name: &'a str,
+    /// The player's raw utterance — drives name detection, the tier-1 memory
+    /// entry, the conversation-exchange `player_input`, and witness memories.
+    pub player_input: &'a str,
+    /// The player's utterance as it should appear in the journal
+    /// (`DialogueOccurred::player_said`). Usually equal to `player_input`;
+    /// the script harness strips a leading `say ` verb first.
+    pub player_said: &'a str,
+    /// The parsed NPC reply (dialogue + tier-1 metadata).
+    pub parsed: &'a crate::npc::NpcStreamResponse,
+    /// Inference request id, when this reply came from a live LLM turn; lets
+    /// the chat transcript correlate the line with the inference log. `None`
+    /// for canned / replay turns.
+    pub request_id: Option<u64>,
+}
+
+/// Applies one NPC dialogue turn's cross-cutting steps in a single place.
+///
+/// This is the dialogue analogue of [`apply_movement`]: the server, Tauri,
+/// headless CLI, and script harness all funnel an NPC reply through here so
+/// they can never silently drift (#1173). In order it:
+///
+/// 1. detects + records a player self-introduction
+///    ([`detect_and_record_player_name`](crate::ipc::detect_and_record_player_name)),
+/// 2. applies the tier-1 memory/mood update
+///    ([`apply_tier1_response_with_config`](crate::npc::ticks::apply_tier1_response_with_config)),
+/// 3. records the conversation exchange for scene awareness,
+/// 4. records witness memories for co-located bystanders, and
+/// 5. publishes [`GameEvent::DialogueOccurred`] on `world.event_bus` so the
+///    character-, location-, and chat-transcript log writers all capture the
+///    line.
+///
+/// The event location is the speaker's *current* location captured here, not
+/// the player's, so the location log routes by event-time location even if a
+/// schedule tick later moves the NPC (#1035). The publish is skipped only when
+/// both sides are empty (no useful record), matching the live loop.
+///
+/// Returns the tier-1 + witness debug-event strings so callers can forward
+/// them to their own debug channel.
+pub fn apply_dialogue_turn(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    turn: DialogueTurn<'_>,
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
+    // 1. Learn the player's name from a self-introduction before recording
+    //    memory, so the tier-1 entry is attributed correctly.
+    crate::ipc::detect_and_record_player_name(world, npc_manager, turn.player_input, turn.npc_id);
+
+    let game_time = world.clock.now();
+    let player_name_for_mem = if npc_manager.knows_player_name(turn.npc_id) {
+        world.player_name.clone()
+    } else {
+        None
+    };
+
+    // 2. Tier-1 memory + mood update.
+    if let Some(npc) = npc_manager.get_mut(turn.npc_id) {
+        debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
+            npc,
+            turn.parsed,
+            turn.player_input,
+            game_time,
+            &Default::default(),
+            player_name_for_mem.as_deref(),
+        ));
+    }
+
+    // Capture the speaker's location now so the log routes by event-time
+    // location (#1035), falling back to the player's location if the NPC
+    // somehow has no entry.
+    let location = npc_manager
+        .get(turn.npc_id)
+        .map(|n| n.location)
+        .unwrap_or(world.player_location);
+
+    // 3. Conversation exchange for scene awareness.
+    world
+        .conversation_log
+        .add(crate::npc::conversation::ConversationExchange {
+            timestamp: game_time,
+            speaker_id: turn.npc_id,
+            speaker_name: turn.speaker_name.to_string(),
+            player_input: turn.player_input.to_string(),
+            npc_dialogue: turn.parsed.dialogue.clone(),
+            location,
+        });
+
+    // 4. Witness memories for co-located bystanders.
+    debug_events.extend(crate::npc::ticks::record_witness_memories(
+        npc_manager.npcs_mut(),
+        turn.npc_id,
+        turn.speaker_name,
+        turn.player_input,
+        &turn.parsed.dialogue,
+        game_time,
+        location,
+    ));
+
+    // 5. Publish the full-text dialogue event so the character-, location-,
+    //    and chat-transcript writers all record the line. Skip only when both
+    //    sides are empty (no useful record), matching the live loop.
+    if !turn.player_input.trim().is_empty() || !turn.parsed.dialogue.trim().is_empty() {
+        world
+            .event_bus
+            .publish(parish_types::events::GameEvent::DialogueOccurred {
+                npc_id: turn.npc_id,
+                location,
+                summary: turn.parsed.dialogue.clone(),
+                player_said: Some(turn.player_said.to_string()),
+                npc_said: Some(turn.parsed.dialogue.clone()),
+                request_id: turn.request_id,
+                timestamp: game_time,
+            });
+    }
+
+    debug_events
+}
+
 /// Rolled but not yet logged/committed travel encounter, returned from
 /// [`roll_travel_encounter`] so backends can optionally enrich the text via
 /// an LLM before committing.

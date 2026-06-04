@@ -45,7 +45,6 @@ use crate::ipc::{
 use crate::npc::NpcId;
 use crate::npc::autonomous;
 use crate::npc::parse_npc_stream_response;
-use crate::npc::ticks::apply_tier1_response_with_config;
 
 /// Feature-flag name that gates the autonomous bystander chain in
 /// [`handle_npc_conversation`]. Off by default — `FeatureFlags::is_enabled`
@@ -318,49 +317,30 @@ pub async fn run_npc_turn(
     }
 
     {
-        let world = ctx.world.lock().await;
-        let game_time = world.clock.now();
+        let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
-        let player_name = if npc_manager.knows_player_name(speaker_id) {
-            world.player_name.clone()
-        } else {
-            None
-        };
-        if let Some(npc) = npc_manager.get_mut(speaker_id) {
-            let _ = apply_tier1_response_with_config(
-                npc,
-                &parsed,
-                prompt_input,
-                game_time,
-                &Default::default(),
-                player_name.as_deref(),
-            );
-        }
-
-        // Publish the full-text dialogue event so the character-log
-        // writer can record a verbatim diary entry in the NPC's journal.
-        // We emit even when `parsed.dialogue` is empty so journal entries
-        // line up with the player's prompt, but we skip if both sides
-        // are empty (no useful record).
-        if !prompt_input.trim().is_empty() || !parsed.dialogue.trim().is_empty() {
-            // Capture the speaker's location now, while the lock is held, so
-            // the location log routes by event-time location (#1035).
-            let event_location = npc_manager
-                .get(speaker_id)
-                .map(|n| n.location)
-                .unwrap_or(world.player_location);
-            world
-                .event_bus
-                .publish(parish_types::GameEvent::DialogueOccurred {
-                    npc_id: speaker_id,
-                    location: event_location,
-                    summary: parsed.dialogue.clone(),
-                    player_said: Some(prompt_input.to_string()),
-                    npc_said: Some(parsed.dialogue.clone()),
-                    request_id: Some(req_id),
-                    timestamp: game_time,
-                });
-        }
+        // Run the shared per-turn pipeline (name detection, tier-1 update,
+        // conversation-exchange + witness records, DialogueOccurred publish)
+        // so the live loop can never drift from the harness / headless paths
+        // (#1173). The character-log writer turns the published event into a
+        // verbatim journal entry; `request_id` correlates it with the
+        // inference log.
+        let speaker_name = npc_manager
+            .get(speaker_id)
+            .map(|n| n.name.clone())
+            .unwrap_or_else(|| display_label.clone());
+        let _ = crate::game_session::apply_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            crate::game_session::DialogueTurn {
+                npc_id: speaker_id,
+                speaker_name: &speaker_name,
+                player_input: prompt_input,
+                player_said: prompt_input,
+                parsed: &parsed,
+                request_id: Some(req_id),
+            },
+        );
     }
 
     // Note: the on-disk chat transcript is fed from the `GameEvent` bus
