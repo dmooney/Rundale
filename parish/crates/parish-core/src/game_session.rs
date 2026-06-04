@@ -289,6 +289,122 @@ pub fn apply_movement(
     }
 }
 
+// ── Dialogue application ───────────────────────────────────────────────────────
+
+/// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
+/// every backend performs identically after a Tier-1 reply (#1172 / #1173).
+///
+/// Before this existed, four code paths (live `game_loop::npc_turn`, headless
+/// `apply_npc_response`, and the script harness's `consume_canned_npc_response`
+/// and `handle_npc_interaction_for`) each reimplemented a *different subset* of
+/// these steps, so behaviour silently drifted (#1028, #1035, #1077/#1079). This
+/// is the single definition; all four call it.
+///
+/// The steps, in order:
+/// 1. **Name detection** — `detect_and_record_player_name`, so a
+///    self-introduction in `player_input` teaches the addressed speaker before
+///    memory is recorded.
+/// 2. **Tier-1 state update** — `apply_tier1_response_with_config` on the
+///    speaker (mood, memory, language drift).
+/// 3. **Conversation-exchange record** — appended to `world.conversation_log`,
+///    which feeds the "What's been said here" prompt block
+///    (`ticks::conversation_block`).
+/// 4. **Witness memories** — co-located bystanders record an "Overheard" memory.
+/// 5. **`DialogueOccurred` publish** — on `world.event_bus`, so the
+///    character-log, location-log and chat-transcript subscribers record a
+///    verbatim journal entry.
+///
+/// Operates on plain `&mut` borrows (no runtime I/O), so it needs no
+/// `EventEmitter`: the only event it raises goes to the in-process `event_bus`,
+/// not the UI emitter. Returns the debug-event strings produced by steps 2 and 4
+/// so the caller can forward them to its own debug sink — the headless CLI and
+/// the harness do; the live loop discards them (`let _ = …`).
+///
+/// `player_input` is the raw player utterance used for name detection, memory,
+/// witness records and the conversation log. `player_said_for_journal` is the
+/// (possibly verb-stripped) line stored as `DialogueOccurred::player_said`; pass
+/// the same value as `player_input` unless the caller cleans a leading verb.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_npc_dialogue_turn(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    speaker_id: NpcId,
+    parsed: &crate::npc::NpcStreamResponse,
+    player_input: &str,
+    player_said_for_journal: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: LocationId,
+    speaker_display_name: &str,
+    speaker_actual_name: &str,
+    request_id: Option<u64>,
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
+    // 1. Learn the player's name from a self-introduction *before* recording
+    //    memory, so the addressed speaker's memory uses the real name (#1028).
+    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
+
+    // 2. Tier-1 state update on the speaker.
+    let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
+        world.player_name.clone()
+    } else {
+        None
+    };
+    if let Some(npc) = npc_manager.get_mut(speaker_id) {
+        debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
+            npc,
+            parsed,
+            player_input,
+            game_time,
+            &Default::default(),
+            player_name_for_mem.as_deref(),
+        ));
+    }
+
+    // 3. Record the conversation exchange for scene awareness.
+    world
+        .conversation_log
+        .add(crate::npc::conversation::ConversationExchange {
+            timestamp: game_time,
+            speaker_id,
+            speaker_name: speaker_actual_name.to_string(),
+            player_input: player_input.to_string(),
+            npc_dialogue: parsed.dialogue.clone(),
+            location,
+        });
+
+    // 4. Record witness memories for co-located bystanders.
+    debug_events.extend(crate::npc::ticks::record_witness_memories(
+        npc_manager.npcs_mut(),
+        speaker_id,
+        speaker_display_name,
+        player_input,
+        &parsed.dialogue,
+        game_time,
+        location,
+    ));
+
+    // 5. Publish the full-text dialogue event. Emit even when the dialogue is
+    //    empty so journal entries line up with the player's prompt, but skip
+    //    when both sides are empty (no useful record) — matches the live loop's
+    //    original guard.
+    if !player_said_for_journal.trim().is_empty() || !parsed.dialogue.trim().is_empty() {
+        world
+            .event_bus
+            .publish(parish_types::events::GameEvent::DialogueOccurred {
+                npc_id: speaker_id,
+                location,
+                summary: parsed.dialogue.clone(),
+                player_said: Some(player_said_for_journal.to_string()),
+                npc_said: Some(parsed.dialogue.clone()),
+                request_id,
+                timestamp: game_time,
+            });
+    }
+
+    debug_events
+}
+
 /// Rolled but not yet logged/committed travel encounter, returned from
 /// [`roll_travel_encounter`] so backends can optionally enrich the text via
 /// an LLM before committing.
