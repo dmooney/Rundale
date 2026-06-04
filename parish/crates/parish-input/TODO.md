@@ -2,10 +2,10 @@
 
 ## Open
 
-| ID     | Category       | Severity | Location                                                | Description                                                                                                                                                                                                                                                                                                    |
-| ------ | -------------- | -------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TD-017 | Complexity     | P2       | `src/parser.rs:1-1208`                                  | `parser.rs` remains a broad command parser with command dispatch, every per-command parser, branch/flag validation use, and a large inline test module. Split command families (`save`, `inference`, `provider`, `world`, `debug`) and move parser tests with their helpers before adding more slash commands. |
-| TD-018 | Stale Comments | P3       | `src/intent_local.rs:19`, `src/intent_local.rs:491-555` | Inline `TODO #41/#46/#53` comments document fixed first-person movement regressions, but they are not this crate's TD IDs and look like open debt during scans. Convert to issue/test wording or local TD references during adjacent edits.                                                                    |
+| ID     | Category       | Severity | Location                                                                          | Description                                                                                                                                                                                                                                                                                                    |
+| ------ | -------------- | -------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TD-017 | Complexity     | P2       | `src/parser.rs:1-1208`                                                            | `parser.rs` remains a broad command parser with command dispatch, every per-command parser, branch/flag validation use, and a large inline test module. Split command families (`save`, `inference`, `provider`, `world`, `debug`) and move parser tests with their helpers before adding more slash commands. |
+| TD-018 | Stale Comments | P3       | `src/intent_local.rs:19`, `src/intent_local.rs:47`, `src/intent_local.rs:506-583` | Inline `TODO #41/#46/#53` comments document fixed first-person movement regressions, but they are not this crate's TD IDs and look like open debt during scans. Convert to issue/test wording or local TD references during adjacent edits.                                                                    |
 
 ## In Progress
 
@@ -36,3 +36,7 @@ _(none)_
 
 - **2026-05-11**: Completed TD-009 through TD-016. All 139 unit tests, 6 integration tests, and 1 doctest pass. `cargo clippy -p parish-input` and `cargo fmt -p parish-input` clean.
 - **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-017 and TD-018 for the parser hotspot and historical TODO anchors.
+
+## Discovery note
+
+2026-06-04 audit: 2 Open items reviewed, 0 migrated to Done, 1 anchor corrected (TD-018 secondary anchor updated from `491-555` to `47`, `506-583` after first-person movement fixes in #1094 and #1141 shifted the test comment locations).

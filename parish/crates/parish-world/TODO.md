@@ -5,7 +5,7 @@
 | ID     | Category       | Severity | Summary                                                                                                                                                                                                                                                             |
 | ------ | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TD-026 | Complexity     | P2       | `src/graph.rs:1-1347` is the crate hotspot and mixes graph schema, loading/validation, lookup/fuzzy matching, relative coordinate resolution, pathfinding, and a large inline test module. Split schema/validation, lookup, pathfinding, geo resolution, and tests. |
-| TD-027 | Complexity     | P2       | `src/movement.rs:1-891` combines movement parsing, target resolution, transport/weather adjustments, blocked-route fallback, and tests. Split resolution from weather/transport application so movement parity changes are easier to audit.                         |
+| TD-027 | Complexity     | P2       | `src/movement.rs:1-899` combines movement parsing, target resolution, transport/weather adjustments, blocked-route fallback, and tests. Split resolution from weather/transport application so movement parity changes are easier to audit.                         |
 | TD-028 | Stale Comments | P3       | `src/description.rs:83` references `TODO #28` as a regression anchor for duplicate time labels. Convert to issue/test wording or a local TD reference during the next adjacent edit.                                                                                |
 
 ## Done
@@ -42,3 +42,7 @@
 
 - **2026-05-11** — Resolved all open items (TD-012 through TD-025). `cargo fmt`, `cargo clippy -p parish-world`, and `cargo test -p parish-world` pass cleanly. Dependent crates `parish-core` and `parish` also pass `cargo check`.
 - **2026-05-25** — Refreshed the debt scan against current source. Reopened TD-026 through TD-028 for current layout hotspots and a stale historical TODO anchor.
+
+## Discovery note
+
+2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected (TD-027 line range updated from 1-891 to 1-899).

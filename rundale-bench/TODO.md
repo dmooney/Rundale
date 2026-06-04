@@ -8,8 +8,8 @@
 - [ ] **Pydantic on Bundle / Result / Summary shapes.** This session's failures (None-in-format crash, `bench_bug=true` with nonzero axes, rubric_sha256 mismatch, missing required field) all caught at write-time instead of ingest-time. Big surface coverage from one ~1-day refactor.
   - `validate_result` already exists in `judge_bundle.py`; promote to `BundleSchema` / `ResultSchema` / `SummarySchema` Pydantic models. Validate at every write boundary (orchestrator → pending, subagent → done, ingest → judgments). Reject malformed before fanout.
   - Acceptance: 5 failure modes from this session become impossible by construction (not just caught earlier).
-- [ ] **Round-4 drain.** Re-launched sweep (bjj7xl994) after `metric_from_summary` None-handling fix. When it lands: dispatch wave-N subagents per slice across all 5 models, ingest --finalize, regen leaderboard + bench-site, commit. Pattern mirrors round-3 commit 4e4fda2b.
-- [ ] **bench-bug = 0 axes invariant** enforced in `judge_bundle.py validate_item`. Currently a comment-level convention — three round-3 wave-1 done files violated it, blocked ingest, required manual fixes. Pydantic above subsumes this, but add as standalone validator if Pydantic refactor slips.
+- [x] **Round-4 drain.** Re-launched sweep (bjj7xl994) after `metric_from_summary` None-handling fix. When it lands: dispatch wave-N subagents per slice across all 5 models, ingest --finalize, regen leaderboard + bench-site, commit. Pattern mirrors round-3 commit 4e4fda2b.
+- [x] **bench-bug = 0 axes invariant** enforced in `judge_bundle.py validate_item`. Currently a comment-level convention — three round-3 wave-1 done files violated it, blocked ingest, required manual fixes. Pydantic above subsumes this, but add as standalone validator if Pydantic refactor slips.
 
 ## P1 — quality + signal
 
@@ -27,7 +27,7 @@
 
 ## P2 — infra + ergonomics
 
-- [ ] **`MLX_VENV` env-var documented in README.** This session repeatedly hit "psutil missing — run inside .venv-mlx". Right answer is `MLX_VENV=/Users/.../vllm-mlx`. Add to `rundale-bench/README.md` setup section + auto-detect in `local_runner.py` (search common uv tools paths if `.venv-mlx` symlink missing).
+- [ ] **`MLX_VENV` env-var documented in README.** This session repeatedly hit "psutil missing — run inside .venv-mlx". Right answer is `MLX_VENV=/Users/.../vllm-mlx`. Add to `rundale-bench/README.md` setup section + auto-detect in `local_runner.py` (search common uv tools paths if `.venv-mlx` symlink missing). (partial: `MLX_VENV` env-var read in `local_runner.py:62`; README still documents hardcoded path only, no env-var override mention; auto-detect not implemented)
 - [ ] **Runtime RAM-cap kill switch.** `local_runner.py`'s `RamSampler` measures but doesn't enforce. Add `--max-ram-gb` flag: if peak RSS exceeds N, SIGKILL the mlx_lm.server and skip the candidate. Defends against OOM that kills Claude Code remotely (per round-3 user note).
 - [ ] **Bundled-slice metric surfaces `pending_judge` warning.** `metric_from_summary` now prefixes `(pending_judge)` when summary flags it (round-4 fix). Add equivalent on leaderboard.md row — current rows show 0.00 for pending without indication, looks like a failed run.
 - [ ] **Tokenizer audit script** (`tokenizer_audit.py`). Measure tokens/char on Hyde Irish-side + Brooke Irish-side across candidate bases (Gemma 4 9B, Qwen3-14B, EuroLLM-9B, OLMo-2-13B, Mistral-Small-24B-2501). Gates base-model pick per Phase 1 plan. Cheap (no fine-tune needed, just tokenize + count).
@@ -103,3 +103,5 @@ _(none)_
 ### Progress Log
 
 - 2026-05-25 - Initialized the rundale-bench debt ledger after scanning the Python bench runner, static-site pipeline, v1 dataset/config files, local MLX runner, and bench-site data artifact.
+
+_2026-06-04 audit: 2 of 14 unchecked items verified done (Round-4 drain via commit c3bcd609; bench-bug=0 axes invariant enforced in judge_bundle.py:209-223). 1 item marked partial (MLX_VENV env-var in local_runner.py but not in README). Remaining 11 items still open._
