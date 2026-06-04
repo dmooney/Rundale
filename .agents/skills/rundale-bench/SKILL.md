@@ -47,11 +47,11 @@ and uses Sonnet subagents to judge — no other prompts needed from the user.
 
 ### Steps
 
-1. **Resolve the target spec.** Either the user supplied a full `model@base_url[#env:VAR]` string, or they
-   gave a logical id ("kimi-k2.5 on opencode-go"). In the logical-id case, look it up in
-   `rundale-bench/v1/models.toml` and assemble the spec from the matching `[[model.providers]]` row, so
-   `--model-id` and `--provider-id` can be passed through correctly. Abort if the env var named in the spec
-   is unset — they won't get past the first HTTP call.
+1. **Resolve the target spec — autonomously. Do NOT ask the user clarifying questions.** Work through the
+   resolution ladder in [Autonomous target resolution](#autonomous-target-resolution) below until you have a
+   runnable `model@base_url[#env:VAR]` spec, then proceed. "Eval the new X model" is a complete instruction —
+   resolve the provider, the exact model id, and the serving path yourself (catalog → web search → Hugging
+   Face → local MLX). Only fall back to a question in the genuinely-irreducible cases listed there.
 2. **Generate samples + queue judge bundles** (every slice end-to-end):
 
    ```sh
@@ -79,6 +79,86 @@ and uses Sonnet subagents to judge — no other prompts needed from the user.
 5. **Report** in chat: target id; per-slice aggregate (one row each for dialogue, intent, reaction,
    tier2-sim, tier3-sim, gaeilge); perf p50 / p95 / tokens-per-second; total USD spend. Flag any slice where
    `> 10%` of records errored with HTTP 4xx — those signal a provider quirk worth investigating.
+
+### Autonomous target resolution
+
+**Default to action, not questions.** "Eval the new gemma 12b" / "bench the model that dropped today" is a
+complete instruction. Resolving the provider, the exact model id, and the serving path is _your_ job — do it
+end-to-end without a round-trip to the user. Asking "which provider?" / "paste the exact model id" / "local
+or cloud?" is the wrong move: the user expects you to figure it out. Work down this ladder and stop at the
+first rung that yields a runnable spec:
+
+1. **Catalog.** `python3 rundale-bench/rundale_bench.py catalog --show` (and `grep` `rundale-bench/v1/models.toml`).
+   If the name matches a logical id, assemble the spec from its `[[model.providers]]` row and pass
+   `--model-id` / `--provider-id` through `bench-it`. Done.
+2. **Web search for a model newer than your knowledge cutoff.** A "released today / new" model is expected to
+   be past your cutoff — that is not a blocker, it is the normal case. `WebSearch` the release, then confirm
+   the **exact** provider model id (never guess a version/quant/repo string): check the vendor's announcement
+   and the Hugging Face repo (`google/<id>`, `mlx-community/<id>-4bit`, etc.). Verify the repo id against the
+   HF collection page rather than constructing it from a pattern.
+3. **Pick a serving path automatically — prefer the cheapest runnable one:**
+   - **Cloud** if a provider that the repo already has a key for hosts it. Probe availability directly:
+     OpenRouter (`GET https://openrouter.ai/api/v1/models`, key `OPENROUTER_API_KEY`) and Google AI Studio
+     (`GET https://generativelanguage.googleapis.com/v1beta/openai/models`, key `GOOGLE_API_KEY`) both list
+     ids; `grep` the `.env` (`rundale-bench/../.env`) for which keys exist. Assemble the spec as
+     `<listed-id>@<base_url>#env:VAR`.
+   - **Local MLX** if the model is open-weights but no cloud host carries the size you were asked for (common
+     for fresh small/mid models — the 12B may exist only on HF while the 26B/31B are already on OpenRouter).
+     Do **not** silently substitute a different size; run the size requested, locally. See
+     [Local serving](#local-serving-do-this-yourself) below.
+4. **Only then ask** — and only for a genuinely irreducible fork: two or more _real_ models plausibly match
+   the name and the choice changes the result, **or** every serving path needs a credential/tool that is
+   absent and you cannot install it. "I don't know the exact id" and "is this local or cloud" are **not**
+   irreducible — resolve them via rungs 1-3.
+
+### Local serving (do this yourself)
+
+`bench-it` does not spawn a candidate server; for a local target you start one and point the spec at it. You
+have standing permission to install tooling, upgrade packages, kill/restart your own servers, and pick ports
+— do it without asking. Use the launcher rather than hand-rolling flags:
+
+```sh
+# llama.cpp backend (GGUF; the right choice for mandatory reasoners — see below)
+parish/scripts/local-eval/serve_local.sh --backend llama-server \
+  --model unsloth/<repo>-GGUF:UD-Q4_K_XL --alias <clean-id> --port <free-port>
+#   → spec:  <clean-id>@http://127.0.0.1:<port>/v1
+
+# vllm-mlx backend (MLX; fast for mlx-community/* that serve cleanly)
+parish/scripts/local-eval/serve_local.sh --backend vllm-mlx \
+  --model mlx-community/<repo> --port <free-port>
+```
+
+Background it (`nohup … &`), poll `/v1/models`, then pass the printed spec to `bench-it`.
+
+**Choosing a backend:**
+
+1. **`llama-server` (llama.cpp) is the default for any model with a thinking / reasoning mode.** It honours
+   `--chat-template-kwargs '{"enable_thinking":false}'` (the launcher sets it via `--no-think`, the default),
+   so the model answers directly and the bench's normal `max_tokens` budget is enough. Install with
+   `brew install llama.cpp`. Most new open-weights models ship a same-day `unsloth/<repo>-GGUF` (quant
+   `UD-Q4_K_XL` for ~12B). `--jinja` (launcher-set) is required for the kwarg to bind.
+2. **`vllm-mlx` for plain (non-thinking) MLX candidates.** Fast, no GGUF, but it **cannot suppress thinking**:
+   it ignores every `enable_thinking` knob (per-request kwargs, `--default-chat-template-kwargs`,
+   `--default-thinking-token-budget`). On a reasoner with a realistic multi-KB system prompt this produces a
+   > 50% empty-reply rate (the model burns its whole budget reasoning) — do **not** bench a reasoner on
+   > vllm-mlx; switch to llama-server.
+3. **Pick a free port, leave others alone.** Other servers may already own `:8000`/`:8001`
+   (`lsof -nP -iTCP:8000-8003 -sTCP:LISTEN`). Use the next free port and **do not kill** servers you did not
+   start.
+4. **Brand-new architectures on vllm-mlx** often need a same-day `mlx-vlm` / `mlx-lm`. If it dies with
+   `Model type <x> not supported` / `No module named '…<x>'`, upgrade in-place against the tool-env
+   interpreter: `uv pip install --python "$(head -1 $(which vllm-mlx) | sed 's/^#!//')" 'mlx-vlm==<latest>'`,
+   verify the module imports, relaunch. If a `--continuous-batching` run then throws
+   `…_patched_call() got an unexpected keyword argument …`, the batching monkeypatch lags the new `mlx-vlm` —
+   serve plain (the bench is sequential, so you lose nothing).
+
+**gemma-4 (`gemma4_unified`) — settled recipe:** serve via `llama-server` from `unsloth/gemma-4-12B-it-GGUF`
+with thinking off (the launcher default). The earlier vllm-mlx path (`--reasoning-parser gemma4` + a
+`max_tokens` bump in `eval_lib._is_reasoning_mlx_model`) is a **fallback only** — it kept ~53% of realistic
+prompts empty because the thought never finished. The `_is_reasoning_mlx_model` bump still exists for the
+vllm-mlx fallback and is keyed on the `mlx-community/gemma-4-` prefix, so it does **not** fire for a
+llama-server gemma target (a different model id), which is correct — under llama-server the reply lands in
+`content` directly with no bump needed.
 
 ### Notes
 
