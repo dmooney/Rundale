@@ -45,6 +45,12 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 `just witness-scan` inspects every file under `parish/crates/`, `parish/apps/`, `docs/`, `parish/testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
 
+<!-- markdownlint-disable MD060 -->
+<!-- Cells embed U+200B zero-width spaces so witness-scan does not flag its own
+     example patterns. markdownlint counts ZWSP as width-0 while Prettier counts
+     it as width-1, so the two disagree on "aligned" table pipes; disable MD060
+     for this one table to keep both the lint and format gates green. -->
+
 | Pattern                                            | Catches                                                      |
 | -------------------------------------------------- | ------------------------------------------------------------ |
 | `//​ unchanged`, `//​ existing`                    | AI stubs that left original code in place                    |
@@ -54,6 +60,8 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 | `panic!("Not implemented…")`, `panic!("todo…")`    | Rust panic stubs (case-insensitive prefix match)             |
 | `pass # TODO`                                      | Python placeholders                                          |
 | `return nil //​ placeholder`                       | Go placeholders                                              |
+
+<!-- markdownlint-enable MD060 -->
 
 ## Witness log
 
