@@ -4056,11 +4056,9 @@ dependencies = [
 name = "parish-inference"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "chrono",
  "governor",
  "hf-hub",
- "lru",
  "parish-config",
  "parish-types",
  "regex",
