@@ -756,51 +756,31 @@ fn apply_npc_response(
     game_time: chrono::DateTime<chrono::Utc>,
     location: parish_core::world::LocationId,
     npc_display_name: &str,
-    npc_actual_name: String,
+    npc_actual_name: &str,
 ) {
     let parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
-    let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
-        app.world.player_name.clone()
-    } else {
-        None
-    };
-    if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-        let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
-            npc_mut,
-            &parsed,
-            player_input,
-            game_time,
-            &Default::default(),
-            player_name_for_mem.as_deref(),
-        );
-        for event in &debug_events {
-            app.debug_event(event.clone());
-        }
-    }
-    app.world
-        .conversation_log
-        .add(parish_core::npc::conversation::ConversationExchange {
-            timestamp: game_time,
-            speaker_id: npc_id,
-            speaker_name: npc_actual_name,
-            player_input: player_input.to_string(),
-            npc_dialogue: parsed.dialogue.clone(),
-            location,
-        });
-    let witness_events = parish_core::npc::ticks::record_witness_memories(
-        app.npc_manager.npcs_mut(),
+    // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1 apply,
+    // conversation-log record, witness memories, and the `DialogueOccurred`
+    // publish (headless previously skipped this last step). Forward the returned
+    // debug-event strings to the headless debug sink.
+    let debug_events = parish_core::game_session::apply_npc_dialogue_turn(
+        &mut app.world,
+        &mut app.npc_manager,
         npc_id,
-        npc_display_name,
+        &parsed,
         player_input,
-        &parsed.dialogue,
+        player_input,
         game_time,
         location,
+        npc_display_name,
+        npc_actual_name,
+        None,
     );
-    for event in &witness_events {
-        app.debug_event(event.clone());
+    for event in debug_events {
+        app.debug_event(event);
     }
 }
 
@@ -900,7 +880,7 @@ async fn stream_headless_npc_dialogue(
                                 game_time,
                                 location,
                                 &npc_display_name,
-                                npc_actual_name.clone(),
+                                &npc_actual_name,
                             );
                         }
                     }
