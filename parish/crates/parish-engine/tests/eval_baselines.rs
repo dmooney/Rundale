@@ -627,3 +627,132 @@ fn rubric_tier_promotion_on_proximity() {
         );
     }
 }
+
+// ============================================================
+// Demo-audit regression rubrics (issue #1175). The same demo-audit finding
+// categories were fixed repeatedly instead of guarded: auto-player-never-moves
+// (#1129/#1139/#1140), mid-conversation farewells, and mood→emoji mis-mapping.
+// These three rubrics turn each finding into a deterministic guard.
+// ============================================================
+
+/// Negative moods must never render as a positive-affect emoji. Guards the
+/// recurring mood→emoji mis-mapping — e.g. a positive-emoji branch shadowing a
+/// negative mood after a reorder in `parish-npc/src/mood.rs`.
+#[test]
+fn rubric_mood_emoji_sign() {
+    use parish_engine::npc::mood::mood_emoji;
+
+    // Unambiguously positive-affect emoji produced by `mood_emoji`.
+    const POSITIVE_EMOJI: &[&str] = &["😄", "😊", "🤗", "😆", "🔥"];
+    // Unambiguously negative moods the LLM commonly emits.
+    const NEGATIVE_MOODS: &[&str] = &[
+        "bitter",
+        "sharp",
+        "angry",
+        "furious",
+        "afraid",
+        "terrified",
+        "anxious",
+        "worried",
+        "sad",
+        "mournful",
+        "irritated",
+        "frustrated",
+        "resentful",
+        "grumpy",
+        "sour",
+        "suspicious",
+        "caustic",
+        "embittered",
+    ];
+
+    for mood in NEGATIVE_MOODS {
+        let emoji = mood_emoji(mood);
+        assert!(
+            !POSITIVE_EMOJI.contains(&emoji),
+            "rubric_mood_emoji_sign: negative mood `{mood}` maps to positive \
+             emoji {emoji}.\n\
+             FIX: in parish-npc/src/mood.rs, negative-mood branches must \
+             precede any positive branch whose keywords overlap — a positive \
+             branch is shadowing this mood."
+        );
+    }
+}
+
+/// The player can and does move. Guards the recurring auto-player-never-moves
+/// finding (#1129/#1139/#1140): movement must be possible (the start location
+/// has neighbours) AND a scripted multi-turn walkthrough must visit more than
+/// one distinct location.
+#[test]
+fn rubric_demo_player_moves() {
+    // 1. Movement is possible: the player's start has at least one neighbour.
+    let h = GameTestHarness::new();
+    let start = h.app.world.player_location;
+    let neighbours = h.app.world.graph.neighbors(start);
+    assert!(
+        !neighbours.is_empty(),
+        "rubric_demo_player_moves: player start location {start:?} has no \
+         adjacent locations — movement is impossible.\n\
+         FIX: check the active mod's world graph edges (mods/rundale/world.json)."
+    );
+
+    // 2. Movement actually happens: over a multi-turn walkthrough the player
+    //    visits more than one distinct location.
+    let results = capture("test_all_locations");
+    let distinct: std::collections::HashSet<&str> =
+        results.iter().map(|r| r.location.as_str()).collect();
+    assert!(
+        distinct.len() >= 2,
+        "rubric_demo_player_moves: across {} turns of test_all_locations the \
+         player never left `{}` ({} distinct location(s)).\n\
+         FIX: movement is silently failing — check \
+         parish_core::game_session::apply_movement and the `go`/`go to` parser path.",
+        results.len(),
+        results.first().map(|r| r.location.as_str()).unwrap_or("?"),
+        distinct.len(),
+    );
+}
+
+/// No NPC says a farewell before the conversation's final turn. Guards the
+/// recurring mid-conversation-farewell finding: within each baselined fixture,
+/// a farewell token may appear only in an NPC's last dialogue turn.
+#[test]
+fn rubric_no_midconversation_farewell() {
+    fn is_farewell(text: &str) -> bool {
+        let t = text.to_lowercase();
+        ["slán abhaile", "slán leat", "goodbye", "farewell"]
+            .iter()
+            .any(|f| t.contains(f))
+    }
+
+    for name in BASELINED_FIXTURES {
+        let results = capture(name);
+        // Group NPC dialogue turns by speaker, preserving turn order.
+        let mut by_npc: HashMap<&str, Vec<(usize, &str)>> = HashMap::new();
+        for (i, r) in results.iter().enumerate() {
+            if let ActionResult::NpcResponse { dialogue, npc, .. } = &r.result {
+                by_npc
+                    .entry(npc.as_str())
+                    .or_default()
+                    .push((i, dialogue.as_str()));
+            }
+        }
+        for (npc, turns) in &by_npc {
+            if turns.len() < 2 {
+                continue; // a single-turn exchange may legitimately close.
+            }
+            // Every turn except the last must NOT be a farewell.
+            for (i, dialogue) in &turns[..turns.len() - 1] {
+                assert!(
+                    !is_farewell(dialogue),
+                    "rubric_no_midconversation_farewell: {name}.txt step {i}: \
+                     NPC `{npc}` says a farewell before the conversation's \
+                     final turn.\n  Dialogue: `{dialogue}`\n\
+                     FIX: an NPC must not sign off mid-conversation. Check the \
+                     dialogue prompt template (mods/rundale/prompts/) and the \
+                     per-turn seam parish_core::game_session::apply_npc_dialogue_turn."
+                );
+            }
+        }
+    }
+}
