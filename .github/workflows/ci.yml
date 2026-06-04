@@ -345,6 +345,9 @@ jobs:
       - name: shfmt (diff = fail)
         run: shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
 
+      - name: Proof-tooling unit tests
+        run: bash parish/scripts/tests/compose-proof-body.test.sh
+
   toml-quality:
     name: TOML quality (taplo fmt + lint)
     runs-on: ubuntu-latest
