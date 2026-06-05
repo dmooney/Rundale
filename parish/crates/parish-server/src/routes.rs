@@ -1493,18 +1493,11 @@ pub async fn take_screenshot() -> (StatusCode, Json<serde_json::Value>) {
 
 /// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.
 ///
-/// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
+/// Delegates to the single canonical implementation in
+/// [`parish_core::input::validate_branch_name`] and maps any error to
+/// [`StatusCode::BAD_REQUEST`] so the HTTP caller gets a 400.
 pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
-    if name.is_empty() || name.len() > 64 {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
-    {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    Ok(())
+    parish_core::input::validate_branch_name(name).map_err(|_| StatusCode::BAD_REQUEST)
 }
 
 // ── #752 — addressed_to validation ──────────────────────────────────────────
