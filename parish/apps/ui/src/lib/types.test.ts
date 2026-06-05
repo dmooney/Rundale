@@ -54,7 +54,7 @@ function extractInterfaceFields(
 
 	// Walk forward from the `{`, tracking brace depth to find the closing `}`.
 	let depth = 0;
-	let start = match.index + match[0].length - 1; // points at the `{`
+	const start = match.index + match[0].length - 1; // points at the `{`
 	let end = -1;
 	for (let i = start; i < source.length; i++) {
 		if (source[i] === '{') depth++;
