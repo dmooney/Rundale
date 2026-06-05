@@ -72,4 +72,5 @@ pub use save::{NewGameParams, do_new_game, do_save_game, load_fresh_world_and_np
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{
     AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
+    mint_tier2_gossip,
 };
