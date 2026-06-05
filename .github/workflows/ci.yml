@@ -68,6 +68,7 @@ jobs:
               - 'parish/Cargo.toml'
               - 'parish/Cargo.lock'
               - 'parish/testing/**'
+              - 'parish/.config/nextest.toml'
               - 'mods/**'
               - '.github/workflows/ci.yml'
             ui:
@@ -150,8 +151,15 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # `--retries 1` is the flaky-test detector (#1176): a test that fails
+      # then passes on the retry is reported as FLAKY (the run still goes
+      # green on a single blip, but the nondeterminism is surfaced in the
+      # summary instead of either hard-failing the PR or hiding silently).
+      # `--profile ci` picks up the matching retry/fail-fast policy in
+      # parish/.config/nextest.toml so the same behaviour is reproducible
+      # locally with `cargo nextest run --profile ci`.
       - name: Unit and integration tests
-        run: cargo nextest run --workspace --all-targets
+        run: cargo nextest run --workspace --all-targets --profile ci
 
   rust-coverage-ratchet:
     name: Rust coverage ratchet
@@ -202,7 +210,12 @@ jobs:
         with:
           tool: cargo-llvm-cov,cargo-nextest
 
+      # Same one-shot retry policy as the quality gate so a single flaky blip
+      # in a coverage-ratchet test is reported FLAKY, not a hard PR failure
+      # (#1176). NEXTEST_PROFILE avoids `--profile` arg ambiguity with llvm-cov.
       - name: Enforce coverage floor
+        env:
+          NEXTEST_PROFILE: ci
         run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --fail-under-lines 60.8
 
   rust-multi-channel:
