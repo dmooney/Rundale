@@ -1,0 +1,9 @@
+{"id": "intent-0012", "tier": "extended", "persona": "intent-parser", "prompt": "I want to visit the fairy fort", "gold": {"intent": "move", "target": "the fairy fort", "dialogue": null}}
+{"id": "intent-0014", "tier": "extended", "persona": "intent-parser", "prompt": "let's go to the churchyard", "gold": {"intent": "move", "target": "the churchyard", "dialogue": null}}
+{"id": "intent-0016", "tier": "extended", "persona": "intent-parser", "prompt": "I was at the shore yesterday morning", "gold": {"intent": "talk", "target": null, "dialogue": "I was at the shore yesterday morning"}}
+{"id": "intent-0018", "tier": "extended", "persona": "intent-parser", "prompt": "speak to Father Cathal about the wake", "gold": {"intent": "talk", "target": "Father Cathal", "dialogue": "about the wake"}}
+{"id": "intent-0021", "tier": "extended", "persona": "intent-parser", "prompt": "thank Brigid for the poultice", "gold": {"intent": "talk", "target": "Brigid", "dialogue": "thank you for the poultice"}}
+{"id": "intent-0034", "tier": "extended", "persona": "intent-parser", "prompt": "open the gate", "gold": {"intent": "interact", "target": "the gate", "dialogue": null}}
+{"id": "intent-0035", "tier": "extended", "persona": "intent-parser", "prompt": "My mother always said the road to Killaloe was haunted", "gold": {"intent": "talk", "target": null, "dialogue": "My mother always said the road to Killaloe was haunted"}}
+{"id": "intent-0039", "tier": "extended", "persona": "intent-parser", "prompt": "tóg an cloch", "gold": {"intent": "unknown", "target": null, "dialogue": null}}
+{"id": "intent-0041", "tier": "extended", "persona": "intent-parser", "prompt": "Padraig, what news from town", "gold": {"intent": "talk", "target": "Padraig", "dialogue": "what news from town"}}
