@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-
 from schemas import BundleSchema, ResultSchema
 
 _BENCH_DIR = Path(__file__).resolve().parent
