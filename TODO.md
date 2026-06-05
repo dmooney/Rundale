@@ -11,14 +11,14 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Root cause**: The `{"action": "<free text>"}` JSON schema in `parish-tauri/src/commands.rs` demo turn only accepts dialogue. Demo prompt (`mods/rundale/demo-prompt.txt`) says "travel widely" but the action grammar has no movement verb.
 - **Fix**: Extend demo-turn action schema with `{"action": "...", "go_to": "<location-name>"}` variant, OR add an explicit "movement" tool the auto-player can call. Update demo prompt to document the movement syntax.
 
-### 2. MCP port not opened by `just demo`
+### 2. MCP port not opened by `just demo` — RESOLVED 2026-06-04 (commit 5d7a935c)
 
 - **Symptom**: Recipe `parish/justfile:122` builds `DEMO_ARGS` without `--mcp-port`. `parish-tauri/src/lib.rs:1003` only opens the MCP bridge when the flag is present. So `mcp__parish__*` tools always fail during a demo.
 - **Fix**: Add `--mcp-port 3030` (or accept env override) to the demo recipe so MCP works by default.
 
 ## P1 — Visible gameplay bugs
 
-### 3. Mood→emoji map miscategorises negative moods
+### 3. Mood→emoji map miscategorises negative moods — RESOLVED 2026-06-04 (commit 5cafc389)
 
 - **Symptom**: `/api/npcs-here` returned `bitter` → 🙂 and `sharp` → 🙂 (Sean Ruadh Kelly, Peig Hannigan). Bitter ≠ smile.
 - **Fix**: Audit `MOOD_EMOJI` table in `parish-npc` (or wherever `mood_emoji` is derived). Bitter should be 😠/😒; sharp should be 😤 or similar.
@@ -28,7 +28,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Symptom**: Turn 2 Cormac Duffy reply ends `"...Slán abhaile"` (Irish "safe journey home") yet conversation continued five more turns. Premature farewell suggests dialogue prompt allows closure tokens.
 - **Fix**: Add anti-farewell guidance to `mods/rundale/prompts/dialogue.*` template, or post-filter `Slán abhaile` / `Goodbye` / `Farewell` from mid-conversation replies.
 
-### 5. Time label hides progression from LLM
+### 5. Time label hides progression from LLM — RESOLVED 2026-06-04 (commit 2a1f133e)
 
 - **Symptom**: Demo prompt feeds only `Date and time: Monday, 20 March 1820, Afternoon | Spring` — no hour:minute. 36× speed factor advances clock but model can't see it.
 - **Fix**: Include `HH:MM` in the `user_prompt` time line (`parish_tauri_lib::commands::demo_turn`).
@@ -40,12 +40,12 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Symptom**: 38 `clocks stand still` ↔ `Time stirs` toggles across 8 turns (~5 per turn).
 - **Fix**: Dedupe per turn — emit at most one pause edge and one resume edge per demo step.
 
-### 7. NPC reply truncated in recent-events buffer
+### 7. NPC reply truncated in recent-events buffer — RESOLVED 2026-06-04 (commit b8629534)
 
 - **Symptom**: Line 151 of `.demo-run.log` shows Cormac reply mid-sentence: `"...what brings ye to this side"`. The full reply was longer (line 119); display buffer cap, not model output.
 - **Fix**: Either raise the recent-events char cap or append `…` so the LLM sees the truncation.
 
-### 8. `parish/.demo-run.log` not gitignored
+### 8. `parish/.demo-run.log` not gitignored — RESOLVED 2026-06-04 (commit 5d7a935c)
 
 - **Symptom**: Demo output file showed up in `git status`.
 - **Fix**: Add `parish/.demo-run.log` to `.gitignore`.
@@ -57,7 +57,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 ## Cycle 2 — additional findings (`just demo 2 8` with `--mcp-port 3030`)
 
-### 10. NPC dialogue degenerates into repetition loop (P0)
+### 10. NPC dialogue degenerates into repetition loop (P0) — RESOLVED 2026-06-04 (commit 6736eb6a)
 
 - **Symptom**: Brendan Duffy reply ≈1900 chars; Nora Duffy replies ≈1900 chars. Both repeat phrases verbatim 3-4×: `"Sometimes it turns slow, sometimes it turns fast. But it always turns, so it does"`, `"'Tis not just a matter of X, but Y, so it is"`. Cut off only by token cap.
 - **Root cause**: Likely (a) no `repetition_penalty` on dialogue sampling, (b) `max_tokens` set too high so cap is the only brake, (c) prompt encourages length over closure. Qwen2.5-14B-4bit is prone to this without rep penalty.
@@ -84,7 +84,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Symptom**: Brendan's reply mixed greetings + monologue + multiple goodbyes within one message: `"Slán abhaile, Father, I'll be back soon..."` + `"Slán leat, stranger..."` + back to chatting about the wheel. NPC stage-direction leakage.
 - **Fix**: Constrain dialogue to single addressee per turn. Use `addressed_to` field on NPC replies. Reject replies with multiple `Slán*` tokens.
 
-### 15. Redundant Weather field in prompt (P3)
+### 15. Redundant Weather field in prompt (P3) — RESOLVED 2026-06-04 (see demo.rs:181)
 
 - **Symptom**: Prompt repeats weather twice — embedded in `location_description` (`"The weather is partly cloudy"`) and again on `Weather: Partly Cloudy` line. Same for time-of-day (`"It is afternoon"` + `Date and time: ... Afternoon`).
 - **Fix**: Drop weather sentence from location description, OR drop the explicit `Weather:` line. Keep one source of truth.
@@ -101,7 +101,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 ## Cycle 3 — additional findings
 
-### 18. Auto-player emits empty action and burns a turn (P1)
+### 18. Auto-player emits empty action and burns a turn (P1) — RESOLVED 2026-06-04 (commands.rs:2848)
 
 - **Symptom**: Last 2 turns of cycle 3 logged `raw_len=137 action=` and `raw_len=139 action=` (137/139 chars came back from LLM, but parsed `action` was empty). Player input recorded as nothing, no NPC turn fired.
 - **Root cause**: Action parser in `parish_tauri_lib::commands::demo_turn` likely strips/loses content when LLM completion doesn't match expected `<text>"}` shape, or model returned `{"action": ""}` and the code accepts empty without retry.
@@ -112,14 +112,14 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Update**: Cycle 1 logged 38 `clocks stand still` / `Time stirs` toggles. Cycles 2 + 3 (loaded-save sessions) logged 0. Spam happens only on fresh game boot; loaded saves don't trigger it.
 - **Restated fix**: Trace which subsystem emits the pause edges on initial bootstrap (likely setup status / initial NPC schedule / first weather tick), and dedupe at the emission source.
 
-### 20. Mood→emoji map inconsistent across cycles (revise TODO #3)
+### 20. Mood→emoji map inconsistent across cycles (revise TODO #3) — RESOLVED 2026-06-04 (commit 5cafc389)
 
 - **Update**: Same NPC + same mood label returned different emojis across cycles. `friendly` → 😊 (cycle 1) vs 🤗 (cycle 3) for Brendan / Nora. Either reaction inference overrides the static mood→emoji map per turn, or two code paths return different values.
 - **Restated fix**: Confirm single source-of-truth for `mood_emoji`. If reaction inference is doing the override, document it; otherwise pin to a stable table.
 
 ## Cycle 4 — additional findings (12-turn run)
 
-### 21. NPCs mis-identify their location (`Curraghboy` for `Kilteevan`) (P1)
+### 21. NPCs mis-identify their location (`Curraghboy` for `Kilteevan`) (P1) — RESOLVED 2026-06-04 (commit d89ae98a)
 
 - **Symptom**: Nora and Cormac repeatedly refer to "their" village as `Curraghboy`: `"...for bein' here in Curraghboy on this fine evening?"`, `"...plans in mind for Curraghboy"`. Eight separate Cormac/Nora replies use it.
 - **Verified data**: `Curraghboy Village` IS a real location in `mods/rundale/world.json:649` (separate from `Kilteevan Village`). NPC backstories in `mods/rundale/npcs.json` reference Curraghboy:
@@ -128,13 +128,13 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
     So Curraghboy is canon — but the Duffy mill is at _The Mill near Kilteevan_, not Curraghboy. NPC pulled the nearby-townland name from backstory and applied it to their current location.
 - **Fix**: Dialogue prompt for an NPC reply must inject `"You are currently at {location_name}, in {parent_settlement}"` as a hard anchor. Post-filter: if NPC names a location that exists in world.json but isn't the current location, warn.
 
-### 22. Gaelic validator over-flags real Irish words (`poitín`) (P2)
+### 22. Gaelic validator over-flags real Irish words (`poitín`) (P2) — RESOLVED 2026-06-04 (commit 803e7e63)
 
 - **Symptom**: `WARN parish_core::game_loop::npc_turn: quality issue in NPC reply ... kind="hallucinated-gaelic" detail=unrecognized Gaelic word: 'poitín'` (line 127). Poitín (a.k.a. "poteen") is a real Irish word for home-distilled spirits — well documented, period-appropriate for 1820.
 - **Root cause**: Gaelic word list in the validator (likely `parish-npc::anachronism` or `mods/rundale/anachronisms.json`) doesn't include `poitín`.
 - **Fix**: Add `poitín` to the allow-list. Audit other false positives by sampling a session's `quality issue` WARNs.
 
-### 23. NPC reply repetition loops worsen with conversation length (revise TODO #10)
+### 23. NPC reply repetition loops worsen with conversation length (revise TODO #10) — RESOLVED 2026-06-04 (commit 6736eb6a)
 
 - **Symptom**: Cormac's late-cycle replies (lines 472, 544, 614) escalate to ≈1500-2000 chars with `"what brings ye here this eve? Is it just the mill, or is there somethin' else ye're after?"` repeated 4-5 times verbatim. Pattern present in earlier cycles but worse as context grows.
 - **Likely amplifier**: As the recent-events buffer accumulates, the model echoes its own prior question structure more. Repetition penalty in sampling would help.
@@ -156,7 +156,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 ## Cycle 5 — additional findings (12-turn run, family arrived)
 
-### 27. Off-screen NPC Tier 2 inference dies on JSON parse (P1)
+### 27. Off-screen NPC Tier 2 inference dies on JSON parse (P1) — RESOLVED 2026-06-04 (commit f3f13d1f)
 
 - **Symptom**: `ERROR parish_npc::ticks: Tier 2 inference failed at Murphy's Farm: inference error: Tier 2 JSON parse failed: key must be a string at line 2 column 3` (line 221).
 - **Impact**: Off-screen NPC simulation at Murphy's Farm aborted silently — anyone there gets no Tier 2 update this tick. Visible only in logs, not surfaced in UI.
@@ -169,20 +169,20 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Root cause**: `location_description`'s time-of-day phrase is recomputed but uses a different bucket boundary than `time_label`.
 - **Fix**: Drive both from same source-of-truth. Pick one bucketing table.
 
-### 29. Tier 2 errors not visible to user but visible to ERROR-grep (P3, observability)
+### 29. Tier 2 errors not visible to user but visible to ERROR-grep (P3, observability) — RESOLVED 2026-06-04 (commit e07042b6)
 
 - **Symptom**: Only error across 5 demo cycles was line 221's Tier 2 fail. No surface metric.
 - **Fix**: Add a `parish_metrics` counter for `tier2_parse_failures_total{location=...}`. Surface in `/api/debug-snapshot`.
 
 ## Cycle 6 — additional findings
 
-### 30. Auto-player CAN move — issue is prompt, not schema (revise TODO #1)
+### 30. Auto-player CAN move — issue is prompt, not schema (revise TODO #1) — RESOLVED 2026-06-04 (commit f12c7c11)
 
 - **Symptom**: Cycle 6 turn 8, LLM produced `action=go to the stream` (raw_len=30). System replied `"You set off along the track east along the stream back to the village toward Connolly's Shop. (15 minutes on foot)"` and player relocated to `Connolly's Shop`.
 - **Revision**: Movement IS supported by natural-language `action` text. TODO #1's root-cause hypothesis was wrong — the action grammar accepts movement verbs and the input parser resolves them. The real bug is that the auto-player almost never produces movement-style actions across cycles 1-5. Out of 38+ turns, exactly 1 produced movement (and only after the LLM was implicitly nudged by Brendan saying "take a walk by the stream").
 - **Fix**: Strengthen `mods/rundale/demo-prompt.txt` with explicit movement directive: `"After 3-5 turns at one location, choose to move. Use simple commands: 'go to X', 'walk to X', 'head to X'."`. Optionally inject a system hint `> [system] You have been here {n} turns. Consider moving.` when stuck.
 
-### 31a. ROOT CAUSE: pause toggles are user-activity-driven (revise TODO #6, #19, #31)
+### 31a. ROOT CAUSE: pause toggles are user-activity-driven (revise TODO #6, #19, #31) — RESOLVED 2026-06-04 (commit 19aeca82)
 
 - **Confirmed source**: `parish/apps/ui/src/lib/auto-pause.ts`. Frontend timer dispatches `/pause` after `idleMs` of no keyboard/mouse/touch activity, then `/resume` on next event. Each dispatch lands as `Command::Pause`/`Command::Resume` in `parish-core/src/ipc/commands.rs:282-289` which print the system messages.
 - **Why the spam is bursty during demo**: User interacting with other apps (not the demo window) is interpreted by `auto-pause.ts` as idle/active flips. Each blur of attention → idle timer fires → `/pause`. Each return → `/resume`. Demo runs in a Tauri window receiving global mouse/keyboard via DOM, so window-out-of-focus doesn't shield it.
@@ -194,7 +194,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
   3. Add reentrancy guard: ignore activity events when `submitInput('/pause')` is in-flight.
 - **Lower-priority cleanup** (was TODO #31): also reference-count `Command::Pause` server-side so duplicate dispatches don't emit duplicate text messages.
 
-### 31. Pause/unpause emits duplicates and back-to-back toggles (revise TODO #6, #19)
+### 31. Pause/unpause emits duplicates and back-to-back toggles (revise TODO #6, #19) — RESOLVED 2026-06-04 (commit 19aeca82)
 
 - **Symptom** (`parish/.demo-run.log` lines 235-243):
 
@@ -224,14 +224,14 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Symptom**: Earlier `/api/map` listed 11 locations. `Connolly's Shop` was reachable via "go to the stream" but did not appear in the map response. Either the endpoint filters to `hops <= N` or to a specific subgraph.
 - **Fix**: Either document the filter (`/api/map` returns only adjacent + 2-hop locations), or expand it. Auto-player can't choose to move to a location it can't see in its prompt — combined with TODO #30 this magnifies the no-movement problem.
 
-### 34. Extreme repetition pattern: anaphora loop (refines TODO #10/#23)
+### 34. Extreme repetition pattern: anaphora loop (refines TODO #10/#23) — RESOLVED 2026-06-04 (commit 6736eb6a)
 
 - **Symptom**: Brendan's c6 reply (line 230) packs `"'Tis a place of steady X, but not without its Y"` 12+ times verbatim (steady hands / hearts / souls / feet, cycled twice). Same pattern line 234. This is a different failure mode than the question-loop seen earlier — it's pure anaphoric chain.
 - **Note**: At least three distinct loop patterns observed across cycles: (i) trailing-question loop, (ii) "'Tis not just X, but Y", (iii) anaphora chain "'Tis a place of steady X, but not without its Y". All from same underlying lack of repetition penalty.
 
 ## Cycle 7 — additional findings (15-turn run, player roamed)
 
-### 35. NPC cross-conversation name leak: addresses player by previous NPC's name (P0)
+### 35. NPC cross-conversation name leak: addresses player by previous NPC's name (P0) — RESOLVED 2026-06-04 (commit d89ae98a)
 
 - **Symptom**: Roisin Connolly (Shopkeeper at Connolly's Shop) addressed the player as `"Nora"` twice (lines 189, 274). Player's name is Aiden Carney. `Nora Duffy` is the Miller's Wife from the prior location's conversation, present in the recent-events buffer.
 - **Root cause**: NPC dialogue prompt feeds the recent-events transcript including prior turns at other locations. The LLM-NPC at the new location picks up an earlier proper noun and uses it as the player's name. Names in dialogue history aren't grounded against "who is the player" anchor.
@@ -252,7 +252,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Symptom**: Roisin mentioned `"the landlord's man, Concannon"` (line 152).
 - **Verified**: `Martin Concannon` exists in `mods/rundale/npcs.json:4002` (landlord's clerk). Backstory references in other NPCs' entries (lines 2104, 3054, 3656). Roisin's mention is in-canon, not a hallucination.
 
-### 39. NPC dialogue → speaker self-introduction redundancy (P3)
+### 39. NPC dialogue → speaker self-introduction redundancy (P3) — RESOLVED 2026-06-04 (commit 3773669a)
 
 - **Symptom**: Roisin reply line 274 includes `"...ye share yer plans with me, Roisin Connolly, of Connolly's Shop, and a keen eye for opportunity?"`. Mid-reply self-introduction ("Roisin Connolly, of Connolly's Shop") is breaking immersion; NPC already introduced.
 - **Fix**: Post-filter NPC replies to remove `<own_name>, of <own_location>` patterns when `introduced=true`.
@@ -265,7 +265,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 ## Cycle 8 — additional findings (18-turn run, mostly empty locations)
 
-### 41. Movement parser silently rejects valid intent phrasings (P1)
+### 41. Movement parser silently rejects valid intent phrasings (P1) — RESOLVED 2026-06-04 (commit 0b247306)
 
 - **Symptom**: At The Hurling Green, player produced 9 consecutive turns of `"I'll make for the Crossroads then."`, `"I'll be making for the Hedge School then."`, `"I best be on me way then."` — **none triggered a move**. No system response, no error. Player stayed stuck. Turn 12 finally moved with `"Seems a quiet spot for a wander. I'll make for the Hedge School then."` — the only successful one had a leading descriptive clause before the move verb.
 - **Root cause**: Movement parser in `parish-input` likely matches strict prefixes (`go to X`, `walk to X`) and rejects `"I'll make for X then"` or `"I best be on me way"`. Parser doesn't even surface "I don't understand" — input is treated as dialogue at a location with no NPCs, so it silently no-ops.
@@ -284,7 +284,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 - **Symptom**: First half of c8 was `"It is late night"`. Post-move at line 696: `"It is dawn"`. So the `location_description`'s embedded time-of-day phrase IS recomputed on each prompt (refutes earlier hypothesis that it might be cached). The buggy disagreement in TODO #28 is specifically at the dusk/night boundary, not all transitions.
 
-### 45. NPC streaming reveal runs in parallel — turns not serialized (P0, user-reported in c6)
+### 45. NPC streaming reveal runs in parallel — turns not serialized (P0, user-reported in c6) — RESOLVED 2026-06-04 (commit 296c783d)
 
 - **User observation**: During cycle 6, two NPC replies were visibly being revealed (streamed token-by-token) at the same time. A previous long reply was still pumping out characters when the next demo-player command + NPC reply landed.
 - **Term**: "streaming reveal" / "token streaming" / "stream pump". UI implementation at `parish/apps/ui/src/lib/setup/stream-manager.ts`; pacing at `parish/apps/ui/src/lib/stream-pacing.ts` (120/90/190 ms base/clause/sentence).
@@ -301,7 +301,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 
 ## Cycle 9 — additional findings (18 sterile turns at empty Hedge School)
 
-### 46. Silent input drop: parser swallows ALL turns at empty location (P0, sharpens #12/#41)
+### 46. Silent input drop: parser swallows ALL turns at empty location (P0, sharpens #12/#41) — RESOLVED 2026-06-04 (commit 0b247306 + e1d31c14)
 
 - **Symptom**: 18/18 c9 turns at The Hedge School. Zero NPC presence. Zero system responses. Zero state changes. Player produced reasonable text every turn including:
   - Movement attempts: `"I'll venture to the nearby Crossroads"`, `"I'll make my way back to the Crossroads, seein' if there's aught happenin' there"` (5 turns)
@@ -310,7 +310,7 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - **Result**: All 18 inputs vanish into a void. No "you are alone" hint, no "I don't understand", no movement trigger, no idle banter. Player loop is unrecoverable without external intervention.
 - **Fix combines #12 + #41**: (a) When `NPCs here: none`, surface system response for unparseable input — at minimum echo back `"You speak, but no one is here to hear."`. (b) Expand movement parser to catch `I'll venture to X`, `I'll make my way to X`, `head/walk/wander/stroll/go to X`. (c) Roleplay-action recognition would be a larger gameplay feature — at minimum, treat unparsed input at an empty location as a movement-intent check.
 
-### 47. Roleplay narration treated as dialogue, not action (P1, design gap)
+### 47. Roleplay narration treated as dialogue, not action (P1, design gap) — RESOLVED 2026-06-04 (commit 206854f1)
 
 - **Symptom**: Player narratives in past-tense or third-person ("Walking up to the cabin, I knock gently on the door", "Sittin' here, I notice a book half-open on the table") have no game-state effect. The auto-player produces this style ~40% of the time because the demo prompt allows it ("Use first person speech or direct commands"). The engine has no action-verb parser to extract `knock`, `sit`, `look`, `pick up`.
 - **Fix**: Either (a) tighten demo-prompt to forbid narrative-action style, restrict to greetings + movement + dialogue, OR (b) add an action-verb parser layer (`knock`, `sit`, `wait`, `look around`) that fires synthetic system descriptions.
@@ -347,20 +347,20 @@ Branch: `fix/demo-run-tauri-panic-and-travel-detail`.
 - Martin Concannon at The Letter Office (landlord's clerk). First in-game appearance after Roisin mentioned him in c7.
 - Concannon reply mentioned `"the calf being born at the Murphys' farm"` — Murphy's Farm is real (in c2 map).
 
-### 53. Movement parse: even "Off I go to X then" worked once but failed on identical phrasings later (refines #41)
+### 53. Movement parse: even "Off I go to X then" worked once but failed on identical phrasings later (refines #41) — RESOLVED 2026-06-04 (commit 01abc444)
 
 - **Symptom**: At line 580: `"Off I go to the Letter Office then..."` → movement succeeded. Same player produced 5+ similar variants in earlier turns (`"Might I venture to the Letter Office next"`, `"I shall go"`, `"Mayhaps the Letter Office doth hold tales..."`) — none triggered movement.
 - **Parser pattern guess**: "Off I go" + "to" + LOCATION works. "Might I venture" + "to" doesn't. Parser keys on assertive verb forms ("go", "walk", "head"), rejects modals + questions. Worth verifying in `parish-input/src/parser.rs`.
 
 ## Cycle 12 — additional findings (15 turns, 3 locations, 2 new WARN categories)
 
-### 54. Tier 3 batch inference cancelled mid-stream (P2)
+### 54. Tier 3 batch inference cancelled mid-stream (P2) — RESOLVED 2026-06-04 (commit 7cb52090)
 
 - **Symptom**: `WARN parish_npc::ticks: Tier 3 batch inference failed: inference error: Tier 3 cancelled mid-stream` (line 123).
 - **Likely cause**: Tier 3 (low-fidelity off-screen NPC simulation) was running when player input arrived. Cancellation handling in `parish-core/src/inference_guard.rs` / sim_cancel preempts in-flight sim batches per cycle 7 commit note (`#9` comment in commands.rs:703). But the cancellation surfaces as a WARN — could be downgraded to INFO since it's intentional.
 - **Fix**: Distinguish "preempted by player input" (expected, INFO) from "failed for other reason" (WARN). Or suppress when `sim_cancel` was triggered intentionally.
 
-### 55. NEW validator: modern-register anachronism flag (P2)
+### 55. NEW validator: modern-register anachronism flag (P2) — RESOLVED 2026-06-04 (commit 0a8e15b2)
 
 - **Symptom**: `WARN parish_core::game_loop::npc_turn: quality issue in NPC reply ... kind="modern-register" detail=modern-register phrase: 'taking in the sights'` (line 275). Concannon NPC reply used "taking in the sights" — flagged as anachronistic modern English.
 - **Note**: Echoed phrase — player used `"taking in the sights"` in c11 line 777 (`"I've come from over by the Shannon, just takin' in the sights and sounds"`). NPC mirrored player wording. So the NPC isn't generating modern register independently; it's echoing the LLM-as-player's modern register. The validator is doing its job but flags downstream from the real source (player prompt).
@@ -400,3 +400,45 @@ After cycle 4 (12 turns, fresh-ish save) the only truly new categories surfaced 
 - vllm-mlx auto-discovered on :8000 (14B) and :8001 (1.5B).
 - Inference + chat transcript JSONLs written under `~/Library/Application Support/Rundale/saves/inference_logs/`.
 - Stale session lock auto-cleaned on startup.
+
+## Audit 2026-06-04
+
+Static code + git-history pass against main branch. No game process run. Verdict key: **fixed** = confirmed by code + commit; **partial** = partially addressed; **still-open** = defect still plausibly present in code.
+
+| Cluster                                                    | Findings | Verdict        | Key commit(s)                                                                                                                                         | GH issue        |
+| ---------------------------------------------------------- | -------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Auto-player movement (#1/#30/#41/#46/#53)                  | 5        | **fixed**      | f12c7c11 (demo-prompt), 0b247306 + 01abc444 (intent_local.rs first-person + modal patterns), e1d31c14 (empty-location directive)                      | none found open |
+| NPC repetition (#10/#23/#34)                               | 3        | **fixed**      | 6736eb6a (`frequency_penalty=0.5` for Tier 1 dialogue, `max_tokens=512`)                                                                              | none found      |
+| NPC name hallucination / cross-location leak (#11/#24/#35) | 3        | **fixed**      | d89ae98a (`location_anchor_block` + `interlocutor_block` injected per turn in ticks.rs)                                                               | #1027 (CLOSED)  |
+| Streaming reveal parallel (#45)                            | 1        | **fixed**      | 296c783d (UI serializes NPC stream reveals; only oldest `PendingNpcTurn` pumps at a time)                                                             | none found      |
+| Empty-location stranding (#12/#46)                         | 2        | **fixed**      | e1d31c14 (demo turn directs auto-player to move when `NPCs here: none`) + 0b247306                                                                    | none found      |
+| Time-of-day cue (#5/#13/#28)                               | 3        | **fixed**      | 2a1f133e / commands.rs:2401 (HH:MM added to game_time format) + 803e7e63 (Night bucket aligned)                                                       | none found      |
+| Tier 2/3 surfacing (#27/#29/#54)                           | 3        | **fixed**      | f3f13d1f (Tier 2 retry on parse fail), e07042b6 (tier2_parse_failures_total metric), 7cb52090 (Tier 3 cancel downgraded to DEBUG)                     | none found      |
+| Mood emoji (#3/#20)                                        | 2        | **fixed**      | 5cafc389 (`bitter`→😒 `sharp`→😤; single `mood_emoji()` function is the sole source of truth; reaction emoji path is per-message not mood-display)    | none found      |
+| Auto-pause spam (#6/#19/#31/#31a)                          | 4        | **fixed**      | 19aeca82 (window-focus guard skips /pause when Tauri window not focused); edge-gating in time.rs prevents duplicate system messages                   | none found      |
+| MCP port in demo (#2)                                      | 1        | **fixed**      | 5d7a935c (`--mcp-port $MCP_PORT` added to demo recipe)                                                                                                | none found      |
+| gitignore demo log (#8)                                    | 1        | **fixed**      | 5d7a935c (`parish/.demo-run.log` in .gitignore)                                                                                                       | none found      |
+| NPC location mis-ID (#21)                                  | 1        | **fixed**      | d89ae98a (`location_anchor_block` hard-anchors `WHERE YOU ARE RIGHT NOW` with directive wording for exactly the Curraghboy-vs-Kilteevan case)         | none found      |
+| Gaelic validator false positive (#22)                      | 1        | **fixed**      | 803e7e63 (`poitín` added to allow-list in quality.rs)                                                                                                 | none found      |
+| Redundant weather field (#15)                              | 1        | **fixed**      | demo.rs:181 (standalone `Weather:` line removed; comment explains residual inline signal)                                                             | none found      |
+| NPC truncation (#7)                                        | 1        | **fixed**      | b8629534 (recent-events cap raised; `…` suffix on truncation)                                                                                         | none found      |
+| Empty action retry (#18)                                   | 1        | **fixed**      | commands.rs:2848 (bounded single retry at temperature 1.0 with WARN log)                                                                              | none found      |
+| NPC self-intro redundancy (#39)                            | 1        | **fixed**      | 3773669a (`introduced-anchor` suppresses mid-reply `Name, of Location` when `introduced=true`)                                                        | none found      |
+| Modern-register echo (#55)                                 | 1        | **fixed**      | 0a8e15b2 (player register alert injected into NPC context to prevent echo)                                                                            | none found      |
+| Roleplay narration style (#47)                             | 1        | **fixed**      | 206854f1 (demo-prompt forbids narrative-action style, restricts to first-person speech + movement)                                                    | none found      |
+| NPC reply rate (#40/#56)                                   | 2        | **still-open** | No code found that addresses when a single NPC skips replies for majority of turns                                                                    | none found      |
+| NPC farewell mid-conv (#4/#14)                             | 2        | **fixed**      | tier1_system.txt:28 (`NEVER FAREWELL MID-CONVERSATION` directive added); single-addressee constraint (03074a0a)                                       | none found      |
+| Server save-state (#9/#17)                                 | 2        | **partial**    | #17 revoked (MCP bridge path works); headless server auto-load still not confirmed fixed                                                              | none found      |
+| Map endpoint filter (#33/#36)                              | 2        | **partial**    | #36 revises #33 (adjacent list is per-position by design); unvisited neighbours still not shown until reached                                         | none found      |
+| Travel time accounting (#32)                               | 1        | **still-open** | No specific commit fixing the 15-min vs ~5-hr discrepancy found                                                                                       | none found      |
+| NPC quality variance (#48)                                 | 1        | **still-open** | No commit auditing Padraig vs Duffy persona quality difference                                                                                        | none found      |
+| LLM-as-player role flip (#51)                              | 1        | **partial**    | 259bfad6 (demo-prompt now says "first-person speech only"), but no serialization of demo-loop to wait for NPC reply before issuing next player prompt | none found      |
+| Movement travel time listing (#33)                         | 1        | **partial**    | Adjacent list now shows unvisited as `— unvisited` (no travel_minutes until visited); core design gap remains                                         | none found      |
+
+**GH issue coverage**: Only two findings had matching GH issues (#1027 for name hallucination — CLOSED; #1175 "convert recurring findings into rubrics" — OPEN). The majority of clusters have no tracking issue on `dmooney/rundale`. Issue #1175 is the closest to an umbrella tracker.
+
+**Overall verdict**: 37 of 56 findings are confirmed fixed by concrete code evidence. The remaining open/partial items (#40/#56 NPC reply rate, #32 travel time math, #33/#36 map filter design, #48 NPC quality variance, #51 player role-flip serialization, #9 headless server auto-load) have no matching commit and are candidates for new issues.
+
+## Issue tracking
+
+2026-06-04 audit: surviving demo-audit findings tracked under epic #1207 (Rundale gameplay quality).

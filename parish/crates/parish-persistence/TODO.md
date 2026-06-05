@@ -6,7 +6,7 @@
 | ------ | ------------ | -------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TD-024 | Complexity   | P2       | `src/database.rs:1-1430`                                                      | `database.rs` remains the crate hotspot. It contains schema/migration setup, sync DB operations, async wrapper methods, row mapping, journal helpers, recovery tests, concurrency tests, and poison-recovery tests. Split schema/migrations, branch/snapshot operations, journal operations, async adapter, and tests into focused modules. |
 | TD-025 | Complexity   | P2       | `src/snapshot.rs:1-1218`                                                      | Snapshot persistence still mixes serializable snapshot structs, conversion helpers, restore helpers, legacy deserialization coverage, graph fixture creation, and tests. Split snapshot data types from restore/conversion logic and move test fixtures to a helper module.                                                                 |
-| TD-026 | Test Hygiene | P3       | `src/lock.rs:337-625`, `src/database.rs:596-1427`, `src/snapshot.rs:594-1175` | Large inline test modules make the production files harder to scan. Move high-volume tests into module-local `tests` files or dedicated helpers once the production split lands, keeping behavior tests intact.                                                                                                                             |
+| TD-026 | Test Hygiene | P3       | `src/lock.rs:325-630`, `src/database.rs:585-1431`, `src/snapshot.rs:544-1258` | Large inline test modules make the production files harder to scan. Move high-volume tests into module-local `tests` files or dedicated helpers once the production split lands, keeping behavior tests intact.                                                                                                                             |
 
 ## In Progress
 
@@ -44,3 +44,12 @@ _(none)_
 
 - **2026-05-12**: Resolved TD-015 through TD-023. All changes verified with `cargo fmt`, `cargo clippy`, and `cargo test -p parish-persistence`. Dependent crates (`parish-core`, `parish-cli`, `parish-server`) checked clean.
 - **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-024 through TD-026 for current file-size and test-layout hotspots.
+- **2026-06-04**: Automated audit: 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected (TD-026 line numbers updated to reflect current file state).
+
+## Discovery note
+
+2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).
