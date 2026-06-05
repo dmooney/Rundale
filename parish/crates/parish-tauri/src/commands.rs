@@ -1536,6 +1536,10 @@ pub async fn do_create_branch(
     name: &str,
     parent_branch_id: i64,
 ) -> Result<String, String> {
+    // #1196 — validate before touching locks or the database.
+    parish_core::input::validate_branch_name(name)
+        .map_err(|e| format!("Invalid branch name: {e}"))?;
+
     let db_path = {
         let guard = state.save_path.lock().await;
         guard
@@ -3844,5 +3848,52 @@ mod cmd_tests {
             !next.is_cancelled(),
             "replacement token must be fresh / uncancelled"
         );
+    }
+
+    // ── #1196 — do_create_branch validation gate ────────────────────────────
+
+    /// `do_create_branch` must reject names with disallowed characters before
+    /// acquiring any locks or touching the database.
+    #[tokio::test]
+    async fn create_branch_rejects_invalid_name_before_db() {
+        let state = test_app_state();
+        let result = do_create_branch(&state, "bad/name!!", 1).await;
+        let err = result.expect_err("expected validation error for 'bad/name!!'");
+        assert!(
+            err.contains("Invalid branch name"),
+            "error should mention invalid branch name, got: {err}"
+        );
+    }
+
+    /// Names with more than 64 characters must be rejected.
+    #[tokio::test]
+    async fn create_branch_rejects_too_long_name() {
+        let state = test_app_state();
+        let long_name = "a".repeat(65);
+        let result = do_create_branch(&state, &long_name, 1).await;
+        let err = result.expect_err("expected validation error for 65-char name");
+        assert!(
+            err.contains("Invalid branch name"),
+            "error should mention invalid branch name, got: {err}"
+        );
+    }
+
+    /// A valid name should pass validation; failure beyond that is acceptable
+    /// (e.g. missing save file) — but the error must NOT be a validation error.
+    #[tokio::test]
+    async fn create_branch_accepts_valid_name() {
+        let state = test_app_state();
+        let result = do_create_branch(&state, "my branch 1", 1).await;
+        // No save file in test state → expected to fail with "No active save file"
+        // but NOT with "Invalid branch name".
+        match result {
+            Ok(_) => { /* valid name was accepted end-to-end */ }
+            Err(e) => {
+                assert!(
+                    !e.contains("Invalid branch name"),
+                    "valid name must not fail validation, got: {e}"
+                );
+            }
+        }
     }
 }
