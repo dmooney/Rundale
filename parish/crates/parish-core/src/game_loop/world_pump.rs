@@ -560,19 +560,12 @@ mod tests {
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
 
-        let dbg = mint_tier2_gossip(
+        mint_tier2_gossip(
             &[event],
             &mut npcs,
             game_time,
             &NpcConfig::default(),
             &mut world,
-        );
-
-        // The helper must return non-empty debug output (at minimum a mood
-        // change was applied).
-        assert!(
-            !dbg.is_empty() || true,
-            "debug may be empty if no mood change was detected"
         );
 
         // A GossipSpread event must have been published on the world bus.
