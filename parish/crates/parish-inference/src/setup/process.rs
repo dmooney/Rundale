@@ -77,6 +77,7 @@ impl OllamaProcess {
         }
 
         if !ready {
+            kill_and_reap(child);
             return Err(ParishError::Inference(
                 "ollama serve started but did not become reachable within 30s".to_string(),
             ));
@@ -147,6 +148,35 @@ fn taskkill_args(pid_arg: &str) -> [&str; 4] {
 #[cfg(any(target_os = "windows", test))]
 fn pid_string(pid: u32) -> String {
     pid.to_string()
+}
+
+/// Kills and reaps a spawned `Child` that never became reachable.
+///
+/// Called on each timeout-failure path where the `Child` is still a local
+/// variable (not yet stored in `Self`), so `Drop` on `Self` cannot clean it
+/// up. Without this call the child becomes an orphan/zombie.
+///
+/// On Windows, uses `taskkill /F /T /PID` to kill the entire process tree so
+/// GPU worker sub-processes and multiprocessing workers (vllm) are also
+/// terminated. On other platforms, uses the standard `kill()` + `wait()`.
+fn kill_and_reap(mut child: Child) {
+    #[cfg(target_os = "windows")]
+    {
+        let pid_arg = child.id().to_string();
+        let args = taskkill_args(&pid_arg);
+        let _ = Command::new("taskkill")
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = child.kill();
+    }
+
+    let _ = child.wait();
 }
 
 impl Drop for OllamaProcess {
@@ -321,6 +351,7 @@ impl VllmMlxProcess {
         }
 
         if !ready {
+            kill_and_reap(child);
             return Err(ParishError::Inference(
                 "vllm-mlx serve started but did not become reachable within 60s".to_string(),
             ));
@@ -450,6 +481,7 @@ impl VllmProcess {
         }
 
         if !ready {
+            kill_and_reap(child);
             return Err(ParishError::Inference(
                 "vllm serve started but did not become reachable within 60s".to_string(),
             ));
