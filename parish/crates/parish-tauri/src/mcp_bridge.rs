@@ -573,6 +573,7 @@ mod tests {
             game_events: Mutex::new(std::collections::VecDeque::with_capacity(
                 DEBUG_EVENT_CAPACITY,
             )),
+            game_mod: None,
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,
