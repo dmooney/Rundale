@@ -20,6 +20,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from schemas import BundleSchema, ResultSchema
+
 _BENCH_DIR = Path(__file__).resolve().parent
 QUEUE_DIR = _BENCH_DIR / ".bench-queue"
 PENDING_DIR = QUEUE_DIR / "pending"
@@ -69,6 +71,9 @@ def assemble_bundle(
 
 
 def write_pending(bundle: dict) -> Path:
+    # Validate shape before committing to disk — raises ValidationError on
+    # missing required fields or malformed items (failure modes 3, 4, 5).
+    BundleSchema.model_validate(bundle)
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     path = PENDING_DIR / f"{bundle['bundle_id']}.json"
     path.write_text(json.dumps(bundle, indent=2) + "\n", encoding="utf-8")
@@ -244,7 +249,15 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
     Returns ``(valid_items, failed_items)``. A result whose rubric_sha256 does
     not match the bundle is rejected wholesale (every item becomes a failure)
     — a judge that scored against a different rubric cannot be trusted.
+
+    ``ResultSchema.model_validate`` is called first to assert that
+    ``rubric_sha256`` is present (failure mode 3/4) and that ``items`` is a
+    list (failure mode 5). A missing or None ``rubric_sha256`` will raise
+    ``ValidationError`` before the mismatch check below.
     """
+    # Validate result shape — raises pydantic.ValidationError on malformed
+    # input rather than silently mis-routing or crashing mid-format.
+    ResultSchema.model_validate(result)
     expected_ids = {it["prompt_id"] for it in bundle["items"]}
     if result.get("rubric_sha256") != bundle["rubric_sha256"]:
         failed: list[dict] = []
