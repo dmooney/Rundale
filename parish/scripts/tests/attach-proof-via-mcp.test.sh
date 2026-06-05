@@ -41,6 +41,9 @@ exit 1
 EOF
 chmod +x "$stub_dir/gh"
 
+# `|| result=$?` keeps `set -e` from aborting the parent at the subshell's
+# non-zero exit, so the failure summary below still prints.
+result=0
 (
     cd "$tmp"
     git init -q
@@ -74,8 +77,7 @@ chmod +x "$stub_dir/gh"
     check "stdout starts with the fence" "${first_line:0:24}" "<!-- parish-proof-bundle"
 
     exit "$fails"
-)
-result=$?
+) || result=$?
 
 if [[ "$result" -ne 0 ]]; then
     echo "attach-proof-via-mcp.test.sh: $result assertion(s) failed." >&2
