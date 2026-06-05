@@ -33,15 +33,16 @@ def main() -> int:
             records = sum(1 for line in raw.decode("utf-8").splitlines() if line.strip())
             slices[name] = {"sha256": digest, "records": records, "bytes": len(raw)}
             h.update(digest.encode())
+    merkle = h.hexdigest()
     manifest = {
         "suite": "rundale-bench-v2",
         "source": "copied from rundale-bench/v1",
-        "merkle_root_sha256": h.hexdigest(),
+        "merkle_root_sha256": merkle,
         "slices": slices,
     }
     out = rb.V2_DIR / "MANIFEST.json"
     out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"[manifest] {out} — {len(slices)} files, merkle={manifest['merkle_root_sha256'][:12]}…")
+    print(f"[manifest] {out} — {len(slices)} files, merkle={merkle[:12]}…")
     return 0
 
 

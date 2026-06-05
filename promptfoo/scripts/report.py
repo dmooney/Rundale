@@ -106,7 +106,8 @@ def aggregate_quality(slice_name: str, results: list[dict]) -> dict:
 
 
 def aggregate_intent(results: list[dict]) -> dict:
-    matches = score_sum = errors = 0
+    matches = errors = 0
+    score_sum = 0.0
     n = 0
     for res in results:
         meta = _meta(res)

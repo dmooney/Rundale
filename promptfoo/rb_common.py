@@ -16,6 +16,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 PROMPTFOO_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PROMPTFOO_DIR.parent
@@ -109,7 +110,7 @@ def _gaeilge_candidate_prompt(rec: dict) -> str:
 # ---------------------------------------------------------------------------
 
 # Per-slice metadata: which judge rubric + axes, and the candidate max_tokens.
-SLICE_META = {
+SLICE_META: dict[str, dict[str, Any]] = {
     "dialogue": {
         "rubric": "judge_sonnet_v1",
         "system": "dialogue.system.md",
@@ -131,9 +132,7 @@ SLICE_META = {
 }
 
 
-def generate_candidate(
-    slice_name: str, target: Target, rec: dict, *, streaming: bool = False
-) -> dict:
+def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = False) -> dict:
     """Run one candidate call for `rec` on `slice_name`. Returns
     {output, prompt_tokens, completion_tokens, cost, ttft_ms, tokens_per_second,
      schema_valid, error}. Mirrors the per-slice request shapes in rundale_bench.py.
