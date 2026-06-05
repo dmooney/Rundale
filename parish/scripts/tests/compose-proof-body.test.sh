@@ -35,6 +35,9 @@ trap 'rm -rf "$tmp"' EXIT
 
 # render-proof-comment.sh resolves the bundle under the git toplevel of the
 # CWD, so build a throwaway repo and run the composer from inside it.
+# `|| result=$?` keeps `set -e` from aborting the parent at the subshell's
+# non-zero exit, so the failure summary below still prints.
+result=0
 (
     cd "$tmp"
     git init -q
@@ -63,8 +66,7 @@ trap 'rm -rf "$tmp"' EXIT
     check "idempotent: human text still once" "$(count_lines "$again_out" "$human")" "1"
 
     exit "$fails"
-)
-result=$?
+) || result=$?
 
 if [[ "$result" -ne 0 ]]; then
     echo "compose-proof-body.test.sh: $result assertion(s) failed." >&2
