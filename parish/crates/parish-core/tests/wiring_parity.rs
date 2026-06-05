@@ -345,7 +345,11 @@ fn system_command_host_trait_methods(src: &str) -> BTreeSet<String> {
     };
     let mut depth: i32 = 0;
     let mut entered = false;
-    for line in src[start..].lines() {
+    for raw_line in src[start..].lines() {
+        // Strip line/doc comments first so braces or a `fn ...` mentioned
+        // inside `//`/`///` can't corrupt depth tracking or yield a phantom
+        // method name.
+        let line = raw_line.split("//").next().unwrap_or("");
         for ch in line.chars() {
             match ch {
                 '{' => {
@@ -387,10 +391,14 @@ fn fn_name_on_line(line: &str) -> Option<String> {
 }
 
 /// True if `src` (an impl file) overrides `method` (declares `fn <method>(`).
+///
+/// Line comments are stripped first so a commented-out or merely-mentioned
+/// `// fn <method>(` is not mistaken for a real override.
 fn impl_overrides(src: &str, method: &str) -> bool {
     let needle_a = format!("fn {method}(");
     let needle_b = format!("fn {method} (");
     src.lines()
+        .map(|l| l.split("//").next().unwrap_or(""))
         .any(|l| l.contains(&needle_a) || l.contains(&needle_b))
 }
 
@@ -501,4 +509,9 @@ fn impl_overrides_detects_declarations() {
     let src = "impl X {\n    fn save_game(&self) -> String { String::new() }\n}";
     assert!(impl_overrides(src, "save_game"));
     assert!(!impl_overrides(src, "reset_byok"));
+    // A commented-out or merely-mentioned fn must NOT count as an override.
+    assert!(!impl_overrides(
+        "impl X {\n    // fn save_game(&self) {}\n}",
+        "save_game"
+    ));
 }
