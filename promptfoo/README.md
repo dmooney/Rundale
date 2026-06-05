@@ -49,6 +49,22 @@ just -f promptfoo/justfile report   # roll up output/*.json
 `report.json`. Candidate target = `$RB_TARGET` (a `model@base_url[#env:VAR]`
 spec); see `config/targets.yaml` for named examples.
 
+## Reports
+
+Every eval emits both `output/<slice>.json` (consumed by `scripts/report.py`)
+and a standalone `output/<slice>.html` web report (both gitignored).
+
+- **Interactive web UI** — `just -f promptfoo/justfile view` launches promptfoo's
+  local browser app over the most recent eval(s): each candidate × prompt as a
+  grid, the judge's **per-axis scores as columns** (character, authenticity, …
+  — they ride in as `namedScores`), latency, tokens and cost; click a cell for
+  the full prompt/response and the judge's reason.
+- **Static HTML** — open `output/<slice>.html` directly; self-contained, no server.
+- **Cross-slice rollup** — `just -f promptfoo/justfile report` →
+  `output/report.md` + `report.json` with the leaderboard-style per-slice means,
+  the perf rollup (p50/p95, tok/s), and the cost/game-time projection
+  (USD/min·hr). promptfoo's own UI is per-slice and doesn't compute these.
+
 ## Configurable judge
 
 `config/judge.yaml` sets the judge model / base_url / api_key_env / temperature.

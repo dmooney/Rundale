@@ -30,7 +30,11 @@ _eval slice config target limit:
     mkdir -p "{{ OUT }}"
     export RB_TARGET='{{ target }}'
     export RB_LIMIT='{{ limit }}'
-    npx promptfoo@latest eval -c "{{ config }}" -o "{{ OUT }}/{{ slice }}.json" --no-cache
+    # Two -o flags: JSON for scripts/report.py, HTML for a standalone web report.
+    npx promptfoo@latest eval -c "{{ config }}" \
+        -o "{{ OUT }}/{{ slice }}.json" \
+        -o "{{ OUT }}/{{ slice }}.html" \
+        --no-cache
 
 # Individual slices. `limit=""` runs the full slice.
 dialogue  target=DEFAULT_TARGET limit="": (_eval "dialogue"  (PF / "promptfooconfig.dialogue.yaml")  target limit)
@@ -47,3 +51,9 @@ bench target=DEFAULT_TARGET limit="": (dialogue target limit) (intent target lim
 # Roll up output/*.json → output/report.md + report.json.
 report:
     python3 {{ PF }}/scripts/report.py {{ OUT }}
+
+# Launch the promptfoo interactive web UI on the most recent eval(s).
+# Per-test grid: each candidate × prompt, per-axis judge scores, latency, cost.
+# Ctrl-C to stop. Optional port arg (default promptfoo's 15500).
+view port="15500":
+    cd "{{ PF }}" && npx promptfoo@latest view -p {{ port }} --yes
