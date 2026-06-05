@@ -550,9 +550,13 @@ jobs:
 
       # Prebuild parish so Playwright's webServer starts under its 120s
       # timeout — a cold `cargo run` on this job was busting the deadline.
+      # Must build the SAME crate the webServer runs (`cargo run -p
+      # parish-server` in playwright.config.ts); building parish-engine left
+      # parish-server to compile cold on first request and bust the deadline
+      # (#1179).
       - name: Prebuild parish web server binary
         working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish-engine
+        run: cargo build -p parish-server
 
       - name: Run Playwright e2e
         run: npx playwright test
