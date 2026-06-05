@@ -16,7 +16,7 @@ default:
 
 # Pin sha256 of the copied datasets.
 manifest:
-    python3 {{ PF }}/scripts/build_manifest.py
+    python3 {{ PF }}/scripts/pin_manifest.py
 
 # Python unit checks (no network).
 test:

@@ -34,6 +34,8 @@ parish/testing/
 docs/proofs/
 rundale-bench/artifacts/
 rundale-bench/v1/
+promptfoo/v2/
+promptfoo/output/
 
 # Intentionally-malformed mod content (loader test data)
 mods/

@@ -97,7 +97,7 @@ v2/          datasets/*.jsonl · rubrics/*.system.md+*.json · MANIFEST.json · 
 providers/   rundale_candidate.py   (one candidate call → output+usage+cost+ttft/tps)
 assertions/  intent_assert.py · schema_assert.py · rubric_judge.py
 prompts/     passthrough.py
-scripts/     load_dataset.py · report.py · build_manifest.py · test_v2.py · mock_server.py
+scripts/     load_dataset.py · report.py · pin_manifest.py · test_v2.py · mock_server.py
 promptfooconfig.<slice>.yaml   (one per slice + perf)
 rb_common.py (bridge to eval_lib + grade; per-slice request builders; judge plumbing)
 ```

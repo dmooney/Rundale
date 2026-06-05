@@ -36,6 +36,7 @@
     "**/THIRD_PARTY_NOTICES*.md",
     "docs/proofs/**",
     "rundale-bench/artifacts/**",
+    "promptfoo/v2/**",
     "parish/testing/**",
     "parish/apps/ui/**",
     "rundale-bench/bench-site/**",

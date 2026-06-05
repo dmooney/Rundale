@@ -1,6 +1,6 @@
 """Pin sha256 of the copied v2 datasets so the suite detects silent drift.
 
-    python3 promptfoo/scripts/build_manifest.py
+    python3 promptfoo/scripts/pin_manifest.py
 
 Writes promptfoo/v2/MANIFEST.json. Re-run after intentionally refreshing a
 copied dataset from rundale-bench/v1/.
