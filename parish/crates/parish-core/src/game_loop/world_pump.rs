@@ -278,6 +278,68 @@ where
     (start + consumed) % n
 }
 
+/// Applies a slice of Tier-2 events to NPC state and mints `GossipSpread`
+/// events on the world event bus for any notable interactions.
+///
+/// This is the single shared implementation of the Tier-2 post-processing loop
+/// that previously existed verbatim in `parish-engine/src/headless.rs` and
+/// `parish-tauri/src/setup.rs` (TD-030). Every backend (CLI, Tauri, web) must
+/// call this helper rather than copy the logic — rule #12.
+///
+/// Returns a list of debug strings describing what happened (mood/relationship
+/// changes, dropped interactions).
+///
+/// # Arguments
+///
+/// * `events` — Tier-2 events produced by one or more `run_tier2_for_group`
+///   calls.
+/// * `npcs` — Mutable NPC map, updated in-place (mood, relationships,
+///   memories).
+/// * `game_time` — The current game clock at the moment the events are applied.
+/// * `config` — NPC simulation config (tick intervals, thresholds). Pass
+///   `&NpcConfig::default()` unless the runtime has a custom config.
+/// * `world` — Mutable world state; the event bus and gossip network are
+///   accessed through it. Taking `&mut WorldState` rather than the two fields
+///   separately avoids a borrow-check conflict when the caller holds a
+///   `MutexGuard<WorldState>` (the borrow splitter cannot project through a
+///   `DerefMut` impl). Each backend (CLI, Tauri, web) passes its locked world
+///   guard directly.
+pub fn mint_tier2_gossip(
+    events: &[crate::npc::types::Tier2Event],
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    game_time: chrono::DateTime<chrono::Utc>,
+    config: &crate::config::NpcConfig,
+    world: &mut WorldState,
+) -> Vec<String> {
+    let _ = config; // reserved for future threshold overrides
+    let mut debug = Vec::new();
+    for event in events {
+        // #1027: a summary naming an absent NPC is untrusted — do not let
+        // it spread through gossip (the in-function guard inside
+        // `apply_tier2_event_with_config` already suppresses the
+        // interaction beat and memory writes).
+        let summary_clean = !crate::npc::ticks::tier2_summary_mentions_absent_npc(event, npcs);
+        let mut dbg = crate::npc::ticks::apply_tier2_event_with_config(
+            event,
+            npcs,
+            game_time,
+            config,
+            &world.event_bus,
+        );
+        debug.append(&mut dbg);
+        if summary_clean
+            && let Some(gossip_evt) = crate::npc::ticks::create_gossip_from_tier2_event(
+                event,
+                &mut world.gossip_network,
+                game_time,
+            )
+        {
+            world.event_bus.publish(gossip_evt);
+        }
+    }
+    debug
+}
+
 /// Dispatches the tier-4 rules engine if enough game time has elapsed. Applies
 /// the resulting events to NPC state, publishes the derived [`GameEvent`]s on
 /// the world bus, and records the tick. Returns `(tier4_event_count,
@@ -439,5 +501,84 @@ mod tests {
         assert_eq!(report.tier4_event_count, 0);
         // RNG untouched: a second generator at the same seed is still in lockstep.
         assert_eq!(rng_a.next_u64(), rng_b.next_u64());
+    }
+
+    // ── mint_tier2_gossip wiring (TD-030) ─────────────────────────────────────
+
+    /// Verifies that `mint_tier2_gossip` mints a `GossipSpread` event on the
+    /// world bus for a notable Tier-2 interaction (summary > 30 chars or
+    /// |delta| > 0.3). This is the shared path that ALL three backends now call
+    /// (CLI, Tauri, web/Axum). The test exercises the exact code path that
+    /// previously did not exist on the web backend (TD-040).
+    #[test]
+    fn mint_tier2_gossip_publishes_gossip_spread() {
+        use crate::config::NpcConfig;
+        use crate::npc::Npc;
+        use crate::npc::types::{MoodChange, RelationshipChange, Tier2Event};
+        use crate::world::WorldState;
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_types::{LocationId, NpcId};
+        use std::collections::HashMap;
+
+        let mut world = WorldState::new();
+        // Subscribe before publishing so we can drain the bus.
+        let mut rx = world.event_bus.subscribe();
+
+        // Build a minimal NPC map: two participants at the same location.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npc1 = Npc::new_test_npc();
+        npc1.id = NpcId(1);
+        npc1.location = LocationId(1);
+        npcs.insert(NpcId(1), npc1);
+        let mut npc2 = Npc::new_test_npc();
+        npc2.id = NpcId(2);
+        npc2.location = LocationId(1);
+        npcs.insert(NpcId(2), npc2);
+
+        // A Tier-2 event with a non-trivial summary (>30 chars) — this
+        // satisfies the `create_gossip_from_tier2_event` threshold.
+        let summary = "Padraig and Brigid shared stories about the coming harvest".to_string();
+        assert!(
+            summary.len() > 30,
+            "test summary must exceed the gossip threshold"
+        );
+        let event = Tier2Event {
+            location: LocationId(1),
+            summary: summary.clone(),
+            participants: vec![NpcId(1), NpcId(2)],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(1),
+                new_mood: "cheerful".to_string(),
+            }],
+            relationship_changes: vec![RelationshipChange {
+                from: NpcId(1),
+                to: NpcId(2),
+                delta: 0.1,
+            }],
+        };
+
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+
+        mint_tier2_gossip(
+            &[event],
+            &mut npcs,
+            game_time,
+            &NpcConfig::default(),
+            &mut world,
+        );
+
+        // A GossipSpread event must have been published on the world bus.
+        let mut found_gossip_spread = false;
+        while let Ok(evt) = rx.try_recv() {
+            if matches!(evt, GameEvent::GossipSpread { .. }) {
+                found_gossip_spread = true;
+            }
+        }
+        assert!(
+            found_gossip_spread,
+            "mint_tier2_gossip must publish a GossipSpread event on the world bus \
+             for a notable Tier-2 interaction (summary > 30 chars)"
+        );
     }
 }
