@@ -265,12 +265,14 @@ pub async fn validate_and_acquire_lock(
             "Invalid save file path".to_string(),
         )
     })?;
-    let saves_canonical = tokio::fs::canonicalize(&state.saves_dir).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Saves directory error".to_string(),
-        )
-    })?;
+    let saves_canonical = tokio::fs::canonicalize(&state.saves_dir)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Saves directory error".to_string(),
+            )
+        })?;
     if !canonical.starts_with(&saves_canonical) {
         return Err((
             StatusCode::BAD_REQUEST,

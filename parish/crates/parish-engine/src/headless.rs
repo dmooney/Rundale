@@ -1545,32 +1545,13 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                 }
 
                 let game_time = app.world.clock.now();
-                for event in &events {
-                    // #1027: a summary naming an absent NPC is untrusted — don't
-                    // let it spread through gossip either (the in-function guard
-                    // already suppresses the interaction + memory).
-                    let summary_clean = !parish_core::npc::ticks::tier2_summary_mentions_absent_npc(
-                        event,
-                        app.npc_manager.npcs(),
-                    );
-                    let _dbg = parish_core::npc::ticks::apply_tier2_event_with_config(
-                        event,
-                        app.npc_manager.npcs_mut(),
-                        game_time,
-                        &NpcConfig::default(),
-                        &app.world.event_bus,
-                    );
-                    if summary_clean
-                        && let Some(gossip_evt) =
-                            parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                event,
-                                &mut app.world.gossip_network,
-                                game_time,
-                            )
-                    {
-                        app.world.event_bus.publish(gossip_evt);
-                    }
-                }
+                let _dbg = parish_core::game_loop::mint_tier2_gossip(
+                    &events,
+                    app.npc_manager.npcs_mut(),
+                    game_time,
+                    &NpcConfig::default(),
+                    &mut app.world,
+                );
                 app.npc_manager.record_tier2_tick(game_time);
                 app.debug_event(format!(
                     "[tier2] {} events from {} groups",
