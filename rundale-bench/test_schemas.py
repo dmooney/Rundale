@@ -24,6 +24,7 @@ from pydantic import ValidationError
 _BENCH_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_BENCH_DIR))
 
+from judge_bundle import validate_result  # noqa: E402
 from schemas import (  # noqa: E402
     BundleSchema,
     ResultItemSchema,
@@ -285,3 +286,73 @@ def test_summary_schema_none_scores_allowed():
     """None axis scores are valid (represents 'no judged items yet')."""
     summary = SummarySchema(slice="dialogue", records=5, judged=0, overall=None)
     assert summary.overall is None
+
+
+# ---------------------------------------------------------------------------
+# Malformed done/ result: validate_result must not raise, must return failures
+# ---------------------------------------------------------------------------
+
+
+def _minimal_bundle_for_validate() -> dict:
+    return {
+        "bundle_id": "test__stub",
+        "slice": "dialogue",
+        "candidate": {"model_id": "stub"},
+        "judge_id": "judge_sonnet_v1",
+        "judge_model": "claude-sonnet-4-5",
+        "rubric_sha256": "a" * 64,
+        "rubric": "Score the response.",
+        "axes": ["character", "authenticity", "language", "responsiveness", "craft"],
+        "items": [
+            {"prompt_id": "p1", "prompt": "Hello", "response": "World"},
+        ],
+    }
+
+
+def test_malformed_result_missing_rubric_sha256_returns_failures():
+    """A done/ result missing rubric_sha256 must NOT raise; validate_result
+    must return ([], failed) where every expected prompt_id is a failure."""
+    bundle = _minimal_bundle_for_validate()
+    malformed = {"items": [{"prompt_id": "p1", "axes": {"character": 3}, "overall": 3.0}]}
+    # rubric_sha256 absent — pydantic ValidationError must be caught internally
+    valid, failed = validate_result(malformed, bundle)
+    assert valid == []
+    assert len(failed) == 1
+    assert failed[0]["prompt_id"] == "p1"
+    assert failed[0]["flags"]["judge_retry"] is True
+    assert "ValidationError" in failed[0]["error"] or "malformed" in failed[0]["error"]
+
+
+def test_malformed_result_items_not_a_list_returns_failures():
+    """A done/ result with items as a dict (wrong shape) must not raise."""
+    bundle = _minimal_bundle_for_validate()
+    malformed = {"rubric_sha256": "a" * 64, "items": {"p1": {}}}
+    valid, failed = validate_result(malformed, bundle)
+    assert valid == []
+    assert len(failed) == 1
+    assert failed[0]["flags"]["judge_retry"] is True
+
+
+def test_validate_result_does_not_raise_on_valid_result():
+    """A well-formed result is processed normally — not treated as malformed."""
+    bundle = _minimal_bundle_for_validate()
+    result = {
+        "rubric_sha256": "a" * 64,
+        "items": [
+            {
+                "prompt_id": "p1",
+                "axes": {
+                    "character": 3,
+                    "authenticity": 3,
+                    "language": 3,
+                    "responsiveness": 3,
+                    "craft": 3,
+                },
+                "overall": 3.0,
+                "flags": {},
+            }
+        ],
+    }
+    valid, failed = validate_result(result, bundle)
+    assert len(valid) == 1
+    assert failed == []

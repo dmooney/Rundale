@@ -180,7 +180,10 @@ class ResultSchema(BaseModel):
       - 3 (rubric_sha256 mismatch): the field is required; a result missing
         it raises here, not silently at compare time.
       - 4 (missing required field): ``rubric_sha256`` and ``items`` required.
-      - 5 (malformed shape): ``items`` typed as ``list[ResultItemSchema]``.
+      - 5 (malformed shape): ``items`` typed as ``list[dict[str, Any]]``
+        (raw dicts); each item is validated individually by
+        ``validate_item`` so that per-item failures are surfaced as judge
+        failures rather than rejecting the entire result.
 
     Note: ``validate_result`` still performs the bundle vs. result
     rubric_sha256 comparison (a cross-object constraint that cannot be
