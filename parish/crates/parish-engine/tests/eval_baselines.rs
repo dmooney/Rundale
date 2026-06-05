@@ -720,7 +720,9 @@ fn rubric_demo_player_moves() {
 fn rubric_no_midconversation_farewell() {
     fn is_farewell(text: &str) -> bool {
         let t = text.to_lowercase();
-        ["slán abhaile", "slán leat", "goodbye", "farewell"]
+        // `slán` covers both `slán abhaile` and `slán leat`; the tier-1 system
+        // prompt also forbids a standalone `Slán` and `safe home` mid-chat.
+        ["slán", "goodbye", "farewell", "safe home"]
             .iter()
             .any(|f| t.contains(f))
     }
