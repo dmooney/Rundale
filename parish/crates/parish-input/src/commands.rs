@@ -170,15 +170,25 @@ pub enum Command {
 }
 
 /// Maximum allowed length for save branch names.
-const MAX_BRANCH_NAME_LEN: usize = 255;
+///
+/// Canonical limit shared by all entry points (Tauri IPC, HTTP server, CLI parser).
+/// Must match the server's HTTP 400 boundary and the Tauri validation gate.
+pub const MAX_BRANCH_NAME_LEN: usize = 64;
 
 /// Maximum allowed length for feature flag names.
 const MAX_FLAG_NAME_LEN: usize = 64;
 
 /// Validates a save branch name for length and allowed characters.
 ///
-/// Branch names may contain alphanumerics, spaces, underscores, and hyphens.
-pub(crate) fn validate_branch_name(name: &str) -> Result<String, String> {
+/// Branch names must be non-empty, at most [`MAX_BRANCH_NAME_LEN`] ASCII
+/// characters, and may only contain alphanumerics, spaces, underscores, and
+/// hyphens.  This is the single canonical implementation — all entry points
+/// (Tauri IPC, HTTP server, CLI parser) call this function so the rule is
+/// never duplicated.
+pub fn validate_branch_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Branch name cannot be empty.".to_string());
+    }
     if name.len() > MAX_BRANCH_NAME_LEN {
         return Err(format!(
             "Branch name too long (max {} characters).",
@@ -186,15 +196,15 @@ pub(crate) fn validate_branch_name(name: &str) -> Result<String, String> {
         ));
     }
     if !name
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == ' ')
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b' ')
     {
         return Err(
             "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
                 .to_string(),
         );
     }
-    Ok(name.to_string())
+    Ok(())
 }
 
 /// Validates a feature flag name for length and allowed characters.
@@ -231,8 +241,14 @@ mod tests {
         assert!(validate_branch_name("My Save Game").is_ok());
     }
     #[test]
+    fn test_validate_branch_name_empty_is_rejected() {
+        let err = validate_branch_name("").unwrap_err();
+        assert!(err.contains("cannot be empty"), "got: {err}");
+    }
+    #[test]
     fn test_validate_branch_name_too_long() {
-        let long_name = "a".repeat(256);
+        // Canonical cap is 64 — 65 chars must be rejected.
+        let long_name = "a".repeat(65);
         assert!(validate_branch_name(&long_name).is_err());
     }
     #[test]
@@ -276,14 +292,16 @@ mod tests {
     // --- validate_branch_name edge cases ---
     #[test]
     fn test_validate_branch_name_at_max_length() {
-        let name = "a".repeat(255);
+        // Exactly 64 chars must be accepted.
+        let name = "a".repeat(64);
         assert!(validate_branch_name(&name).is_ok());
     }
     #[test]
     fn test_validate_branch_name_just_over_max() {
-        let name = "a".repeat(256);
+        // 65 chars must be rejected with the canonical message.
+        let name = "a".repeat(65);
         let err = validate_branch_name(&name).unwrap_err();
-        assert!(err.contains("max 255"));
+        assert!(err.contains("max 64"), "got: {err}");
     }
     #[test]
     fn test_validate_branch_name_with_special_chars() {

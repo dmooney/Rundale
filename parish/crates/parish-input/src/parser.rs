@@ -124,7 +124,7 @@ fn parse_fork_command(_trimmed: &str, rest: &str) -> Option<Command> {
         Some(Command::Help) // bare /fork → show help
     } else {
         match validate_branch_name(rest) {
-            Ok(valid) => Some(Command::Fork(valid)),
+            Ok(()) => Some(Command::Fork(rest.to_string())),
             Err(msg) => Some(Command::InvalidBranchName(msg)),
         }
     }
@@ -135,7 +135,7 @@ fn parse_load_command(_trimmed: &str, rest: &str) -> Option<Command> {
         Some(Command::Load(String::new())) // empty string = show save picker
     } else {
         match validate_branch_name(rest) {
-            Ok(valid) => Some(Command::Load(valid)),
+            Ok(()) => Some(Command::Load(rest.to_string())),
             Err(msg) => Some(Command::InvalidBranchName(msg)),
         }
     }
