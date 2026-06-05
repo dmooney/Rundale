@@ -1130,36 +1130,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let mut npc_mgr = state_t2.npc_manager.lock().await;
                                 let game_time = world.clock.now();
 
-                                for event in &events {
-                                    // #1027: a summary naming an absent NPC is
-                                    // untrusted — don't let it spread through
-                                    // gossip either (the in-function guard already
-                                    // suppresses the interaction + memory).
-                                    let summary_clean =
-                                        !parish_core::npc::ticks::tier2_summary_mentions_absent_npc(
-                                            event,
-                                            npc_mgr.npcs(),
-                                        );
-                                    let _dbg =
-                                        parish_core::npc::ticks::apply_tier2_event_with_config(
-                                            event,
-                                            npc_mgr.npcs_mut(),
-                                            game_time,
-                                            &parish_core::config::NpcConfig::default(),
-                                            &world.event_bus,
-                                        );
-                                    // Push gossip so it can propagate to other NPCs.
-                                    if summary_clean
-                                        && let Some(gossip_evt) =
-                                            parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                                event,
-                                                &mut world.gossip_network,
-                                                game_time,
-                                            )
-                                    {
-                                        world.event_bus.publish(gossip_evt);
-                                    }
-                                }
+                                let _dbg = parish_core::game_loop::mint_tier2_gossip(
+                                    &events,
+                                    npc_mgr.npcs_mut(),
+                                    game_time,
+                                    &parish_core::config::NpcConfig::default(),
+                                    &mut world,
+                                );
                                 npc_mgr.record_tier2_tick(game_time);
                                 npc_mgr.set_tier2_in_flight(false);
 

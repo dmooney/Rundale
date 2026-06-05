@@ -1342,6 +1342,156 @@ fn spawn_session_ticks(
         }));
     }
 
+    // ── Tier-2 simulation tick ────────────────────────────────────────────────
+    //
+    // Mirrors the Tier-2 polling task from `parish-tauri/src/setup.rs` and the
+    // `dispatch_headless_tier2_tick` helper from `parish-engine/src/headless.rs`.
+    // Previously missing from the web backend (TD-040), so `GossipSpread` events
+    // never fired on the Axum path. The shared `mint_tier2_gossip` helper (TD-030)
+    // is called for post-processing instead of repeating the loop body a third time
+    // (rule #12).
+    //
+    // Lock ordering: world → npc_manager (documented contract, matches the main
+    // world-tick above and the Tauri site — both hold world first, npc_manager
+    // second). The sim client and config are snapshotted before acquiring these
+    // locks so the LLM call is never made while holding a game-state lock.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+
+                // ── Check whether a Tier-2 tick is due ───────────────────────
+                let (needs_tick, in_flight, groups, time_desc, weather_str) = {
+                    let world = s.world.lock().await;
+                    let npc_mgr = s.npc_manager.lock().await;
+                    let now = world.clock.now();
+                    if !npc_mgr.needs_tier2_tick(now) || npc_mgr.tier2_in_flight() {
+                        continue;
+                    }
+                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+                    let groups_map = npc_mgr.tier2_groups();
+                    if groups_map.is_empty() {
+                        continue;
+                    }
+                    let npc_names: std::collections::HashMap<_, _> =
+                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
+                    let groups: Vec<Tier2Group> = groups_map
+                        .into_iter()
+                        .filter_map(|(loc, npc_ids)| {
+                            let location_name = world
+                                .graph
+                                .get(loc)
+                                .map(|d| d.name.clone())
+                                .unwrap_or_else(|| format!("Location {}", loc.0));
+                            let npcs: Vec<_> = npc_ids
+                                .iter()
+                                .filter_map(|id| npc_mgr.get(*id))
+                                .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
+                                .collect();
+                            if npcs.is_empty() {
+                                None
+                            } else {
+                                Some(Tier2Group {
+                                    location: loc,
+                                    location_name,
+                                    npcs,
+                                })
+                            }
+                        })
+                        .collect();
+                    if groups.is_empty() {
+                        continue;
+                    }
+                    let time_desc = world.clock.time_of_day().to_string();
+                    let weather_str = world.weather.to_string();
+                    (true, false, groups, time_desc, weather_str)
+                };
+                let _ = (needs_tick, in_flight); // consumed by the checks above
+
+                // Mark in-flight before releasing the lock so a concurrent tick
+                // cannot start a second batch.
+                {
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    npc_mgr.set_tier2_in_flight(true);
+                }
+
+                // ── Snapshot the sim client + model outside game-state locks ─
+                let (client_opt, model) = {
+                    use parish_core::config::InferenceCategory;
+                    let cfg = s.config.lock().await;
+                    let base_client = s.client.lock().await;
+                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                };
+
+                let Some(sim_client) = client_opt else {
+                    s.npc_manager.lock().await.set_tier2_in_flight(false);
+                    continue;
+                };
+
+                // ── Run one LLM call per Tier-2 group (outside locks) ────────
+                let lang = s.language_settings.clone();
+                let mut events = Vec::new();
+                for group in &groups {
+                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                        &sim_client,
+                        &model,
+                        group,
+                        &time_desc,
+                        &weather_str,
+                        &lang,
+                        None,
+                    )
+                    .await
+                    {
+                        events.push(evt);
+                    }
+                }
+
+                // ── Apply events and mint gossip under game-state locks ───────
+                // Lock ordering: world → npc_manager.
+                {
+                    let mut world = s.world.lock().await;
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    let game_time = world.clock.now();
+
+                    let dbg = parish_core::game_loop::mint_tier2_gossip(
+                        &events,
+                        npc_mgr.npcs_mut(),
+                        game_time,
+                        &parish_core::config::NpcConfig::default(),
+                        &mut world,
+                    );
+                    npc_mgr.record_tier2_tick(game_time);
+                    npc_mgr.set_tier2_in_flight(false);
+
+                    let mut debug_events = s.debug_events.lock().await;
+                    if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                        debug_events.pop_front();
+                    }
+                    debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                        timestamp: String::new(),
+                        category: "tier2".to_string(),
+                        message: format!(
+                            "Tier 2 tick: {} events from {} groups{}",
+                            events.len(),
+                            groups.len(),
+                            if dbg.is_empty() {
+                                String::new()
+                            } else {
+                                format!("; {}", dbg.join(", "))
+                            },
+                        ),
+                    });
+                }
+            }
+        }));
+    }
+
     handles
 }
 
