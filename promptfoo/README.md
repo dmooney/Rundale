@@ -91,7 +91,7 @@ keyless end-to-end promptfoo run.
 
 ## Layout
 
-```
+```text
 config/      judge.yaml · targets.yaml · pricing.py (COSTS + game-time profile)
 v2/          datasets/*.jsonl · rubrics/*.system.md+*.json · MANIFEST.json · perf.ids.json
 providers/   rundale_candidate.py   (one candidate call → output+usage+cost+ttft/tps)

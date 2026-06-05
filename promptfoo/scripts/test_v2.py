@@ -20,7 +20,7 @@ sys.path.insert(0, str(PF / "scripts"))
 
 import rb_common as rb  # noqa: E402
 
-_fails = []
+_fails: list[str] = []
 
 
 def check(name, cond, detail=""):
@@ -58,7 +58,7 @@ check("perf loader uses measure ids", len(load_dataset.generate_perf_tests()) >=
 
 
 # --- candidate request shapes (capture system/user/schema) ------------------
-captured = {}
+captured: dict = {}
 
 
 def fake_call_chat(target, system, user, *, schema=None, max_tokens=None, temperature=0.7, **kw):
@@ -146,7 +146,7 @@ check("schema_assert invalid", not schema_assert.get_assert(json.dumps({"b": 2})
 
 
 # --- judge bundle assembly + envelope parse ---------------------------------
-judge_seen = {}
+judge_seen: dict = {}
 
 
 def fake_judge_call(target, system, user, *, schema=None, temperature=0.0, **kw):
