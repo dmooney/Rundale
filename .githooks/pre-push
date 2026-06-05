@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Pre-push gate: docs/data formatting must match CI before any push.
+#
+# Mirrors the "Docs/data formatting (Prettier + markdownlint)" CI job
+# (`npm run format:check` + `npm run lint:md`) so broken Markdown / JSON / YAML
+# never reaches a PR and trips CI on the next branch. This exists because
+# generated / hand-edited tables (audit reports, TODO.md edits) repeatedly
+# landed unformatted; running the same check locally catches them at push time.
+#
+# Fast (docs-only, a few seconds) — the heavy Rust/harness gate stays in
+# `just verify`, run manually. Emergency bypass: `git push --no-verify`.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "pre-push: npm not found on PATH; skipping docs-format check." >&2
+  echo "pre-push: install Node 22+ (see 'just setup') to enable it." >&2
+  exit 0
+fi
+
+if [ ! -x node_modules/.bin/prettier ] || [ ! -x node_modules/.bin/markdownlint-cli2 ]; then
+  echo "pre-push: root dev tooling not installed; skipping docs-format check." >&2
+  echo "pre-push: run 'npm ci' at the repo root to enable it." >&2
+  exit 0
+fi
+
+echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
+
+# Mirror CI exactly: CI runs on a clean checkout, so only *tracked* files are
+# linted. Feeding `git ls-files` (instead of the package.json globs) keeps
+# git-ignored local files — e.g. .claude/settings.local.json — from tripping a
+# check that CI would never see. Prettier + markdownlint still apply their own
+# ignore configs on top of the explicit list.
+# NUL-delimited read loop (works on macOS's bash 3.2, which lacks `mapfile`).
+# Skip symlinks: CLAUDE.md / GEMINI.md are symlinks to AGENTS.md — CI's glob
+# silently skips them, but passing them explicitly makes Prettier error.
+fmt_files=()
+while IFS= read -r -d '' f; do [ -L "$f" ] || fmt_files+=("$f"); done \
+  < <(git ls-files -z -- '*.md' '*.json' '*.jsonc' '*.yml' '*.yaml')
+md_files=()
+while IFS= read -r -d '' f; do [ -L "$f" ] || md_files+=("$f"); done \
+  < <(git ls-files -z -- '*.md')
+
+if [ "${#fmt_files[@]}" -gt 0 ]; then
+  if ! node_modules/.bin/prettier --check --log-level warn "${fmt_files[@]}"; then
+    echo "" >&2
+    echo "pre-push: Prettier found unformatted docs. Fix with: just fmt-docs (or npm run format)" >&2
+    exit 1
+  fi
+fi
+if [ "${#md_files[@]}" -gt 0 ]; then
+  if ! node_modules/.bin/markdownlint-cli2 "${md_files[@]}"; then
+    echo "" >&2
+    echo "pre-push: markdownlint failed. See errors above; fix and re-push." >&2
+    exit 1
+  fi
+fi
+echo "pre-push: docs formatting OK."
