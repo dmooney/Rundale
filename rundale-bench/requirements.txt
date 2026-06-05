@@ -1,0 +1,7 @@
+# Runtime dependencies for rundale-bench.
+# Install into a local venv:
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+# For development tooling (ruff, mypy, pytest, etc.) also install
+# the repo-root requirements-dev.txt.
+pydantic>=2.0
