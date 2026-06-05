@@ -5,8 +5,8 @@
 | ID     | Category     | Severity | Location                   | Description                                                                                                                                                                                                                                                                                                            |
 | ------ | ------------ | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TD-015 | Complexity   | P2       | `src/provider.rs:1-2473`   | Largest file in the crate. It combines provider schema, builtin/mod registry, alias normalization, environment/config resolution, preset/model logic, cloud config resolution, and ~1,500 lines of tests. Split provider schema/registry, config resolution, presets, aliases, and tests before adding more providers. |
-| TD-016 | Complexity   | P2       | `src/engine.rs:1-1531`     | Engine config keeps all config structs, defaults, resolution, and tests in one module. Split by config domain (`session`, `npc`, `inference`, `map`, `palette`, `world`) to reduce merge conflicts and make defaults easier to audit.                                                                                  |
-| TD-017 | Test Hygiene | P3       | `src/provider.rs:997-1005` | Provider tests include a helper that mutates `current_dir()`. It restores on drop, but cwd mutation is process-global and brittle under parallel tests. Prefer explicit path inputs or a serial test guard for any future cwd-dependent provider discovery tests.                                                      |
+| TD-016 | Complexity   | P2       | `src/engine.rs:1-1541`     | Engine config keeps all config structs, defaults, resolution, and tests in one module. Split by config domain (`session`, `npc`, `inference`, `map`, `palette`, `world`) to reduce merge conflicts and make defaults easier to audit.                                                                                  |
+| TD-017 | Test Hygiene | P3       | `src/provider.rs:995-1007` | Provider tests include a helper that mutates `current_dir()`. It restores on drop, but cwd mutation is process-global and brittle under parallel tests. Prefer explicit path inputs or a serial test guard for any future cwd-dependent provider discovery tests.                                                      |
 
 ## In Progress
 
@@ -43,3 +43,9 @@ _(none)_
 ## Discovery scan (2026-05-07)
 
 Scanned the entire `parish-config` crate for dead code, duplication, weak tests, stale docs, and brittle patterns. No credible new debt found beyond what was already catalogued.
+
+2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 2 anchors corrected (TD-016 engine.rs grew to 1541 lines; TD-017 CwdGuard shifted to lines 995-1007).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).
