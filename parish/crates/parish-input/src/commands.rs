@@ -196,8 +196,8 @@ pub fn validate_branch_name(name: &str) -> Result<(), String> {
         ));
     }
     if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b' ')
     {
         return Err(
             "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
