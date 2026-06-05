@@ -22,11 +22,19 @@
 # render-proof-comment.sh and fenced with HTML comments so
 # parish/scripts/agent-check.sh --source=pr can extract and validate it.
 #
-# Usage: attach-proof.sh <task-id> [<pr-number>] [--as-comment]
+# Usage: attach-proof.sh <task-id> [<pr-number>] [--as-comment | --via-mcp]
 #   <pr-number>   defaults to the PR for the current branch (gh pr view).
 #   --as-comment  legacy: post/edit a PR comment instead of the body. Kept
 #                 for back-compat; subject to the opened-event race above.
+#   --via-mcp     no-gh sandbox path (#1178): validate the bundle locally and
+#                 print the rendered block to stdout (no network). Drop it
+#                 into the PR body when creating/editing the PR through the
+#                 GitHub MCP (race-free), or post it with add_issue_comment.
 set -euo pipefail
+
+# Resolve sibling scripts by location, not by CWD, so attach-proof works from
+# any directory (and is unit-testable against a throwaway repo).
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mode="body"
 positional=()
@@ -34,6 +42,7 @@ for arg in "$@"; do
     case "$arg" in
         --as-comment) mode="comment" ;;
         --to-body) mode="body" ;;
+        --via-mcp) mode="via-mcp" ;;
         -*)
             echo "attach-proof: unknown flag '$arg'" >&2
             exit 2
@@ -44,7 +53,7 @@ done
 set -- ${positional[@]+"${positional[@]}"}
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: attach-proof.sh <task-id> [<pr-number>] [--as-comment]" >&2
+    echo "Usage: attach-proof.sh <task-id> [<pr-number>] [--as-comment | --via-mcp]" >&2
     exit 2
 fi
 
@@ -52,13 +61,6 @@ task_id="$1"
 pr_number="${2:-}"
 
 cd "$(git rev-parse --show-toplevel)"
-
-if ! command -v gh >/dev/null 2>&1; then
-    echo "attach-proof: 'gh' is required. Install from https://cli.github.com/." >&2
-    echo "attach-proof: in a no-gh sandbox, validate with 'agent-check.sh --source=local --bundle $task_id'" >&2
-    echo "attach-proof: then post 'compose-proof-body.sh $task_id' output via the GitHub MCP." >&2
-    exit 1
-fi
 
 bundle=".proofs/$task_id"
 if [[ ! -d "$bundle" ]]; then
@@ -70,9 +72,35 @@ fi
 # author would hit on push. Skip the debt-marker scan here; the local
 # `just agent-check` invocation handles that as part of the normal
 # pre-push workflow. We only need to confirm the bundle is well-formed.
-echo "attach-proof: validating .proofs/$task_id/ against the local proof gate..."
-if ! bash parish/scripts/agent-check.sh --source=local --bundle "$task_id" >/dev/null; then
+echo "attach-proof: validating .proofs/$task_id/ against the local proof gate..." >&2
+if ! bash "$script_dir/agent-check.sh" --source=local --bundle "$task_id" >/dev/null; then
     echo "attach-proof FAILED: local agent-check rejected the bundle. Fix the issues and re-run." >&2
+    exit 1
+fi
+
+# --via-mcp: no gh. Print the rendered block to STDOUT (clean, pipeable) and
+# all guidance to stderr. The caller posts it through the GitHub MCP — into
+# the PR body when creating/editing the PR (race-free, green on run #1), or
+# as a comment via add_issue_comment (the gate reads both). For sandboxes
+# where gh is absent (#1178).
+if [[ "$mode" == "via-mcp" ]]; then
+    echo "attach-proof: bundle validated. The fenced block is on stdout." >&2
+    echo "attach-proof: preferred — set it as the PR body via the GitHub MCP (create_pull_request / update body) so the gate is green on the first run." >&2
+    echo "attach-proof: alternative — post it with the GitHub MCP add_issue_comment tool." >&2
+    if compgen -G "$bundle/*.png" >/dev/null \
+        || compgen -G "$bundle/*.jpg" >/dev/null \
+        || compgen -G "$bundle/*.jpeg" >/dev/null \
+        || compgen -G "$bundle/*.gif" >/dev/null \
+        || [[ -f "$bundle/transcript.txt" ]]; then
+        echo "attach-proof: bundle has binary artifacts — upload them in the GitHub UI; the CI gate only needs the text block." >&2
+    fi
+    bash "$script_dir/render-proof-comment.sh" "$task_id"
+    exit 0
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+    echo "attach-proof: 'gh' is required for body/comment mode. Install from https://cli.github.com/," >&2
+    echo "attach-proof: or use '--via-mcp' in a no-gh sandbox to emit the block for the GitHub MCP." >&2
     exit 1
 fi
 
@@ -106,14 +134,14 @@ if [[ "$mode" == "body" ]]; then
     body_file="$(mktemp)"
     trap 'rm -f "$body_file"' EXIT
     current_body="$(gh pr view "$pr_number" --repo "$repo_full" --json body --jq '.body // empty')"
-    printf '%s' "$current_body" | bash parish/scripts/compose-proof-body.sh "$task_id" >"$body_file"
+    printf '%s' "$current_body" | bash "$script_dir/compose-proof-body.sh" "$task_id" >"$body_file"
     echo "attach-proof: writing bundle into the body of PR #$pr_number."
     gh pr edit "$pr_number" --repo "$repo_full" --body-file "$body_file" >/dev/null
 else
     # Legacy comment path. Render the comment body.
     body_file="$(mktemp)"
     trap 'rm -f "$body_file"' EXIT
-    bash parish/scripts/render-proof-comment.sh "$task_id" >"$body_file"
+    bash "$script_dir/render-proof-comment.sh" "$task_id" >"$body_file"
 
     # Resolve the authenticated user so we can filter for our own prior
     # comments. A reviewer who quoted the fence in their review must not
