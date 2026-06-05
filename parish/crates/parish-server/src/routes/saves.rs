@@ -259,13 +259,13 @@ pub async fn validate_and_acquire_lock(
     use parish_core::persistence::SaveFileLock;
 
     let path = std::path::PathBuf::from(&body.file_path);
-    let canonical = path.canonicalize().map_err(|_| {
+    let canonical = tokio::fs::canonicalize(&path).await.map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
             "Invalid save file path".to_string(),
         )
     })?;
-    let saves_canonical = state.saves_dir.canonicalize().map_err(|_| {
+    let saves_canonical = tokio::fs::canonicalize(&state.saves_dir).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Saves directory error".to_string(),
@@ -449,16 +449,19 @@ pub async fn new_game(
 
 /// `GET /api/save-state` — returns the current save state for the StatusBar.
 pub async fn get_save_state(Extension(state): Extension<Arc<AppState>>) -> Json<SaveState> {
-    let save_path = state.save_path.lock().await;
-    let branch_id = state.current_branch_id.lock().await;
-    let branch_name = state.current_branch_name.lock().await;
+    let filename = state
+        .save_path
+        .lock()
+        .await
+        .as_ref()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().to_string());
+    let branch_id = *state.current_branch_id.lock().await;
+    let branch_name = state.current_branch_name.lock().await.clone();
 
     Json(SaveState {
-        filename: save_path
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().to_string()),
-        branch_id: *branch_id,
-        branch_name: branch_name.clone(),
+        filename,
+        branch_id,
+        branch_name,
     })
 }

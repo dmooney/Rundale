@@ -305,16 +305,17 @@ pub(crate) async fn run_idle_banter(state: &Arc<AppState>) {
 }
 
 pub async fn tick_inactivity(state: &Arc<AppState>) {
-    let (last_player_activity, last_spoken_at, running, idle_after, auto_pause_after) = {
+    let (last_player_activity, last_spoken_at, running) = {
         let conversation = state.conversation.lock().await;
-        let config = state.config.lock().await;
         (
             conversation.last_player_activity,
             conversation.last_spoken_at,
             conversation.conversation_in_progress,
-            config.idle_banter_after_secs,
-            config.auto_pause_after_secs,
         )
+    };
+    let (idle_after, auto_pause_after) = {
+        let config = state.config.lock().await;
+        (config.idle_banter_after_secs, config.auto_pause_after_secs)
     };
 
     if running {

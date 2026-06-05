@@ -106,19 +106,21 @@ pub fn emit_npc_reactions(
     tokio::spawn(async move {
         // Pre-capture the NPC list at the given location (the player may have
         // moved by the time the background task runs).
-        let (npcs_here, reaction_client, reaction_model, llm_enabled) = {
+        let npcs_here = {
             let npc_manager = state_clone.npc_manager.lock().await;
-            let config = state_clone.config.lock().await;
-            let base_client = state_clone.client.lock().await;
-            let npcs = npc_manager
+            npc_manager
                 .npcs_at(location)
                 .iter()
                 .map(|npc| (*npc).clone())
-                .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
+        };
+        let (reaction_client, reaction_model, llm_enabled) = {
+            let config = state_clone.config.lock().await;
+            let base_client = state_clone.client.lock().await;
             let (client, model) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             let enabled = !config.flags.is_disabled("npc-llm-reactions");
-            (npcs, client, model, enabled)
+            (client, model, enabled)
         };
 
         parish_core::game_loop::emit_npc_reactions(

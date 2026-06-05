@@ -119,7 +119,7 @@ pub async fn switch_mod(
 
     let mod_list_path = root.join("mod-list.toml");
     let content = format!("active_base = {:?}\n", body.mod_id);
-    if let Err(e) = std::fs::write(&mod_list_path, &content) {
+    if let Err(e) = tokio::fs::write(&mod_list_path, &content).await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"ok": false, "error": e.to_string()})),
