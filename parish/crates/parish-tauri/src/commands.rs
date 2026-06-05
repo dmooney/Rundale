@@ -1629,10 +1629,8 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
 pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<(), String> {
     use parish_core::game_loop::{NewGameParams, do_new_game as core_do_new_game};
 
-    // Rediscover the active game mod (Tauri AppState does not cache it).
-    let game_mod = parish_core::game_mod::find_default_mod()
-        .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
-
+    // Rule 9 (#1197): use the mod resolved once at startup and stored on
+    // AppState, not a per-call cwd-walk via find_default_mod().
     let emitter = crate::events::TauriEmitter::new(app.clone());
     core_do_new_game(NewGameParams {
         world: &state.world,
@@ -1642,7 +1640,7 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         current_branch_id: &state.current_branch_id,
         current_branch_name: &state.current_branch_name,
         saves_dir: &state.saves_dir,
-        game_mod: game_mod.as_ref(),
+        game_mod: state.game_mod.as_ref(),
         data_dir: &state.data_dir,
         pronunciations: &state.pronunciations,
         default_transport: state.transport.default_mode(),
@@ -3370,6 +3368,7 @@ mod cmd_tests {
             game_events: Mutex::new(std::collections::VecDeque::with_capacity(
                 DEBUG_EVENT_CAPACITY,
             )),
+            game_mod: None,
             inference_log: new_inference_log(),
             ui_config,
             theme_palette,

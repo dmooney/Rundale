@@ -20,24 +20,41 @@ use crate::AppState;
 use crate::commands::get_world_snapshot_inner;
 use crate::events::EVENT_WORLD_UPDATE;
 
-/// Finds the `mods/` directory by walking up from the working directory.
-fn mods_root() -> PathBuf {
+/// Returns the canonical `mods/` directory.
+///
+/// Rule 9 (#1197): resolved from the active `GameMod` that was loaded once at
+/// startup and stored on `AppState`, not by walking up from the cwd per call.
+/// Falls back to the legacy cwd-walk only when no mod is loaded (bare install).
+/// Mirrors `parish-server`'s `mods_root` for mode parity.
+fn mods_root(state: &Arc<AppState>) -> PathBuf {
+    mods_root_from_mod(state.game_mod.as_ref())
+}
+
+/// Pure resolution: the parent of the active mod's directory, else the legacy
+/// cwd-walk fallback. Split out from [`mods_root`] so it can be unit-tested
+/// without constructing a full `AppState`.
+fn mods_root_from_mod(game_mod: Option<&parish_core::game_mod::GameMod>) -> PathBuf {
+    if let Some(gm) = game_mod
+        && let Some(parent) = gm.mod_dir.parent()
+    {
+        return parent.to_path_buf();
+    }
     parish_core::game_mod::find_default_mod()
         .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
         .unwrap_or_else(|| {
             let fallback = PathBuf::from("mods");
             tracing::warn!(
                 path = %fallback.display(),
-                "Could not find mods directory from workspace — falling back to relative path. \
-                 The editor may list no mods on packaged builds."
+                "Could not find mods directory from game mod or workspace — falling back to \
+                 relative path. The editor may list no mods on packaged builds."
             );
             fallback
         })
 }
 
 #[tauri::command]
-pub async fn editor_list_mods(_state: State<'_, Arc<AppState>>) -> Result<Vec<ModSummary>, String> {
-    editor::handle_editor_list_mods(&mods_root())
+pub async fn editor_list_mods(state: State<'_, Arc<AppState>>) -> Result<Vec<ModSummary>, String> {
+    editor::handle_editor_list_mods(&mods_root(&state))
 }
 
 #[tauri::command]
@@ -46,7 +63,7 @@ pub async fn editor_open_mod(
     state: State<'_, Arc<AppState>>,
 ) -> Result<EditorModSnapshot, String> {
     let path = PathBuf::from(&mod_path);
-    let root = mods_root();
+    let root = mods_root(&state);
     let canonical = parish_core::ipc::editor::validate_within(&path, &root)?;
     editor::handle_editor_open_mod(&state.editor, &canonical).map(|r| r.snapshot)
 }
@@ -95,7 +112,7 @@ pub async fn editor_save(
     let result = editor::handle_editor_save(&state.editor, docs.clone())?;
     if result.saved
         && docs.contains(&EditorDoc::World)
-        && is_active_default_mod(saved_mod_path.as_deref())
+        && is_active_default_mod(&state, saved_mod_path.as_deref())
     {
         reload_live_world_from_disk(&state, &app).await?;
     }
@@ -112,17 +129,20 @@ pub async fn editor_close(state: State<'_, Arc<AppState>>) -> Result<(), String>
     editor::handle_editor_close(&state.editor)
 }
 
-fn is_active_default_mod(path: Option<&std::path::Path>) -> bool {
+/// True when `path` is the active mod's directory. Rule 9 (#1197): compares
+/// against the startup-resolved `state.game_mod.mod_dir`, not a per-call
+/// cwd-walk.
+fn is_active_default_mod(state: &Arc<AppState>, path: Option<&std::path::Path>) -> bool {
     let Some(path) = path else {
         return false;
     };
     let Ok(path) = path.canonicalize() else {
         return false;
     };
-    let Some(active_mod) = parish_core::game_mod::find_default_mod() else {
+    let Some(ref active_mod) = state.game_mod else {
         return false;
     };
-    let Ok(active_mod) = active_mod.canonicalize() else {
+    let Ok(active_mod) = active_mod.mod_dir.canonicalize() else {
         return false;
     };
     path == active_mod
@@ -132,14 +152,15 @@ async fn reload_live_world_from_disk(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<(), String> {
-    let mod_dir = parish_core::game_mod::find_default_mod()
+    // Rule 9 (#1197): reload from the startup-resolved mod, not a cwd-walk.
+    let game_mod = state
+        .game_mod
+        .as_ref()
         .ok_or_else(|| "active game mod not found".to_string())?;
-    let game_mod = parish_core::game_mod::GameMod::load(&mod_dir)
-        .map_err(|e| format!("failed to reload game mod: {e}"))?;
 
     let snapshot = {
         let mut world = state.world.lock().await;
-        parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
+        parish_core::editor::reload_world_graph_preserving_runtime(&mut world, game_mod)
             .map_err(|e| format!("failed to reload world graph: {e}"))?;
         let mut npc_manager = state.npc_manager.lock().await;
         // Graph was replaced wholesale — discard the cached BFS distances so
@@ -191,4 +212,51 @@ pub async fn editor_read_snapshot(
     let raw = PathBuf::from(&save_path);
     let canonical = parish_core::ipc::editor::validate_within(&raw, &state.saves_dir)?;
     editor::handle_editor_read_snapshot(&canonical, branch_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn load_rundale() -> parish_core::game_mod::GameMod {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        parish_core::game_mod::GameMod::load(&dir).expect("load rundale mod")
+    }
+
+    /// #1197 / TD-007: `mods_root` must derive from the startup-resolved mod,
+    /// not a cwd-walk. Pointing the mod at a fabricated path that has no
+    /// relation to the process cwd and getting that path's parent back proves
+    /// the resolution ignores the cwd entirely.
+    #[test]
+    fn mods_root_derives_from_game_mod_not_cwd() {
+        let mut gm = load_rundale();
+        gm.mod_dir = PathBuf::from("/nonexistent/sandbox/mods/rundale");
+        let root = mods_root_from_mod(Some(&gm));
+        assert_eq!(
+            root,
+            PathBuf::from("/nonexistent/sandbox/mods"),
+            "mods_root must be the active mod's parent dir, independent of cwd"
+        );
+    }
+
+    /// With the real mod loaded, the root is the repo's `mods/` directory.
+    #[test]
+    fn mods_root_real_mod_points_at_mods_dir() {
+        let gm = load_rundale();
+        let root = mods_root_from_mod(Some(&gm));
+        assert_eq!(root, gm.mod_dir.parent().unwrap());
+        assert!(
+            root.ends_with("mods"),
+            "expected a path ending in mods/, got {}",
+            root.display()
+        );
+    }
+
+    /// No mod loaded → legacy fallback path is still reachable and does not
+    /// panic (its value depends on the test cwd, so only liveness is asserted).
+    #[test]
+    fn mods_root_none_uses_fallback() {
+        let _ = mods_root_from_mod(None);
+    }
 }

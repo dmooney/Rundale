@@ -499,6 +499,12 @@ pub struct AppState {
     /// Saves directory resolved once at startup (#771).
     /// Every save/load command reads this rather than re-probing the cwd.
     pub saves_dir: PathBuf,
+    /// The active game mod, resolved once at startup (Rule 9, #1197).
+    /// Editor + new-game handlers read `game_mod.mod_dir` from here instead of
+    /// re-walking the cwd via `find_default_mod()` per call, which breaks
+    /// packaged builds / daemonised servers / `/tmp` working dirs. Mirrors the
+    /// `parish-server` `AppState.game_mod` slot for mode parity.
+    pub game_mod: Option<parish_core::game_mod::GameMod>,
     /// Absolute path to the most recent player-triggered screenshot, if any.
     ///
     /// Populated by the `save_screenshot` command after the frontend posts a
@@ -1333,6 +1339,7 @@ pub fn run() {
         transport,
         data_dir: data_dir.clone(),
         saves_dir,
+        game_mod,
         latest_screenshot_path: Mutex::new(None),
         pending_screenshots: Mutex::new(std::collections::HashMap::new()),
         worker_handle: Mutex::new(None),
