@@ -23,12 +23,20 @@ write .proofs/<id>/judge.md      → 'Verdict: sufficient'
                                    'Technical debt: clear'
                                    'Acceptance criteria: met'
 just agent-check          → local mode validates the disk bundle
-just attach-proof <id>    → posts the bundle to the PR as a structured
-                            comment; idempotent (re-running edits the
-                            existing comment instead of appending)
+gh pr create --body-file <(printf '%s\n' "$desc" \
+  | bash parish/scripts/compose-proof-body.sh <id>)
+                          → opens the PR with the bundle ALREADY in the
+                            body, so the gate is green on its first run
+just attach-proof <id>    → (re-)injects the bundle into the body of an
+                            existing PR; idempotent (replaces the prior
+                            region, never appends a duplicate). Use after
+                            fixing a bundle. `--as-comment` keeps the legacy
+                            comment path.
 ```
 
-CI then re-runs the gate against the PR comment.
+CI reads the bundle from the PR body (or a comment) — the body is present on
+the `pull_request.opened` run, so a fresh proof-relevant PR is green on the
+first run with no re-push (#1177).
 
 ## What It Enforces
 

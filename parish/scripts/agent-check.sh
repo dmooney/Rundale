@@ -288,6 +288,10 @@ gather_bundles_pr() {
 
     local raw="$tmpdir/comments_and_body.txt"
     : >"$raw"
+    # The PR body is the primary, race-free carrier: it is present on the
+    # very first gate run (`pull_request.opened`), whereas a comment posted
+    # after the PR opens loses that race (#1177). Read the body first, then
+    # author-filtered comments, and extract the fenced bundle from either.
     gh pr view "$pr_number" --json body --jq '.body // empty' >>"$raw" 2>/dev/null \
         || {
             echo "agent-check FAILED: could not fetch PR #$pr_number." >&2
@@ -366,8 +370,8 @@ if [[ "$relevant_count" -gt 0 ]]; then
 
     if [[ "$evidence_count" -eq 0 ]]; then
         if [[ "$source_mode" == "pr" ]]; then
-            echo "agent-check FAILED: PR #$pr_number has no parish-proof-bundle comment." >&2
-            echo "Run 'just attach-proof <task-id> $pr_number' to post the bundle." >&2
+            echo "agent-check FAILED: PR #$pr_number has no parish-proof-bundle block in its body or comments." >&2
+            echo "Run 'just attach-proof <task-id> $pr_number' to write the bundle into the PR body." >&2
         else
             echo "agent-check FAILED: proof-relevant changes require a bundle under .proofs/<task-id>/." >&2
             echo "Accepted evidence forms: gameplay transcript (.md or .txt), screenshot (.png/.jpg/.jpeg), or gif (.gif)." >&2
