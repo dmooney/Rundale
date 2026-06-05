@@ -215,7 +215,7 @@ ui-test:
 # Depends on ui-build so Playwright's webServer serves a fresh dist rather
 # than a stale (or missing) bundle from before the last src/ change (#1179).
 ui-e2e: ui-build
-    cd apps/ui && npx playwright test
+    eval "$(fnm env)" && cd apps/ui && npx playwright test
 
 # Update Playwright visual regression baselines
 ui-e2e-update:
