@@ -45,3 +45,7 @@ _(none)_
 Scanned the entire `parish-config` crate for dead code, duplication, weak tests, stale docs, and brittle patterns. No credible new debt found beyond what was already catalogued.
 
 2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 2 anchors corrected (TD-016 engine.rs grew to 1541 lines; TD-017 CwdGuard shifted to lines 995-1007).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).

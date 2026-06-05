@@ -62,3 +62,7 @@ _(none)_
 - **TD-002 + TD-010**: Fixture cleanup and arrival-reaction splitting overlap through reaction tests. If touching arrival reactions, define the shared fixture API first so test moves do not preserve the duplication.
 
 - **TD-011 / TD-028**: Prompt comments and historical TODO anchors are low-risk polish. Defer unless editing adjacent prompt or quality-regression code.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1201 (Dead-code & stale-doc cleanup), #1202 (Test coverage & type-drift), #1205 (Bug-risk & regressions).

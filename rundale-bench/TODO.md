@@ -105,3 +105,7 @@ _(none)_
 - 2026-05-25 - Initialized the rundale-bench debt ledger after scanning the Python bench runner, static-site pipeline, v1 dataset/config files, local MLX runner, and bench-site data artifact.
 
 _2026-06-04 audit: 2 of 14 unchecked items verified done (Round-4 drain via commit c3bcd609; bench-bug=0 axes invariant enforced in judge_bundle.py:209-223). 1 item marked partial (MLX_VENV env-var in local_runner.py but not in README). Remaining 11 items still open._
+
+## Issue tracking
+
+2026-06-04 audit: open items tracked under epic #1206 (rundale-bench harness hardening).

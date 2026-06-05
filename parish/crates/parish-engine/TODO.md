@@ -55,3 +55,7 @@ _(none)_
 
 - **2026-05-28**: Weekly review of `c59562a..HEAD` surfaced TD-036 (script-mode character/location logs silently disabled — high impact on the proof workflow) and TD-037 (idle-message off-by-one after `idle_counter` was re-introduced on `App`). TD-036 is a functional regression, not just navigation debt — fix it ahead of the cleanup items.
 - **2026-06-04 audit**: 2 Open items reviewed, 0 migrated to Done, 2 anchors corrected (TD-036: testing.rs lines updated to 1571/1567/150; TD-037: headless.rs line updated to 976, app.rs:94 reference added for idle_counter field).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1205 (Bug-risk & regressions). Specific issues: #1199 (TD-036).

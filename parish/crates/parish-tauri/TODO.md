@@ -41,3 +41,7 @@ _(none)_
 
 - **2026-05-08**: TD-003 closed. Decomposed `.setup()` into 8 helpers in new `setup.rs` module (963 lines extracted). 76 tests pass; clippy clean with `-D warnings`. Closes the final 1/2 deferred items from the techdebt sweep.
 - **2026-05-25**: Refreshed the debt scan against current source. Existing TD-006 through TD-013 remain credible; added TD-014 and TD-015 for the current `commands.rs` hotspot and historical TODO anchors.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1201 (Dead-code & stale-doc cleanup), #1203 (Runtime path/config & scaling), #1204 (Mode-parity & security). Specific issues: #1196 (TD-009), #1197 (TD-007).

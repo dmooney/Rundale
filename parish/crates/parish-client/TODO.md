@@ -23,3 +23,7 @@ _(none)_
 ## Discovery note
 
 2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 0 anchors corrected. TD-001 is partial (render.rs tests added in b76ff2b6/#1156; client.rs, repl.rs, session.rs still untested). TD-002 and TD-003 unchanged.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1202 (Test coverage & type-drift), #1203 (Runtime path/config & scaling).

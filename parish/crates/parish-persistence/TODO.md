@@ -49,3 +49,7 @@ _(none)_
 ## Discovery note
 
 2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).

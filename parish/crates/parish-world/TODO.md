@@ -46,3 +46,7 @@
 ## Discovery note
 
 2026-06-04 audit: 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected (TD-027 line range updated from 1-891 to 1-899).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1201 (Dead-code & stale-doc cleanup).

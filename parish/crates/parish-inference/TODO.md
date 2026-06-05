@@ -53,3 +53,7 @@ _(none)_
 
 - **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-031 through TD-035 after checking LOC hotspots, clippy allows, and inline TODO/regression comments.
 - **2026-06-04 audit**: 5 Open items reviewed, 0 migrated to Done, 4 anchors corrected (TD-032 LOC 2157→2390; TD-033 line refs shifted + inference_client.rs deleted 780f0f19; TD-034 LOC ranges expanded; TD-035 line 675→719).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1201 (Dead-code & stale-doc cleanup), #1202 (Test coverage & type-drift).

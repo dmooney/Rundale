@@ -52,3 +52,7 @@ _(none)_
 2026-05-28 weekly review of `c59562a..HEAD` added TD-030 (Tier-2 gossip orchestration duplicated across entry points — rule #12; pairs with parish-server TD-040 mode-parity gap) and TD-031 (per-event journal fan-out IO amplification in `location_log.rs`).
 
 2026-05-26 scan of `parish/crates/parish-core/src/` — clean. All items from the 2026-05-25 discovery sweep (TD-023 through TD-029) are now resolved. `cargo test -p parish-core` (446 passed, 0 failures), `cargo test -p parish-core --test architecture_fitness` (3 passed), `cargo clippy -p parish-core --all-targets -- -D warnings` (clean), and cross-crate compilation (`parish-tauri`, `parish-server`, `parish-engine`, `parish-mcp`) all pass.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1203 (Runtime path/config & scaling), #1204 (Mode-parity & security). Specific issues: #1198 (TD-030).

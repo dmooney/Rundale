@@ -20,3 +20,7 @@ _(none)_
 
 - **2026-05-25**: Initialized the crate debt ledger and recorded TD-001 through TD-003 from the current source scan.
 - **2026-06-04**: Audit — 3 Open items reviewed, 0 migrated to Done, 1 anchor corrected (TD-002 `src/backend.rs:196-215` → `199-212`).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).

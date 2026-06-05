@@ -47,3 +47,7 @@ _(none)_
 2026-05-25: Refreshed the debt scan against current source. Existing TD-016 through TD-027 remain credible; added TD-028 for the single-file CLI hotspot.
 
 2026-06-04 audit: 13 Open items reviewed, 3 migrated to Done (TD-016, TD-017, TD-018), 1 anchor corrected (TD-028 LOC), 1 note added (TD-020 partial coverage).
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1201 (Dead-code & stale-doc cleanup), #1202 (Test coverage & type-drift), #1203 (Runtime path/config & scaling), #1205 (Bug-risk & regressions).

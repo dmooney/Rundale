@@ -22,3 +22,7 @@ _(none)_
 
 - 2026-05-25 — Initialized the mods debt ledger after scanning Rundale content, testbed prompts, provider mods, and the active mod registry.
 - 2026-06-04 audit: 5 Open items reviewed, 0 migrated to Done, 0 anchors corrected. TD-003 note added: rundale prompt substitution is now tested in parish-npc/src/lib.rs; testbed prompt coverage remains missing.
+
+## Issue tracking
+
+2026-06-04 audit: open items in this file are tracked under epic(s) #1201 (Dead-code & stale-doc cleanup), #1203 (Runtime path/config & scaling).

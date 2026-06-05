@@ -438,3 +438,7 @@ Static code + git-history pass against main branch. No game process run. Verdict
 **GH issue coverage**: Only two findings had matching GH issues (#1027 for name hallucination — CLOSED; #1175 "convert recurring findings into rubrics" — OPEN). The majority of clusters have no tracking issue on `dmooney/rundale`. Issue #1175 is the closest to an umbrella tracker.
 
 **Overall verdict**: 37 of 56 findings are confirmed fixed by concrete code evidence. The remaining open/partial items (#40/#56 NPC reply rate, #32 travel time math, #33/#36 map filter design, #48 NPC quality variance, #51 player role-flip serialization, #9 headless server auto-load) have no matching commit and are candidates for new issues.
+
+## Issue tracking
+
+2026-06-04 audit: surviving demo-audit findings tracked under epic #1207 (Rundale gameplay quality).
