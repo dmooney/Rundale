@@ -1,0 +1,16 @@
+# Configurable API judge for rundale-bench v2.
+#
+# v1 mandated a Claude Sonnet 4.6 *Claude Code subagent* (no API key, on-disk
+# queue). v2 drops that: the judge is any OpenAI-compatible chat endpoint,
+# called over HTTP by assertions/rubric_judge.py. The default below is
+# Sonnet 4.6 via Anthropic's OpenAI-compat endpoint, but point `model` /
+# `base_url` / `api_key_env` at any provider (OpenRouter, Groq, a local slot)
+# to swap judges — the suite is otherwise unchanged.
+#
+# Override any field at runtime with env vars:
+#   RB_JUDGE_MODEL, RB_JUDGE_BASE_URL, RB_JUDGE_API_KEY_ENV, RB_JUDGE_TEMPERATURE
+
+model: claude-sonnet-4-6
+base_url: https://api.anthropic.com/v1
+api_key_env: ANTHROPIC_API_KEY
+temperature: 0.0

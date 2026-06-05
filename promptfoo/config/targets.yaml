@@ -1,0 +1,23 @@
+# Named candidate target specs for rundale-bench v2.
+#
+# Each value is a `model@base_url[#env:VAR]` spec parsed by
+# eval_lib.parse_target. Reference a named target in a promptfooconfig via the
+# RB_TARGET env var, e.g.:
+#
+#   RB_TARGET="$(yq '.local-qwen7b' promptfoo/config/targets.yaml)" \
+#     npx promptfoo eval -c promptfoo/promptfooconfig.dialogue.yaml
+#
+# or just pass the raw spec inline:
+#
+#   RB_TARGET='gpt-5-mini@https://api.openai.com/v1#env:OPENAI_API_KEY' \
+#     npx promptfoo eval -c promptfoo/promptfooconfig.dialogue.yaml
+#
+# The default (when RB_TARGET is unset) is the local 7B slot below.
+
+local-qwen7b: mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1
+local-qwen1_5b: mlx-community/Qwen2.5-1.5B-Instruct-4bit@http://localhost:8001/v1
+
+gpt-5-mini: gpt-5-mini@https://api.openai.com/v1#env:OPENAI_API_KEY
+claude-haiku: claude-haiku-4-5@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY
+llama-3.3-70b-groq: llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:GROQ_API_KEY
+gpt-oss-120b-free: openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY

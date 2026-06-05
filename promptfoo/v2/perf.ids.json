@@ -1,0 +1,12 @@
+{
+  "_doc": "Perf measurement prompt set: short+long dialogue prompts. warmup is discarded; measure prompts are cycled to fill --measure N.",
+  "warmup": "dialogue-0001",
+  "measure": [
+    "dialogue-0024",
+    "dialogue-0048",
+    "dialogue-0061",
+    "dialogue-0153",
+    "dialogue-0156",
+    "dialogue-0163"
+  ]
+}

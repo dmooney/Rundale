@@ -1,0 +1,6 @@
+# promptfoo run artifacts + cache (results are reproducible from the suite)
+output/*.json
+output/*.md
+output/*.html
+.promptfoo/
+node_modules/
