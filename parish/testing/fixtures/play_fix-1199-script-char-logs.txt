@@ -1,0 +1,33 @@
+# Proof fixture: fix-1199-script-char-logs
+# =========================================
+# Drives a short script-mode session so the character-log + location-log
+# writers emit player.md / npc-*.md / location markdown. Run with
+# PARISH_USER_DATA_DIR set to a temp dir, then inspect <dir>/logs/branch-1/.
+#
+# Before the fix: build_with_mod hardcodes build(false) -> no log files written.
+# After the fix:  the same run writes non-empty player.md + npc-*.md + location logs.
+
+# Baseline: who/where am I, what time
+/status
+/time
+/npcs
+look
+
+# Move so a location-change event fires (location log + player journal entry)
+/debug here
+go to the church
+
+# Let some world time pass so NPC/world events accrue
+/speed fast
+/wait 120
+/status
+/npcs
+
+# Move again to generate a second location transition
+look
+go to the crossroads
+/status
+
+# Final snapshot
+/time
+/debug here
