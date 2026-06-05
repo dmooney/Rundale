@@ -13,6 +13,13 @@ default:
 # One-time developer setup: install system deps, Rust, Node, and frontend packages
 setup:
     cd parish && just setup
+    just install-hooks
+
+# Point git at the versioned hooks in .githooks/ (idempotent). The pre-push
+# hook runs the docs/data format check so broken Markdown never reaches a PR.
+install-hooks:
+    git config core.hooksPath .githooks
+    @echo "git hooks installed: core.hooksPath -> .githooks (pre-push docs-format gate active)"
 
 # Install the language servers Claude Code uses for Svelte/TS symbol navigation
 setup-lsp:
