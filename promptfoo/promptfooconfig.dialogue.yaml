@@ -1,0 +1,26 @@
+# rundale-bench v2 — dialogue slice (5-axis: character, authenticity,
+# language, responsiveness, craft). Judged by the configurable API judge.
+#
+# Target comes from $RB_TARGET (a model@base_url[#env:VAR] spec). Run via the
+# justfile (`just -f promptfoo/justfile dialogue '<spec>'`) which exports
+# RB_SLICE + RB_TARGET, or set them yourself before `npx promptfoo eval`.
+description: rundale-bench-v2 dialogue
+
+env:
+  RB_SLICE: dialogue
+
+prompts:
+  - file://prompts/passthrough.py:get_prompt
+
+providers:
+  - id: file://providers/rundale_candidate.py
+    label: candidate
+    config:
+      slice: dialogue
+
+tests: file://scripts/load_dataset.py:generate_tests
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions/rubric_judge.py

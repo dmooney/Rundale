@@ -1,0 +1,59 @@
+# rundale-bench v2 (promptfoo) task recipes.
+#
+# Run from repo root:
+#     just -f promptfoo/justfile <recipe> [target-spec]
+#
+# `target` is a model@base_url[#env:VAR] spec (eval_lib.parse_target). Default
+# is the local 7B MLX slot. Cloud keys + the judge key are sourced from ../.env.
+
+ENV_FILE   := justfile_directory() / "../.env"
+PF         := justfile_directory()
+OUT        := PF / "output"
+DEFAULT_TARGET := "mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1"
+
+default:
+    @just --justfile {{ justfile() }} --list
+
+# Pin sha256 of the copied datasets.
+manifest:
+    python3 {{ PF }}/scripts/pin_manifest.py
+
+# Python unit checks (no network).
+test:
+    python3 {{ PF }}/scripts/test_v2.py
+
+_eval slice config target limit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ PF }}"
+    [ -f "{{ ENV_FILE }}" ] && { set -a; source "{{ ENV_FILE }}"; set +a; } || true
+    mkdir -p "{{ OUT }}"
+    export RB_TARGET='{{ target }}'
+    export RB_LIMIT='{{ limit }}'
+    # Two -o flags: JSON for scripts/report.py, HTML for a standalone web report.
+    npx promptfoo eval -c "{{ config }}" \
+        -o "{{ OUT }}/{{ slice }}.json" \
+        -o "{{ OUT }}/{{ slice }}.html" \
+        --no-cache
+
+# Individual slices. `limit=""` runs the full slice.
+dialogue  target=DEFAULT_TARGET limit="": (_eval "dialogue"  (PF / "promptfooconfig.dialogue.yaml")  target limit)
+intent    target=DEFAULT_TARGET limit="": (_eval "intent"    (PF / "promptfooconfig.intent.yaml")    target limit)
+reaction  target=DEFAULT_TARGET limit="": (_eval "reaction"  (PF / "promptfooconfig.reaction.yaml")  target limit)
+tier2-sim target=DEFAULT_TARGET limit="": (_eval "tier2-sim" (PF / "promptfooconfig.tier2-sim.yaml") target limit)
+tier3-sim target=DEFAULT_TARGET limit="": (_eval "tier3-sim" (PF / "promptfooconfig.tier3-sim.yaml") target limit)
+gaeilge   target=DEFAULT_TARGET limit="": (_eval "gaeilge"   (PF / "promptfooconfig.gaeilge.yaml")   target limit)
+perf      target=DEFAULT_TARGET limit="": (_eval "perf"      (PF / "promptfooconfig.perf.yaml")      target limit)
+
+# Every quality slice + perf for one target, then the report.
+bench target=DEFAULT_TARGET limit="": (dialogue target limit) (intent target limit) (reaction target limit) (tier2-sim target limit) (tier3-sim target limit) (gaeilge target limit) (perf target limit) report
+
+# Roll up output/*.json → output/report.md + report.json.
+report:
+    python3 {{ PF }}/scripts/report.py {{ OUT }}
+
+# Launch the promptfoo interactive web UI on the most recent eval(s).
+# Per-test grid: each candidate × prompt, per-axis judge scores, latency, cost.
+# Ctrl-C to stop. Optional port arg (default promptfoo's 15500).
+view port="15500":
+    cd "{{ PF }}" && npx promptfoo view -p {{ port }} --yes

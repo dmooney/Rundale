@@ -1,0 +1,21 @@
+# rundale-bench v2 — reaction slice (in_character). Configurable API judge.
+description: rundale-bench-v2 reaction
+
+env:
+  RB_SLICE: reaction
+
+prompts:
+  - file://prompts/passthrough.py:get_prompt
+
+providers:
+  - id: file://providers/rundale_candidate.py
+    label: candidate
+    config:
+      slice: reaction
+
+tests: file://scripts/load_dataset.py:generate_tests
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions/rubric_judge.py

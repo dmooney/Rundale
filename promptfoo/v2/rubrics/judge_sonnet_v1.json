@@ -1,0 +1,25 @@
+{
+  "judge_id": "judge_sonnet_v1",
+  "model": "claude-sonnet-4-6",
+  "judge_via": "claude-code-subagent",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": null,
+  "system_prompt_file": "judge_sonnet_v1.system.md",
+  "temperature": 0,
+  "seed": null,
+  "rubric": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays Brigid O'''Brien, a 42-year-old midwife. Score the reply on a 1-5 scale (5 = best) on:\n  1. CHARACTER \u2014 does it read as an 1820 rural Irish midwife?\n  2. AUTHENTICITY \u2014 period-appropriate vocabulary, no modern terms?\n  3. LANGUAGE \u2014 only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\n  4. RESPONSIVENESS \u2014 does it actually address the prompt?\n  5. CRAFT \u2014 concise, evocative, in 2-4 sentences as instructed?\n\nOutput ONLY a JSON object: {\"character\":<int 1-5>, \"authenticity\":<int 1-5>, \"language\":<int 1-5>, \"responsiveness\":<int 1-5>, \"craft\":<int 1-5>, \"overall\":<float 1-5, one decimal, weighted mean>}. No prose, no markdown.",
+  "rubric_sha256": "9b3412f48a8dfe7536e23ca28699e8329ea879a5184e980bca20eeaf85a7ec58",
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "score_range": [
+    1,
+    5
+  ],
+  "snapshot_date": "2026-05-23",
+  "notes": "Dialogue judge for the unified rundale-bench. Scored by Claude Sonnet 4.6 subagents launched from inside Claude Code (judge_via=claude-code-subagent), not via an HTTP call -- base_url/api_key_env are recorded for provenance only and are unused on the subagent path. Rubric text is byte-identical to judge_v1 so scores stay comparable across the qwen3-235b -> sonnet judge swap; only the scoring model changed. The JSON output envelope (per-axis rationales + terminal flags) is specified in judge_sonnet_v1.system.md and is NOT part of rubric_sha256."
+}
