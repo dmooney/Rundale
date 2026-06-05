@@ -20,6 +20,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+from schemas import BundleSchema, ResultSchema
+
 _BENCH_DIR = Path(__file__).resolve().parent
 QUEUE_DIR = _BENCH_DIR / ".bench-queue"
 PENDING_DIR = QUEUE_DIR / "pending"
@@ -69,6 +72,9 @@ def assemble_bundle(
 
 
 def write_pending(bundle: dict) -> Path:
+    # Validate shape before committing to disk — raises ValidationError on
+    # missing required fields or malformed items (failure modes 3, 4, 5).
+    BundleSchema.model_validate(bundle)
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     path = PENDING_DIR / f"{bundle['bundle_id']}.json"
     path.write_text(json.dumps(bundle, indent=2) + "\n", encoding="utf-8")
@@ -244,12 +250,47 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
     Returns ``(valid_items, failed_items)``. A result whose rubric_sha256 does
     not match the bundle is rejected wholesale (every item becomes a failure)
     — a judge that scored against a different rubric cannot be trusted.
+
+    ``ResultSchema.model_validate`` is called first to assert that
+    ``rubric_sha256`` is present (failure mode 3/4) and that ``items`` is a
+    list (failure mode 5). A malformed result (``ValidationError``) is caught
+    and treated as a full failure: every expected item is marked
+    ``judge_retry=True`` and the function returns ``([], failed)`` rather than
+    raising, so the ingest loop continues with remaining bundles.
     """
-    expected_ids = {it["prompt_id"] for it in bundle["items"]}
-    if result.get("rubric_sha256") != bundle["rubric_sha256"]:
+    # Validate result shape. A ValidationError means the done/ file is
+    # malformed (e.g. missing rubric_sha256 or items not a list). Treat it
+    # the same as a rubric_sha256 mismatch: mark every expected item as a
+    # judge failure and return early, so the ingest loop skips rather than
+    # crashes. The error is surfaced via the returned failed-item entries
+    # (each carries the validation error message) and the caller prints them.
+    try:
+        ResultSchema.model_validate(result)
+    except ValidationError as exc:
         failed: list[dict] = []
+        error_msg = f"malformed result (ValidationError): {exc}"
         for it in bundle["items"]:
             failed.append(
+                {
+                    "prompt_id": it["prompt_id"],
+                    "axes": None,
+                    "overall": None,
+                    "rationales": {},
+                    "flags": {
+                        "non_latin_detected": False,
+                        "refused": False,
+                        "bench_bug": False,
+                        "judge_retry": True,
+                    },
+                    "error": error_msg,
+                }
+            )
+        return [], failed
+    expected_ids = {it["prompt_id"] for it in bundle["items"]}
+    if result.get("rubric_sha256") != bundle["rubric_sha256"]:
+        mismatch_failed: list[dict] = []
+        for it in bundle["items"]:
+            mismatch_failed.append(
                 {
                     "prompt_id": it["prompt_id"],
                     "axes": None,
@@ -264,7 +305,7 @@ def validate_result(result: dict, bundle: dict) -> tuple[list[dict], list[dict]]
                     "error": "rubric_sha256 mismatch between result and bundle",
                 }
             )
-        return [], failed
+        return [], mismatch_failed
 
     valid: list[dict] = []
     failed = []
