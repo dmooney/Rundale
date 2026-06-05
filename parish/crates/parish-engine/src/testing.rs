@@ -145,22 +145,19 @@ impl GameTestHarness {
         Self::build(false)
     }
 
-    /// Same as [`Self::new_from_active_mod`] but with the per-character
-    /// markdown writer turned on. Only `run_script_mode` calls this.
-    pub fn new_with_character_logs() -> Self {
-        Self::build(true)
-    }
-
-    /// Builds a harness with the given game mod set on the app.
-    /// The world is initially loaded from the active mod (mod-list.toml);
-    /// the supplied `game_mod` is stored so that subsequent reloads
-    /// (e.g. `/new`) use the CLI-specified mod.
+    /// Builds the harness used by `run_script_mode` with the per-character
+    /// and per-location markdown writers turned **on** so `parish --script ...`
+    /// produces live-proof transcripts (CLAUDE.md rules #10/#13).
+    ///
+    /// When an explicit `--game-mod` is supplied, the world, NPCs, and log
+    /// app-name are all resolved from that mod's directory; otherwise the
+    /// active mod from `mod-list.toml` is used. The loaded `game_mod` is stored
+    /// on the app so subsequent reloads (e.g. `/new`) use the same mod.
     pub fn build_with_mod(game_mod: Option<parish_core::game_mod::GameMod>) -> Self {
-        let mut harness = Self::build(false);
-        if let Some(gm) = game_mod {
-            harness.app.game_mod = Some(gm);
+        match game_mod {
+            Some(gm) => Self::build_from_mod_dir(true, Some(&gm.mod_dir)),
+            None => Self::build(true),
         }
-        harness
     }
 
     fn build(enable_character_logs: bool) -> Self {
@@ -227,7 +224,7 @@ impl GameTestHarness {
 
         // Character logs — opt-in. Plain `new()` keeps writers disabled
         // so the hundreds of cargo-test harness instances don't all
-        // dump to the shared user-data dir. `new_with_character_logs`
+        // dump to the shared user-data dir. `build_with_mod`
         // (used by `run_script_mode`) sets `enable_character_logs=true`
         // so `parish --script ...` still produces log files.
         let log_app_name = parish_core::game_mod::app_name_from_mod(&app.game_mod);
@@ -2593,5 +2590,69 @@ mod tests {
         h.app.flags.enable("npc-llm-reactions");
         // If we get here without a reaction it may be bad luck with the 60% gate.
         // Not a hard failure — the 10 iterations make it statistically unlikely.
+    }
+
+    // #1199 / TD-036: `run_script_mode` builds via `build_with_mod`, which must
+    // enable the character + location log writers so `parish --script ...`
+    // produces the player.md / npc-*.md / location markdown that proof bundles
+    // (CLAUDE.md rules #10/#13) depend on. Regressed by the #1123 refactor when
+    // `build_with_mod` was hardcoded to `Self::build(false)`.
+    #[test]
+    #[serial_test::serial]
+    fn build_with_mod_enables_script_mode_logs() {
+        use tempfile::tempdir;
+        // Both managers resolve their log dirs from PARISH_USER_DATA_DIR; redirect
+        // to a temp dir so the write_all_profiles call in build_from_mod_dir does
+        // not pollute the shared user-data dir.
+        let tmp = tempdir().expect("tempdir");
+        // safety: env-mutation in test, serialized via #[serial]
+        unsafe {
+            std::env::set_var("PARISH_USER_DATA_DIR", tmp.path());
+        }
+
+        let h = GameTestHarness::build_with_mod(None);
+        let character_enabled = h
+            .app
+            .character_log
+            .as_ref()
+            .map(|m| m.enabled())
+            .unwrap_or(false);
+        let location_enabled = h
+            .app
+            .location_log
+            .as_ref()
+            .map(|m| m.enabled())
+            .unwrap_or(false);
+
+        // safety: env-cleanup in test
+        unsafe {
+            std::env::remove_var("PARISH_USER_DATA_DIR");
+        }
+
+        assert!(
+            character_enabled,
+            "script-mode harness must enable the character-log writer (#1199)"
+        );
+        assert!(
+            location_enabled,
+            "script-mode harness must enable the location-log writer (#1199)"
+        );
+    }
+
+    // Regression guard: the plain cargo-test constructors must keep the log
+    // writers disabled, so the hundreds of harness instances spun up by the test
+    // suite do not each dump profiles into the shared user-data dir.
+    #[test]
+    fn plain_harness_keeps_logs_disabled() {
+        let h = GameTestHarness::new();
+        assert!(
+            h.app.character_log.as_ref().is_some_and(|m| !m.enabled()),
+            "GameTestHarness::new() must keep the character-log writer disabled"
+        );
+        let h2 = GameTestHarness::new_from_active_mod();
+        assert!(
+            h2.app.character_log.as_ref().is_some_and(|m| !m.enabled()),
+            "new_from_active_mod() must keep the character-log writer disabled"
+        );
     }
 }
