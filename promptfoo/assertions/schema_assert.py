@@ -20,9 +20,13 @@ def get_assert(output, context):
     rec = json.loads(vars_.get("record", "{}"))
     schema = rec.get("schema", {})
 
-    res = rb.rb_grade.grade_schema(output, schema)
-    valid = bool(res.get("schema_valid"))
-    errors = res.get("errors", [])
+    try:
+        res = rb.rb_grade.grade_schema(output, schema)
+        valid = bool(res.get("schema_valid"))
+        errors = res.get("errors", [])
+    except Exception as e:  # noqa: BLE001 — never crash the eval on a bad row
+        valid = False
+        errors = [f"grading error: {e}"]
     return {
         "pass": valid,
         "score": 1.0 if valid else 0.0,

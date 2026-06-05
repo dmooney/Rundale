@@ -64,25 +64,34 @@ def generate_tests(*_args, **_kwargs):
 
 
 def generate_perf_tests(*_args, **_kwargs):
-    """Perf slice: warmup + measure ids from perf.ids.json, against dialogue
-    prompts, each repeated `RB_PERF_REPEAT` times (default 1; promptfoo's own
-    `repeat:` can also be used)."""
+    """Perf slice: warmup (discarded) + measure ids from perf.ids.json, against
+    dialogue prompts. Each measure prompt is emitted `RB_PERF_REPEAT` times
+    (default 3) and the warmup id is emitted first flagged `perf_warmup` so the
+    report drops it — mirroring v1's warmup-then-N-measured-calls methodology so
+    cold-start latency and a too-small sample don't skew p50/p95/tok-s."""
     ids_cfg = json.loads((rb.V2_DIR / "perf.ids.json").read_text(encoding="utf-8"))
+    warmup_id = ids_cfg.get("warmup")
     measure_ids = list(ids_cfg.get("measure", []))
+    repeat = max(1, int(os.environ.get("RB_PERF_REPEAT", "3")))
     dialogue = {r["id"]: r for r in _load_records("dialogue", "dev")}
+
+    def _row(rec, *, warmup=False):
+        return {
+            "vars": {
+                "record": json.dumps(rec, ensure_ascii=False),
+                "display_prompt": rec.get("prompt", ""),
+                "rb_id": rec["id"],
+                "perf_warmup": warmup,
+            },
+            "description": f"perf:{'warmup:' if warmup else ''}{rec['id']}",
+        }
+
     tests = []
-    for pid in measure_ids:
-        rec = dialogue.get(pid)
-        if not rec:
-            continue
-        tests.append(
-            {
-                "vars": {
-                    "record": json.dumps(rec, ensure_ascii=False),
-                    "display_prompt": rec.get("prompt", ""),
-                    "rb_id": rec["id"],
-                },
-                "description": f"perf:{pid}",
-            }
-        )
+    if warmup_id and warmup_id in dialogue:
+        tests.append(_row(dialogue[warmup_id], warmup=True))
+    for _ in range(repeat):
+        for pid in measure_ids:
+            rec = dialogue.get(pid)
+            if rec:
+                tests.append(_row(rec))
     return tests

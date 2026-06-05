@@ -31,7 +31,7 @@ _eval slice config target limit:
     export RB_TARGET='{{ target }}'
     export RB_LIMIT='{{ limit }}'
     # Two -o flags: JSON for scripts/report.py, HTML for a standalone web report.
-    npx promptfoo@latest eval -c "{{ config }}" \
+    npx promptfoo eval -c "{{ config }}" \
         -o "{{ OUT }}/{{ slice }}.json" \
         -o "{{ OUT }}/{{ slice }}.html" \
         --no-cache
@@ -56,4 +56,4 @@ report:
 # Per-test grid: each candidate × prompt, per-axis judge scores, latency, cost.
 # Ctrl-C to stop. Optional port arg (default promptfoo's 15500).
 view port="15500":
-    cd "{{ PF }}" && npx promptfoo@latest view -p {{ port }} --yes
+    cd "{{ PF }}" && npx promptfoo view -p {{ port }} --yes

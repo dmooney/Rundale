@@ -39,9 +39,13 @@ def _nearest_rank(sorted_vals: list[float], pct: float) -> float:
 
 
 def _results(data: dict) -> list[dict]:
+    # promptfoo's `eval -o` export nests the per-test rows under
+    # results.results; some versions/exporters use results.outputs. Accept both.
     r = data.get("results", data)
-    if isinstance(r, dict) and "results" in r:
-        return r["results"]
+    if isinstance(r, dict):
+        for key in ("results", "outputs"):
+            if isinstance(r.get(key), list):
+                return r[key]
     return r if isinstance(r, list) else []
 
 
@@ -63,13 +67,19 @@ def aggregate_quality(slice_name: str, results: list[dict]) -> dict:
     overall_sum = 0.0
     judged = bench_bugs = judge_failures = errors = non_latin = 0
     schema_valid = schema_total = 0
+    is_sim = slice_name in ("tier2-sim", "tier3-sim")
     for res in results:
         named = _named(res)
         meta = _meta(res)
         if meta.get("error"):
             errors += 1
+            # A failed candidate call is a schema failure too — keep it in the
+            # rate denominator so a run of mostly-errors can't report 1.00
+            # schema_valid_rate (matches v1's len(records) denominator).
+            if is_sim:
+                schema_total += 1
             continue
-        if slice_name in ("tier2-sim", "tier3-sim"):
+        if is_sim:
             schema_total += 1
             if named.get("schema_valid"):
                 schema_valid += 1
@@ -111,11 +121,14 @@ def aggregate_intent(results: list[dict]) -> dict:
     n = 0
     for res in results:
         meta = _meta(res)
+        # Errored rows stay in the denominator scoring 0 (v1 run_intent records
+        # exceptions as label_match=0 / score=0 and divides by len(records)),
+        # so transport failures can't inflate the deterministic rates.
+        n += 1
         if meta.get("error"):
             errors += 1
             continue
         named = _named(res)
-        n += 1
         matches += int(round(float(named.get("label_match", 0))))
         score_sum += float(named.get("intent_score", 0))
     return {
@@ -127,11 +140,17 @@ def aggregate_intent(results: list[dict]) -> dict:
     }
 
 
+def _is_warmup(res: dict) -> bool:
+    return bool((res.get("vars") or {}).get("perf_warmup"))
+
+
 def aggregate_perf(results: list[dict]) -> dict:
     latencies, ttfts, tps = [], [], []
     total_in = total_out = errors = ok = 0
     model = None
     for res in results:
+        if _is_warmup(res):  # discard cold-start warmup measurements
+            continue
         meta = _meta(res)
         if meta.get("error"):
             errors += 1

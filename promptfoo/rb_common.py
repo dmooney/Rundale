@@ -222,12 +222,16 @@ def load_judge_config() -> dict:
         return _JUDGE_CACHE
     cfg: dict[str, str] = {}
     path = CONFIG_DIR / "judge.yaml"
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
         if not line or line.startswith("#") or ":" not in line:
             continue
         k, v = line.split(":", 1)
-        cfg[k.strip()] = v.strip()
+        # Drop a trailing inline comment and surrounding quotes so e.g.
+        # `model: "x"  # note` parses to `x`.
+        if " #" in v:
+            v = v.split(" #", 1)[0]
+        cfg[k.strip()] = v.strip().strip("'\"")
     judge = {
         "model": os.environ.get("RB_JUDGE_MODEL", cfg.get("model", "claude-sonnet-4-6")),
         "base_url": os.environ.get(
@@ -323,10 +327,22 @@ def judge_item(slice_name: str, prompt_id: str, prompt: str, response: str, rec:
             target, system, json.dumps(bundle, ensure_ascii=False), temperature=judge["temperature"]
         )
         parsed = extract_json(text)
+        # Reject a stale / mismatched judge envelope wholesale — a score keyed
+        # to a different rubric or prompt cannot be trusted against this record
+        # (mirrors v1 judge_bundle.validate_result).
+        echoed_sha = parsed.get("rubric_sha256")
+        if echoed_sha is not None and echoed_sha != rubric["rubric_sha256"]:
+            raise ValueError(
+                f"judge rubric_sha256 mismatch: bundle={rubric['rubric_sha256'][:12]} "
+                f"echo={str(echoed_sha)[:12]}"
+            )
         items = parsed.get("items") or []
         if not items:
             raise ValueError("judge returned no items")
         scored = items[0]
+        echoed_pid = scored.get("prompt_id")
+        if echoed_pid is not None and str(echoed_pid) != str(prompt_id):
+            raise ValueError(f"judge prompt_id mismatch: sent={prompt_id} echo={echoed_pid}")
         axes = scored.get("axes") or {}
         flags = scored.get("flags") or {}
         overall = scored.get("overall")

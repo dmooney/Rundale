@@ -33,16 +33,30 @@ def main() -> int:
             records = sum(1 for line in raw.decode("utf-8").splitlines() if line.strip())
             slices[name] = {"sha256": digest, "records": records, "bytes": len(raw)}
             h.update(digest.encode())
+    # Pin the copied rubrics (system prompts + judge configs) and perf id set
+    # too — they define what the judge scores and which perf prompts run, so a
+    # silent edit must show up as drift just like a dataset change would.
+    assets: dict[str, dict] = {}
+    asset_paths = sorted(rb.RUBRICS_DIR.glob("*.system.md")) + sorted(rb.RUBRICS_DIR.glob("*.json"))
+    asset_paths.append(rb.V2_DIR / "perf.ids.json")
+    for path in asset_paths:
+        if not path.exists():
+            continue
+        raw = path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        assets[str(path.relative_to(rb.V2_DIR))] = {"sha256": digest, "bytes": len(raw)}
+        h.update(digest.encode())
     merkle = h.hexdigest()
     manifest = {
         "suite": "rundale-bench-v2",
         "source": "copied from rundale-bench/v1",
         "merkle_root_sha256": merkle,
         "slices": slices,
+        "assets": assets,
     }
     out = rb.V2_DIR / "MANIFEST.json"
     out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"[manifest] {out} — {len(slices)} files, merkle={merkle[:12]}…")
+    print(f"[manifest] {out} — {len(slices)} slices + {len(assets)} assets, merkle={merkle[:12]}…")
     return 0
 
 

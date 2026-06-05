@@ -300,6 +300,91 @@ check("extract_json strips fences", rb.extract_json('```json\n{"items":[1]}\n```
 check("extract_json finds embedded object", rb.extract_json('noise {"a":1} tail')["a"] == 1)
 
 
+# --- review-fix regressions -------------------------------------------------
+# errored rows stay in the intent denominator (transport failure can't inflate)
+iagg_err = report.aggregate_intent(
+    [
+        mkres({"label_match": 1.0, "intent_score": 1.0}),
+        mkres({}, meta={"error": "boom"}),
+        mkres({}, meta={"error": "boom"}),
+    ]
+)
+check("intent errors counted in denominator", abs(iagg_err["label_match_rate"] - (1 / 3)) < 1e-6)
+
+# errored sim rows stay in the schema_valid_rate denominator
+sagg = report.aggregate_quality(
+    "tier2-sim",
+    [
+        mkres({"plausibility": 4, "overall": 4.0, "schema_valid": 1.0}),
+        mkres({}, meta={"error": "timeout"}),
+    ],
+)
+check("sim error in schema denominator", abs(sagg["schema_valid_rate"] - 0.5) < 1e-6)
+
+# perf warmup rows are discarded
+pagg_w = report.aggregate_perf(
+    [
+        {
+            "vars": {"perf_warmup": True},
+            "latencyMs": 9999.0,
+            "response": {"metadata": {"model": "m", "ttft_ms": 1, "tokens_per_second": 1.0}},
+        },
+        mkres({}, meta={"model": "m", "ttft_ms": 100, "tokens_per_second": 50.0}, latency=200.0),
+    ]
+)
+check("perf drops warmup row", pagg_w["latency_p50_ms"] == 200.0 and pagg_w["n_ok"] == 1)
+
+# judge rejects a mismatched rubric_sha256 envelope
+
+
+def fake_judge_badsha(target, system, user, *, schema=None, temperature=0.0, **kw):
+    bundle = json.loads(user)
+    return json.dumps(
+        {
+            "rubric_sha256": "deadbeef",
+            "items": [
+                {
+                    "prompt_id": bundle["items"][0]["prompt_id"],
+                    "axes": {a: 5 for a in rb.SLICE_META[bundle["slice"]]["axes"]},
+                    "overall": 5.0,
+                }
+            ],
+        }
+    ), {"prompt_tokens": 1, "completion_tokens": 1}
+
+
+rb.call_chat = fake_judge_badsha
+jr_bad = rb.judge_item("dialogue", "d1", "p", "a reply", {"id": "d1"})
+check("judge rejects mismatched rubric_sha256", "judge_failure" in jr_bad)
+
+# empty candidate output short-circuits to bench_bug without a judge call
+rb.call_chat = fake_judge_call
+os.environ["RB_SLICE"] = "dialogue"
+ar_empty = rubric_judge.get_assert(
+    "   ", {"vars": {"record": json.dumps({"id": "d1", "prompt": "x"})}}
+)
+check("empty output → bench_bug", ar_empty["namedScores"].get("bench_bug") == 1.0)
+
+# YAML parser strips inline comments + quotes
+import tempfile  # noqa: E402
+
+with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tf:
+    tf.write('model: "x-model"  # a comment\nbase_url: http://h/v1\ntemperature: 0.0\n')
+    tf_path = tf.name
+_saved_cfg, _saved_cache = rb.CONFIG_DIR, rb._JUDGE_CACHE
+rb.CONFIG_DIR = Path(tf_path).parent
+rb._JUDGE_CACHE = None
+# point load_judge_config at our temp file by name
+import shutil  # noqa: E402
+
+shutil.copy(tf_path, rb.CONFIG_DIR / "judge.yaml")
+for k in ("RB_JUDGE_MODEL", "RB_JUDGE_BASE_URL", "RB_JUDGE_API_KEY_ENV", "RB_JUDGE_TEMPERATURE"):
+    os.environ.pop(k, None)
+jcfg = rb.load_judge_config()
+check("YAML parser strips comment+quotes", jcfg["model"] == "x-model")
+rb.CONFIG_DIR, rb._JUDGE_CACHE = _saved_cfg, _saved_cache
+
+
 print()
 if _fails:
     print(f"FAILED ({len(_fails)}): {_fails}")

@@ -31,7 +31,17 @@ def get_assert(output, context):
     prompt_id = rec.get("id", vars_.get("rb_id", "?"))
     prompt_text = rec.get("prompt", "")
 
-    res = rb.judge_item(slice_name, prompt_id, prompt_text, output or "", rec)
+    # Empty / whitespace-only candidate output is a bench_bug — skip the judge
+    # call entirely (it would score 1 anyway and wastes API tokens).
+    if not output or not str(output).strip():
+        return {
+            "pass": False,
+            "score": 0.0,
+            "reason": "bench_bug — empty candidate output (excluded from means)",
+            "namedScores": {"bench_bug": 1.0},
+        }
+
+    res = rb.judge_item(slice_name, prompt_id, prompt_text, output, rec)
 
     if res.get("judge_failure"):
         return {
