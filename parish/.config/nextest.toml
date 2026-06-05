@@ -9,6 +9,8 @@
 #
 # The default profile keeps retries = 0 so ordinary local `cargo nextest run`
 # stays fast and a genuine failure surfaces immediately.
+# `inherits` is required for any non-default profile.
 [profile.ci]
+inherits = "default"
 retries = 1
 fail-fast = false

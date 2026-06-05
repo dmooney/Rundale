@@ -68,6 +68,7 @@ jobs:
               - 'parish/Cargo.toml'
               - 'parish/Cargo.lock'
               - 'parish/testing/**'
+              - 'parish/.config/nextest.toml'
               - 'mods/**'
               - '.github/workflows/ci.yml'
             ui:
@@ -209,7 +210,12 @@ jobs:
         with:
           tool: cargo-llvm-cov,cargo-nextest
 
+      # Same one-shot retry policy as the quality gate so a single flaky blip
+      # in a coverage-ratchet test is reported FLAKY, not a hard PR failure
+      # (#1176). NEXTEST_PROFILE avoids `--profile` arg ambiguity with llvm-cov.
       - name: Enforce coverage floor
+        env:
+          NEXTEST_PROFILE: ci
         run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --fail-under-lines 60.8
 
   rust-multi-channel:
