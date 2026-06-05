@@ -89,6 +89,19 @@ envelope parse, report aggregation, game-time cost) with mocked HTTP — no keys
 no network. `scripts/mock_server.py` is an OpenAI-compat test double for a full
 keyless end-to-end promptfoo run.
 
+## Known limitations
+
+- **`run spend` excludes the API judge's cost.** The judge call happens inside
+  the assertion process, which can't add to a promptfoo result row's `cost`, so
+  the reported per-run spend sums only candidate-provider cost. The headline
+  cost metric — `gameplay_cost_usd_per_minute/hour` — is a price×token-profile
+  projection and is unaffected. (Attributing judge spend would need an
+  assertion→`report.py` side-channel.)
+- **Perf `usd_per_mtok_observed` can read 0 for streaming-only providers** that
+  emit token usage only when `stream_options:{include_usage:true}` is set, which
+  `eval_lib.call_chat_streaming` does not request. Only this observed-rate
+  diagnostic is affected; the game-time cost projection uses the static profile.
+
 ## Layout
 
 ```text
