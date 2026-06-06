@@ -49,7 +49,15 @@ class Target:
     def api_key(self) -> str | None:
         if not self.api_key_env:
             return None
+        # Strip surrounding whitespace: secret stores / `.env` files routinely
+        # leave a stray leading space or trailing newline on an exported key,
+        # which sails through `/v1/models` (often unauthenticated) but gets the
+        # candidate *and* judge chat calls rejected with a 401 (an extra space
+        # after `Bearer ` is enough — OpenRouter returns "Missing Authentication
+        # header"). Normalise here so both paths are immune.
         key = os.environ.get(self.api_key_env)
+        if key:
+            key = key.strip()
         if not key:
             raise RuntimeError(
                 f"target {self.model} requires API key in ${self.api_key_env} but env is empty"
