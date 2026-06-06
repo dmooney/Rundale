@@ -139,13 +139,13 @@ in summary:
 
 | Category           | Exposed by bridge                                                                                                                                                             | Reads / writes |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| Health & snapshots | `/api/health`, `/api/world-snapshot`, `/api/map`, `/api/npcs-here`, `/api/save-state`, `/api/transcript`, `/api/setup-snapshot`                                               | reads          |
+| Health & snapshots | `/api/health`, `/api/world-snapshot`, `/api/map`, `/api/npcs-here`, `/api/save-state`, `/api/transcript`, `/api/setup-snapshot`, `/api/debug-snapshot`                        | reads          |
 | Player commands    | `/api/submit-input`, `/api/new-game`, `/api/save-game`, `/api/load-branch`                                                                                                    | writes         |
 | Screenshots        | `/api/latest-screenshot`, `/api/take-screenshot`                                                                                                                              | read / write   |
 | BYOK + onboarding  | `/api/setup-status`, `/api/submit-byok`, `/api/byok-env-keys`, `/api/preset-models`, `/api/list-available-providers`, `/api/onboarding-options`, `/api/start-local-inference` | read / write   |
 
 Routes that `parish-server` ships but the bridge intentionally **does
-NOT** expose include `/api/debug-snapshot`, `/api/theme`,
+NOT** expose include `/api/theme`,
 `/api/ui-config`, `/api/app-icon.png`, `/api/favicon.png`,
 `/api/react-to-message`, `/api/discover-save-files`,
 `/api/create-branch`, `/api/new-save-file`, `/api/mods`,
@@ -154,7 +154,7 @@ NOT** expose include `/api/debug-snapshot`, `/api/theme`,
 `/api/editor-*` family, `/api/session-init`, and `/api/auth/*`. A
 request to one of these against the bridge returns
 `HTTP/1.1 404 Not Found` — use Setup B (a separate `parish-server`)
-when an agent needs the wider surface (TODO #16). The bridge layer's
+when an agent needs the wider surface. The bridge layer's
 goal is to drive the live desktop session for gameplay-shaped MCP
 tools; deeper introspection and editor-mode mutation are out of scope
 by design.
