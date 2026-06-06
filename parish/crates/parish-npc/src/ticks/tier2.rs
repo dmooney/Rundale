@@ -605,18 +605,13 @@ pub(crate) fn apply_tier2_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_npc;
+    use crate::test_helpers::{make_named_npc, make_test_npc};
     use crate::types::{MoodChange, Relationship, RelationshipChange, RelationshipKind};
     use chrono::TimeZone;
     use parish_types::events::{EventBus, GameEvent};
 
     fn named_npc(id: u32, name: &str, location: u32) -> Npc {
-        let mut npc = make_test_npc(id, location);
-        npc.name = name.to_string();
-        npc.brief_description = format!("a test NPC named {}", name);
-        npc.age = 40;
-        npc.personality = "Friendly".to_string();
-        npc
+        make_named_npc(id, name, location)
     }
 
     /// TODO #27 — JSON parse failures discriminate cleanly from other
