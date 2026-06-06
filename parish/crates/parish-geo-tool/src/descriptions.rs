@@ -494,4 +494,316 @@ mod tests {
         let (desc, _) = generate_description(&feature);
         assert!(desc.contains("264m"));
     }
+
+    // ── Church denomination tag ──────────────────────────────────────────────
+
+    #[test]
+    fn church_description_uses_denomination_tag() {
+        let mut feature = make_feature("St. John's", LocationType::Church, 53.5, -8.0);
+        feature
+            .tags
+            .insert("denomination".to_string(), "Protestant".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Protestant"),
+            "denomination tag should appear in description: {desc}"
+        );
+    }
+
+    #[test]
+    fn church_description_defaults_to_catholic() {
+        let feature = make_feature("St. Mary's", LocationType::Church, 53.5, -8.0);
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Catholic"),
+            "no denomination tag should default to Catholic: {desc}"
+        );
+    }
+
+    // ── Shop description variants ────────────────────────────────────────────
+
+    #[test]
+    fn shop_description_butcher() {
+        let mut feature = make_feature("Flynn's", LocationType::Shop, 53.5, -8.0);
+        feature
+            .tags
+            .insert("shop".to_string(), "butcher".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("butcher"),
+            "butcher shop description should contain 'butcher': {desc}"
+        );
+    }
+
+    #[test]
+    fn shop_description_bakery() {
+        let mut feature = make_feature("Murphy's Bakery", LocationType::Shop, 53.5, -8.0);
+        feature
+            .tags
+            .insert("shop".to_string(), "bakery".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("bread"),
+            "bakery description should mention bread: {desc}"
+        );
+    }
+
+    #[test]
+    fn shop_description_unknown_type_uses_fallback() {
+        let mut feature = make_feature("Odd Shop", LocationType::Shop, 53.5, -8.0);
+        feature
+            .tags
+            .insert("shop".to_string(), "curiosities".to_string());
+        let (desc, _) = generate_description(&feature);
+        // Unknown shop type should produce the generic fallback line.
+        assert!(
+            desc.contains("serving the needs"),
+            "unknown shop type should use fallback: {desc}"
+        );
+    }
+
+    // ── Waterside lake vs. river branch ─────────────────────────────────────
+
+    #[test]
+    fn waterside_lough_produces_lake_description() {
+        let feature = make_feature("Lough Ree", LocationType::Waterside, 53.5, -8.0);
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("great lake"),
+            "lough name should trigger lake description: {desc}"
+        );
+    }
+
+    #[test]
+    fn waterside_river_produces_river_description() {
+        let feature = make_feature("The River Suck", LocationType::Waterside, 53.5, -8.0);
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("banks"),
+            "non-lough waterside should produce river description: {desc}"
+        );
+        assert!(
+            !desc.contains("great lake"),
+            "non-lough should not get lake description: {desc}"
+        );
+    }
+
+    // ── Hill description without elevation tag ───────────────────────────────
+
+    #[test]
+    fn hill_description_without_ele_tag_has_no_parens() {
+        let feature = make_feature("Knocknagee", LocationType::Hill, 53.5, -8.0);
+        let (desc, _) = generate_description(&feature);
+        // Without an `ele` tag the parenthetical elevation should be absent.
+        assert!(
+            !desc.contains('('),
+            "hill without ele tag should have no parenthetical elevation: {desc}"
+        );
+    }
+
+    // ── Ruin description historic tag variants ───────────────────────────────
+
+    #[test]
+    fn ruin_description_castle_variant() {
+        let mut feature = make_feature("O'Connor's Castle", LocationType::Ruin, 53.5, -8.0);
+        feature
+            .tags
+            .insert("historic".to_string(), "castle".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("castle"),
+            "ruin historic=castle should mention castle: {desc}"
+        );
+    }
+
+    #[test]
+    fn ruin_description_ruins_variant() {
+        let mut feature = make_feature("Ruins of Something", LocationType::Ruin, 53.5, -8.0);
+        feature
+            .tags
+            .insert("historic".to_string(), "ruins".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("walls"),
+            "ruin historic=ruins should mention walls: {desc}"
+        );
+    }
+
+    #[test]
+    fn ruin_description_monument_variant() {
+        let mut feature = make_feature("Battle Monument", LocationType::Ruin, 53.5, -8.0);
+        feature
+            .tags
+            .insert("historic".to_string(), "monument".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("monument"),
+            "ruin historic=monument should mention monument: {desc}"
+        );
+    }
+
+    #[test]
+    fn ruin_description_no_historic_tag_defaults_to_ruins() {
+        // No `historic` tag: unwrap_or("ruins") → "ruins" arm → "Crumbling stone walls".
+        let feature = make_feature("Mystery Place", LocationType::Ruin, 53.5, -8.0);
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Crumbling stone walls"),
+            "ruin with no historic tag should default to 'ruins' arm: {desc}"
+        );
+    }
+
+    #[test]
+    fn ruin_description_unrecognised_historic_uses_ancient_ruins_fallback() {
+        let mut feature = make_feature("Strange Ruin", LocationType::Ruin, 53.5, -8.0);
+        feature
+            .tags
+            .insert("historic".to_string(), "fortification".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Ancient ruins"),
+            "unrecognised historic tag should use 'Ancient ruins' fallback: {desc}"
+        );
+    }
+
+    // ── Named-place description variants ────────────────────────────────────
+
+    #[test]
+    fn named_place_village_produces_village_description() {
+        let mut feature = make_feature("Ballyleague", LocationType::NamedPlace, 53.5, -8.0);
+        feature
+            .tags
+            .insert("place".to_string(), "village".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Cottages"),
+            "village named-place description should contain 'Cottages': {desc}"
+        );
+    }
+
+    #[test]
+    fn named_place_hamlet_produces_hamlet_description() {
+        let mut feature = make_feature("Carrowmore", LocationType::NamedPlace, 53.5, -8.0);
+        feature
+            .tags
+            .insert("place".to_string(), "hamlet".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("cluster"),
+            "hamlet named-place description should contain 'cluster': {desc}"
+        );
+    }
+
+    #[test]
+    fn named_place_townland_produces_fields_description() {
+        let mut feature = make_feature("Kiltoom", LocationType::NamedPlace, 53.5, -8.0);
+        feature
+            .tags
+            .insert("place".to_string(), "townland".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Fields"),
+            "townland named-place description should mention fields: {desc}"
+        );
+    }
+
+    #[test]
+    fn named_place_locality_produces_fields_description() {
+        let mut feature = make_feature("Cloonybeirne", LocationType::NamedPlace, 53.5, -8.0);
+        feature
+            .tags
+            .insert("place".to_string(), "locality".to_string());
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Fields"),
+            "locality named-place description should mention fields: {desc}"
+        );
+    }
+
+    #[test]
+    fn named_place_unknown_place_type_uses_generic() {
+        let feature = make_feature("Strange Place", LocationType::NamedPlace, 53.5, -8.0);
+        // No `place` tag → falls through to generate_generic_description.
+        let (desc, _) = generate_description(&feature);
+        assert!(
+            desc.contains("Strange Place"),
+            "generic fallback should include the feature name: {desc}"
+        );
+    }
+
+    // ── generate_mythological_significance remaining branches ────────────────
+
+    #[test]
+    fn mythological_significance_bog() {
+        let feature = make_feature("The Great Bog", LocationType::Bog, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(myth.is_some(), "Bog should have mythological significance");
+        assert!(
+            myth.unwrap().contains("voices"),
+            "Bog myth should mention voices"
+        );
+    }
+
+    #[test]
+    fn mythological_significance_well() {
+        let feature = make_feature("St. Brigid's Well", LocationType::Well, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(myth.is_some(), "Well should have mythological significance");
+        assert!(
+            myth.unwrap().contains("hawthorn"),
+            "Well myth should mention hawthorn"
+        );
+    }
+
+    #[test]
+    fn mythological_significance_standing_stone() {
+        let feature = make_feature("Cloghermore", LocationType::StandingStone, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(
+            myth.is_some(),
+            "StandingStone should have mythological significance"
+        );
+        assert!(
+            myth.unwrap().contains("kingdoms"),
+            "StandingStone myth should mention kingdoms"
+        );
+    }
+
+    #[test]
+    fn mythological_significance_graveyard() {
+        let feature = make_feature("Old Churchyard", LocationType::Graveyard, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(
+            myth.is_some(),
+            "Graveyard should have mythological significance"
+        );
+        assert!(
+            myth.unwrap().contains("gate"),
+            "Graveyard myth should mention the gate"
+        );
+    }
+
+    #[test]
+    fn mythological_significance_waterside_with_lough_name() {
+        let feature = make_feature("Lough Funshinagh", LocationType::Waterside, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(
+            myth.is_some(),
+            "Lough waterside should have mythological significance"
+        );
+        assert!(
+            myth.unwrap().contains("secrets"),
+            "Lough myth should mention secrets"
+        );
+    }
+
+    #[test]
+    fn mythological_significance_waterside_without_lough_name() {
+        let feature = make_feature("The River Suck", LocationType::Waterside, 53.5, -8.0);
+        let myth = generate_mythological_significance(&feature);
+        assert!(
+            myth.is_none(),
+            "Non-lough waterside should have no mythological significance"
+        );
+    }
 }
