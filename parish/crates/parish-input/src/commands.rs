@@ -44,6 +44,19 @@ pub enum Command {
     Pause,
     /// Unfreeze simulation.
     Resume,
+    /// Freeze simulation without emitting a user-visible message.
+    ///
+    /// Used by the frontend's `visibilitychange` / focus-loss handler so that
+    /// switching away from the window pauses the clock (NPC ticks stop) but
+    /// does **not** print "The clocks of the parish stand still." in the chat
+    /// log.  User-typed `/pause` still goes through [`Command::Pause`] and
+    /// emits the full message.
+    PauseSilent,
+    /// Unfreeze simulation without emitting a user-visible message.
+    ///
+    /// Symmetric counterpart to [`Command::PauseSilent`].  Used when the
+    /// window regains focus so the clock resumes silently.
+    ResumeSilent,
     /// Persist state and exit.
     Quit,
     /// Manual snapshot to current branch.

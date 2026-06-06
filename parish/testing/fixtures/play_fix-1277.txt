@@ -1,0 +1,21 @@
+# Fixture: fix-1277 — silent pause / resume for focus switch
+#
+# Demonstrates:
+# AC1/AC2: /pause-silent and /resume-silent emit no user-visible message
+# AC3:     the clock state changes (verified via /status)
+# AC4:     explicit /pause and /resume still emit their messages
+# AC5:     commands parse and execute in the headless harness
+# AC6:     redundant silent pause/resume is a no-op
+/status
+/pause
+/status
+/resume
+/status
+/pause-silent
+/status
+/resume-silent
+/status
+/pause-silent
+/pause-silent
+/resume-silent
+/resume-silent

@@ -95,6 +95,8 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
     match keyword {
         "/pause" => Some(Command::Pause),
         "/resume" => Some(Command::Resume),
+        "/pause-silent" => Some(Command::PauseSilent),
+        "/resume-silent" => Some(Command::ResumeSilent),
         "/quit" | "/exit" => Some(Command::Quit),
         "/save" => Some(Command::Save),
         "/branches" => Some(Command::Branches),
@@ -144,6 +146,31 @@ mod tests {
         assert_eq!(parse_system_command("/EXIT"), Some(Command::Quit));
         assert_eq!(parse_system_command("  /exit  "), Some(Command::Quit));
     }
+    /// AC5 — /pause-silent and /resume-silent parse to the silent variants.
+    #[test]
+    fn test_parse_silent_pause_resume() {
+        assert_eq!(
+            parse_system_command("/pause-silent"),
+            Some(Command::PauseSilent)
+        );
+        assert_eq!(
+            parse_system_command("/resume-silent"),
+            Some(Command::ResumeSilent)
+        );
+        // Case-insensitive.
+        assert_eq!(
+            parse_system_command("/PAUSE-SILENT"),
+            Some(Command::PauseSilent)
+        );
+        assert_eq!(
+            parse_system_command("/RESUME-SILENT"),
+            Some(Command::ResumeSilent)
+        );
+        // Trailing text must not match (zero-arg policy).
+        assert_eq!(parse_system_command("/pause-silent now"), None);
+        assert_eq!(parse_system_command("/resume-silent please"), None);
+    }
+
     #[test]
     fn test_parse_all_commands() {
         assert_eq!(parse_system_command("/pause"), Some(Command::Pause));
