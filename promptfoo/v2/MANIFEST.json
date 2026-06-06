@@ -1,0 +1,105 @@
+{
+  "suite": "rundale-bench-v2",
+  "source": "copied from rundale-bench/v1",
+  "merkle_root_sha256": "5615a814c38755544fca622407b83866196019a2d9f6a9704718d62c7176a5aa",
+  "slices": {
+    "dialogue.jsonl": {
+      "sha256": "eb21ffd26b62177cd62b703ca8c6786c70199e30a6334bf8443834857a914efa",
+      "records": 159,
+      "bytes": 23969
+    },
+    "dialogue.holdout.jsonl": {
+      "sha256": "b33d095d8126c434639acb2987ac39c3018879c8d6ce71b764da0d69e479a40f",
+      "records": 21,
+      "bytes": 3280
+    },
+    "gaeilge.jsonl": {
+      "sha256": "a45fd4694eb8989776c284f0f4909dfccc17052fcadbbd1f7e687554595abad8",
+      "records": 11,
+      "bytes": 7075
+    },
+    "gaeilge.holdout.jsonl": {
+      "sha256": "f03cf5c3a33169ffe6c7a12fba32c9d66e33a318dc0285a791fcc404890567b8",
+      "records": 1,
+      "bytes": 612
+    },
+    "intent.jsonl": {
+      "sha256": "e065933848844fb99db7f0278ee29d6e4499ab62ebb888fb0cb5154dbf037437",
+      "records": 33,
+      "bytes": 6058
+    },
+    "intent.holdout.jsonl": {
+      "sha256": "a483be553829d9ae9f1e6a86b43c688d540347fa58f38039baba41278bc35f8d",
+      "records": 9,
+      "bytes": 1776
+    },
+    "reaction.jsonl": {
+      "sha256": "92c7a0446dcb0a7a8357016fae526a6d2e72f970525760ef0cfed1e61ac1f20e",
+      "records": 27,
+      "bytes": 15777
+    },
+    "reaction.holdout.jsonl": {
+      "sha256": "4e73b9c0fd159d5fb203e37bd188a010e881367d3451e3082766ffda3fa6607d",
+      "records": 3,
+      "bytes": 1784
+    },
+    "tier2-sim.jsonl": {
+      "sha256": "82c0123e013c5d4d492ec48e8a2aa3652d5890d1e94ae692ab1710f3affbde59",
+      "records": 27,
+      "bytes": 50707
+    },
+    "tier2-sim.holdout.jsonl": {
+      "sha256": "14af7b7f3413739a2824062ae7c34f040f944076de2bdfa38ddb609342c635a1",
+      "records": 3,
+      "bytes": 5815
+    },
+    "tier3-sim.jsonl": {
+      "sha256": "68f971cef81dbb95b4c75900bf2fa9b9187ff7be0094dcbc11a84cdfd40d4c96",
+      "records": 13,
+      "bytes": 23568
+    },
+    "tier3-sim.holdout.jsonl": {
+      "sha256": "f6dce3f0a5f5c2a5f003c4daecd4ffae68127531a06261305c2f998401cc937f",
+      "records": 2,
+      "bytes": 3806
+    }
+  },
+  "assets": {
+    "rubrics/dialogue.system.md": {
+      "sha256": "d6d2d6c623e422476049508f8bee90531010894a540072599bc0e510928eb752",
+      "bytes": 5852
+    },
+    "rubrics/gaeilge.system.md": {
+      "sha256": "a0161c81e953b222fad371ec6dc4618e79de249ba7b33ce4026eacd47971fb4f",
+      "bytes": 5718
+    },
+    "rubrics/reaction.system.md": {
+      "sha256": "2e58d25dc5823a041203fde0206687211579034bff9ee060740f8aba692f4453",
+      "bytes": 4932
+    },
+    "rubrics/sim.system.md": {
+      "sha256": "434123084876a053a6d7260677afe827cae6276ca1d9b692f9977f1da3e97855",
+      "bytes": 4265
+    },
+    "rubrics/judge_gaeilge_v1.json": {
+      "sha256": "264dd4be9c16fbf70ed3409aca0fc7d972e76bf525fb9b4bb6a1b18e5b8fc0a8",
+      "bytes": 2354
+    },
+    "rubrics/judge_reaction_v1.json": {
+      "sha256": "b73963cafcc420844def443654f21a17011e8f63f33739aa61389e6913463b70",
+      "bytes": 1584
+    },
+    "rubrics/judge_sim_v1.json": {
+      "sha256": "763df8dbe594cac7551cbe2adabf75bc4422f814f63e161488f0a2504049ddcc",
+      "bytes": 1655
+    },
+    "rubrics/judge_sonnet_v1.json": {
+      "sha256": "7489725f7e12933007c475ef6e798cde7e89928b61afac5ce2b6a2d16f53dac8",
+      "bytes": 1949
+    },
+    "perf.ids.json": {
+      "sha256": "f3e0520f216360f34ce7352f032a14d66774fe9c3137cdcbacf8c1b1bc8f82a3",
+      "bytes": 317
+    }
+  }
+}

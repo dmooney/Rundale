@@ -1,0 +1,303 @@
+"""Post-process promptfoo result JSONs → rundale-bench v2 report.
+
+Reads `promptfoo/output/<slice>.json` files (written by `promptfoo eval -o`),
+aggregates per-slice quality (per-axis means, excluding bench_bug /
+judge_failure rows — matching v1's `_dialogue_aggregate`), the perf rollup
+(p50/p95 latency, tokens/sec, error_rate, observed $/Mtok — ported from
+perf.py::summarize_perf), and the cost/game-time projection (provider price ×
+tokens-per-game-minute → USD/min·hr — ported from build_site_data.py).
+
+Writes `output/report.md` + `output/report.json`.
+
+    python3 promptfoo/scripts/report.py [output_dir]
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import rb_common as rb  # noqa: E402
+
+AXES = {
+    "dialogue": ["character", "authenticity", "language", "responsiveness", "craft"],
+    "reaction": ["in_character"],
+    "tier2-sim": ["plausibility"],
+    "tier3-sim": ["plausibility"],
+    "gaeilge": ["fluency", "grammar", "idiom", "task_fulfillment", "english_leakage"],
+}
+
+
+def _nearest_rank(sorted_vals: list[float], pct: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    rank = max(1, math.ceil(pct * len(sorted_vals)))
+    return sorted_vals[rank - 1]
+
+
+def _results(data: dict) -> list[dict]:
+    # promptfoo's `eval -o` export nests the per-test rows under
+    # results.results; some versions/exporters use results.outputs. Accept both.
+    r = data.get("results", data)
+    if isinstance(r, dict):
+        for key in ("results", "outputs"):
+            if isinstance(r.get(key), list):
+                return r[key]
+    return r if isinstance(r, list) else []
+
+
+def _named(res: dict) -> dict:
+    return res.get("namedScores") or res.get("response", {}).get("namedScores") or {}
+
+
+def _meta(res: dict) -> dict:
+    return (res.get("response") or {}).get("metadata") or res.get("metadata") or {}
+
+
+def _candidate(res: dict) -> str:
+    return _meta(res).get("target") or (res.get("provider") or {}).get("label") or "candidate"
+
+
+def aggregate_quality(slice_name: str, results: list[dict]) -> dict:
+    axes = AXES[slice_name]
+    sums = {a: 0.0 for a in axes}
+    overall_sum = 0.0
+    judged = bench_bugs = judge_failures = errors = non_latin = 0
+    schema_valid = schema_total = 0
+    is_sim = slice_name in ("tier2-sim", "tier3-sim")
+    for res in results:
+        named = _named(res)
+        meta = _meta(res)
+        if meta.get("error"):
+            errors += 1
+            # A failed candidate call is a schema failure too — keep it in the
+            # rate denominator so a run of mostly-errors can't report 1.00
+            # schema_valid_rate (matches v1's len(records) denominator).
+            if is_sim:
+                schema_total += 1
+            continue
+        if is_sim:
+            schema_total += 1
+            if named.get("schema_valid"):
+                schema_valid += 1
+        if named.get("judge_failure"):
+            judge_failures += 1
+            continue
+        if named.get("bench_bug"):
+            bench_bugs += 1
+            continue
+        if not any(a in named for a in axes):
+            judge_failures += 1
+            continue
+        judged += 1
+        for a in axes:
+            sums[a] += float(named.get(a, 0))
+        overall_sum += float(named.get("overall", 0))
+        if named.get("non_latin"):
+            non_latin += 1
+    n = max(1, judged)
+    out = {
+        "slice": slice_name,
+        "records": len(results),
+        "judged": judged,
+        "bench_bugs": bench_bugs,
+        "judge_failures": judge_failures,
+        "errors": errors,
+        "non_latin": non_latin,
+        "overall": (overall_sum / n) if judged else None,
+        **{a: (sums[a] / n if judged else None) for a in axes},
+    }
+    if slice_name in ("tier2-sim", "tier3-sim"):
+        out["schema_valid_rate"] = schema_valid / max(1, schema_total)
+    return out
+
+
+def aggregate_intent(results: list[dict]) -> dict:
+    matches = errors = 0
+    score_sum = 0.0
+    n = 0
+    for res in results:
+        meta = _meta(res)
+        # Errored rows stay in the denominator scoring 0 (v1 run_intent records
+        # exceptions as label_match=0 / score=0 and divides by len(records)),
+        # so transport failures can't inflate the deterministic rates.
+        n += 1
+        if meta.get("error"):
+            errors += 1
+            continue
+        named = _named(res)
+        matches += int(round(float(named.get("label_match", 0))))
+        score_sum += float(named.get("intent_score", 0))
+    return {
+        "slice": "intent",
+        "records": len(results),
+        "errors": errors,
+        "label_match_rate": matches / max(1, n),
+        "mean_score": score_sum / max(1, n),
+    }
+
+
+def _is_warmup(res: dict) -> bool:
+    return bool((res.get("vars") or {}).get("perf_warmup"))
+
+
+def aggregate_perf(results: list[dict]) -> dict:
+    latencies, ttfts, tps = [], [], []
+    total_in = total_out = errors = ok = 0
+    model = None
+    for res in results:
+        if _is_warmup(res):  # discard cold-start warmup measurements
+            continue
+        meta = _meta(res)
+        if meta.get("error"):
+            errors += 1
+            continue
+        ok += 1
+        model = model or meta.get("model")
+        lat = res.get("latencyMs")
+        if lat is not None:
+            latencies.append(float(lat))
+        if meta.get("ttft_ms") is not None:
+            ttfts.append(float(meta["ttft_ms"]))
+        if meta.get("tokens_per_second"):
+            tps.append(float(meta["tokens_per_second"]))
+        usage = (res.get("response") or {}).get("tokenUsage") or {}
+        total_in += int(usage.get("prompt", 0) or 0)
+        total_out += int(usage.get("completion", 0) or 0)
+    latencies.sort()
+    ttfts.sort()
+    total_tokens = total_in + total_out
+    price_in, price_out = rb.pricing.COSTS.get(model or "", (0.0, 0.0))
+    total_cost = total_in / 1e6 * price_in + total_out / 1e6 * price_out
+    return {
+        "slice": "perf",
+        "n_ok": ok,
+        "n_error": errors,
+        "error_rate": errors / max(1, ok + errors),
+        "latency_p50_ms": _nearest_rank(latencies, 0.50),
+        "latency_p95_ms": _nearest_rank(latencies, 0.95),
+        "ttft_p50_ms": _nearest_rank(ttfts, 0.50),
+        "tokens_per_sec_mean": (sum(tps) / len(tps)) if tps else 0.0,
+        "usd_per_mtok_observed": round(
+            (total_cost * 1e6 / total_tokens) if total_tokens else 0.0, 4
+        ),
+    }
+
+
+def run_cost_total(results: list[dict]) -> dict:
+    cost = 0.0
+    tin = tout = 0
+    for res in results:
+        resp = res.get("response") or {}
+        cost += float(resp.get("cost") or 0.0)
+        usage = resp.get("tokenUsage") or {}
+        tin += int(usage.get("prompt", 0) or 0)
+        tout += int(usage.get("completion", 0) or 0)
+    return {"usd": cost, "prompt_tokens": tin, "completion_tokens": tout}
+
+
+def main(argv: list[str]) -> int:
+    out_dir = Path(argv[1]) if len(argv) > 1 else rb.PROMPTFOO_DIR / "output"
+    files = sorted(p for p in out_dir.glob("*.json") if p.stem not in ("report",))
+    if not files:
+        print(f"no result JSONs in {out_dir}", file=sys.stderr)
+        return 1
+
+    report: dict = {"slices": {}, "candidates": {}}
+    for f in files:
+        slice_name = f.stem
+        data = json.loads(f.read_text(encoding="utf-8"))
+        results = _results(data)
+        if not results:
+            continue
+        # group by candidate
+        by_cand: dict[str, list[dict]] = {}
+        for res in results:
+            by_cand.setdefault(_candidate(res), []).append(res)
+        for cand, rows in by_cand.items():
+            c = report["candidates"].setdefault(cand, {"slices": {}, "run_cost": {"usd": 0.0}})
+            if slice_name == "perf":
+                agg = aggregate_perf(rows)
+                model = _meta(rows[0]).get("model") if rows else None
+                price_in, price_out = rb.pricing.COSTS.get(model or "", (0.0, 0.0))
+                agg.update(rb.pricing.gameplay_cost(price_in, price_out))
+                agg["model"] = model
+                agg["price_in_per_mtok"] = price_in
+                agg["price_out_per_mtok"] = price_out
+            elif slice_name == "intent":
+                agg = aggregate_intent(rows)
+            elif slice_name in AXES:
+                agg = aggregate_quality(slice_name, rows)
+            else:
+                continue
+            c["slices"][slice_name] = agg
+            rc = run_cost_total(rows)
+            c["run_cost"]["usd"] += rc["usd"]
+
+    _write_markdown(report, out_dir / "report.md")
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"[report] wrote {out_dir / 'report.md'} and report.json "
+        f"({len(report['candidates'])} candidate(s))"
+    )
+    print((out_dir / "report.md").read_text(encoding="utf-8"))
+    return 0
+
+
+def _fmt(v, nd=2):
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:.{nd}f}"
+    return str(v)
+
+
+def _write_markdown(report: dict, path: Path) -> None:
+    lines = ["# rundale-bench v2 report\n"]
+    for cand, c in sorted(report["candidates"].items()):
+        lines.append(f"## `{cand}`\n")
+        # Quality slices
+        for slice_name in ("dialogue", "reaction", "tier2-sim", "tier3-sim", "gaeilge"):
+            s = c["slices"].get(slice_name)
+            if not s:
+                continue
+            axes = AXES[slice_name]
+            axis_str = " · ".join(f"{a}={_fmt(s.get(a))}" for a in axes)
+            extra = ""
+            if "schema_valid_rate" in s:
+                extra = f" · schema_valid={_fmt(s['schema_valid_rate'])}"
+            lines.append(
+                f"- **{slice_name}**: overall={_fmt(s.get('overall'))} ({axis_str}){extra} "
+                f"— judged {s['judged']}/{s['records']}, bench_bugs={s['bench_bugs']}, "
+                f"judge_failures={s['judge_failures']}, errors={s['errors']}"
+            )
+        # Intent
+        si = c["slices"].get("intent")
+        if si:
+            lines.append(
+                f"- **intent**: label_match_rate={_fmt(si['label_match_rate'])} "
+                f"mean_score={_fmt(si['mean_score'])} (errors={si['errors']}, n={si['records']})"
+            )
+        # Perf + cost/game-time
+        sp = c["slices"].get("perf")
+        if sp:
+            lines.append(
+                f"- **perf**: p50={_fmt(sp['latency_p50_ms'], 0)}ms p95={_fmt(sp['latency_p95_ms'], 0)}ms "
+                f"ttft_p50={_fmt(sp['ttft_p50_ms'], 0)}ms tok/s={_fmt(sp['tokens_per_sec_mean'], 1)} "
+                f"err={_fmt(sp['error_rate'])} $/Mtok={_fmt(sp['usd_per_mtok_observed'], 4)}"
+            )
+            lines.append(
+                f"- **cost/game-time** (model `{sp.get('model')}`, "
+                f"${_fmt(sp.get('price_in_per_mtok'), 2)}/{_fmt(sp.get('price_out_per_mtok'), 2)} per Mtok): "
+                f"**${_fmt(sp.get('gameplay_cost_usd_per_minute'), 5)}/min** · "
+                f"${_fmt(sp.get('gameplay_cost_usd_per_hour'), 3)}/hr"
+            )
+        lines.append(f"- run spend: ${_fmt(c['run_cost']['usd'], 4)}\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

@@ -33,6 +33,12 @@ bottom; don't lengthen items past 2-3 lines.
 - **Qwen3 thinking-mode leaks unless `chat_template_kwargs={"enable_thinking": False}` is injected on mlx_lm.server requests.** `parish/scripts/local-eval/eval_lib.py::THINKING_MLX_PREFIXES` lists the affected repos. Without the flag, reasoning fills `max_tokens` and the assistant content is empty → near-zero rubric scores. Cloud reasoning models (kimi-k2.5/6, deepseek-r1, claude, openai-o\*, glm-4.6/7, gemini-2.5+) are already handled centrally by `_is_reasoning_model` → `_default_reasoning_for` in `eval_lib.py::call_chat`.
 - **opencode.ai is fronted by Cloudflare which 403s the default Python-urllib UA** (firewall rule 1010). `call_chat` sets `User-Agent: rundale-bench/1.0 (+...)` so the request gets through.
 
+## rundale-bench v2 (promptfoo)
+
+- **A stray space/newline on an exported API key 401s the candidate + judge, but NOT `/v1/models`.** OpenRouter's `/v1/models` is unauthenticated so a malformed key looks fine there, while chat calls fail with "Missing Authentication header" (an extra space after the `Bearer` token is enough). `eval_lib.Target.api_key()` now `.strip()`s the value; if you read a key anywhere else, strip it too.
+- **`RB_SLICE` from a config's `env:` block is NOT applied before the dataset loader runs (promptfoo >=0.118).** `tests: file://load_dataset.py:generate_tests` resolves during config _load_, before `env:` reaches the process, so a bare `npx promptfoo eval -c promptfooconfig.<slice>.yaml` dies with "RB_SLICE env var required". The `promptfoo/justfile` `_eval` recipe now exports `RB_SLICE` itself — drive runs through `just -f promptfoo/justfile …`, or export `RB_SLICE`/`RB_TARGET`/`RB_LIMIT` yourself before a raw `npx promptfoo eval`.
+- **v2 has no multi-run results persistence yet (#1232).** `scripts/report.py` is a single-target rollup over `output/` (gitignored); a second model overwrites the first. Don't expect a v1-style cross-run leaderboard until #1232 lands.
+
 ## Agent + tooling gotchas
 
 - **`gh pr view --json baseRepository` was removed** ("Unknown JSON field: baseRepository"). `parish/scripts/attach-proof.sh` no longer uses it — it derives `<owner>/<repo>` from `gh pr view --json url --jq .url` + `sed` (see the comment at attach-proof.sh:63-70). If you hit the error elsewhere, use the same parse. Fallback for posting the proof bundle by hand: `bash parish/scripts/render-proof-comment.sh <task-id> | gh pr comment <pr> --body-file -`.

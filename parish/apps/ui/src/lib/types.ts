@@ -482,6 +482,8 @@ export interface InferenceDebug {
 	categories: InferenceCategoryDebug[];
 	/** List of provider display names that have an API key configured (or are local). */
 	configured_providers: string[];
+	/** Cumulative count of Tier 2 JSON parse failures since process start (#29). */
+	tier2_parse_failures_total: number;
 }
 
 export interface InferenceLogEntry {

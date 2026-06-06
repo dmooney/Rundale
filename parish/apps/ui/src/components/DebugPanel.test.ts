@@ -99,6 +99,7 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			call_log: [],
 			categories: [],
 			configured_providers: [],
+			tier2_parse_failures_total: 0,
 		},
 		auth: {
 			oauth_enabled: false,
@@ -436,6 +437,7 @@ describe('DebugPanel', () => {
 						improv_enabled: false,
 						categories: [],
 						configured_providers: ['anthropic'],
+						tier2_parse_failures_total: 0,
 						call_log: [
 							{
 								request_id: 1,
@@ -496,6 +498,7 @@ describe('DebugPanel', () => {
 					improv_enabled: false,
 					categories: [],
 					configured_providers: ['anthropic'],
+					tier2_parse_failures_total: 0,
 					call_log: [
 						{
 							request_id: 5,
