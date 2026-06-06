@@ -251,16 +251,22 @@
 		// Pause immediately when the tab is hidden; resume when it returns.
 		// Only pauses if the game wasn't already paused, and only resumes if
 		// this handler was the one that paused it.
+		//
+		// Uses /pause-silent and /resume-silent so the clock freezes but
+		// "The clocks of the parish stand still." / "Time stirs again in the
+		// parish." are NOT printed.  Switching windows is not an idle pause —
+		// the user-visible message should only appear when the player
+		// explicitly types /pause or when the auto-idle timer fires (#1277).
 		let visibilityPaused = false;
 		const handleVisibilityChange = () => {
 			if (document.hidden) {
 				const alreadyPaused = get(worldState)?.paused ?? false;
 				if (!alreadyPaused) {
-					void submitInput('/pause');
+					void submitInput('/pause-silent');
 					visibilityPaused = true;
 				}
 			} else if (visibilityPaused) {
-				void submitInput('/resume');
+				void submitInput('/resume-silent');
 				visibilityPaused = false;
 			}
 		};

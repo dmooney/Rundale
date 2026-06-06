@@ -199,6 +199,90 @@ fn render_look_text_basic() {
     assert!(!text.is_empty());
 }
 
+// ── Silent pause / resume (focus-switch) — fix #1277 ───────────────────
+
+#[test]
+fn pause_silent_pauses_clock_with_no_message() {
+    // AC1 + AC3: /pause-silent freezes the clock but emits no text.
+    let (mut world, mut npc, mut config) = default_state();
+    assert!(!world.clock.is_paused());
+    let result = handle_command(Command::PauseSilent, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.is_empty(),
+        "PauseSilent must not emit any text; got {:?}",
+        result.response
+    );
+    assert!(
+        world.clock.is_paused(),
+        "clock must be paused after PauseSilent"
+    );
+    assert!(
+        result.effects.is_empty(),
+        "PauseSilent must not produce side effects"
+    );
+}
+
+#[test]
+fn resume_silent_resumes_clock_with_no_message() {
+    // AC2 + AC3: /resume-silent restarts the clock but emits no text.
+    let (mut world, mut npc, mut config) = default_state();
+    world.clock.pause();
+    let result = handle_command(Command::ResumeSilent, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.is_empty(),
+        "ResumeSilent must not emit any text; got {:?}",
+        result.response
+    );
+    assert!(
+        !world.clock.is_paused(),
+        "clock must be running after ResumeSilent"
+    );
+    assert!(result.effects.is_empty());
+}
+
+#[test]
+fn pause_command_still_emits_message() {
+    // AC4: user-typed /pause still shows the full message.
+    let (mut world, mut npc, mut config) = default_state();
+    let result = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.contains("stand still"),
+        "explicit /pause must still emit the user-visible message"
+    );
+}
+
+#[test]
+fn resume_command_still_emits_message() {
+    // AC4: user-typed /resume still shows the full message.
+    let (mut world, mut npc, mut config) = default_state();
+    world.clock.pause();
+    let result = handle_command(Command::Resume, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.contains("stirs again"),
+        "explicit /resume must still emit the user-visible message"
+    );
+}
+
+#[test]
+fn redundant_pause_silent_is_noop() {
+    // AC6: PauseSilent while already paused is empty-response, no state change.
+    let (mut world, mut npc, mut config) = default_state();
+    world.clock.pause();
+    let result = handle_command(Command::PauseSilent, &mut world, &mut npc, &mut config);
+    assert!(result.response.is_empty());
+    assert!(world.clock.is_paused());
+}
+
+#[test]
+fn redundant_resume_silent_is_noop() {
+    // AC6: ResumeSilent while already running is empty-response, no state change.
+    let (mut world, mut npc, mut config) = default_state();
+    assert!(!world.clock.is_paused());
+    let result = handle_command(Command::ResumeSilent, &mut world, &mut npc, &mut config);
+    assert!(result.response.is_empty());
+    assert!(!world.clock.is_paused());
+}
+
 // ── Additional coverage for previously untested Command variants ─────────
 
 #[test]
