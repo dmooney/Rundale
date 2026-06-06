@@ -72,11 +72,12 @@
 					<div class="result" data-testid="bug-report-result">
 						<p class="result-message">{result.message}</p>
 						{#if result.issue_url}
+							{@const issueUrl = result.issue_url}
 							<p>
 								<button
 									class="issue-link"
 									type="button"
-									onclick={() => void openUrl(result.issue_url!)}
+									onclick={() => void openUrl(issueUrl)}
 									>Open issue #{result.issue_number}</button
 								>
 							</p>

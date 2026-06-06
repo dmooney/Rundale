@@ -789,11 +789,13 @@ mod tests {
     /// `BugReportState::from_snapshots`.
     #[test]
     fn game_events_render_as_fenced_block_when_present() {
-        let mut s = BugReportState::default();
-        s.game_events = vec![
-            "[10:00 1820-03-20] NpcArrived — Brigid arrived at The Mill".into(),
-            "[10:05 1820-03-20] WeatherChanged — Weather: LightRain".into(),
-        ];
+        let s = BugReportState {
+            game_events: vec![
+                "[10:00 1820-03-20] NpcArrived — Brigid arrived at The Mill".into(),
+                "[10:05 1820-03-20] WeatherChanged — Weather: LightRain".into(),
+            ],
+            ..Default::default()
+        };
         let body = compose_issue_body(&request(), &s, None);
 
         // The section must NOT show the empty placeholder.

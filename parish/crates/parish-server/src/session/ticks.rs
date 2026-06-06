@@ -704,7 +704,7 @@ mod tests {
         );
         let kinds: Vec<_> = events.iter().map(|e| e.event_type()).collect();
         assert!(
-            kinds.iter().any(|k| *k == "PlayerMoved"),
+            kinds.contains(&"PlayerMoved"),
             "expected PlayerMoved in game_events, got: {:?}",
             kinds
         );

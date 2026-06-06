@@ -199,7 +199,7 @@ pub async fn submit_bug_report(
 pub async fn open_url(url: String) -> Result<(), String> {
     // Reject non-HTTP schemes to prevent shell injection.
     if !url.starts_with("https://") && !url.starts_with("http://") {
-        return Err(format!("open_url: rejected non-http URL scheme"));
+        return Err("open_url: rejected non-http URL scheme".to_string());
     }
 
     #[cfg(target_os = "macos")]

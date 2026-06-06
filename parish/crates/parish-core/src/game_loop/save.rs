@@ -146,14 +146,14 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     // handler sees the new world with the old NPC manager (#696).
     //
     // The old WorldState's event_bus is transplanted into fresh_world so that
-    // existing subscribers (character-log, location-log, game-events) survive the
+    // all subscribers (character-log, location-log, game-events) survive the
     // reset without seeing a `Closed` error and exiting (#1222). Discarding the
     // old bus would silently kill all background tasks that subscribed to it.
     let snapshot = {
         let mut world = p.world.lock().await;
         let mut npc_manager = p.npc_manager.lock().await;
         // Move the live event bus into the fresh world before swapping so that
-        // existing subscribers see new-game events rather than `Closed`.
+        // active subscribers see new-game events rather than `Closed`.
         fresh_world.event_bus = std::mem::take(&mut world.event_bus);
         *world = fresh_world;
         *npc_manager = fresh_npcs;
