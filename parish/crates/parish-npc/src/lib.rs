@@ -32,7 +32,7 @@ use serde::Deserialize;
 
 use chrono::{Datelike, Timelike};
 use memory::{LongTermMemory, ShortTermMemory};
-use parish_types::{DayType, LocationId, Season};
+use parish_types::{DayType, LocationId, Season, TimeOfDay};
 use parish_world::WorldState;
 use parish_world::description::render_description;
 use parish_world::movement::{WeatherEffect, weather_effect};
@@ -763,6 +763,42 @@ pub fn validate_mentioned_people(
     hallucinated
 }
 
+/// Returns a directive forbidding greetings that are wrong for the current time of day.
+///
+/// Small models sometimes ignore the affirmative "greet accordingly" cue and
+/// fall back to the training-data majority ("good morning"). A negative
+/// constraint paired with the positive cue is more reliable (#1225).
+///
+/// Only emits a directive when the time of day is clearly NOT morning —
+/// Morning and Midday have no forbidden-greeting because "good morning" and
+/// "good day" are appropriate for those buckets.
+pub fn forbidden_greeting_directive(time_of_day: TimeOfDay) -> Option<&'static str> {
+    match time_of_day {
+        TimeOfDay::Dawn => Some(
+            "Do NOT say 'good morning' — it is only just dawning. \
+             A simple 'Dia dhuit' or 'good day to ye' is right.",
+        ),
+        TimeOfDay::Afternoon => Some(
+            "Do NOT say 'good morning' — it is the afternoon. \
+             'Good afternoon' or 'good day' is fitting.",
+        ),
+        TimeOfDay::Dusk => Some(
+            "Do NOT say 'good morning' or 'good day' — it is dusk, \
+             the sun is low. 'Good evening' or 'good e'en to ye' is right.",
+        ),
+        TimeOfDay::Night => Some(
+            "Do NOT say 'good morning' or 'good day' — it is night. \
+             'Good evening' or 'good night' is fitting.",
+        ),
+        TimeOfDay::Midnight => Some(
+            "Do NOT say 'good morning' — it is well past midnight. \
+             A hushed greeting or simple nod is in order.",
+        ),
+        // Morning and Midday: "good morning" / "good day" are appropriate.
+        TimeOfDay::Morning | TimeOfDay::Midday => None,
+    }
+}
+
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
 /// Renders the location description template (substituting `{time}`,
@@ -793,18 +829,23 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         season = season,
     );
 
-    // Regression (fixed: #13): explicit time-of-day cue so the model picks the
-    // right greeting register. NPCs were saying "good morning" at
-    // Dusk because the only time signal in the context was the bare
-    // 17:30 HH:MM — without an English label the model defaulted
-    // to "morning". Spell out the bucket and direct the model to
-    // greet accordingly.
+    // Regression (fixed: #13, reinforced: #1225): explicit time-of-day cue so
+    // the model picks the right greeting register. NPCs were saying "good
+    // morning" at Dusk because the only time signal in the context was the bare
+    // 17:30 HH:MM — without an English label the model defaulted to "morning".
+    // Spell out the bucket and direct the model to greet accordingly. A
+    // forbidden-greeting directive is also injected for non-morning buckets
+    // because small models need negative examples to override the training-data
+    // majority bias toward "good morning".
     let time_of_day_label = time_of_day.to_string();
     let loc_details = location_details_block(world);
+    let forbidden = forbidden_greeting_directive(time_of_day)
+        .map(|d| format!(" {d}"))
+        .unwrap_or_default();
     format!(
         "Your Location: {loc_name} — {loc_desc}{loc_details}\n\
         Date and time: {date_time}\n\
-        Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.",
+        Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.{forbidden}",
         loc_name = world.current_location().name,
         loc_desc = rendered_desc,
         loc_details = loc_details,
@@ -812,6 +853,7 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         tod = time_of_day_label,
         hour = now.hour(),
         minute = now.minute(),
+        forbidden = forbidden,
     )
 }
 
@@ -1955,6 +1997,118 @@ mod tests {
         assert!(
             prompt.contains("ga-IE"),
             "tier1 system prompt should name the native language"
+        );
+    }
+
+    // ── #1225 — time-of-day greeting guard ───────────────────────────────────
+
+    /// AC-1/AC-2 (fix-1224-1225): `build_tier1_context` must carry an explicit
+    /// time-of-day label and HH:MM for every non-morning bucket, so small
+    /// models that ignore the plain HH:MM timestamp still see an unambiguous
+    /// English cue for greeting register.
+    #[test]
+    fn build_tier1_context_carries_dusk_label_and_time() {
+        use chrono::TimeZone;
+        let mut world = WorldState::new();
+        // Advance the clock to 17:30 — Dusk bucket.
+        world.clock = parish_types::GameClock::new(
+            chrono::Utc
+                .with_ymd_and_hms(1820, 3, 20, 17, 30, 0)
+                .unwrap(),
+        );
+        let context = build_tier1_context(&world);
+
+        assert!(
+            context.contains("Time of day:"),
+            "AC-1: time-of-day cue missing at Dusk:\n{context}"
+        );
+        assert!(
+            context.contains("Dusk"),
+            "AC-2: time-of-day label must be 'Dusk' at 17:30:\n{context}"
+        );
+        assert!(
+            context.contains("17:"),
+            "AC-2: HH:MM must accompany the Dusk label:\n{context}"
+        );
+        assert!(
+            context.contains("greet and refer to the time of day accordingly"),
+            "AC-2: greeting-register directive missing:\n{context}"
+        );
+    }
+
+    /// AC-3 (fix-1224-1225): when the world clock is Dusk, the context must
+    /// include a negative directive forbidding "good morning" greetings so
+    /// small models cannot override the positive cue with training-data bias.
+    #[test]
+    fn build_tier1_context_includes_forbidden_morning_greeting_at_dusk() {
+        use chrono::TimeZone;
+        let mut world = WorldState::new();
+        world.clock = parish_types::GameClock::new(
+            chrono::Utc
+                .with_ymd_and_hms(1820, 3, 20, 17, 30, 0)
+                .unwrap(),
+        );
+        let context = build_tier1_context(&world);
+
+        assert!(
+            context.contains("Do NOT say 'good morning'"),
+            "AC-3: forbidden-morning-greeting directive missing at Dusk:\n{context}"
+        );
+    }
+
+    /// Corollary to AC-3: at Morning the forbidden-greeting directive must NOT
+    /// appear (a morning greeting is appropriate and the directive would confuse
+    /// the model into avoiding a correct response).
+    #[test]
+    fn build_tier1_context_no_forbidden_greeting_at_morning() {
+        // WorldState::new() starts at 08:00 — Morning bucket.
+        let world = WorldState::new();
+        let context = build_tier1_context(&world);
+
+        assert!(
+            !context.contains("Do NOT say 'good morning'"),
+            "forbidden-greeting directive must not appear at Morning:\n{context}"
+        );
+    }
+
+    /// Spot-check `forbidden_greeting_directive` for each bucket.
+    #[test]
+    fn forbidden_greeting_directive_covers_non_morning_buckets() {
+        // Non-morning buckets must produce a directive.
+        for tod in [
+            TimeOfDay::Dawn,
+            TimeOfDay::Afternoon,
+            TimeOfDay::Dusk,
+            TimeOfDay::Night,
+            TimeOfDay::Midnight,
+        ] {
+            assert!(
+                forbidden_greeting_directive(tod).is_some(),
+                "expected a directive for {tod:?}"
+            );
+        }
+
+        // Morning/Midday must produce None — "good morning"/"good day" are correct.
+        for tod in [TimeOfDay::Morning, TimeOfDay::Midday] {
+            assert!(
+                forbidden_greeting_directive(tod).is_none(),
+                "unexpected directive for {tod:?}"
+            );
+        }
+    }
+
+    // ── #1224 — length instruction in system prompt (AC-4) ────────────────────
+
+    /// AC-4 (fix-1224-1225): the Tier 1 system prompt must contain a length
+    /// instruction so the model has an explicit sentence-count target.
+    #[test]
+    fn build_tier1_system_prompt_contains_length_guidance() {
+        let npc = Npc::new_test_npc();
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        assert!(
+            prompt.contains("2-4 sentences"),
+            "AC-4: length guidance missing from system prompt:\n{prompt}"
         );
     }
 }

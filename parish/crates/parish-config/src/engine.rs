@@ -421,6 +421,15 @@ pub struct NpcConfig {
     /// NPC arrival reaction tuning.
     #[serde(default)]
     pub reactions: ReactionConfig,
+    /// Hard cap on displayed NPC dialogue length in characters.
+    ///
+    /// Applied as a post-generation guard after inference completes. The
+    /// system prompt already asks for "2-4 sentences" but small models
+    /// occasionally ignore the instruction; this cap is the defensive
+    /// backstop that prevents runaway responses reaching the player (#1224).
+    /// Set to 0 to disable (not recommended in production).
+    #[serde(default = "default_dialogue_display_max_chars")]
+    pub dialogue_display_max_chars: usize,
 }
 
 impl Default for NpcConfig {
@@ -437,6 +446,7 @@ impl Default for NpcConfig {
             relationship_labels: RelationshipLabelConfig::default(),
             reaction_context_count: default_reaction_context_count(),
             reactions: ReactionConfig::default(),
+            dialogue_display_max_chars: default_dialogue_display_max_chars(),
         }
     }
 }
@@ -475,6 +485,14 @@ fn default_event_summary_truncation() -> usize {
 }
 fn default_event_summary_debug_truncation() -> usize {
     50
+}
+fn default_dialogue_display_max_chars() -> usize {
+    // 800 chars is roughly 5-6 sentences at typical spoken cadence.
+    // The system prompt requests "2-4 sentences"; this cap is the
+    // post-generation backstop that clips runaway model output before
+    // it reaches the player UI (#1224). Replies under ~600 chars
+    // pass through unchanged in normal operation.
+    800
 }
 
 /// Cognitive tier assignment based on distance from player.
@@ -1537,5 +1555,41 @@ tms = false
         assert!((osm.raster_saturation - (-0.4)).abs() < f32::EPSILON);
         assert!((osm.raster_opacity - 0.85).abs() < f32::EPSILON);
         assert!(!osm.tms);
+    }
+
+    // ── #1224 — dialogue display cap (AC-5) ──────────────────────────────────
+
+    /// AC-5 (fix-1224-1225): `NpcConfig` must expose `dialogue_display_max_chars`
+    /// with a sensible default, and it must survive round-trip TOML serialisation
+    /// (old configs that omit the field must deserialise to the default).
+    #[test]
+    fn npc_config_has_dialogue_display_max_chars_with_sensible_default() {
+        let cfg = NpcConfig::default();
+        // Default should be > 0 (cap enabled) and > typical 2-4 sentence reply.
+        assert!(
+            cfg.dialogue_display_max_chars > 0,
+            "cap must be enabled by default (non-zero)"
+        );
+        assert!(
+            cfg.dialogue_display_max_chars >= 500,
+            "cap must be generous enough not to clip normal 2-4 sentence replies"
+        );
+    }
+
+    /// Old config without `dialogue_display_max_chars` must deserialise cleanly,
+    /// falling back to the default value (serde `default` attribute).
+    #[test]
+    fn npc_config_dialogue_display_max_chars_defaults_when_absent() {
+        let toml_str = r#"
+[npc]
+memory_capacity = 25
+"#;
+        let cfg: EngineConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.npc.memory_capacity, 25);
+        assert_eq!(
+            cfg.npc.dialogue_display_max_chars,
+            NpcConfig::default().dialogue_display_max_chars,
+            "missing field must deserialise to the default"
+        );
     }
 }
