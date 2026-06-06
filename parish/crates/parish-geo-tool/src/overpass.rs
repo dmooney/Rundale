@@ -579,6 +579,73 @@ mod tests {
         assert!(query.contains(r"\\("));
     }
 
+    // ── dry_run_queries with both area and bbox ──────────────────────────────
+
+    #[test]
+    fn dry_run_queries_with_area_and_bbox_produces_four_entries() {
+        let bbox = BoundingBox {
+            south: 53.45,
+            west: -8.05,
+            north: 53.55,
+            east: -7.95,
+        };
+        let queries = dry_run_queries(Some("Kiltoom"), Some(bbox), AdminLevel::Parish);
+        assert_eq!(
+            queries.len(),
+            4,
+            "area + bbox should produce 2 area + 2 bbox = 4 queries"
+        );
+        // First two from area, last two from bbox.
+        assert!(queries[0].0.contains("POIs in Kiltoom"));
+        assert!(queries[1].0.contains("Roads in Kiltoom"));
+        assert!(queries[2].0.contains("POIs in bbox"));
+        assert!(queries[3].0.contains("Roads in bbox"));
+    }
+
+    #[test]
+    fn dry_run_queries_with_only_bbox_produces_two_entries() {
+        let bbox = BoundingBox {
+            south: 53.45,
+            west: -8.05,
+            north: 53.55,
+            east: -7.95,
+        };
+        let queries = dry_run_queries(None, Some(bbox), AdminLevel::County);
+        assert_eq!(queries.len(), 2);
+    }
+
+    // ── BoundingBox fields are passed through to queries correctly ───────────
+
+    #[test]
+    fn build_road_query_by_bbox_contains_bbox_coords() {
+        let bbox = BoundingBox {
+            south: 53.1,
+            west: -9.0,
+            north: 53.2,
+            east: -8.9,
+        };
+        let query = build_road_query_by_bbox(bbox);
+        assert!(query.contains("53.1"), "south bound missing: {query}");
+        assert!(query.contains("-9"), "west bound missing: {query}");
+        assert!(
+            query.contains("highway"),
+            "highway selector missing: {query}"
+        );
+        assert!(query.contains("out geom"), "out geom missing: {query}");
+    }
+
+    // ── build_road_query_by_area escapes and uses correct admin level ────────
+
+    #[test]
+    fn build_road_query_by_area_uses_admin_level() {
+        let query = build_road_query_by_area("Roscommon", AdminLevel::County);
+        // County = admin_level 6
+        assert!(
+            query.contains(r#""admin_level"="6""#),
+            "road query should embed admin_level=6 for County: {query}"
+        );
+    }
+
     fn poi_tag_selectors(query: &str) -> Vec<String> {
         query
             .lines()
