@@ -30,6 +30,15 @@ _eval slice config target limit:
     mkdir -p "{{ OUT }}"
     export RB_TARGET='{{ target }}'
     export RB_LIMIT='{{ limit }}'
+    # RB_SLICE must be exported here, not left to each config's `env:` block:
+    # promptfoo >=0.118 resolves the `tests: file://load_dataset.py` generator
+    # during config load, BEFORE a config's `env:` is applied to the process,
+    # so the loader sees no RB_SLICE and aborts with
+    # "RB_SLICE env var required for load_dataset". Exporting it from the recipe
+    # makes the documented `just … bench/<slice>` flow self-contained. (The perf
+    # slice passes "perf"; nothing on the perf path reads RB_SLICE, so it's inert
+    # there — generate_perf_tests loads dialogue records directly.)
+    export RB_SLICE='{{ slice }}'
     # Two -o flags: JSON for scripts/report.py, HTML for a standalone web report.
     npx promptfoo eval -c "{{ config }}" \
         -o "{{ OUT }}/{{ slice }}.json" \
