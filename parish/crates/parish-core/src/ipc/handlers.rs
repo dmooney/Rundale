@@ -690,7 +690,16 @@ pub fn resolve_addressed_targets(
     let mut absent = Vec::new();
     let mut seen_absent = HashSet::new();
     for name in target_names {
-        if let Some(npc) = npc_manager.find_by_name(name, world.player_location) {
+        // Primary: literal name (exact or first-name prefix).
+        // Fallback: occupation/role vocative ("Father", "Widow") when
+        // exactly one co-located NPC matches that role — mirrors the same
+        // fallback in `resolve_npc_targets` so explicit `addressed_to`
+        // names resolve identically regardless of which resolver is used
+        // (#1221).
+        let npc = npc_manager
+            .find_by_name(name, world.player_location)
+            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
+        if let Some(npc) = npc {
             if seen_ids.insert(npc.id) {
                 resolved.push(npc.id);
             }
@@ -1812,5 +1821,100 @@ mod tests {
         let roster: Vec<(NpcId, String, String)> = vec![];
         let result = check_for_hallucinated_names(&response, &roster, None);
         assert!(result.is_none());
+    }
+
+    // ── resolve_addressed_targets role-vocative parity (#1221) ───────────────
+
+    /// Regression (#1221): `resolve_addressed_targets` must use the same
+    /// role-vocative fallback as `resolve_npc_targets` so that "Hello Father"
+    /// routes to the priest instead of producing "Father is not here.".
+    #[test]
+    fn resolve_addressed_targets_role_vocative_father_resolves_to_priest() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(10);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = world.player_location;
+        npc_mgr.add_npc(priest);
+
+        // "Father" vocative via built-in alias — must resolve, not absent.
+        let result = resolve_addressed_targets(&world, &npc_mgr, &["Father".to_string()]);
+        assert!(
+            result.absent.is_empty(),
+            "\"Father\" must NOT be absent when a priest is co-located; absent={:?}",
+            result.absent
+        );
+        assert_eq!(
+            result.resolved,
+            vec![NpcId(10)],
+            "\"Father\" must resolve to the co-located priest"
+        );
+    }
+
+    #[test]
+    fn resolve_addressed_targets_role_vocative_widow_resolves() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(11);
+        npc.name = "Peig Hannigan".to_string();
+        npc.occupation = "Widow".to_string();
+        npc.location = world.player_location;
+        npc_mgr.add_npc(npc);
+
+        let result = resolve_addressed_targets(&world, &npc_mgr, &["Widow".to_string()]);
+        assert!(result.absent.is_empty());
+        assert_eq!(result.resolved, vec![NpcId(11)]);
+    }
+
+    #[test]
+    fn resolve_addressed_targets_role_vocative_absent_when_truly_absent() {
+        // Named NPC still absent when not at location — no false positive.
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        // Priest at a different location.
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(10);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = LocationId(999); // different loc
+        npc_mgr.add_npc(priest);
+
+        let result = resolve_addressed_targets(&world, &npc_mgr, &["Father".to_string()]);
+        assert!(
+            result.resolved.is_empty(),
+            "priest at wrong location must not resolve"
+        );
+        assert_eq!(result.absent, vec!["Father".to_string()]);
+    }
+
+    #[test]
+    fn resolve_addressed_targets_ambiguous_role_is_absent() {
+        // Two priests co-located → ambiguous → must NOT silently pick one.
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        for id in [12u32, 13] {
+            let mut p = Npc::new_test_npc();
+            p.id = NpcId(id);
+            p.name = format!("Priest {id}");
+            p.occupation = "Parish Priest".to_string();
+            p.location = world.player_location;
+            npc_mgr.add_npc(p);
+        }
+
+        let result = resolve_addressed_targets(&world, &npc_mgr, &["Father".to_string()]);
+        assert!(
+            result.resolved.is_empty(),
+            "ambiguous role must not resolve; resolved={:?}",
+            result.resolved
+        );
+        // "Father" is absent (ambiguous, treated as unresolvable).
+        assert_eq!(result.absent, vec!["Father".to_string()]);
     }
 }
