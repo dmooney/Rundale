@@ -8,7 +8,10 @@ use crate::app::App;
 use crate::config::{
     CategoryConfig, CloudConfig, InferenceCategory, InferenceConfig, NpcConfig, ProviderConfig,
 };
-use crate::inference::{self, AnyClient, InferenceClients, InferenceQueue};
+use crate::inference::{
+    self, AnyClient, InferenceClients, InferencePriority, InferenceQueue, InferenceWorkerConfig,
+    QueueRequest,
+};
 use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
@@ -54,13 +57,15 @@ fn setup_inference_queue(
     let (batch_tx, batch_rx) = mpsc::channel(64);
     let _worker = inference::spawn_inference_worker(
         dial_client,
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        inference_log.clone(),
-        inference_file_log.clone(),
-        provider,
-        inference_config.clone(),
+        InferenceWorkerConfig {
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log: inference_log.clone(),
+            file_log: inference_file_log.clone(),
+            provider,
+            timeout_config: inference_config.clone(),
+        },
     );
     InferenceQueue::new(interactive_tx, background_tx, batch_tx)
 }
@@ -836,18 +841,23 @@ async fn stream_headless_npc_dialogue(
         // the headless CLI exhibits the same loop-suppression behaviour
         // as the Tauri / server runtimes (mode parity, rule #2).
         match queue
-            .send_with_penalty(
-                *request_id,
-                app.dialogue_model.clone(),
-                context,
-                Some(system_prompt),
-                Some(token_tx),
-                None,
-                Some(0.7),
-                Some(0.5),
-                parish_core::inference::InferencePriority::Interactive,
-                true,
-            )
+            .send(QueueRequest {
+                id: *request_id,
+                model: app.dialogue_model.clone(),
+                prompt: context,
+                system: Some(system_prompt),
+                token_tx: Some(token_tx),
+                max_tokens: None,
+                temperature: Some(0.7),
+                // TODO #10 / #23 / #34: frequency_penalty = 0.5 suppresses
+                // Qwen2.5-14B-4bit verbatim repetition loops on vllm-mlx /
+                // OpenAI / OpenRouter; Anthropic + Simulator ignore the field.
+                frequency_penalty: Some(0.5),
+                priority: InferencePriority::Interactive,
+                json_mode: true,
+                json_schema: None,
+                cancel: None,
+            })
             .await
         {
             Ok(rx) => {

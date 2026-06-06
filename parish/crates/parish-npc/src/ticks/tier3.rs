@@ -240,9 +240,11 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             None,
             sink_tx,
             None,
-            Some(600),
-            None,
-            None,
+            parish_inference::GenerateParams {
+                max_tokens: Some(600),
+                temperature: None,
+                frequency_penalty: None,
+            },
         );
 
         let raw = match ctx.cancel.clone() {
