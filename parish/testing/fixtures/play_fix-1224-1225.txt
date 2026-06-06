@@ -1,0 +1,13 @@
+# play_fix-1224-1225.txt
+# Fixture proving fix-1224-1225:
+#   #1225 — time-of-day label in NPC dialogue prompt
+#   #1224 — dialogue length cap applied post-generation
+#
+# The harness runs in headless/simulator mode (no live LLM).
+# Simulator responses are short deterministic strings, so the length
+# cap is exercised by unit tests; here we prove the harness itself
+# runs end-to-end without error.
+look
+say hello
+say what time of day is it
+say good evening to you

@@ -291,6 +291,26 @@ pub fn apply_movement(
 
 // ── Dialogue application ───────────────────────────────────────────────────────
 
+/// Caps NPC dialogue to a maximum character length for display (#1224).
+///
+/// Appends `…` (U+2026) when the string is clipped, matching the single
+/// codepoint used by `truncate_for_memory`. Passes the string through as-is
+/// when it fits within the limit or when the cap is 0 (cap disabled).
+///
+/// Call this on `parsed.dialogue` before constructing the `ConversationLine`
+/// or `DialogueOccurred` event. The in-memory representation (conversation
+/// log, witness memories, tier-1 response memory) is already capped
+/// independently by `memory_truncation_dialogue` in `NpcConfig`.
+pub fn cap_dialogue_for_display(dialogue: &str, max_chars: usize) -> std::borrow::Cow<'_, str> {
+    if max_chars == 0 || dialogue.len() <= max_chars {
+        return std::borrow::Cow::Borrowed(dialogue);
+    }
+    // Reserve 3 bytes for the `…` codepoint (U+2026, 3-byte UTF-8).
+    let boundary = crate::npc::floor_char_boundary(dialogue, max_chars.saturating_sub(3));
+    let safe = boundary.min(dialogue.len());
+    std::borrow::Cow::Owned(format!("{}…", &dialogue[..safe]))
+}
+
 /// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
 /// every backend performs identically after a Tier-1 reply (#1172 / #1173).
 ///
@@ -361,6 +381,13 @@ pub fn apply_npc_dialogue_turn(
         ));
     }
 
+    // Cap the displayed dialogue to the configured limit (#1224). Applied here,
+    // before the conversation log and event bus, so all player-visible paths see
+    // the same capped text. The in-memory representation (witness memories,
+    // tier-1 memory entry) is capped separately via `memory_truncation_dialogue`.
+    let display_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
+    let capped_dialogue = cap_dialogue_for_display(&parsed.dialogue, display_cap);
+
     // 3. Record the conversation exchange for scene awareness.
     world
         .conversation_log
@@ -369,7 +396,7 @@ pub fn apply_npc_dialogue_turn(
             speaker_id,
             speaker_name: speaker_actual_name.to_string(),
             player_input: player_input.to_string(),
-            npc_dialogue: parsed.dialogue.clone(),
+            npc_dialogue: capped_dialogue.to_string(),
             location,
         });
 
@@ -379,7 +406,7 @@ pub fn apply_npc_dialogue_turn(
         speaker_id,
         speaker_display_name,
         player_input,
-        &parsed.dialogue,
+        &capped_dialogue,
         game_time,
         location,
     ));
@@ -388,15 +415,15 @@ pub fn apply_npc_dialogue_turn(
     //    empty so journal entries line up with the player's prompt, but skip
     //    when both sides are empty (no useful record) — matches the live loop's
     //    original guard.
-    if !player_said_for_journal.trim().is_empty() || !parsed.dialogue.trim().is_empty() {
+    if !player_said_for_journal.trim().is_empty() || !capped_dialogue.trim().is_empty() {
         world
             .event_bus
             .publish(parish_types::events::GameEvent::DialogueOccurred {
                 npc_id: speaker_id,
                 location,
-                summary: parsed.dialogue.clone(),
+                summary: capped_dialogue.to_string(),
                 player_said: Some(player_said_for_journal.to_string()),
-                npc_said: Some(parsed.dialogue.clone()),
+                npc_said: Some(capped_dialogue.to_string()),
                 request_id,
                 timestamp: game_time,
             });
@@ -1350,5 +1377,114 @@ mod tests {
             placeholder_turn_ids, turn_end_ids,
             "placeholder turn_ids must match stream-turn-end turn_ids 1:1"
         );
+    }
+
+    // ── #1224 — cap_dialogue_for_display (AC-6, AC-7) ────────────────────────
+
+    /// AC-7 (fix-1224-1225): dialogue shorter than the cap passes through unchanged.
+    #[test]
+    fn cap_dialogue_for_display_short_dialogue_unchanged() {
+        let short = "Dia dhuit, a chara. What brings ye here?";
+        let result = crate::game_session::cap_dialogue_for_display(short, 800);
+        assert_eq!(
+            result.as_ref(),
+            short,
+            "short dialogue must not be modified"
+        );
+    }
+
+    /// AC-6 (fix-1224-1225): dialogue longer than the cap is truncated with `…`.
+    #[test]
+    fn cap_dialogue_for_display_long_dialogue_truncated() {
+        let long = "a".repeat(1000);
+        let result = crate::game_session::cap_dialogue_for_display(&long, 800);
+        assert!(
+            result.len() <= 800,
+            "capped dialogue must not exceed max_chars bytes (got {})",
+            result.len()
+        );
+        assert!(
+            result.ends_with('…'),
+            "truncated dialogue must end with single-codepoint ellipsis"
+        );
+        assert!(
+            !result.ends_with("..."),
+            "must use U+2026 ellipsis, not three ASCII dots"
+        );
+    }
+
+    /// cap is disabled when max_chars is 0.
+    #[test]
+    fn cap_dialogue_for_display_zero_cap_is_passthrough() {
+        let long = "a".repeat(5000);
+        let result = crate::game_session::cap_dialogue_for_display(&long, 0);
+        assert_eq!(result.len(), 5000, "zero cap must not truncate");
+    }
+
+    /// `apply_npc_dialogue_turn` stores capped dialogue in the DialogueOccurred event.
+    #[test]
+    fn apply_npc_dialogue_turn_caps_dialogue_in_event() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::{LocationId, WorldState};
+
+        let mut world = WorldState::new();
+        // Subscribe before calling apply so we receive the event.
+        let mut rx = world.event_bus.subscribe();
+        let mut npc_manager = NpcManager::new();
+
+        // Synthesise an NPC at the player's start location.
+        let npc = crate::npc::Npc {
+            id: NpcId(1),
+            location: world.player_location,
+            state: crate::npc::types::NpcState::Present,
+            ..crate::npc::Npc::new_test_npc()
+        };
+        npc_manager.add_npc(npc);
+
+        let long_dialogue = "word ".repeat(300); // ~1500 chars, well over 800
+        let parsed = NpcStreamResponse {
+            dialogue: long_dialogue.clone(),
+            metadata: None,
+        };
+        let game_time = chrono::Utc
+            .with_ymd_and_hms(1820, 3, 20, 17, 30, 0)
+            .unwrap();
+
+        crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(1),
+            &parsed,
+            "tell me a story",
+            "tell me a story",
+            game_time,
+            LocationId(1),
+            "Padraig",
+            "Padraig O'Brien",
+            None,
+        );
+
+        // The DialogueOccurred event published to the bus must carry the
+        // capped dialogue, not the full 1500-char original.
+        let default_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
+        // try_recv pulls events without async: the broadcast tx just sent one.
+        let event = rx
+            .try_recv()
+            .expect("DialogueOccurred event must be published to the bus");
+
+        if let GameEvent::DialogueOccurred { npc_said, .. } = event {
+            let said = npc_said.as_deref().unwrap_or("");
+            assert!(
+                said.len() <= default_cap,
+                "AC-6: npc_said in event ({} bytes) must not exceed cap ({} bytes)",
+                said.len(),
+                default_cap
+            );
+        } else {
+            panic!("Expected DialogueOccurred event, got something else");
+        }
     }
 }
