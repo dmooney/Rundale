@@ -108,11 +108,20 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 /// The hash list is regenerated automatically whenever `cargo build` detects
 /// that `apps/ui/dist` has changed (via the `rerun-if-changed` directive in
 /// `build.rs`).
-pub static CSP_POLICY: LazyLock<String> = LazyLock::new(|| {
+pub static CSP_POLICY: LazyLock<String> = LazyLock::new(|| build_csp_policy(SCRIPT_SRC_HASHES));
+
+/// Builds the Content-Security-Policy header value from a slice of
+/// `'sha256-<base64>'` tokens produced by `build.rs`.
+///
+/// Extracted from the [`CSP_POLICY`] initialiser so that unit tests can
+/// exercise the full policy string with synthetic hashes without depending
+/// on the build-time `SCRIPT_SRC_HASHES` constant (which is an empty slice
+/// in test environments where `apps/ui/dist` has not been built).
+pub(crate) fn build_csp_policy(script_hashes: &[&str]) -> String {
     // Build the script-src directive.  Always include 'self' for module scripts
     // loaded via <script src>.  Then append each hash token emitted by build.rs.
     let mut script_src = String::from("'self'");
-    for hash in SCRIPT_SRC_HASHES {
+    for hash in script_hashes {
         script_src.push(' ');
         script_src.push_str(hash);
     }
@@ -129,7 +138,7 @@ pub static CSP_POLICY: LazyLock<String> = LazyLock::new(|| {
          base-uri 'self'; \
          form-action 'self'"
     )
-});
+}
 
 // ── GPL-3.0 redistribution: licence files served alongside the hosted web
 //    build.  Tauri bundles ship these via `tauri.conf.json` →
@@ -1823,5 +1832,77 @@ mod tests {
             1,
             "handler must not execute when rate-limited"
         );
+    }
+
+    // ── build_csp_policy unit tests (TD-036, #543) ────────────────────────────
+    //
+    // These tests exercise the `build_csp_policy` helper with synthetic hashes
+    // so that the hash-injection branch (the `for hash in script_hashes` loop)
+    // is covered even in environments where `apps/ui/dist` has not been built
+    // (i.e. in CI, where `SCRIPT_SRC_HASHES` is an empty slice).
+
+    #[test]
+    fn build_csp_policy_no_hashes_uses_self_only() {
+        let policy = build_csp_policy(&[]);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        // With no hashes, script-src should be exactly "script-src 'self'".
+        assert_eq!(script_src.trim(), "script-src 'self'");
+        assert!(
+            !script_src.contains("'unsafe-inline'"),
+            "no unsafe-inline when hash list is empty"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_single_hash_appended_to_script_src() {
+        let hash = "'sha256-abc123='";
+        let policy = build_csp_policy(&[hash]);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        assert!(
+            script_src.contains("'self'"),
+            "script-src must retain 'self'; got: {script_src}"
+        );
+        assert!(
+            script_src.contains(hash),
+            "script-src must contain the hash token; got: {script_src}"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_multiple_hashes_all_appear_in_script_src() {
+        let hashes = ["'sha256-aaaaaa='", "'sha256-bbbbbb='", "'sha256-cccccc='"];
+        let policy = build_csp_policy(&hashes);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        for h in &hashes {
+            assert!(
+                script_src.contains(h),
+                "script-src must contain hash {h}; got: {script_src}"
+            );
+        }
+        assert!(
+            !script_src.contains("'unsafe-inline'"),
+            "unsafe-inline must not appear when hashes are provided"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_always_includes_required_directives() {
+        // Regardless of the hash list, the policy must include the other
+        // directives unchanged.
+        let policy = build_csp_policy(&["'sha256-test='"]);
+        assert!(policy.contains("default-src 'self'"));
+        assert!(policy.contains("frame-ancestors 'none'"));
+        assert!(policy.contains("base-uri 'self'"));
+        assert!(policy.contains("form-action 'self'"));
+        assert!(policy.contains("connect-src 'self' ws: wss:"));
     }
 }
