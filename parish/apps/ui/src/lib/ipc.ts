@@ -261,6 +261,24 @@ export const submitBugReport = (args: {
 }) => command<BugReportResult>('submit_bug_report', args);
 
 /**
+ * Opens a URL in the system's default browser.
+ *
+ * In Tauri mode this invokes the `open_url` backend command, which uses the OS
+ * process spawner (`open` on macOS, `start` on Windows, `xdg-open` on Linux)
+ * because Tauri v2 blocks `<a target="_blank">` external navigation by default
+ * (#1223). In web mode it falls through to a plain `window.open` call.
+ *
+ * Only `https://` and `http://` URLs are accepted; the backend rejects others.
+ */
+export async function openUrl(url: string): Promise<void> {
+	if (IS_TAURI) {
+		await command<void>('open_url', { url });
+	} else {
+		window.open(url, '_blank', 'noopener,noreferrer');
+	}
+}
+
+/**
  * Reads metadata for the most recently captured screenshot, or `null` if
  * none has been captured this session (or the cached file was deleted).
  */

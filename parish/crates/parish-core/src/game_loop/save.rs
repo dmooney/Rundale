@@ -139,14 +139,22 @@ pub struct NewGameParams<'a> {
 /// `print_arrival_reactions`) that are not part of the `EventEmitter` surface.
 pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     // Load fresh world and NPCs.
-    let (fresh_world, mut fresh_npcs) = load_fresh_world_and_npcs(p.game_mod, p.data_dir)?;
+    let (mut fresh_world, mut fresh_npcs) = load_fresh_world_and_npcs(p.game_mod, p.data_dir)?;
     fresh_npcs.assign_tiers(&fresh_world, &[]);
 
     // Swap live state — hold both locks together to prevent a window where a
     // handler sees the new world with the old NPC manager (#696).
+    //
+    // The old WorldState's event_bus is transplanted into fresh_world so that
+    // existing subscribers (character-log, location-log, game-events) survive the
+    // reset without seeing a `Closed` error and exiting (#1222). Discarding the
+    // old bus would silently kill all background tasks that subscribed to it.
     let snapshot = {
         let mut world = p.world.lock().await;
         let mut npc_manager = p.npc_manager.lock().await;
+        // Move the live event bus into the fresh world before swapping so that
+        // existing subscribers see new-game events rather than `Closed`.
+        fresh_world.event_bus = std::mem::take(&mut world.event_bus);
         *world = fresh_world;
         *npc_manager = fresh_npcs;
         GameSnapshot::capture(&world, &npc_manager)

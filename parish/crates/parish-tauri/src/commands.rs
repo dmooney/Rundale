@@ -57,7 +57,7 @@ pub(crate) use saves::{do_branch_log_text, do_list_branches_text, do_save_game};
 
 // ── Re-exports: admin ─────────────────────────────────────────────────────────
 pub(crate) use admin::{do_submit_bug_report, tick_inactivity};
-pub use admin::{rebuild_inference_inner, submit_bug_report};
+pub use admin::{open_url, rebuild_inference_inner, submit_bug_report};
 
 // ── Re-exports: screenshot ────────────────────────────────────────────────────
 pub use screenshot::{

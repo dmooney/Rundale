@@ -1390,6 +1390,7 @@ pub fn run() {
             commands::saves::new_game,
             commands::saves::get_save_state,
             commands::admin::submit_bug_report,
+            commands::admin::open_url,
             commands::reactions::react_to_message,
             commands::demo::get_demo_config,
             commands::demo::get_demo_context,

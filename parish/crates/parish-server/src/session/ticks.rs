@@ -8,10 +8,11 @@
 //! 1. Character-log subscriber
 //! 2. Location-log subscriber
 //! 3. Chat-transcript subscriber
-//! 4. World tick (5 s)
-//! 5. Inactivity tick (1 s)
-//! 6. Autosave tick
-//! 7. Tier-2 simulation tick (#1198)
+//! 4. Game-events subscriber (#1222)
+//! 5. World tick (5 s)
+//! 6. Inactivity tick (1 s)
+//! 7. Autosave tick
+//! 8. Tier-2 simulation tick (#1198)
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,7 +35,7 @@ pub(super) fn spawn_session_ticks(
     state: Arc<AppState>,
     shutdown_token: tokio_util::sync::CancellationToken,
 ) -> Vec<JoinHandle<()>> {
-    let mut handles = Vec::with_capacity(4);
+    let mut handles = Vec::with_capacity(8);
 
     // ── Character-log subscriber ───────────────────────────────────────────
     //
@@ -218,6 +219,42 @@ pub(super) fn spawn_session_ticks(
                             let world = s.world.lock().await;
                             let npc_mgr = s.npc_manager.lock().await;
                             s.chat_transcript_log.process_event(&event, &world, &npc_mgr);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
+    // ── Game-events subscriber ────────────────────────────────────────────────
+    //
+    // Captures `GameEvent`s from `world.event_bus` into the `state.game_events`
+    // ring buffer so they appear in debug snapshots and composed bug reports
+    // (#1222). Mirrors the equivalent task in `parish-tauri/src/setup.rs`
+    // (the `spawn_game_event_subscriber` call at the end of
+    // `spawn_world_event_listeners`). Without this task, `state.game_events` is
+    // always empty in server sessions, causing the "Game events" section in
+    // every auto-filed bug report to show `_none_` regardless of actual activity.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            let mut buf = s.game_events.lock().await;
+                            if buf.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                                buf.pop_front();
+                            }
+                            buf.push_back(event);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -612,6 +649,67 @@ mod tests {
             AUTOSAVE_INTERVAL_SECS, 60,
             "autosave interval changed — verify data-loss risk is acceptable"
         );
+    }
+
+    /// Verifies that the game-events subscriber task (fix #1222) captures
+    /// `GameEvent`s published to `world.event_bus` and stores them in
+    /// `state.game_events` so they appear in bug reports.
+    ///
+    /// Steps:
+    /// 1. Build a test `AppState`.
+    /// 2. Subscribe to `world.event_bus` via `spawn_session_ticks`.
+    /// 3. Publish a `GameEvent::PlayerMoved` to `world.event_bus`.
+    /// 4. Yield to let the subscriber task run.
+    /// 5. Assert that `state.game_events` contains the event.
+    #[tokio::test]
+    async fn game_events_subscriber_captures_published_events() {
+        use parish_core::world::LocationId;
+        use parish_core::world::events::GameEvent;
+        use std::sync::Arc;
+        use tokio_util::sync::CancellationToken;
+
+        let state = Arc::new(crate::routes::tests::test_app_state());
+        let token = CancellationToken::new();
+        let _handles =
+            crate::session::ticks::spawn_session_ticks(Arc::clone(&state), token.clone());
+
+        // Yield to the Tokio runtime so the subscriber task can subscribe.
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+
+        // Publish a PlayerMoved event to the world event bus.
+        let now = {
+            let world = state.world.lock().await;
+            world.clock.now()
+        };
+        {
+            let world = state.world.lock().await;
+            world.event_bus.publish(GameEvent::PlayerMoved {
+                from: LocationId(1),
+                to: LocationId(2),
+                timestamp: now,
+            });
+        }
+
+        // Yield again so the subscriber task processes the event.
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+
+        // The subscriber must have captured the event.
+        let events = state.game_events.lock().await;
+        assert!(
+            !events.is_empty(),
+            "game_events subscriber must capture PlayerMoved published to world.event_bus"
+        );
+        let kinds: Vec<_> = events.iter().map(|e| e.event_type()).collect();
+        assert!(
+            kinds.iter().any(|k| *k == "PlayerMoved"),
+            "expected PlayerMoved in game_events, got: {:?}",
+            kinds
+        );
+
+        token.cancel();
     }
 
     /// Regression test for #230: the autosave path must reuse a single
