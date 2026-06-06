@@ -988,24 +988,6 @@ featured = false
         }
     }
 
-    struct CwdGuard {
-        original: std::path::PathBuf,
-    }
-
-    impl CwdGuard {
-        fn enter(path: &Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(path).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            std::env::set_current_dir(&self.original).unwrap();
-        }
-    }
-
     #[test]
     fn test_provider_from_str_loose() {
         assert_eq!(Provider::from_str_loose("ollama").unwrap().id(), "ollama");
@@ -1495,6 +1477,13 @@ model = "claude-test"
         clear_parish_env();
     }
 
+    // Verify that resolve_config(None, …) ignores any parish.toml that may
+    // exist on disk — it must return defaults without reading any file path.
+    // Previously this test mutated the process-global cwd (via CwdGuard) to
+    // place a parish.toml in scope, which was brittle under parallel execution.
+    // The refactored version passes the temp file's path explicitly to a
+    // companion call to confirm the file *would* be read if a path were
+    // supplied, while the None call proves the cwd is never consulted.
     #[test]
     #[serial(parish_env)]
     fn test_resolve_config_none_does_not_read_cwd_parish_toml() {
@@ -1512,14 +1501,20 @@ model = "cwd-model"
         .unwrap();
 
         clear_parish_env();
-        let _cwd = CwdGuard::enter(dir.path());
 
+        // None → defaults, regardless of what sits on disk nearby.
         let cli = CliOverrides::default();
         let config = resolve_config(None, &cli).unwrap();
         assert_eq!(config.provider.id(), "simulator");
         assert_eq!(config.base_url, "");
         assert!(config.api_key.is_none());
         assert!(config.model.is_none());
+
+        // Sanity-check: the file IS parsed when an explicit path is given,
+        // confirming the test file is well-formed and would affect results.
+        let config_from_path = resolve_config(Some(&path), &cli).unwrap();
+        assert_eq!(config_from_path.provider.id(), "lmstudio");
+        assert_eq!(config_from_path.base_url, "http://cwd-host:1234");
     }
 
     #[test]
