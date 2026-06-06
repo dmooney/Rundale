@@ -128,8 +128,24 @@ SLICE_META: dict[str, dict[str, Any]] = {
         "system": "gaeilge.system.md",
         "axes": ["fluency", "grammar", "idiom", "task_fulfillment", "english_leakage"],
     },
+    "multiturn": {
+        "rubric": "judge_multiturn_v1",
+        "system": "multiturn.system.md",
+        "axes": [
+            "continuity",
+            "name_fidelity",
+            "no_premature_farewell",
+            "persona_consistency",
+            "memory_retention",
+        ],
+    },
     "intent": {"rubric": None, "system": None, "axes": []},
 }
+
+# Slices whose dataset records carry a captured, runtime-faithful request
+# ({system, user, response_format, max_tokens, temperature, frequency_penalty})
+# that the candidate must send VERBATIM — no reconstruction (REQ 2).
+VERBATIM_SLICES = {"dialogue", "reaction", "tier2-sim", "tier3-sim", "intent"}
 
 
 def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = False) -> dict:
@@ -148,39 +164,43 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
         "error": None,
     }
     try:
-        if slice_name == "intent":
-            system, user, schema, max_tokens, temperature = (
-                INTENT_SYS,
-                rec["prompt"],
-                INTENT_SCHEMA,
-                100,
-                0.7,
-            )
-        elif slice_name == "dialogue":
-            system, user, schema, max_tokens, temperature = (
-                DIALOGUE_SYS,
-                rec["prompt"],
-                None,
-                200,
-                0.7,
-            )
-        elif slice_name == "reaction":
-            system, user, schema = rec["system_template"], rec["prompt"], None
-            max_tokens, temperature = rec.get("max_tokens", 100), 0.7
-        elif slice_name in ("tier2-sim", "tier3-sim"):
-            system, user, schema = None, rec["prompt"], rec["schema"]
-            max_tokens, temperature = (600 if slice_name == "tier3-sim" else 200), 0.7
+        if slice_name == "multiturn":
+            return _generate_multiturn(target, rec, out)
+
+        if slice_name in VERBATIM_SLICES:
+            # Runtime-faithful: send the captured request exactly as the live
+            # engine sends it — verbatim system/user, response_format, max_tokens,
+            # temperature, frequency_penalty (REQ 2). No reconstruction.
+            system = rec.get("system")
+            user = rec.get("user", "")
+            schema = None
+            response_format = rec.get("response_format")
+            max_tokens = rec.get("max_tokens")
+            temperature = rec.get("temperature", 0.7)
+            frequency_penalty = rec.get("frequency_penalty")
         elif slice_name == "gaeilge":
-            system, user, schema = GAEILGE_SYS, _gaeilge_candidate_prompt(rec), None
+            # gaeilge stays a curated Irish-competence probe (no captured request).
+            system, user, schema, response_format, frequency_penalty = (
+                GAEILGE_SYS,
+                _gaeilge_candidate_prompt(rec),
+                None,
+                None,
+                None,
+            )
             max_tokens, temperature = rec.get("max_tokens", 300), 0.2
         else:
             raise ValueError(f"unknown slice: {slice_name}")
 
         if streaming:
-            # Perf path — streaming captures ttft + tok/s. Schema dropped (perf
-            # uses dialogue prompts) to match bench_perf's free-form probe.
+            # Perf path — streaming captures ttft + tok/s.
             res = call_chat_streaming(
-                target, system, user, max_tokens=max_tokens, temperature=temperature
+                target,
+                system,
+                user,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                response_format=response_format,
+                frequency_penalty=frequency_penalty,
             )
             text = res["text"]
             pt = res.get("prompt_tokens") or 0
@@ -189,7 +209,15 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
             out["tokens_per_second"] = res.get("tokens_per_second")
         else:
             text, usage = call_chat(
-                target, system, user, schema=schema, max_tokens=max_tokens, temperature=temperature
+                target,
+                system,
+                user,
+                schema=schema,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                response_format=response_format,
+                frequency_penalty=frequency_penalty,
+                max_retries=int(os.environ.get("RB_MAX_RETRIES", "4")),
             )
             pt = usage.get("prompt_tokens", 0)
             ct = usage.get("completion_tokens", 0)
@@ -199,11 +227,50 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
         out["completion_tokens"] = ct
         out["cost"] = pricing.estimate_cost(target.model, pt, ct)
         if slice_name in ("tier2-sim", "tier3-sim"):
-            out["schema_valid"] = rb_grade.grade_schema(text, rec["schema"]).get(
+            out["schema_valid"] = rb_grade.grade_schema(text, rec.get("grade_schema") or {}).get(
                 "schema_valid", False
             )
     except Exception as e:  # noqa: BLE001 — surface as a graded error, never crash the run
         out["error"] = str(e)
+    return out
+
+
+def _generate_multiturn(target, rec: dict, out: dict) -> dict:
+    """Run a scripted multi-turn conversation, chaining the candidate's own
+    replies as the assistant turns (so memory_retention is real). The candidate
+    sees the runtime-faithful persona system prompt; each player line is appended
+    as a user turn. Returns a single transcript as `output` for the judge."""
+    system = rec.get("system")
+    turns = rec.get("turns", [])
+    response_format = rec.get("response_format")
+    temperature = rec.get("temperature", 0.7)
+    frequency_penalty = rec.get("frequency_penalty")
+    messages: list[dict] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    transcript_parts: list[str] = []
+    pt_total = ct_total = 0
+    player = rec.get("player_name", "Player")
+    for turn in turns:
+        messages.append({"role": "user", "content": turn})
+        text, usage = call_chat(
+            target,
+            None,
+            "",
+            messages=messages,
+            response_format=response_format,
+            temperature=temperature,
+            frequency_penalty=frequency_penalty,
+        )
+        reply = rb_grade.extract_dialogue_for_judging(text) or text
+        messages.append({"role": "assistant", "content": reply})
+        transcript_parts.append(f"{player}: {turn}\nNPC: {reply}")
+        pt_total += usage.get("prompt_tokens", 0)
+        ct_total += usage.get("completion_tokens", 0)
+    out["output"] = "\n\n".join(transcript_parts)
+    out["prompt_tokens"] = pt_total
+    out["completion_tokens"] = ct_total
+    out["cost"] = pricing.estimate_cost(target.model, pt_total, ct_total)
     return out
 
 
@@ -306,6 +373,12 @@ def judge_item(slice_name: str, prompt_id: str, prompt: str, response: str, rec:
     item: dict = {"prompt_id": prompt_id, "prompt": prompt, "response": judged_response}
     if slice_name == "reaction":
         item["persona"] = rec.get("persona", "")
+    if slice_name == "multiturn":
+        # The whole transcript is the response; give the judge the persona +
+        # the player's stated name so it can score name fidelity / memory.
+        item["persona"] = rec.get("persona", "")
+        item["player_name"] = rec.get("player_name", "")
+        item["turns"] = rec.get("turns", [])
     if slice_name == "gaeilge":
         for k in ("task_type", "constraints", "expected_features", "reference_irish"):
             if k in rec:

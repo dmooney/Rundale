@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 PF = Path(__file__).resolve().parents[1]
@@ -34,11 +35,12 @@ def check(name, cond, detail=""):
 import load_dataset  # noqa: E402
 
 for slice_name, expect_keys in [
-    ("dialogue", {"prompt"}),
-    ("intent", {"gold"}),
-    ("reaction", {"system_template"}),
-    ("tier2-sim", {"schema"}),
+    ("dialogue", {"system", "user"}),
+    ("intent", {"gold", "system", "user"}),
+    ("reaction", {"system", "user", "persona"}),
+    ("tier2-sim", {"user", "grade_schema"}),
     ("gaeilge", {"task_type"}),
+    ("multiturn", {"system", "turns"}),
 ]:
     os.environ["RB_SLICE"] = slice_name
     os.environ.pop("RB_LIMIT", None)
@@ -61,7 +63,19 @@ check("perf loader uses measure ids", len(load_dataset.generate_perf_tests()) >=
 captured: dict = {}
 
 
-def fake_call_chat(target, system, user, *, schema=None, max_tokens=None, temperature=0.7, **kw):
+def fake_call_chat(
+    target,
+    system,
+    user,
+    *,
+    schema=None,
+    max_tokens=None,
+    temperature=0.7,
+    messages=None,
+    response_format=None,
+    frequency_penalty=None,
+    **kw,
+):
     captured.update(
         dict(
             target=target,
@@ -70,9 +84,16 @@ def fake_call_chat(target, system, user, *, schema=None, max_tokens=None, temper
             schema=schema,
             max_tokens=max_tokens,
             temperature=temperature,
+            messages=messages,
+            response_format=response_format,
+            frequency_penalty=frequency_penalty,
         )
     )
-    if schema is not None:
+    if (
+        response_format
+        and response_format.get("type") == "json_object"
+        and "parser" in (system or "")
+    ):
         return json.dumps({"intent": "move", "target": "the pub", "dialogue": None}), {
             "prompt_tokens": 50,
             "completion_tokens": 10,
@@ -87,17 +108,42 @@ rb.call_chat = fake_call_chat
 
 target = rb.parse_target("test-model@http://localhost:9/v1")
 
-g = rb.generate_candidate("dialogue", target, {"id": "d1", "prompt": "I can't sleep."})
+# REQ 2: dialogue is sent VERBATIM from the captured record (system carries the
+# real runtime blocks; json_object; freq_pen 0.5 — no reconstruction).
+dlg_rec = {
+    "id": "d1",
+    "system": "You are Brigid. STAY IN YOUR LANE.\n\nPEOPLE YOU KNOW:\n- Sean",
+    "user": 'Sean says: "I can\'t sleep."',
+    "response_format": {"type": "json_object"},
+    "max_tokens": None,
+    "temperature": 0.7,
+    "frequency_penalty": 0.5,
+}
+g = rb.generate_candidate("dialogue", target, dlg_rec)
 check(
-    "dialogue uses DIALOGUE_SYS + max_tokens=200",
-    captured["system"] == rb.DIALOGUE_SYS and captured["max_tokens"] == 200,
+    "dialogue sent verbatim (system + json_object + freq_pen)",
+    captured["system"] == dlg_rec["system"]
+    and captured["response_format"] == {"type": "json_object"}
+    and captured["frequency_penalty"] == 0.5
+    and captured["max_tokens"] is None,
 )
 check("dialogue cost computed", g["cost"] == 0.0 and g["completion_tokens"] == 25)
 
-g = rb.generate_candidate("intent", target, {"id": "i1", "prompt": "go to the pub"})
+intent_rec = {
+    "id": "i1",
+    "system": "You are a text adventure input parser.",
+    "user": "go to the pub",
+    "response_format": {"type": "json_object"},
+    "max_tokens": 100,
+    "temperature": 0.7,
+    "gold": {},
+}
+g = rb.generate_candidate("intent", target, intent_rec)
 check(
-    "intent passes INTENT_SCHEMA",
-    captured["schema"] is rb.INTENT_SCHEMA and captured["max_tokens"] == 100,
+    "intent sent runtime-faithful (json_object, not strict schema)",
+    captured["response_format"] == {"type": "json_object"}
+    and captured["schema"] is None
+    and captured["max_tokens"] == 100,
 )
 
 sim_schema = {
@@ -111,13 +157,71 @@ sim_schema = {
 }
 
 
-def fake_sim(target, system, user, *, schema=None, max_tokens=None, temperature=0.7, **kw):
+def fake_sim(
+    target,
+    system,
+    user,
+    *,
+    schema=None,
+    max_tokens=None,
+    temperature=0.7,
+    messages=None,
+    response_format=None,
+    frequency_penalty=None,
+    **kw,
+):
     return json.dumps({"a": 1}), {"prompt_tokens": 30, "completion_tokens": 5}
 
 
 rb.call_chat = fake_sim
-g = rb.generate_candidate("tier2-sim", target, {"id": "t1", "prompt": "x", "schema": sim_schema})
+g = rb.generate_candidate(
+    "tier2-sim",
+    target,
+    {"id": "t1", "user": "simulate...", "grade_schema": sim_schema, "response_format": None},
+)
 check("tier2-sim schema_valid computed deterministically", g["schema_valid"] is True)
+
+# REQ 3: multiturn chains the candidate's own replies as assistant turns.
+mt_calls: list = []
+
+
+def fake_mt(
+    target,
+    system,
+    user,
+    *,
+    schema=None,
+    max_tokens=None,
+    temperature=0.7,
+    messages=None,
+    response_format=None,
+    frequency_penalty=None,
+    **kw,
+):
+    mt_calls.append(list(messages) if messages else None)
+    return json.dumps({"dialogue": f"reply {len(mt_calls)}"}), {
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+    }
+
+
+rb.call_chat = fake_mt
+g = rb.generate_candidate(
+    "multiturn",
+    target,
+    {
+        "id": "m1",
+        "system": "You are Brigid.",
+        "turns": ["hello", "your name?", "bye"],
+        "player_name": "Sean",
+        "temperature": 0.7,
+    },
+)
+check(
+    "multiturn chains 3 turns with growing message history",
+    len(mt_calls) == 3 and len(mt_calls[-1]) == 6 and "reply 1" in g["output"],
+)
+rb.call_chat = fake_call_chat
 
 
 # --- deterministic asserts --------------------------------------------------
@@ -366,7 +470,6 @@ ar_empty = rubric_judge.get_assert(
 check("empty output → bench_bug", ar_empty["namedScores"].get("bench_bug") == 1.0)
 
 # YAML parser strips inline comments + quotes
-import tempfile  # noqa: E402
 
 with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tf:
     tf.write('model: "x-model"  # a comment\nbase_url: http://h/v1\ntemperature: 0.0\n')
@@ -383,6 +486,161 @@ for k in ("RB_JUDGE_MODEL", "RB_JUDGE_BASE_URL", "RB_JUDGE_API_KEY_ENV", "RB_JUD
 jcfg = rb.load_judge_config()
 check("YAML parser strips comment+quotes", jcfg["model"] == "x-model")
 rb.CONFIG_DIR, rb._JUDGE_CACHE = _saved_cfg, _saved_cache
+
+
+# --- REQ 1: enumeration viability filter + family de-dup + tiering -----------
+import enumerate_candidates as enum  # noqa: E402
+
+_ok_rec = {
+    "model_id": "vendor/chatty-12b",
+    "output_modalities": ["text"],
+    "input_modalities": ["text"],
+    "modality": "text->text",
+    "max_context": 131072,
+    "json_schema": True,
+    "supported_params": ["response_format"],
+    "price_in": 0.2,
+    "price_out": 0.5,
+}
+check("enum: viable chat model passes", enum.viability(_ok_rec, 8192)[0])
+check(
+    "enum: embeddings rejected",
+    enum.viability({**_ok_rec, "model_id": "vendor/text-embedding-3"}, 8192)
+    == (False, "non-chat-modality"),
+)
+check(
+    "enum: short context rejected",
+    enum.viability({**_ok_rec, "max_context": 4096}, 8192)[1] == "context<8192",
+)
+check(
+    "enum: price-sentinel rejected",
+    enum.viability({**_ok_rec, "price_in": -1, "price_out": -1}, 8192) == (False, "price-sentinel"),
+)
+check(
+    "enum: meta-router rejected",
+    enum.viability({**_ok_rec, "model_id": "openrouter/auto"}, 8192) == (False, "meta-router"),
+)
+check(
+    "enum: family collapses preview+date variants",
+    (
+        enum.family_key({"model_id": "google/gemini-9.9-pro-preview-05-06"})
+        == enum.family_key({"model_id": "google/gemini-9.9-pro"})
+    ),
+)
+check(
+    "enum: distinct sizes stay separate",
+    enum.family_key({"model_id": "x/gemma-3-4b-it"})
+    != enum.family_key({"model_id": "x/gemma-3-12b-it"}),
+)
+check(
+    "enum: free tier for :free",
+    enum.cost_tier({"model_id": "x/y:free", "price_in": 0, "price_out": 0}) == "free",
+)
+check(
+    "enum: premium tier for pricey",
+    enum.cost_tier({"model_id": "x/opus", "price_in": 15, "price_out": 75}) == "premium",
+)
+
+# --- REQ 4: leaderboard CI + category weighting + overall --------------------
+import leaderboard as lb  # noqa: E402
+
+mean, lo, hi = lb._bootstrap_ci([3, 3, 3, 3], iters=200)
+check("lb: zero-variance CI collapses to the mean", mean == 3.0 and lo == 3.0 and hi == 3.0)
+mean2, lo2, hi2 = lb._bootstrap_ci([1, 2, 3, 4, 5], iters=500)
+check("lb: CI brackets the mean", lo2 <= mean2 <= hi2 and lo2 < hi2)
+check("lb: category weights sum to 1", abs(sum(lb.CATEGORY_WEIGHTS.values()) - 1.0) < 1e-9)
+check(
+    "lb: simulation outweighs reaction (gameplay token volume)",
+    lb.CATEGORY_WEIGHTS["simulation"] > lb.CATEGORY_WEIGHTS["reaction"],
+)
+_cats = {
+    "dialogue": {"mean": 4.0, "lo": 3.8, "hi": 4.2, "n": 10},
+    "simulation": {"mean": 2.0, "lo": 1.8, "hi": 2.2, "n": 10},
+}
+om, ol, oh = lb._overall(_cats)
+check("lb: overall is weight-renormalised over present categories", 2.0 < om < 4.0 and ol < om < oh)
+_collapsed = lb._category_scores(
+    {
+        "dialogue": {"mean": 4.0, "lo": 4.0, "hi": 4.0, "n": 4},
+        "multiturn": {"mean": 2.0, "lo": 2.0, "hi": 2.0, "n": 4},
+        "tier2-sim": {"mean": 3.0, "lo": 3.0, "hi": 3.0, "n": 2},
+        "tier3-sim": {"mean": 5.0, "lo": 5.0, "hi": 5.0, "n": 2},
+    }
+)
+check(
+    "lb: dialogue category folds in multiturn (n-weighted mean = 3.0)",
+    abs(_collapsed["dialogue"]["mean"] - 3.0) < 1e-9,
+)
+check(
+    "lb: simulation category folds tier2+tier3 (n-weighted = 4.0)",
+    abs(_collapsed["simulation"]["mean"] - 4.0) < 1e-9,
+)
+
+# --- REQ 2: structural drift guard — datasets carry verbatim runtime fields --
+for slice_name, required in [
+    ("dialogue", {"system", "user", "response_format"}),
+    ("reaction", {"system", "user", "persona"}),
+    ("tier2-sim", {"user", "grade_schema"}),
+    ("intent", {"system", "user", "gold"}),
+    ("multiturn", {"system", "turns"}),
+]:
+    recs = [
+        json.loads(ln)
+        for ln in (rb.DATASETS_DIR / f"{slice_name}.jsonl").read_text().splitlines()
+        if ln.strip()
+    ]
+    check(
+        f"drift-guard: {slice_name} records carry {required}",
+        all(required <= set(r) for r in recs),
+        f"{len(recs)} records",
+    )
+# dialogue must carry the real runtime blocks (not the old simplified template)
+_dlg0 = json.loads((rb.DATASETS_DIR / "dialogue.jsonl").read_text().splitlines()[0])
+check(
+    "drift-guard: dialogue system has PEOPLE YOU KNOW + WHAT'S ON YOUR MIND",
+    "PEOPLE YOU KNOW" in _dlg0["system"] and "WHAT'S ON YOUR MIND" in _dlg0["system"],
+)
+check(
+    "drift-guard: dialogue uses json_object (runtime) not strict schema",
+    _dlg0.get("response_format") == {"type": "json_object"},
+)
+
+
+# --- REQ 6: funnel resume — run-state checkpoint helpers --------------------
+import funnel as fn  # noqa: E402
+
+_clean = [{"response": {"metadata": {}}, "namedScores": {"overall": 4.0}}]
+_errored = [{"response": {"metadata": {"error": "HTTP Error 402"}}, "namedScores": {}}]
+_jf = [{"response": {"metadata": {}}, "namedScores": {"judge_failure": 1.0}}]
+check("funnel: clean slice is complete", fn.slice_clean(_clean))
+check("funnel: errored slice not complete (retried on resume)", not fn.slice_clean(_errored))
+check("funnel: judge-failed slice not complete (retried after top-up)", not fn.slice_clean(_jf))
+
+_tmp_state = Path(tempfile.mkdtemp()) / "funnel_state.json"
+_saved_state_path = fn.RUN_STATE
+fn.RUN_STATE = _tmp_state
+try:
+    k1 = {
+        "phase": "screen",
+        "tier": "budget",
+        "limit": 4,
+        "judge_model": "j",
+        "merkle": "m",
+        "slices": ["dialogue"],
+    }
+    fn.save_run_state({"key": k1, "completed": {"spec\x00dialogue": _clean}})
+    st = fn.load_run_state(k1, fresh=False)
+    check("funnel: matching key resumes completed work", "spec\x00dialogue" in st["completed"])
+    check(
+        "funnel: --fresh ignores checkpoint", fn.load_run_state(k1, fresh=True)["completed"] == {}
+    )
+    k2 = {**k1, "limit": 8}  # changed key → not comparable → fresh
+    check(
+        "funnel: changed run key starts fresh",
+        fn.load_run_state(k2, fresh=False)["completed"] == {},
+    )
+finally:
+    fn.RUN_STATE = _saved_state_path
 
 
 print()

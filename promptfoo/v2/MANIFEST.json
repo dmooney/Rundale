@@ -1,17 +1,17 @@
 {
   "suite": "rundale-bench-v2",
   "source": "copied from rundale-bench/v1",
-  "merkle_root_sha256": "5615a814c38755544fca622407b83866196019a2d9f6a9704718d62c7176a5aa",
+  "merkle_root_sha256": "12b7a39f0cffe796ae5dcd78129ee597c558f9feaa0dfdb11d297e16b9601cf8",
   "slices": {
     "dialogue.jsonl": {
-      "sha256": "eb21ffd26b62177cd62b703ca8c6786c70199e30a6334bf8443834857a914efa",
-      "records": 159,
-      "bytes": 23969
+      "sha256": "daca1bdba5f8eee5ca26b7c9a4f0dd0e260b4a2b941e8aee033a8b2a7ed30d7d",
+      "records": 60,
+      "bytes": 698285
     },
     "dialogue.holdout.jsonl": {
-      "sha256": "b33d095d8126c434639acb2987ac39c3018879c8d6ce71b764da0d69e479a40f",
-      "records": 21,
-      "bytes": 3280
+      "sha256": "6481c410505332fc09b231c33de094de7afcaf3961d3ea22faaef27ace66d423",
+      "records": 10,
+      "bytes": 114392
     },
     "gaeilge.jsonl": {
       "sha256": "a45fd4694eb8989776c284f0f4909dfccc17052fcadbbd1f7e687554595abad8",
@@ -24,9 +24,9 @@
       "bytes": 612
     },
     "intent.jsonl": {
-      "sha256": "e065933848844fb99db7f0278ee29d6e4499ab62ebb888fb0cb5154dbf037437",
+      "sha256": "9c950e692e272b0fabfea11bd0a323903293761124dd8870267276c3eae2eb79",
       "records": 33,
-      "bytes": 6058
+      "bytes": 77906
     },
     "intent.holdout.jsonl": {
       "sha256": "a483be553829d9ae9f1e6a86b43c688d540347fa58f38039baba41278bc35f8d",
@@ -34,34 +34,34 @@
       "bytes": 1776
     },
     "reaction.jsonl": {
-      "sha256": "92c7a0446dcb0a7a8357016fae526a6d2e72f970525760ef0cfed1e61ac1f20e",
-      "records": 27,
-      "bytes": 15777
+      "sha256": "e997e0b31593428dfa0dc83a164d92af341fa396f4c5d1b362d76a6d92ddae62",
+      "records": 29,
+      "bytes": 54538
     },
     "reaction.holdout.jsonl": {
-      "sha256": "4e73b9c0fd159d5fb203e37bd188a010e881367d3451e3082766ffda3fa6607d",
-      "records": 3,
-      "bytes": 1784
+      "sha256": "fd6e614842e26f4719894eb08d4fd587ed1c1d42d9dad204687dc59a7a74ced7",
+      "records": 4,
+      "bytes": 7613
     },
     "tier2-sim.jsonl": {
-      "sha256": "82c0123e013c5d4d492ec48e8a2aa3652d5890d1e94ae692ab1710f3affbde59",
-      "records": 27,
-      "bytes": 50707
+      "sha256": "8e6aeb575f0d55f28603dce49ffed4399d2e43a99a51258bfe15c08064551eba",
+      "records": 131,
+      "bytes": 709797
     },
     "tier2-sim.holdout.jsonl": {
-      "sha256": "14af7b7f3413739a2824062ae7c34f040f944076de2bdfa38ddb609342c635a1",
-      "records": 3,
-      "bytes": 5815
+      "sha256": "09d4eb35a648b3abd2161d61e89b02e05543a8673e3b7582fc2dfaafd159295a",
+      "records": 23,
+      "bytes": 119815
     },
     "tier3-sim.jsonl": {
-      "sha256": "68f971cef81dbb95b4c75900bf2fa9b9187ff7be0094dcbc11a84cdfd40d4c96",
-      "records": 13,
-      "bytes": 23568
+      "sha256": "ade03d55770c6a40f6721a066acff69bd09df9657af5bce81ae0434e29f1406e",
+      "records": 9,
+      "bytes": 44663
     },
     "tier3-sim.holdout.jsonl": {
-      "sha256": "f6dce3f0a5f5c2a5f003c4daecd4ffae68127531a06261305c2f998401cc937f",
-      "records": 2,
-      "bytes": 3806
+      "sha256": "86dbaa8eb0714c5f44508aba31b8e3cd825582e0ef8b30fe6a92da004a4c31c6",
+      "records": 1,
+      "bytes": 4405
     }
   },
   "assets": {
@@ -72,6 +72,10 @@
     "rubrics/gaeilge.system.md": {
       "sha256": "a0161c81e953b222fad371ec6dc4618e79de249ba7b33ce4026eacd47971fb4f",
       "bytes": 5718
+    },
+    "rubrics/multiturn.system.md": {
+      "sha256": "b8401dd3a67bb752f3f925ad3bcbc9283cfca736c3aa7e80b2fdfbc243ebbe7d",
+      "bytes": 4032
     },
     "rubrics/reaction.system.md": {
       "sha256": "2e58d25dc5823a041203fde0206687211579034bff9ee060740f8aba692f4453",
@@ -84,6 +88,10 @@
     "rubrics/judge_gaeilge_v1.json": {
       "sha256": "264dd4be9c16fbf70ed3409aca0fc7d972e76bf525fb9b4bb6a1b18e5b8fc0a8",
       "bytes": 2354
+    },
+    "rubrics/judge_multiturn_v1.json": {
+      "sha256": "78436f9eaf9699a7ef9915840e0d8b8e63c92cde680992b7d7832b073bf82b48",
+      "bytes": 1320
     },
     "rubrics/judge_reaction_v1.json": {
       "sha256": "b73963cafcc420844def443654f21a17011e8f63f33739aa61389e6913463b70",
