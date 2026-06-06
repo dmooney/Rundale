@@ -82,6 +82,10 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/save-state", get(save_state))
         .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
+        // `/api/debug-snapshot` — same introspection blob `parish-server`
+        // exposes. The bridge previously omitted it, so a desktop-launched
+        // MCP session got a 404 where the web server returned data (#1207 #16).
+        .route("/api/debug-snapshot", get(debug_snapshot))
         // ── writes ───────────────────────────────────────────────────────────
         .route("/api/submit-input", post(submit_input))
         .route("/api/new-game", post(new_game))
@@ -127,6 +131,12 @@ fn build_router(bridge: BridgeState) -> Router {
 #[allow(clippy::unused_async)]
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn debug_snapshot(
+    State(b): State<BridgeState>,
+) -> Json<parish_core::debug_snapshot::DebugSnapshot> {
+    Json(crate::commands::admin::build_app_debug_snapshot(&b.state).await)
 }
 
 async fn world_snapshot(State(b): State<BridgeState>) -> Json<WorldSnapshot> {
@@ -746,6 +756,7 @@ mod tests {
             "/api/npcs-here",
             "/api/save-state",
             "/api/setup-snapshot",
+            "/api/debug-snapshot",
             "/api/submit-input",
             "/api/new-game",
             "/api/save-game",
@@ -780,6 +791,7 @@ mod tests {
             "get_npcs_here",
             "get_save_state",
             "get_setup_snapshot",
+            "get_debug_snapshot",
             "submit_input",
             "new_game",
             "save_game",
