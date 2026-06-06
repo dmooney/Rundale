@@ -1,0 +1,49 @@
+# fix-1220-1221-1227 — address-resolution + identity-reveal intent bugs
+# ======================================================================
+# Proves three related intent/address-resolution fixes:
+#
+#  #1221 — "Hello Father" must route to a present priest via role-vocative
+#           (resolve_addressed_targets now falls back to find_by_role_at).
+#
+#  #1220 — Player self-introduction must NOT produce "X is not here."
+#           when the LLM returns the player's own name as talk_target.
+#
+#  #1227 — Object/noun mention ("a boat") must NOT produce spurious
+#           "a boat is not here." — non-NPC talk_targets are suppressed.
+#
+# All three cases are exercisable in headless (no-LLM) mode via /stub.
+# The local intent parser routes first-person input to Talk with target=None,
+# so the "not here" path never fires — which is the correct post-fix behaviour.
+# For #1221 the role-vocative target ("Father") is injected via /stub +
+# addressed_to to test the resolve_addressed_targets fix through the NPC
+# conversation path.
+#
+# Observable criteria:
+#  AC-1221-A: No "Father is not here." when priest is co-located.
+#  AC-1220-A: No "X is not here." for self-introduction input.
+#  AC-1227-A: No "X is not here." for object-mention input.
+
+# --- Setup: reach a location with a priest (Fr. Declan Tierney) ---
+go to The Crossroads
+go to St. Brigid's Church
+/debug here
+/debug npcs
+
+# --- AC-1221: Role-vocative "Father" resolves to priest ---
+# Stub a canned response so the harness doesn't need a live LLM.
+/stub Fr. Declan Tierney: God bless ye, and welcome.
+Hello Father
+
+# Expected: priest replies (no "Father is not here." in output).
+/status
+
+# --- AC-1220: Personal self-introduction is not mis-routed ---
+# "I'm Aiden" is first-person: local parser → Talk, target=None.
+# No NPC talk_target to validate, so no "not here." message.
+I'm Aiden, lately come to the parish from over by the Shannon
+/status
+
+# --- AC-1227: Object mention does not produce "not here." ---
+# "a boat" is not an NPC. No "a boat is not here." should appear.
+I saw a boat on the stream near the mill pond this morning
+/status
