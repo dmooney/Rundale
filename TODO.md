@@ -442,3 +442,24 @@ Static code + git-history pass against main branch. No game process run. Verdict
 ## Issue tracking
 
 2026-06-04 audit: surviving demo-audit findings tracked under epic #1207 (Rundale gameplay quality).
+
+## 2026-06-06 resolution (live-verified, epic #1207 closed)
+
+The 2026-06-04 audit was static. The seven surviving open/partial clusters were
+re-triaged by driving the engine **live** (MLX-wired `parish-server` via
+`mcp__parish__*` + `just demo` Tauri auto-player). Five were fixed and merged;
+two were confirmed already-resolved behaviourally.
+
+| Cluster                                       | Verdict              | Resolution                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #9 headless server save-state                 | **fixed**            | PR #1278. Real root cause was **not** "auto-load latest branch": `Database::open` already creates `main`, then `init_session_save` called `create_branch("main")` again → `UNIQUE constraint failed`, swallowed by a silent warn, leaving save-state all-null. Reuse the existing branch + regression test. |
+| #33/#36 map hides unexplored neighbours       | **fixed**            | PR #1279. `build_map_data` discarded the already-computed travel estimate for frontier entries; surface it ("about N min away, unexplored"). 1-hop fog-of-war unchanged.                                                                                                                                    |
+| #16 `/api/debug-snapshot` 404 from MCP bridge | **fixed**            | PR #1281. Added the route to the Tauri bridge (delegates to `build_app_debug_snapshot`). Live: 404 → 200.                                                                                                                                                                                                   |
+| #51 LLM-as-player role flip                   | **fixed**            | PR #1282. Demo loop waited; now settles `streamingActive` + `turn_in_flight` before snapshotting context. Unit test + live (no flips).                                                                                                                                                                      |
+| #32 travel-clock bleed                        | **fixed**            | PR #1283. The 36× clock advanced during the auto-player's decision inference (NPC turns already froze it). Freeze it there too. Live: ~31.5× → ~24× accrual; a move resolves at its narrated travel cost.                                                                                                   |
+| #40/#56 NPC reply rate                        | **verified working** | Live at a 5-NPC location: 4/5 unaddressed turns replied (80%) vs the audit's static 27–40%. Landed `frequency_penalty` + location/interlocutor anchors hold; no code change.                                                                                                                                |
+| #48 NPC quality variance                      | **verified working** | Live replies focused (~250–480 chars), in-character, no repetition loops. No code change.                                                                                                                                                                                                                   |
+
+Regression spot-check (same live demos): movement, focused/non-looping replies,
+correct time-of-day register, correct mood emojis (bitter→😒, sharp→😤), no name
+hallucinations or role flips. Epic #1207 closed 2026-06-06.
