@@ -1,0 +1,24 @@
+# Deliberately-broken provider fixture for TD-005 validation tests.
+# Violations present:
+#   - id is empty string (AC-2: required fields must be non-empty)
+#   - display_name is empty string (AC-2)
+#   - default_base_url starts with "ftp://" not http/https (AC-5)
+#   - preset key "main" is present but dialogue model is empty (AC-6)
+id = ""
+display_name = ""
+kind = "openai-compat"
+default_base_url = "ftp://bad.example.com"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "BROKEN_API_KEY"
+blurb = "Deliberately broken for test TD-005."
+signup_url = "https://example.com"
+featured = false
+
+[[presets]]
+key = "main"
+label = "Main"
+dialogue = ""
+simulation = "some-model"
+intent = "some-model"
+reaction = "some-model"
