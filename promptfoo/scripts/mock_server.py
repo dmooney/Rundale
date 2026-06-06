@@ -49,24 +49,38 @@ def _synth(schema):
     return "x"
 
 
-def _axes_for(system: str) -> dict:
-    s = system.lower()
-    if "five axes" in s or "gaeilge fluency" in s or "expert evaluator" in s:
-        return {"fluency": 3, "grammar": 3, "idiom": 3, "task_fulfillment": 3, "english_leakage": 4}
-    if "plausibility" in s:
-        return {"plausibility": 3}
-    if "in-character first-encounter" in s or "reaction eval" in s:
-        return {"in_character": 3}
-    return {"character": 3, "authenticity": 3, "language": 4, "responsiveness": 4, "craft": 3}
+_SLICE_AXES = {
+    "dialogue": {"character": 3, "authenticity": 3, "language": 4, "responsiveness": 4, "craft": 3},
+    "reaction": {"in_character": 3},
+    "tier2-sim": {"plausibility": 3},
+    "tier3-sim": {"plausibility": 3},
+    "gaeilge": {
+        "fluency": 3,
+        "grammar": 3,
+        "idiom": 3,
+        "task_fulfillment": 3,
+        "english_leakage": 4,
+    },
+    "multiturn": {
+        "continuity": 3,
+        "name_fidelity": 3,
+        "no_premature_farewell": 4,
+        "persona_consistency": 3,
+        "memory_retention": 3,
+    },
+}
+
+
+def _axes_for(slice_name: str) -> dict:
+    return _SLICE_AXES.get(slice_name, _SLICE_AXES["dialogue"])
 
 
 def _judge_envelope(body) -> str:
     user = body["messages"][-1]["content"]
     bundle = json.loads(user)
-    system = body["messages"][0]["content"] if body["messages"][0]["role"] == "system" else ""
     items = []
     for it in bundle["items"]:
-        axes = _axes_for(system)
+        axes = _axes_for(bundle.get("slice", ""))
         items.append(
             {
                 "prompt_id": it["prompt_id"],
@@ -88,8 +102,19 @@ def _judge_envelope(body) -> str:
 def _content_for(body) -> str:
     msgs = body.get("messages", [])
     system = next((m["content"] for m in msgs if m["role"] == "system"), "")
+    user = next((m["content"] for m in msgs if m["role"] == "user"), "")
     if "impartial judge" in system.lower() or "expert evaluator" in system.lower():
         return _judge_envelope(body)
+    # Runtime-faithful slices send response_format json_object (or none) with the
+    # shape described in the prompt — emit a valid instance so grading isn't floored.
+    if "input parser" in system.lower():
+        return json.dumps({"intent": "move", "target": "the pub", "dialogue": None})
+    if "background interactions" in user:
+        return json.dumps(
+            {"summary": "All quiet at the mill.", "mood_changes": [], "relationship_changes": []}
+        )
+    if "background NPC activity" in user:
+        return json.dumps({"updates": []})
     rf = body.get("response_format") or {}
     schema_wrap = rf.get("json_schema") or {}
     if schema_wrap:

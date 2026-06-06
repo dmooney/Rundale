@@ -52,10 +52,26 @@ reaction  target=DEFAULT_TARGET limit="": (_eval "reaction"  (PF / "promptfoocon
 tier2-sim target=DEFAULT_TARGET limit="": (_eval "tier2-sim" (PF / "promptfooconfig.tier2-sim.yaml") target limit)
 tier3-sim target=DEFAULT_TARGET limit="": (_eval "tier3-sim" (PF / "promptfooconfig.tier3-sim.yaml") target limit)
 gaeilge   target=DEFAULT_TARGET limit="": (_eval "gaeilge"   (PF / "promptfooconfig.gaeilge.yaml")   target limit)
+multiturn target=DEFAULT_TARGET limit="": (_eval "multiturn" (PF / "promptfooconfig.multiturn.yaml") target limit)
 perf      target=DEFAULT_TARGET limit="": (_eval "perf"      (PF / "promptfooconfig.perf.yaml")      target limit)
 
 # Every quality slice + perf for one target, then the report.
-bench target=DEFAULT_TARGET limit="": (dialogue target limit) (intent target limit) (reaction target limit) (tier2-sim target limit) (tier3-sim target limit) (gaeilge target limit) (perf target limit) report
+bench target=DEFAULT_TARGET limit="": (dialogue target limit) (intent target limit) (reaction target limit) (tier2-sim target limit) (tier3-sim target limit) (gaeilge target limit) (multiturn target limit) (perf target limit) report
+
+# --- REQ 1: enumerate every viable candidate across provider model lists ---
+enumerate floor="8192":
+    [ -f "{{ ENV_FILE }}" ] && { set -a; . "{{ ENV_FILE }}"; set +a; } || true; \
+      python3 {{ PF }}/scripts/enumerate_candidates.py --context-floor {{ floor }}
+
+# --- REQ 2: capture byte-exact runtime prompts → rebuild datasets ---
+# Drives the real engine (simulator-free recording stub) over a scripted tour,
+# then folds the captured requests into the v2 datasets. Re-pin the manifest after.
+capture-prompts:
+    bash {{ PF }}/scripts/capture_prompts.sh
+
+# --- REQ 4: fold output/report.json into the append-only leaderboard ---
+leaderboard tier="":
+    python3 {{ PF }}/scripts/leaderboard.py {{ OUT }} {{ tier }}
 
 # Roll up output/*.json → output/report.md + report.json.
 report:

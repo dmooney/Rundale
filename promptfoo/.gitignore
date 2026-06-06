@@ -4,3 +4,8 @@ output/*.md
 output/*.html
 .promptfoo/
 node_modules/
+# transient funnel run state (resume checkpoint); leaderboard.{md,jsonl} ARE committed, this is not
+leaderboard/funnel_state.json
+leaderboard/funnel_state.json.bak
+leaderboard/funnel_state.json.tmp
+leaderboard/funnel_survivors.json

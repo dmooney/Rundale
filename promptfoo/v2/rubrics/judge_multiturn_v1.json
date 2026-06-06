@@ -1,0 +1,25 @@
+{
+  "judge_id": "judge_multiturn_v1",
+  "model": "claude-sonnet-4-6",
+  "judge_via": "http-api",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": "ANTHROPIC_API_KEY",
+  "system_prompt_file": "multiturn.system.md",
+  "temperature": 0,
+  "seed": null,
+  "rubric": "You are an impartial judge scoring a multi-turn conversation between a player and a non-player character in rural Ireland, 1820. Score the WHOLE transcript 1-5 on five failure-mode axes (5 = best): continuity (no re-introduction after turn 1), name_fidelity (uses the player's stated name, never invents one), no_premature_farewell (no goodbye until the player leaves on the final turn), persona_consistency (same occupation/voice/facts throughout), memory_retention (correctly recalls what the player said in earlier turns). Output ONLY a JSON object with an 'axes' object of those five integer scores and an 'overall' mean. No prose.",
+  "rubric_sha256": "c5bcdda55d8ace56e63a2f49cfd508eb7cfc9687497a53d6c094ac6c3f694bfd",
+  "axes": [
+    "continuity",
+    "name_fidelity",
+    "no_premature_farewell",
+    "persona_consistency",
+    "memory_retention"
+  ],
+  "score_range": [
+    1,
+    5
+  ],
+  "snapshot_date": "2026-06-06",
+  "notes": "Multi-turn failure-mode judge (REQ 3). Pinned to claude-sonnet-4-6 for the leaderboard of record."
+}
