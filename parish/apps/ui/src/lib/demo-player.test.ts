@@ -9,7 +9,7 @@ import {
 } from '../stores/demo';
 import { streamingActive, textLog } from '../stores/game';
 import { runDemoTurn, stopDemo } from './demo-player';
-import { getLlmPlayerAction, submitInput } from './ipc';
+import { getDemoContext, getLlmPlayerAction, submitInput } from './ipc';
 import { createStreamManager } from './setup/stream-manager';
 
 const testConfig = {
@@ -46,8 +46,10 @@ beforeEach(() => {
 	demoTurnCount.set(0);
 	demoConfig.set(testConfig);
 	textLog.set([]);
+	streamingActive.set(false);
 	vi.mocked(submitInput).mockClear();
 	vi.mocked(getLlmPlayerAction).mockClear();
+	vi.mocked(getDemoContext).mockClear();
 });
 
 describe('stopDemo', () => {
@@ -168,6 +170,41 @@ describe('runDemoTurn', () => {
 		// chain rather than resolving on the mid-chain loading=false.
 		expect(get(streamingActive)).toBe(false);
 		expect(sm.isChainInProgress()).toBe(false);
+	});
+
+	// Regression for #1207 #51: a previous turn's NPC reply can still be
+	// revealing (streamingActive) when the next turn begins. The loop must wait
+	// for it to settle BEFORE snapshotting context, or the auto-player gets a
+	// prompt missing the NPC line and sometimes answers in the NPC's own voice.
+	it('waits for an in-flight NPC reply to settle before snapshotting context', async () => {
+		demoEnabled.set(true);
+		// Simulate the prior turn's reply still revealing as this turn starts.
+		streamingActive.set(true);
+
+		let streamingAtContext: boolean | null = null;
+		vi.mocked(getDemoContext).mockImplementationOnce(async () => {
+			streamingAtContext = get(streamingActive);
+			return {
+				location_name: 'Kilteevan',
+				location_description: KILTEEVAN_SCENE,
+				game_time: 'Wednesday, 14 May 1820, morning',
+				season: 'spring',
+				weather: 'clear sky',
+				npcs_here: [],
+				adjacent: [],
+				recent_log: [],
+				recent_actions: [],
+				extra_prompt: null,
+			};
+		});
+
+		// The reveal finishes shortly after the turn begins.
+		setTimeout(() => streamingActive.set(false), 80);
+
+		await runDemoTurn();
+
+		expect(streamingAtContext).toBe(false);
+		expect(getLlmPlayerAction).toHaveBeenCalledTimes(1);
 	});
 
 	// Regression for #999: `[system]` text-log entries that echo the
