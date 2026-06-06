@@ -336,17 +336,9 @@ pub async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, Stri
     .await
     .map_err(|e| e.to_string())??;
 
-    let mut lines = vec!["Branches:".to_string()];
-    for b in &branches {
-        let marker = if Some(b.id) == current_id { " *" } else { "" };
-        let parent = b
-            .parent_branch_id
-            .and_then(|pid| branches.iter().find(|bb| bb.id == pid))
-            .map(|bb| format!(" (from {})", bb.name))
-            .unwrap_or_default();
-        lines.push(format!("  {}{}{}", b.name, parent, marker));
-    }
-    Ok(lines.join("\n"))
+    Ok(parish_core::game_loop::render_branches_text(
+        &branches, current_id,
+    ))
 }
 
 /// Formats branch log as text for the /log command.
@@ -371,19 +363,9 @@ pub async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String>
     .await
     .map_err(|e| e.to_string())??;
 
-    if log.is_empty() {
-        return Ok("No snapshots yet on this branch.".to_string());
-    }
-
     let branch_name = state.current_branch_name.lock().await;
     let name = branch_name.as_deref().unwrap_or("unknown");
-
-    let mut lines = vec![format!("Save log for branch '{}':", name)];
-    for (i, info) in log.iter().enumerate() {
-        let time = parish_core::persistence::format_timestamp(&info.real_time);
-        lines.push(format!("  {}. {} (game: {})", i + 1, time, info.game_time));
-    }
-    Ok(lines.join("\n"))
+    Ok(parish_core::game_loop::render_branch_log_text(name, &log))
 }
 
 #[cfg(test)]

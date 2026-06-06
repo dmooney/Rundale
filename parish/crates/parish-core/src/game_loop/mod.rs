@@ -68,7 +68,10 @@ pub use npc_turn::{
     AUTONOMOUS_NPC_CHAIN_FLAG, TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn,
 };
 pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
-pub use save::{NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs};
+pub use save::{
+    NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs, render_branch_log_text,
+    render_branches_text,
+};
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{
     AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
