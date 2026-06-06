@@ -36,7 +36,8 @@ async fn response_has_content_security_policy_header() {
     let csp_str = csp.to_str().unwrap();
     // Verify the value matches the production constant exactly.
     assert_eq!(
-        csp_str, CSP_POLICY,
+        csp_str,
+        CSP_POLICY.as_str(),
         "CSP header value must match the production CSP_POLICY constant"
     );
     assert!(
@@ -47,16 +48,23 @@ async fn response_has_content_security_policy_header() {
         csp_str.contains("frame-ancestors 'none'"),
         "CSP must include frame-ancestors 'none'; got: {csp_str}"
     );
-    // Deferred (#543): script-src retains 'unsafe-inline' because the SvelteKit
-    // inline bootstrap <script> has no hash-based replacement yet.  Once the
-    // build pipeline emits a 'sha256-...' hash, remove 'unsafe-inline' and
-    // assert its absence here.  For now we assert that script-src is present
-    // and contains 'self'.
+    // TD-036 (#543): 'unsafe-inline' has been replaced with build-time
+    // SHA-256 hashes of the SvelteKit bootstrap inline scripts.
+    let script_src = csp_str
+        .split(';')
+        .find(|d| d.trim().starts_with("script-src"))
+        .expect("CSP must contain a script-src directive");
     assert!(
-        csp_str
-            .split(';')
-            .any(|d| d.trim().starts_with("script-src") && d.contains("'self'")),
-        "CSP script-src must include 'self'; got: {csp_str}"
+        script_src.contains("'self'"),
+        "CSP script-src must include 'self'; got: {script_src}"
+    );
+    assert!(
+        !script_src.contains("'unsafe-inline'"),
+        "CSP script-src must NOT contain 'unsafe-inline' (TD-036); got: {script_src}"
+    );
+    assert!(
+        script_src.contains("'sha256-"),
+        "CSP script-src must contain at least one 'sha256-...' hash (TD-036); got: {script_src}"
     );
 }
 
@@ -157,7 +165,7 @@ fn csp_directive_tokens<'a>(csp: &'a str, directive: &str) -> Vec<&'a str> {
 async fn csp_connect_src_no_bare_https_wildcard() {
     // connect-src must NOT contain the bare `https:` scheme wildcard.
     // The former policy had `https:` which allowed any HTTPS endpoint.
-    let tokens = csp_directive_tokens(CSP_POLICY, "connect-src");
+    let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "connect-src");
     assert!(
         !tokens.is_empty(),
         "CSP must contain a connect-src directive"
@@ -171,7 +179,7 @@ async fn csp_connect_src_no_bare_https_wildcard() {
 #[tokio::test]
 async fn csp_connect_src_contains_required_ws_schemes() {
     // WebSocket origins are still required for the game's live WS connection.
-    let tokens = csp_directive_tokens(CSP_POLICY, "connect-src");
+    let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "connect-src");
     assert!(
         tokens.contains(&"'self'"),
         "connect-src must contain 'self'; tokens: {tokens:?}"
@@ -203,7 +211,7 @@ async fn csp_connect_src_contains_allowed_external_origins() {
         "https://demotiles.maplibre.org",
         "https://fonts.googleapis.com",
     ];
-    let tokens = csp_directive_tokens(CSP_POLICY, "connect-src");
+    let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "connect-src");
     for origin in connect_fetch_origins {
         assert!(
             tokens.contains(origin),
@@ -215,7 +223,7 @@ async fn csp_connect_src_contains_allowed_external_origins() {
 #[tokio::test]
 async fn csp_img_src_no_bare_https_wildcard() {
     // img-src must NOT contain the bare `https:` scheme wildcard.
-    let tokens = csp_directive_tokens(CSP_POLICY, "img-src");
+    let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "img-src");
     assert!(!tokens.is_empty(), "CSP must contain an img-src directive");
     assert!(
         !tokens.contains(&"https:"),
@@ -230,7 +238,7 @@ async fn csp_img_src_contains_tile_servers() {
     // NLS historic tiles are now proxied through '/tiles/…' (issue #360),
     // so only the OSM origin remains external.
     let tile_origins: &[&str] = &["https://tile.openstreetmap.org"];
-    let tokens = csp_directive_tokens(CSP_POLICY, "img-src");
+    let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "img-src");
     for origin in tile_origins {
         assert!(
             tokens.contains(origin),
@@ -257,9 +265,9 @@ async fn csp_allowed_external_origins_list_exhaustive() {
     // Each origin must appear in at least one of: connect-src, img-src, or
     // font-src.  An origin in ALLOWED_EXTERNAL_ORIGINS that isn't in any of
     // these directives indicates either a stale list or a CSP regression.
-    let connect_tokens = csp_directive_tokens(CSP_POLICY, "connect-src");
-    let img_tokens = csp_directive_tokens(CSP_POLICY, "img-src");
-    let font_tokens = csp_directive_tokens(CSP_POLICY, "font-src");
+    let connect_tokens = csp_directive_tokens(CSP_POLICY.as_str(), "connect-src");
+    let img_tokens = csp_directive_tokens(CSP_POLICY.as_str(), "img-src");
+    let font_tokens = csp_directive_tokens(CSP_POLICY.as_str(), "font-src");
 
     for origin in ALLOWED_EXTERNAL_ORIGINS {
         let present = connect_tokens.contains(origin)
@@ -274,7 +282,8 @@ async fn csp_allowed_external_origins_list_exhaustive() {
     }
 }
 
-// Note: 'unsafe-inline' in script-src is intentionally retained while the
-// SvelteKit hash-based replacement is pending (see TODO in lib.rs referencing
-// issues #543 and #751).  No assertion is made about its presence or absence
-// here to avoid the test becoming a no-op check once the TODO is resolved.
+// TD-036 (#543): 'unsafe-inline' has been replaced with build-time SHA-256
+// hashes generated by build.rs from apps/ui/dist/**/*.html.  The
+// response_has_content_security_policy_header test above asserts both the
+// absence of 'unsafe-inline' and the presence of at least one 'sha256-...'
+// hash token in script-src.

@@ -27,9 +27,13 @@ pub mod ws;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
+
+// Inline-script SHA-256 hashes extracted from apps/ui/dist/**/*.html at build
+// time by build.rs.  Declares `SCRIPT_SRC_HASHES: &[&str]`.
+include!(concat!(env!("OUT_DIR"), "/csp_script_hashes.rs"));
 
 use axum::Router;
 use axum::extract::ConnectInfo;
@@ -93,33 +97,39 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 /// directives.  MapLibre also fetches glyph PBFs at runtime for the label
 /// layer, so `demotiles.maplibre.org` is in connect-src as well.
 ///
-/// # script-src 'unsafe-inline' (TODO: replace with hash)
+/// # script-src: hash-based allowlist (TD-036, #543)
 ///
-/// SvelteKit's production build injects a small inline bootstrap `<script>` in
-/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
-/// `script-src` causes the browser to reject that script, so the page never
-/// hydrates (codex P1, PR #543).
+/// `'unsafe-inline'` has been removed.  Instead, `build.rs` extracts the
+/// SHA-256 digest of every inline `<script>` block emitted by the SvelteKit
+/// static-adapter build and records them in `SCRIPT_SRC_HASHES`.  Those
+/// hashes are included here so the browser accepts the SvelteKit bootstrap
+/// script while rejecting all other inline code.
 ///
-/// The proper fix is to compute the SHA-256 of that bootstrap block and add
-/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
-/// but must be regenerated whenever SvelteKit changes the bootstrap text.
-/// Until that build-time integration exists, `'unsafe-inline'` is retained here
-/// so the app keeps working.
-///
-/// To replace `'unsafe-inline'` with `'sha256-...'`, compute the SHA-256 of
-/// `apps/ui/dist/index.html` at build time.  SvelteKit exposes a `kit.csp`
-/// config option that emits hashes automatically.
-/// See: <https://github.com/dmooney/Rundale/issues/543>
-pub const CSP_POLICY: &str = "default-src 'self'; \
-                              script-src 'self' 'unsafe-inline'; \
-                              worker-src 'self' blob:; \
-                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                              img-src 'self' data: blob: https://tile.openstreetmap.org; \
-                              connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
-                              font-src 'self' https://fonts.gstatic.com; \
-                              frame-ancestors 'none'; \
-                              base-uri 'self'; \
-                              form-action 'self'";
+/// The hash list is regenerated automatically whenever `cargo build` detects
+/// that `apps/ui/dist` has changed (via the `rerun-if-changed` directive in
+/// `build.rs`).
+pub static CSP_POLICY: LazyLock<String> = LazyLock::new(|| {
+    // Build the script-src directive.  Always include 'self' for module scripts
+    // loaded via <script src>.  Then append each hash token emitted by build.rs.
+    let mut script_src = String::from("'self'");
+    for hash in SCRIPT_SRC_HASHES {
+        script_src.push(' ');
+        script_src.push_str(hash);
+    }
+
+    format!(
+        "default-src 'self'; \
+         script-src {script_src}; \
+         worker-src 'self' blob:; \
+         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+         img-src 'self' data: blob: https://tile.openstreetmap.org; \
+         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
+         font-src 'self' https://fonts.gstatic.com; \
+         frame-ancestors 'none'; \
+         base-uri 'self'; \
+         form-action 'self'"
+    )
+});
 
 // ── GPL-3.0 redistribution: licence files served alongside the hosted web
 //    build.  Tauri bundles ship these via `tauri.conf.json` →
@@ -155,10 +165,15 @@ pub async fn serve_third_party_notices() -> impl IntoResponse {
 /// tests, so the tests exercise the real header values rather than a hand-rolled
 /// duplicate.
 pub fn apply_security_layers(router: Router) -> Router {
+    // CSP_POLICY is a LazyLock<String> — parse it into a HeaderValue once at
+    // startup.  `from_str` only fails for characters outside ISO-8859-1, which
+    // the CSP value does not contain.
+    let csp_value =
+        HeaderValue::from_str(CSP_POLICY.as_str()).expect("CSP_POLICY is a valid header value");
     router
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP_POLICY),
+            csp_value,
         ))
         .layer(SetResponseHeaderLayer::overriding(
             STRICT_TRANSPORT_SECURITY,
