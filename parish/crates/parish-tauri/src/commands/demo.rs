@@ -484,7 +484,17 @@ pub async fn get_llm_player_action(
         "demo turn: prompt built"
     );
 
-    let raw = client
+    // #1207 #32: freeze the world clock while the auto-player "thinks", exactly
+    // as NPC turns do (`clock.inference_pause()`). The 36x demo speed-factor
+    // otherwise advances game-time at real-time × 36 during the multi-second
+    // player-decision inference, so a standing conversation burned game-hours
+    // and movement time looked wildly inconsistent — the audit's "15 minutes on
+    // foot" walk appeared to consume ~5 game-hours of clock. Resume right after
+    // the call (before any `?`) so an inference error can't leave the clock
+    // stuck paused. Player-decision and NPC inference run sequentially in the
+    // demo loop, so this never overlaps the NPC-turn pause.
+    state.world.lock().await.clock.inference_pause();
+    let gen_result = client
         .generate(
             &model,
             &user_prompt,
@@ -495,8 +505,9 @@ pub async fn get_llm_player_action(
                 frequency_penalty: None,
             },
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+    state.world.lock().await.clock.inference_resume();
+    let raw = gen_result.map_err(|e| e.to_string())?;
 
     // Primary: extract the "action" field from JSON output.
     // The system prompt asks for {"action": "..."}, which is robust against
@@ -524,7 +535,9 @@ pub async fn get_llm_player_action(
             raw_preview = %truncate_for_log(&raw, 200),
             "demo turn: parsed action empty despite non-empty completion; retrying once"
         );
-        let retry_raw = client
+        // Freeze the clock across the retry inference too (#1207 #32).
+        state.world.lock().await.clock.inference_pause();
+        let retry_result = client
             .generate(
                 &model,
                 &user_prompt,
@@ -535,8 +548,9 @@ pub async fn get_llm_player_action(
                     frequency_penalty: None,
                 },
             )
-            .await
-            .map_err(|e| e.to_string())?;
+            .await;
+        state.world.lock().await.clock.inference_resume();
+        let retry_raw = retry_result.map_err(|e| e.to_string())?;
         let retry_action = extract_action_from_response(&retry_raw);
         if !retry_action.is_empty() {
             tracing::info!(
