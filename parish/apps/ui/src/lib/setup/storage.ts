@@ -7,7 +7,7 @@ import {
 export const SETUP_COMPLETE_SESSION_KEY = 'rundale-setup-complete';
 export const SETUP_ACTIVITY_SESSION_KEY = 'rundale-setup-activity';
 
-export type StoredSetupActivity = {
+type StoredSetupActivity = {
 	currentPhrase: string;
 	messages: string[];
 	completed: number;

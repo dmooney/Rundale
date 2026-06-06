@@ -132,7 +132,7 @@ describe('createAutoPauseTracker', () => {
 		tracker.dispose();
 	});
 
-	describe('window-focus guard (TODO #6 / #31a)', () => {
+	describe('window-focus guard (regression: demo-audit cycles 6 / 31a, TD-055 / #1201)', () => {
 		it('does NOT auto-pause when the window is not focused', () => {
 			const focused = false;
 			const tracker = createAutoPauseTracker({

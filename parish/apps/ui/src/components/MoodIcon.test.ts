@@ -4,10 +4,10 @@ import MoodIcon from './MoodIcon.svelte';
 
 describe('MoodIcon', () => {
 	it('renders the backend-provided emoji verbatim when supplied', () => {
-		// TODO #20 — the backend computes `mood_emoji` via
+		// Regression: the backend computes `mood_emoji` via
 		// parish-npc::mood::mood_emoji; when the consumer passes that
 		// value through, MoodIcon must render it directly instead of
-		// re-deriving from the mood string.
+		// re-deriving from the mood string (TD-055 / #1201).
 		const { container } = render(MoodIcon, {
 			props: { mood: 'angry', emoji: '🦊' },
 		});
@@ -64,9 +64,10 @@ describe('MoodIcon', () => {
 	});
 
 	it('fallback map mirrors the canonical Rust map (parish-npc/src/mood.rs)', () => {
-		// TODO #20 — these specific moods previously diverged between
-		// Rust and Svelte; lock them down here so the two maps don't
-		// drift again. Values copied verbatim from parish-npc/src/mood.rs.
+		// Regression: these specific moods previously diverged between
+		// Rust and Svelte (TD-055 / #1201); lock them down here so the
+		// two maps don't drift again. Values copied verbatim from
+		// parish-npc/src/mood.rs.
 		const cases: Array<[string, string]> = [
 			['angry', '😡'],
 			['passionate', '🔥'],
