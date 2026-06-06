@@ -65,7 +65,7 @@ pub async fn get_demo_context(
 
     use chrono::{Datelike, Timelike};
     let now = world.clock.now();
-    // TODO #5: include HH:MM alongside the time-of-day word so the
+    // Regression (fixed: #5): include HH:MM alongside the time-of-day word so the
     // demo auto-player can see clock progression between turns and
     // pick an appropriate greeting register.
     let game_time = format!(
@@ -342,7 +342,7 @@ fn strip_thinking_block(text: &str) -> &str {
 
 /// Truncate `s` to at most `max_chars` characters, suffixing `...` when
 /// truncation occurs. Used to keep tracing previews bounded for the
-/// `raw_preview` field on the empty-action retry path (TODO #18).
+/// `raw_preview` field on the empty-action retry path (fixed: #18).
 fn truncate_for_log(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars {
         return s.to_string();
@@ -354,7 +354,7 @@ fn truncate_for_log(s: &str, max_chars: usize) -> String {
 
 /// Builds the demo-turn system prompt for the LLM-as-player.
 ///
-/// Extracted from `get_llm_player_action` so the role anchor (TODO #51)
+/// Extracted from `get_llm_player_action` so the role anchor (fixed: #51)
 /// is unit-testable without driving the full Tauri command flow. The
 /// optional `extra_prompt` is appended verbatim after the "Explore
 /// naturally" paragraph — usually loaded from
@@ -390,7 +390,7 @@ Respond with a JSON object containing a single field \"action\" — the text the
 would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
 words or command directly.\n\
 \n\
-NO NARRATION (TODO #47): The engine has no narrative parser. Do NOT describe what \
+NO NARRATION: The engine has no narrative parser. Do NOT describe what \
 you are doing in past tense, third person, or participial style. Inputs like \
 \"Walking up to the cabin, I knock gently on the door\", \"Sittin' here, I \
 notice a book half-open on the table\", or \"I'll take a seat on the bench\" \
@@ -412,7 +412,7 @@ their own voice — they may use stock tags like \"Just askin', mind ye\", \"so 
 plain Hiberno-English without adopting another character's verbal tics. If an NPC \
 ends every line with \"so it is\", do not start ending yours with it too.\n\
 \n\
-MOVEMENT CADENCE (TODO #1/#30): A traveller does not loiter. After 3–5 turns \
+MOVEMENT CADENCE: A traveller does not loiter. After 3–5 turns \
 at one location, move to a new place — pick a name from the \"You can go to: \
 ...\" line in the user prompt and emit a movement command on its own (no \
 spoken line wrapped around it). Bare \"go to X\" / \"walk to X\" / \"head to X\" \
@@ -420,7 +420,7 @@ is the correct shape: the engine parses these as movement, not dialogue. If \
 you have visited only one location in the last 5 turns, your next action \
 should be a movement command.\n\
 \n\
-WHEN ALONE (TODO #12): If the user prompt's status block contains the line \
+WHEN ALONE: If the user prompt's status block contains the line \
 \"NPCs here: none\", there is nobody to hear you. Do NOT speak, ask questions, \
 roleplay knocking on doors, or wait around. Your ONLY useful action at an \
 empty location is to move. Pick a destination from the \"You can go to: ...\" \
@@ -509,7 +509,7 @@ pub async fn get_llm_player_action(
         "demo turn: LLM chose action"
     );
 
-    // TODO #18 — bounded single retry on empty action. Cycle 3 of the
+    // Regression (fixed: #18) — bounded single retry on empty action. Cycle 3 of the
     // demo audit logged two consecutive turns where the LLM returned
     // 137/139 chars but the parser surfaced an empty action; the
     // player input was recorded as nothing and no NPC turn fired.
@@ -578,7 +578,7 @@ mod tests {
         truncate_for_log,
     };
 
-    /// TODO #18 — pin the failure shapes where the parser returns
+    /// Regression test (fixed: #18) — pin the failure shapes where the parser returns
     /// empty so the retry path's gate (`action_text.is_empty()`) is
     /// well-defined.
     #[test]
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_names_aiden_carney() {
-        // TODO #51 — AC1: system prompt must explicitly name the
+        // Regression (fixed: #51) — AC1: system prompt must explicitly name the
         // auto-player so the model has a role anchor stronger than
         // the generic "wandering stranger" phrasing.
         let prompt = build_demo_system_prompt(None);
@@ -622,7 +622,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_forbids_speaking_as_npc() {
-        // TODO #51 — AC2: prompt must direct the model to speak only
+        // Regression (fixed: #51) — AC2: prompt must direct the model to speak only
         // in Aiden's voice and not roleplay an NPC's reply, even when
         // the prior turn lacks an NPC line.
         let prompt = build_demo_system_prompt(None);
@@ -646,7 +646,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_forbids_mirroring_npc_catchphrases() {
-        // TODO #26: the auto-player was adopting NPC stock tags
+        // Regression (fixed: #26): the auto-player was adopting NPC stock tags
         // ("Just askin', mind ye") from the recent-events buffer.
         // Prompt must explicitly tell the model not to mirror NPC
         // verbal tics.
@@ -667,7 +667,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_carries_movement_cadence_directive() {
-        // TODO #1/#30: auto-player produced exactly 1 movement in 38+
+        // Regression (fixed: #1/#30): auto-player produced exactly 1 movement in 38+
         // turns because the prompt has no explicit cadence rule and
         // movement is 1 of 4 few-shot examples. Prompt must (a) name
         // movement as a first-class action, (b) carry a "move after
@@ -705,7 +705,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_forbids_narrative_action_style() {
-        // TODO #47: cycle 9 caught 8/18 turns in narrative form
+        // Regression (fixed: #47): cycle 9 caught 8/18 turns in narrative form
         // ("Walking up to the cabin, I knock gently on the door";
         // "Sittin' here, I notice a book half-open on the table";
         // "I'll take a seat on the bench") — all silently dropped by
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn demo_system_prompt_layers_extra_prompt() {
-        // TODO #51 — AC3: operator extra prompt must still appear.
+        // Regression (fixed: #51) — AC3: operator extra prompt must still appear.
         let prompt = build_demo_system_prompt(Some("RUNDALE-SPECIFIC: stay east of the river."));
         assert!(
             prompt.contains("RUNDALE-SPECIFIC: stay east of the river."),

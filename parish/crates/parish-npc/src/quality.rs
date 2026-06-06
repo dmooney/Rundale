@@ -388,7 +388,7 @@ const MODERN_REGISTER_TERMS: &[&str] = &[
 /// `anachronism::format_context_alert` in shape so the NPC dialogue
 /// prompt builder can inject both alerts alongside each other.
 ///
-/// TODO #55: pre-fix the validator caught modern-register phrases on
+/// Regression note (fixed: #55): pre-fix the validator caught modern-register phrases on
 /// NPC *output* only, so a player saying "taking in the sights"
 /// could feed it through and trip a WARN on the NPC's echo. This
 /// alert closes the upstream gap by warning the model up front.
@@ -648,7 +648,7 @@ mod tests {
 
     #[test]
     fn format_player_register_alert_fires_on_hit() {
-        // TODO #55 — the exact phrase the demo audit caught Concannon
+        // Regression (fixed: #55) — the exact phrase the demo audit caught Concannon
         // echoing in cycle 12 because the player had used it first.
         let alert = format_player_register_alert("I'm just taking in the sights")
             .expect("alert must render when a MODERN_REGISTER_TERMS phrase is matched");

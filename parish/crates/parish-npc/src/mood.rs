@@ -195,7 +195,7 @@ mod tests {
         assert_eq!(mood_emoji("irritated"), "😤");
         assert_eq!(mood_emoji("frustrated"), "😤");
         assert_eq!(mood_emoji("melancholy"), "😔");
-        // TODO #3: `bitter` and `sharp` previously fell through to the 🙂
+        // Regression (fixed: #3): `bitter` and `sharp` previously fell through to the 🙂
         // fallback. Sean Ruadh Kelly ships with mood "bitter", Peig Hannigan
         // with mood "sharp" in mods/rundale/npcs.json.
         assert_eq!(mood_emoji("bitter"), "😒");

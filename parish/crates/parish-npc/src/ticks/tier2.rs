@@ -108,7 +108,7 @@ pub fn npc_snapshot_from_npc(npc: &Npc, npc_names: &HashMap<NpcId, String>) -> N
 
 /// Strict-JSON reminder appended to a Tier 2 prompt on retry.
 ///
-/// TODO #27: the 1.5B simulation-tier model occasionally emits
+/// Regression note (fixed: #27): the 1.5B simulation-tier model occasionally emits
 /// malformed JSON (unquoted keys, trailing prose, markdown fences),
 /// which surfaces as `"Tier 2 JSON parse failed: ..."` and silently
 /// drops the location's off-screen update for that tick. The retry
@@ -130,7 +130,7 @@ pub(crate) fn is_tier2_json_parse_failure(msg: &str) -> bool {
 }
 
 /// Cumulative Tier 2 JSON parse failure count since process start
-/// (TODO #29). Surfaced in `parish_core::debug_snapshot::InferenceDebug`
+/// (see #29). Surfaced in `parish_core::debug_snapshot::InferenceDebug`
 /// so an operator can trend silent off-screen sim drops across a demo
 /// run. Per-location detail still lives in `parish_npc::ticks` WARN
 /// logs — the counter is a coarse trend signal, not a replacement.
@@ -391,11 +391,11 @@ pub async fn run_tier2_for_group(
             Err(e) => e,
         };
 
-    // Retry exactly once on JSON parse failure (TODO #27). Cancellation
+    // Retry exactly once on JSON parse failure (see #27). Cancellation
     // and non-parse errors fall through to the diagnostic block below.
     let msg = last_err.to_string();
     if !is_intentional_cancellation(&msg) && is_tier2_json_parse_failure(&msg) {
-        record_tier2_parse_failure(); // TODO #29
+        record_tier2_parse_failure(); // see #29
         tracing::debug!(
             "Tier 2 JSON parse failed at {}, retrying once with strict-JSON reminder: {}",
             group.location_name,
@@ -415,7 +415,7 @@ pub async fn run_tier2_for_group(
             }
             Err(e) => {
                 // Retry also failed — count again if it was another parse
-                // failure (TODO #29). Cancellation between attempts will
+                // failure (see #29). Cancellation between attempts will
                 // fall through to the diagnostic block without counting.
                 if is_tier2_json_parse_failure(&e.to_string()) {
                     record_tier2_parse_failure();
@@ -614,7 +614,7 @@ mod tests {
         make_named_npc(id, name, location)
     }
 
-    /// TODO #27 — JSON parse failures discriminate cleanly from other
+    /// Regression test (fixed: #27) — JSON parse failures discriminate cleanly from other
     /// error shapes so the retry only fires for the intended failure
     /// mode.
     #[test]
@@ -662,7 +662,7 @@ mod tests {
         );
     }
 
-    /// TODO #54 — Tier 3 cancellation discriminator. The Tier 2 path
+    /// Regression test (fixed: #54) — Tier 3 cancellation discriminator. The Tier 2 path
     /// has long distinguished "cancelled mid-stream" (graceful preempt)
     /// from real failures; this test pins the shared helper used by
     /// both tiers so neither regresses to WARN-on-cancel.
