@@ -2,14 +2,10 @@ import { LONG_WAIT_MESSAGES } from '../setupWaitMessages';
 
 export const INITIAL_SETUP_MESSAGE = 'Preparing the storyteller...';
 export const SETUP_START_MESSAGE = 'Starting inference provider setup...';
-export const SETUP_HISTORY_LIMIT = 80;
-
 export { LONG_WAIT_MESSAGES };
 
 export function compactSetupMessages(nextMessages: string[]): string[] {
-	return nextMessages
-		.filter((msg) => msg.trim().length > 0)
-		.slice(-SETUP_HISTORY_LIMIT);
+	return nextMessages.filter((msg) => msg.trim().length > 0).slice(-80);
 }
 
 export function formatSetupStatusMessage(message: string): string {
