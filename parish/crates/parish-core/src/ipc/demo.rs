@@ -38,9 +38,10 @@ pub struct DemoNpcInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DemoAdjacentLocation {
     pub name: String,
-    /// Walking time in minutes. `None` for frontier entries (matches the GUI
-    /// map tooltip, which hides travel time until the location has been
-    /// visited).
+    /// Estimated walking time in minutes. Present for any reachable neighbour —
+    /// visited or unexplored — so the auto-player can judge distance before
+    /// committing to a move (#1207 #33/#36). `None` only when the map could not
+    /// estimate a travel time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub travel_minutes: Option<u16>,
     /// `true` for visited locations, `false` for frontier entries.
@@ -114,11 +115,10 @@ pub fn build_demo_context(
         .filter(|loc| loc.adjacent && loc.id != map.player_location)
         .map(|loc| DemoAdjacentLocation {
             name: loc.name.clone(),
-            travel_minutes: if loc.visited {
-                loc.travel_minutes
-            } else {
-                None
-            },
+            // Carry the travel estimate for unexplored neighbours too — the map
+            // now provides it (#1207 #33/#36), so the auto-player sees how far
+            // an unvisited adjacent location is rather than a bare "unvisited".
+            travel_minutes: loc.travel_minutes,
             visited: loc.visited,
         })
         .collect();
@@ -205,7 +205,10 @@ pub fn render_user_prompt(ctx: &DemoContextSnapshot) -> String {
             .map(|a| match (a.visited, a.travel_minutes) {
                 (true, Some(m)) => format!("  - {} — {} min away, visited", a.name, m),
                 (true, None) => format!("  - {} — visited", a.name),
-                (false, _) => format!("  - {} — unvisited", a.name),
+                (false, Some(m)) => {
+                    format!("  - {} — about {} min away, unexplored", a.name, m)
+                }
+                (false, None) => format!("  - {} — unexplored", a.name),
             })
             .collect();
         parts.push(format!("Adjacent locations:\n{}", lines.join("\n")));
@@ -260,7 +263,7 @@ mod tests {
         }
     }
 
-    fn map_data(adjacent_unvisited: Vec<&str>, adjacent_visited: Vec<(&str, u16)>) -> MapData {
+    fn map_data(adjacent_unvisited: Vec<(&str, u16)>, adjacent_visited: Vec<(&str, u16)>) -> MapData {
         let mut locations = vec![MapLocation {
             id: "0".to_string(),
             name: "Kilteevan".to_string(),
@@ -287,7 +290,7 @@ mod tests {
             });
             next_id += 1;
         }
-        for name in adjacent_unvisited {
+        for (name, mins) in adjacent_unvisited {
             locations.push(MapLocation {
                 id: next_id.to_string(),
                 name: name.to_string(),
@@ -296,7 +299,7 @@ mod tests {
                 adjacent: true,
                 hops: 1,
                 indoor: None,
-                travel_minutes: None,
+                travel_minutes: Some(mins),
                 visited: false,
             });
             next_id += 1;
@@ -415,11 +418,14 @@ mod tests {
     }
 
     #[test]
-    fn adjacent_frontier_omits_travel_minutes() {
+    fn adjacent_frontier_carries_travel_estimate() {
+        // #1207 #33/#36: unexplored adjacent locations now surface their travel
+        // estimate (was previously dropped, leaving a bare "unvisited" with no
+        // distance cue the auto-player could act on).
         let ctx = build_demo_context(
             &world_snapshot(),
             &[],
-            &map_data(vec!["The Mill"], vec![("The Crossroads", 12)]),
+            &map_data(vec![("The Mill", 8)], vec![("The Crossroads", 12)]),
             "Wednesday".to_string(),
             "spring".to_string(),
             None,
@@ -430,9 +436,10 @@ mod tests {
             .find(|a| a.name == "The Mill")
             .expect("frontier entry present");
         assert!(!mill.visited);
-        assert!(
-            mill.travel_minutes.is_none(),
-            "travel_minutes leaked on frontier"
+        assert_eq!(
+            mill.travel_minutes,
+            Some(8),
+            "frontier entry should carry its travel estimate"
         );
 
         let xroads = ctx
@@ -444,7 +451,7 @@ mod tests {
         assert_eq!(xroads.travel_minutes, Some(12));
 
         let prompt = render_user_prompt(&ctx);
-        assert!(prompt.contains("The Mill — unvisited"));
+        assert!(prompt.contains("The Mill — about 8 min away, unexplored"));
         assert!(prompt.contains("The Crossroads — 12 min away, visited"));
     }
 
