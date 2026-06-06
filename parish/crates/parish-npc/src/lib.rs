@@ -2010,6 +2010,62 @@ pub(crate) mod test_helpers {
         }
     }
 
+    /// NPC with a name and location set — shared by prompt / tier2 / tier3 test modules.
+    ///
+    /// Mirrors the repeated `named_npc` / local `make_test_npc` wrappers that
+    /// previously existed in each of those modules (TD-002).
+    pub fn make_named_npc(id: u32, name: &str, location: u32) -> Npc {
+        let mut npc = make_test_npc(id, location);
+        npc.name = name.to_string();
+        npc.brief_description = format!("a test NPC named {}", name);
+        npc.age = 40;
+        npc.personality = "Friendly".to_string();
+        npc
+    }
+
+    /// NPC with name, occupation, and optional workplace — shared by
+    /// `reactions/emoji_reactions` and `reactions/arrival_reactions/tests` (TD-002).
+    ///
+    /// Intelligence is set to an all-3 vector so tests that assert on reaction
+    /// thresholds get consistent results.
+    pub fn make_named_occupation_npc(
+        id: u32,
+        name: &str,
+        occupation: &str,
+        workplace: Option<LocationId>,
+    ) -> Npc {
+        let mut npc = make_test_npc(id, workplace.map(|l| l.0).unwrap_or(1));
+        npc.name = name.to_string();
+        npc.brief_description = format!("a {}", occupation.to_lowercase());
+        npc.age = 40;
+        npc.occupation = occupation.to_string();
+        npc.personality = "A friendly person.".to_string();
+        npc.intelligence = Intelligence {
+            verbal: 3,
+            analytical: 3,
+            emotional: 3,
+            practical: 3,
+            wisdom: 3,
+            creative: 3,
+        };
+        npc.workplace = workplace;
+        npc
+    }
+
+    /// NPC with a specific age and occupation — shared by `tier4` tests (TD-002).
+    ///
+    /// Location is fixed to 1 and workplace to 2, matching the previous hand-rolled
+    /// `make_npc` in `tier4.rs::tests`.
+    pub fn make_aged_occupation_npc(id: u32, age: u8, occupation: &str) -> Npc {
+        let mut npc = make_test_npc(id, 1);
+        npc.age = age;
+        npc.occupation = occupation.to_string();
+        npc.personality = "friendly".to_string();
+        npc.mood = "content".to_string();
+        npc.workplace = Some(LocationId(2));
+        npc
+    }
+
     /// NPC with a three-slot daily schedule: sleep at home, work, evening at home.
     pub fn make_scheduled_npc(id: u32, home: u32, work: u32) -> Npc {
         let mut npc = make_test_npc(id, home);

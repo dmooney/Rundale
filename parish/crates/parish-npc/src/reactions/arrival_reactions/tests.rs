@@ -3,7 +3,6 @@
 use super::selection::{generate_arrival_reactions, is_negative_mood, reaction_threshold};
 use super::templates::{ReactionTemplates, substitute_placeholders};
 use super::types::{ArrivalContext, ReactionKind};
-use crate::types::Intelligence;
 use crate::{Npc, NpcId};
 use parish_config::ReactionConfig;
 use parish_types::LocationId;
@@ -17,22 +16,7 @@ use super::prompt::build_reaction_prompt;
 use crate::LanguageSettings;
 
 fn test_npc(id: u32, name: &str, occupation: &str, workplace: Option<LocationId>) -> Npc {
-    let mut npc = crate::test_helpers::make_test_npc(id, workplace.unwrap_or(LocationId(1)).0);
-    npc.name = name.to_string();
-    npc.brief_description = format!("a {}", occupation.to_lowercase());
-    npc.age = 40;
-    npc.occupation = occupation.to_string();
-    npc.personality = "A friendly person.".to_string();
-    npc.intelligence = Intelligence {
-        verbal: 3,
-        analytical: 3,
-        emotional: 3,
-        practical: 3,
-        wisdom: 3,
-        creative: 3,
-    };
-    npc.workplace = workplace;
-    npc
+    crate::test_helpers::make_named_occupation_npc(id, name, occupation, workplace)
 }
 
 fn test_location(id: u32, indoor: bool) -> LocationData {

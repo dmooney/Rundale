@@ -473,12 +473,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn make_test_npc(id: u32, name: &str, location: u32) -> Npc {
-        let mut npc = crate::test_helpers::make_test_npc(id, location);
-        npc.name = name.to_string();
-        npc.brief_description = format!("a test NPC named {}", name);
-        npc.age = 40;
-        npc.personality = "Friendly".to_string();
-        npc
+        crate::test_helpers::make_named_npc(id, name, location)
     }
 
     #[test]
