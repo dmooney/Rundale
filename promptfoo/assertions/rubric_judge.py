@@ -29,7 +29,7 @@ def get_assert(output, context):
     if not slice_name:
         raise ValueError("RB_SLICE env var required for rubric_judge")
     prompt_id = rec.get("id", vars_.get("rb_id", "?"))
-    prompt_text = rec.get("prompt", "")
+    prompt_text = rec.get("user") or rec.get("prompt", "")
 
     # Empty / whitespace-only candidate output is a bench_bug — skip the judge
     # call entirely (it would score 1 anyway and wastes API tokens).

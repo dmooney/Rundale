@@ -18,7 +18,9 @@ import rb_common as rb  # noqa: E402
 def get_assert(output, context):
     vars_ = (context or {}).get("vars", {}) or {}
     rec = json.loads(vars_.get("record", "{}"))
-    schema = rec.get("schema", {})
+    # Runtime-faithful sim records carry `grade_schema` (the request itself sends
+    # no schema, matching the live engine); legacy records used `schema`.
+    schema = rec.get("grade_schema") or rec.get("schema", {})
 
     try:
         res = rb.rb_grade.grade_schema(output, schema)
