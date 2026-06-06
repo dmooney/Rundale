@@ -371,7 +371,7 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
     // Wrap all NPC/relationship inserts in a single transaction (#606).
     // If any insert fails (disk full, constraint violation, process crash)
     // the entire generation is rolled back, leaving no orphaned rows.
-    // Matches the pattern used by `import_npcs`.
+    // Matches the transaction pattern used by `import_npcs_inner`.
     let tx = conn.unchecked_transaction()?;
 
     let parish_lc = parish.to_lowercase();

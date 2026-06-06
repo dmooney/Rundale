@@ -220,11 +220,11 @@
 		// Frontend auto-pause tracker — fires /pause after `auto_pause_timeout_seconds` of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
-		// TODO #6 / #31a — track OS-level window focus so the tracker
-		// only fires /pause when the user is actively in the parish
-		// window. Without this guard the idle timer fires every time
-		// attention shifts to another app and produces a burst of
-		// /pause + /resume toggles.
+		// Track OS-level window focus so the tracker only fires /pause
+		// when the user is actively in the parish window. Without this
+		// guard the idle timer fires every time attention shifts to
+		// another app and produces a burst of /pause + /resume toggles
+		// (regression: demo-audit cycle 6).
 		let windowFocused = typeof document !== 'undefined' ? document.hasFocus() : true;
 		const onWindowFocus = () => { windowFocused = true; };
 		const onWindowBlur = () => { windowFocused = false; };
