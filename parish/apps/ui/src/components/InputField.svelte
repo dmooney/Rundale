@@ -7,12 +7,26 @@
 		filterModels,
 		type ModelSuggestion
 	} from '$lib/model-catalog';
-	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
+	import { knownNouns, findMatches } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
 import MentionDropdown from './MentionDropdown.svelte';
 import SlashDropdown from './SlashDropdown.svelte';
 import ModelDropdown from './ModelDropdown.svelte';
+	import {
+		getPlainText,
+		clearEditor,
+		setEditorText,
+		isCursorOnFirstLine,
+		isCursorOnLastLine
+	} from '$lib/input-field/contenteditable';
+	import { HISTORY_MAX, loadHistory, saveHistory } from '$lib/input-field/history';
+	import {
+		type CompletionState,
+		resetCompletion as makeEmptyCompletion,
+		extractPrefix,
+		applyCompletion as applyCompletionState
+	} from '$lib/input-field/completion';
 
 	let editorEl: HTMLDivElement;
 	let editorText = $state('');
@@ -52,23 +66,6 @@ import ModelDropdown from './ModelDropdown.svelte';
 	);
 
 	// ── Input history ───────────────────────────────────────────────────────
-	const HISTORY_KEY = 'parish-input-history';
-	const HISTORY_MAX = 50;
-
-	function loadHistory(): string[] {
-		// sessionStorage (not localStorage) — input history may contain sensitive user typing; limit to tab lifetime
-		try {
-			const raw = sessionStorage.getItem(HISTORY_KEY);
-			if (raw) return JSON.parse(raw);
-		} catch { /* ignore corrupt data */ }
-		return [];
-	}
-
-	function saveHistory(h: string[]) {
-		// sessionStorage (not localStorage) — input history may contain sensitive user typing; limit to tab lifetime
-		try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* quota */ }
-	}
-
 	let history: string[] = $state(loadHistory());
 	let historyIndex: number = $state(-1);
 	let savedDraft: string = $state('');
@@ -97,102 +94,14 @@ import ModelDropdown from './ModelDropdown.svelte';
 	});
 
 	// ── Tab-completion state ────────────────────────────────────────────────
-	interface CompletionState {
-		active: boolean;
-		prefix: string;
-		matches: KnownNoun[];
-		currentIndex: number;
-		prefixStart: number;
-		replacedLength: number;
-	}
-
-	let completion = $state<CompletionState>({
-		active: false,
-		prefix: '',
-		matches: [],
-		currentIndex: 0,
-		prefixStart: 0,
-		replacedLength: 0
-	});
+	let completion = $state<CompletionState>(makeEmptyCompletion());
 
 	function resetCompletion() {
-		completion = {
-			active: false,
-			prefix: '',
-			matches: [],
-			currentIndex: 0,
-			prefixStart: 0,
-			replacedLength: 0
-		};
+		completion = makeEmptyCompletion();
 	}
 
-	/** Extract the word being typed from the cursor position backward. */
-	function extractPrefix(): { prefix: string; start: number; node: Text } | null {
-		if (!editorEl) return null;
-		const sel = window.getSelection();
-		if (!sel || sel.rangeCount === 0) return null;
-
-		const range = sel.getRangeAt(0);
-		const node = range.startContainer;
-		if (node.nodeType !== Node.TEXT_NODE) return null;
-
-		const fullText = node.textContent ?? '';
-		const cursorPos = range.startOffset;
-
-		// Walk backward from cursor to find word start
-		let start = cursorPos;
-		while (start > 0 && fullText[start - 1] !== ' ' && fullText[start - 1] !== '\n' && fullText[start - 1] !== '\u00A0') {
-			start--;
-		}
-
-		const prefix = fullText.slice(start, cursorPos);
-		if (prefix.length === 0) return null;
-
-		return { prefix, start, node: node as Text };
-	}
-
-	/** Replace the prefix text in the editor with the selected completion. */
 	function applyCompletion() {
-		if (!editorEl || !completion.active) return;
-
-		const match = completion.matches[completion.currentIndex];
-		const sel = window.getSelection();
-		if (!sel || sel.rangeCount === 0) return;
-
-		const range = sel.getRangeAt(0);
-		const node = range.startContainer;
-
-		// Empty editor — no text node yet, insert one
-		if (node.nodeType !== Node.TEXT_NODE) {
-			const textNode = document.createTextNode(match.text);
-			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable caret control; Svelte does not manage text nodes or selection inside the editor surface
-			editorEl.textContent = '';
-			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable caret control; Svelte does not manage text nodes or selection inside the editor surface
-			editorEl.appendChild(textNode);
-			completion.replacedLength = match.text.length;
-			const newRange = document.createRange();
-			newRange.setStart(textNode, match.text.length);
-			newRange.collapse(true);
-			sel.removeAllRanges();
-			sel.addRange(newRange);
-			return;
-		}
-
-		const text = node.textContent ?? '';
-		const replaceLen = completion.replacedLength > 0 ? completion.replacedLength : completion.prefix.length;
-		const before = text.slice(0, completion.prefixStart);
-		const after = text.slice(completion.prefixStart + replaceLen);
-
-		node.textContent = before + match.text + after;
-		completion.replacedLength = match.text.length;
-
-		// Place cursor after completed text
-		const cursorPos = completion.prefixStart + match.text.length;
-		const newRange = document.createRange();
-		newRange.setStart(node, Math.min(cursorPos, node.textContent!.length));
-		newRange.collapse(true);
-		sel.removeAllRanges();
-		sel.addRange(newRange);
+		completion = applyCompletionState(editorEl, completion);
 	}
 
 	// ── Focus management ────────────────────────────────────────────────────
@@ -216,67 +125,13 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	// ── Editor helpers ──────────────────────────────────────────────────────
 
-	/** Returns the full plain-text content of the editor, converting chips to @Name. */
-	function getPlainText(): string {
-		if (!editorEl) return '';
-		return extractText(editorEl);
-	}
-
-	/** Recursively extract text from a node, handling <br> and <div> wrappers. */
-	function extractText(node: Node): string {
-		let result = '';
-		for (const child of node.childNodes) {
-			if (child.nodeType === Node.TEXT_NODE) {
-				result += child.textContent ?? '';
-			} else if (child instanceof HTMLElement && child.dataset.npc) {
-				result += `@${child.dataset.npc}`;
-			} else if (child instanceof HTMLElement && child.tagName === 'BR') {
-				result += '\n';
-			} else if (child instanceof HTMLElement && child.tagName === 'DIV') {
-				// Chrome wraps new lines in <div> elements in contenteditable
-				const inner = extractText(child);
-				if (inner && result && !result.endsWith('\n')) {
-					result += '\n';
-				}
-				result += inner;
-			} else if (child instanceof HTMLElement) {
-				result += child.textContent ?? '';
-			}
-		}
-		return result.replace(/\u00A0/g, ' ');
-	}
-
 	/** Returns true if the editor is visually empty (no text, no chips). */
 	function isEditorEmpty(): boolean {
 		return editorText.trim() === '';
 	}
 
 	function syncEditorText() {
-		editorText = getPlainText();
-	}
-
-	/** Clears the editor content. */
-	function clearEditor() {
-		if (editorEl) {
-			// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable reset; Svelte does not manage the text content of the editor surface
-			editorEl.textContent = '';
-		}
-		editorText = '';
-	}
-
-	/** Sets the editor's plain-text content and places cursor at end. */
-	function setEditorText(text: string) {
-		if (!editorEl) return;
-		// eslint-disable-next-line svelte/no-dom-manipulating -- contenteditable programmatic fill; Svelte does not manage text nodes or selection inside the editor surface
-		editorEl.textContent = text;
-		editorText = text;
-		// Place cursor at end
-		const sel = window.getSelection();
-		const range = document.createRange();
-		range.selectNodeContents(editorEl);
-		range.collapse(false);
-		sel?.removeAllRanges();
-		sel?.addRange(range);
+		editorText = getPlainText(editorEl);
 	}
 
 	/** Gets the plain text currently being typed (excluding chips). */
@@ -289,39 +144,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 				return node.textContent ?? '';
 			}
 		}
-		return getPlainText();
-	}
-
-	/** Returns true if the cursor is on the first line (or editor is empty/single-line). */
-	function isCursorOnFirstLine(): boolean {
-		if (!editorEl) return true;
-		const text = getPlainText();
-		if (!text.includes('\n')) return true;
-		const sel = window.getSelection();
-		if (!sel || sel.rangeCount === 0) return true;
-		const range = sel.getRangeAt(0);
-		// Compare cursor Y to editor top — if within first line height, we're on line 1
-		const rangeRect = range.getBoundingClientRect();
-		const editorRect = editorEl.getBoundingClientRect();
-		// If range has no rect (empty), assume first line
-		if (rangeRect.top === 0 && rangeRect.bottom === 0) return true;
-		const lineHeight = parseFloat(getComputedStyle(editorEl).lineHeight) || 20;
-		return rangeRect.top - editorRect.top < lineHeight;
-	}
-
-	/** Returns true if the cursor is on the last line. */
-	function isCursorOnLastLine(): boolean {
-		if (!editorEl) return true;
-		const text = getPlainText();
-		if (!text.includes('\n')) return true;
-		const sel = window.getSelection();
-		if (!sel || sel.rangeCount === 0) return true;
-		const range = sel.getRangeAt(0);
-		const rangeRect = range.getBoundingClientRect();
-		const editorRect = editorEl.getBoundingClientRect();
-		if (rangeRect.top === 0 && rangeRect.bottom === 0) return true;
-		const lineHeight = parseFloat(getComputedStyle(editorEl).lineHeight) || 20;
-		return editorRect.bottom - rangeRect.bottom < lineHeight;
+		return getPlainText(editorEl);
 	}
 
 	// ── Mention detection ───────────────────────────────────────────────────
@@ -350,7 +173,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	// ── Slash detection ─────────────────────────────────────────────────────
 
 	function detectSlash() {
-		const text = getPlainText();
+		const text = getPlainText(editorEl);
 		// Slash commands must be the first character and no space yet (still typing the command)
 		if (!text.startsWith('/')) {
 			if (dropdownMode === 'slash') dropdownMode = null;
@@ -371,7 +194,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	// ── Model autocomplete (`/model …`, `/model.<category> …`) ──────────────
 
 	function detectModel() {
-		const trigger = detectModelTrigger(getPlainText());
+		const trigger = detectModelTrigger(getPlainText(editorEl));
 		if (trigger === null) {
 			if (dropdownMode === 'model') dropdownMode = null;
 			return;
@@ -384,7 +207,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	function selectModelSuggestion(suggestion: ModelSuggestion) {
 		const command = `${modelPrefix} ${suggestion.name}`;
-		clearEditor();
+		clearEditor(editorEl);
+		editorText = '';
 		dropdownMode = null;
 		submitInput(command).catch((err) => {
 			pushErrorLog(`Could not send "${command}": ${formatIpcError(err)}`);
@@ -487,11 +311,13 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	function selectSlashCommand(cmd: SlashCommand) {
 		if (cmd.hasArgs) {
-			setEditorText(cmd.command + ' ');
+			setEditorText(editorEl, cmd.command + ' ');
+			editorText = cmd.command + ' ';
 			dropdownMode = null;
 			editorEl?.focus();
 		} else {
-			clearEditor();
+			clearEditor(editorEl);
+			editorText = '';
 			dropdownMode = null;
 			submitInput(cmd.command).catch((err) => {
 				pushErrorLog(`Could not send "${cmd.command}": ${formatIpcError(err)}`);
@@ -628,7 +454,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 			}
 		}
 
-		clearEditor();
+		clearEditor(editorEl);
+		editorText = '';
 		dropdownMode = null;
 
 		// Push to history (skip consecutive dupes)
@@ -750,27 +577,30 @@ import ModelDropdown from './ModelDropdown.svelte';
 		}
 
 		// Input history (only when no dropdown is open)
-		if (dropdownMode === null && e.key === 'ArrowUp' && isCursorOnFirstLine()) {
+		if (dropdownMode === null && e.key === 'ArrowUp' && isCursorOnFirstLine(editorEl, editorText)) {
 			if (history.length > 0) {
 				e.preventDefault();
 				if (historyIndex === -1) {
-					savedDraft = getPlainText();
+					savedDraft = getPlainText(editorEl);
 					historyIndex = history.length - 1;
 				} else if (historyIndex > 0) {
 					historyIndex--;
 				}
-				setEditorText(history[historyIndex]);
+				setEditorText(editorEl, history[historyIndex]);
+				editorText = history[historyIndex];
 				return;
 			}
 		}
-		if (dropdownMode === null && e.key === 'ArrowDown' && historyIndex >= 0 && isCursorOnLastLine()) {
+		if (dropdownMode === null && e.key === 'ArrowDown' && historyIndex >= 0 && isCursorOnLastLine(editorEl, editorText)) {
 			e.preventDefault();
 			if (historyIndex < history.length - 1) {
 				historyIndex++;
-				setEditorText(history[historyIndex]);
+				setEditorText(editorEl, history[historyIndex]);
+				editorText = history[historyIndex];
 			} else {
 				historyIndex = -1;
-				setEditorText(savedDraft);
+				setEditorText(editorEl, savedDraft);
+				editorText = savedDraft;
 			}
 			return;
 		}
