@@ -1,8 +1,5 @@
-import { LONG_WAIT_MESSAGES } from '../setupWaitMessages';
-
 export const INITIAL_SETUP_MESSAGE = 'Preparing the storyteller...';
 export const SETUP_START_MESSAGE = 'Starting inference provider setup...';
-export { LONG_WAIT_MESSAGES };
 
 export function compactSetupMessages(nextMessages: string[]): string[] {
 	return nextMessages.filter((msg) => msg.trim().length > 0).slice(-80);
