@@ -153,7 +153,12 @@ pub fn build_map_data(
         })
         .collect();
 
-    // Append frontier locations (limited info)
+    // Append frontier locations (limited info). Frontier entries are unvisited
+    // but reachable; surface the BFS travel-time estimate so the player (and the
+    // demo auto-player) can judge how far an unexplored neighbour is and choose
+    // to travel there. The estimate is already computed in `travel_time_map`;
+    // discarding it left adjacent-but-unexplored locations as bare "unvisited"
+    // with no distance cue (#1207 findings #33/#36).
     for id in &frontier {
         if let Some(data) = world.graph.get(*id) {
             locations.push(MapLocation {
@@ -164,7 +169,7 @@ pub fn build_map_data(
                 adjacent: adjacent_ids.contains(id),
                 hops: *hop_map.get(id).unwrap_or(&u32::MAX),
                 indoor: None,
-                travel_minutes: None,
+                travel_minutes: travel_time_map.get(id).copied(),
                 visited: false,
             });
         }
@@ -1101,14 +1106,17 @@ mod tests {
             assert!(start_loc.indoor.is_some());
             assert!(start_loc.travel_minutes.is_none());
 
-            // Frontier locations are not visited and have limited info
+            // Frontier locations are not visited and reveal limited info: the
+            // indoor flag stays hidden, but the travel-time estimate is surfaced
+            // so the player can judge how far an unexplored neighbour is
+            // (#1207 #33/#36).
             let frontier: Vec<_> = map.locations.iter().filter(|l| !l.visited).collect();
             assert_eq!(frontier.len(), neighbor_count);
             for f in &frontier {
                 assert!(f.indoor.is_none(), "frontier should not reveal indoor flag");
                 assert!(
-                    f.travel_minutes.is_none(),
-                    "frontier should not reveal travel time"
+                    f.travel_minutes.is_some(),
+                    "frontier should surface a travel-time estimate"
                 );
             }
 
