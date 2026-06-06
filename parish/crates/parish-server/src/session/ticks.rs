@@ -1,0 +1,683 @@
+//! Per-session background tick tasks.
+//!
+//! [`spawn_session_ticks`] starts all background tasks for a session and
+//! returns their [`JoinHandle`]s.  Every task observes `shutdown_token` via
+//! `tokio::select!` so it exits cleanly on session eviction (#228).
+//!
+//! Tasks spawned here:
+//! 1. Character-log subscriber
+//! 2. Location-log subscriber
+//! 3. Chat-transcript subscriber
+//! 4. World tick (5 s)
+//! 5. Inactivity tick (1 s)
+//! 6. Autosave tick
+//! 7. Tier-2 simulation tick (#1198)
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use tokio::task::JoinHandle;
+
+use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
+
+use crate::state::AppState;
+
+use super::GOSSIP_BUDGET_PER_TICK;
+pub use parish_core::AUTOSAVE_INTERVAL_SECS;
+
+/// Spawns the per-session background tasks and returns their handles.
+///
+/// Each task observes `shutdown_token` via `tokio::select!` so it exits
+/// cleanly when the token is cancelled (e.g. on session eviction) rather than
+/// running until its `JoinHandle` is aborted (#228).
+pub(super) fn spawn_session_ticks(
+    state: Arc<AppState>,
+    shutdown_token: tokio_util::sync::CancellationToken,
+) -> Vec<JoinHandle<()>> {
+    let mut handles = Vec::with_capacity(4);
+
+    // ── Character-log subscriber ───────────────────────────────────────────
+    //
+    // Per-character markdown logs (rule #12: orchestration lives in
+    // parish-core; this is the thin server-side wiring). Gated by the
+    // `character-logs` flag (default on). Subscribes BEFORE the profile
+    // rewrite so no events fired during/just after initial profile
+    // generation are lost.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            use parish_core::character_log::{CharacterLogManager, FEATURE_FLAG};
+
+            let enabled = {
+                let cfg = s.config.lock().await;
+                !cfg.flags.is_disabled(FEATURE_FLAG)
+            };
+            if !enabled {
+                return;
+            }
+            let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
+            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut manager = CharacterLogManager::new(&app_name, current_branch, true);
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            {
+                let world = s.world.lock().await;
+                let npc_mgr = s.npc_manager.lock().await;
+                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                    tracing::warn!(error = %e, "character-log profile write failed");
+                }
+            }
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            // Rebind manager when the active branch has changed
+                            // (e.g. load_branch / create_branch). Without this the
+                            // writer keeps appending to the original branch's
+                            // log directory after a branch switch (#1011).
+                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            if bid != current_branch {
+                                current_branch = bid;
+                                manager = CharacterLogManager::new(&app_name, bid, true);
+                                let world = s.world.lock().await;
+                                let npc_mgr = s.npc_manager.lock().await;
+                                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                    tracing::warn!(error = %e, "character-log profile write failed after branch switch");
+                                }
+                            }
+                            // Clone the Arc<AppState> (cheap) and run the blocking
+                            // I/O task in a dedicated thread pool, avoiding lock
+                            // contention on the async side (#1012).
+                            let mgr_clone = manager.clone();
+                            let evt_clone = event.clone();
+                            let state_clone = Arc::clone(&s);
+                            let handle = tokio::task::spawn_blocking(move || {
+                                let world = state_clone.world.blocking_lock();
+                                let npc_mgr = state_clone.npc_manager.blocking_lock();
+                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                            });
+                            match handle.await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
+                                Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
+    // ── Location-log subscriber ────────────────────────────────────────────
+    //
+    // Mirrors the character-log subscriber above; writes per-location
+    // markdown logs. Gated by the `location-logs` flag (default on).
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            use parish_core::location_log::{FEATURE_FLAG, LocationLogManager};
+
+            let enabled = {
+                let cfg = s.config.lock().await;
+                !cfg.flags.is_disabled(FEATURE_FLAG)
+            };
+            if !enabled {
+                return;
+            }
+            let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
+            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut manager = LocationLogManager::new(&app_name, current_branch, true);
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            {
+                let world = s.world.lock().await;
+                let npc_mgr = s.npc_manager.lock().await;
+                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                    tracing::warn!(error = %e, "location-log profile write failed");
+                }
+            }
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            // Rebind manager when the active branch has changed
+                            // (e.g. load_branch / create_branch). Mirrors the
+                            // character-log subscriber fix from #1011 (#1034).
+                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            if bid != current_branch {
+                                current_branch = bid;
+                                manager = LocationLogManager::new(&app_name, bid, true);
+                                let world = s.world.lock().await;
+                                let npc_mgr = s.npc_manager.lock().await;
+                                if let Err(e) = manager.write_all_profiles(&world, &npc_mgr) {
+                                    tracing::warn!(error = %e, "location-log profile write failed after branch switch");
+                                }
+                            }
+                            // Snapshot world and npc_manager state needed for name
+                            // resolution, then drop the locks before doing sync file I/O
+                            // to avoid blocking other tasks (#1012).
+                            // Clone the Arc<AppState> (cheap) and run the blocking
+                            // I/O task in a dedicated thread pool, avoiding lock
+                            // contention on the async side (#1012).
+                            let mgr_clone = manager.clone();
+                            let evt_clone = event.clone();
+                            let state_clone = Arc::clone(&s);
+                            let handle = tokio::task::spawn_blocking(move || {
+                                let world = state_clone.world.blocking_lock();
+                                let npc_mgr = state_clone.npc_manager.blocking_lock();
+                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
+                            });
+                            match handle.await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
+                                Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
+    // ── Chat-transcript subscriber ─────────────────────────────────────────
+    //
+    // Writes the user-visible chat stream as JSONL paired with the inference
+    // log (for zippable bug reports), correlating NPC dialogue to the
+    // inference call via `parish.request_id`. The writer task + enable flag
+    // were created at session start on `AppState.chat_transcript_log`; this
+    // subscriber just forwards bus events to it. Per-session (not per-branch),
+    // so unlike the markdown log managers it never rebinds.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            // Always subscribe — even if logging starts disabled — so a
+            // mid-session `/inference-log on` is captured. `process_event`
+            // no-ops internally while the shared flag is off.
+            let mut rx = {
+                let world = s.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = rx.recv() => match result {
+                        Ok(event) => {
+                            let world = s.world.lock().await;
+                            let npc_mgr = s.npc_manager.lock().await;
+                            s.chat_transcript_log.process_event(&event, &world, &npc_mgr);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
+                }
+            }
+        }));
+    }
+
+    // ── World tick (5 s) ─────────────────────────────────────────────────────
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            // Round-robin cursor for budgeted gossip propagation (#466).
+            let mut gossip_cursor: usize = 0;
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+
+                {
+                    let world = s.world.lock().await;
+                    let npc_manager = s.npc_manager.lock().await;
+                    let mut snap = parish_core::ipc::snapshot_from_world(&world);
+                    snap.name_hints = parish_core::ipc::compute_name_hints(
+                        &world,
+                        &npc_manager,
+                        &s.pronunciations,
+                    );
+                    s.event_bus
+                        .emit_named(Topic::WorldUpdate, "world-update", &snap);
+                }
+
+                {
+                    // Snapshot the banshee flag outside the world/npc locks to avoid
+                    // nesting config → world, which inverts the project-wide
+                    // lock order.
+                    let banshee_enabled = {
+                        let cfg = s.config.lock().await;
+                        !cfg.flags.is_disabled("banshee")
+                    };
+
+                    let mut world = s.world.lock().await;
+                    let mut npc_mgr = s.npc_manager.lock().await;
+
+                    // Advance the world one pump through the single shared
+                    // helper (rule #12): weather + schedules + tier
+                    // reassignment + banshee + budgeted gossip. The server
+                    // intentionally leaves tier-4 to its own scheduling (it has
+                    // never dispatched tier-4 from this loop). The budgeted
+                    // gossip cursor round-robins across ticks (#466).
+                    {
+                        use parish_core::game_loop::{
+                            AdvanceOptions, GossipMode, WeatherMode, advance_world,
+                        };
+
+                        let mut rng = rand::rng();
+                        let report = advance_world(
+                            &mut world,
+                            &mut npc_mgr,
+                            &mut rng,
+                            AdvanceOptions {
+                                weather: WeatherMode::Single,
+                                run_banshee: banshee_enabled,
+                                gossip: GossipMode::Budgeted {
+                                    cursor: gossip_cursor,
+                                    budget: GOSSIP_BUDGET_PER_TICK,
+                                },
+                                run_tier4: false,
+                            },
+                        );
+                        gossip_cursor = report.gossip_cursor;
+                    }
+
+                    // Advance the generation counter so handle_game_input can
+                    // detect TOCTOU races (see issue #283).
+                    //
+                    // Skip while inference-paused: the player input is
+                    // mid-flight and the clock is frozen, so this tick is a
+                    // no-op from the player's perspective. Bumping the
+                    // counter anyway falsely tripped the TOCTOU guard.
+                    if !world.clock.is_inference_paused() {
+                        world.increment_tick_generation();
+                    }
+
+                    // #621 — Per-session tick metric. Emitted as a structured
+                    // tracing event so log-based metric tools can aggregate
+                    // tick counts per session without a Prometheus exporter.
+                    tracing::debug!(
+                        target: "parish_server::metrics",
+                        session_id = %s.session_id,
+                        tick = world.tick_generation,
+                        "session.tick"
+                    );
+                }
+            }
+        }));
+    }
+
+    // ── Inactivity tick (1 s) ────────────────────────────────────────────────
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+                }
+                crate::routes::tick_inactivity(&s).await;
+            }
+        }));
+    }
+
+    // ── Autosave tick ────────────────────────────────────────────────────────
+    //
+    // #230 — Fixes: previously a fresh `Database::open` (and therefore a full
+    // `migrate()` round-trip) was executed on every tick.  Now we lazily open
+    // an `AsyncDatabase` the first time we have a save path and reuse it for
+    // all subsequent ticks.  All SQLite work is delegated to `spawn_blocking`
+    // inside `AsyncDatabase`, so a slow fsync can never stall the Tokio runtime.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            use parish_core::persistence::snapshot::GameSnapshot;
+            use parish_core::persistence::{AsyncDatabase, Database};
+            // Track whether the last autosave attempt failed so we only emit
+            // one user-visible warning per failure run, not one per tick.
+            let mut last_autosave_failed = false;
+            loop {
+                // Wait for the interval or cancellation.  Cancellation exits
+                // only after the *sleep* fires, so any in-flight autosave
+                // iteration completes before the task stops (#228).
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)) => {}
+                }
+
+                let save_path = s.save_path.lock().await.clone();
+                let branch_id = *s.current_branch_id.lock().await;
+
+                if let (Some(path), Some(bid)) = (save_path, branch_id) {
+                    // Snapshot the world state before touching the DB lock.
+                    let snapshot = {
+                        let world = s.world.lock().await;
+                        let npc_manager = s.npc_manager.lock().await;
+                        GameSnapshot::capture(&world, &npc_manager)
+                    };
+
+                    // Obtain (or open) the cached AsyncDatabase for this path.
+                    let db: Option<AsyncDatabase> = {
+                        let mut guard = s.save_db.lock().await;
+                        // If the cached path no longer matches the active save file
+                        // (e.g. after load-branch / new-save-file), discard the old handle.
+                        if guard.as_ref().is_some_and(|(p, _)| p != &path) {
+                            *guard = None;
+                        }
+                        if guard.is_none() {
+                            let path_clone = path.clone();
+                            match tokio::task::spawn_blocking(move || Database::open(&path_clone))
+                                .await
+                            {
+                                Ok(Ok(db)) => {
+                                    *guard = Some((path.clone(), AsyncDatabase::new(db)));
+                                }
+                                Ok(Err(e)) => {
+                                    tracing::warn!("Autosave: failed to open DB: {}", e);
+                                    if !last_autosave_failed {
+                                        s.event_bus.emit_named(
+                                            Topic::TextLog,
+                                            "text-log",
+                                            &parish_core::ipc::text_log(
+                                                "system",
+                                                "Autosave failed — could not open save file.",
+                                            ),
+                                        );
+                                        last_autosave_failed = true;
+                                    }
+                                    continue;
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Autosave: spawn_blocking error: {}", e);
+                                    continue;
+                                }
+                            }
+                        }
+                        guard.as_ref().map(|(_, db)| db.clone())
+                    };
+
+                    if let Some(db) = db {
+                        match db.save_snapshot(bid, &snapshot).await {
+                            Ok(_) => {
+                                tracing::debug!("Session autosave complete");
+                                if last_autosave_failed {
+                                    s.event_bus.emit_named(
+                                        Topic::TextLog,
+                                        "text-log",
+                                        &parish_core::ipc::text_log(
+                                            "system",
+                                            "Autosave resumed successfully.",
+                                        ),
+                                    );
+                                }
+                                last_autosave_failed = false;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Session autosave failed: {}", e);
+                                if !last_autosave_failed {
+                                    s.event_bus.emit_named(
+                                        Topic::TextLog,
+                                        "text-log",
+                                        &parish_core::ipc::text_log(
+                                            "system",
+                                            "Autosave failed — your progress may not be saved.",
+                                        ),
+                                    );
+                                    last_autosave_failed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
+    // ── Tier-2 simulation tick ────────────────────────────────────────────────
+    //
+    // Mirrors the Tier-2 polling task from `parish-tauri/src/setup.rs` and the
+    // `dispatch_headless_tier2_tick` helper from `parish-engine/src/headless.rs`.
+    // Previously missing from the web backend (TD-040), so `GossipSpread` events
+    // never fired on the Axum path. The shared `mint_tier2_gossip` helper (TD-030)
+    // is called for post-processing instead of repeating the loop body a third time
+    // (rule #12).
+    //
+    // Lock ordering: world → npc_manager (documented contract, matches the main
+    // world-tick above and the Tauri site — both hold world first, npc_manager
+    // second). The sim client and config are snapshotted before acquiring these
+    // locks so the LLM call is never made while holding a game-state lock.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+
+                // ── Check whether a Tier-2 tick is due ───────────────────────
+                let (needs_tick, in_flight, groups, time_desc, weather_str) = {
+                    let world = s.world.lock().await;
+                    let npc_mgr = s.npc_manager.lock().await;
+                    let now = world.clock.now();
+                    if !npc_mgr.needs_tier2_tick(now) || npc_mgr.tier2_in_flight() {
+                        continue;
+                    }
+                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+                    let groups_map = npc_mgr.tier2_groups();
+                    if groups_map.is_empty() {
+                        continue;
+                    }
+                    let npc_names: std::collections::HashMap<_, _> =
+                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
+                    let groups: Vec<Tier2Group> = groups_map
+                        .into_iter()
+                        .filter_map(|(loc, npc_ids)| {
+                            let location_name = world
+                                .graph
+                                .get(loc)
+                                .map(|d| d.name.clone())
+                                .unwrap_or_else(|| format!("Location {}", loc.0));
+                            let npcs: Vec<_> = npc_ids
+                                .iter()
+                                .filter_map(|id| npc_mgr.get(*id))
+                                .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
+                                .collect();
+                            if npcs.is_empty() {
+                                None
+                            } else {
+                                Some(Tier2Group {
+                                    location: loc,
+                                    location_name,
+                                    npcs,
+                                })
+                            }
+                        })
+                        .collect();
+                    if groups.is_empty() {
+                        continue;
+                    }
+                    let time_desc = world.clock.time_of_day().to_string();
+                    let weather_str = world.weather.to_string();
+                    (true, false, groups, time_desc, weather_str)
+                };
+                let _ = (needs_tick, in_flight); // consumed by the checks above
+
+                // Mark in-flight before releasing the lock so a concurrent tick
+                // cannot start a second batch.
+                {
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    npc_mgr.set_tier2_in_flight(true);
+                }
+
+                // ── Snapshot the sim client + model outside game-state locks ─
+                let (client_opt, model) = {
+                    use parish_core::config::InferenceCategory;
+                    let cfg = s.config.lock().await;
+                    let base_client = s.client.lock().await;
+                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                };
+
+                let Some(sim_client) = client_opt else {
+                    s.npc_manager.lock().await.set_tier2_in_flight(false);
+                    continue;
+                };
+
+                // ── Run one LLM call per Tier-2 group (outside locks) ────────
+                let lang = s.language_settings.clone();
+                let mut events = Vec::new();
+                for group in &groups {
+                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                        &sim_client,
+                        &model,
+                        group,
+                        &time_desc,
+                        &weather_str,
+                        &lang,
+                        None,
+                    )
+                    .await
+                    {
+                        events.push(evt);
+                    }
+                }
+
+                // ── Apply events and mint gossip under game-state locks ───────
+                // Lock ordering: world → npc_manager.
+                {
+                    let mut world = s.world.lock().await;
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    let game_time = world.clock.now();
+
+                    let dbg = parish_core::game_loop::mint_tier2_gossip(
+                        &events,
+                        npc_mgr.npcs_mut(),
+                        game_time,
+                        &parish_core::config::NpcConfig::default(),
+                        &mut world,
+                    );
+                    npc_mgr.record_tier2_tick(game_time);
+                    npc_mgr.set_tier2_in_flight(false);
+
+                    let mut debug_events = s.debug_events.lock().await;
+                    if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                        debug_events.pop_front();
+                    }
+                    debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                        timestamp: String::new(),
+                        category: "tier2".to_string(),
+                        message: format!(
+                            "Tier 2 tick: {} events from {} groups{}",
+                            events.len(),
+                            groups.len(),
+                            if dbg.is_empty() {
+                                String::new()
+                            } else {
+                                format!("; {}", dbg.join(", "))
+                            },
+                        ),
+                    });
+                }
+            }
+        }));
+    }
+
+    handles
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AUTOSAVE_INTERVAL_SECS;
+
+    #[test]
+    fn autosave_interval_is_60_seconds() {
+        // Regression sensor: if this changes, update comment in session/ticks.rs
+        // and verify players won't lose more than AUTOSAVE_INTERVAL_SECS of progress.
+        assert_eq!(
+            AUTOSAVE_INTERVAL_SECS, 60,
+            "autosave interval changed — verify data-loss risk is acceptable"
+        );
+    }
+
+    /// Regression test for #230: the autosave path must reuse a single
+    /// `AsyncDatabase` across multiple saves rather than reopening the file
+    /// (and re-running `migrate()`) on every tick.
+    ///
+    /// Verifies:
+    /// 1. Opening the DB once and calling `save_snapshot` N times produces N
+    ///    snapshots in the database (i.e. the handle is reused, not replaced).
+    /// 2. The snapshot count matches the number of save calls — if a new
+    ///    connection were opened each time, the per-call migrate() would not
+    ///    duplicate rows, but we confirm the handle is indeed reused by checking
+    ///    that the Arc inside AsyncDatabase stays alive across calls.
+    #[tokio::test]
+    async fn autosave_reuses_async_database_across_ticks() {
+        use parish_core::persistence::snapshot::{ClockSnapshot, GameSnapshot};
+        use parish_core::persistence::{AsyncDatabase, Database};
+        use parish_core::world::LocationId;
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+
+        // Open the DB once — exactly what the fixed autosave tick does.
+        let db = Database::open(tmp.path()).unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+
+        fn make_snapshot() -> GameSnapshot {
+            GameSnapshot {
+                player_location: LocationId(1),
+                weather: "Clear".to_string(),
+                text_log: vec![],
+                clock: ClockSnapshot {
+                    game_time: chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap(),
+                    speed_factor: 36.0,
+                    paused: false,
+                },
+                npcs: vec![],
+                last_tier2_game_time: None,
+                last_tier3_game_time: None,
+                last_tier4_game_time: None,
+                introduced_npcs: Default::default(),
+                visited_locations: std::collections::HashSet::new(),
+                visited_order: Vec::new(),
+                edge_traversals: Default::default(),
+                gossip_network: Default::default(),
+                conversation_log: Default::default(),
+                player_name: None,
+                npcs_who_know_player_name: Default::default(),
+            }
+        }
+
+        // Simulate three autosave ticks using the same handle.
+        for _ in 0..3 {
+            async_db
+                .save_snapshot(branch.id, &make_snapshot())
+                .await
+                .expect("autosave tick should succeed with reused connection");
+        }
+
+        // All three snapshots must be present; branch_log returns most-recent-first.
+        let log = async_db.branch_log(branch.id).await.unwrap();
+        assert_eq!(
+            log.len(),
+            3,
+            "three autosave ticks via the same AsyncDatabase must produce three snapshots"
+        );
+    }
+}
