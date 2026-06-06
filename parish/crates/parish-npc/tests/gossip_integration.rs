@@ -149,6 +149,43 @@ fn trivial_tier2_event_does_not_seed_gossip() {
     );
 }
 
+/// Empty-participants guard (TD-031): a Tier 2 event with no participants is
+/// degenerate — there is no speaker to attribute gossip to. The function must
+/// bail (`participants.first()?`) rather than default the source to `NpcId(0)`,
+/// which is the player and would mint gossip falsely attributed to them.
+///
+/// This pins the load-bearing `let &source = event.participants.first()?;`
+/// guard: a regression back to `unwrap_or(&NpcId(0))` would seed gossip here
+/// and fail this test. The summary is deliberately notable (> 30 chars + a
+/// large relationship delta) so only the empty-participants bail can explain a
+/// `None` return and an empty network.
+#[test]
+fn empty_participants_tier2_event_does_not_seed_gossip() {
+    let mut network = GossipNetwork::new();
+    let event = Tier2Event {
+        location: LocationId(3),
+        // Notable on both axes — would seed gossip if a source existed.
+        summary: "A long, substantive summary that easily clears the threshold".to_string(),
+        participants: vec![], // degenerate: no speaker
+        mood_changes: Vec::new(),
+        relationship_changes: vec![RelationshipChange {
+            from: NpcId(1),
+            to: NpcId(2),
+            delta: 0.9,
+        }],
+    };
+    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
+    assert!(
+        returned.is_none(),
+        "events without participants must not return a GossipSpread event"
+    );
+    assert_eq!(
+        network.len(),
+        0,
+        "events without participants must not seed gossip (no NpcId(0)/player misattribution)"
+    );
+}
+
 /// A notable Tier 2 event must return a `GameEvent::GossipSpread` so the
 /// caller can publish it on the world event bus. The payload must reflect
 /// the originating NPC, the conversation location, and the summary that
