@@ -106,6 +106,10 @@ _(none)_
 
 _2026-06-04 audit: 2 of 14 unchecked items verified done (Round-4 drain via commit c3bcd609; bench-bug=0 axes invariant enforced in judge_bundle.py:209-223). 1 item marked partial (MLX_VENV env-var in local_runner.py but not in README). Remaining 11 items still open._
 
+- **2026-06-06**: Re-audit vs current code. Resolved->Done: none. Still open: TD-001 (rundale_bench.py 1771 LOC), TD-002 (build_site_data.py 1080 LOC), TD-003 (bench.json freshness gate), TD-004 (candidates_local_mlx.toml schema test), TD-005 (local_runner.py RamSampler/fitness_check untested), TD-006 (README/AGENTS say 155 prompts vs MANIFEST 309).
+
 ## Issue tracking
 
 2026-06-04 audit: open items tracked under epic #1206 (rundale-bench harness hardening).
+
+2026-06-06 re-audit: all six TD items still open, tracked under epic #1206 (rundale-bench harness hardening), which remains open and now lists them explicitly.
