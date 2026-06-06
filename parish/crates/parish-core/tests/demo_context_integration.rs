@@ -73,8 +73,9 @@ fn demo_prompt_at_fresh_save_does_not_leak_widow_or_peig() {
 }
 
 /// The map-derived adjacent list must agree with the GUI's fog-of-war
-/// (`build_map_data`) — anything beyond the frontier is absent, and
-/// travel_minutes is hidden for unvisited frontier entries.
+/// (`build_map_data`) — anything beyond the frontier is absent. Unvisited
+/// frontier entries now carry a travel-time estimate so the auto-player can
+/// judge distance before moving (#1207 #33/#36).
 #[test]
 fn demo_prompt_adjacent_block_mirrors_map_fog_of_war() {
     let mod_dir = rundale_mod_dir();
@@ -112,13 +113,13 @@ fn demo_prompt_adjacent_block_mirrors_map_fog_of_war() {
         );
     }
 
-    // Frontier entries (unvisited) must not carry travel_minutes — the GUI
-    // map tooltip hides that until the location has been visited.
+    // Frontier entries (unvisited but reachable) must carry a travel-time
+    // estimate — the auto-player needs the distance cue to choose a move.
     for adj in &ctx.adjacent {
         if !adj.visited {
             assert!(
-                adj.travel_minutes.is_none(),
-                "frontier entry {} leaked travel_minutes",
+                adj.travel_minutes.is_some(),
+                "frontier entry {} should carry a travel estimate",
                 adj.name
             );
         }
