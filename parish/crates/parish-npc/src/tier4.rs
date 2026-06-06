@@ -620,40 +620,12 @@ pub fn apply_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::{LongTermMemory, ShortTermMemory};
-    use crate::reactions::ReactionLog;
-    use crate::types::{Intelligence, NpcState};
+    use crate::test_helpers::make_aged_occupation_npc;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
-    use std::collections::HashMap;
 
     fn make_npc(id: u32, age: u8, occupation: &str) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: format!("NPC {}", id),
-            brief_description: "a person".to_string(),
-            age,
-            occupation: occupation.to_string(),
-            personality: "friendly".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: Intelligence::default(),
-            location: LocationId(1),
-            mood: "content".to_string(),
-            home: Some(LocationId(1)),
-            workplace: Some(LocationId(2)),
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::Present,
-            deflated_summary: None,
-            reaction_log: ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        make_aged_occupation_npc(id, age, occupation)
     }
 
     #[test]

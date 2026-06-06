@@ -185,6 +185,43 @@ fn notable_tier2_event_returns_gossip_spread_event() {
     }
 }
 
+/// Empty-participants guard: a Tier 2 event with no participants must not mint gossip.
+///
+/// The guard `let &source = event.participants.first()?;` in
+/// `create_gossip_from_tier2_event` exists to prevent gossip being falsely
+/// attributed to NpcId(0) (the player) when the participants list is empty.
+/// This test locks that invariant.
+#[test]
+fn gossip_empty_participants_does_not_mint_gossip() {
+    let mut network = GossipNetwork::new();
+
+    // A notable event by every metric (large relationship change, long summary),
+    // but with an empty participants list.
+    let event = Tier2Event {
+        location: LocationId(1),
+        summary: "A dramatic confrontation unfolded at the crossroads last evening".to_string(),
+        participants: vec![],
+        mood_changes: Vec::new(),
+        relationship_changes: vec![RelationshipChange {
+            from: NpcId(1),
+            to: NpcId(2),
+            delta: 0.8, // well above 0.3 notability threshold
+        }],
+    };
+
+    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
+
+    assert_eq!(
+        network.len(),
+        0,
+        "no gossip must be minted when participants is empty"
+    );
+    assert!(
+        returned.is_none(),
+        "return value must be None when participants is empty"
+    );
+}
+
 /// Transitive propagation: A → B → C across two separate Tier 2 rounds.
 ///
 /// Rate assertions on each round catch probability regressions; structural
