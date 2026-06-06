@@ -41,7 +41,9 @@ _(none)_
 
 - **2026-05-11**: Resolved TD-012 through TD-020. All fixes behavior-safe; 22 new tests added. `cargo test -p parish-geo-tool` passes (113 tests). `cargo clippy -p parish-geo-tool --all-targets` clean.
 - **2026-05-25**: Refreshed the debt scan against current source. Reopened TD-021 through TD-023 for current layout hotspots and a small brittle conditional.
+- **2026-06-06**: Re-audit vs current code. Resolved->Done: none. Still open: TD-021 (extract.rs 954 LOC), TD-022 (realign_rundale_coords.rs 863 LOC), TD-023 (best.unwrap() connections.rs:165). Tracking epics re-opened: #1200, #1202.
 
 ## Issue tracking
 
 2026-06-04 audit: open items in this file are tracked under epic(s) #1200 (Workspace decomposition), #1202 (Test coverage & type-drift).
+2026-06-06 re-audit: TD-021/TD-022 tracked under re-opened epic #1200 (decomposition); TD-023 under #1202 (test coverage).
