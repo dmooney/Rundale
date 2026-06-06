@@ -8,7 +8,59 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_DB: &str = "data/parish-world.db";
+/// Leaf filename of the NPC-tool database, relative to the `data/` directory.
+const DB_FILENAME: &str = "parish-world.db";
+
+/// Environment variable that pins the DB path directly (overrides project-root
+/// anchor but is overridden by an explicit `--db` flag on the command line).
+const NPC_TOOL_DB_ENV: &str = "PARISH_NPC_TOOL_DB";
+
+/// Resolves the default NPC-tool DB path when `--db` is not given on the
+/// command line.  Resolution order (Rule 9 — never bare cwd-relative):
+///
+///  1. `PARISH_NPC_TOOL_DB` env var — explicit operator/test override.
+///  2. `PARISH_DATA_DIR` env var — mirrors the data-dir convention used by
+///     the server and Tauri entry-points; appends `parish-world.db`.
+///  3. Walk up to 4 ancestor directories of the startup cwd looking for
+///     `Cargo.toml` (project root sentinel); returns
+///     `<root>/data/parish-world.db` when found.
+///  4. Bare `data/parish-world.db` relative to the startup cwd as a last
+///     resort — matches the previous hard-coded default so single-shot runs
+///     from the repo root still work.
+pub fn resolve_default_db() -> PathBuf {
+    // 1. Explicit env-var override.
+    if let Ok(s) = std::env::var(NPC_TOOL_DB_ENV) {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+
+    // 2. PARISH_DATA_DIR mirrors the convention in parish-tauri / parish-server.
+    if let Ok(data_dir) = std::env::var("PARISH_DATA_DIR") {
+        let trimmed = data_dir.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed).join(DB_FILENAME);
+        }
+    }
+
+    // 3. Walk ancestors for Cargo.toml (project root).
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut p = cwd.clone();
+    for _ in 0..4 {
+        if p.join("Cargo.toml").exists() {
+            return p.join("data").join(DB_FILENAME);
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+
+    // 4. Last resort: startup-cwd relative (prior behaviour).
+    cwd.join("data").join(DB_FILENAME)
+}
+
 const MALE_NAMES: &[&str] = &["Pádraig", "Seán", "Michael", "Thomas", "James", "Brendan"];
 const FEMALE_NAMES: &[&str] = &["Mary", "Bridget", "Margaret", "Catherine", "Niamh", "Aoife"];
 const SURNAMES: &[&str] = &["Kelly", "Murphy", "Brennan", "O'Brien", "Flanagan", "Darcy"];
@@ -27,9 +79,11 @@ const OCCUPATIONS: &[(&str, u8)] = &[
 #[command(name = "parish-npc-tool")]
 #[command(about = "NPC world builder and inspection utility")]
 struct Cli {
-    /// SQLite database path.
-    #[arg(long, global = true, default_value = DEFAULT_DB)]
-    db: PathBuf,
+    /// SQLite database path.  Defaults to `data/parish-world.db` anchored at
+    /// the project root (or the `PARISH_NPC_TOOL_DB` / `PARISH_DATA_DIR` env
+    /// vars — see `resolve_default_db`).
+    #[arg(long, global = true)]
+    db: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -156,7 +210,8 @@ fn default_sex() -> String {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let conn = open_db(&cli.db)?;
+    let db_path = cli.db.unwrap_or_else(resolve_default_db);
+    let conn = open_db(&db_path)?;
 
     match cli.command {
         Command::GenerateWorld { counties } => generate_world(&conn, &counties),
@@ -1675,6 +1730,128 @@ mod tests {
             result.is_ok(),
             "validate_db with a real parish name must pass, got: {:?}",
             result.err()
+        );
+    }
+
+    // ── resolve_default_db (TD-024 / Rule 9) ────────────────────────────────
+
+    /// Holds the previous value of an env var and restores it on drop.
+    /// Env mutations must be done inside a single-threaded guard because
+    /// Cargo runs tests in the same process concurrently.
+    struct EnvGuard {
+        key: &'static str,
+        prev: Option<std::ffi::OsString>,
+    }
+    impl EnvGuard {
+        fn capture(key: &'static str) -> Self {
+            EnvGuard {
+                key,
+                prev: std::env::var_os(key),
+            }
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: gated by DB_RESOLVE_LOCK.
+            match self.prev.take() {
+                Some(v) => unsafe { std::env::set_var(self.key, v) },
+                None => unsafe { std::env::remove_var(self.key) },
+            }
+        }
+    }
+
+    fn db_resolve_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    #[test]
+    fn resolve_default_db_npc_tool_env_wins() {
+        let _gate = db_resolve_lock();
+        let _g1 = EnvGuard::capture(NPC_TOOL_DB_ENV);
+        let _g2 = EnvGuard::capture("PARISH_DATA_DIR");
+
+        // SAFETY: gated.
+        unsafe {
+            std::env::set_var(NPC_TOOL_DB_ENV, "/tmp/override.db");
+            std::env::remove_var("PARISH_DATA_DIR");
+        }
+
+        let resolved = resolve_default_db();
+        assert_eq!(
+            resolved,
+            PathBuf::from("/tmp/override.db"),
+            "PARISH_NPC_TOOL_DB must be used verbatim"
+        );
+    }
+
+    #[test]
+    fn resolve_default_db_parish_data_dir_second_priority() {
+        let _gate = db_resolve_lock();
+        let _g1 = EnvGuard::capture(NPC_TOOL_DB_ENV);
+        let _g2 = EnvGuard::capture("PARISH_DATA_DIR");
+
+        // SAFETY: gated.
+        unsafe {
+            std::env::remove_var(NPC_TOOL_DB_ENV);
+            std::env::set_var("PARISH_DATA_DIR", "/tmp/mydata");
+        }
+
+        let resolved = resolve_default_db();
+        assert_eq!(
+            resolved,
+            PathBuf::from("/tmp/mydata").join(DB_FILENAME),
+            "PARISH_DATA_DIR must yield <dir>/parish-world.db"
+        );
+    }
+
+    #[test]
+    fn resolve_default_db_empty_env_var_is_skipped() {
+        let _gate = db_resolve_lock();
+        let _g1 = EnvGuard::capture(NPC_TOOL_DB_ENV);
+        let _g2 = EnvGuard::capture("PARISH_DATA_DIR");
+
+        // SAFETY: gated.
+        unsafe {
+            std::env::set_var(NPC_TOOL_DB_ENV, "   ");
+            std::env::set_var("PARISH_DATA_DIR", "   ");
+        }
+
+        // Both trimmed-empty — should fall through to ancestor walk or cwd fallback.
+        // The result will be some path ending in `data/parish-world.db`; the key
+        // property is that neither blank env var was used.
+        let resolved = resolve_default_db();
+        assert!(
+            resolved.ends_with(PathBuf::from("data").join(DB_FILENAME)),
+            "blank env vars must be ignored; got: {}",
+            resolved.display()
+        );
+    }
+
+    #[test]
+    fn resolve_default_db_falls_back_to_data_subdir() {
+        let _gate = db_resolve_lock();
+        let _g1 = EnvGuard::capture(NPC_TOOL_DB_ENV);
+        let _g2 = EnvGuard::capture("PARISH_DATA_DIR");
+
+        // SAFETY: gated.
+        unsafe {
+            std::env::remove_var(NPC_TOOL_DB_ENV);
+            std::env::remove_var("PARISH_DATA_DIR");
+        }
+
+        // Whether we find Cargo.toml or fall all the way to the cwd fallback,
+        // the result must end with data/parish-world.db.
+        let resolved = resolve_default_db();
+        assert!(
+            resolved.ends_with(PathBuf::from("data").join(DB_FILENAME)),
+            "fallback must end with data/parish-world.db; got: {}",
+            resolved.display()
+        );
+        assert!(
+            resolved.is_absolute(),
+            "resolved path must be absolute (anchored); got: {}",
+            resolved.display()
         );
     }
 }
