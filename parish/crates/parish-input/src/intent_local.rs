@@ -16,7 +16,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     // Movement patterns — multi-word phrases checked first (longest match wins),
     // then single-verb prefixes. Covers common, colloquial, and unusual verbs.
     //
-    // First-person movement intents (TODO #41/#46/#53) MUST appear in this
+    // First-person movement intents (fixed: #41/#46/#53) MUST appear in this
     // list so they match before the generic first-person narrative guard
     // below classifies them as `Talk`. The auto-player in the demo audit
     // produced lines like "I'll make for the Crossroads then" 9 turns in
@@ -44,7 +44,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "i'm headed to ",
         "i'm heading to ",
         "off i go to ",
-        // Modal first-person movement (TODO #53) — "might i" / "i shall"
+        // Modal first-person movement (fixed: #53) — "might i" / "i shall"
         // forms only catch when followed by a recognised move verb so
         // conversational "might i ask" / "i shall ponder" stay as Talk.
         "might i make my way to ",
@@ -503,7 +503,7 @@ mod tests {
         assert_eq!(intent.intent, IntentKind::Move);
         assert_eq!(intent.target, Some("crossroads".to_string()));
     }
-    /// TODO #41/#46/#53: first-person + movement-verb phrasings the
+    /// Regression test (fixed: #41/#46/#53): first-person + movement-verb phrasings the
     /// demo auto-player produced repeatedly that the parser silently
     /// dropped because the first-person guard caught them first.
     #[test]
@@ -545,7 +545,7 @@ mod tests {
         }
     }
 
-    /// TODO #41 guard: ensure the first-person narrative cases that
+    /// Regression guard (fixed: #41): ensure the first-person narrative cases that
     /// must STAY Talk are unaffected by the new movement patterns.
     /// Without a movement verb, "I" / "I'm" / "I've" stay narrative.
     #[test]
@@ -567,7 +567,7 @@ mod tests {
         }
     }
 
-    /// TODO #41 case-insensitivity guard for the new first-person move
+    /// Case-insensitivity regression guard (fixed: #41) for the new first-person move
     /// patterns.
     #[test]
     fn test_local_parse_first_person_movement_case_insensitive() {
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(intent.target.as_deref(), Some("The Mill"));
     }
 
-    /// TODO #53: modal first-person movement forms that the cycle 11
+    /// Regression test (fixed: #53): modal first-person movement forms that the cycle 11
     /// auto-player produced repeatedly. Without these patterns the
     /// "might i" cases fell through the first-person Talk guard
     /// entirely and "i shall ..." was rewritten as Talk before any
@@ -626,7 +626,7 @@ mod tests {
         assert_eq!(mixed.target.as_deref(), Some("The Pub"));
     }
 
-    /// TODO #53 guard: modal openings that do NOT contain a recognised
+    /// Regression guard (fixed: #53): modal openings that do NOT contain a recognised
     /// move verb must NOT be parsed as Move. `Might I ask…` and
     /// `I shall ponder…` are conversational openings and must continue
     /// to fall through to the Talk path.
