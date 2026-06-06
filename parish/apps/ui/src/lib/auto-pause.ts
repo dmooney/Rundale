@@ -22,17 +22,14 @@ export interface AutoPauseTrackerOptions {
 	isWorldPaused: () => boolean;
 	/**
 	 * Returns whether the Tauri / browser window currently has OS-level
-	 * focus. When omitted, defaults to always-true (preserves the
-	 * pre-#31a behaviour for tests that don't care about focus).
+	 * focus. When omitted, defaults to always-true (preserves behaviour
+	 * for tests that don't care about focus).
 	 *
-	 * TODO #6 / #31a: the cycle-6 demo audit caught a burst of
-	 * `/pause` + `/resume` toggles whenever the user shifted attention
-	 * to another app. The window still received keyboard / mouse
-	 * events globally via DOM, so the idle timer would fire while the
-	 * user was actively working elsewhere. The guard skips the
-	 * `/pause` dispatch when the window is not focused — being away
-	 * from the window is not the same as being idle while engaged
-	 * with the game.
+	 * Regression note: without this guard the idle timer fires whenever
+	 * the user shifts attention to another app, producing a burst of
+	 * `/pause` + `/resume` toggles. The guard skips `/pause` when the
+	 * window is not focused — being away from the window is not the same
+	 * as being idle while engaged with the game.
 	 */
 	isWindowFocused?: () => boolean;
 }
@@ -68,13 +65,12 @@ export function createAutoPauseTracker(
 		clearIdleTimer();
 		idleTimer = setTimeout(() => {
 			idleTimer = null;
-			// TODO #6 / #31a focus guard: skip auto-pause when the
-			// window is not focused. The user being away from the
-			// window is not the same as being idle while engaged with
-			// the game. Without this guard the idle timer would fire
-			// every time attention shifts to another app, producing
-			// the burst of /pause + /resume toggles the demo audit
-			// captured in cycle 6.
+			// Focus guard: skip auto-pause when the window is not
+			// focused. Being away from the window is not the same as
+			// being idle while engaged with the game. Without this
+			// guard the idle timer fires every time attention shifts
+			// to another app, producing a burst of /pause + /resume
+			// toggles (regression: demo-audit cycle 6).
 			const focused = opts.isWindowFocused ? opts.isWindowFocused() : true;
 			if (!focused) {
 				// Restart so a later focused-idle interval can still

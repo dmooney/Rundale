@@ -7,7 +7,7 @@
 //! They complement the compile-time symbol checks in `command_registry.rs`
 //! and the addressed_to tests in `input_validation.rs`.
 //!
-//! ## Commands covered (3 of 32)
+//! ## Commands covered here
 //!
 //! | Command / helper           | Tests         | Reason                          |
 //! |----------------------------|---------------|---------------------------------|
@@ -15,7 +15,7 @@
 //! | `react_to_message` (emoji) | 3             | #687 — unknown emoji rejection  |
 //! | `react_to_message` (snip)  | 6             | #687 — injection char filter    |
 //!
-//! ## Commands deferred (29 of 32)
+//! ## Commands deferred
 //!
 //! All remaining commands bind `tauri::State<Arc<AppState>>` at their call
 //! boundary and require either the Tauri runtime or a non-trivial mock.
@@ -26,7 +26,7 @@
 //! `save_game`, `load_branch`, `create_branch`, `new_save_file`,
 //! `new_game`, `get_save_state`, `get_demo_config`, `get_demo_context`,
 //! `get_llm_player_action`, `react_to_message` (state side effects),
-//! all 12 `editor_*` commands (delegated to `parish_core::ipc::editor`
+//! and all `editor_*` commands (delegated to `parish_core::ipc::editor`
 //! which has its own test suite).
 
 use parish_tauri_lib::commands::{is_snippet_injection_char, validate_input_text};

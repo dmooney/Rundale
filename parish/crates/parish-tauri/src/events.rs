@@ -26,8 +26,6 @@ pub const EVENT_SAVE_PICKER: &str = "save-picker";
 pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
 /// Event emitted to open the Parish Designer mod editor.
 pub const EVENT_OPEN_DESIGNER: &str = "open-designer";
-/// Event emitted when an NPC reacts to a message with an emoji.
-pub const EVENT_NPC_REACTION: &str = "npc-reaction";
 /// Event emitted when the player begins traveling between locations.
 pub const EVENT_TRAVEL_START: &str = "travel-start";
 /// Event emitted when a `/theme` command selects a new UI theme.
@@ -55,11 +53,10 @@ pub const BATCH_MS: u64 = 16;
 // ── Payload types ────────────────────────────────────────────────────────────
 
 // StreamTokenPayload, StreamTurnEndPayload, StreamEndPayload, TextLogPayload,
-// NpcReactionPayload, and LoadingPayload are all defined in parish-core and
-// re-exported here (part of #696 — IPC struct deduplication).
+// and LoadingPayload are all defined in parish-core and re-exported here
+// (part of #696 — IPC struct deduplication).
 pub use parish_core::ipc::{
-    LoadingPayload, NpcReactionPayload, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
-    TextLogPayload,
+    LoadingPayload, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextLogPayload,
 };
 
 /// Payload for `setup-status` and `setup-progress` / `setup-done` events.
@@ -173,33 +170,4 @@ impl parish_core::ipc::EventEmitter for TauriEmitter {
         // Value so the wire format is a JSON object (not a double-serialised string).
         let _ = self.app.emit(name, payload);
     }
-}
-
-// ── Streaming bridge ─────────────────────────────────────────────────────────
-
-/// Reads tokens from `token_rx`, applies the NPC separator holdback logic,
-/// batches them every [`BATCH_MS`] ms, and emits `stream-token` events.
-///
-/// Returns the full accumulated response text (including the hidden JSON
-/// metadata section) so the caller can extract Irish word hints.
-///
-/// Delegates to [`parish_core::ipc::stream_npc_tokens`] for the core logic.
-pub async fn stream_npc_response(
-    app: tauri::AppHandle,
-    token_rx: tokio::sync::mpsc::Receiver<String>,
-    turn_id: u64,
-    source: String,
-) -> String {
-    parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
-        let _ = app.emit(
-            EVENT_STREAM_TOKEN,
-            StreamTokenPayload {
-                token: batch.to_string(),
-                turn_id,
-                source: source.clone(),
-                message_id: None,
-            },
-        );
-    })
-    .await
 }
