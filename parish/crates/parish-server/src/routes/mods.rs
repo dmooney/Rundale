@@ -22,18 +22,6 @@ pub struct ModEntry {
     pub active: bool,
 }
 
-/// Returns the canonical `mods/` root relative to the loaded game mod.
-pub fn mods_root_path(state: &AppState) -> std::path::PathBuf {
-    if let Some(ref gm) = state.game_mod
-        && let Some(parent) = gm.mod_dir.parent()
-    {
-        return parent.to_path_buf();
-    }
-    parish_core::game_mod::find_default_mod()
-        .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
-        .unwrap_or_else(|| std::path::PathBuf::from("mods"))
-}
-
 /// Scans `root` for setting mods and returns them with an `active` flag.
 pub fn collect_base_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntry> {
     use parish_core::game_mod::{ModKind, ModManifest};
@@ -67,7 +55,7 @@ pub fn collect_base_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntr
 
 /// `GET /api/mods` — lists all discoverable base mods with an `active` flag.
 pub async fn list_mods(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<ModEntry>> {
-    let root = mods_root_path(&state);
+    let root = state.mods_root();
     let active_id = state
         .game_mod
         .as_ref()
@@ -94,7 +82,7 @@ pub async fn switch_mod(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<SwitchModBody>,
 ) -> impl IntoResponse {
-    let root = mods_root_path(&state);
+    let root = state.mods_root();
 
     // Validate the requested id exists on disk before writing anything.
     let active_id = state

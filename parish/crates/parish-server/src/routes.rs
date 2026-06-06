@@ -62,7 +62,7 @@ pub use demo::{
 };
 
 // mods
-pub use mods::{ModEntry, SwitchModBody, collect_base_mods, list_mods, mods_root_path, switch_mod};
+pub use mods::{ModEntry, SwitchModBody, collect_base_mods, list_mods, switch_mod};
 
 // session_token
 pub use session_token::{SessionInitResponse, session_init};
@@ -1597,5 +1597,100 @@ pub mod tests {
         );
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         assert_eq!(&body[..], b"not really a jpeg, but enough for route bytes");
+    }
+
+    // ── TD-035: AppState::mods_root ───────────────────────────────────────────
+
+    /// When `game_mod` is `None`, `mods_root()` should return a path without
+    /// panicking (the fallback path may be cwd-relative in a test environment,
+    /// but the call must not blow up).
+    #[test]
+    fn mods_root_no_game_mod_does_not_panic() {
+        let state = test_app_state(); // built with game_mod: None
+        let _ = state.mods_root();
+    }
+
+    /// When the state is built with a real `GameMod`, `mods_root()` returns the
+    /// mod's parent directory — independent of the process cwd.
+    #[test]
+    fn mods_root_derives_from_game_mod_not_cwd() {
+        let data_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let world =
+            WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION)
+                .unwrap();
+        let npc_manager = NpcManager::new();
+        let transport = TransportConfig::default();
+        let ui_config = crate::state::UiConfigSnapshot {
+            hints_label: "test".to_string(),
+            default_accent: "#000".to_string(),
+            splash_text: String::new(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            auto_pause_timeout_seconds: 300,
+            app_icon_url: None,
+            favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
+        };
+        let theme_palette = parish_core::game_mod::default_theme_palette();
+        let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+        let session_store: Arc<dyn parish_core::session_store::SessionStore> = Arc::new(
+            crate::session_store_impl::DbSessionStore::new(saves_dir.clone()),
+        );
+
+        // Build a fake GameMod pointing at a fabricated path so the test is
+        // cwd-independent (mirrors the tauri `mods_root_derives_from_game_mod_not_cwd` test).
+        let mut gm = parish_core::game_mod::GameMod::load(&data_dir).unwrap();
+        gm.mod_dir = std::path::PathBuf::from("/nonexistent/sandbox/mods/rundale");
+
+        let state = crate::state::build_app_state(
+            "test-session-td035".to_string(),
+            world,
+            npc_manager,
+            None,
+            crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                max_follow_up_turns: 2,
+                idle_banter_after_secs: 25,
+                auto_pause_after_secs: 60,
+                category_provider: Default::default(),
+                category_model: Default::default(),
+                category_api_key: Default::default(),
+                category_base_url: Default::default(),
+                flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: Default::default(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
+                auto_setup_model: None,
+            },
+            None,
+            transport,
+            ui_config,
+            theme_palette,
+            saves_dir,
+            data_dir.clone(),
+            Some(gm),
+            data_dir.join("parish-flags.json"),
+            parish_core::config::InferenceConfig::default(),
+            session_store,
+            parish_core::inference::file_log::InferenceFileLog::disabled(),
+            parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+        );
+
+        assert_eq!(
+            state.mods_root(),
+            std::path::PathBuf::from("/nonexistent/sandbox/mods"),
+            "mods_root must be the active mod's parent dir, independent of cwd"
+        );
     }
 }

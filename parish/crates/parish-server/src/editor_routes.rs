@@ -63,28 +63,6 @@ fn session_key(account_id: uuid::Uuid) -> (uuid::Uuid, String) {
     (account_id, String::new())
 }
 
-// ── Helper: mods root ─────────────────────────────────────────────────────────
-
-/// Returns the canonical absolute path of the project's `mods/` directory.
-fn mods_root(state: &AppState) -> PathBuf {
-    if let Some(ref gm) = state.game_mod
-        && let Some(parent) = gm.mod_dir.parent()
-    {
-        return parent.to_path_buf();
-    }
-    parish_core::game_mod::find_default_mod()
-        .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
-        .unwrap_or_else(|| {
-            let fallback = PathBuf::from("mods");
-            tracing::warn!(
-                path = %fallback.display(),
-                "Could not find mods directory from game mod or workspace — falling back to \
-                 relative path. The editor may list no mods on packaged builds."
-            );
-            fallback
-        })
-}
-
 // ── Route handlers ────────────────────────────────────────────────────────────
 
 /// `GET /api/editor-list-mods`
@@ -93,7 +71,7 @@ pub async fn editor_list_mods(
     auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<Vec<ModSummary>>, (StatusCode, String)> {
     let _email = require_email(auth)?;
-    let root = mods_root(&state);
+    let root = state.mods_root();
     tokio::task::spawn_blocking(move || {
         editor::handle_editor_list_mods(&root).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
     })
@@ -110,7 +88,7 @@ pub async fn editor_open_mod(
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
     let ctx = require_auth(auth)?;
     let path = PathBuf::from(&body.mod_path);
-    let root = mods_root(&state);
+    let root = state.mods_root();
 
     // Canonicalise + containment check (fix #371).
     let canonical =

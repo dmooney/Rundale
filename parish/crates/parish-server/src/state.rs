@@ -279,6 +279,34 @@ impl Default for SetupStatusSnapshot {
 // GameConfig is now shared across all backends via parish-core.
 pub use parish_core::ipc::GameConfig;
 
+impl AppState {
+    /// Returns the canonical absolute path of the project's `mods/` directory.
+    ///
+    /// Resolves from startup state per Rule 9 — never calls `current_dir()`.
+    /// Resolution order:
+    /// 1. Parent of the loaded `game_mod.mod_dir` (present on all real runs).
+    /// 2. Parent of the path returned by `find_default_mod()` (dev fallback).
+    /// 3. Relative `"mods"` with a warning (packaged builds should never reach here).
+    pub fn mods_root(&self) -> PathBuf {
+        if let Some(ref gm) = self.game_mod
+            && let Some(parent) = gm.mod_dir.parent()
+        {
+            return parent.to_path_buf();
+        }
+        parish_core::game_mod::find_default_mod()
+            .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
+            .unwrap_or_else(|| {
+                let fallback = PathBuf::from("mods");
+                tracing::warn!(
+                    path = %fallback.display(),
+                    "Could not find mods directory from game mod or workspace — falling back to \
+                     relative path. The editor may list no mods on packaged builds."
+                );
+                fallback
+            })
+    }
+}
+
 /// Creates the shared [`AppState`] from game data.
 // AppState is a flat bundle of all server-wide singletons; a builder pattern
 // would add complexity without benefit, so the many-argument constructor is intentional.
