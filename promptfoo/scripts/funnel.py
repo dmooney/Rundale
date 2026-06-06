@@ -257,11 +257,14 @@ def run_slice(
     return rows
 
 
-def _parse(text):
+def _parse(text) -> dict:
     try:
-        return json.loads(text) if isinstance(text, str) else text
+        v = json.loads(text) if isinstance(text, str) else text
     except Exception:  # noqa: BLE001
         return {}
+    # grade_intent expects a dict; valid-JSON-but-not-an-object (list/null/str)
+    # must not leak downstream.
+    return v if isinstance(v, dict) else {}
 
 
 def survivors_from_leaderboard(keep_per_tier: int) -> list[str]:
@@ -310,13 +313,7 @@ def main(argv: list[str]) -> int:
     if not args.include_local:
         cands = [c for c in cands if not c.get("local")]
     if args.from_survivors:
-        keep = set(
-            survivors_from_leaderboard(10_000)
-            if False
-            else json.loads(STATE.read_text())
-            if STATE.exists()
-            else []
-        )
+        keep = set(json.loads(STATE.read_text()) if STATE.exists() else [])
         cands = [c for c in cands if c["spec"] in keep]
     if args.max_candidates:
         cands = cands[: args.max_candidates]

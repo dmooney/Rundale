@@ -207,9 +207,11 @@ def _enrich_from_cache(cache: dict, provider_key: str, model_id: str) -> dict:
     models = _opencode_provider_models(cache, provider_key)
     m = models.get(model_id)
     if not m:
-        # try suffix match (cache may key "claude-opus-4-8" vs list "claude-opus-4-8-20260528")
+        # Boundary-aware match (cache may key "claude-opus-4-8" vs list
+        # "claude-opus-4-8-20260528"). Require a `-` delimiter at the split so
+        # "gpt-4" can't wrongly enrich from "gpt-4o".
         for k, v in models.items():
-            if model_id.startswith(k) or k.startswith(model_id):
+            if model_id.startswith(k + "-") or k.startswith(model_id + "-"):
                 m = v
                 break
     if not m:

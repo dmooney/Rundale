@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 PF = Path(__file__).resolve().parents[1]
@@ -469,7 +470,6 @@ ar_empty = rubric_judge.get_assert(
 check("empty output → bench_bug", ar_empty["namedScores"].get("bench_bug") == 1.0)
 
 # YAML parser strips inline comments + quotes
-import tempfile  # noqa: E402
 
 with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tf:
     tf.write('model: "x-model"  # a comment\nbase_url: http://h/v1\ntemperature: 0.0\n')
