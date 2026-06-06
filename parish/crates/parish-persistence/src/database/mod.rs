@@ -3,59 +3,33 @@
 //! Provides [`Database`] (synchronous) and [`AsyncDatabase`] (async wrapper)
 //! for managing branches, snapshots, and journal events. Uses WAL mode for
 //! concurrent read/write access.
+//!
+//! ## Submodule layout
+//!
+//! | Module            | Responsibility                                          |
+//! |-------------------|---------------------------------------------------------|
+//! | `schema`          | DDL, WAL setup, migration helpers, `lock_recovered`     |
+//! | `branches`        | Branch CRUD, `BranchInfo`, row mapping                  |
+//! | `journal`         | Snapshot + journal ops, `SnapshotInfo`                  |
+//! | `async_adapter`   | `AsyncDatabase` — Tokio `spawn_blocking` wrapper        |
+
+mod async_adapter;
+mod branches;
+mod journal;
+mod schema;
+
+pub use async_adapter::AsyncDatabase;
+pub use branches::BranchInfo;
+pub use journal::SnapshotInfo;
 
 use std::path::Path;
-use std::sync::{Arc, Mutex, MutexGuard};
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::Connection;
 
 use crate::IntoParishDbError as _;
 use crate::journal::WorldEvent;
 use crate::snapshot::GameSnapshot;
 use parish_types::ParishError;
-
-/// Acquires a lock on `mutex`, recovering transparently from poisoning.
-///
-/// If a previous thread panicked while holding the database lock,
-/// `Mutex::lock()` will return a [`PoisonError`]. Without recovery, every
-/// subsequent call would cascade a single failure into a total application
-/// crash (issue #82). SQLite writes are transactional, so the connection
-/// itself remains in a consistent state after a panic; we simply log a
-/// warning and return the underlying guard so database access continues
-/// to work.
-fn lock_recovered<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    match mutex.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("database lock was poisoned; recovering");
-            poisoned.into_inner()
-        }
-    }
-}
-
-/// Information about a save branch.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct BranchInfo {
-    /// Database row id.
-    pub id: i64,
-    /// Human-readable branch name (unique).
-    pub name: String,
-    /// When the branch was created (ISO 8601).
-    pub created_at: String,
-    /// Parent branch id, if forked.
-    pub parent_branch_id: Option<i64>,
-}
-
-/// Information about a snapshot.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SnapshotInfo {
-    /// Database row id.
-    pub id: i64,
-    /// Game time at snapshot (ISO 8601).
-    pub game_time: String,
-    /// Real wall-clock time at snapshot (ISO 8601).
-    pub real_time: String,
-}
 
 /// Synchronous SQLite database handle.
 ///
@@ -63,17 +37,7 @@ pub struct SnapshotInfo {
 /// and provides CRUD operations. All methods are blocking; for async
 /// contexts, use [`AsyncDatabase`].
 pub struct Database {
-    conn: Connection,
-}
-
-/// Maps a rusqlite `Row` columns (id, name, created_at, parent_branch_id) into a `BranchInfo`.
-fn branch_info_from_row(row: &rusqlite::Row) -> rusqlite::Result<BranchInfo> {
-    Ok(BranchInfo {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        created_at: row.get(2)?,
-        parent_branch_id: row.get(3)?,
-    })
+    pub(super) conn: Connection,
 }
 
 impl Database {
@@ -91,7 +55,7 @@ impl Database {
         )
         .db_err()?;
         let db = Self { conn };
-        db.migrate()?;
+        schema::migrate(&db.conn)?;
         Ok(db)
     }
 
@@ -101,128 +65,8 @@ impl Database {
         // foreign_keys must be enabled per-connection, including in-memory ones
         conn.execute_batch("PRAGMA foreign_keys=ON;").db_err()?;
         let db = Self { conn };
-        db.migrate()?;
+        schema::migrate(&db.conn)?;
         Ok(db)
-    }
-
-    /// Creates tables if they don't exist and ensures the "main" branch exists.
-    fn migrate(&self) -> Result<(), ParishError> {
-        self.conn
-            .execute_batch(
-                "CREATE TABLE IF NOT EXISTS branches (
-                id INTEGER PRIMARY KEY,
-                name TEXT UNIQUE NOT NULL,
-                created_at TEXT NOT NULL,
-                parent_branch_id INTEGER REFERENCES branches(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS snapshots (
-                id INTEGER PRIMARY KEY,
-                branch_id INTEGER NOT NULL REFERENCES branches(id),
-                game_time TEXT NOT NULL,
-                real_time TEXT NOT NULL,
-                world_state TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS journal_events (
-                id INTEGER PRIMARY KEY,
-                branch_id INTEGER NOT NULL,
-                sequence INTEGER NOT NULL,
-                after_snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
-                event_type TEXT NOT NULL,
-                event_data TEXT NOT NULL,
-                game_time TEXT NOT NULL
-            );
-
-            DROP INDEX IF EXISTS idx_journal_branch_snap_seq;
-            CREATE UNIQUE INDEX idx_journal_branch_snap_seq
-                ON journal_events(branch_id, after_snapshot_id, sequence);",
-            )
-            .db_err()?;
-
-        self.migrate_branch_parent_fk()?;
-
-        // Ensure the "main" branch exists
-        let exists: bool = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*) > 0 FROM branches WHERE name = 'main'",
-                [],
-                |row| row.get(0),
-            )
-            .db_err()?;
-        if !exists {
-            self.conn
-                .execute(
-                    "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, NULL)",
-                    params!["main", chrono::Utc::now().to_rfc3339()],
-                )
-                .db_err()?;
-        }
-
-        Ok(())
-    }
-
-    fn migrate_branch_parent_fk(&self) -> Result<(), ParishError> {
-        if self.branch_parent_fk_present()? {
-            return Ok(());
-        }
-
-        let migration = self.conn.execute_batch(
-            "PRAGMA foreign_keys=OFF;
-                 BEGIN IMMEDIATE;
-                 DROP TABLE IF EXISTS branches_new;
-                 CREATE TABLE branches_new (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT UNIQUE NOT NULL,
-                    created_at TEXT NOT NULL,
-                    parent_branch_id INTEGER REFERENCES branches_new(id)
-                 );
-                 INSERT INTO branches_new (id, name, created_at, parent_branch_id)
-                 SELECT child.id,
-                        child.name,
-                        child.created_at,
-                        CASE
-                            WHEN child.parent_branch_id IS NULL THEN NULL
-                            WHEN EXISTS (
-                                SELECT 1 FROM branches AS parent
-                                WHERE parent.id = child.parent_branch_id
-                            ) THEN child.parent_branch_id
-                            ELSE NULL
-                        END
-                 FROM branches AS child;
-                 DROP TABLE branches;
-                 ALTER TABLE branches_new RENAME TO branches;
-                 COMMIT;",
-        );
-
-        if let Err(err) = migration {
-            let _ = self.conn.execute_batch("ROLLBACK;");
-            let _ = self.conn.execute_batch("PRAGMA foreign_keys=ON;");
-            return Err(err).db_err();
-        }
-
-        self.conn
-            .execute_batch("PRAGMA foreign_keys=ON;")
-            .db_err()?;
-
-        Ok(())
-    }
-
-    fn branch_parent_fk_present(&self) -> Result<bool, ParishError> {
-        let mut stmt = self
-            .conn
-            .prepare("PRAGMA foreign_key_list(branches)")
-            .db_err()?;
-        let mut rows = stmt.query([]).db_err()?;
-        while let Some(row) = rows.next().db_err()? {
-            let from: String = row.get(3).db_err()?;
-            let table: String = row.get(2).db_err()?;
-            if from == "parent_branch_id" && table == "branches" {
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 
     /// Saves a game snapshot to the given branch.
@@ -233,18 +77,7 @@ impl Database {
         branch_id: i64,
         snapshot: &GameSnapshot,
     ) -> Result<i64, ParishError> {
-        let world_state = serde_json::to_string(snapshot)?;
-        let game_time = snapshot.clock.game_time.to_rfc3339();
-        let real_time = chrono::Utc::now().to_rfc3339();
-
-        self.conn
-            .execute(
-                "INSERT INTO snapshots (branch_id, game_time, real_time, world_state)
-             VALUES (?1, ?2, ?3, ?4)",
-                params![branch_id, game_time, real_time, world_state],
-            )
-            .db_err()?;
-        Ok(self.conn.last_insert_rowid())
+        journal::save_snapshot(&self.conn, branch_id, snapshot)
     }
 
     /// Loads the most recent snapshot for a branch.
@@ -254,25 +87,7 @@ impl Database {
         &self,
         branch_id: i64,
     ) -> Result<Option<(i64, GameSnapshot)>, ParishError> {
-        let result: Option<(i64, String)> = self
-            .conn
-            .query_row(
-                "SELECT id, world_state FROM snapshots
-                 WHERE branch_id = ?1
-                 ORDER BY id DESC LIMIT 1",
-                params![branch_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()
-            .db_err()?;
-
-        match result {
-            Some((id, json)) => {
-                let snapshot: GameSnapshot = serde_json::from_str(&json)?;
-                Ok(Some((id, snapshot)))
-            }
-            None => Ok(None),
-        }
+        journal::load_latest_snapshot(&self.conn, branch_id)
     }
 
     /// Creates a new branch with the given name.
@@ -283,56 +98,17 @@ impl Database {
         name: &str,
         parent_branch_id: Option<i64>,
     ) -> Result<i64, ParishError> {
-        if let Some(parent_id) = parent_branch_id {
-            let exists: bool = self
-                .conn
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM branches WHERE id = ?1)",
-                    params![parent_id],
-                    |row| row.get(0),
-                )
-                .db_err()?;
-            if !exists {
-                return Err(ParishError::Database(format!(
-                    "parent branch id {parent_id} does not exist"
-                )));
-            }
-        }
-
-        let created_at = chrono::Utc::now().to_rfc3339();
-        self.conn
-            .execute(
-                "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, ?3)",
-                params![name, created_at, parent_branch_id],
-            )
-            .db_err()?;
-        Ok(self.conn.last_insert_rowid())
+        branches::create_branch(&self.conn, name, parent_branch_id)
     }
 
     /// Finds a branch by name.
     pub fn find_branch(&self, name: &str) -> Result<Option<BranchInfo>, ParishError> {
-        self.conn
-            .query_row(
-                "SELECT id, name, created_at, parent_branch_id FROM branches WHERE name = ?1",
-                params![name],
-                branch_info_from_row,
-            )
-            .optional()
-            .db_err()
+        branches::find_branch(&self.conn, name)
     }
 
     /// Lists all branches.
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>, ParishError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, created_at, parent_branch_id FROM branches ORDER BY id")
-            .db_err()?;
-        let rows = stmt.query_map([], branch_info_from_row).db_err()?;
-        let mut branches = Vec::new();
-        for row in rows {
-            branches.push(row.db_err()?);
-        }
-        Ok(branches)
+        branches::list_branches(&self.conn)
     }
 
     /// Appends a journal event for the given branch and snapshot.
@@ -348,24 +124,7 @@ impl Database {
         event: &WorldEvent,
         game_time: &str,
     ) -> Result<(), ParishError> {
-        let event_data = serde_json::to_string(event)?;
-        let event_type = event.event_type();
-
-        // Single atomic statement: the subquery computes COALESCE(MAX(sequence),0)+1
-        // over existing rows for this (branch, snapshot). Even with an empty result
-        // set the aggregate returns exactly one row, so the first event gets
-        // sequence=1 correctly.
-        self.conn
-            .execute(
-                "INSERT INTO journal_events
-             (branch_id, sequence, after_snapshot_id, event_type, event_data, game_time)
-             SELECT ?1, COALESCE(MAX(sequence), 0) + 1, ?2, ?3, ?4, ?5
-             FROM journal_events
-             WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-                params![branch_id, snapshot_id, event_type, event_data, game_time],
-            )
-            .db_err()?;
-        Ok(())
+        journal::append_event(&self.conn, branch_id, snapshot_id, event, game_time)
     }
 
     /// Returns all journal events after a given snapshot for a branch.
@@ -374,81 +133,24 @@ impl Database {
         branch_id: i64,
         snapshot_id: i64,
     ) -> Result<Vec<WorldEvent>, ParishError> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT event_data FROM journal_events
-             WHERE branch_id = ?1 AND after_snapshot_id = ?2
-             ORDER BY sequence ASC",
-            )
-            .db_err()?;
-        let rows = stmt
-            .query_map(params![branch_id, snapshot_id], |row| {
-                let data: String = row.get(0)?;
-                Ok(data)
-            })
-            .db_err()?;
-        let mut events = Vec::new();
-        for row in rows {
-            let json = row.db_err()?;
-            let event: WorldEvent = serde_json::from_str(&json)?;
-            events.push(event);
-        }
-        Ok(events)
+        journal::events_since_snapshot(&self.conn, branch_id, snapshot_id)
     }
 
     /// Returns the number of journal events after a given snapshot.
     pub fn journal_count(&self, branch_id: i64, snapshot_id: i64) -> Result<usize, ParishError> {
-        let count: i64 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*) FROM journal_events
-             WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-                params![branch_id, snapshot_id],
-                |row| row.get(0),
-            )
-            .db_err()?;
-        Ok(count as usize)
+        journal::journal_count(&self.conn, branch_id, snapshot_id)
     }
 
     /// Returns snapshot history for a branch (most recent first).
     pub fn branch_log(&self, branch_id: i64) -> Result<Vec<SnapshotInfo>, ParishError> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, game_time, real_time FROM snapshots
-             WHERE branch_id = ?1
-             ORDER BY id DESC",
-            )
-            .db_err()?;
-        let rows = stmt
-            .query_map(params![branch_id], |row| {
-                Ok(SnapshotInfo {
-                    id: row.get(0)?,
-                    game_time: row.get(1)?,
-                    real_time: row.get(2)?,
-                })
-            })
-            .db_err()?;
-        let mut infos = Vec::new();
-        for row in rows {
-            infos.push(row.db_err()?);
-        }
-        Ok(infos)
+        journal::branch_log(&self.conn, branch_id)
     }
 
     /// Deletes journal events for a branch after a given snapshot.
     ///
     /// Used during compaction after a new snapshot is taken.
     pub fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), ParishError> {
-        self.conn
-            .execute(
-                "DELETE FROM journal_events
-             WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-                params![branch_id, snapshot_id],
-            )
-            .db_err()?;
-        Ok(())
+        journal::clear_journal(&self.conn, branch_id, snapshot_id)
     }
 }
 
@@ -458,131 +160,13 @@ impl std::fmt::Debug for Database {
     }
 }
 
-/// Async wrapper around [`Database`] for use with Tokio.
-///
-/// All methods delegate to `tokio::task::spawn_blocking` to avoid
-/// blocking the async runtime with synchronous rusqlite calls.
-#[derive(Debug, Clone)]
-pub struct AsyncDatabase {
-    inner: Arc<Mutex<Database>>,
-}
-
-impl AsyncDatabase {
-    /// Creates a new async wrapper around a database.
-    pub fn new(db: Database) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(db)),
-        }
-    }
-
-    /// Runs a blocking database operation on a background thread.
-    ///
-    /// Handles `Arc::clone`, `spawn_blocking`, poison recovery, and
-    /// join-error conversion so each public method is a one-liner.
-    async fn run_blocking<F, T>(&self, f: F) -> Result<T, ParishError>
-    where
-        F: FnOnce(&Database) -> Result<T, ParishError> + Send + 'static,
-        T: Send + 'static,
-    {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let guard = lock_recovered(&db);
-            f(&guard)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
-    }
-
-    /// Saves a game snapshot.
-    pub async fn save_snapshot(
-        &self,
-        branch_id: i64,
-        snapshot: &GameSnapshot,
-    ) -> Result<i64, ParishError> {
-        let snapshot = snapshot.clone();
-        self.run_blocking(move |db| db.save_snapshot(branch_id, &snapshot))
-            .await
-    }
-
-    /// Loads the most recent snapshot for a branch.
-    pub async fn load_latest_snapshot(
-        &self,
-        branch_id: i64,
-    ) -> Result<Option<(i64, GameSnapshot)>, ParishError> {
-        self.run_blocking(move |db| db.load_latest_snapshot(branch_id))
-            .await
-    }
-
-    /// Creates a new branch.
-    pub async fn create_branch(
-        &self,
-        name: &str,
-        parent_branch_id: Option<i64>,
-    ) -> Result<i64, ParishError> {
-        let name = name.to_string();
-        self.run_blocking(move |db| db.create_branch(&name, parent_branch_id))
-            .await
-    }
-
-    /// Finds a branch by name.
-    pub async fn find_branch(&self, name: &str) -> Result<Option<BranchInfo>, ParishError> {
-        let name = name.to_string();
-        self.run_blocking(move |db| db.find_branch(&name)).await
-    }
-
-    /// Lists all branches.
-    pub async fn list_branches(&self) -> Result<Vec<BranchInfo>, ParishError> {
-        self.run_blocking(move |db| db.list_branches()).await
-    }
-
-    /// Appends a journal event.
-    pub async fn append_event(
-        &self,
-        branch_id: i64,
-        snapshot_id: i64,
-        event: &WorldEvent,
-        game_time: &str,
-    ) -> Result<(), ParishError> {
-        let event = event.clone();
-        let game_time = game_time.to_string();
-        self.run_blocking(move |db| db.append_event(branch_id, snapshot_id, &event, &game_time))
-            .await
-    }
-
-    /// Returns events since a snapshot.
-    pub async fn events_since_snapshot(
-        &self,
-        branch_id: i64,
-        snapshot_id: i64,
-    ) -> Result<Vec<WorldEvent>, ParishError> {
-        self.run_blocking(move |db| db.events_since_snapshot(branch_id, snapshot_id))
-            .await
-    }
-
-    /// Returns the journal event count.
-    pub async fn journal_count(
-        &self,
-        branch_id: i64,
-        snapshot_id: i64,
-    ) -> Result<usize, ParishError> {
-        self.run_blocking(move |db| db.journal_count(branch_id, snapshot_id))
-            .await
-    }
-
-    /// Returns snapshot history for a branch.
-    pub async fn branch_log(&self, branch_id: i64) -> Result<Vec<SnapshotInfo>, ParishError> {
-        self.run_blocking(move |db| db.branch_log(branch_id)).await
-    }
-
-    /// Clears journal events after a snapshot.
-    pub async fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), ParishError> {
-        self.run_blocking(move |db| db.clear_journal(branch_id, snapshot_id))
-            .await
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+    use std::sync::{Arc, Mutex};
+
+    use rusqlite::params;
+
     use super::*;
     use crate::snapshot::{ClockSnapshot, GameSnapshot};
     use chrono::{TimeZone, Utc};
@@ -720,7 +304,7 @@ mod tests {
         seed_legacy_branches_without_parent_fk(tmp.path(), None);
 
         let db = Database::open(tmp.path()).unwrap();
-        assert!(db.branch_parent_fk_present().unwrap());
+        assert!(schema::branch_parent_fk_present(&db.conn).unwrap());
         assert_eq!(
             db.find_branch("child").unwrap().unwrap().parent_branch_id,
             Some(1)
@@ -743,7 +327,7 @@ mod tests {
         seed_legacy_branches_without_parent_fk(tmp.path(), Some(999));
 
         let db = Database::open(tmp.path()).unwrap();
-        assert!(db.branch_parent_fk_present().unwrap());
+        assert!(schema::branch_parent_fk_present(&db.conn).unwrap());
         assert_eq!(
             db.find_branch("child").unwrap().unwrap().parent_branch_id,
             Some(1)
@@ -1399,7 +983,7 @@ mod tests {
         assert!(mutex.lock().is_err(), "mutex should be poisoned");
 
         // `lock_recovered` must still yield the inner value.
-        let guard = lock_recovered(&mutex);
+        let guard = schema::lock_recovered(&mutex);
         assert_eq!(*guard, 42);
     }
 
@@ -1422,7 +1006,7 @@ mod tests {
         assert!(inner.lock().is_err(), "database mutex should be poisoned");
 
         // Recover and verify the database is still usable.
-        let db = lock_recovered(&inner);
+        let db = schema::lock_recovered(&inner);
         let loaded = db
             .find_branch(&branch.name)
             .expect("find_branch should still work after poison recovery");
