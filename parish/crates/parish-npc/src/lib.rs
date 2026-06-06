@@ -793,7 +793,7 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         season = season,
     );
 
-    // TODO #13: explicit time-of-day cue so the model picks the
+    // Regression (fixed: #13): explicit time-of-day cue so the model picks the
     // right greeting register. NPCs were saying "good morning" at
     // Dusk because the only time signal in the context was the bare
     // 17:30 HH:MM — without an English label the model defaulted
@@ -957,7 +957,7 @@ mod tests {
         assert!(context.contains("1820"));
         assert!(context.contains("Your Location:"));
         assert!(context.contains("Date and time:"));
-        // TODO #13 — explicit time-of-day cue with both the bucket
+        // Regression (fixed: #13) — explicit time-of-day cue with both the bucket
         // label and HH:MM so the model picks the right greeting
         // register (NPCs were saying "good morning" at Dusk because
         // the only time signal was 17:30 with no English label).
@@ -1356,7 +1356,7 @@ mod tests {
             "modern-register negative example missing"
         );
 
-        // Anti-farewell directive (TODO #4: Cormac signed off with
+        // Anti-farewell directive (fixed: #4 — Cormac signed off with
         // "Slán abhaile" mid-conversation in cycle 1 of the demo audit).
         assert!(
             prompt.contains("NEVER FAREWELL MID-CONVERSATION"),

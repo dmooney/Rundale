@@ -192,7 +192,7 @@ fn introduced_anchor_block(npc: &Npc, was_introduced: bool) -> Option<String> {
 /// current location so they don't substitute a nearby canonical
 /// settlement from their backstory or short-term memory.
 ///
-/// TODO #21 surfaced this: Cormac and Nora Duffy, who work at The Mill
+/// Regression (fixed: #21): Cormac and Nora Duffy, who work at The Mill
 /// near Kilteevan, repeatedly told the player they were "here in
 /// Curraghboy" because Curraghboy Village is real, neighbouring, and
 /// mentioned in their family backstory. The base location label
@@ -211,7 +211,7 @@ fn location_anchor_block(world: &WorldState) -> String {
 /// Interlocutor label — who the NPC is speaking with.
 ///
 /// The anchor sentence forbids the model from addressing the player by any
-/// other name that may appear in the recent-events buffer (TODO #35 — a
+/// other name that may appear in the recent-events buffer (fixed: #35 — a
 /// shopkeeper at a new location called the player "Nora" because the prior
 /// location's NPC named Nora was still in the dialogue history).
 fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
@@ -234,7 +234,7 @@ fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
 /// Describes other NPCs present at the location with relationship context.
 ///
 /// The anchor sentence forbids the model from speaking to or about any
-/// character not in this list as if they were present (TODO #11 — Brendan
+/// character not in this list as if they were present (fixed: #11 — Brendan
 /// addressed "Nora" mid-reply while Nora was not at the location; the
 /// player-side LLM mirrored this and addressed absent NPCs).
 fn other_npcs_block(npc: &Npc, other_npcs: &[&Npc], config: &NpcConfig) -> Option<String> {
@@ -522,7 +522,7 @@ mod tests {
         );
         assert!(context.contains("Also present"));
         assert!(context.contains("Tommy, the Test"));
-        // Name anchor (TODO #11) — block must forbid addressing absent NPCs.
+        // Name anchor (fixed: #11) — block must forbid addressing absent NPCs.
         assert!(
             context.contains("these are the only other people"),
             "other_npcs_block must anchor present-only addressing:\n{context}"
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_interlocutor_block_named_player_has_anchor() {
-        // Name anchor (TODO #35) — when the NPC knows the player's name,
+        // Name anchor (fixed: #35) — when the NPC knows the player's name,
         // the block must explicitly forbid addressing them by any other
         // name from recent history.
         let block = interlocutor_block(Some("Aiden Carney"));
@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn test_interlocutor_block_unintroduced_player_has_anchor() {
-        // Pre-introduction (TODO #35 corollary) — the NPC must NOT borrow a
+        // Pre-introduction (fixed: #35 corollary) — the NPC must NOT borrow a
         // name from the history buffer when it doesn't yet know the player.
         let block = interlocutor_block(None);
         assert!(block.contains("A newcomer to the parish"));
@@ -592,7 +592,7 @@ mod tests {
 
     #[test]
     fn test_location_anchor_block_pins_current_location() {
-        // Location anchor (TODO #21) — block must name the current
+        // Location anchor (fixed: #21) — block must name the current
         // location and forbid substituting any other settlement.
         let world = WorldState::new();
         let block = location_anchor_block(&world);
@@ -617,7 +617,7 @@ mod tests {
 
     #[test]
     fn test_other_npcs_block_empty_emits_solo_anchor() {
-        // Solo-NPC anchor (TODO #11) — when no one else is present, the
+        // Solo-NPC anchor (fixed: #11) — when no one else is present, the
         // builder must still emit a directive forbidding addressing absent
         // characters as if they were here.
         let npc = make_test_npc(1, "Padraig", 1);

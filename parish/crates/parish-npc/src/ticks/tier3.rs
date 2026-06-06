@@ -270,7 +270,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
                 if is_intentional_cancellation(&msg) {
                     // Graceful cancellation (shutdown, sim_cancel on player
                     // input). Not a failure — match the Tier 2 path's
-                    // distinction (TODO #54).
+                    // distinction (fixed: #54).
                     tracing::debug!("Tier 3 batch cancelled: {}", msg);
                 } else {
                     tracing::warn!("Tier 3 batch inference failed: {}", msg);

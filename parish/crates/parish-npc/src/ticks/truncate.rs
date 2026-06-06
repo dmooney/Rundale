@@ -3,7 +3,7 @@
 /// Truncates a string to a maximum length, adding `…` (single
 /// codepoint, 3-byte UTF-8) if truncated.
 ///
-/// TODO #7: the previous suffix `...` (three ASCII dots) doubled as a
+/// Regression note (fixed: #7): the previous suffix `...` (three ASCII dots) doubled as a
 /// truncation signal but was indistinguishable from a model-emitted
 /// ellipsis-as-punctuation in the recent-events buffer fed to
 /// subsequent NPC turns. The single `…` codepoint is unambiguously
@@ -37,7 +37,7 @@ mod tests {
         assert_eq!(truncate_for_memory(&at_cap, 20), at_cap);
 
         // Over cap: clips and appends single-codepoint `…`.
-        // TODO #7: suffix changed from "..." to "…" so the trim
+        // Regression (fixed: #7): suffix changed from "..." to "…" so the trim
         // marker is unambiguous vs model-emitted ellipsis.
         let long = "a".repeat(100);
         let truncated = truncate_for_memory(&long, 20);
