@@ -241,6 +241,56 @@ def test_slugify():
     assert bsd.slugify("Qwen2.5-7B") == "qwen2-5-7b"
 
 
+# ── criterion: bench_bug_rate computed from bench_bugs / records ──────────────
+def test_leaderboard_bench_bug_rate():
+    tmp = _tmp()
+    art = tmp / "artifacts"
+    run = _dialogue_run("model-a", 3.5, "2026-06-01T00:00:00Z")
+    # Inject bench_bugs into the summary.
+    run["slices"]["dialogue"]["summary"]["bench_bugs"] = 2
+    run["slices"]["dialogue"]["summary"]["records"] = 10
+    _write(art, "run_a_all_1.json", run)
+    rows = bsd.build_leaderboard(art)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["bench_bugs"] == 2
+    assert row["records"] == 10
+    assert row["bench_bug_rate"] == round(2 / 10, 4)
+
+
+def test_leaderboard_bench_bug_rate_zero_records():
+    """bench_bug_rate is None when records is 0 (avoids ZeroDivisionError)."""
+    tmp = _tmp()
+    art = tmp / "artifacts"
+    run = _dialogue_run("model-z", 4.0, "2026-06-01T00:00:00Z")
+    run["slices"]["dialogue"]["summary"]["bench_bugs"] = 0
+    run["slices"]["dialogue"]["summary"]["records"] = 0
+    _write(art, "run_z_all_1.json", run)
+    rows = bsd.build_leaderboard(art)
+    assert rows[0]["bench_bug_rate"] is None
+
+
+# ── criterion: pending_judge flag carried on leaderboard row ─────────────────
+def test_leaderboard_pending_judge_flag():
+    tmp = _tmp()
+    art = tmp / "artifacts"
+    run = _dialogue_run("model-p", None, "2026-06-01T00:00:00Z")
+    run["slices"]["dialogue"]["summary"]["pending_judge"] = True
+    _write(art, "run_p_all_1.json", run)
+    rows = bsd.build_leaderboard(art)
+    assert len(rows) == 1
+    assert rows[0]["pending_judge"] is True
+    assert rows[0]["overall"] is None
+
+
+def test_leaderboard_pending_judge_false_when_absent():
+    tmp = _tmp()
+    art = tmp / "artifacts"
+    _write(art, "run_q_all_1.json", _dialogue_run("model-q", 4.1, "2026-06-01T00:00:00Z"))
+    rows = bsd.build_leaderboard(art)
+    assert rows[0]["pending_judge"] is False
+
+
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0
