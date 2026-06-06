@@ -106,10 +106,18 @@ pub(super) async fn init_session_save(
 
     let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
         let db = Database::open(&save_path_clone).map_err(|e| e.to_string())?;
-        let branch_id = db.create_branch("main", None).map_err(|e| e.to_string())?;
-        db.save_snapshot(branch_id, &snapshot)
+        // `Database::open` already auto-creates the "main" branch, so reuse it
+        // rather than calling `create_branch("main", ...)` again — the latter
+        // trips a `UNIQUE constraint failed: branches.name` error, which left
+        // the save fields unset and `/api/save-state` returning all-null on a
+        // freshly-created session (#9). Mirrors `new_save_file`.
+        let branch = db
+            .find_branch("main")
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "main branch missing after Database::open".to_string())?;
+        db.save_snapshot(branch.id, &snapshot)
             .map_err(|e| e.to_string())?;
-        Ok(branch_id)
+        Ok(branch.id)
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -131,4 +139,40 @@ pub(super) async fn init_session_save(
     *app_state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #9 regression: `Database::open` auto-creates the "main" branch, so
+    /// `init_session_save` must *reuse* it. The earlier `create_branch("main")`
+    /// tripped `UNIQUE constraint failed: branches.name`, returned `Err`, and
+    /// left `save_path` / `current_branch_id` / `current_branch_name` unset —
+    /// which surfaced as an all-null `GET /api/save-state` on every freshly
+    /// created server session.
+    #[tokio::test]
+    async fn init_session_save_populates_branch_fields() {
+        let state = crate::routes::tests::test_app_state();
+        let tmp = tempfile::tempdir().unwrap();
+
+        init_session_save(&state, tmp.path())
+            .await
+            .expect("init_session_save must succeed on a fresh save (no UNIQUE-branch panic)");
+
+        assert!(
+            state.save_path.lock().await.is_some(),
+            "save_path must be set after init_session_save"
+        );
+        assert_eq!(
+            *state.current_branch_id.lock().await,
+            Some(1),
+            "the auto-created main branch has id 1"
+        );
+        assert_eq!(
+            state.current_branch_name.lock().await.as_deref(),
+            Some("main"),
+            "branch name must be main"
+        );
+    }
 }
