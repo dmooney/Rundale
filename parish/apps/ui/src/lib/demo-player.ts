@@ -87,6 +87,20 @@ export async function runDemoTurn(): Promise<void> {
 		await sleep(200);
 	}
 
+	// #1207 #51: make sure the PREVIOUS turn's NPC reply has fully landed before
+	// we snapshot context. A reply can still be revealing (streamingActive) or
+	// in backend inference (turn_in_flight) at this point — the inter-turn pause
+	// above gives the backend time to begin it. Capturing context now would hand
+	// the auto-player a prompt with its own line and no NPC response, which it
+	// sometimes continues in the NPC's own voice (role flip). Wait for both to
+	// settle. For movement / look / empty-location turns neither is set, so this
+	// is a no-op.
+	await waitForFalse(streamingActive);
+	const inflightDeadline = Date.now() + 30_000;
+	while (get(worldState)?.turn_in_flight && Date.now() < inflightDeadline) {
+		await sleep(100);
+	}
+
 	demoStatus.set('thinking');
 	const ctx = await getDemoContext();
 
