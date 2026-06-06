@@ -17,10 +17,10 @@
 	 * call site that doesn't have access to the precomputed value.
 	 *
 	 * The entries below mirror `mood_emoji` in `parish-npc/src/mood.rs`
-	 * (TODO #20 — the two maps had drifted: `angry`, `passionate`,
-	 * `restless`, `surprised`, and `warm` returned different emojis from
-	 * the Rust map vs this Svelte component). Keep them in sync; the
-	 * vitest suite asserts a representative cross-section.
+	 * Regression note (TD-055 / #1201): the two maps had previously drifted —
+	 * `angry`, `passionate`, `restless`, `surprised`, and `warm` returned
+	 * different emojis from the Rust map vs this Svelte component. Keep them
+	 * in sync; the vitest suite asserts a representative cross-section.
 	 */
 	const MOOD_EMOJI: Array<{
 		keywords: string[];
