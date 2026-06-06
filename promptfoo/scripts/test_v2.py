@@ -182,7 +182,7 @@ g = rb.generate_candidate(
 check("tier2-sim schema_valid computed deterministically", g["schema_valid"] is True)
 
 # REQ 3: multiturn chains the candidate's own replies as assistant turns.
-mt_calls = []
+mt_calls: list = []
 
 
 def fake_mt(

@@ -33,6 +33,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import leaderboard as lb  # noqa: E402
@@ -99,7 +100,7 @@ def slice_clean(rows: list[dict]) -> bool:
 JUDGE_USD_PER_ITEM = 0.01
 JUDGED = {"dialogue", "reaction", "tier2-sim", "tier3-sim", "gaeilge", "multiturn"}
 
-PHASES = {
+PHASES: dict[str, dict[str, Any]] = {
     "screen": {
         "slices": ["intent", "tier2-sim", "dialogue"],
         "judged": {"dialogue"},
@@ -313,8 +314,8 @@ def main(argv: list[str]) -> int:
     if not args.include_local:
         cands = [c for c in cands if not c.get("local")]
     if args.from_survivors:
-        keep = set(json.loads(STATE.read_text()) if STATE.exists() else [])
-        cands = [c for c in cands if c["spec"] in keep]
+        prev = set(json.loads(STATE.read_text()) if STATE.exists() else [])
+        cands = [c for c in cands if c["spec"] in prev]
     if args.max_candidates:
         cands = cands[: args.max_candidates]
 
