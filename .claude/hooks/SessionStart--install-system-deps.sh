@@ -58,7 +58,8 @@ echo '{"async": true, "asyncTimeout": 600000}'
 # Refresh apt indices once if either apt-based step is needed — packaged
 # container lists can go stale enough to 404 individual .deb URLs.
 if $needs_gtk || $needs_just; then
-    sudo -n apt-get update -qq
+    sudo -n apt-get update -qq \
+        || echo "[session-start-hook] WARN: apt-get update failed" >&2
 fi
 
 if $needs_gtk; then
@@ -67,7 +68,8 @@ if $needs_gtk; then
         libgtk-3-dev \
         libwebkit2gtk-4.1-dev \
         libsoup-3.0-dev \
-        libjavascriptcoregtk-4.1-dev
+        libjavascriptcoregtk-4.1-dev \
+        || echo "[session-start-hook] WARN: GTK/WebKit2GTK install failed" >&2
 fi
 
 if $needs_just; then
