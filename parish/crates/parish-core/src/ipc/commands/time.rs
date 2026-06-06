@@ -38,6 +38,23 @@ pub(super) fn handle_time_control_command(
                 CommandResult::text("")
             }
         }
+        Command::PauseSilent => {
+            // Focus/visibility-driven pause: clock freezes but no message is
+            // emitted.  The edge-gate still applies — a redundant silent pause
+            // while already paused is a no-op with empty response.
+            if !world.clock.is_paused() {
+                world.clock.pause();
+            }
+            CommandResult::text("")
+        }
+        Command::ResumeSilent => {
+            // Focus/visibility-driven resume: clock restarts but no message is
+            // emitted.  The edge-gate still applies.
+            if world.clock.is_paused() {
+                world.clock.resume();
+            }
+            CommandResult::text("")
+        }
         Command::Status => {
             let tod = world.clock.time_of_day();
             let season = world.clock.season();

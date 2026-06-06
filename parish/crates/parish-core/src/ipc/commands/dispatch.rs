@@ -34,6 +34,8 @@ pub fn handle_command(
     match cmd {
         Command::Pause
         | Command::Resume
+        | Command::PauseSilent
+        | Command::ResumeSilent
         | Command::Status
         | Command::ShowSpeed
         | Command::SetSpeed(_)
