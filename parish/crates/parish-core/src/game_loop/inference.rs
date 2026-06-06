@@ -27,7 +27,8 @@ use tokio::task::JoinHandle;
 use crate::config::InferenceConfig;
 use crate::inference::file_log::InferenceFileLog;
 use crate::inference::{
-    AnyClient, InferenceLog, InferenceQueue, build_client, spawn_inference_worker,
+    AnyClient, InferenceLog, InferenceQueue, InferenceWorkerConfig, build_client,
+    spawn_inference_worker,
 };
 
 /// The three AppState mutex slots that [`rebuild_inference_worker`] needs.
@@ -120,13 +121,15 @@ pub async fn rebuild_inference_worker(
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
     let worker = spawn_inference_worker(
         any_client.clone(),
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        inference_log,
-        inference_file_log,
-        provider_enum,
-        inference_config.clone(),
+        InferenceWorkerConfig {
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log: inference_log,
+            file_log: inference_file_log,
+            provider: provider_enum,
+            timeout_config: inference_config.clone(),
+        },
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
 

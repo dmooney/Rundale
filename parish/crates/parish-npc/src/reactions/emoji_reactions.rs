@@ -9,7 +9,7 @@
 
 use crate::reactions::reaction_description;
 use crate::{LanguageSettings, Npc};
-use parish_inference::AnyClient;
+use parish_inference::{AnyClient, GenerateParams};
 
 /// Sampling temperature for the player-message reaction inference call.
 ///
@@ -263,9 +263,11 @@ pub async fn infer_player_message_reaction(
         model,
         &prompt,
         Some(&system),
-        Some(80),
-        Some(REACTION_INFERENCE_TEMPERATURE),
-        None,
+        GenerateParams {
+            max_tokens: Some(80),
+            temperature: Some(REACTION_INFERENCE_TEMPERATURE),
+            frequency_penalty: None,
+        },
     );
 
     let response = match tokio::time::timeout(timeout, call).await {

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::AppState;
+use parish_core::inference::GenerateParams;
 
 // Demo payload types and the prompt-builder live in `parish-core::ipc::demo`
 // so the builder can be constrained to GUI-facing inputs only (issue #998).
@@ -488,9 +489,11 @@ pub async fn get_llm_player_action(
             &model,
             &user_prompt,
             Some(&system_prompt),
-            Some(200),
-            Some(0.9),
-            None,
+            GenerateParams {
+                max_tokens: Some(200),
+                temperature: Some(0.9),
+                frequency_penalty: None,
+            },
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -526,9 +529,11 @@ pub async fn get_llm_player_action(
                 &model,
                 &user_prompt,
                 Some(&system_prompt),
-                Some(200),
-                Some(1.0),
-                None,
+                GenerateParams {
+                    max_tokens: Some(200),
+                    temperature: Some(1.0),
+                    frequency_penalty: None,
+                },
             )
             .await
             .map_err(|e| e.to_string())?;

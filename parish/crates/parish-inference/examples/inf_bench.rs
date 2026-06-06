@@ -28,8 +28,8 @@ use std::time::Instant;
 use parish_config::InferenceConfig;
 use parish_inference::openai_client::OpenAiClient;
 use parish_inference::{
-    AnyClient, InferencePriority, InferenceRequest, JsonSchemaSpec, new_inference_log,
-    spawn_inference_worker,
+    AnyClient, InferencePriority, InferenceRequest, InferenceWorkerConfig, JsonSchemaSpec,
+    new_inference_log, spawn_inference_worker,
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -397,13 +397,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let log = new_inference_log();
     let _h = spawn_inference_worker(
         client,
-        irx,
-        brx,
-        xrx,
-        log.clone(),
-        parish_inference::file_log::InferenceFileLog::disabled(),
-        parish_config::Provider::from_str_loose("openai").unwrap_or_default(),
-        cfg,
+        InferenceWorkerConfig {
+            interactive_rx: irx,
+            background_rx: brx,
+            batch_rx: xrx,
+            log: log.clone(),
+            file_log: parish_inference::file_log::InferenceFileLog::disabled(),
+            provider: parish_config::Provider::from_str_loose("openai").unwrap_or_default(),
+            timeout_config: cfg,
+        },
     );
 
     let samples = samples();

@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use crate::{LanguageSettings, Npc, NpcId};
 use parish_config::ReactionConfig;
-use parish_inference::AnyClient;
+use parish_inference::{AnyClient, GenerateParams};
 use parish_types::dice::DiceRoll;
 use parish_world::graph::LocationData;
 use parish_world::time::TimeOfDay;
@@ -789,9 +789,11 @@ pub async fn resolve_llm_greeting(
             &context,
             Some(&system),
             sink_tx,
-            Some(100),
-            None,
-            None,
+            GenerateParams {
+                max_tokens: Some(100),
+                temperature: None,
+                frequency_penalty: None,
+            },
         ),
     )
     .await;

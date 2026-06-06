@@ -19,7 +19,9 @@ use tauri::{AppHandle, Emitter};
 
 use parish_core::config::{InferenceCategory, ProviderConfig};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
-use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{
+    AnyClient, InferenceQueue, InferenceWorkerConfig, spawn_inference_worker,
+};
 
 use crate::{
     AUTOSAVE_INTERVAL_SECS, AppState, DEBUG_EVENT_CAPACITY, TauriProgress, ThemePalette,
@@ -397,13 +399,15 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
         parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
     let worker = spawn_inference_worker(
         ac,
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        state.inference_log.clone(),
-        state.inference_file_log.clone(),
-        provider,
-        state.inference_config.clone(),
+        InferenceWorkerConfig {
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log: state.inference_log.clone(),
+            file_log: state.inference_file_log.clone(),
+            provider,
+            timeout_config: state.inference_config.clone(),
+        },
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     *state.inference_queue.lock().await = Some(queue);

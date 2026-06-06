@@ -17,7 +17,9 @@ use tokio::task::JoinHandle;
 
 use parish_core::config::InferenceConfig;
 use parish_core::game_mod::{GameMod, PronunciationEntry};
-use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{
+    AnyClient, InferenceQueue, InferenceWorkerConfig, spawn_inference_worker,
+};
 use parish_core::ipc::{GameConfig, ThemePalette};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
@@ -854,13 +856,15 @@ async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyClient) {
             .unwrap_or_default();
     let worker = spawn_inference_worker(
         client,
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        app_state.inference_log.clone(),
-        app_state.inference_file_log.clone(),
-        provider,
-        app_state.inference_config.clone(),
+        InferenceWorkerConfig {
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log: app_state.inference_log.clone(),
+            file_log: app_state.inference_file_log.clone(),
+            provider,
+            timeout_config: app_state.inference_config.clone(),
+        },
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     *app_state.inference_queue.lock().await = Some(queue);
