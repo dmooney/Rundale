@@ -806,10 +806,17 @@ fn import_npcs_inner(conn: &Connection, npcs: Vec<ExportNpc>) -> Result<(u64, u6
     Ok((inserted, updated))
 }
 
+/// Parse an export blob from raw input, surfacing the `"invalid JSON input"`
+/// context on malformed bytes. Split out from `import_npcs` so the JSON
+/// validation contract is unit-testable without reading from stdin (TD-025).
+fn parse_import_blob(input: &str) -> Result<ExportBlob> {
+    serde_json::from_str(input).context("invalid JSON input")
+}
+
 fn import_npcs(conn: &Connection) -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
-    let blob: ExportBlob = serde_json::from_str(&input).context("invalid JSON input")?;
+    let blob = parse_import_blob(&input)?;
     let (inserted, updated) = import_npcs_inner(conn, blob.npcs)?;
     println!(
         "Imported NPCs from stdin: inserted {inserted}, updated {updated} (household_id and other non-export columns preserved on updates)"
@@ -1676,5 +1683,97 @@ mod tests {
             "validate_db with a real parish name must pass, got: {:?}",
             result.err()
         );
+    }
+
+    // ── TD-021: DataTier <-> i64 contract ──────────────────────────────────
+
+    /// `Sketched`/`Elaborated`/`Authored` must survive an `as_i64` →
+    /// `from_i64` round-trip so the on-disk tier column stays in sync with the
+    /// enum.
+    #[test]
+    fn data_tier_roundtrips_through_i64() {
+        for (tier, name) in [
+            (DataTier::Sketched, "Sketched"),
+            (DataTier::Elaborated, "Elaborated"),
+            (DataTier::Authored, "Authored"),
+        ] {
+            assert_eq!(DataTier::from_i64(tier.as_i64()), name);
+        }
+        // The canonical encoding the schema relies on.
+        assert_eq!(DataTier::Sketched.as_i64(), 0);
+        assert_eq!(DataTier::Elaborated.as_i64(), 1);
+        assert_eq!(DataTier::Authored.as_i64(), 2);
+    }
+
+    /// Any value outside `0..=2` (schema drift / corruption) must fall back to
+    /// `"Unknown"` rather than panic or silently alias a real tier.
+    #[test]
+    fn data_tier_from_i64_unknown_guard() {
+        for v in [-1, 3, 99, i64::MAX, i64::MIN] {
+            assert_eq!(DataTier::from_i64(v), "Unknown", "v={v}");
+        }
+    }
+
+    // ── TD-019: weighted_occupation distribution ───────────────────────────
+
+    /// Every occupation `weighted_occupation` can return must be a name from
+    /// the `OCCUPATIONS` table — locks the distribution against table drift and
+    /// exercises the helper directly. Weights sum to 100, so the `"Other"`
+    /// fallback at the end of the loop is unreachable; this also confirms it is
+    /// never hit (any leak would surface as a non-`OCCUPATIONS` string).
+    #[test]
+    fn weighted_occupation_only_returns_known_occupations() {
+        let names: std::collections::HashSet<&str> =
+            OCCUPATIONS.iter().map(|(occ, _)| *occ).collect();
+        let mut rng = StdRng::seed_from_u64(7);
+        for _ in 0..10_000 {
+            let occ = weighted_occupation(&mut rng);
+            assert!(names.contains(occ), "unexpected occupation: {occ:?}");
+        }
+    }
+
+    /// The weight table must sum to exactly 100 — the invariant that makes the
+    /// `roll < acc` walk total and the trailing `"Other"` fallback unreachable.
+    #[test]
+    fn occupation_weights_sum_to_100() {
+        let total: u32 = OCCUPATIONS.iter().map(|(_, w)| u32::from(*w)).sum();
+        assert_eq!(total, 100, "OCCUPATIONS weights must sum to 100");
+    }
+
+    // ── TD-020: escape_like pure string escaping ───────────────────────────
+
+    /// Pure, DB-free coverage of the LIKE escaping: backslash, percent, and
+    /// underscore each get a single `\` prefix, and a mixed payload escapes all
+    /// three without reordering.
+    #[test]
+    fn escape_like_escapes_wildcards_and_backslash() {
+        assert_eq!(escape_like("100%"), "100\\%");
+        assert_eq!(escape_like("a_b"), "a\\_b");
+        assert_eq!(escape_like("c\\d"), "c\\\\d");
+        // Backslash is escaped first, so `\%` becomes `\\\%` (escaped slash +
+        // escaped percent), not `\\%`.
+        assert_eq!(escape_like("\\%_"), "\\\\\\%\\_");
+        // Plain text is untouched.
+        assert_eq!(escape_like("Maggie"), "Maggie");
+    }
+
+    // ── TD-025: import JSON-validation contract ────────────────────────────
+
+    /// Malformed input must bubble the `"invalid JSON input"` context from the
+    /// `import_npcs` stdin wrapper (exercised via the extracted pure helper).
+    #[test]
+    fn parse_import_blob_rejects_malformed_json() {
+        let err = parse_import_blob("{ not json }").expect_err("malformed JSON must error");
+        assert!(
+            err.to_string().contains("invalid JSON input"),
+            "expected 'invalid JSON input' context, got: {err}"
+        );
+    }
+
+    /// A well-formed blob parses into the expected NPC vector.
+    #[test]
+    fn parse_import_blob_accepts_empty_npc_list() {
+        let blob = parse_import_blob(r#"{ "npcs": [] }"#).expect("valid blob parses");
+        assert!(blob.npcs.is_empty());
     }
 }
