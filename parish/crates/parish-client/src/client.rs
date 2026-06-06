@@ -146,3 +146,79 @@ fn transport_hint(base_url: &str) -> String {
          start it with `just run-headless --web 3001` or set PARISH_SERVER"
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: serialize a (text, opts) pair exactly as post_command would send it.
+    fn body_json(text: &str, opts: CommandOpts) -> serde_json::Value {
+        #[derive(Serialize)]
+        struct Body<'a> {
+            text: &'a str,
+            #[serde(flatten)]
+            opts: CommandOpts,
+        }
+        serde_json::to_value(Body { text, opts }).expect("serializable")
+    }
+
+    // AC-1: default opts — only `text` key present
+    #[test]
+    fn command_body_default_opts_has_only_text() {
+        let v = body_json("look", CommandOpts::default());
+        assert_eq!(v.get("text").and_then(|t| t.as_str()), Some("look"));
+        assert!(v.get("addressedTo").is_none(), "unexpected addressedTo");
+        assert!(v.get("timeoutMs").is_none(), "unexpected timeoutMs");
+        assert!(v.get("includeState").is_none(), "unexpected includeState");
+        assert!(v.get("includeMap").is_none(), "unexpected includeMap");
+    }
+
+    // AC-1: addressed_to serialises as camelCase array
+    #[test]
+    fn command_body_addressed_to_is_camel_case() {
+        let opts = CommandOpts {
+            addressed_to: vec!["Bridget".into(), "Seamus".into()],
+            ..Default::default()
+        };
+        let v = body_json("hello", opts);
+        let arr = v["addressedTo"].as_array().expect("addressedTo array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0].as_str(), Some("Bridget"));
+        assert_eq!(arr[1].as_str(), Some("Seamus"));
+    }
+
+    // AC-1: timeout_ms serialises as camelCase number
+    #[test]
+    fn command_body_timeout_ms_is_camel_case() {
+        let opts = CommandOpts {
+            timeout_ms: Some(5000),
+            ..Default::default()
+        };
+        let v = body_json("wait", opts);
+        assert_eq!(v["timeoutMs"].as_u64(), Some(5000));
+    }
+
+    // AC-1: include_state and include_map serialise as camelCase booleans
+    #[test]
+    fn command_body_include_flags_are_camel_case() {
+        let opts = CommandOpts {
+            include_state: Some(true),
+            include_map: Some(false),
+            ..Default::default()
+        };
+        let v = body_json("look", opts);
+        assert_eq!(v["includeState"].as_bool(), Some(true));
+        assert_eq!(v["includeMap"].as_bool(), Some(false));
+    }
+
+    // AC-1: an empty addressed_to vec is omitted entirely
+    #[test]
+    fn command_body_empty_addressed_to_is_omitted() {
+        let opts = CommandOpts {
+            addressed_to: vec![],
+            ..Default::default()
+        };
+        let v = body_json("look", opts);
+        assert!(v.get("addressedTo").is_none(), "empty vec must be omitted");
+    }
+}
