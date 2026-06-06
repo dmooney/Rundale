@@ -1,0 +1,11 @@
+# Verification fixture for TD-026 — persistence test layout refactor.
+#
+# This is a test-relocation-only task: no production code changes.
+# The primary verification is:
+#   cargo test -p parish-persistence
+#
+# This fixture confirms the runtime is unaffected by the layout change
+# by running a minimal headless session that exercises the persistence
+# layer (new-game creates a save branch, look reads state).
+new game
+look
