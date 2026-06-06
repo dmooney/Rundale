@@ -356,12 +356,19 @@ pub async fn run_npc_turn(
     // (see `chat_transcript::ChatTranscriptLog::process_event`), not from a
     // direct hook here — the `DialogueOccurred` event published above carries
     // `request_id` for the inference-log correlation.
-    let line = if parsed.dialogue.trim().is_empty() {
+    //
+    // Apply the display-length cap (#1224) so the ConversationLine shown to
+    // the player is consistent with what was stored in the event bus and
+    // conversation log by `apply_npc_dialogue_turn`.
+    let display_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
+    let display_text =
+        crate::game_session::cap_dialogue_for_display(&parsed.dialogue, display_cap).into_owned();
+    let line = if display_text.trim().is_empty() {
         None
     } else {
         Some(ConversationLine {
             speaker: display_label,
-            text: parsed.dialogue,
+            text: display_text,
         })
     };
 
