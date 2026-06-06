@@ -263,7 +263,10 @@ mod tests {
         }
     }
 
-    fn map_data(adjacent_unvisited: Vec<(&str, u16)>, adjacent_visited: Vec<(&str, u16)>) -> MapData {
+    fn map_data(
+        adjacent_unvisited: Vec<(&str, u16)>,
+        adjacent_visited: Vec<(&str, u16)>,
+    ) -> MapData {
         let mut locations = vec![MapLocation {
             id: "0".to_string(),
             name: "Kilteevan".to_string(),
