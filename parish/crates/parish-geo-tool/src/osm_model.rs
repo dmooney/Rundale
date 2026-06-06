@@ -308,4 +308,227 @@ mod tests {
         };
         assert_eq!(elem.name(), Some("Darcy's Pub"));
     }
+
+    // ── OsmElement accessor coverage ────────────────────────────────────────
+
+    #[test]
+    fn name_en_preferred_over_name() {
+        // When both `name` and `name:en` are present, `name:en` wins.
+        let mut tags = HashMap::new();
+        tags.insert("name".to_string(), "An tEaglais".to_string());
+        tags.insert("name:en".to_string(), "The Church".to_string());
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 1,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags,
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.name(), Some("The Church"));
+    }
+
+    #[test]
+    fn name_falls_back_to_name_when_no_name_en() {
+        let mut tags = HashMap::new();
+        tags.insert("name".to_string(), "An tEaglais".to_string());
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 2,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags,
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.name(), Some("An tEaglais"));
+    }
+
+    #[test]
+    fn name_returns_none_when_no_name_tags() {
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 3,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags: HashMap::new(),
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.name(), None);
+    }
+
+    #[test]
+    fn name_ga_returns_irish_name() {
+        let mut tags = HashMap::new();
+        tags.insert("name".to_string(), "Kiltoom".to_string());
+        tags.insert("name:ga".to_string(), "Cill Tuama".to_string());
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 4,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags,
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.name_ga(), Some("Cill Tuama"));
+    }
+
+    #[test]
+    fn name_ga_returns_none_when_absent() {
+        let mut tags = HashMap::new();
+        tags.insert("name".to_string(), "Kiltoom".to_string());
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 5,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags,
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.name_ga(), None);
+    }
+
+    #[test]
+    fn tag_returns_value_by_key() {
+        let mut tags = HashMap::new();
+        tags.insert("amenity".to_string(), "pub".to_string());
+        let elem = OsmElement {
+            element_type: "node".to_string(),
+            id: 6,
+            lat: Some(53.5),
+            lon: Some(-8.0),
+            center: None,
+            tags,
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.tag("amenity"), Some("pub"));
+        assert_eq!(elem.tag("missing"), None);
+    }
+
+    #[test]
+    fn effective_coords_both_none_returns_none() {
+        // Element with no lat/lon and no center — both effective_* must be None.
+        let elem = OsmElement {
+            element_type: "way".to_string(),
+            id: 7,
+            lat: None,
+            lon: None,
+            center: None,
+            tags: HashMap::new(),
+            nodes: None,
+            geometry: None,
+            members: None,
+        };
+        assert_eq!(elem.effective_lat(), None);
+        assert_eq!(elem.effective_lon(), None);
+    }
+
+    // ── LocationType is_indoor / is_public exhaustive checks ────────────────
+
+    #[test]
+    fn is_indoor_all_indoor_types() {
+        // Every type documented as indoor must return true.
+        for t in [
+            LocationType::Pub,
+            LocationType::Church,
+            LocationType::Shop,
+            LocationType::School,
+            LocationType::PostOffice,
+            LocationType::Mill,
+            LocationType::Forge,
+        ] {
+            assert!(t.is_indoor(), "{t:?} should be indoor");
+        }
+    }
+
+    #[test]
+    fn is_indoor_all_outdoor_types_return_false() {
+        for t in [
+            LocationType::Farm,
+            LocationType::Crossroads,
+            LocationType::Bridge,
+            LocationType::Well,
+            LocationType::Waterside,
+            LocationType::Bog,
+            LocationType::Woodland,
+            LocationType::RingFort,
+            LocationType::StandingStone,
+            LocationType::Graveyard,
+            LocationType::LimeKiln,
+            LocationType::Square,
+            LocationType::Harbour,
+            LocationType::Road,
+            LocationType::NamedPlace,
+            LocationType::Hill,
+            LocationType::Ruin,
+            LocationType::Other,
+        ] {
+            assert!(!t.is_indoor(), "{t:?} should not be indoor");
+        }
+    }
+
+    #[test]
+    fn is_public_all_non_farm_types_return_true() {
+        for t in [
+            LocationType::Pub,
+            LocationType::Church,
+            LocationType::Shop,
+            LocationType::School,
+            LocationType::PostOffice,
+            LocationType::Crossroads,
+            LocationType::Bridge,
+            LocationType::Well,
+            LocationType::Waterside,
+            LocationType::Bog,
+            LocationType::Woodland,
+            LocationType::RingFort,
+            LocationType::StandingStone,
+            LocationType::Graveyard,
+            LocationType::Mill,
+            LocationType::Forge,
+            LocationType::LimeKiln,
+            LocationType::Square,
+            LocationType::Harbour,
+            LocationType::Road,
+            LocationType::NamedPlace,
+            LocationType::Hill,
+            LocationType::Ruin,
+            LocationType::Other,
+        ] {
+            assert!(t.is_public(), "{t:?} should be public");
+        }
+    }
+
+    #[test]
+    fn is_public_farm_returns_false() {
+        assert!(!LocationType::Farm.is_public());
+    }
+
+    // ── haversine_distance precision test ───────────────────────────────────
+
+    #[test]
+    fn haversine_one_degree_lat_is_approximately_111km() {
+        // One degree of latitude is ~111.19 km at any longitude.
+        let dist = haversine_distance(53.0, -8.0, 54.0, -8.0);
+        assert!(
+            dist > 110_000.0 && dist < 112_000.0,
+            "1° lat should be ~111 km, got {dist:.0}m"
+        );
+    }
 }

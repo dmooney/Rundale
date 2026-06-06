@@ -458,4 +458,137 @@ mod tests {
         let desc = generate_path_description(&segment, &to);
         assert!(desc.contains("Bog Road"));
     }
+
+    // ── along_road_distance with reversed indices ────────────────────────────
+
+    #[test]
+    fn along_road_distance_reversed_indices_equals_forward() {
+        // The function uses min/max internally, so (2, 0) must equal (0, 2).
+        let points = vec![
+            LatLon {
+                lat: 53.5000,
+                lon: -8.0000,
+            },
+            LatLon {
+                lat: 53.5010,
+                lon: -8.0000,
+            },
+            LatLon {
+                lat: 53.5020,
+                lon: -8.0000,
+            },
+        ];
+        let fwd = along_road_distance(&points, 0, 2);
+        let rev = along_road_distance(&points, 2, 0);
+        assert!(
+            (fwd - rev).abs() < 0.001,
+            "reversed indices should give same distance: fwd={fwd} rev={rev}"
+        );
+    }
+
+    #[test]
+    fn along_road_distance_same_index_is_zero() {
+        let points = vec![
+            LatLon {
+                lat: 53.5,
+                lon: -8.0,
+            },
+            LatLon {
+                lat: 53.51,
+                lon: -8.0,
+            },
+        ];
+        assert_eq!(along_road_distance(&points, 1, 1), 0.0);
+    }
+
+    // ── closest_point_on_road ────────────────────────────────────────────────
+
+    #[test]
+    fn closest_point_on_road_finds_nearest() {
+        // Road runs north–south at lon -8.0; query point is to the east.
+        // The closest road point should be the one at the same latitude.
+        let points = vec![
+            LatLon {
+                lat: 53.500,
+                lon: -8.0,
+            },
+            LatLon {
+                lat: 53.501,
+                lon: -8.0,
+            },
+            LatLon {
+                lat: 53.502,
+                lon: -8.0,
+            },
+        ];
+        // Query point is due east of the middle road point (53.501, -8.0).
+        let snap = closest_point_on_road(&points, 53.501, -7.999);
+        assert_eq!(snap.segment_idx, 1, "middle point should be closest");
+        // Distance should be roughly 70–80 m (0.001° lon ≈ 74 m at 53°N).
+        assert!(
+            snap.distance > 50.0 && snap.distance < 120.0,
+            "distance was {}m",
+            snap.distance
+        );
+    }
+
+    #[test]
+    fn closest_point_on_road_single_point_road() {
+        let points = vec![LatLon {
+            lat: 53.5,
+            lon: -8.0,
+        }];
+        let snap = closest_point_on_road(&points, 53.5, -8.0);
+        assert_eq!(snap.segment_idx, 0);
+        assert!(snap.distance < 0.001);
+    }
+
+    // ── generate_direct_description ──────────────────────────────────────────
+
+    #[test]
+    fn generate_direct_description_contains_target_name() {
+        let to = make_feature("The Old Mill", LocationType::Mill, 53.5, -8.0);
+        let desc = generate_direct_description(&to);
+        assert!(
+            desc.contains("The Old Mill"),
+            "direct description must name the destination: {desc}"
+        );
+        assert!(
+            desc.contains("fields"),
+            "direct description should mention fields: {desc}"
+        );
+    }
+
+    // ── generate_path_description all highway types ──────────────────────────
+
+    #[test]
+    fn path_description_covers_all_highway_types() {
+        let cases = [
+            ("primary", "the road"),
+            ("secondary", "the road"),
+            ("tertiary", "a country road"),
+            ("unclassified", "a narrow road"),
+            ("residential", "a narrow road"),
+            ("track", "a rough track"),
+            ("path", "a path"),
+            ("footway", "a path"),
+            ("bridleway", "a boreen"),
+            ("service", "a lane"),
+            ("unknown_type", "the way"),
+        ];
+
+        let to = make_feature("Destination", LocationType::Church, 53.5, -8.0);
+        for (highway_type, expected_phrase) in cases {
+            let segment = RoadSegment {
+                points: vec![],
+                highway_type: highway_type.to_string(),
+                name: None,
+            };
+            let desc = generate_path_description(&segment, &to);
+            assert!(
+                desc.contains(expected_phrase),
+                "highway_type={highway_type}: expected '{expected_phrase}' in '{desc}'"
+            );
+        }
+    }
 }
