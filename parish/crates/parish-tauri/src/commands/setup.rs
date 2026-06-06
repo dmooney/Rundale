@@ -6,9 +6,7 @@ use crate::AppState;
 
 // ── BYOK onboarding commands ─────────────────────────────────────────────────
 
-pub(super) fn byok_ctx<'a>(
-    state: &'a Arc<AppState>,
-) -> parish_core::ipc::byok::ByokContext<'a> {
+pub(super) fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext<'a> {
     parish_core::ipc::byok::ByokContext {
         config: &state.config,
         inference_config: &state.inference_config,

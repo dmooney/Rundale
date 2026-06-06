@@ -31,30 +31,46 @@ pub mod setup;
 pub mod snapshot;
 
 // ── Re-exports: snapshot ──────────────────────────────────────────────────────
-pub use snapshot::get_world_snapshot_inner;
+pub use snapshot::{
+    get_debug_snapshot, get_map, get_npcs_here, get_setup_snapshot, get_theme, get_ui_config,
+    get_world_snapshot, get_world_snapshot_inner, toggle_fullscreen,
+};
 
 // ── Re-exports: setup ─────────────────────────────────────────────────────────
-pub use setup::{LocalSetupArgs, OnboardingOptions};
+pub use setup::{
+    LocalSetupArgs, OnboardingOptions, clear_provider_config, get_onboarding_options,
+    get_provider_config, list_available_providers, list_byok_env_keys, list_preset_models,
+    set_provider_config, start_local_inference_setup, validate_provider_config,
+};
 pub(crate) use setup::{do_get_onboarding_options, do_start_local_inference_setup};
 
 // ── Re-exports: input ─────────────────────────────────────────────────────────
-pub use input::{validate_addressed_to, validate_input_text};
-pub(crate) use input::{MAX_ADDRESSED_TO, MAX_TARGETS, do_submit_input, handle_game_input};
+pub(crate) use input::do_submit_input;
+pub use input::{submit_input, validate_addressed_to, validate_input_text};
 
 // ── Re-exports: saves ─────────────────────────────────────────────────────────
-pub use saves::{do_create_branch, do_load_branch, do_new_game};
+pub use saves::{
+    create_branch, discover_save_files, do_create_branch, do_load_branch, do_new_game,
+    get_save_state, load_branch, new_game, new_save_file, save_game,
+};
 pub(crate) use saves::{do_branch_log_text, do_list_branches_text, do_save_game};
 
 // ── Re-exports: admin ─────────────────────────────────────────────────────────
-pub use admin::rebuild_inference_inner;
-pub(crate) use admin::{build_app_debug_snapshot, do_submit_bug_report, tick_inactivity};
+pub(crate) use admin::{do_submit_bug_report, tick_inactivity};
+pub use admin::{rebuild_inference_inner, submit_bug_report};
 
 // ── Re-exports: screenshot ────────────────────────────────────────────────────
-pub use screenshot::{ScreenshotInfo, decode_data_url_png, write_screenshot_to_disk};
-pub(crate) use screenshot::{do_get_latest_screenshot, do_save_screenshot, do_take_screenshot};
+pub use screenshot::{
+    ScreenshotInfo, decode_data_url_png, get_latest_screenshot, notify_screenshot_captured,
+    notify_screenshot_error, save_screenshot, take_screenshot, write_screenshot_to_disk,
+};
+pub(crate) use screenshot::{do_get_latest_screenshot, do_take_screenshot};
 
 // ── Re-exports: reactions ─────────────────────────────────────────────────────
-pub use reactions::is_snippet_injection_char;
+pub use reactions::{is_snippet_injection_char, react_to_message};
 
 // ── Re-exports: demo ──────────────────────────────────────────────────────────
-pub use demo::{DemoAdjacentLocation, DemoConfigPayload, DemoContextSnapshot, DemoNpcInfo, build_demo_context};
+pub use demo::{
+    DemoAdjacentLocation, DemoConfigPayload, DemoContextSnapshot, DemoNpcInfo, build_demo_context,
+    get_demo_config, get_demo_context, get_llm_player_action,
+};

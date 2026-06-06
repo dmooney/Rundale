@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use parish_core::ipc::text_log;
 use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;

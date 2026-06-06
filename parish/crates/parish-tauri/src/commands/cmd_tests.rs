@@ -7,7 +7,10 @@
 
 use std::sync::Arc;
 
-use crate::{AppState, ConversationRuntimeState, DEBUG_EVENT_CAPACITY, DemoConfig, GameConfig, UiConfigSnapshot};
+use crate::{
+    AppState, ConversationRuntimeState, DEBUG_EVENT_CAPACITY, DemoConfig, GameConfig,
+    UiConfigSnapshot,
+};
 use parish_core::inference::new_inference_log;
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
@@ -21,8 +24,7 @@ pub fn test_app_state() -> Arc<AppState> {
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
     let world =
-        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION)
-            .unwrap();
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
     let transport = TransportConfig::default();
     let ui_config = UiConfigSnapshot {
@@ -154,8 +156,11 @@ async fn get_world_snapshot_inner_returns_start_location() {
     let state = test_app_state();
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
-    let snapshot =
-        super::snapshot::get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
+    let snapshot = super::snapshot::get_world_snapshot_inner(
+        &world,
+        Some(&npc_manager),
+        &state.pronunciations,
+    );
     assert!(
         !snapshot.location_name.is_empty(),
         "location name should be populated"

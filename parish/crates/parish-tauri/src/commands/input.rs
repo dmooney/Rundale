@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use parish_core::input::{InputResult, classify_input, parse_intent};
-use parish_core::ipc::{text_log, text_log_for_stream_turn};
+use parish_core::ipc::text_log;
 use tauri::Emitter;
 
 use crate::AppState;
@@ -165,7 +165,6 @@ pub(crate) async fn handle_game_input(
     app: tauri::AppHandle,
 ) {
     use parish_core::config::InferenceCategory;
-    use parish_core::ipc::text_log_typed;
 
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
