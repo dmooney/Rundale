@@ -585,9 +585,9 @@ for slice_name, required in [
     ("multiturn", {"system", "turns"}),
 ]:
     recs = [
-        json.loads(l)
-        for l in (rb.DATASETS_DIR / f"{slice_name}.jsonl").read_text().splitlines()
-        if l.strip()
+        json.loads(ln)
+        for ln in (rb.DATASETS_DIR / f"{slice_name}.jsonl").read_text().splitlines()
+        if ln.strip()
     ]
     check(
         f"drift-guard: {slice_name} records carry {required}",

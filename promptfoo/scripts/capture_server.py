@@ -16,6 +16,7 @@ possible fidelity (no reconstruction). Run:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -180,10 +181,8 @@ def main(argv):
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     sys.stderr.write(f"[capture] listening :{port} → {OUT_PATH}\n")
     sys.stderr.flush()
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

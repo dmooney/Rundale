@@ -5,10 +5,12 @@
 ## Viability filter (explicit)
 
 A model is viable iff ALL hold:
+
 1. **Chat/instruct, text-in→text-out** — not embeddings/rerank/audio/image/video/moderation/base.
 2. **Context window ≥ 8192 tokens** — fits the game's largest runtime prompt + headroom (floor measured from the runtime-faithful datasets).
 3. **JSON-capable** — exposes `response_format`/`structured_outputs`, or tool-calling for forced JSON (needed by the intent + simulation slices).
 4. **Interactive cost ceiling** — ≤ $16/game-hour (`pricing.gameplay_cost`), so it is affordable for real-time play.
+
 De-dup: one logical model per family; cheapest viable provider kept as primary, others recorded as `alt_providers` (still perf-swept).
 
 ## Cost tiers (USD per game-hour)

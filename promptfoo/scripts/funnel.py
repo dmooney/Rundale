@@ -136,14 +136,14 @@ PHASES = {
 
 def load_candidates(path: Path | None = None) -> list[dict]:
     p = path or CATALOG
-    return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
 def _dataset(slice_name: str, limit: int | None) -> list[dict]:
     recs = [
-        json.loads(l)
-        for l in (rb.DATASETS_DIR / f"{slice_name}.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        json.loads(ln)
+        for ln in (rb.DATASETS_DIR / f"{slice_name}.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
     ]
     return recs[:limit] if limit else recs
 
@@ -266,13 +266,13 @@ def _parse(text):
 
 def survivors_from_leaderboard(keep_per_tier: int) -> list[str]:
     path = lb.LEADERBOARD_DIR / "leaderboard.jsonl"
-    history = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    history = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     latest = {r["candidate"]: r for r in history}
     by_tier: dict[str, list[dict]] = {}
     for r in latest.values():
         by_tier.setdefault(r.get("tier") or "?", []).append(r)
     keep = []
-    for tier, rows in by_tier.items():
+    for _tier, rows in by_tier.items():
         # Drop candidates with no usable data (overall 0 → fully errored / 429'd).
         rows = [r for r in rows if r["overall"] > 0]
         rows.sort(key=lambda r: r["overall"], reverse=True)

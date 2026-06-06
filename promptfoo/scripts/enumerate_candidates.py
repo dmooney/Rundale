@@ -552,7 +552,7 @@ def _render_md(candidates: list[dict], excluded: list[dict], context_floor: int)
         f"**{len(candidates)} viable candidates** made the cut "
         f"(de-duped by family from {len(candidates) + len(excluded)} raw provider entries).\n",
         "## Viability filter (explicit)\n",
-        "A model is viable iff ALL hold:",
+        "A model is viable iff ALL hold:\n",
         "1. **Chat/instruct, text-in→text-out** — not embeddings/rerank/audio/image/video/"
         "moderation/base.",
         f"2. **Context window ≥ {context_floor} tokens** — fits the game's largest runtime "
@@ -561,7 +561,7 @@ def _render_md(candidates: list[dict], excluded: list[dict], context_floor: int)
         "for forced JSON (needed by the intent + simulation slices).",
         f"4. **Interactive cost ceiling** — ≤ ${COST_CEILING_USD_PER_HOUR:.0f}/game-hour "
         "(`pricing.gameplay_cost`), so it is affordable for real-time play.",
-        "De-dup: one logical model per family; cheapest viable provider kept as primary, "
+        "\nDe-dup: one logical model per family; cheapest viable provider kept as primary, "
         "others recorded as `alt_providers` (still perf-swept).\n",
         "## Cost tiers (USD per game-hour)\n",
         "- **free**: $0 (local MLX/GGUF + OpenRouter `:free`)",
