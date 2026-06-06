@@ -287,3 +287,110 @@ describe('ipc command() HTTP path (audit M6 / M7)', () => {
 		expect(await ipc.getAuthStatus()).toBeNull();
 	});
 });
+
+describe('ipc command() HTTP transport — dispatch rules (TD-048)', () => {
+	beforeEach(() => {
+		vi.unstubAllGlobals();
+	});
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('uses GET when no args are provided', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+		vi.stubGlobal('fetch', fetchMock);
+		const ipc = await loadIpc();
+		await ipc.command('get_world_snapshot');
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(init.method).toBe('GET');
+		expect(init.body).toBeUndefined();
+	});
+
+	it('uses POST with a JSON body when args are provided', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(new Response(''));
+		vi.stubGlobal('fetch', fetchMock);
+		const ipc = await loadIpc();
+		await ipc.command('submit_input', { text: 'hello', addressedTo: [] });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(init.method).toBe('POST');
+		expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+		const body = JSON.parse(init.body as string);
+		expect(body).toEqual({ text: 'hello', addressedTo: [] });
+	});
+
+	it('maps get_world_snapshot to /api/world-snapshot', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify({})));
+		vi.stubGlobal('fetch', fetchMock);
+		const ipc = await loadIpc();
+		await ipc.command('get_world_snapshot');
+		const [url] = fetchMock.mock.calls[0] as [string];
+		expect(url).toBe('/api/world-snapshot');
+	});
+
+	it('maps submit_input to /api/submit-input', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(new Response(''));
+		vi.stubGlobal('fetch', fetchMock);
+		const ipc = await loadIpc();
+		await ipc.command('submit_input', { text: 'go north', addressedTo: [] });
+		const [url] = fetchMock.mock.calls[0] as [string];
+		expect(url).toBe('/api/submit-input');
+	});
+
+	it('maps editor_list_saves (no get_ prefix) to /api/editor-list-saves', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify([])));
+		vi.stubGlobal('fetch', fetchMock);
+		const ipc = await loadIpc();
+		await ipc.command('editor_list_saves');
+		const [url] = fetchMock.mock.calls[0] as [string];
+		expect(url).toBe('/api/editor-list-saves');
+	});
+
+	it('returns undefined for an empty-body 200 response', async () => {
+		// submit_input returns 200 with no body — the two-step cast in ipc.ts
+		// makes this explicit: !text -> return undefined as unknown as T.
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('')));
+		const ipc = await loadIpc();
+		const result = await ipc.command('submit_input', {
+			text: 'look',
+			addressedTo: [],
+		});
+		expect(result).toBeUndefined();
+	});
+
+	it('throws an error containing "API error:" when the response is not ok', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi
+				.fn()
+				.mockResolvedValue(
+					new Response('Not Found', { status: 404, statusText: 'Not Found' }),
+				),
+		);
+		const ipc = await loadIpc();
+		await expect(ipc.command('get_world_snapshot')).rejects.toThrow(
+			/API error:/,
+		);
+	});
+
+	it('throws containing the status code on a 500 response', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(
+				new Response('Server Error', {
+					status: 500,
+					statusText: 'Internal Server Error',
+				}),
+			),
+		);
+		const ipc = await loadIpc();
+		await expect(ipc.command('get_map')).rejects.toThrow(/500/);
+	});
+});
