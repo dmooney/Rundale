@@ -3963,9 +3963,11 @@ dependencies = [
  "anyhow",
  "clap",
  "dirs 5.0.1",
+ "parish-server",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

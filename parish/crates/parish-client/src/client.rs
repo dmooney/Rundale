@@ -76,6 +76,15 @@ pub struct NpcInfo {
     pub extra: serde_json::Value,
 }
 
+/// Request body for `POST /api/command`: the input text plus the flattened
+/// option fields. Mirrors `parish-server`'s `CommandRequest` wire shape.
+#[derive(Serialize)]
+pub(crate) struct CommandBody<'a> {
+    pub text: &'a str,
+    #[serde(flatten)]
+    pub opts: CommandOpts,
+}
+
 // ── Client ────────────────────────────────────────────────────────────────────
 
 pub struct ParishClient {
@@ -104,16 +113,10 @@ impl ParishClient {
     }
 
     pub async fn post_command(&self, text: &str, opts: CommandOpts) -> Result<CommandResponse> {
-        #[derive(Serialize)]
-        struct Body<'a> {
-            text: &'a str,
-            #[serde(flatten)]
-            opts: CommandOpts,
-        }
         let resp = self
             .client
             .post(format!("{}/api/command", self.base_url))
-            .json(&Body { text, opts })
+            .json(&CommandBody { text, opts })
             .send()
             .await
             .context(transport_hint(&self.base_url))?;
@@ -145,4 +148,102 @@ fn transport_hint(base_url: &str) -> String {
         "could not reach Parish server at {base_url} — \
          start it with `just run-headless --web 3001` or set PARISH_SERVER"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_opts_use_camel_case_keys() {
+        let opts = CommandOpts {
+            addressed_to: vec!["Maggie".into()],
+            timeout_ms: Some(5_000),
+            include_state: Some(true),
+            include_map: Some(false),
+        };
+        let v = serde_json::to_value(&opts).expect("serialize");
+        let obj = v.as_object().expect("object");
+        // Wire contract: server's CommandRequest is `rename_all = "camelCase"`.
+        assert!(obj.contains_key("addressedTo"));
+        assert!(obj.contains_key("timeoutMs"));
+        assert!(obj.contains_key("includeState"));
+        assert!(obj.contains_key("includeMap"));
+        // Snake-case names must never leak onto the wire.
+        assert!(!obj.contains_key("addressed_to"));
+        assert!(!obj.contains_key("timeout_ms"));
+    }
+
+    #[test]
+    fn default_opts_omit_empty_and_none_fields() {
+        let v = serde_json::to_value(CommandOpts::default()).expect("serialize");
+        // skip_serializing_if keeps the body minimal: no keys at all when unset.
+        assert_eq!(v.as_object().expect("object").len(), 0, "got: {v}");
+    }
+
+    #[test]
+    fn command_body_flattens_text_and_opts() {
+        let body = CommandBody {
+            text: "go to the church",
+            opts: CommandOpts {
+                include_map: Some(true),
+                ..Default::default()
+            },
+        };
+        let v = serde_json::to_value(&body).expect("serialize");
+        assert_eq!(v["text"], "go to the church");
+        // Flattened: opt keys sit alongside `text`, not nested under `opts`.
+        assert_eq!(v["includeMap"], true);
+        assert!(v.get("opts").is_none(), "opts must be flattened: {v}");
+    }
+
+    /// TD-002 drift guard: the client's wire `CommandResponse` is a hand
+    /// mirror of `parish_server::sync_types::CommandResponse`. Round-trip a
+    /// real, fully-populated server response through the client type so a
+    /// server-side field rename/removal fails this test instead of silently
+    /// deserializing to a wrong/missing value at runtime.
+    #[test]
+    fn deserializes_a_real_server_command_response() {
+        use parish_server::sync_types as server;
+
+        let server_resp = server::CommandResponse {
+            outcome: server::Outcome::Ok,
+            kind: server::Kind::Moved,
+            echo: "go to the church".to_string(),
+            lines: vec![server::OutputLine {
+                id: "l1".to_string(),
+                role: server::Role::Npc,
+                speaker: "Maggie".to_string(),
+                text: "Off you go, then.".to_string(),
+            }],
+            kind_detail: serde_json::json!({ "reason": "ok" }),
+            travel: Some(server::TravelDetail {
+                from: "The Crossroads".to_string(),
+                to: "St Brigid's".to_string(),
+                duration_minutes: 12,
+            }),
+            // `state` exercises the `skip_serializing_if = Option::is_none`
+            // branch; the client must tolerate its absence via `#[serde(default)]`.
+            state: None,
+            elapsed_ms: 42,
+        };
+
+        let wire = serde_json::to_value(&server_resp).expect("server serializes");
+        let client: CommandResponse =
+            serde_json::from_value(wire).expect("client deserializes server response");
+
+        assert_eq!(client.outcome, "ok");
+        assert_eq!(client.kind, "moved");
+        assert_eq!(client.echo, "go to the church");
+        assert_eq!(client.lines.len(), 1);
+        assert_eq!(client.lines[0].speaker, "Maggie");
+        assert_eq!(client.lines[0].role, "npc");
+        assert_eq!(client.kind_detail["reason"], "ok");
+        let travel = client.travel.expect("travel present for kind=moved");
+        assert_eq!(travel.from, "The Crossroads");
+        assert_eq!(travel.to, "St Brigid's");
+        assert_eq!(travel.duration_minutes, 12);
+        assert!(client.state.is_none());
+        assert_eq!(client.elapsed_ms, 42);
+    }
 }

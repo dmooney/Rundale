@@ -19,3 +19,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 dirs = "5"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+# Dev-only: the contract test round-trips a real server `CommandResponse`
+# through the client's wire types, so a server-side rename fails the build
+# instead of silently breaking the CLI (TD-002). Keeps the shipped binary
+# dependency-free while still detecting drift.
+parish-server = { path = "../parish-server" }
