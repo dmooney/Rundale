@@ -569,4 +569,137 @@ mod tests {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_take_screenshot"));
     }
+
+    // ── MCP-to-backend parity (TD-001 / #1202) ───────────────────────────────
+    //
+    // Every non-passthrough MCP tool in `registry()` delegates to a hard-coded
+    // backend command name. The bridge router in
+    // `parish-tauri/src/mcp_bridge.rs` is the canonical list of routes that
+    // the MCP HTTP backend actually exposes. This test asserts that every
+    // command name the tools produce maps to a `.route("/api/...")` call in
+    // that file, using the same `command_to_path` translation that
+    // `ParishHttpBackend` uses at runtime.
+    //
+    // Because the check is against the source file (not a running process) it
+    // runs offline and is fully deterministic. The technique mirrors
+    // `parish-core/tests/wiring_parity.rs`.
+    //
+    // `tauri_invoke` is the generic escape hatch — it forwards whatever command
+    // name the caller supplies, so there is no single target route to pin; it
+    // is excluded from the check by name.
+    #[test]
+    fn mcp_tool_commands_are_subset_of_bridge_routes() {
+        use std::collections::HashSet;
+        use std::fs;
+        use std::path::PathBuf;
+
+        // ── Resolve workspace root ────────────────────────────────────────────
+        // CARGO_MANIFEST_DIR is `parish/crates/parish-mcp`; workspace root is
+        // three levels up (parish-mcp → crates → parish → workspace root).
+        let ws = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+            .expect("workspace root is three levels above parish-mcp crate root")
+            .to_path_buf();
+
+        // ── Parse routes from mcp_bridge.rs ──────────────────────────────────
+        // Extract every string that appears as a `.route("/api/...")` argument.
+        // The parser is deliberately simple: it looks for lines containing
+        // `.route("` and extracts the first quoted path on that line.
+        let bridge_path = ws.join("parish/crates/parish-tauri/src/mcp_bridge.rs");
+        let bridge_src = fs::read_to_string(&bridge_path).unwrap_or_else(|e| {
+            panic!(
+                "could not read {}: {e}\n\nFIX: ensure parish-tauri/src/mcp_bridge.rs exists.",
+                bridge_path.display()
+            )
+        });
+
+        let known_routes: HashSet<String> = bridge_src
+            .lines()
+            .filter(|l| l.contains(".route(\""))
+            .filter_map(|l| {
+                let after = l.split(".route(\"").nth(1)?;
+                let end = after.find('"')?;
+                Some(after[..end].to_string())
+            })
+            .collect();
+
+        assert!(
+            !known_routes.is_empty(),
+            "parsed zero routes from {} — the source format may have changed.",
+            bridge_path.display()
+        );
+
+        // ── Collect target commands from every non-passthrough tool ───────────
+        // Call each tool's `translate` fn with the minimal valid args so the
+        // command name is exercised at runtime (not just read from a constant).
+        let minimal_args: &[(&str, serde_json::Value)] = &[
+            // Tools with no required fields pass an empty object.
+            ("parish_world_snapshot", json!({})),
+            ("parish_map", json!({})),
+            ("parish_npcs_here", json!({})),
+            ("parish_save_state", json!({})),
+            ("parish_new_game", json!({})),
+            ("parish_save_game", json!({})),
+            ("parish_take_screenshot", json!({})),
+            ("parish_latest_screenshot", json!({})),
+            ("parish_byok_env_keys", json!({})),
+            ("parish_setup_status", json!({})),
+            // Tools with required fields.
+            ("parish_submit_input", json!({"text": "look"})),
+            ("parish_load_branch", json!({"branch_id": 1})),
+            ("parish_file_bug", json!({"title": "test"})),
+            ("parish_setup_byok", json!({"provider": "ollama"})),
+        ];
+
+        // Build lookup: tool_name -> translate fn.
+        type TranslateFn = fn(&serde_json::Value) -> Result<(String, serde_json::Value), String>;
+        let reg: std::collections::HashMap<&str, TranslateFn> = registry()
+            .into_iter()
+            .filter(|t| t.name != "tauri_invoke")
+            .map(|t| (t.name, t.translate))
+            .collect();
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (tool_name, args) in minimal_args {
+            let translate = reg.get(tool_name).unwrap_or_else(|| {
+                panic!("minimal_args lists tool {tool_name:?} which is not in registry() — update the list")
+            });
+            let (cmd, _) = translate(args).unwrap_or_else(|e| {
+                panic!("translate for {tool_name} failed with minimal args: {e}")
+            });
+            let path = crate::backend::ParishHttpBackend::command_to_path(&cmd);
+            if !known_routes.contains(&path) {
+                failures.push(format!(
+                    "  - MCP tool {tool_name:?} targets command {cmd:?} → {path}, \
+                     but that path is not registered in mcp_bridge.rs\n    \
+                     FIX: add .route(\"{path}\", ...) to build_router() in \
+                     parish-tauri/src/mcp_bridge.rs, or update the translate_* \
+                     function for {tool_name} to target an existing route."
+                ));
+            }
+        }
+
+        // Also verify every non-passthrough tool in registry() is covered by
+        // minimal_args (so a newly added tool can't silently escape the check).
+        for tool in registry().iter().filter(|t| t.name != "tauri_invoke") {
+            if !minimal_args.iter().any(|(n, _)| *n == tool.name) {
+                failures.push(format!(
+                    "  - registry() tool {:?} is not in minimal_args — \
+                     add an entry with valid args so the parity check covers it.",
+                    tool.name
+                ));
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "MCP-to-bridge parity violations (TD-001 / #1202):\n{}\n\n\
+             Every non-passthrough MCP tool must target a command that maps to \
+             a route registered in parish-tauri/src/mcp_bridge.rs.",
+            failures.join("\n")
+        );
+    }
 }
