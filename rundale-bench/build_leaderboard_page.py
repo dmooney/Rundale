@@ -96,17 +96,19 @@ def build_data() -> dict:
         if ":free" in cand:
             continue
         # A bundled summary with no judged items publishes axes as `None`
-        # plus `pending_judge: True`. Skip — the row appears once
+        # plus `pending_judge: True`. Include the row so it appears on the
+        # leaderboard with a visible marker — it will be superseded once
         # `ingest --finalize` folds the subagent scores back in.
-        if summary.get("pending_judge"):
-            continue
-        if summary.get("overall") is None:
+        pending = bool(summary.get("pending_judge"))
+        if summary.get("overall") is None and not pending:
             continue
         judge_model = summary.get("judge_model") or "?"
         judge_id = summary.get("judge") or "?"
         base_url = target.get("base_url", "?")
         split = d.get("split", "?")
         key = (cand, judge_id, base_url, split)
+        records = summary.get("records", 0) or 0
+        bench_bugs = summary.get("bench_bugs", 0) or 0
         latest_quality[key] = {
             "candidate": cand,
             "judge": judge_model,
@@ -114,7 +116,10 @@ def build_data() -> dict:
             "base_url": base_url,
             "split": split,
             "file": path.name,
-            "n": summary.get("judged", summary.get("records", 0)),
+            "pending_judge": pending,
+            "n": summary.get("judged", records),
+            "records": records,
+            "bench_bugs": bench_bugs,
             "total": _round(summary.get("overall")),
             "character": _round(summary.get("character")),
             "authenticity": _round(summary.get("authenticity")),
@@ -292,21 +297,37 @@ def build_markdown(data: dict) -> str:
         for r in data.get("averaged", [])
     ]
 
+    def _fmt_overall(r: dict) -> str:
+        """Format the Overall cell, annotating pending-judge rows."""
+        if r.get("pending_judge"):
+            return "(pending judge)"
+        return _fmt(r["total"])
+
+    def _fmt_bench_bug_rate(r: dict) -> str:
+        records = r.get("records") or 0
+        bench_bugs = r.get("bench_bugs") or 0
+        if records == 0:
+            return "-"
+        return f"{bench_bugs}/{records} ({bench_bugs / records * 100:.0f}%)"
+
     quality_rows = [
         [
             r["candidate"],
             r["judge"],
             r["n"],
-            _fmt(r["total"]),
+            _fmt_overall(r),
             _fmt(r["character"]),
             _fmt(r["authenticity"]),
             _fmt(r["language"]),
             _fmt(r["responsiveness"]),
             _fmt(r["craft"]),
+            _fmt_bench_bug_rate(r),
             r["file"],
         ]
         for r in sorted(
-            data["quality"], key=lambda r: (r["total"] is not None, r["total"]), reverse=True
+            data["quality"],
+            key=lambda r: (not r.get("pending_judge"), r["total"] is not None, r["total"]),
+            reverse=True,
         )
     ]
 
@@ -385,6 +406,7 @@ def build_markdown(data: dict) -> str:
                     "Lang",
                     "Resp",
                     "Craft",
+                    "Bench-bug %",
                     "File",
                 ],
                 quality_rows,
