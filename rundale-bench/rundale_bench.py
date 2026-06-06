@@ -57,6 +57,7 @@ from grade import (  # noqa: E402
     grade_simulation,
     verify_judge_rubric,
 )
+from schemas import SummarySchema  # noqa: E402
 
 _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
@@ -348,6 +349,8 @@ def _dialogue_aggregate(results: list[dict]) -> dict:
         # doesn't publish 0.0 as a real score.
         for k in (*axes, "overall"):
             summary[k] = None
+    # Failure mode 1: validate the summary shape before callers format it.
+    SummarySchema.model_validate(summary)
     return summary
 
 
@@ -506,6 +509,7 @@ def _reaction_aggregate(results: list[dict]) -> dict:
     }
     if judged == 0:
         summary["mean_score"] = None
+    SummarySchema.model_validate(summary)
     return summary
 
 
@@ -610,6 +614,7 @@ def _simulation_aggregate(results: list[dict], slice_name: str) -> dict:
     }
     if judged == 0:
         summary["mean_score"] = None
+    SummarySchema.model_validate(summary)
     return summary
 
 
@@ -788,6 +793,7 @@ def _gaeilge_aggregate(results: list[dict]) -> dict:
             summary[f"{k}_mean"] = None
         summary["overall_mean"] = None
         summary["english_leakage_flag_rate"] = None
+    SummarySchema.model_validate(summary)
     return summary
 
 
