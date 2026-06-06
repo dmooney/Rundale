@@ -441,9 +441,41 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let ip_limiter = build_ip_rate_limiter_state();
     let use_tower_sessions = should_use_tower_sessions(&global);
 
-    // ── Build router ──────────────────────────────────────────────────────────
+    // ── Build router, apply layers, serve ────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
+    let app = build_router(oauth_enabled, use_tower_sessions);
+    let app = attach_static_and_auth(app, &global, &static_dir);
+    let app = apply_session_layer(app, &global, use_tower_sessions);
+    let app = apply_outer_layers(app, &global, ip_limiter);
 
+    let addr = format!("0.0.0.0:{}", port);
+    tracing::info!("Parish web server listening on http://{}", addr);
+    tracing::info!("Serving static files from {}", static_dir.display());
+
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Registers all API, editor, WebSocket, tile-proxy, and auth routes.
+///
+/// Returns a bare [`Router`] without middleware or state — callers attach those
+/// via [`attach_static_and_auth`], [`apply_session_layer`], and
+/// [`apply_outer_layers`].
+///
+/// OAuth routes are conditionally added based on `oauth_enabled`.  When OAuth
+/// is enabled, the correct variant (tower-sessions or legacy) is selected via
+/// `use_tower_sessions` so the callback and logout handlers match the session
+/// machinery installed by [`apply_session_layer`].
+fn build_router(
+    oauth_enabled: bool,
+    use_tower_sessions: bool,
+) -> Router<Arc<session::GlobalState>> {
     let mut app = Router::new()
         // #373 — /api/health: exempt from auth, returns 200 for health probes.
         .route("/api/health", get(routes::get_health))
@@ -564,35 +596,60 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         }
     }
 
-    // Session middleware selection — `from_fn_with_state` is invoked
-    // differently between the legacy and tower-sessions paths because the
-    // tower-sessions variant also depends on the `SessionManagerLayer` being
-    // present further out.  Both paths terminate in the same set of route
-    // handlers; only the cookie machinery differs.
-    let app = app
-        // SvelteKit's adapter-static is configured with `fallback: 'index.html'`
-        // (see parish/apps/ui/svelte.config.js) — so client-side routes such as
-        // `/editor` rely on the server returning the SPA shell for any path
-        // ServeDir can't satisfy. Without this, `/editor` 404s and the
-        // Playwright e2e suite's Editor tests time out waiting for elements
-        // that never render.
+    app
+}
+
+/// Attaches the static-file fallback service, the CF-Access auth guard, and
+/// the shared [`GlobalState`] to `router`.
+///
+/// After this call the router is typed as `Router` (state erased) and is ready
+/// for session-layer wrapping.
+///
+/// The SvelteKit adapter-static `fallback: 'index.html'` setting means
+/// client-side routes such as `/editor` rely on the server returning the SPA
+/// shell for any path ServeDir cannot satisfy.  Without the fallback service,
+/// `/editor` 404s and the Playwright e2e suite's Editor tests time out waiting
+/// for elements that never render.
+fn attach_static_and_auth(
+    router: Router<Arc<session::GlobalState>>,
+    global: &Arc<session::GlobalState>,
+    static_dir: &Path,
+) -> Router {
+    router
         .fallback_service(
-            ServeDir::new(&static_dir)
+            ServeDir::new(static_dir)
                 .append_index_html_on_directories(true)
                 .not_found_service(ServeFile::new(static_dir.join("index.html"))),
         )
         .layer(axum_mw::from_fn_with_state(
-            Arc::clone(&global),
+            Arc::clone(global),
             cf_access_guard,
         ))
-        .with_state(Arc::clone(&global));
+        .with_state(Arc::clone(global))
+}
 
-    let app = if use_tower_sessions {
-        // tower-sessions-backed: install a MemoryStore-backed
-        // SessionManagerLayer with the existing `parish_sid` cookie name so
-        // returning visitors keep the same cookie across the migration.  The
-        // `SessionId` extension is still injected by `session_middleware_tower`
-        // so downstream route handlers don't need to change.
+/// Wraps `router` with the session-cookie middleware stack.
+///
+/// Two paths are supported:
+///
+/// - **tower-sessions** (default, `use_tower_sessions = true`): installs a
+///   [`tower_sessions::MemoryStore`]-backed [`tower_sessions::SessionManagerLayer`]
+///   using the existing `parish_sid` cookie name, then wraps that with
+///   `session_middleware_tower` and `idempotency_middleware`.
+///
+/// - **legacy** (`use_tower_sessions = false`): wraps with the hand-rolled
+///   `session_middleware` and `idempotency_middleware` only.
+///
+/// In Tower/Axum the last `.layer()` is outermost, so idempotency is applied
+/// first (inner), then the session layers wrap it.  This ordering is preserved
+/// exactly from the original inline code; altering it changes which extensions
+/// are visible to which middleware.
+fn apply_session_layer(
+    router: Router,
+    global: &Arc<session::GlobalState>,
+    use_tower_sessions: bool,
+) -> Router {
+    if use_tower_sessions {
         use tower_sessions::cookie::SameSite;
         use tower_sessions::cookie::time::Duration as CookieDuration;
         use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
@@ -615,32 +672,53 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             .with_path("/".to_string())
             .with_expiry(Expiry::OnInactivity(CookieDuration::days(365)));
 
-        app
+        router
             // Idempotency middleware runs after session (session injects SessionId
             // extension; idempotency reads it).  In Tower/Axum the last `.layer()`
             // is outermost — so idempotency is applied first here (inner), then
             // the session layers wrap it.
             .layer(axum_mw::from_fn_with_state(
-                Arc::clone(&global),
+                Arc::clone(global),
                 middleware::idempotency_middleware,
             ))
             .layer(axum_mw::from_fn_with_state(
-                Arc::clone(&global),
+                Arc::clone(global),
                 middleware::session_middleware_tower,
             ))
             .layer(session_layer)
     } else {
-        app.layer(axum_mw::from_fn_with_state(
-            Arc::clone(&global),
-            middleware::idempotency_middleware,
-        ))
-        .layer(axum_mw::from_fn_with_state(
-            Arc::clone(&global),
-            middleware::session_middleware,
-        ))
-    };
+        router
+            .layer(axum_mw::from_fn_with_state(
+                Arc::clone(global),
+                middleware::idempotency_middleware,
+            ))
+            .layer(axum_mw::from_fn_with_state(
+                Arc::clone(global),
+                middleware::session_middleware,
+            ))
+    }
+}
 
-    let app = app
+/// Adds the outermost layers to `router`: legal/licence routes, per-request
+/// tracing, global IP rate limiter, and security-hardening response headers.
+///
+/// Layer order is security-sensitive and must be preserved exactly:
+///
+/// 1. Legal routes (`/LICENSE`, `/NOTICE`, `/THIRD_PARTY_NOTICES.md`) —
+///    mounted *after* `cf_access_guard` and `session_middleware` so they
+///    remain publicly reachable while the rate-limit and security headers
+///    still apply.
+/// 2. `request_id_layer` — per-request tracing.  Runs *inside* the rate
+///    limiter so only admitted requests are traced.
+/// 3. `ip_rate_limit_middleware` — outside the auth guard; throttles floods
+///    before JWT validation overhead is incurred (#381).
+/// 4. `apply_security_layers` — outermost; covers every route.
+fn apply_outer_layers(
+    router: Router,
+    global: &Arc<session::GlobalState>,
+    ip_limiter: Arc<IpRateLimiterState>,
+) -> Router {
+    let router = router
         // ── GPL-3.0 redistribution: legal/licence files mounted *after*
         //    `cf_access_guard` and `session_middleware` so they remain
         //    publicly reachable (the licence must travel with the hosted
@@ -653,7 +731,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         // Reads the `otel-tracing` flag from GlobalState and is a no-op when
         // the flag is explicitly disabled.
         .layer(axum_mw::from_fn_with_state(
-            Arc::clone(&global),
+            Arc::clone(global),
             middleware::request_id_layer,
         ))
         // ── #381: Global per-IP rate limiter (outside auth guard, throttles floods) ──
@@ -662,20 +740,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             ip_rate_limit_middleware,
         ));
     // ── Security hardening headers (outermost layer — covers all routes) ──
-    let app = apply_security_layers(app);
-
-    let addr = format!("0.0.0.0:{}", port);
-    tracing::info!("Parish web server listening on http://{}", addr);
-    tracing::info!("Serving static files from {}", static_dir.display());
-
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
-
-    Ok(())
+    apply_security_layers(router)
 }
 
 // ── Extracted construction-step helpers ─────────────────────────────────────
