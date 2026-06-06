@@ -151,10 +151,16 @@ const perfRows = perf.map((r) => ({
       <table>
         <thead><tr><th>Axis</th><th class="num">Score</th></tr></thead>
         <tbody>
-          <tr><td><strong>Overall</strong></td><td class="num"><strong>{fmt(dialogueRow.overall)}</strong></td></tr>
+          <tr><td><strong>Overall</strong></td><td class="num"><strong>{dialogueRow.pending_judge ? '(pending judge)' : fmt(dialogueRow.overall)}</strong></td></tr>
           {DIALOGUE_AXES.map((ax) => (
             <tr><td>{ax}</td><td class="num">{fmt(dialogueRow[ax])}</td></tr>
           ))}
+          {(() => {
+            const records = dialogueRow.records ?? 0;
+            const bugs = dialogueRow.bench_bugs ?? 0;
+            const rate = records > 0 ? `${bugs}/${records} (${(bugs / records * 100).toFixed(0)}%)` : '—';
+            return <tr><td>bench-bug rate</td><td class="num" title="responses flagged as chain-of-thought bypass or harness bug, excluded from the score">{rate}</td></tr>;
+          })()}
         </tbody>
       </table>
       {samples.dialogue?.items?.length > 0 && (

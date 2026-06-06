@@ -631,6 +631,9 @@ def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list
             ram_value, ram_is_est = peak_ram_est_by_model[model_id], True
         else:
             ram_value, ram_is_est = None, False
+        bench_bugs = s.get("bench_bugs", 0) or 0
+        records = s.get("records") or 0
+        bench_bug_rate = round(bench_bugs / records, 4) if records > 0 else None
         row = {
             "model_id": model_id,
             "display_name": display_name,
@@ -638,9 +641,11 @@ def build_leaderboard(artifacts_dir: Path, families: dict | None = None) -> list
             "family": fam,
             "tier": out.get("tier"),
             "overall": s.get("overall"),
-            "judged": s.get("judged", s.get("records")),
-            "bench_bugs": s.get("bench_bugs", 0),
-            "records": s.get("records"),
+            "pending_judge": bool(s.get("pending_judge")),
+            "judged": s.get("judged", records),
+            "bench_bugs": bench_bugs,
+            "records": records,
+            "bench_bug_rate": bench_bug_rate,
             "non_latin_rate": s.get("non_latin_rate"),
             # Sonnet-subagent is now the only allowed judge (see
             # rundale_bench.load_judge). The legacy "qwen3-235b" fallback
