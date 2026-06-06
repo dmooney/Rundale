@@ -27,9 +27,13 @@ pub mod ws;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
+
+// Inline-script SHA-256 hashes extracted from apps/ui/dist/**/*.html at build
+// time by build.rs.  Declares `SCRIPT_SRC_HASHES: &[&str]`.
+include!(concat!(env!("OUT_DIR"), "/csp_script_hashes.rs"));
 
 use axum::Router;
 use axum::extract::ConnectInfo;
@@ -93,33 +97,48 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 /// directives.  MapLibre also fetches glyph PBFs at runtime for the label
 /// layer, so `demotiles.maplibre.org` is in connect-src as well.
 ///
-/// # script-src 'unsafe-inline' (TODO: replace with hash)
+/// # script-src: hash-based allowlist (TD-036, #543)
 ///
-/// SvelteKit's production build injects a small inline bootstrap `<script>` in
-/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
-/// `script-src` causes the browser to reject that script, so the page never
-/// hydrates (codex P1, PR #543).
+/// `'unsafe-inline'` has been removed.  Instead, `build.rs` extracts the
+/// SHA-256 digest of every inline `<script>` block emitted by the SvelteKit
+/// static-adapter build and records them in `SCRIPT_SRC_HASHES`.  Those
+/// hashes are included here so the browser accepts the SvelteKit bootstrap
+/// script while rejecting all other inline code.
 ///
-/// The proper fix is to compute the SHA-256 of that bootstrap block and add
-/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
-/// but must be regenerated whenever SvelteKit changes the bootstrap text.
-/// Until that build-time integration exists, `'unsafe-inline'` is retained here
-/// so the app keeps working.
+/// The hash list is regenerated automatically whenever `cargo build` detects
+/// that `apps/ui/dist` has changed (via the `rerun-if-changed` directive in
+/// `build.rs`).
+pub static CSP_POLICY: LazyLock<String> = LazyLock::new(|| build_csp_policy(SCRIPT_SRC_HASHES));
+
+/// Builds the Content-Security-Policy header value from a slice of
+/// `'sha256-<base64>'` tokens produced by `build.rs`.
 ///
-/// To replace `'unsafe-inline'` with `'sha256-...'`, compute the SHA-256 of
-/// `apps/ui/dist/index.html` at build time.  SvelteKit exposes a `kit.csp`
-/// config option that emits hashes automatically.
-/// See: <https://github.com/dmooney/Rundale/issues/543>
-pub const CSP_POLICY: &str = "default-src 'self'; \
-                              script-src 'self' 'unsafe-inline'; \
-                              worker-src 'self' blob:; \
-                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                              img-src 'self' data: blob: https://tile.openstreetmap.org; \
-                              connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
-                              font-src 'self' https://fonts.gstatic.com; \
-                              frame-ancestors 'none'; \
-                              base-uri 'self'; \
-                              form-action 'self'";
+/// Extracted from the [`CSP_POLICY`] initialiser so that unit tests can
+/// exercise the full policy string with synthetic hashes without depending
+/// on the build-time `SCRIPT_SRC_HASHES` constant (which is an empty slice
+/// in test environments where `apps/ui/dist` has not been built).
+pub(crate) fn build_csp_policy(script_hashes: &[&str]) -> String {
+    // Build the script-src directive.  Always include 'self' for module scripts
+    // loaded via <script src>.  Then append each hash token emitted by build.rs.
+    let mut script_src = String::from("'self'");
+    for hash in script_hashes {
+        script_src.push(' ');
+        script_src.push_str(hash);
+    }
+
+    format!(
+        "default-src 'self'; \
+         script-src {script_src}; \
+         worker-src 'self' blob:; \
+         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+         img-src 'self' data: blob: https://tile.openstreetmap.org; \
+         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
+         font-src 'self' https://fonts.gstatic.com; \
+         frame-ancestors 'none'; \
+         base-uri 'self'; \
+         form-action 'self'"
+    )
+}
 
 // ── GPL-3.0 redistribution: licence files served alongside the hosted web
 //    build.  Tauri bundles ship these via `tauri.conf.json` →
@@ -155,10 +174,15 @@ pub async fn serve_third_party_notices() -> impl IntoResponse {
 /// tests, so the tests exercise the real header values rather than a hand-rolled
 /// duplicate.
 pub fn apply_security_layers(router: Router) -> Router {
+    // CSP_POLICY is a LazyLock<String> — parse it into a HeaderValue once at
+    // startup.  `from_str` only fails for characters outside ISO-8859-1, which
+    // the CSP value does not contain.
+    let csp_value =
+        HeaderValue::from_str(CSP_POLICY.as_str()).expect("CSP_POLICY is a valid header value");
     router
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP_POLICY),
+            csp_value,
         ))
         .layer(SetResponseHeaderLayer::overriding(
             STRICT_TRANSPORT_SECURITY,
@@ -1808,5 +1832,77 @@ mod tests {
             1,
             "handler must not execute when rate-limited"
         );
+    }
+
+    // ── build_csp_policy unit tests (TD-036, #543) ────────────────────────────
+    //
+    // These tests exercise the `build_csp_policy` helper with synthetic hashes
+    // so that the hash-injection branch (the `for hash in script_hashes` loop)
+    // is covered even in environments where `apps/ui/dist` has not been built
+    // (i.e. in CI, where `SCRIPT_SRC_HASHES` is an empty slice).
+
+    #[test]
+    fn build_csp_policy_no_hashes_uses_self_only() {
+        let policy = build_csp_policy(&[]);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        // With no hashes, script-src should be exactly "script-src 'self'".
+        assert_eq!(script_src.trim(), "script-src 'self'");
+        assert!(
+            !script_src.contains("'unsafe-inline'"),
+            "no unsafe-inline when hash list is empty"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_single_hash_appended_to_script_src() {
+        let hash = "'sha256-abc123='";
+        let policy = build_csp_policy(&[hash]);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        assert!(
+            script_src.contains("'self'"),
+            "script-src must retain 'self'; got: {script_src}"
+        );
+        assert!(
+            script_src.contains(hash),
+            "script-src must contain the hash token; got: {script_src}"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_multiple_hashes_all_appear_in_script_src() {
+        let hashes = ["'sha256-aaaaaa='", "'sha256-bbbbbb='", "'sha256-cccccc='"];
+        let policy = build_csp_policy(&hashes);
+        let script_src = policy
+            .split(';')
+            .find(|d| d.trim().starts_with("script-src"))
+            .expect("script-src directive must be present");
+        for h in &hashes {
+            assert!(
+                script_src.contains(h),
+                "script-src must contain hash {h}; got: {script_src}"
+            );
+        }
+        assert!(
+            !script_src.contains("'unsafe-inline'"),
+            "unsafe-inline must not appear when hashes are provided"
+        );
+    }
+
+    #[test]
+    fn build_csp_policy_always_includes_required_directives() {
+        // Regardless of the hash list, the policy must include the other
+        // directives unchanged.
+        let policy = build_csp_policy(&["'sha256-test='"]);
+        assert!(policy.contains("default-src 'self'"));
+        assert!(policy.contains("frame-ancestors 'none'"));
+        assert!(policy.contains("base-uri 'self'"));
+        assert!(policy.contains("form-action 'self'"));
+        assert!(policy.contains("connect-src 'self' ws: wss:"));
     }
 }
