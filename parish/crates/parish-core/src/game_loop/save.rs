@@ -15,6 +15,10 @@
 //! creates a new branch on an existing `AsyncDatabase` and calls print
 //! helpers that are not part of the shared EventEmitter surface).
 //!
+//! TD-008: `render_branches_text` / `render_branch_log_text` — pure
+//! text-rendering helpers extracted from the near-identical duplicates in
+//! `parish-server` and `parish-tauri` (rule #12).
+//!
 //! # Architecture gate
 //!
 //! This module is backend-agnostic — it imports only `parish-core` types.
@@ -271,4 +275,135 @@ pub async fn do_save_game(
         "Game saved to {} (branch: {}).",
         filename, branch_name
     ))
+}
+
+// ── Text rendering helpers (TD-008, rule #12) ─────────────────────────────────
+
+/// Renders a branch list as a human-readable text block for the `/branches`
+/// command.
+///
+/// Used by both `parish-server` (`do_list_branches_inner`) and `parish-tauri`
+/// (`do_list_branches_text`).  Keeping the rendering here ensures a single
+/// source of truth for headers, format strings, and the active-branch marker.
+///
+/// Returns `"No branches found."` when `branches` is empty.
+pub fn render_branches_text(
+    branches: &[crate::persistence::BranchInfo],
+    current_branch_id: Option<i64>,
+) -> String {
+    if branches.is_empty() {
+        return "No branches found.".to_string();
+    }
+    let mut lines = vec!["Branches:".to_string()];
+    for b in branches {
+        let marker = if Some(b.id) == current_branch_id {
+            " *"
+        } else {
+            ""
+        };
+        let parent = b
+            .parent_branch_id
+            .and_then(|pid| branches.iter().find(|bb| bb.id == pid))
+            .map(|bb| format!(" (from {})", bb.name))
+            .unwrap_or_default();
+        lines.push(format!("  {}{}{}", b.name, parent, marker));
+    }
+    lines.join("\n")
+}
+
+/// Renders a branch snapshot log as a human-readable text block for the `/log`
+/// command.
+///
+/// Used by both `parish-server` (`do_branch_log_inner`) and `parish-tauri`
+/// (`do_branch_log_text`).  Timestamps are formatted via
+/// [`crate::persistence::format_timestamp`].
+///
+/// Returns `"No snapshots yet on this branch."` when `log` is empty.
+pub fn render_branch_log_text(
+    branch_name: &str,
+    log: &[crate::persistence::SnapshotInfo],
+) -> String {
+    if log.is_empty() {
+        return "No snapshots yet on this branch.".to_string();
+    }
+    let mut lines = vec![format!("Save log for branch '{}':", branch_name)];
+    for (i, info) in log.iter().enumerate() {
+        let time = crate::persistence::format_timestamp(&info.real_time);
+        lines.push(format!("  {}. {} (game: {})", i + 1, time, info.game_time));
+    }
+    lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persistence::{BranchInfo, SnapshotInfo};
+
+    fn make_branch(id: i64, name: &str, parent: Option<i64>) -> BranchInfo {
+        BranchInfo {
+            id,
+            name: name.to_string(),
+            created_at: "2026-01-01T00:00:00+00:00".to_string(),
+            parent_branch_id: parent,
+        }
+    }
+
+    fn make_snapshot(game_time: &str, real_time: &str) -> SnapshotInfo {
+        SnapshotInfo {
+            id: 1,
+            game_time: game_time.to_string(),
+            real_time: real_time.to_string(),
+        }
+    }
+
+    #[test]
+    fn render_branches_empty() {
+        assert_eq!(render_branches_text(&[], None), "No branches found.");
+    }
+
+    #[test]
+    fn render_branches_marks_active() {
+        let branches = vec![make_branch(1, "main", None), make_branch(2, "dev", Some(1))];
+        let text = render_branches_text(&branches, Some(2));
+        assert!(text.contains("main"), "should list main");
+        // Active-branch marker appears after the parent annotation: "  dev (from main) *"
+        assert!(
+            text.contains("dev") && text.contains(" *"),
+            "active branch should have marker"
+        );
+        assert!(text.contains("(from main)"), "dev should show parent");
+    }
+
+    #[test]
+    fn render_branches_no_marker_when_none_active() {
+        let branches = vec![make_branch(1, "main", None)];
+        let text = render_branches_text(&branches, None);
+        assert!(!text.contains(" *"), "no marker when no active branch");
+    }
+
+    #[test]
+    fn render_branch_log_empty() {
+        assert_eq!(
+            render_branch_log_text("main", &[]),
+            "No snapshots yet on this branch."
+        );
+    }
+
+    #[test]
+    fn render_branch_log_formats_entries() {
+        let log = vec![make_snapshot(
+            "1820-03-01T08:00:00+00:00",
+            "2026-03-24T16:05:33+00:00",
+        )];
+        let text = render_branch_log_text("main", &log);
+        assert!(
+            text.starts_with("Save log for branch 'main':"),
+            "should have header"
+        );
+        assert!(text.contains("  1."), "should have numbered entry");
+        assert!(
+            text.contains("(game: 1820-03-01T08:00:00+00:00)"),
+            "should include game time"
+        );
+    }
 }
