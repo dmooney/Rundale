@@ -36,6 +36,8 @@ rundale-bench/artifacts/
 rundale-bench/v1/
 promptfoo/v2/
 promptfoo/output/
+promptfoo/catalog/
+promptfoo/leaderboard/
 
 # Intentionally-malformed mod content (loader test data)
 mods/

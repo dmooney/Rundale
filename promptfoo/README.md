@@ -26,6 +26,52 @@ identical to v1.
 | performance           | streaming `providers/rundale_candidate.py` records TTFT + tok/s; `scripts/report.py` rolls up |
 | cost / game-time      | native `tokenUsage`+`cost`; `report.py` × `config/pricing.py` profile → USD/min·hr            |
 
+## Leaderboard of record — rank every viable model
+
+Beyond evaluating one hand-picked target, the suite enumerates **every viable model**
+across all keyed providers, scores them on **runtime-faithful** prompts, and ranks them
+in a committed, append-only leaderboard.
+
+```sh
+# 1. REQ 1 — enumerate every viable candidate from provider model lists
+just -f promptfoo/justfile enumerate            # → promptfoo/catalog/{candidates,excluded}.{jsonl} + candidates.md
+
+# 2. REQ 2 — capture byte-exact runtime prompts and rebuild the datasets
+just -f promptfoo/justfile capture-prompts      # drives the real engine → v2/datasets/*.jsonl (+ re-pins MANIFEST)
+
+# 3. phased funnel (budget-guarded): screen ALL → medium survivors → full short-list
+python3 promptfoo/scripts/funnel.py screen --tier free --cap 5  --limit 4   # estimate only
+python3 promptfoo/scripts/funnel.py screen --tier free --cap 5  --limit 4 --yes
+python3 promptfoo/scripts/funnel.py medium --from-survivors --cap 30 --limit 15 --yes
+python3 promptfoo/scripts/funnel.py full   --from-survivors --cap 60 --yes
+
+# 4. the leaderboard (also written by the funnel each phase)
+cat promptfoo/leaderboard/leaderboard.md        # ranked; full history in leaderboard.jsonl
+```
+
+- **REQ 1 enumeration** (`scripts/enumerate_candidates.py`) queries OpenRouter / Anthropic /
+  Google / DeepSeek / NVIDIA NIM `/models` + the opencode-go cache + local MLX, applies a
+  documented viability filter (chat/instruct · text-only · context floor · JSON-capable ·
+  interactive cost ceiling), de-dups by family, buckets by `$/game-hour` tier.
+- **REQ 2 runtime-faithful prompts** (`scripts/capture_server.py` + `capture_prompts.sh` +
+  `build_runtime_datasets.py`): the real engine is pointed at a recording stub and driven over a
+  scripted tour; the **byte-exact** requests it sends (dialogue with PEOPLE YOU KNOW / WHAT'S ON
+  YOUR MIND / anchors / `json_object` / `frequency_penalty`, intent, reaction, tier2/tier3 sim)
+  are folded into the datasets and sent **verbatim** by the bench — no reconstruction, no engine
+  change. The drift guard in `scripts/test_v2.py` fails if the datasets lose their runtime shape.
+- **REQ 3 multiturn** (`promptfooconfig.multiturn.yaml`, `v2/rubrics/judge_multiturn_v1.*`):
+  a scripted multi-turn conversation per record, the candidate's own replies chained as assistant
+  turns, judged on the four known failure modes (re-introduction, wrong name, premature farewell,
+  persona/memory drift).
+- **REQ 4 benchmark of record** (`scripts/leaderboard.py`): per-category means with **95% bootstrap
+  CIs**, gameplay-token-weighted **overall**, catalog-priced **$/game-hour** and **value**, p50/p95.
+  Append-only `leaderboard.jsonl` (history) + ranked `leaderboard.md` (latest per candidate). Every
+  row records its `judge_model` + dataset merkle so re-runs are comparable.
+- **Funnel** (`scripts/funnel.py`): runs in-process through the same `rb_common` request + judge
+  code as the promptfoo provider/assertion (so scoring is identical) but fast enough for hundreds of
+  candidates, emitting promptfoo-shaped `output/*.json`. A pre-flight estimate **hard-aborts** any
+  phase that would breach `--cap`. `--tier`, `--from-survivors`, `--limit`, `--keep` shape each phase.
+
 ## Run
 
 ```sh

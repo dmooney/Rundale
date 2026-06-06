@@ -49,7 +49,7 @@ def generate_tests(*_args, **_kwargs):
 
     tests = []
     for rec in records:
-        display = rec.get("prompt", "")
+        display = rec.get("user") or rec.get("prompt", "")
         tests.append(
             {
                 "vars": {
@@ -79,7 +79,7 @@ def generate_perf_tests(*_args, **_kwargs):
         return {
             "vars": {
                 "record": json.dumps(rec, ensure_ascii=False),
-                "display_prompt": rec.get("prompt", ""),
+                "display_prompt": rec.get("user") or rec.get("prompt", ""),
                 "rb_id": rec["id"],
                 "perf_warmup": warmup,
             },

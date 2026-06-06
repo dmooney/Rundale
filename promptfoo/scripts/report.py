@@ -28,6 +28,13 @@ AXES = {
     "tier2-sim": ["plausibility"],
     "tier3-sim": ["plausibility"],
     "gaeilge": ["fluency", "grammar", "idiom", "task_fulfillment", "english_leakage"],
+    "multiturn": [
+        "continuity",
+        "name_fidelity",
+        "no_premature_farewell",
+        "persona_consistency",
+        "memory_retention",
+    ],
 }
 
 
@@ -260,7 +267,14 @@ def _write_markdown(report: dict, path: Path) -> None:
     for cand, c in sorted(report["candidates"].items()):
         lines.append(f"## `{cand}`\n")
         # Quality slices
-        for slice_name in ("dialogue", "reaction", "tier2-sim", "tier3-sim", "gaeilge"):
+        for slice_name in (
+            "dialogue",
+            "reaction",
+            "tier2-sim",
+            "tier3-sim",
+            "gaeilge",
+            "multiturn",
+        ):
             s = c["slices"].get(slice_name)
             if not s:
                 continue

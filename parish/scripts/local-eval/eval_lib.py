@@ -630,6 +630,9 @@ def call_chat(
     timeout: float = 180.0,
     max_retries: int = 4,
     reasoning: dict | None = None,
+    messages: list[dict] | None = None,
+    response_format: dict | None = None,
+    frequency_penalty: float | None = None,
 ) -> tuple[str, dict]:
     """POST a single chat-completion. Returns `(text, usage)`.
 
@@ -659,10 +662,17 @@ def call_chat(
             max_retries=max_retries,
         )
 
-    msgs: list[dict] = []
-    if system:
-        msgs.append({"role": "system", "content": system})
-    msgs.append({"role": "user", "content": user})
+    # Runtime-faithful path: a captured `messages` array (multi-turn / verbatim
+    # roles) overrides the system+user pair; a captured `response_format`
+    # (e.g. {"type":"json_object"}, or None) overrides the schema-derived one so
+    # the candidate sees exactly the request the live engine sends.
+    if messages is not None:
+        msgs = list(messages)
+    else:
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": user})
     body: dict = {
         "model": target.model,
         "messages": msgs,
@@ -671,7 +681,11 @@ def call_chat(
     }
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
-    if schema is not None:
+    if frequency_penalty is not None:
+        body["frequency_penalty"] = frequency_penalty
+    if response_format is not None:
+        body["response_format"] = response_format
+    elif schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
     # Reasoning-suppression syntax is not standardised across OpenAI-compat
     # gateways. Pick the form each target accepts:
@@ -856,6 +870,9 @@ def call_chat_streaming(
     max_tokens: int | None = None,
     temperature: float = 0.7,
     timeout: float = 180.0,
+    messages: list[dict] | None = None,
+    response_format: dict | None = None,
+    frequency_penalty: float | None = None,
 ) -> dict:
     """Streaming chat-completion. Captures TTFT + tok/s alongside text.
 
@@ -882,10 +899,13 @@ def call_chat_streaming(
             temperature=temperature,
             timeout=timeout,
         )
-    msgs: list[dict] = []
-    if system:
-        msgs.append({"role": "system", "content": system})
-    msgs.append({"role": "user", "content": user})
+    if messages is not None:
+        msgs = list(messages)
+    else:
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": user})
     body: dict = {
         "model": target.model,
         "messages": msgs,
@@ -894,7 +914,11 @@ def call_chat_streaming(
     }
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
-    if schema is not None:
+    if frequency_penalty is not None:
+        body["frequency_penalty"] = frequency_penalty
+    if response_format is not None:
+        body["response_format"] = response_format
+    elif schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
     # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
     # the <think>…</think> trace; otherwise the trace fills max_tokens and we
