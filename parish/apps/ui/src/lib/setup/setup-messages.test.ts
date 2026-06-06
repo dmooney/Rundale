@@ -5,7 +5,6 @@ import {
 	sentenceBreakParts,
 	isLongSetupWaitMessage,
 	SETUP_START_MESSAGE,
-	SETUP_HISTORY_LIMIT,
 } from './setup-messages';
 
 describe('compactSetupMessages', () => {
@@ -14,12 +13,12 @@ describe('compactSetupMessages', () => {
 		expect(result).toEqual(['hello', 'world']);
 	});
 
-	it('keeps the last SETUP_HISTORY_LIMIT messages when over the limit', () => {
+	it('keeps the last 80 messages when over the limit', () => {
 		const msgs = Array.from({ length: 100 }, (_, i) => `msg${i}`);
 		const result = compactSetupMessages(msgs);
-		expect(result).toHaveLength(SETUP_HISTORY_LIMIT);
+		expect(result).toHaveLength(80);
 		expect(result[0]).toBe('msg20');
-		expect(result[SETUP_HISTORY_LIMIT - 1]).toBe('msg99');
+		expect(result[79]).toBe('msg99');
 	});
 
 	it('returns fewer than the limit when input is short', () => {
