@@ -9,7 +9,7 @@
 
 use parish_inference::AnthropicClient;
 use parish_inference::TOKEN_CHANNEL_CAPACITY;
-use parish_inference::openai_client::OpenAiClient;
+use parish_inference::openai_client::{GenerateParams, OpenAiClient};
 use parish_inference::setup::{RuntimeProcesses, VllmMlxProcess, VllmMlxSlot};
 use serde::Deserialize;
 use tokio::sync::mpsc;
@@ -35,7 +35,7 @@ async fn openai_generate_returns_choice_content() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("gpt-test", "hi", None, None, None, None)
+        .generate("gpt-test", "hi", None, GenerateParams::default())
         .await
         .expect("generate should succeed");
     assert_eq!(out, "Hello from the mock");
@@ -56,7 +56,7 @@ async fn openai_generate_sends_bearer_token_when_api_key_set() {
     let client = OpenAiClient::new(&server.uri(), Some("sk-test-1234"));
     // If the matcher doesn't match, wiremock returns 404 and the call errors.
     let out = client
-        .generate("m", "p", None, None, None, None)
+        .generate("m", "p", None, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(out, "authed");
@@ -88,7 +88,7 @@ async fn openai_generate_omits_bearer_when_api_key_absent() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("m", "p", None, None, None, None)
+        .generate("m", "p", None, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(out, "ok");
@@ -105,7 +105,7 @@ async fn openai_generate_maps_401_to_inference_error() {
 
     let client = OpenAiClient::new(&server.uri(), Some("sk-bad"));
     let err = client
-        .generate("m", "p", None, None, None, None)
+        .generate("m", "p", None, GenerateParams::default())
         .await
         .expect_err("401 must fail");
     let msg = err.to_string();
@@ -123,7 +123,7 @@ async fn openai_generate_handles_empty_choices() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("m", "p", None, None, None, None)
+        .generate("m", "p", None, GenerateParams::default())
         .await
         .unwrap();
     // empty choices degrades gracefully to empty content, not an error
@@ -150,7 +150,7 @@ async fn openai_generate_stream_parses_sse_chunks() {
     let client = OpenAiClient::new(&server.uri(), None);
     let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
-        .generate_stream("m", "p", None, tx, None, None, None)
+        .generate_stream("m", "p", None, tx, GenerateParams::default())
         .await
         .unwrap();
 
@@ -181,7 +181,7 @@ async fn openai_generate_stream_honors_done_sentinel_before_stop() {
     let client = OpenAiClient::new(&server.uri(), None);
     let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
-        .generate_stream("m", "p", None, tx, None, None, None)
+        .generate_stream("m", "p", None, tx, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(full, "ab");
@@ -207,7 +207,7 @@ async fn openai_generate_stream_ignores_sse_comments_and_blank_lines() {
     let client = OpenAiClient::new(&server.uri(), None);
     let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
-        .generate_stream("m", "p", None, tx, None, None, None)
+        .generate_stream("m", "p", None, tx, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(full, "xy");
@@ -232,7 +232,7 @@ async fn openai_generate_json_parses_content_as_typed_payload() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let g: Greeting = client
-        .generate_json("m", "Return a greeting", None, None, None, None)
+        .generate_json("m", "Return a greeting", None, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(g.hello, "world");
@@ -256,7 +256,9 @@ async fn openai_generate_json_errors_on_malformed_inner_content() {
         .await;
 
     let client = OpenAiClient::new(&server.uri(), None);
-    let result: Result<Greeting, _> = client.generate_json("m", "p", None, None, None, None).await;
+    let result: Result<Greeting, _> = client
+        .generate_json("m", "p", None, GenerateParams::default())
+        .await;
     let err = result.expect_err("malformed inner content must fail");
     assert!(err.to_string().contains("serialization"));
 }
@@ -280,7 +282,16 @@ async fn openai_generate_request_includes_max_tokens_when_set() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("m", "p", None, Some(42), None, None)
+        .generate(
+            "m",
+            "p",
+            None,
+            GenerateParams {
+                max_tokens: Some(42),
+                temperature: None,
+                frequency_penalty: None,
+            },
+        )
         .await
         .unwrap();
     assert_eq!(out, "capped");
@@ -307,7 +318,7 @@ async fn openai_generate_request_omits_max_tokens_when_none() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("m", "p", None, None, None, None)
+        .generate("m", "p", None, GenerateParams::default())
         .await
         .unwrap();
     assert_eq!(out, "ok");
@@ -337,7 +348,16 @@ async fn openai_generate_request_includes_frequency_penalty_when_set() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client
-        .generate("m", "p", None, None, None, Some(0.5))
+        .generate(
+            "m",
+            "p",
+            None,
+            GenerateParams {
+                max_tokens: None,
+                temperature: None,
+                frequency_penalty: Some(0.5),
+            },
+        )
         .await
         .expect("generate with frequency_penalty must reach the wire");
     assert_eq!(out, "rep-penalty-on");
@@ -791,7 +811,7 @@ async fn openai_compatible_provider_smoke() {
             &InferenceConfig::default(),
         );
         let out = client
-            .generate("m", "p", None, None, None, None)
+            .generate("m", "p", None, GenerateParams::default())
             .await
             .unwrap_or_else(|e| panic!("provider {} generate failed: {e}", case.label));
         assert_eq!(

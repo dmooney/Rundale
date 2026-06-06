@@ -24,7 +24,7 @@ use parish_core::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter}
 use parish_core::npc::reactions::ReactionTemplates;
 
 use crate::command_host::CliCommandHost;
-use crate::inference::{AnyClient, MockClient};
+use crate::inference::{AnyClient, InferenceWorkerConfig, MockClient};
 use crate::input::{self, InputResult};
 use crate::testing::GameTestHarness;
 
@@ -221,13 +221,15 @@ impl GameTestHarness {
                 let (xtx, xrx) = tokio::sync::mpsc::channel(64);
                 let worker = parish_core::inference::spawn_inference_worker(
                     AnyClient::Mock(Arc::clone(&mock)),
-                    irx,
-                    brx,
-                    xrx,
-                    parish_core::inference::new_inference_log(),
-                    parish_core::inference::file_log::InferenceFileLog::disabled(),
-                    parish_core::config::Provider::default(),
-                    inference_config.clone(),
+                    InferenceWorkerConfig {
+                        interactive_rx: irx,
+                        background_rx: brx,
+                        batch_rx: xrx,
+                        log: parish_core::inference::new_inference_log(),
+                        file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+                        provider: parish_core::config::Provider::default(),
+                        timeout_config: inference_config.clone(),
+                    },
                 );
                 *inference_queue.lock().await =
                     Some(parish_core::inference::InferenceQueue::new(itx, btx, xtx));

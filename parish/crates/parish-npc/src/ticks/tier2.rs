@@ -187,9 +187,11 @@ async fn try_tier2_inference(
         None,
         sink_tx,
         None,
-        Some(200),
-        None,
-        None,
+        parish_inference::GenerateParams {
+            max_tokens: Some(200),
+            temperature: None,
+            frequency_penalty: None,
+        },
     );
 
     let raw = match cancel {

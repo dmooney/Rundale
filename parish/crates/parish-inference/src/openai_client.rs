@@ -86,6 +86,26 @@ struct ChatCompletionRequest<'a> {
     frequency_penalty: Option<f32>,
 }
 
+/// Sampling and generation parameters shared across all generate methods.
+///
+/// Groups the three optional knobs that every generate call accepts so that
+/// functions with a `model + prompt + system + token_tx + response_format +
+/// GenerateParams` signature stay within Clippy's `too-many-arguments` limit
+/// (≤ 7 non-`self` parameters).
+#[derive(Debug, Clone, Default)]
+pub struct GenerateParams {
+    /// Maximum number of tokens the model may emit.  `None` lets the
+    /// provider apply its own default ceiling.
+    pub max_tokens: Option<u32>,
+    /// Sampling temperature.  `None` uses the provider default.
+    pub temperature: Option<f32>,
+    /// OpenAI-compat `frequency_penalty` (`[-2.0, 2.0]`). Forwarded to
+    /// vllm-mlx, LM Studio, OpenAI, and OpenRouter; ignored by Anthropic
+    /// and the Simulator (no equivalent).  `None` omits the key from the
+    /// wire body entirely.
+    pub frequency_penalty: Option<f32>,
+}
+
 /// Controls structured output format.
 ///
 /// Wire format follows OpenAI's `response_format` shape, which Ollama and
@@ -252,28 +272,17 @@ impl OpenAiClient {
     ///
     /// Builds a messages array from the prompt and optional system message,
     /// posts to `/v1/chat/completions` with `stream: false`, and extracts
-    /// `choices[0].message.content`. An optional `max_tokens` cap prevents
-    /// excessively long responses.
+    /// `choices[0].message.content`. Sampling knobs (max tokens, temperature,
+    /// frequency penalty) are supplied via [`GenerateParams`].
     pub async fn generate(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(
-            model,
-            prompt,
-            system,
-            false,
-            None,
-            max_tokens,
-            temperature,
-            frequency_penalty,
-        );
+        let body = self.build_request(model, prompt, system, false, None, params);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp
             .json()
@@ -288,30 +297,17 @@ impl OpenAiClient {
     /// (Server-Sent Events) data lines, extracts delta content, and sends
     /// each token through `token_tx`. Returns the full accumulated text
     /// after the stream completes. Uses `InferenceConfig::streaming_timeout_secs`
-    /// as the timeout. An optional `max_tokens` cap prevents excessively long
-    /// responses.
-    #[allow(clippy::too_many_arguments)]
+    /// as the timeout. Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_stream(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
         token_tx: mpsc::Sender<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(
-            model,
-            prompt,
-            system,
-            true,
-            None,
-            max_tokens,
-            temperature,
-            frequency_penalty,
-        );
+        let body = self.build_request(model, prompt, system, true, None, params);
         self.stream_response(body, token_tx).await
     }
 
@@ -320,16 +316,14 @@ impl OpenAiClient {
     /// Identical to [`generate_stream`] but sets `response_format: json_object`
     /// so the LLM is constrained to return valid JSON. Used for Tier 1 NPC
     /// responses where dialogue is embedded in a JSON structure.
-    #[allow(clippy::too_many_arguments)]
+    /// Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_stream_json(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
         token_tx: mpsc::Sender<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
         let body = self.build_request(
@@ -338,9 +332,7 @@ impl OpenAiClient {
             system,
             true,
             Some(ResponseFormat::JsonObject),
-            max_tokens,
-            temperature,
-            frequency_penalty,
+            params,
         );
         self.stream_response(body, token_tx).await
     }
@@ -352,23 +344,20 @@ impl OpenAiClient {
     /// wrapper because most callers want the legacy Ollama-compatible
     /// behaviour; new callers targeting LM Studio / vllm-mlx should use
     /// [`generate_json_with_format`] with a `JsonSchema` instead.
+    /// Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_json<T: DeserializeOwned>(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<T, ParishError> {
         self.generate_json_with_format(
             model,
             prompt,
             system,
             Some(ResponseFormat::JsonObject),
-            max_tokens,
-            temperature,
-            frequency_penalty,
+            params,
         )
         .await
     }
@@ -378,29 +367,17 @@ impl OpenAiClient {
     /// for the Ollama-style "some JSON" mode, or `JsonSchema` for strict
     /// schema-guided decoding (vllm-mlx, LM Studio, OpenAI structured
     /// outputs). Returns the raw response content; callers parse JSON
-    /// themselves.
-    #[allow(clippy::too_many_arguments)]
+    /// themselves.  Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_text_with_format(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
         response_format: Option<ResponseFormat>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(
-            model,
-            prompt,
-            system,
-            false,
-            response_format,
-            max_tokens,
-            temperature,
-            frequency_penalty,
-        );
+        let body = self.build_request(model, prompt, system, false, response_format, params);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp
             .json()
@@ -412,27 +389,17 @@ impl OpenAiClient {
 
     /// Typed counterpart of [`generate_text_with_format`]. Same
     /// trade-offs; deserialises the response into `T`.
-    #[allow(clippy::too_many_arguments)]
+    /// Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_json_with_format<T: DeserializeOwned>(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
         response_format: Option<ResponseFormat>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<T, ParishError> {
         let raw = self
-            .generate_text_with_format(
-                model,
-                prompt,
-                system,
-                response_format,
-                max_tokens,
-                temperature,
-                frequency_penalty,
-            )
+            .generate_text_with_format(model, prompt, system, response_format, params)
             .await?;
         let parsed: T = serde_json::from_str(&raw)?;
         Ok(parsed)
@@ -441,7 +408,7 @@ impl OpenAiClient {
     /// Streaming counterpart to [`generate_json_with_format`]. Same
     /// trade-offs: `JsonObject` for Ollama compat, `JsonSchema` for strict
     /// servers, `None` for unconstrained text streaming.
-    #[allow(clippy::too_many_arguments)]
+    /// Sampling knobs are supplied via [`GenerateParams`].
     pub async fn generate_stream_with_format(
         &self,
         model: &str,
@@ -449,21 +416,10 @@ impl OpenAiClient {
         system: Option<&str>,
         token_tx: mpsc::Sender<String>,
         response_format: Option<ResponseFormat>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(
-            model,
-            prompt,
-            system,
-            true,
-            response_format,
-            max_tokens,
-            temperature,
-            frequency_penalty,
-        );
+        let body = self.build_request(model, prompt, system, true, response_format, params);
         self.stream_response(body, token_tx).await
     }
 
@@ -473,7 +429,6 @@ impl OpenAiClient {
     /// `text`, `json_object`, or a fully-typed `json_schema` based on what
     /// the target server accepts. See [`ResponseFormat`] for the wire
     /// shapes.
-    #[allow(clippy::too_many_arguments)] // builder pattern with all params explicit
     fn build_request<'a>(
         &self,
         model: &'a str,
@@ -481,9 +436,7 @@ impl OpenAiClient {
         system: Option<&'a str>,
         stream: bool,
         response_format: Option<ResponseFormat>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        frequency_penalty: Option<f32>,
+        params: GenerateParams,
     ) -> ChatCompletionRequest<'a> {
         let mut messages = Vec::new();
         if let Some(sys) = system {
@@ -502,9 +455,9 @@ impl OpenAiClient {
             messages,
             stream,
             response_format,
-            max_tokens,
-            temperature,
-            frequency_penalty,
+            max_tokens: params.max_tokens,
+            temperature: params.temperature,
+            frequency_penalty: params.frequency_penalty,
         }
     }
 
@@ -796,9 +749,7 @@ mod tests {
             Some("you are helpful"),
             false,
             None,
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         );
         assert_eq!(req.model, "model");
         assert_eq!(req.messages.len(), 2);
@@ -813,7 +764,14 @@ mod tests {
     #[test]
     fn test_build_request_without_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, None, None, None, None);
+        let req = client.build_request(
+            "model",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams::default(),
+        );
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
     }
@@ -827,9 +785,7 @@ mod tests {
             None,
             false,
             Some(ResponseFormat::JsonObject),
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         );
         let fmt = req.response_format.unwrap();
         let serialized = serde_json::to_value(&fmt).unwrap();
@@ -850,9 +806,7 @@ mod tests {
                     schema: serde_json::json!({"type":"object"}),
                 },
             }),
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         );
         let fmt = req.response_format.unwrap();
         let serialized = serde_json::to_value(&fmt).unwrap();
@@ -863,7 +817,14 @@ mod tests {
     #[test]
     fn test_build_request_streaming() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, true, None, None, None, None);
+        let req = client.build_request(
+            "model",
+            "hello",
+            None,
+            true,
+            None,
+            GenerateParams::default(),
+        );
         assert!(req.stream);
     }
 
@@ -979,9 +940,7 @@ mod tests {
             Some("be brief"),
             false,
             None,
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["model"], "qwen3:14b");
@@ -1003,9 +962,7 @@ mod tests {
             None,
             false,
             Some(ResponseFormat::JsonObject),
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["response_format"]["type"], "json_object");
@@ -1020,9 +977,10 @@ mod tests {
             None,
             false,
             None,
-            Some(300),
-            None,
-            None,
+            GenerateParams {
+                max_tokens: Some(300),
+                ..Default::default()
+            },
         );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["max_tokens"], 300);
@@ -1037,9 +995,10 @@ mod tests {
             None,
             false,
             None,
-            None,
-            Some(0.7),
-            None,
+            GenerateParams {
+                temperature: Some(0.7),
+                ..Default::default()
+            },
         );
         let json = serde_json::to_value(&req).unwrap();
         assert!((json["temperature"].as_f64().unwrap() - 0.7).abs() < 0.01);
@@ -1048,7 +1007,14 @@ mod tests {
     #[test]
     fn test_request_serialization_temperature_omitted_when_none() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, None, None, None, None);
+        let req = client.build_request(
+            "qwen3:14b",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams::default(),
+        );
         let json = serde_json::to_value(&req).unwrap();
         assert!(json.get("temperature").is_none());
     }
@@ -1065,9 +1031,10 @@ mod tests {
             None,
             false,
             None,
-            None,
-            None,
-            Some(0.5),
+            GenerateParams {
+                frequency_penalty: Some(0.5),
+                ..Default::default()
+            },
         );
         let json = serde_json::to_value(&req).unwrap();
         assert!((json["frequency_penalty"].as_f64().unwrap() - 0.5).abs() < 0.01);
@@ -1076,7 +1043,14 @@ mod tests {
     #[test]
     fn test_request_serialization_frequency_penalty_omitted_when_none() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, None, None, None, None);
+        let req = client.build_request(
+            "qwen3:14b",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams::default(),
+        );
         let json = serde_json::to_value(&req).unwrap();
         assert!(json.get("frequency_penalty").is_none());
     }
@@ -1090,9 +1064,7 @@ mod tests {
                 "qwen3:14b",
                 "Say hello in one word.",
                 None,
-                None,
-                None,
-                None,
+                GenerateParams::default(),
             )
             .await;
         assert!(result.is_ok());
@@ -1110,9 +1082,7 @@ mod tests {
                 "Say hello in one word.",
                 None,
                 tx,
-                None,
-                None,
-                None,
+                GenerateParams::default(),
             )
             .await;
         assert!(result.is_ok());
@@ -1140,9 +1110,7 @@ mod tests {
                 "qwen3:14b",
                 "Return a JSON object with a 'greeting' field containing 'hello'.",
                 None,
-                None,
-                None,
-                None,
+                GenerateParams::default(),
             )
             .await;
         assert!(result.is_ok());
@@ -1168,13 +1136,13 @@ mod tests {
 
         let start = Instant::now();
         let _result1 = client
-            .generate("test-model", "hi", None, None, None, None)
+            .generate("test-model", "hi", None, GenerateParams::default())
             .await;
         let elapsed_first = start.elapsed();
 
         let start = Instant::now();
         let _result2 = client
-            .generate("test-model", "hi", None, None, None, None)
+            .generate("test-model", "hi", None, GenerateParams::default())
             .await;
         let elapsed_second = start.elapsed();
 

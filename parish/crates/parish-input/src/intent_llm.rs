@@ -3,7 +3,7 @@
 //! Routes ambiguous free-form input through the configured inference
 //! client. Falls back to [`IntentKind::Unknown`] if the LLM call fails.
 
-use parish_inference::AnyClient;
+use parish_inference::{AnyClient, GenerateParams};
 use parish_types::ParishError;
 use serde::Deserialize;
 
@@ -72,9 +72,7 @@ pub async fn parse_intent(
             model,
             raw_input,
             Some(INTENT_SYSTEM_PROMPT),
-            None,
-            None,
-            None,
+            GenerateParams::default(),
         )
         .await;
 

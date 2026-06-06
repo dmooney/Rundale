@@ -35,8 +35,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::game_loop::GameLoopContext;
 use crate::inference::{
-    INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
-    await_inference_response,
+    INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferencePriority, InferenceQueue,
+    QueueRequest, await_inference_response,
 };
 use crate::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID, StreamEndPayload,
@@ -145,18 +145,23 @@ pub async fn run_npc_turn(
     // ignore the field. Only Tier 1 dialogue sets this; Tier 2/3/intent
     // /reaction stay at `None` so behaviour there is unchanged.
     let send_result = queue
-        .send_with_penalty(
-            req_id,
-            model.to_string(),
-            setup.context,
-            Some(setup.system_prompt),
-            Some(token_tx),
-            Some(TIER1_DIALOGUE_MAX_TOKENS),
-            Some(0.7),
-            Some(0.5),
-            crate::inference::InferencePriority::Interactive,
-            true,
-        )
+        .send(QueueRequest {
+            id: req_id,
+            model: model.to_string(),
+            prompt: setup.context,
+            system: Some(setup.system_prompt),
+            token_tx: Some(token_tx),
+            max_tokens: Some(TIER1_DIALOGUE_MAX_TOKENS),
+            temperature: Some(0.7),
+            // TODO #10 / #23 / #34: frequency_penalty = 0.5 suppresses
+            // Qwen2.5-14B-4bit verbatim repetition loops on vllm-mlx /
+            // OpenAI / OpenRouter; Anthropic + Simulator ignore the field.
+            frequency_penalty: Some(0.5),
+            priority: InferencePriority::Interactive,
+            json_mode: true,
+            json_schema: None,
+            cancel: None,
+        })
         .await;
 
     let response_rx = match send_result {

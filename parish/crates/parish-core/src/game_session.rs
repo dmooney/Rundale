@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 use crate::config::ReactionConfig;
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
-use crate::inference::AnyClient;
 use crate::inference::InferenceLog;
+use crate::inference::{AnyClient, GenerateParams};
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{
@@ -477,7 +477,16 @@ pub async fn enrich_travel_encounter(
     let timeout = Duration::from_secs(timeout_secs);
     let result = tokio::time::timeout(
         timeout,
-        client.generate(model, &context, Some(&system), Some(80), None, None),
+        client.generate(
+            model,
+            &context,
+            Some(&system),
+            GenerateParams {
+                max_tokens: Some(80),
+                temperature: None,
+                frequency_penalty: None,
+            },
+        ),
     )
     .await;
 
@@ -704,9 +713,11 @@ pub async fn stream_reaction_texts(
                                 &context,
                                 Some(&system),
                                 tx,
-                                Some(100),
-                                None,
-                                None,
+                                GenerateParams {
+                                    max_tokens: Some(100),
+                                    temperature: None,
+                                    frequency_penalty: None,
+                                },
                             ),
                         )
                         .await;
