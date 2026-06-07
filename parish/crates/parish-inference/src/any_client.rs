@@ -469,6 +469,10 @@ impl AnyClient {
                 }
             }
             Self::Mock(c) => {
+                // Record whether this call asked the provider for a JSON
+                // response format, so tests can assert JSON-mode activation per
+                // attempt (e.g. parish-npc TD-033's Tier 2 retry).
+                c.record_response_format(response_format.is_some());
                 // Same JSON-vs-plain routing as the simulator arm: a scripted
                 // dialogue completion is wrapped in the JSON envelope only when
                 // the caller expects JSON, otherwise streamed as plain text.

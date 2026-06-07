@@ -78,8 +78,11 @@
 
 	// Prefer the backend-computed emoji when present — it is the single
 	// source of truth from `parish-npc::mood::mood_emoji`. Fall back to
-	// the local map only when the prop is omitted (tests, legacy callers).
-	let rendered = $derived(emoji ?? resolve(mood));
+	// the local map when the prop is omitted (tests, legacy callers) OR
+	// empty. `||` (not `??`) is deliberate: `NpcInfo.mood_emoji` is a
+	// non-optional string, so a backend ""-emit must still fall back to the
+	// mood-derived icon rather than render a blank span (TD-059).
+	let rendered = $derived(emoji || resolve(mood));
 </script>
 
 <span class="mood-emoji" title={mood} style:font-size={size}>{rendered}</span>

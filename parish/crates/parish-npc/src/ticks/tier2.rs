@@ -171,6 +171,7 @@ async fn try_tier2_inference(
     client: &parish_inference::AnyClient,
     model: &str,
     prompt: &str,
+    response_format: Option<parish_inference::ResponseFormat>,
     cancel: Option<parish_inference::CancellationToken>,
 ) -> Result<Tier2Response, ParishError> {
     // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
@@ -186,7 +187,7 @@ async fn try_tier2_inference(
         prompt,
         None,
         sink_tx,
-        None,
+        response_format,
         parish_inference::GenerateParams {
             max_tokens: Some(200),
             temperature: None,
@@ -378,7 +379,7 @@ pub async fn run_tier2_for_group(
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     let mut last_err: ParishError =
-        match try_tier2_inference(client, model, &prompt, cancel.clone()).await {
+        match try_tier2_inference(client, model, &prompt, None, cancel.clone()).await {
             Ok(resp) => {
                 return Some(Tier2Event {
                     location: group.location,
@@ -402,7 +403,20 @@ pub async fn run_tier2_for_group(
             msg
         );
         let retry_prompt = format!("{}{}", prompt, TIER2_STRICT_JSON_REMINDER);
-        match try_tier2_inference(client, model, &retry_prompt, cancel).await {
+        // TD-033: the retry's whole premise is the small model emitting
+        // malformed JSON, so pull the strongest lever the `_with_format`
+        // variant exists for — set a provider-side JSON response format so
+        // capable backends constrain output to JSON. Anthropic / Simulator
+        // ignore it and fall back to plain streaming, matching prior behavior.
+        match try_tier2_inference(
+            client,
+            model,
+            &retry_prompt,
+            Some(parish_inference::ResponseFormat::JsonObject),
+            cancel,
+        )
+        .await
+        {
             Ok(resp) => {
                 tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
                 return Some(Tier2Event {
@@ -1048,6 +1062,35 @@ mod tests {
         let event =
             run_tier2_for_group(&client, "test", &group, "Morning", "Clear", &lang, None).await;
         assert!(event.is_none());
+    }
+
+    /// TD-033: the Tier 2 first attempt sends no `response_format` (None) while
+    /// the retry — whose premise is the small model emitting malformed JSON —
+    /// must set a provider-side JSON `response_format` so JSON mode activates.
+    /// Drives `try_tier2_inference` directly against a recording mock and
+    /// asserts the per-attempt format flags.
+    #[tokio::test]
+    async fn test_tier2_retry_sets_json_response_format() {
+        let (client, mock) = parish_inference::AnyClient::mock();
+
+        // First attempt: production passes `None` (preserves prior behavior).
+        let _ = try_tier2_inference(&client, "test-model", "first prompt", None, None).await;
+        // Retry: production passes a JSON response format.
+        let _ = try_tier2_inference(
+            &client,
+            "test-model",
+            "retry prompt",
+            Some(parish_inference::ResponseFormat::JsonObject),
+            None,
+        )
+        .await;
+
+        let log = mock.response_format_log();
+        assert_eq!(
+            log,
+            vec![false, true],
+            "first attempt sends no response_format, retry sends a JSON response_format (TD-033)"
+        );
     }
 
     // --- build_tier2_prompt weather commentary ---
