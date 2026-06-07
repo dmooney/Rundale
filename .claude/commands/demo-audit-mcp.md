@@ -94,14 +94,17 @@ Each turn is: **observe → decide → act → observe → judge**.
      replies, movement narration, and the present-NPC chips in one image.
    - **Desktop log grep (scriptable):** tail the `cargo run -p parish-tauri` stdout
      (redirect it at launch, e.g. `> parish/.tauri-run.log 2>&1`):
+
      ```sh
      grep -nE "chat \[player\] input="   parish/.tauri-run.log   # your inputs
      grep -nE "chat \[npc\] npc=.*reply=" parish/.tauri-run.log   # NPC replies
      grep -nE "chat source=system"        parish/.tauri-run.log   # movement / ambient / errors
      grep -nE "npc-reaction npc=.*emoji=" parish/.tauri-run.log   # mood emoji per reply
      ```
+
      Also confirm the world mutated as expected (re-`snapshot` + `npcs_here`): the bridge
      is stateful, so a `submit_input` then `world_snapshot` sees the new location/clock.
+
 5. **Judge** against the taxonomy. Per turn ask: did movement land in a new location?
    did the addressed NPC (and only that NPC) reply? repetition loop in the reply?
    empty-location stranding? cross-NPC name leak? mood→emoji drift? wrong-time greeting?
