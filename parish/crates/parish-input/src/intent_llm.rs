@@ -52,11 +52,52 @@ Input: \"I was at the shore yesterday\" → {\"intent\": \"talk\", \"target\": n
 \n\
 Respond ONLY with valid JSON. No explanation.";
 
+/// Returns `true` if `raw_input` matches one of the canonical look/examine
+/// phrases that the local parser recognises as genuine observation commands.
+///
+/// Used as a post-LLM guard: small quantised models sometimes return `look` or
+/// `examine` for conversational input that contains neither word as an
+/// imperative verb.  When the LLM says `Look`/`Examine` but this check fails
+/// the intent is downgraded to `Unknown` so it falls through to NPC routing
+/// instead of printing the location description unexpectedly (#1276).
+fn is_genuine_look_input(raw_input: &str) -> bool {
+    let lower = raw_input.trim().to_lowercase();
+    // Exact matches (fast path — same set as parse_intent_local).
+    let exact = ["look", "look around", "l", "examine room", "where am i"];
+    if exact.contains(&lower.as_str()) {
+        return true;
+    }
+    // Prefix matches for imperative observation commands:
+    //   "look at ...", "look closely ...", "examine ...", "inspect ...",
+    //   "study ...", "scrutinise ...", "where am i ..."
+    // Conversational uses like "Might I look about..." start with "might"
+    // and do not match any of these.
+    let prefixes = [
+        "look at ",
+        "look ",
+        "examine ",
+        "inspect ",
+        "study ",
+        "scrutinise ",
+        "scrutinize ",
+        "where am i",
+    ];
+    prefixes.iter().any(|p| lower.starts_with(p))
+}
+
 /// Parses natural language input into a structured `PlayerIntent`.
 ///
 /// First tries local keyword matching for common commands (movement, look).
 /// Falls back to LLM for ambiguous input. If the LLM call fails,
 /// returns `IntentKind::Unknown`.
+///
+/// # Look/Examine guard (#1276)
+///
+/// After the LLM responds, any `Look` or `Examine` classification is validated
+/// against a whitelist of genuine observation-command forms.  If the raw input
+/// does not resemble a look command the intent is downgraded to `Unknown` so
+/// the input routes to NPC conversation rather than printing the location
+/// description blurb unexpectedly.
 pub async fn parse_intent(
     client: &AnyClient,
     raw_input: &str,
@@ -77,12 +118,27 @@ pub async fn parse_intent(
         .await;
 
     match result {
-        Ok(resp) => Ok(PlayerIntent {
-            intent: resp.intent.unwrap_or(IntentKind::Unknown),
-            target: resp.target,
-            dialogue: resp.dialogue,
-            raw: raw_input.to_string(),
-        }),
+        Ok(resp) => {
+            let mut intent = resp.intent.unwrap_or(IntentKind::Unknown);
+            // Guard: downgrade spurious Look/Examine classifications (#1276).
+            // Small quantised models occasionally classify conversational input
+            // (e.g. "hey everybody", "no reason") as Look, which would cause the
+            // location description blurb to fire unexpectedly.  Accept Look/Examine
+            // only when the raw input actually resembles an observation command.
+            if matches!(intent, IntentKind::Look | IntentKind::Examine)
+                && !is_genuine_look_input(raw_input)
+            {
+                // Downgrade spurious Look/Examine — caller routes to NPC
+                // conversation instead of printing the location blurb (#1276).
+                intent = IntentKind::Unknown;
+            }
+            Ok(PlayerIntent {
+                intent,
+                target: resp.target,
+                dialogue: resp.dialogue,
+                raw: raw_input.to_string(),
+            })
+        }
         Err(_) => Ok(PlayerIntent {
             intent: IntentKind::Unknown,
             target: None,
@@ -110,6 +166,52 @@ mod tests {
         assert!(resp.intent.is_none());
         assert!(resp.target.is_none());
         assert!(resp.dialogue.is_none());
+    }
+
+    /// Unit tests for the is_genuine_look_input guard (#1276).
+    ///
+    /// These cover the validation function directly — LLM integration tests
+    /// (which need a live model) live in tests/llm_fallback_integration.rs.
+    #[test]
+    fn genuine_look_inputs_accepted() {
+        // Exact whitelist matches.
+        assert!(is_genuine_look_input("look"));
+        assert!(is_genuine_look_input("look around"));
+        assert!(is_genuine_look_input("l"));
+        assert!(is_genuine_look_input("examine room"));
+        assert!(is_genuine_look_input("where am i"));
+        // Case-insensitive.
+        assert!(is_genuine_look_input("LOOK"));
+        assert!(is_genuine_look_input("Look Around"));
+        assert!(is_genuine_look_input("WHERE AM I"));
+        // Prefix matches.
+        assert!(is_genuine_look_input("look at the door"));
+        assert!(is_genuine_look_input("look closely at the window"));
+        assert!(is_genuine_look_input("examine the shelf"));
+        assert!(is_genuine_look_input("where am i exactly"));
+        // Extended examine verbs.
+        assert!(is_genuine_look_input("inspect the stone cross closely"));
+        assert!(is_genuine_look_input("study the inscription"));
+        assert!(is_genuine_look_input("scrutinise the wall"));
+        assert!(is_genuine_look_input("scrutinize the carving"));
+    }
+
+    /// Regression (#1276): conversational inputs that Qwen2.5-14B-Instruct-4bit
+    /// misclassified as Look must be rejected by the guard.
+    #[test]
+    fn non_look_inputs_rejected() {
+        assert!(!is_genuine_look_input("hey everybody"));
+        assert!(!is_genuine_look_input("no reason"));
+        assert!(!is_genuine_look_input("I just like boats"));
+        assert!(!is_genuine_look_input(
+            "Might I look about the village a while?"
+        ));
+        assert!(!is_genuine_look_input("It looks fine to me"));
+        assert!(!is_genuine_look_input(
+            "I'll have a look at the cattle later"
+        ));
+        assert!(!is_genuine_look_input("hello there"));
+        assert!(!is_genuine_look_input("tell me about yourself"));
     }
 
     /// Regression: the demo auto-player's own exemplar ("Might I look about
