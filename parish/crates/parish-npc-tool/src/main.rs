@@ -1,3 +1,5 @@
+mod catalog;
+
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
@@ -158,6 +160,32 @@ enum Command {
     Relationships {
         npc_id: i64,
     },
+    /// Split a monolithic `npcs.json` catalogue into one file per NPC (TD-001).
+    /// These commands operate on JSON files and ignore `--db`.
+    SplitCatalog {
+        /// Path to the monolithic `npcs.json` to split.
+        #[arg(long)]
+        input: PathBuf,
+        /// Directory to write per-NPC `npc-NNNN-slug.json` files into.
+        #[arg(long)]
+        out_dir: PathBuf,
+    },
+    /// Re-join per-NPC files back into a canonical, byte-identical `npcs.json`.
+    JoinCatalog {
+        /// Directory of per-NPC `*.json` files (output of `split-catalog`).
+        #[arg(long)]
+        in_dir: PathBuf,
+        /// Path to write the re-joined `npcs.json` to.
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Validate a `npcs.json` catalogue (unique ids, non-empty names, internal
+    /// relationship targets resolve). Exits non-zero on the first error.
+    ValidateCatalog {
+        /// Path to the `npcs.json` to validate.
+        #[arg(long)]
+        input: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -215,6 +243,28 @@ fn default_sex() -> String {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Catalogue (JSON-file) commands do not touch the SQLite DB — dispatch
+    // them before opening it so they work without a `data/parish-world.db`.
+    match &cli.command {
+        Command::SplitCatalog { input, out_dir } => {
+            let n = catalog::split_catalog(input, out_dir)?;
+            println!("split {} NPCs into {}", n, out_dir.display());
+            return Ok(());
+        }
+        Command::JoinCatalog { in_dir, output } => {
+            let n = catalog::join_catalog(in_dir, output)?;
+            println!("joined {} NPCs into {}", n, output.display());
+            return Ok(());
+        }
+        Command::ValidateCatalog { input } => {
+            let file = catalog::load_catalog(input)?;
+            println!("ok: {} NPCs, no integrity errors", file.npcs.len());
+            return Ok(());
+        }
+        _ => {}
+    }
+
     let db_path = cli.db.unwrap_or_else(resolve_default_db);
     let conn = open_db(&db_path)?;
 
@@ -242,6 +292,10 @@ fn main() -> Result<()> {
         Command::Import => import_npcs(&conn),
         Command::FamilyTree { npc_id } => family_tree(&conn, npc_id),
         Command::Relationships { npc_id } => relationships(&conn, npc_id),
+        // Handled before the DB was opened (early `return` above).
+        Command::SplitCatalog { .. }
+        | Command::JoinCatalog { .. }
+        | Command::ValidateCatalog { .. } => unreachable!("catalogue commands dispatched earlier"),
     }
 }
 

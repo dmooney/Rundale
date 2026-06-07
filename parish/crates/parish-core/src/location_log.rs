@@ -30,7 +30,10 @@ use parish_types::events::GameEvent;
 use parish_world::WorldState;
 use parish_world::graph::{GeoKind, Hazard, LocationData};
 
-use crate::character_log::{append_journal_entry, player_diary_label_for, rewrite_profile_section};
+use crate::character_log::{
+    append_journal_entry, append_journal_entry_batch, player_diary_label_for,
+    rewrite_profile_section,
+};
 
 /// Feature-flag name controlling whether location logs are written.
 pub const FEATURE_FLAG: &str = "location-logs";
@@ -101,6 +104,18 @@ impl LocationLogManager {
         let slug = slugify(&loc.name);
         self.log_dir
             .join(format!("loc-{:03}-{}.md", loc.id.0, slug))
+    }
+
+    /// Collects the log-file path for every location in the graph, in stable
+    /// id order, for a world-wide fan-out event (TD-031). Returning an owned
+    /// `Vec` lets the caller hand `&Path` references to the batched append
+    /// helper without borrowing `world` across the write loop.
+    fn world_wide_paths(&self, world: &WorldState) -> Vec<PathBuf> {
+        let mut ids = world.graph.location_ids();
+        ids.sort_by_key(|id| id.0);
+        ids.into_iter()
+            .filter_map(|id| world.graph.get(id).map(|loc| self.location_log_path(loc)))
+            .collect()
     }
 
     /// Rewrites the PROFILE section in every per-location log file.
@@ -276,34 +291,41 @@ impl LocationLogManager {
                 // Weather is world-wide — every location experiences the
                 // same shift. Log to every location's journal so the
                 // parish-level state is uniformly visible (#1023 F4).
+                //
+                // TD-031: build the entry once and fan it out through the
+                // batched helper instead of re-rendering the identical block
+                // for each of the ~22 Rundale locations.
                 let body = format!("*Weather: {}*\n", new_weather);
-                for loc_id in world.graph.location_ids() {
-                    let Some(path) = path_for(loc_id) else {
-                        continue;
-                    };
-                    if let Err(e) = append_journal_entry(&path, ts, Some("Weather"), &body) {
-                        tracing::warn!(?loc_id, "failed to write weather to location journal: {e}");
-                    }
-                }
+                let paths = self.world_wide_paths(world);
+                let count = append_journal_entry_batch(
+                    paths.iter().map(PathBuf::as_path),
+                    ts,
+                    Some("Weather"),
+                    &body,
+                );
+                tracing::debug!(
+                    locations = count,
+                    "batched weather journal fan-out (TD-031)"
+                );
             }
             GameEvent::FestivalStarted { name, .. } => {
                 // Festivals are world-wide events — every location's
                 // residents experience the calendar shift. Log to every
                 // location for the same reason as WeatherChanged
-                // (#1023 F4).
+                // (#1023 F4). Batched fan-out (TD-031).
                 let body = format!("*Festival begins: {}*\n", name);
                 let heading = format!("Festival: {}", name);
-                for loc_id in world.graph.location_ids() {
-                    let Some(path) = path_for(loc_id) else {
-                        continue;
-                    };
-                    if let Err(e) = append_journal_entry(&path, ts, Some(&heading), &body) {
-                        tracing::warn!(
-                            ?loc_id,
-                            "failed to write festival to location journal: {e}"
-                        );
-                    }
-                }
+                let paths = self.world_wide_paths(world);
+                let count = append_journal_entry_batch(
+                    paths.iter().map(PathBuf::as_path),
+                    ts,
+                    Some(&heading),
+                    &body,
+                );
+                tracing::debug!(
+                    locations = count,
+                    "batched festival journal fan-out (TD-031)"
+                );
             }
             GameEvent::LifeEvent {
                 npc_id,

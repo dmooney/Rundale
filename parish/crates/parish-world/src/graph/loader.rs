@@ -48,6 +48,11 @@ impl WorldGraph {
     /// - All connection targets exist in the graph
     /// - All connections are bidirectional
     /// - There are no orphan nodes (nodes with no connections)
+    /// - Every `relative_to.anchor` resolves to an existing location and is
+    ///   not a self-reference (TD-002)
+    /// - No alias collides (case-insensitively) with another location's alias
+    ///   or with a *different* location's canonical name, which would make
+    ///   fuzzy name lookup ambiguous (TD-002)
     ///
     /// Called automatically by [`WorldGraph::load_from_str`]; exposed publicly
     /// so the Parish Designer editor can re-run it on an in-memory graph
@@ -77,6 +82,86 @@ impl WorldGraph {
                         loc.name, target_loc.name
                     )));
                 }
+            }
+        }
+        self.validate_relative_anchors()?;
+        self.validate_aliases()?;
+        Ok(())
+    }
+
+    /// Validates that every `relative_to.anchor` points at an existing
+    /// location and never at itself (a self-anchor cannot be resolved and a
+    /// dangling anchor silently breaks coordinate realignment). TD-002.
+    fn validate_relative_anchors(&self) -> Result<(), ParishError> {
+        for (id, loc) in &self.locations {
+            let Some(rel) = loc.relative_to.as_ref() else {
+                continue;
+            };
+            if rel.anchor == *id {
+                return Err(ParishError::WorldGraph(format!(
+                    "location {} (id {}) declares relative_to anchored at itself",
+                    loc.name, id.0
+                )));
+            }
+            if !self.locations.contains_key(&rel.anchor) {
+                return Err(ParishError::WorldGraph(format!(
+                    "location {} (id {}) is positioned relative_to non-existent anchor id {}",
+                    loc.name, id.0, rel.anchor.0
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Validates that aliases do not introduce ambiguous fuzzy-lookup targets.
+    ///
+    /// Two failure modes are rejected (case-insensitive, whitespace-trimmed):
+    /// - the same alias appears on two different locations, and
+    /// - an alias on one location equals a *different* location's canonical
+    ///   name (so typing that name would fuzzy-match two locations).
+    ///
+    /// TD-002.
+    fn validate_aliases(&self) -> Result<(), ParishError> {
+        use std::collections::HashMap;
+
+        // Map canonical-name (lowercased) -> owning location id, for the
+        // alias-shadows-name check.
+        let mut name_owner: HashMap<String, parish_types::LocationId> = HashMap::new();
+        for (id, loc) in &self.locations {
+            name_owner.insert(loc.name.trim().to_lowercase(), *id);
+        }
+
+        // Track which location first claimed each alias.
+        let mut alias_owner: HashMap<String, parish_types::LocationId> = HashMap::new();
+        // Iterate in stable id order so error messages are deterministic.
+        let mut ids: Vec<parish_types::LocationId> = self.locations.keys().copied().collect();
+        ids.sort_by_key(|id| id.0);
+        for id in ids {
+            let loc = &self.locations[&id];
+            for alias in &loc.aliases {
+                let key = alias.trim().to_lowercase();
+                if key.is_empty() {
+                    continue;
+                }
+                if let Some(prev) = alias_owner.get(&key)
+                    && *prev != id
+                {
+                    return Err(ParishError::WorldGraph(format!(
+                        "alias {:?} is claimed by both location id {} and id {} — \
+                         fuzzy lookup would be ambiguous",
+                        alias, prev.0, id.0
+                    )));
+                }
+                if let Some(owner) = name_owner.get(&key)
+                    && *owner != id
+                {
+                    return Err(ParishError::WorldGraph(format!(
+                        "alias {:?} on location id {} collides with the canonical name \
+                         of location id {}",
+                        alias, id.0, owner.0
+                    )));
+                }
+                alias_owner.insert(key, id);
             }
         }
         Ok(())
@@ -428,5 +513,131 @@ mod tests {
         let err = WorldGraph::load_from_str(json).unwrap_err().to_string();
         assert!(err.contains("invalid longitude"), "{err}");
         assert!(err.contains("-180.1"), "{err}");
+    }
+
+    // ── TD-002: relative_to + alias cross-validation ─────────────────────────
+
+    /// Two-location graph helper with overridable alias / relative_to JSON on
+    /// the second node, for the TD-002 validation tests.
+    fn two_loc_json(loc2_extra: &str) -> String {
+        format!(
+            r#"{{
+                "locations": [
+                    {{
+                        "id": 1,
+                        "name": "Anchor",
+                        "description_template": "A",
+                        "indoor": false,
+                        "public": true,
+                        "lat": 53.6,
+                        "lon": -8.1,
+                        "connections": [{{"target": 2, "path_description": "path"}}]
+                    }},
+                    {{
+                        "id": 2,
+                        "name": "Second",
+                        "description_template": "B",
+                        "indoor": false,
+                        "public": true,
+                        "lat": 53.61,
+                        "lon": -8.11,
+                        "connections": [{{"target": 1, "path_description": "path"}}]
+                        {loc2_extra}
+                    }}
+                ]
+            }}"#
+        )
+    }
+
+    // AC-11: a relative_to anchored at a non-existent location is rejected.
+    #[test]
+    fn relative_to_dangling_anchor_is_rejected() {
+        let json =
+            two_loc_json(r#", "relative_to": {"anchor": 99, "dnorth_m": 10.0, "deast_m": 5.0}"#);
+        let err = WorldGraph::load_from_str(&json).unwrap_err().to_string();
+        assert!(err.contains("non-existent anchor"), "{err}");
+        assert!(err.contains("99"), "{err}");
+    }
+
+    // AC-11: a relative_to anchored at the location itself is rejected.
+    #[test]
+    fn relative_to_self_anchor_is_rejected() {
+        let json =
+            two_loc_json(r#", "relative_to": {"anchor": 2, "dnorth_m": 10.0, "deast_m": 5.0}"#);
+        let err = WorldGraph::load_from_str(&json).unwrap_err().to_string();
+        assert!(err.contains("anchored at itself"), "{err}");
+    }
+
+    // AC-11: a valid relative_to anchor loads fine.
+    #[test]
+    fn relative_to_valid_anchor_loads() {
+        let json =
+            two_loc_json(r#", "relative_to": {"anchor": 1, "dnorth_m": 10.0, "deast_m": 5.0}"#);
+        assert!(WorldGraph::load_from_str(&json).is_ok());
+    }
+
+    // AC-12: the same alias on two locations is rejected (ambiguous lookup).
+    #[test]
+    fn duplicate_alias_across_locations_is_rejected() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "Anchor",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}],
+                    "aliases": ["the spot"]
+                },
+                {
+                    "id": 2,
+                    "name": "Second",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}],
+                    "aliases": ["The Spot"]
+                }
+            ]
+        }"#;
+        let err = WorldGraph::load_from_str(json).unwrap_err().to_string();
+        assert!(err.contains("ambiguous"), "{err}");
+    }
+
+    // AC-12: an alias that shadows a *different* location's canonical name is
+    // rejected (case-insensitive).
+    #[test]
+    fn alias_colliding_with_other_canonical_name_is_rejected() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "Anchor",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}],
+                    "aliases": ["second"]
+                },
+                {
+                    "id": 2,
+                    "name": "Second",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let err = WorldGraph::load_from_str(json).unwrap_err().to_string();
+        assert!(err.contains("collides with the canonical name"), "{err}");
+    }
+
+    // AC-12: an alias equal to the owner's own canonical name is harmless.
+    #[test]
+    fn alias_equal_to_own_name_is_allowed() {
+        let json = two_loc_json(r#", "aliases": ["Second", "second place"]"#);
+        assert!(WorldGraph::load_from_str(&json).is_ok());
     }
 }

@@ -162,6 +162,79 @@ fn real_rundale_npcs_and_world_are_consistent() {
     );
 }
 
+/// TD-002: cross-file content validation for the supporting mod data files
+/// (festivals / encounters / transport). These do not reference world
+/// locations or NPCs by id in the current Rundale content, so the validation
+/// confirms they parse and their well-formedness invariants hold — failing
+/// loudly if a future edit introduces a malformed calendar date, an empty
+/// encounter table, or a transport mode set whose `default` does not name a
+/// defined mode.
+#[test]
+fn real_rundale_supporting_files_are_well_formed() {
+    use serde_json::Value;
+
+    // festivals.json — array of {name, month 1-12, day 1-31, description}.
+    let festivals: Vec<Value> = serde_json::from_str(
+        &std::fs::read_to_string(rundale_file("festivals.json")).expect("read festivals.json"),
+    )
+    .expect("festivals.json should be a JSON array");
+    assert!(!festivals.is_empty(), "festivals.json must not be empty");
+    for f in &festivals {
+        let month = f
+            .get("month")
+            .and_then(Value::as_u64)
+            .expect("festival month");
+        let day = f.get("day").and_then(Value::as_u64).expect("festival day");
+        assert!(
+            (1..=12).contains(&month),
+            "festival month out of range: {month}"
+        );
+        assert!((1..=31).contains(&day), "festival day out of range: {day}");
+        assert!(
+            f.get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|s| !s.trim().is_empty()),
+            "festival missing name: {f}"
+        );
+    }
+
+    // encounters.json — map of time-of-day -> non-empty flavour text.
+    let encounters: std::collections::BTreeMap<String, String> = serde_json::from_str(
+        &std::fs::read_to_string(rundale_file("encounters.json")).expect("read encounters.json"),
+    )
+    .expect("encounters.json should be a string map");
+    assert!(!encounters.is_empty(), "encounters.json must not be empty");
+    for (slot, text) in &encounters {
+        assert!(
+            !text.trim().is_empty(),
+            "encounter slot {slot:?} has empty flavour text"
+        );
+    }
+
+    // transport.toml — `default` must name a defined `[[modes]]` id.
+    let transport: toml::Value = toml::from_str(
+        &std::fs::read_to_string(rundale_file("transport.toml")).expect("read transport.toml"),
+    )
+    .expect("transport.toml should parse");
+    let default_mode = transport
+        .get("default")
+        .and_then(toml::Value::as_str)
+        .expect("transport default mode");
+    let mode_ids: Vec<&str> = transport
+        .get("modes")
+        .and_then(toml::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("id").and_then(toml::Value::as_str))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        mode_ids.contains(&default_mode),
+        "transport default {default_mode:?} is not among defined modes {mode_ids:?}"
+    );
+}
+
 #[test]
 fn bad_fixture_reports_missing_npc_location_references() {
     let world = WorldGraph::load_from_str(minimal_world_json(&[]).as_str())
