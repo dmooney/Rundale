@@ -91,6 +91,15 @@ rundale-bench/artifacts/local_logs/
 # docs/proofs/rundale-bench/judgments/ is durable.
 rundale-bench/.bench-queue/
 
+# Stray rustc/clippy compile experiments left at the repo root or in a crate
+# dir (e.g. `rustc --test -o libtest_foo`). Never committed — cargo output
+# lives under target/.
+*.rlib
+
+# Workflow scripts auto-persisted by Claude Code's Workflow tool when a
+# workflow-backed skill runs. Generated per session, not source.
+.claude/workflows/
+
 # Worktree metadata files (gitdir overlapping worktree root) — never track
 COMMIT_EDITMSG
 HEAD
