@@ -91,6 +91,15 @@ describe('MoodIcon', () => {
 			['friendly', '🤗'],
 			['cheerful', '😊'],
 			['joyful', '😄'],
+			// TD-056 / #1202: these previously fell through to the 🙂 fallback
+			// because the Svelte map lacked the sharp/curt and bitter buckets
+			// that parish-npc/src/mood.rs carries.
+			['bitter', '😒'],
+			['resentful', '😒'],
+			['sour', '😒'],
+			['sharp', '😤'],
+			['caustic', '😤'],
+			['curt', '😤'],
 		];
 		for (const [mood, expected] of cases) {
 			const { container } = render(MoodIcon, { props: { mood } });
@@ -107,6 +116,8 @@ describe('MoodIcon', () => {
 			'sad',
 			'melancholy',
 			'irritated',
+			'sharp',
+			'bitter',
 			'suspicious',
 			'joyful',
 			'cheerful',
@@ -144,6 +155,8 @@ describe('MoodIcon', () => {
 			'sad',
 			'melancholy',
 			'irritated',
+			'sharp',
+			'bitter',
 			'suspicious',
 			'joyful',
 			'cheerful',

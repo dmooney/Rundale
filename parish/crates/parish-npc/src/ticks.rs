@@ -19,8 +19,9 @@ mod truncate;
 
 // Relationship helpers (used by parish-core and callers building prompts)
 pub use prompt::{
-    build_enhanced_context_with_config, build_enhanced_system_prompt_with_config,
-    format_relationships_natural, relationship_label, relationship_label_with_config,
+    Tier1ContextParams, build_enhanced_context_with_config,
+    build_enhanced_system_prompt_with_config, format_relationships_natural, relationship_label,
+    relationship_label_with_config,
 };
 
 // Tier 1 — response application + witness memory

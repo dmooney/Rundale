@@ -218,7 +218,7 @@ async fn second_ws_upgrade_same_account_is_409() {
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
     use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
-    use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
+    use parish_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
@@ -244,12 +244,12 @@ async fn second_ws_upgrade_same_account_is_409() {
         std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
             saves_dir.clone(),
         ));
-    let state = Arc::new(build_app_state(
-        "test-session".to_string(),
+    let state = Arc::new(build_app_state(AppStateParts {
+        session_id: "test-session".to_string(),
         world,
         npc_manager,
-        None,
-        GameConfig {
+        client: None,
+        config: GameConfig {
             provider_name: String::new(),
             base_url: String::new(),
             api_key: None,
@@ -273,19 +273,19 @@ async fn second_ws_upgrade_same_account_is_409() {
             reveal_unexplored_locations: false,
             auto_setup_model: None,
         },
-        None,
-        TransportConfig::default(),
+        cloud_client: None,
+        transport: TransportConfig::default(),
         ui_config,
         theme_palette,
         saves_dir,
-        data_dir.clone(),
-        None,
-        data_dir.join("parish-flags.json"),
-        parish_core::config::InferenceConfig::default(),
+        data_dir: data_dir.clone(),
+        game_mod: None,
+        flags_path: data_dir.join("parish-flags.json"),
+        inference_config: parish_core::config::InferenceConfig::default(),
         session_store,
-        parish_core::inference::file_log::InferenceFileLog::disabled(),
-        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
-    ));
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+    }));
 
     // Simulate first connection inserting the account_id (#618).
     let account_id: uuid::Uuid = uuid::Uuid::new_v4();
@@ -339,7 +339,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     use parish_core::world::events::GameEvent;
     use parish_core::world::transport::TransportConfig;
     use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
-    use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
+    use parish_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
@@ -365,12 +365,12 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
             saves_dir.clone(),
         ));
-    let state = Arc::new(build_app_state(
-        "test-session".to_string(),
+    let state = Arc::new(build_app_state(AppStateParts {
+        session_id: "test-session".to_string(),
         world,
         npc_manager,
-        None,
-        GameConfig {
+        client: None,
+        config: GameConfig {
             provider_name: "test".to_string(),
             base_url: String::new(),
             api_key: None,
@@ -394,19 +394,19 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
             reveal_unexplored_locations: false,
             auto_setup_model: None,
         },
-        None,
-        TransportConfig::default(),
+        cloud_client: None,
+        transport: TransportConfig::default(),
         ui_config,
         theme_palette,
         saves_dir,
-        data_dir.clone(),
-        None,
-        data_dir.join("parish-flags.json"),
-        parish_core::config::InferenceConfig::default(),
-        session_store2,
-        parish_core::inference::file_log::InferenceFileLog::disabled(),
-        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
-    ));
+        data_dir: data_dir.clone(),
+        game_mod: None,
+        flags_path: data_dir.join("parish-flags.json"),
+        inference_config: parish_core::config::InferenceConfig::default(),
+        session_store: session_store2,
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+    }));
 
     // Pre-populate debug_events so the snapshot has something to copy.
     {
