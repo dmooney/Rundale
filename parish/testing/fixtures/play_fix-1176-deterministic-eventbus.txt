@@ -1,0 +1,6 @@
+look
+go to the crossroads
+look
+go to the church
+/status
+/map
