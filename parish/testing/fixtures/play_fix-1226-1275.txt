@@ -1,0 +1,11 @@
+# Verification fixture for fix-1226-1275 (chat-feed rendering)
+# Drives a go-to movement (so the player echo bubble contains the
+# destination/location name — #1226) and a player line that several
+# co-located NPCs can react to (#1275). The rendering fix is in the UI,
+# so the visual proof is captured by the Playwright screenshot spec
+# e2e/chat-feed-rendering.spec.ts; this script exercises the underlying
+# game path that produces the player echo bubble + NPC reactions.
+look
+go to The Crossroads
+hey everybody
+look

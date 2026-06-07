@@ -1258,7 +1258,6 @@ impl GameTestHarness {
             && !responses.is_empty()
         {
             let dialogue = responses.remove(0);
-            self.app.world.log(format!("{}: {}", name, dialogue));
 
             let response = crate::npc::NpcStreamResponse {
                 dialogue: dialogue.clone(),
@@ -1284,7 +1283,7 @@ impl GameTestHarness {
             let game_time = self.app.world.clock.now();
             let location = self.app.world.player_location;
             let player_line = strip_dialogue_verb(text);
-            let debug_events = parish_core::game_session::apply_npc_dialogue_turn(
+            let outcome = parish_core::game_session::apply_npc_dialogue_turn(
                 &mut self.app.world,
                 &mut self.app.npc_manager,
                 speaker_id,
@@ -1297,13 +1296,18 @@ impl GameTestHarness {
                 &name,
                 None,
             );
-            for event in debug_events {
+            for event in outcome.debug_events {
                 self.app.debug_event(event);
             }
 
+            // Log + surface the guarded (#1228) + capped (#1224) text, identical
+            // to what was stored in the conversation log and event bus.
+            self.app
+                .world
+                .log(format!("{}: {}", name, outcome.display_text));
             return ActionResult::NpcResponse {
                 npc: name,
-                dialogue,
+                dialogue: outcome.display_text,
                 anachronisms: anachronism_terms,
             };
         }
@@ -1425,7 +1429,6 @@ impl GameTestHarness {
         }
 
         let dialogue = responses.remove(0);
-        self.app.world.log(format!("{}: {}", name, dialogue));
 
         // Build a synthetic NPC response and run it through the memory pipeline
         let response = crate::npc::NpcStreamResponse {
@@ -1446,7 +1449,7 @@ impl GameTestHarness {
         let game_time = self.app.world.clock.now();
         let location = self.app.world.player_location;
         let player_line = strip_dialogue_verb(text);
-        let debug_events = parish_core::game_session::apply_npc_dialogue_turn(
+        let outcome = parish_core::game_session::apply_npc_dialogue_turn(
             &mut self.app.world,
             &mut self.app.npc_manager,
             npc_id,
@@ -1459,13 +1462,18 @@ impl GameTestHarness {
             &name,
             None,
         );
-        for event in debug_events {
+        for event in outcome.debug_events {
             self.app.debug_event(event);
         }
 
+        // Log + surface the guarded (#1228) + capped (#1224) text, identical to
+        // what was stored in the conversation log and event bus.
+        self.app
+            .world
+            .log(format!("{}: {}", name, outcome.display_text));
         Some(ActionResult::NpcResponse {
             npc: name,
-            dialogue,
+            dialogue: outcome.display_text,
             anachronisms: anachronism_terms.to_vec(),
         })
     }

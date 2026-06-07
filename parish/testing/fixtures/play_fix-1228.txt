@@ -1,0 +1,28 @@
+# play_fix-1228.txt
+# Fixture proving fix-1228: anti-repetition guard for NPC dialogue.
+#
+# Bug: a small/quantized model (local MLX Qwen2.5-14B-4bit) emitted a
+# degenerate reply that repeated the same clause dozens of times, and on
+# the next turn echoed its own previous line near-verbatim.
+#
+# The fix adds a deterministic, model-agnostic guard in the single shared
+# dialogue path (parish-core::game_session::apply_npc_dialogue_turn):
+#   1. collapse consecutive duplicate clauses within a reply, and
+#   2. substitute a varied fallback when a fresh line is near-identical to
+#      the same NPC's previous line at this location.
+#
+# The bare CLI script harness has no LLM and no canned responses, so NPC
+# dialogue turns are exercised in the deterministic integration tests
+# (tests/game_harness_integration.rs: test_npc_intra_line_repetition_collapsed_at_pub
+# and test_npc_cross_turn_repetition_varied_at_pub), which drive the same
+# real engine path (parish_core::game_session::apply_npc_dialogue_turn) with
+# canned degenerate input and assert the guard collapses/varies the line.
+#
+# This fixture proves the guard is wired into a real process and the engine
+# runs end-to-end without panic — boot, navigate toward the pub, and issue
+# consecutive dialogue commands (the cross-turn path).
+look
+go to crossroads
+go to pub
+say what be the talk of the town
+say tell me again, what be the talk of the town

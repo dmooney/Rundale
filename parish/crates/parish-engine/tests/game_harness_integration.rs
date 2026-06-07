@@ -268,6 +268,78 @@ fn test_npc_canned_responses_consumed_in_order() {
     );
 }
 
+/// #1228 (live, harness end-to-end): a degenerate NPC reply that repeats the
+/// same clause many times must be collapsed to a single clause before it
+/// reaches the player. Drives the real `GameTestHarness` dialogue path
+/// (`parish_core::game_session::apply_npc_dialogue_turn`), so this is an
+/// integration-level proof, not a unit test of the helper.
+#[test]
+fn test_npc_intra_line_repetition_collapsed_at_pub() {
+    let mut h = GameTestHarness::new();
+    let clause = "Speak yer mind, and we'll see what be in it, m'friend.";
+    // 20 verbatim repeats — the exact #1228 degenerate-loop shape.
+    h.add_canned_response("Padraig Darcy", &clause.repeat(20));
+
+    h.advance_time(120);
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+
+    let r = h.execute("what be the talk of the town");
+    if let ActionResult::NpcResponse { dialogue, .. } = r {
+        let occurrences = dialogue.matches("Speak yer mind").count();
+        assert_eq!(
+            occurrences, 1,
+            "#1228: runaway clause must collapse to one instance, got {occurrences}:\n{dialogue}"
+        );
+    } else {
+        panic!("Expected NpcResponse, got {r:?}");
+    }
+}
+
+/// #1228 (live, harness end-to-end): when an NPC's fresh line is near-identical
+/// to its own previous line at this location, the guard substitutes a varied
+/// fallback so the player does not see the same line twice in a row.
+#[test]
+fn test_npc_cross_turn_repetition_varied_at_pub() {
+    let mut h = GameTestHarness::new();
+    let line = "Sure, the talk 'round here be always of the weather and the rents, m'friend.";
+    h.add_canned_response("Padraig Darcy", line);
+    // Second turn echoes the first near-verbatim (only trailing punctuation).
+    h.add_canned_response(
+        "Padraig Darcy",
+        "Sure, the talk 'round here be always of the weather and the rents, m'friend!",
+    );
+
+    h.advance_time(120);
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+
+    let first = h.execute("what be the talk of the town");
+    let ActionResult::NpcResponse {
+        dialogue: first_line,
+        ..
+    } = first
+    else {
+        panic!("Expected NpcResponse on first turn, got {first:?}");
+    };
+
+    let second = h.execute("tell me again, what be the talk");
+    let ActionResult::NpcResponse {
+        dialogue: second_line,
+        ..
+    } = second
+    else {
+        panic!("Expected NpcResponse on second turn, got {second:?}");
+    };
+
+    assert!(!second_line.trim().is_empty(), "#1228: fallback non-empty");
+    assert_ne!(
+        first_line.to_lowercase().trim_end_matches(['.', '!', '?']),
+        second_line.to_lowercase().trim_end_matches(['.', '!', '?']),
+        "#1228: second line must be varied, not a verbatim repeat:\n1: {first_line}\n2: {second_line}"
+    );
+}
+
 /// Regression: when the player's input contains anachronistic terms, the
 /// harness's `NpcResponse` result must surface those terms in its
 /// `anachronisms` field so UI layers can highlight them.

@@ -311,6 +311,25 @@ pub fn cap_dialogue_for_display(dialogue: &str, max_chars: usize) -> std::borrow
     std::borrow::Cow::Owned(format!("{}…", &dialogue[..safe]))
 }
 
+/// Outcome of [`apply_npc_dialogue_turn`].
+///
+/// Carries the debug-event strings produced by the shared per-turn pipeline
+/// (steps 2 and 4) plus `display_text` — the single, authoritative
+/// player-visible dialogue after the anti-repetition guard (#1228) and the
+/// display-length cap (#1224). Every backend renders `display_text`; none
+/// re-derives a player line from the raw `parsed.dialogue`, which would bypass
+/// both guards.
+#[derive(Debug, Clone)]
+pub struct DialogueTurnOutcome {
+    /// Debug-event strings from Tier-1 apply (step 2) and witness memories
+    /// (step 4). The live loop discards these; headless + harness forward them.
+    pub debug_events: Vec<String>,
+    /// The guarded, capped dialogue to show the player. Matches exactly what was
+    /// written to the conversation log and the `DialogueOccurred` event. May be
+    /// empty when the model returned no usable dialogue.
+    pub display_text: String,
+}
+
 /// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
 /// every backend performs identically after a Tier-1 reply (#1172 / #1173).
 ///
@@ -344,6 +363,15 @@ pub fn cap_dialogue_for_display(dialogue: &str, max_chars: usize) -> std::borrow
 /// witness records and the conversation log. `player_said_for_journal` is the
 /// (possibly verb-stripped) line stored as `DialogueOccurred::player_said`; pass
 /// the same value as `player_input` unless the caller cleans a leading verb.
+///
+/// Returns a [`DialogueTurnOutcome`] carrying the debug-event strings produced by
+/// steps 2 and 4 **and** the player-visible `display_text` — the dialogue after
+/// the anti-repetition guard (#1228) and length cap (#1224). Callers must show
+/// `display_text` to the player (conversation line, `ActionResult`, headless
+/// stdout) so what the player sees matches what was stored in the conversation
+/// log and the `DialogueOccurred` event. Building a player line from
+/// `parsed.dialogue` directly would bypass both guards and re-introduce the
+/// divergence #1224/#1228 closed.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_npc_dialogue_turn(
     world: &mut WorldState,
@@ -357,7 +385,7 @@ pub fn apply_npc_dialogue_turn(
     speaker_display_name: &str,
     speaker_actual_name: &str,
     request_id: Option<u64>,
-) -> Vec<String> {
+) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
 
     // 1. Learn the player's name from a self-introduction *before* recording
@@ -381,12 +409,39 @@ pub fn apply_npc_dialogue_turn(
         ));
     }
 
+    // Anti-repetition guard (#1228). Applied *before* the length cap so the
+    // length budget is spent on de-duplicated content, not a wall of repeated
+    // clauses. Collapses consecutive duplicate clauses within the new line and,
+    // when the result is near-identical to this NPC's own previous line at this
+    // location, substitutes a varied fallback. Deterministic and provider-
+    // agnostic; runs identically for the local MLX model and any cloud provider.
+    let npc_cfg = crate::config::NpcConfig::default();
+    let previous_line: Option<String> = world
+        .conversation_log
+        .recent_at(
+            location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .rev()
+        .find(|e| e.speaker_id == speaker_id)
+        .map(|e| e.npc_dialogue.clone());
+    // Stable per-turn seed so the fallback is deterministic for tests/replay but
+    // varies across NPCs and turns.
+    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
+    let deduped_dialogue = crate::npc::guard_against_repetition(
+        &parsed.dialogue,
+        previous_line.as_deref(),
+        npc_cfg.dialogue_repetition_threshold,
+        repetition_seed,
+    );
+
     // Cap the displayed dialogue to the configured limit (#1224). Applied here,
     // before the conversation log and event bus, so all player-visible paths see
     // the same capped text. The in-memory representation (witness memories,
     // tier-1 memory entry) is capped separately via `memory_truncation_dialogue`.
-    let display_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
-    let capped_dialogue = cap_dialogue_for_display(&parsed.dialogue, display_cap);
+    let display_cap = npc_cfg.dialogue_display_max_chars;
+    let capped_dialogue = cap_dialogue_for_display(&deduped_dialogue, display_cap);
 
     // 3. Record the conversation exchange for scene awareness.
     world
@@ -429,7 +484,10 @@ pub fn apply_npc_dialogue_turn(
             });
     }
 
-    debug_events
+    DialogueTurnOutcome {
+        debug_events,
+        display_text: capped_dialogue.into_owned(),
+    }
 }
 
 /// Rolled but not yet logged/committed travel encounter, returned from
