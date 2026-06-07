@@ -321,6 +321,8 @@ pub async fn run_npc_turn(
         }
     }
 
+    // Player-visible dialogue, set from the shared pipeline's `display_text`.
+    let captured_display_text;
     {
         let mut world = ctx.world.lock().await;
         let game_time = world.clock.now();
@@ -336,8 +338,11 @@ pub async fn run_npc_turn(
 
         // Shared per-turn pipeline: name detection, Tier-1 apply, conversation
         // log, witness memories, and the `DialogueOccurred` publish (#1172 /
-        // #1173). The live loop discards the returned debug-event strings.
-        let _ = crate::game_session::apply_npc_dialogue_turn(
+        // #1173). The live loop discards the returned debug-event strings but
+        // keeps `display_text` — the guarded (#1228) and length-capped (#1224)
+        // dialogue that must be shown to the player, identical to what was
+        // stored in the event bus and conversation log.
+        let outcome = crate::game_session::apply_npc_dialogue_turn(
             &mut world,
             &mut npc_manager,
             speaker_id,
@@ -350,6 +355,7 @@ pub async fn run_npc_turn(
             &setup.npc_name,
             Some(req_id),
         );
+        captured_display_text = outcome.display_text;
     }
 
     // Note: the on-disk chat transcript is fed from the `GameEvent` bus
@@ -357,18 +363,15 @@ pub async fn run_npc_turn(
     // direct hook here — the `DialogueOccurred` event published above carries
     // `request_id` for the inference-log correlation.
     //
-    // Apply the display-length cap (#1224) so the ConversationLine shown to
-    // the player is consistent with what was stored in the event bus and
-    // conversation log by `apply_npc_dialogue_turn`.
-    let display_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
-    let display_text =
-        crate::game_session::cap_dialogue_for_display(&parsed.dialogue, display_cap).into_owned();
-    let line = if display_text.trim().is_empty() {
+    // The ConversationLine shown to the player is the `display_text` returned by
+    // `apply_npc_dialogue_turn`, so the anti-repetition guard (#1228) and the
+    // display-length cap (#1224) are applied exactly once, in the shared path.
+    let line = if captured_display_text.trim().is_empty() {
         None
     } else {
         Some(ConversationLine {
             speaker: display_label,
-            text: display_text,
+            text: captured_display_text,
         })
     };
 
