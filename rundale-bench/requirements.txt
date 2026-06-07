@@ -4,4 +4,4 @@
 #   .venv/bin/pip install -r requirements.txt
 # For development tooling (ruff, mypy, pytest, etc.) also install
 # the repo-root requirements-dev.txt.
-pydantic>=2.0
+pydantic>=2.13.4
