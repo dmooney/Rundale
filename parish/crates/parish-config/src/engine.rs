@@ -430,6 +430,19 @@ pub struct NpcConfig {
     /// Set to 0 to disable (not recommended in production).
     #[serde(default = "default_dialogue_display_max_chars")]
     pub dialogue_display_max_chars: usize,
+    /// Word-level Jaccard similarity (0.0–1.0) at or above which a fresh NPC
+    /// line is treated as a near-identical repeat of that NPC's own previous
+    /// line and replaced with a varied fallback (#1228).
+    ///
+    /// Applied as a post-generation guard after inference completes, in the
+    /// shared dialogue path. Small / quantized models occasionally echo their
+    /// previous line or loop a single clause; this deterministic backstop keeps
+    /// the degenerate output from reaching the player regardless of provider.
+    /// Intra-line clause collapse always runs; this threshold only governs the
+    /// cross-turn check. Set to 0.0 to disable the cross-turn check (not
+    /// recommended in production); 1.0 requires an identical word set.
+    #[serde(default = "default_dialogue_repetition_threshold")]
+    pub dialogue_repetition_threshold: f32,
 }
 
 impl Default for NpcConfig {
@@ -447,6 +460,7 @@ impl Default for NpcConfig {
             reaction_context_count: default_reaction_context_count(),
             reactions: ReactionConfig::default(),
             dialogue_display_max_chars: default_dialogue_display_max_chars(),
+            dialogue_repetition_threshold: default_dialogue_repetition_threshold(),
         }
     }
 }
@@ -493,6 +507,15 @@ fn default_dialogue_display_max_chars() -> usize {
     // it reaches the player UI (#1224). Replies under ~600 chars
     // pass through unchanged in normal operation.
     800
+}
+fn default_dialogue_repetition_threshold() -> f32 {
+    // 0.92 word-level Jaccard: two lines must share ~92% of their word set to
+    // count as a near-identical repeat. Exact normalized equality always
+    // triggers regardless of this value. 0.92 catches the #1228 case (an NPC
+    // echoing its prior line near-verbatim) while leaving normal turn-to-turn
+    // variation — which reuses common function words but introduces new content
+    // words — comfortably below the bar. Enabled by default.
+    0.92
 }
 
 /// Cognitive tier assignment based on distance from player.
@@ -1589,6 +1612,43 @@ memory_capacity = 25
         assert_eq!(
             cfg.npc.dialogue_display_max_chars,
             NpcConfig::default().dialogue_display_max_chars,
+            "missing field must deserialise to the default"
+        );
+    }
+
+    // ── #1228 — dialogue repetition threshold (AC-5) ─────────────────────────
+
+    /// AC-5 (fix-1228): `NpcConfig` exposes `dialogue_repetition_threshold` with
+    /// a sensible default that enables the cross-turn guard by default.
+    #[test]
+    fn npc_config_has_dialogue_repetition_threshold_enabled_by_default() {
+        let cfg = NpcConfig::default();
+        assert!(
+            cfg.dialogue_repetition_threshold > 0.0,
+            "cross-turn guard must be enabled by default (threshold > 0)"
+        );
+        assert!(
+            cfg.dialogue_repetition_threshold <= 1.0,
+            "threshold is a Jaccard similarity in [0, 1]"
+        );
+        assert!(
+            cfg.dialogue_repetition_threshold >= 0.8,
+            "threshold must be strict enough to avoid flagging normal variation"
+        );
+    }
+
+    /// Old config without `dialogue_repetition_threshold` must deserialise
+    /// cleanly, falling back to the default (serde `default`).
+    #[test]
+    fn npc_config_dialogue_repetition_threshold_defaults_when_absent() {
+        let toml_str = r#"
+[npc]
+memory_capacity = 25
+"#;
+        let cfg: EngineConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(
+            cfg.npc.dialogue_repetition_threshold,
+            NpcConfig::default().dialogue_repetition_threshold,
             "missing field must deserialise to the default"
         );
     }

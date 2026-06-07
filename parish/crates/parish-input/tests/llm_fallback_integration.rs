@@ -58,6 +58,10 @@ async fn llm_fallback_success_returns_parsed_intent() {
 
 #[tokio::test]
 async fn llm_fallback_posts_intent_request_contract() {
+    // Verifies the HTTP contract: system prompt present, correct model, input
+    // forwarded. Uses a genuine look command so the guard does not downgrade
+    // the response (#1276). "look at the old mill" is an imperative observation
+    // that matches the is_genuine_look_input whitelist prefix "look at ".
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
@@ -67,7 +71,7 @@ async fn llm_fallback_posts_intent_request_contract() {
         })))
         .and(body_string_contains(r#""role":"system""#))
         .and(body_string_contains(r#""role":"user""#))
-        .and(body_string_contains("ponder the old mill"))
+        .and(body_string_contains("look at the old mill"))
         .and(body_string_contains("text adventure input parser"))
         .and(body_string_contains("Respond ONLY with valid JSON"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -77,13 +81,40 @@ async fn llm_fallback_posts_intent_request_contract() {
         .await;
 
     let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
-    let intent = parse_intent(&client, "ponder the old mill", "intent-model")
+    let intent = parse_intent(&client, "look at the old mill", "intent-model")
         .await
         .unwrap();
 
     assert_eq!(intent.intent, IntentKind::Look);
     assert_eq!(intent.target.as_deref(), Some("the old mill"));
     assert!(intent.dialogue.is_none());
+}
+
+/// Regression (#1276): a conversational input the LLM misclassifies as Look
+/// must be downgraded to Unknown by the is_genuine_look_input guard.
+#[tokio::test]
+async fn llm_look_misclassification_downgraded_to_unknown() {
+    let server = MockServer::start().await;
+    // Stub: LLM returns "look" for a clearly conversational input.
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"role": "assistant", "content": r#"{"intent":"look","target":null,"dialogue":null}"#}}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+    // "ponder the old mill" / "hey everybody" / "no reason" — not look commands.
+    for input in ["ponder the old mill", "hey everybody", "no reason"] {
+        // Re-mount per iteration — wiremock resets between mount calls.
+        let intent = parse_intent(&client, input, "intent-model").await.unwrap();
+        assert_eq!(
+            intent.intent,
+            IntentKind::Unknown,
+            "'{input}': LLM-Look misclassification must be downgraded to Unknown (#1276)"
+        );
+    }
 }
 
 #[tokio::test]
