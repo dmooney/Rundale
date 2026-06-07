@@ -75,14 +75,111 @@ pub fn write_screenshot_to_disk(
     })
 }
 
+/// Outcome of inspecting decoded PNG pixels for real content (#1301).
+///
+/// A capture is `Blank` when every sampled pixel is (near) the same colour —
+/// the signature of a degenerate frame: the native `xcap` path grabbing a
+/// window that left the compositor, or the `html-to-image` fallback rasterising
+/// an unmounted / invisible app shell. Such frames encode to a perfectly valid,
+/// full-resolution PNG, so length and decode checks pass; only pixel content
+/// distinguishes them from a real screenshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PngContent {
+    /// The image carries varied pixels — a real capture.
+    HasContent,
+    /// The image is a single solid colour (within tolerance) — degenerate.
+    Blank,
+}
+
+/// Per-channel tolerance for "this pixel matches the reference colour".
+///
+/// JPEG-free PNG captures of a solid fill are usually bit-identical, but a
+/// faint anti-aliased gradient or a near-white shell can wobble by a couple of
+/// levels; a small tolerance keeps the classifier from calling a genuinely
+/// blank frame "content" because of 1-LSB noise, without flagging a real render
+/// (which varies by far more than this across its pixels).
+const BLANK_CHANNEL_TOLERANCE: u8 = 6;
+
+/// Decodes `png_bytes` and classifies the frame as [`PngContent::Blank`] or
+/// [`PngContent::HasContent`] by checking whether every pixel is (within
+/// [`BLANK_CHANNEL_TOLERANCE`]) the same colour as the first pixel.
+///
+/// Pure on the input bytes for unit testing. Returns `Err` when the bytes are
+/// not a decodable PNG — a capture we cannot even read is never reported as a
+/// success, and must not be silently treated as "blank" either (#1301 AC #5).
+///
+/// Works on every platform (the `png` crate is a direct, un-gated dependency),
+/// so the same guard protects the native `xcap` path and the `html-to-image`
+/// fallback identically — mode parity (rule #2).
+pub fn classify_png_content(png_bytes: &[u8]) -> Result<PngContent, String> {
+    let decoder = png::Decoder::new(std::io::Cursor::new(png_bytes));
+    let mut reader = decoder
+        .read_info()
+        .map_err(|e| format!("decode screenshot PNG header: {e}"))?;
+    let mut buf = vec![0u8; reader.output_buffer_size().unwrap_or(0)];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|e| format!("decode screenshot PNG frame: {e}"))?;
+
+    let channels = info.color_type.samples();
+    let bytes_per_sample = match info.bit_depth {
+        png::BitDepth::Eight => 1,
+        png::BitDepth::Sixteen => 2,
+        // 1/2/4-bit indexed/grayscale frames are tiny and not produced by either
+        // capture path; treat them as content rather than risk a false "blank".
+        _ => return Ok(PngContent::HasContent),
+    };
+    let pixel_stride = channels * bytes_per_sample;
+    if pixel_stride == 0 {
+        return Ok(PngContent::HasContent);
+    }
+    let frame = &buf[..info.buffer_size().min(buf.len())];
+    let mut pixels = frame.chunks_exact(pixel_stride);
+    let Some(first) = pixels.next() else {
+        // Zero-pixel frame: nothing rendered → blank.
+        return Ok(PngContent::Blank);
+    };
+    // Compare only the most-significant byte of each sample so the tolerance is
+    // meaningful for both 8- and 16-bit depths.
+    let msb = |px: &[u8], ch: usize| px[ch * bytes_per_sample];
+    for px in pixels {
+        for ch in 0..channels {
+            let d = msb(px, ch).abs_diff(msb(first, ch));
+            if d > BLANK_CHANNEL_TOLERANCE {
+                return Ok(PngContent::HasContent);
+            }
+        }
+    }
+    Ok(PngContent::Blank)
+}
+
+/// Rejects a degenerate capture before it is reported as a success (#1301).
+///
+/// Returns `Err` with a caller-facing message when the PNG is blank (single
+/// solid colour) or cannot be decoded, and `Ok(())` when it carries content.
+/// This is the single shared guard both capture paths run, so a blank frame can
+/// never reach `parish_file_bug` as a successful `ScreenshotInfo`.
+pub fn reject_blank_capture(png_bytes: &[u8]) -> Result<(), String> {
+    match classify_png_content(png_bytes)? {
+        PngContent::HasContent => Ok(()),
+        PngContent::Blank => Err(
+            "captured screenshot is blank (single solid colour) — the app window \
+             was not capturable (e.g. not composited / off-screen); refusing to \
+             report an empty image as a successful capture"
+                .into(),
+        ),
+    }
+}
+
 /// Internal save-screenshot implementation shared with the MCP bridge / web
-/// route. Decodes the `data_url`, writes the PNG, and updates
-/// [`AppState::latest_screenshot_path`].
+/// route. Decodes the `data_url`, rejects a blank/degenerate frame (#1301),
+/// writes the PNG, and updates [`AppState::latest_screenshot_path`].
 pub(crate) async fn do_save_screenshot(
     state: &Arc<AppState>,
     data_url: String,
 ) -> Result<ScreenshotInfo, String> {
     let bytes = decode_data_url_png(&data_url)?;
+    reject_blank_capture(&bytes)?;
     let info = write_screenshot_to_disk(&state.saves_dir, &bytes, chrono::Utc::now())?;
     *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
     Ok(info)
@@ -265,6 +362,12 @@ async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotIn
     let png = tokio::task::spawn_blocking(capture_app_window_png)
         .await
         .map_err(|e| format!("capture task join: {e}"))??;
+    // Guard against a degenerate capture (window left the compositor → solid
+    // frame) before reporting success (#1301). On a blank native frame we
+    // return Err so do_take_screenshot falls back to the html-to-image path,
+    // which is itself guarded; if both are blank the caller sees an error
+    // rather than a bundled empty image.
+    reject_blank_capture(&png)?;
     let now = chrono::Utc::now();
     let info = write_screenshot_to_disk(&state.saves_dir, &png, now)?;
     *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
@@ -401,6 +504,51 @@ mod tests {
         format!("data:image/png;base64,{ONE_PIXEL_PNG_B64}")
     }
 
+    /// Encodes an 8×8 RGBA PNG from a per-pixel colour closure, for exercising
+    /// the blank-capture guard with synthetic frames (#1301). Returns the raw
+    /// PNG byte payload.
+    fn make_rgba_png(mut color: impl FnMut(u32, u32) -> [u8; 4]) -> Vec<u8> {
+        const W: u32 = 8;
+        const H: u32 = 8;
+        let mut raw = Vec::with_capacity((W * H * 4) as usize);
+        for y in 0..H {
+            for x in 0..W {
+                raw.extend_from_slice(&color(x, y));
+            }
+        }
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(std::io::Cursor::new(&mut out), W, H);
+            enc.set_color(png::ColorType::Rgba);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut writer = enc.write_header().unwrap();
+            writer.write_image_data(&raw).unwrap();
+        }
+        out
+    }
+
+    /// A solid-fill PNG of the given RGBA colour — the degenerate "blank" shape.
+    fn solid_png(rgba: [u8; 4]) -> Vec<u8> {
+        make_rgba_png(|_, _| rgba)
+    }
+
+    /// A multi-colour PNG (a content-bearing capture) — alternating pixels.
+    fn content_png() -> Vec<u8> {
+        make_rgba_png(|x, y| {
+            if (x + y) % 2 == 0 {
+                [0x10, 0x40, 0x90, 0xff]
+            } else {
+                [0xf0, 0xe0, 0x30, 0xff]
+            }
+        })
+    }
+
+    fn content_data_url() -> String {
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(content_png());
+        format!("data:image/png;base64,{b64}")
+    }
+
     #[test]
     fn decode_data_url_png_accepts_well_formed_url() {
         let bytes = decode_data_url_png(&one_pixel_data_url()).unwrap();
@@ -454,7 +602,9 @@ mod tests {
             .expect("test_app_state must hand back a unique Arc");
         s.saves_dir = tmp.path().to_path_buf();
 
-        let info = do_save_screenshot(&state, one_pixel_data_url())
+        // Use a content-bearing PNG: do_save_screenshot now rejects a blank /
+        // single-colour frame (#1301), and the 1×1 fixture is a single pixel.
+        let info = do_save_screenshot(&state, content_data_url())
             .await
             .expect("screenshot should save");
 
@@ -492,6 +642,89 @@ mod tests {
             Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
         let info = do_get_latest_screenshot(&state).await.unwrap();
         assert!(info.is_none(), "missing file on disk → None");
+    }
+
+    // ── #1301 blank-capture detection guard ──────────────────────────────────
+
+    #[test]
+    fn classify_png_content_flags_all_white_as_blank() {
+        // The exact #1301 failure: a full-resolution, syntactically valid PNG
+        // that is solid white. Decodes fine, but carries no content.
+        let png = solid_png([0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(classify_png_content(&png).unwrap(), PngContent::Blank);
+    }
+
+    #[test]
+    fn classify_png_content_flags_solid_nonwhite_as_blank() {
+        // Any single solid colour is degenerate, not just white (a black or
+        // mid-grey capture of a non-composited window is equally empty).
+        assert_eq!(
+            classify_png_content(&solid_png([0x00, 0x00, 0x00, 0xff])).unwrap(),
+            PngContent::Blank,
+        );
+        assert_eq!(
+            classify_png_content(&solid_png([0x80, 0x80, 0x80, 0xff])).unwrap(),
+            PngContent::Blank,
+        );
+    }
+
+    #[test]
+    fn classify_png_content_accepts_multicolour_render() {
+        // A real capture with varied pixels passes the guard.
+        assert_eq!(
+            classify_png_content(&content_png()).unwrap(),
+            PngContent::HasContent,
+        );
+    }
+
+    #[test]
+    fn classify_png_content_tolerates_near_uniform_noise() {
+        // 1-LSB wobble across an otherwise solid frame must still read blank,
+        // so faint anti-aliasing noise doesn't smuggle an empty frame through.
+        let png = make_rgba_png(|x, _| {
+            let n = (x % 2) as u8; // 0/1 difference < BLANK_CHANNEL_TOLERANCE
+            [0xff - n, 0xff, 0xff, 0xff]
+        });
+        assert_eq!(classify_png_content(&png).unwrap(), PngContent::Blank);
+    }
+
+    #[test]
+    fn classify_png_content_errors_on_undecodable_bytes() {
+        // Corrupt bytes are an error, never silently "blank" (AC #5): we must
+        // not report success on an image we could not even read.
+        let err = classify_png_content(b"not a png at all").unwrap_err();
+        assert!(err.contains("decode screenshot PNG"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_blank_capture_errs_on_blank_and_oks_on_content() {
+        let err = reject_blank_capture(&solid_png([0xff, 0xff, 0xff, 0xff])).unwrap_err();
+        assert!(err.contains("blank"), "error should name the cause: {err}");
+        reject_blank_capture(&content_png()).expect("content capture must pass the guard");
+    }
+
+    #[tokio::test]
+    async fn do_save_screenshot_rejects_blank_frame() {
+        // End-to-end at the shared chokepoint: a blank data URL must NOT be
+        // reported as a successful ScreenshotInfo, and must NOT update
+        // latest_screenshot_path (so parish_file_bug can't bundle it).
+        use base64::Engine as _;
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = test_app_state();
+        let s = std::sync::Arc::get_mut(&mut state).unwrap();
+        s.saves_dir = tmp.path().to_path_buf();
+
+        let blank_b64 =
+            base64::engine::general_purpose::STANDARD.encode(solid_png([0xff, 0xff, 0xff, 0xff]));
+        let blank_url = format!("data:image/png;base64,{blank_b64}");
+
+        let err = do_save_screenshot(&state, blank_url)
+            .await
+            .expect_err("blank capture must be rejected");
+        assert!(err.contains("blank"), "got: {err}");
+
+        // No file path was cached — the blank image is not discoverable.
+        assert!(state.latest_screenshot_path.lock().await.is_none());
     }
 
     // ── #1160 screenshot deadline + late-capture fallback ────────────────────
