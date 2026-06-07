@@ -1,0 +1,41 @@
+name: "PR title lint"
+
+# Validates the PR title against the repo's conventional-commit prefix list.
+# Reads only the title from the event payload - never checks out or runs PR
+# head code - so pull_request_target is safe with minimal read perms. Advisory
+# until main has branch protection requiring this check.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: "pr-title-lint-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            docs
+            test
+            chore
+            security
+            perf
+            ci
+            build
+            revert
+            bug
+          requireScope: false
