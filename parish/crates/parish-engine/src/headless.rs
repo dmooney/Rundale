@@ -771,7 +771,7 @@ fn apply_npc_response(
     // conversation-log record, witness memories, and the `DialogueOccurred`
     // publish (headless previously skipped this last step). Forward the returned
     // debug-event strings to the headless debug sink.
-    let debug_events = parish_core::game_session::apply_npc_dialogue_turn(
+    let outcome = parish_core::game_session::apply_npc_dialogue_turn(
         &mut app.world,
         &mut app.npc_manager,
         npc_id,
@@ -784,7 +784,7 @@ fn apply_npc_response(
         npc_actual_name,
         None,
     );
-    for event in debug_events {
+    for event in outcome.debug_events {
         app.debug_event(event);
     }
 }
