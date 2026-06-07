@@ -22,6 +22,20 @@ describe('MoodIcon', () => {
 		expect(span?.textContent).toBe('😊');
 	});
 
+	it('falls back to the local map when emoji prop is an empty string', () => {
+		// Regression (TD-059): `NpcInfo.mood_emoji` is a non-optional string, so
+		// a backend that emits "" must NOT render a blank span. Using `||`
+		// (not `??`) means an empty emoji falls through to the mood-derived
+		// icon instead of rendering nothing.
+		const { container } = render(MoodIcon, {
+			props: { mood: 'cheerful', emoji: '' },
+		});
+		const span = container.querySelector('.mood-emoji');
+		expect(span).toBeTruthy();
+		expect(span?.textContent).toBe('😊');
+		expect(span?.textContent).not.toBe('');
+	});
+
 	it('renders fallback emoji for an unknown mood', () => {
 		const { container } = render(MoodIcon, {
 			props: { mood: 'zzz_unknown_zzz' },

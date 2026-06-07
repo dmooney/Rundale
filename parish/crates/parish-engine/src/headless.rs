@@ -24,10 +24,38 @@ use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::{Notify, Semaphore, mpsc};
 
 /// Interval between autosaves in seconds.
 const AUTOSAVE_INTERVAL_SECS: u64 = 45;
+
+/// Process-wide rotating index for headless idle messages.
+///
+/// `fetch_add` returns the *pre*-increment value, so the first idle turn uses
+/// index 0 (`IDLE_MESSAGES[0]` / `mod idle_messages[0]`) and the cycle is
+/// 0-based. This mirrors the `REQUEST_ID.fetch_add` style already used by
+/// `parish_core::game_loop::npc_turn` for the same purpose, keeping the
+/// headless entry point in parity with the shared game loop (rule #2). It
+/// lives at file scope rather than on `App` because idle rotation is a
+/// stateless display concern, not game state (TD-030 / TD-034 removed the
+/// `App.idle_counter` field; TD-037 restores the file-scoped counter that a
+/// later edit had erroneously replaced with a read-then-post-increment field).
+static IDLE_MESSAGE_INDEX: AtomicUsize = AtomicUsize::new(0);
+
+/// Selects the idle message for rotation index `idx`, preferring the active
+/// mod's `idle_messages` and falling back to the engine `IDLE_MESSAGES`.
+///
+/// Pure over `(idx, mod_msgs)` so the 0-based rotation (TD-037: index 0 must
+/// pick the *first* message) is unit-testable without touching the
+/// process-wide [`IDLE_MESSAGE_INDEX`] counter.
+fn select_idle_message(idx: usize, mod_msgs: &[String]) -> String {
+    if mod_msgs.is_empty() {
+        parish_core::ipc::IDLE_MESSAGES[idx % parish_core::ipc::IDLE_MESSAGES.len()].to_string()
+    } else {
+        mod_msgs[idx % mod_msgs.len()].clone()
+    }
+}
 
 fn print_startup_header(clients: &InferenceClients, provider_config: &ProviderConfig) {
     println!("=== Parish — Headless Mode ===");
@@ -983,19 +1011,18 @@ async fn handle_headless_game_input(
 
                 stream_headless_npc_dialogue(app, text, setup, request_id).await;
             } else {
-                app.idle_counter += 1;
-                let idx = app.idle_counter;
+                // `fetch_add` returns the pre-increment value, so the first
+                // idle turn reads index 0 — i.e. `IDLE_MESSAGES[0]` /
+                // `mod_msgs[0]` (TD-037: a prior edit's `app.idle_counter += 1;
+                // let idx = app.idle_counter;` read 1 first and skipped the
+                // zeroth message).
+                let idx = IDLE_MESSAGE_INDEX.fetch_add(1, Ordering::Relaxed);
                 let mod_msgs = app
                     .game_mod
                     .as_ref()
                     .map(|gm| gm.loading.idle_messages.as_slice())
                     .unwrap_or(&[]);
-                let msg = if mod_msgs.is_empty() {
-                    parish_core::ipc::IDLE_MESSAGES[idx % parish_core::ipc::IDLE_MESSAGES.len()]
-                        .to_string()
-                } else {
-                    mod_msgs[idx % mod_msgs.len()].clone()
-                };
+                let msg = select_idle_message(idx, mod_msgs);
                 println!("{}", msg);
             }
         }
@@ -1609,6 +1636,43 @@ mod tests {
         let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit).await;
         assert!(quit);
         assert!(app.should_quit);
+    }
+
+    /// TD-037: the idle-message rotation is 0-based — the first idle turn
+    /// (index 0) must emit the *first* message, not skip it. A prior edit had
+    /// pre-incremented (`idx = 1` first), shifting the whole cycle.
+    #[test]
+    fn idle_rotation_is_zero_based() {
+        let mod_msgs: Vec<String> = vec![
+            "first".to_string(),
+            "second".to_string(),
+            "third".to_string(),
+        ];
+        // Index 0 selects the FIRST message (the off-by-one regression).
+        assert_eq!(select_idle_message(0, &mod_msgs), "first");
+        assert_eq!(select_idle_message(1, &mod_msgs), "second");
+        assert_eq!(select_idle_message(2, &mod_msgs), "third");
+        // Wraps cleanly via modulo.
+        assert_eq!(select_idle_message(3, &mod_msgs), "first");
+    }
+
+    /// TD-037: the file-scoped counter returns the pre-increment value, so the
+    /// very first observed index is 0 (mirrors `REQUEST_ID.fetch_add` in the
+    /// shared game loop). This pins the parity guarantee at the counter itself.
+    #[test]
+    fn idle_index_counter_starts_at_zero() {
+        let counter = AtomicUsize::new(0);
+        assert_eq!(counter.fetch_add(1, Ordering::Relaxed), 0);
+        assert_eq!(counter.fetch_add(1, Ordering::Relaxed), 1);
+    }
+
+    /// TD-037: with no mod idle messages, selection falls back to the engine
+    /// `IDLE_MESSAGES` table and still indexes from 0.
+    #[test]
+    fn idle_rotation_falls_back_to_engine_table() {
+        let empty: Vec<String> = Vec::new();
+        let expected = parish_core::ipc::IDLE_MESSAGES[0].to_string();
+        assert_eq!(select_idle_message(0, &empty), expected);
     }
 
     #[tokio::test]
