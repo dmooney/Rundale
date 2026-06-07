@@ -20,8 +20,13 @@ const mockSubmitBugReport = vi.fn<(args: unknown) => Promise<BugReportResult>>(
 		}),
 );
 
+const mockOpenUrl = vi.fn<(url: string) => Promise<void>>(() =>
+	Promise.resolve(),
+);
+
 vi.mock('$lib/ipc', () => ({
 	submitBugReport: (args: unknown) => mockSubmitBugReport(args),
+	openUrl: (url: string) => mockOpenUrl(url),
 }));
 
 import BugReportModal from './BugReportModal.svelte';
@@ -88,5 +93,42 @@ describe('BugReportModal', () => {
 		await fireEvent.click(btn);
 		await flush();
 		expect(mockSubmitBugReport).not.toHaveBeenCalled();
+	});
+
+	it('renders a clickable issue-link button when result contains an issue_url', async () => {
+		// Arrange: modal returns a result with a GitHub issue URL.
+		mockSubmitBugReport.mockResolvedValueOnce({
+			created: true,
+			issue_url: 'https://github.com/dmooney/rundale/issues/42',
+			issue_number: 42,
+			message: 'Filed as issue #42',
+		});
+		bugReportVisible.set(true);
+		const { getByLabelText, getByTestId, getByRole } = render(BugReportModal);
+		await flush();
+
+		await fireEvent.input(getByLabelText('Title'), {
+			target: { value: 'Something broke' },
+		});
+		await fireEvent.click(getByTestId('bug-report-submit'));
+		await flush();
+
+		// The result panel must be visible.
+		expect(getByTestId('bug-report-result').textContent).toContain(
+			'Filed as issue #42',
+		);
+
+		// The link must be a <button> (not an <a>), labelled "Open issue #42".
+		const linkBtn = getByRole('button', { name: /Open issue #42/ });
+		expect(linkBtn.tagName).toBe('BUTTON');
+
+		// Clicking it must call openUrl with the correct URL.
+		mockOpenUrl.mockClear();
+		await fireEvent.click(linkBtn);
+		await flush();
+		expect(mockOpenUrl).toHaveBeenCalledTimes(1);
+		expect(mockOpenUrl).toHaveBeenCalledWith(
+			'https://github.com/dmooney/rundale/issues/42',
+		);
 	});
 });

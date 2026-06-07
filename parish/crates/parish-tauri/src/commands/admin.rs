@@ -186,6 +186,47 @@ pub async fn submit_bug_report(
     do_submit_bug_report(&state, &app, request).await
 }
 
+/// Opens a URL in the system's default browser from the Tauri desktop app.
+///
+/// In Tauri v2 the webview blocks `<a target="_blank">` external navigation by
+/// default (no `opener` plugin, no `window-creation` capability). This command
+/// uses the OS process spawner to launch the default handler instead, so result
+/// dialogs (e.g. the bug-report result link) work without a plugin dependency.
+///
+/// URLs are validated to only accept `https://` and `http://` schemes to
+/// prevent shell injection via crafted issue URLs (#1223).
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), String> {
+    // Reject non-HTTP schemes to prevent shell injection.
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("open_url: rejected non-http URL scheme".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("open_url: failed to open URL: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("open_url: failed to open URL: {e}"))?;
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("open_url: failed to open URL: {e}"))?;
+    }
+
+    Ok(())
+}
+
 /// Shared bug-report implementation (Tauri command + MCP bridge route).
 ///
 /// Gathers a world + debug snapshot and a save summary from the live
