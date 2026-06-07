@@ -1,0 +1,37 @@
+id = "opencode"
+display_name = "OpenCode Zen"
+# "opencode-go" is the provider_id used by the eval harness
+# (rundale-bench/v1/models.toml) and .env.example; "zen" is a short alias.
+aliases = ["opencode-go", "opencode_go", "zen"]
+kind = "openai-compat"
+default_base_url = "https://opencode.ai/zen/go/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "OPENCODE_API_KEY"
+blurb = "OpenCode Zen gateway — Kimi, Qwen, GLM, DeepSeek, MiniMax, MiMo behind one key."
+signup_url = "https://opencode.ai/"
+featured = false
+
+# NOTE: `qwen3.7-max` is intentionally omitted from every preset. On this
+# gateway it is exposed ONLY via the Anthropic Messages format (/v1/messages +
+# x-api-key); /v1/chat/completions returns 401 "Model qwen3.7-max is not
+# supported for format oa-compat" (rundale-bench/v1/models.toml:120). This mod
+# is kind = "openai-compat", which routes through /chat/completions, so naming
+# qwen3.7-max in a preset would 401 on every call. Model ids below are the
+# gateway's OpenAI-compatible set.
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "kimi-k2.6"
+simulation = "qwen3.6-plus"
+intent = "deepseek-v4-flash"
+reaction = "qwen3.6-plus"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "qwen3.6-plus"
+simulation = "deepseek-v4-flash"
+intent = "deepseek-v4-flash"
+reaction = "deepseek-v4-flash"
