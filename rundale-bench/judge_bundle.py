@@ -124,6 +124,40 @@ def read_result(path: Path) -> dict:
     return extract_json(path.read_text(encoding="utf-8"))
 
 
+def recover_result(done_path: Path, reply_text: str | None = None) -> dict:
+    """Post-validate a subagent dispatch, recovering JSON from reply text.
+
+    The Agent tool occasionally prints its judgment JSON in the reply text
+    instead of calling ``Write`` (observed: DS-R1-Qwen tier3-sim, round 3),
+    leaving ``done_path`` absent or empty. Rather than force a manual recovery
+    step, the orchestrator calls this after every dispatch:
+
+      1. If ``done_path`` exists and parses, return it unchanged (fast path).
+      2. Otherwise, regex-extract the outermost JSON object from ``reply_text``
+         (via :func:`extract_json`), write it to ``done_path`` so the queue is
+         consistent, and return the parsed dict.
+      3. If neither yields JSON, raise ``ValueError`` so the caller can retry the
+         agent with a corrective prompt.
+
+    Returns the parsed result dict.
+    """
+    if done_path.exists():
+        try:
+            return extract_json(done_path.read_text(encoding="utf-8"))
+        except (ValueError, json.JSONDecodeError):
+            pass  # fall through to reply-text recovery
+
+    if reply_text is None:
+        raise ValueError(
+            f"result file {done_path} missing/unparseable and no reply text to recover from"
+        )
+
+    recovered = extract_json(reply_text)  # raises ValueError if no JSON found
+    done_path.parent.mkdir(parents=True, exist_ok=True)
+    done_path.write_text(json.dumps(recovered, indent=2) + "\n", encoding="utf-8")
+    return recovered
+
+
 def unjudged_bundles() -> list[Path]:
     """Pending bundles with no matching done file (resume after abort)."""
     done_stems = {p.stem for p in list_done()}

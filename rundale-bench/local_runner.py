@@ -38,16 +38,30 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
 import tomllib
+from candidates_schema import candidates_to_delete, validate_candidates
 
+# psutil lives in .venv-mlx, not the CI dev venv. Import it lazily: the module
+# stays importable (so the pure helpers — ram_cap_exceeded, slice_cost_ledger,
+# fitness_check, metric_from_summary, validate_candidates — are unit-testable
+# without it) and only the live-sampling paths require it. `_require_psutil`
+# raises a clear error at the point of use.
 try:
     import psutil
-except ImportError:
-    print("psutil missing — run inside .venv-mlx (psutil is bundled there).", file=sys.stderr)
-    sys.exit(2)
+except ImportError:  # pragma: no cover - exercised only outside .venv-mlx
+    psutil = None
+
+
+def _require_psutil() -> None:
+    """Fail loudly only when a function that genuinely needs psutil runs."""
+    if psutil is None:
+        sys.exit("psutil missing — run inside .venv-mlx (psutil is bundled there).")
+
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent
@@ -114,6 +128,18 @@ def wait_for_ready(base_url: str, timeout_s: float = 600.0) -> None:
     raise RuntimeError(f"server at {base_url} not ready in {timeout_s:.0f}s: {last_err}")
 
 
+def ram_cap_exceeded(peak_rss_bytes: int, max_ram_gb: float | None) -> bool:
+    """True when ``peak_rss_bytes`` exceeds the ``max_ram_gb`` ceiling.
+
+    ``max_ram_gb is None`` (the default) disables the cap and always returns
+    False, so the kill switch is opt-in. The comparison uses the same 1e9
+    bytes-per-GB convention as ``available_memory_gb`` / the leaderboard row.
+    """
+    if max_ram_gb is None:
+        return False
+    return peak_rss_bytes / 1e9 > max_ram_gb
+
+
 class RamSampler:
     """Threaded RSS sampler for a server pid + its descendants.
 
@@ -123,13 +149,34 @@ class RamSampler:
     spawn here later.
     """
 
-    def __init__(self, pid: int, interval_s: float = 0.25):
+    def __init__(
+        self,
+        pid: int,
+        interval_s: float = 0.25,
+        max_ram_gb: float | None = None,
+        on_breach: Callable[[int], None] | None = None,
+    ):
         self.pid = pid
         self.interval_s = interval_s
+        # Optional hard ceiling (GB). When a sample's total RSS exceeds it, the
+        # sampler sets `breached` and invokes `on_breach(peak_rss)` once so the
+        # caller can SIGKILL the server before OOM takes down Claude Code.
+        self.max_ram_gb = max_ram_gb
+        self._on_breach = on_breach
         self._stop = threading.Event()
         self._peak_rss = 0
         self._samples = 0
+        self._breached = False
         self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    @property
+    def breached(self) -> bool:
+        """True once a sample exceeded ``max_ram_gb`` (latched, never reset)."""
+        return self._breached
+
+    @property
+    def peak_rss(self) -> int:
+        return self._peak_rss
 
     def _process_memory(self, p: psutil.Process) -> int:
         """Memory bytes for one process, preferring `phys_footprint` on macOS.
@@ -163,11 +210,17 @@ class RamSampler:
                 if total > self._peak_rss:
                     self._peak_rss = total
                 self._samples += 1
+                if not self._breached and ram_cap_exceeded(total, self.max_ram_gb):
+                    self._breached = True
+                    if self._on_breach is not None:
+                        self._on_breach(total)
+                    break  # ceiling hit; stop sampling, caller kills the server
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 break
             time.sleep(self.interval_s)
 
     def start(self) -> None:
+        _require_psutil()
         self._thread.start()
 
     def stop(self) -> tuple[int, int]:
@@ -302,7 +355,36 @@ def harness_sha() -> str:
 
 
 def available_memory_gb() -> float:
+    _require_psutil()
     return psutil.virtual_memory().total / 1e9
+
+
+def slice_cost_ledger(rows: list[dict]) -> dict[str, dict[str, float]]:
+    """Per-slice cost ledger across the leaderboard rows of a sweep.
+
+    Local sweeps print ``$0.0000`` on every row because the model runs on the
+    laptop — but the Sonnet-subagent judge is not free, it is amortised against
+    the Claude Code session. This sums ``cost_usd`` per slice and, when rows
+    carry a ``judge_compute_minutes`` field, surfaces the judge compute so the
+    hidden cost is legible. Returns ``{slice: {usd, runs, judge_minutes}}`` plus
+    a ``"total"`` rollup.
+    """
+    ledger: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"usd": 0.0, "runs": 0.0, "judge_minutes": 0.0}
+    )
+    for row in rows:
+        slice_name = str(row.get("slice", "unknown"))
+        ledger[slice_name]["usd"] += float(row.get("cost_usd", 0.0) or 0.0)
+        ledger[slice_name]["runs"] += 1
+        ledger[slice_name]["judge_minutes"] += float(row.get("judge_compute_minutes", 0.0) or 0.0)
+
+    out: dict[str, dict[str, float]] = {k: dict(v) for k, v in ledger.items()}
+    out["total"] = {
+        "usd": round(sum(v["usd"] for v in out.values()), 6),
+        "runs": sum(v["runs"] for v in out.values()),
+        "judge_minutes": round(sum(v["judge_minutes"] for v in out.values()), 4),
+    }
+    return out
 
 
 def metric_from_summary(summary: dict) -> str:
@@ -374,6 +456,14 @@ def main() -> None:
         help="GB of unified memory to leave free for OS/other apps",
     )
     ap.add_argument(
+        "--max-ram-gb",
+        type=float,
+        default=None,
+        help="runtime RAM-cap kill switch: if live peak RSS exceeds N GB, "
+        "SIGKILL the mlx_lm.server and skip the candidate (defends against an "
+        "OOM that would kill Claude Code). Default: disabled.",
+    )
+    ap.add_argument(
         "--dry-run", action="store_true", help="print the plan without spawning servers"
     )
     args = ap.parse_args()
@@ -382,6 +472,11 @@ def main() -> None:
         sys.exit(f"mlx_lm.server missing at {_MLX_SERVER}; install mlx-lm in {_VENV}")
 
     all_cands = parse_candidates(_CANDIDATES_TOML)
+    schema_problems = validate_candidates(all_cands)
+    if schema_problems:
+        for p in schema_problems:
+            print(f"[schema] {p}", file=sys.stderr)
+        sys.exit(f"{_CANDIDATES_TOML.name} failed schema validation; fix before running")
     if args.slot:
         all_cands = [c for c in all_cands if c["slot"] == args.slot]
     if args.candidates:
@@ -431,11 +526,33 @@ def main() -> None:
             wait_for_ready(base_url, timeout_s=900.0)
             print("[server] ready")
 
-            sampler = RamSampler(proc.pid)
+            # Arm the runtime RAM-cap kill switch. When a sample crosses
+            # --max-ram-gb the sampler latches `breached`, SIGKILLs the server
+            # immediately (on_breach), and we abort this candidate's remaining
+            # slices before the OS OOM-killer can take down Claude Code.
+            def _kill_on_breach(peak: int, _proc: subprocess.Popen = proc) -> None:
+                print(
+                    f"[ram-cap] peak {peak / 1e9:.2f} GB > --max-ram-gb "
+                    f"{args.max_ram_gb}; SIGKILL server pid={_proc.pid}",
+                    file=sys.stderr,
+                )
+                _proc.kill()
+
+            sampler = RamSampler(
+                proc.pid,
+                max_ram_gb=args.max_ram_gb,
+                on_breach=_kill_on_breach if args.max_ram_gb is not None else None,
+            )
             sampler.start()
 
             t0 = time.time()
             for s in slices:
+                if sampler.breached:
+                    print(
+                        f"[ram-cap] skipping remaining slices for {c['hf_repo']} "
+                        f"(peak exceeded {args.max_ram_gb} GB)"
+                    )
+                    break
                 print(f"[bench] running slice={s} split={args.split} limit={args.limit}")
                 rc, info = run_bench_subproc(
                     target_spec=target_spec,
@@ -460,7 +577,7 @@ def main() -> None:
                 summary = slc.get("summary", {})
 
                 # Current peak so the slice row reflects the load up to here.
-                peak_rss, samples = sampler._peak_rss, sampler._samples
+                peak_rss, samples = sampler.peak_rss, sampler._samples
 
                 row = {
                     "date": stamp,
@@ -503,7 +620,10 @@ def main() -> None:
                 "split": args.split,
                 "limit": args.limit,
                 "judge": args.judge,
+                "max_ram_gb": args.max_ram_gb,
                 "rows": summary_log,
+                "cost_ledger": slice_cost_ledger(summary_log),
+                "delete_after_bench": candidates_to_delete(all_cands),
             },
             indent=2,
         )
