@@ -158,8 +158,51 @@ jobs:
       # `--profile ci` picks up the matching retry/fail-fast policy in
       # parish/.config/nextest.toml so the same behaviour is reproducible
       # locally with `cargo nextest run --profile ci`.
+      #
+      # Output is teed to a log so the next step can surface any
+      # retried-and-passed (FLAKY) tests as a non-gating warning + job summary.
       - name: Unit and integration tests
-        run: cargo nextest run --workspace --all-targets --profile ci
+        run: |
+          set -o pipefail
+          cargo nextest run --workspace --all-targets --profile ci 2>&1 \
+            | tee nextest-run.log
+
+      # Flaky-test report (#1176): non-gating. nextest prints a `FLAKY` line per
+      # test that failed once and passed on the retry. Surface those as GitHub
+      # Actions ::warning annotations and a job-summary table so the
+      # nondeterminism is visible in the PR checks UI instead of buried in the
+      # raw log. `if: always()` so the report runs even when an unrelated test
+      # hard-fails. Never fails the job — the gate is the test step above.
+      - name: Flaky-test report
+        if: always()
+        run: |
+          if [ ! -f nextest-run.log ]; then
+            echo "No nextest log found — skipping flaky report."
+            exit 0
+          fi
+          # nextest FLAKY summary lines look like:
+          #   FLAKY 2/2 [   0.006s] (1/1) crate::binary test_name
+          flaky=$(grep -E '^\s*FLAKY ' nextest-run.log || true)
+          if [ -z "$flaky" ]; then
+            echo "No flaky tests detected." >> "$GITHUB_STEP_SUMMARY"
+            echo "No flaky tests detected."
+            exit 0
+          fi
+          {
+            echo "### ⚠️ Flaky tests detected (#1176)"
+            echo ""
+            echo "These tests failed on their first attempt but passed on retry."
+            echo "The run is **not** failed by this, but the nondeterminism should be fixed."
+            echo ""
+            echo '```'
+            echo "$flaky"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Emit one ::warning annotation per flaky test name (last field).
+          echo "$flaky" | while IFS= read -r line; do
+            name=$(echo "$line" | awk '{print $NF}')
+            echo "::warning title=Flaky test::${name} failed then passed on retry (#1176)"
+          done
 
   rust-coverage-ratchet:
     name: Rust coverage ratchet

@@ -127,6 +127,14 @@ pub struct GameTestHarness {
     pub(crate) shadow_ledger: std::path::PathBuf,
     /// `case` label written into each divergence record.
     pub(crate) shadow_case: String,
+    /// Deterministic, synchronous-drain server-push bus used **only** in the
+    /// test harness (#1176). Production backends (`parish-server`,
+    /// `parish-tauri`, `parish-engine` headless) keep using
+    /// [`parish_core::event_bus::BroadcastEventBus`]; this opt-in deterministic
+    /// impl drains events in exact publish order so harness-level
+    /// event-ordering assertions never flake on async scheduling. Exposed via
+    /// [`Self::event_bus`].
+    event_bus: parish_core::event_bus::DeterministicEventBus,
 }
 
 impl GameTestHarness {
@@ -279,7 +287,23 @@ impl GameTestHarness {
             shadow_enabled: crate::shadow::is_enabled(),
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: crate::shadow::case_label(),
+            event_bus: parish_core::event_bus::DeterministicEventBus::new(),
         }
+    }
+
+    /// Returns the harness's deterministic server-push [`EventBus`]
+    /// (`parish_core::event_bus::DeterministicEventBus`, #1176).
+    ///
+    /// Unlike the production [`BroadcastEventBus`], this drains synchronously
+    /// in exact publish order, so tests can subscribe, drive gameplay that
+    /// emits server events, and assert on ordering without any async-scheduling
+    /// flakiness. Production push semantics (CLAUDE.md rule #11) are unchanged —
+    /// this bus is wired only here in the test harness.
+    ///
+    /// [`BroadcastEventBus`]: parish_core::event_bus::BroadcastEventBus
+    /// [`EventBus`]: parish_core::event_bus::EventBus
+    pub fn event_bus(&self) -> &parish_core::event_bus::DeterministicEventBus {
+        &self.event_bus
     }
 
     /// Attaches the built-in offline simulator as a fallback for NPC dialogue.
@@ -1686,6 +1710,88 @@ mod tests {
         assert_eq!(h.season(), Season::Spring);
     }
 
+    /// #1176: the harness exposes a **deterministic** server-push event bus
+    /// (`DeterministicEventBus`) that drains synchronously. Subscribe, drive a
+    /// fixed turn sequence that pushes the server events a turn produces, and
+    /// confirm the subscriber observes them in exact publish order — with no
+    /// async scheduling window between emit and delivery.
+    #[test]
+    fn harness_event_bus_drains_in_publish_order() {
+        use parish_core::event_bus::{EventBus, Topic};
+
+        let h = GameTestHarness::new();
+        let mut stream = h.event_bus().subscribe(&[]);
+
+        // Emit the interleaved (topic, name) stream a turn might produce.
+        // emit() on the deterministic bus delivers synchronously, so the
+        // subscriber sees them back-to-back in publish order.
+        let seq = [
+            (Topic::TextLog, "text-log"),
+            (Topic::WorldUpdate, "world-update"),
+            (Topic::NpcReaction, "npc-reaction"),
+            (Topic::TextLog, "text-log"),
+            (Topic::WorldUpdate, "world-update"),
+        ];
+        for (topic, name) in seq {
+            h.event_bus()
+                .emit_named(topic, name, &serde_json::json!({}));
+        }
+
+        let mut observed = Vec::new();
+        while let Some(ev) = stream.try_recv() {
+            observed.push(ev.event);
+        }
+        let expected: Vec<String> = seq.iter().map(|(_, n)| n.to_string()).collect();
+        assert_eq!(observed, expected);
+    }
+
+    /// #1176 stability guarantee: the same driven turn sequence yields the
+    /// same subscriber ordering on every iteration. A flake here would mean
+    /// async scheduling leaked back into the harness push path.
+    #[test]
+    fn harness_event_bus_ordering_is_stable_across_repeated_runs() {
+        use parish_core::event_bus::{EventBus, Topic};
+
+        let seq = [
+            (Topic::TextLog, "text-log"),
+            (Topic::TravelStart, "travel-start"),
+            (Topic::WorldUpdate, "world-update"),
+            (Topic::InferenceToken, "stream-token"),
+            (Topic::WorldUpdate, "world-update"),
+        ];
+        let expected: Vec<String> = seq.iter().map(|(_, n)| n.to_string()).collect();
+
+        for iteration in 0..500 {
+            let h = GameTestHarness::new();
+            let mut firehose = h.event_bus().subscribe(&[]);
+            let mut world_only = h.event_bus().subscribe(&[Topic::WorldUpdate]);
+
+            for (topic, name) in seq {
+                h.event_bus()
+                    .emit_named(topic, name, &serde_json::json!({}));
+            }
+
+            let mut firehose_out = Vec::new();
+            while let Some(ev) = firehose.try_recv() {
+                firehose_out.push(ev.event);
+            }
+            assert_eq!(
+                firehose_out, expected,
+                "harness firehose ordering diverged on iteration {iteration}"
+            );
+
+            let mut world_out = Vec::new();
+            while let Some(ev) = world_only.try_recv() {
+                world_out.push(ev.event);
+            }
+            assert_eq!(
+                world_out,
+                vec!["world-update".to_string(), "world-update".to_string()],
+                "harness filtered ordering diverged on iteration {iteration}"
+            );
+        }
+    }
+
     #[test]
     fn test_harness_initial_weather() {
         let h = GameTestHarness::new();
@@ -2473,6 +2579,7 @@ mod tests {
             shadow_enabled: false,
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: "test".to_string(),
+            event_bus: parish_core::event_bus::DeterministicEventBus::new(),
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)
