@@ -18,6 +18,9 @@
 //!   this module because `parish-core` is backend-agnostic (no axum/tauri
 //!   deps here).
 
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
 use tokio::sync::broadcast;
 
 /// Wire-format event pushed to WebSocket clients.
@@ -88,64 +91,114 @@ impl Topic {
     }
 }
 
+/// Per-subscriber FIFO queue used by [`DeterministicEventBus`].
+///
+/// Each deterministic subscriber owns one of these behind an `Arc<Mutex<..>>`;
+/// the bus pushes matching events onto the back at emit time, the stream pops
+/// them off the front. No tokio runtime and no `broadcast` channel are
+/// involved, so the order a subscriber observes is exactly publish order.
+type DeterministicQueue = Arc<Mutex<VecDeque<ServerEvent>>>;
+
+/// Transport backing an [`EventStream`].
+///
+/// Production code always gets [`StreamBackend::Broadcast`] (the
+/// `tokio::sync::broadcast` receiver). The test-only
+/// [`DeterministicEventBus`] hands out [`StreamBackend::Deterministic`]
+/// streams whose ordering is fixed and reproducible.
+enum StreamBackend {
+    /// Async broadcast receiver — the production transport.
+    Broadcast(broadcast::Receiver<(Topic, ServerEvent)>),
+    /// Synchronous, in-order queue — the deterministic test transport.
+    /// Filtering is applied at emit time, so the queue holds only events
+    /// already matching this stream's filter.
+    Deterministic(DeterministicQueue),
+}
+
 /// A stream of tagged events delivered to a subscriber.
 ///
 /// Returned by [`EventBus::subscribe`].  Call [`EventStream::recv`] to
 /// receive the next event, skipping any that don't match the topic filter.
 pub struct EventStream {
-    rx: broadcast::Receiver<(Topic, ServerEvent)>,
+    backend: StreamBackend,
     /// Topics this stream is interested in.  Empty = firehose (all topics).
+    ///
+    /// For the broadcast backend, filtering is applied on receive (the
+    /// firehose carries every topic). For the deterministic backend, filtering
+    /// is applied at emit time, so this field is informational there.
     filter: Vec<Topic>,
 }
 
 impl EventStream {
     fn new(rx: broadcast::Receiver<(Topic, ServerEvent)>, filter: Vec<Topic>) -> Self {
-        Self { rx, filter }
+        Self {
+            backend: StreamBackend::Broadcast(rx),
+            filter,
+        }
     }
 
-    /// Returns `true` if the given topic passes this stream's filter.
-    fn matches(&self, topic: Topic) -> bool {
-        self.filter.is_empty() || self.filter.contains(&topic)
+    /// Builds a deterministic stream backed by a pre-filtered FIFO queue.
+    fn deterministic(queue: DeterministicQueue, filter: Vec<Topic>) -> Self {
+        Self {
+            backend: StreamBackend::Deterministic(queue),
+            filter,
+        }
     }
 
     /// Receives the next matching event.
     ///
     /// Skips lagged or out-of-filter events. Returns `Ok(event)` on success,
     /// `Err` if the channel is closed.
+    ///
+    /// For the deterministic backend this resolves immediately from the
+    /// in-order queue (no awaiting), returning [`RecvError::Closed`] once the
+    /// queue is drained — there is no separate producer task to wait on.
     pub async fn recv(&mut self) -> Result<ServerEvent, RecvError> {
-        loop {
-            match self.rx.recv().await {
-                Ok((topic, event)) => {
-                    if self.matches(topic) {
-                        return Ok(event);
+        match &mut self.backend {
+            StreamBackend::Broadcast(rx) => loop {
+                match rx.recv().await {
+                    Ok((topic, event)) => {
+                        if self.filter.is_empty() || self.filter.contains(&topic) {
+                            return Ok(event);
+                        }
+                        // Not in our filter — skip without surfacing to caller.
                     }
-                    // Not in our filter — skip without surfacing to caller.
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(dropped = n, "EventStream: lagged, dropped events");
+                        // Continue receiving; the caller doesn't need to handle lag.
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        return Err(RecvError::Closed);
+                    }
                 }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(dropped = n, "EventStream: lagged, dropped events");
-                    // Continue receiving; the caller doesn't need to handle lag.
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    return Err(RecvError::Closed);
-                }
-            }
+            },
+            StreamBackend::Deterministic(queue) => queue
+                .lock()
+                .expect("deterministic event queue mutex poisoned")
+                .pop_front()
+                .ok_or(RecvError::Closed),
         }
     }
 
     /// Non-blocking receive — returns `None` if no matching event is ready.
     pub fn try_recv(&mut self) -> Option<ServerEvent> {
-        loop {
-            match self.rx.try_recv() {
-                Ok((topic, event)) => {
-                    if self.matches(topic) {
-                        return Some(event);
+        match &mut self.backend {
+            StreamBackend::Broadcast(rx) => loop {
+                match rx.try_recv() {
+                    Ok((topic, event)) => {
+                        if self.filter.is_empty() || self.filter.contains(&topic) {
+                            return Some(event);
+                        }
                     }
+                    Err(broadcast::error::TryRecvError::Lagged(n)) => {
+                        tracing::warn!(dropped = n, "EventStream: try_recv lagged");
+                    }
+                    Err(_) => return None,
                 }
-                Err(broadcast::error::TryRecvError::Lagged(n)) => {
-                    tracing::warn!(dropped = n, "EventStream: try_recv lagged");
-                }
-                Err(_) => return None,
-            }
+            },
+            StreamBackend::Deterministic(queue) => queue
+                .lock()
+                .expect("deterministic event queue mutex poisoned")
+                .pop_front(),
         }
     }
 }
@@ -230,6 +283,97 @@ impl EventBus for BroadcastEventBus {
 
     fn subscribe(&self, topics: &[Topic]) -> EventStream {
         EventStream::new(self.tx.subscribe(), topics.to_vec())
+    }
+}
+
+/// One deterministic subscriber: its topic filter plus its private FIFO queue.
+struct DeterministicSubscriber {
+    filter: Vec<Topic>,
+    queue: DeterministicQueue,
+}
+
+/// Deterministic, synchronous-drain [`EventBus`] for tests (#1176).
+///
+/// Unlike [`BroadcastEventBus`], this implementation does **not** use a
+/// `tokio::sync::broadcast` channel. On [`emit`](EventBus::emit) it
+/// **synchronously** appends the event to every matching subscriber's FIFO
+/// queue, in the same thread, before returning. A subscriber therefore
+/// observes events in exactly the order they were published, with no async
+/// scheduling window between publish and delivery — the window that lets
+/// ordering-dependent tests flake under the broadcast transport.
+///
+/// This is a **test-only** type. It is never wired into the production
+/// `parish-server` / `parish-tauri` / `parish-engine` push paths, which keep
+/// using [`BroadcastEventBus`] so real-time-push semantics (CLAUDE.md rule
+/// #11) are unchanged. Tests and the `GameTestHarness` opt in explicitly by
+/// constructing a `DeterministicEventBus`.
+///
+/// Topic filtering is resolved at emit time: each subscriber's queue only ever
+/// holds events matching the topics it asked for (empty filter = firehose).
+///
+/// ```
+/// use parish_core::event_bus::{DeterministicEventBus, EventBus, ServerEvent, Topic};
+///
+/// let bus = DeterministicEventBus::new();
+/// let mut a = bus.subscribe(&[]); // firehose
+/// let mut b = bus.subscribe(&[Topic::WorldUpdate]); // filtered
+///
+/// bus.emit_named(Topic::TextLog, "text-log", &serde_json::json!({}));
+/// bus.emit_named(Topic::WorldUpdate, "world-update", &serde_json::json!({}));
+///
+/// // Firehose sees both, in publish order; the filtered stream sees one.
+/// assert_eq!(a.try_recv().unwrap().event, "text-log");
+/// assert_eq!(a.try_recv().unwrap().event, "world-update");
+/// assert_eq!(b.try_recv().unwrap().event, "world-update");
+/// assert!(b.try_recv().is_none());
+/// ```
+#[derive(Default)]
+pub struct DeterministicEventBus {
+    subscribers: Arc<Mutex<Vec<DeterministicSubscriber>>>,
+}
+
+impl DeterministicEventBus {
+    /// Creates an empty deterministic bus with no subscribers.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns the number of active subscribers.
+    pub fn subscriber_count(&self) -> usize {
+        self.subscribers
+            .lock()
+            .expect("deterministic subscribers mutex poisoned")
+            .len()
+    }
+}
+
+impl EventBus for DeterministicEventBus {
+    fn emit(&self, topic: Topic, event: ServerEvent) {
+        let subscribers = self
+            .subscribers
+            .lock()
+            .expect("deterministic subscribers mutex poisoned");
+        for sub in subscribers.iter() {
+            let matches = sub.filter.is_empty() || sub.filter.contains(&topic);
+            if matches {
+                sub.queue
+                    .lock()
+                    .expect("deterministic event queue mutex poisoned")
+                    .push_back(event.clone());
+            }
+        }
+    }
+
+    fn subscribe(&self, topics: &[Topic]) -> EventStream {
+        let queue: DeterministicQueue = Arc::new(Mutex::new(VecDeque::new()));
+        self.subscribers
+            .lock()
+            .expect("deterministic subscribers mutex poisoned")
+            .push(DeterministicSubscriber {
+                filter: topics.to_vec(),
+                queue: Arc::clone(&queue),
+            });
+        EventStream::deterministic(queue, topics.to_vec())
     }
 }
 
@@ -343,5 +487,139 @@ mod tests {
                 "Topic::from_event_name(\"{name}\") returned None — add a mapping"
             );
         }
+    }
+
+    // --- DeterministicEventBus (#1176) ---------------------------------------
+
+    /// A fixed, deliberately interleaved publish sequence across multiple
+    /// topics. The deterministic bus must replay it back to a firehose
+    /// subscriber in exactly this order on every run.
+    const INTERLEAVED: &[(Topic, &str)] = &[
+        (Topic::TextLog, "text-log"),
+        (Topic::WorldUpdate, "world-update"),
+        (Topic::InferenceToken, "stream-token"),
+        (Topic::TextLog, "text-log"),
+        (Topic::NpcReaction, "npc-reaction"),
+        (Topic::WorldUpdate, "world-update"),
+        (Topic::TravelStart, "travel-start"),
+        (Topic::InferenceToken, "stream-end"),
+        (Topic::TextLog, "text-log"),
+    ];
+
+    fn drain_all(stream: &mut EventStream) -> Vec<String> {
+        let mut out = Vec::new();
+        while let Some(ev) = stream.try_recv() {
+            out.push(ev.event);
+        }
+        out
+    }
+
+    #[test]
+    fn deterministic_bus_drains_synchronously_in_publish_order() {
+        let bus = DeterministicEventBus::new();
+        let mut stream = bus.subscribe(&[]); // firehose
+
+        // No async runtime, no spawned producer task: emit() has fully
+        // delivered each event before it returns.
+        for (topic, name) in INTERLEAVED {
+            bus.emit(*topic, make_event(name));
+        }
+
+        let received = drain_all(&mut stream);
+        let expected: Vec<String> = INTERLEAVED.iter().map(|(_, n)| n.to_string()).collect();
+        assert_eq!(received, expected);
+    }
+
+    #[test]
+    fn deterministic_bus_ordering_is_stable_across_repeated_runs() {
+        // The whole point of #1176: replay the same interleaving many times
+        // and assert byte-identical subscriber ordering every iteration. If
+        // any async scheduling crept in, this would flake.
+        let expected: Vec<String> = INTERLEAVED.iter().map(|(_, n)| n.to_string()).collect();
+        for iteration in 0..1000 {
+            let bus = DeterministicEventBus::new();
+            let mut firehose = bus.subscribe(&[]);
+            let mut world_only = bus.subscribe(&[Topic::WorldUpdate]);
+
+            for (topic, name) in INTERLEAVED {
+                bus.emit(*topic, make_event(name));
+            }
+
+            assert_eq!(
+                drain_all(&mut firehose),
+                expected,
+                "firehose ordering diverged on iteration {iteration}"
+            );
+            // Filtered subscriber sees only its topic, still in publish order.
+            assert_eq!(
+                drain_all(&mut world_only),
+                vec!["world-update".to_string(), "world-update".to_string()],
+                "filtered ordering diverged on iteration {iteration}"
+            );
+        }
+    }
+
+    #[test]
+    fn deterministic_bus_filters_by_topic_at_emit_time() {
+        let bus = DeterministicEventBus::new();
+        let mut text_only = bus.subscribe(&[Topic::TextLog]);
+
+        bus.emit(Topic::WorldUpdate, make_event("world-update"));
+        bus.emit(Topic::TextLog, make_event("text-log"));
+        bus.emit(Topic::TravelStart, make_event("travel-start"));
+        bus.emit(Topic::TextLog, make_event("text-log"));
+
+        // Only the two TextLog events land in the queue, in order.
+        assert_eq!(
+            drain_all(&mut text_only),
+            vec!["text-log".to_string(), "text-log".to_string()]
+        );
+    }
+
+    #[test]
+    fn deterministic_bus_multiple_subscribers_each_get_full_stream() {
+        let bus = DeterministicEventBus::new();
+        let mut a = bus.subscribe(&[]);
+        let mut b = bus.subscribe(&[]);
+        assert_eq!(bus.subscriber_count(), 2);
+
+        bus.emit(Topic::TextLog, make_event("text-log"));
+        bus.emit(Topic::WorldUpdate, make_event("world-update"));
+
+        let expected = vec!["text-log".to_string(), "world-update".to_string()];
+        assert_eq!(drain_all(&mut a), expected);
+        assert_eq!(drain_all(&mut b), expected);
+    }
+
+    #[tokio::test]
+    async fn deterministic_bus_recv_returns_closed_when_drained() {
+        let bus = DeterministicEventBus::new();
+        let mut stream = bus.subscribe(&[]);
+        bus.emit(Topic::TextLog, make_event("text-log"));
+
+        assert_eq!(stream.recv().await.unwrap().event, "text-log");
+        // Nothing left and no producer to await — deterministic streams report
+        // Closed rather than blocking forever.
+        assert_eq!(stream.recv().await.unwrap_err(), RecvError::Closed);
+    }
+
+    #[test]
+    fn deterministic_bus_emit_named_serializes_payload() {
+        let bus = DeterministicEventBus::new();
+        let mut stream = bus.subscribe(&[]);
+        bus.emit_named(
+            Topic::TextLog,
+            "text-log",
+            &serde_json::json!({"key": "value"}),
+        );
+        let ev = stream.try_recv().unwrap();
+        assert_eq!(ev.event, "text-log");
+        assert_eq!(ev.payload["key"], "value");
+    }
+
+    #[test]
+    fn deterministic_bus_no_subscribers_does_not_panic() {
+        let bus = DeterministicEventBus::new();
+        bus.emit(Topic::TextLog, make_event("orphan"));
     }
 }
