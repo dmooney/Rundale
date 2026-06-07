@@ -866,6 +866,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		overflow-wrap: break-word;
 		transition: border-color 0.2s;
 		-webkit-user-select: text;
+		user-select: text;
 	}
 
 	.input-field:focus {
