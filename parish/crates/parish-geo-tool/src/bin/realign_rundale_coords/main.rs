@@ -25,7 +25,9 @@ mod overrides;
 mod realign;
 
 use geocode::geocode_location;
-use overrides::{apply_set_coord_overrides, apply_set_source_overrides, derive_deltas_from_baseline};
+use overrides::{
+    apply_set_coord_overrides, apply_set_source_overrides, derive_deltas_from_baseline,
+};
 use realign::{realign_fictional_locations, resolve_relative_positions};
 
 #[derive(Parser, Debug)]

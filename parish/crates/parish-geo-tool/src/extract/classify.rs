@@ -34,10 +34,7 @@ fn classify_amenity(tags: &HashMap<String, String>) -> Option<LocationType> {
     }
 }
 
-fn classify_building(
-    tags: &HashMap<String, String>,
-    element: &OsmElement,
-) -> Option<LocationType> {
+fn classify_building(tags: &HashMap<String, String>, element: &OsmElement) -> Option<LocationType> {
     let building = tags.get("building")?;
     match building.as_str() {
         "church" | "chapel" | "cathedral" => Some(LocationType::Church),
