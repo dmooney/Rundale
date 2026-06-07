@@ -1,11 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// Raw component source — used to assert the scoped CSS rules introduced by the
+// #1226/#1275 fixes are present (jsdom does not apply Svelte's scoped <style>,
+// so rendered colour/layout is proven by the Playwright screenshot spec).
+// vitest's cwd is parish/apps/ui.
+const COMPONENT_SRC = readFileSync(
+	resolve(process.cwd(), 'src/components/ChatPanel.svelte'),
+	'utf8',
+).replace(/\s+/g, ' ');
 import {
 	textLog,
 	streamingActive,
 	loadingPhrase,
 	loadingColor,
+	worldState,
 } from '../stores/game';
+import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
 
 // Mock the IPC layer
@@ -19,7 +32,13 @@ describe('ChatPanel', () => {
 		streamingActive.set(false);
 		loadingPhrase.set('');
 		loadingColor.set([72, 199, 142]);
+		worldState.set(null);
 	});
+
+	/** Builds a minimal WorldSnapshot; only location_name drives richify(). */
+	function setLocation(name: string) {
+		worldState.set({ location_name: name } as unknown as WorldSnapshot);
+	}
 
 	it('renders empty chat panel', () => {
 		const { container } = render(ChatPanel);
@@ -399,6 +418,180 @@ describe('ChatPanel', () => {
 			const { container } = render(ChatPanel);
 
 			expect(container.querySelector('.reaction-source')).toBeFalsy();
+		});
+	});
+
+	// Regression for #1226: a go-to / movement echo bubble contains the
+	// destination, which equals the current location name and is therefore
+	// highlighted as a `.term-location`. The destination text must remain in
+	// the player bubble AND its term spans must use the bubble's own
+	// foreground (cream `--color-bg`) rather than the page-tuned gold location
+	// colour, which is invisible on the gold player bubble.
+	describe('#1226 go-to destination visible in player bubble', () => {
+		it('renders the full destination in a go-to player bubble', () => {
+			setLocation('The Crossroads');
+			textLog.set([
+				{ id: 'p1', source: 'player', content: 'go to The Crossroads' },
+			]);
+			const { container } = render(ChatPanel);
+
+			const content = container.querySelector(
+				'.bubble-row.player .content',
+			) as HTMLElement;
+			expect(content).toBeTruthy();
+			// Full echoed command — destination NOT truncated.
+			expect(content.textContent).toBe('go to The Crossroads');
+		});
+
+		it('highlights the destination as a location term', () => {
+			setLocation('The Crossroads');
+			textLog.set([
+				{ id: 'p1', source: 'player', content: 'go to The Crossroads' },
+			]);
+			const { container } = render(ChatPanel);
+
+			const term = container.querySelector(
+				'.bubble-row.player .term-location',
+			) as HTMLElement;
+			expect(term).toBeTruthy();
+			expect(term.textContent).toBe('The Crossroads');
+		});
+
+		it('scopes the player-bubble term override to player bubbles only', () => {
+			// NPC bubble keeps the normal location term colour (regression guard
+			// AC1226-3). We assert the override CSS targets `.player .bubble`,
+			// so an NPC location term is not forced to the bubble background.
+			setLocation('The Crossroads');
+			textLog.set([
+				{ id: 'n1', source: 'Padraig', content: 'Meet me at The Crossroads' },
+			]);
+			const { container } = render(ChatPanel);
+
+			const npcTerm = container.querySelector(
+				'.bubble-row.npc .term-location',
+			) as HTMLElement;
+			expect(npcTerm).toBeTruthy();
+			expect(npcTerm.textContent).toBe('The Crossroads');
+			// The override selector does not match NPC bubbles; the NPC term keeps
+			// its default `.term-location` colour (asserted structurally — the
+			// element exists under `.bubble-row.npc`, not `.player`).
+			expect(
+				container.querySelector('.bubble-row.player .term-location'),
+			).toBeFalsy();
+		});
+
+		// jsdom does not apply Svelte's scoped <style>, so the *rendered* colour
+		// is proven by the Playwright screenshot. Here we assert the component
+		// source declares the player-bubble term-colour override that makes the
+		// destination legible (cream on the gold bubble) — a regression that
+		// removes it fails fast.
+		it('declares a player-bubble term-colour override to --color-bg (AC1226-2)', () => {
+			const normalized = COMPONENT_SRC;
+			// All three term kinds, scoped to the player bubble, set to the
+			// bubble's readable foreground.
+			expect(normalized).toMatch(
+				/\.player \.bubble :global\(\.term-irish\), \.player \.bubble :global\(\.term-name\), \.player \.bubble :global\(\.term-location\) \{ color: var\(--color-bg\);/,
+			);
+		});
+	});
+
+	// Regression for #1275: multiple co-located NPCs reacting to one player
+	// message must lay out cleanly — the bar aligns to the player side, wraps
+	// as whole chips, and renders every reaction.
+	describe('#1275 multiple emoji reactions layout', () => {
+		const multiReaction = {
+			id: 'p1',
+			source: 'player',
+			content: 'there is not',
+			reactions: [
+				{ emoji: '🤔', source: 'Mick Flanagan' },
+				{ emoji: '😏', source: 'Brendan Duffy' },
+				{ emoji: '🙄', source: 'Padraig Darcy' },
+			],
+		};
+
+		it('renders every reaction chip with no drops under a player bubble (AC1275-2)', () => {
+			textLog.set([multiReaction]);
+			const { container } = render(ChatPanel);
+
+			// Bar lives inside the player bubble's row (so the side-aligned CSS
+			// rule `.player .reaction-bar` matches at runtime).
+			const bar = container.querySelector(
+				'.bubble-row.player [data-testid="reaction-bar"]',
+			);
+			expect(bar).toBeTruthy();
+			// Every reaction is rendered — none dropped or clipped.
+			const badges = container.querySelectorAll('.reaction-badge');
+			expect(badges.length).toBe(3);
+			// Each chip carries its source name, so the chip is the wide element
+			// the layout fix must keep intact.
+			const sources = Array.from(
+				container.querySelectorAll('.reaction-source'),
+			).map((el) => el.textContent);
+			expect(sources).toEqual([
+				'Mick Flanagan',
+				'Brendan Duffy',
+				'Padraig Darcy',
+			]);
+		});
+
+		it('nests the reaction bar under an NPC bubble row when the NPC message is reacted to (AC1275-1)', () => {
+			textLog.set([
+				{
+					id: 'n1',
+					source: 'Padraig',
+					content: 'Bad news.',
+					reactions: [{ emoji: '😢', source: 'player' }],
+				},
+			]);
+			const { container } = render(ChatPanel);
+
+			// Bar nests under `.bubble-row.npc`, so `.npc .reaction-bar`
+			// (left-align) matches and `.player .reaction-bar` does not.
+			expect(
+				container.querySelector('.bubble-row.npc [data-testid="reaction-bar"]'),
+			).toBeTruthy();
+			expect(
+				container.querySelector(
+					'.bubble-row.player [data-testid="reaction-bar"]',
+				),
+			).toBeFalsy();
+		});
+
+		// jsdom does not apply Svelte's scoped <style> cascade, so the *rendered*
+		// alignment / wrapping / chip-integrity is proven by the Playwright
+		// screenshot spec (e2e/chat-feed-rendering.spec.ts) which runs a real
+		// browser. Here we assert the component source declares the layout rules
+		// the fix introduced, so a regression that deletes them fails fast.
+		describe('layout CSS rules present in component source (AC1275-1/3)', () => {
+			const normalized = COMPONENT_SRC;
+
+			it('player reaction bar is right-aligned', () => {
+				expect(normalized).toMatch(
+					/\.player \.reaction-bar \{ justify-content: flex-end;/,
+				);
+			});
+
+			it('npc reaction bar is left-aligned', () => {
+				expect(normalized).toMatch(
+					/\.npc \.reaction-bar \{ justify-content: flex-start;/,
+				);
+			});
+
+			it('reaction badge is a non-shrinking, non-wrapping chip', () => {
+				expect(normalized).toContain('flex: 0 0 auto;');
+				expect(normalized).toContain('white-space: nowrap;');
+			});
+
+			it('anchors the player/npc bubble wrapper to the message side', () => {
+				// So bubble + reaction chips line up on the same edge.
+				expect(normalized).toMatch(
+					/\.player \.bubble-wrapper \{ align-items: flex-end;/,
+				);
+				expect(normalized).toMatch(
+					/\.npc \.bubble-wrapper \{ align-items: flex-start;/,
+				);
+			});
 		});
 	});
 });
