@@ -17,3 +17,11 @@ rand = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Typed NPC catalogue schema (NpcFile / NpcFileEntry) for the split/join/
+# validate JSON tooling (TD-001). The typed model gives deterministic,
+# byte-identical field ordering that serde_json::Value (no preserve_order)
+# cannot.
+parish-npc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

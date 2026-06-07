@@ -736,6 +736,61 @@ pub fn append_journal_entry(
     heading_suffix: Option<&str>,
     body: &str,
 ) -> Result<()> {
+    let entry = JournalEntry::new(game_time, heading_suffix, body);
+    append_prepared_entry(path, &entry)
+}
+
+/// A fully-rendered journal entry whose heading + block are built **once** and
+/// can be appended to many files (e.g. a world-wide `WeatherChanged` event that
+/// fans out to every location journal). Sharing the rendered strings across the
+/// fan-out is the batching optimisation behind parish-core TD-031 — previously
+/// every per-location append re-`format!`'d the identical heading and block.
+#[derive(Debug, Clone)]
+pub struct JournalEntry {
+    /// `### <time>[ — <suffix>]\n`
+    heading: String,
+    /// The full block written on append: heading + body + trailing blank line.
+    block: String,
+    /// The idempotence needle (heading + body, without the leading `\n`),
+    /// trimmed of trailing newlines, precomputed once.
+    needle: String,
+}
+
+impl JournalEntry {
+    /// Renders a journal entry once for reuse across one or more files.
+    pub fn new(game_time: DateTime<Utc>, heading_suffix: Option<&str>, body: &str) -> Self {
+        let heading = match heading_suffix {
+            Some(suffix) if !suffix.is_empty() => {
+                format!("### {} — {}\n", format_game_time(game_time), suffix)
+            }
+            _ => format!("### {}\n", format_game_time(game_time)),
+        };
+
+        let mut block = String::with_capacity(heading.len() + body.len() + 2);
+        block.push_str(&heading);
+        block.push_str(body);
+        if !block.ends_with('\n') {
+            block.push('\n');
+        }
+        block.push('\n');
+
+        let needle = format!("{}{}", heading, body)
+            .trim_end_matches('\n')
+            .to_string();
+
+        Self {
+            heading,
+            block,
+            needle,
+        }
+    }
+}
+
+/// Appends a single pre-rendered [`JournalEntry`] to `path`, seeding a stub if
+/// the file does not yet exist and skipping the write when the same entry is
+/// already present (idempotence).
+fn append_prepared_entry(path: &Path, entry: &JournalEntry) -> Result<()> {
+    let _ = &entry.heading; // heading is embedded in block + needle.
     if !path.exists() {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -750,42 +805,61 @@ pub fn append_journal_entry(
         std::fs::write(path, stub).with_context(|| format!("seed stub {}", path.display()))?;
     }
 
-    let heading = match heading_suffix {
-        Some(suffix) if !suffix.is_empty() => {
-            format!("### {} — {}\n", format_game_time(game_time), suffix)
-        }
-        _ => format!("### {}\n", format_game_time(game_time)),
-    };
-
     // Idempotence: if the existing file already contains an entry with
     // the same heading AND body, skip the append. Catches the
     // "replayed the same fixture from a save reset" case — same
     // in-fiction timestamp + same destination is by definition the
     // same journal event, so re-appending it would be Groundhog Day.
-    if let Ok(existing) = std::fs::read_to_string(path) {
-        let needle = format!("\n{}{}", heading, body);
-        let needle_trimmed = needle.trim_end_matches('\n');
-        if !needle_trimmed.is_empty() && existing.contains(needle_trimmed) {
-            return Ok(());
-        }
+    if !entry.needle.is_empty()
+        && let Ok(existing) = std::fs::read_to_string(path)
+        && existing.contains(&entry.needle)
+    {
+        return Ok(());
     }
-
-    let mut block = String::with_capacity(heading.len() + body.len() + 2);
-    block.push_str(&heading);
-    block.push_str(body);
-    if !block.ends_with('\n') {
-        block.push('\n');
-    }
-    block.push('\n');
 
     use std::io::Write as _;
     let mut f = std::fs::OpenOptions::new()
         .append(true)
         .open(path)
         .with_context(|| format!("open append {}", path.display()))?;
-    f.write_all(block.as_bytes())
+    f.write_all(entry.block.as_bytes())
         .with_context(|| format!("append {}", path.display()))?;
     Ok(())
+}
+
+/// Fans a single world-wide journal entry out to many location journals,
+/// rendering the heading/body **once** and reusing it for every path.
+///
+/// This is the batched path behind parish-core TD-031: a `WeatherChanged` /
+/// `FestivalStarted` event applies to every location, so the previous code
+/// rebuilt the identical entry string for each of the ~22 Rundale locations.
+/// Here the entry is constructed a single time and applied across the slice,
+/// and the whole fan-out is a single call the event-bus subscriber makes —
+/// giving one place to add frequency/backpressure gating in future.
+///
+/// Per-path failures are logged and skipped (a world-wide event should still
+/// reach the other locations); the function returns the number of paths that
+/// were written or already current.
+pub fn append_journal_entry_batch<'a, I>(
+    paths: I,
+    game_time: DateTime<Utc>,
+    heading_suffix: Option<&str>,
+    body: &str,
+) -> usize
+where
+    I: IntoIterator<Item = &'a Path>,
+{
+    let entry = JournalEntry::new(game_time, heading_suffix, body);
+    let mut ok = 0usize;
+    for path in paths {
+        match append_prepared_entry(path, &entry) {
+            Ok(()) => ok += 1,
+            Err(e) => {
+                tracing::warn!(path = %path.display(), "batched journal append failed: {e}");
+            }
+        }
+    }
+    ok
 }
 
 /// Formats an in-fiction timestamp as `Weekday DD Month YYYY, HH:MM`.
@@ -1313,6 +1387,82 @@ mod tests {
             player.contains("Festival") && player.contains("Bealtaine"),
             "player diary missing festival entry: {}",
             player,
+        );
+    }
+
+    // ── TD-031: batched world-wide journal fan-out ───────────────────────────
+
+    // AC-7: a single batched fan-out writes the entry to EVERY target journal —
+    // no path is dropped. Behaviour is preserved relative to the previous
+    // per-location loop; only the rendering/IO is batched.
+    #[test]
+    fn batch_append_writes_entry_to_every_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths: Vec<PathBuf> = (1..=22)
+            .map(|i| tmp.path().join(format!("loc-{:03}.md", i)))
+            .collect();
+
+        let ok = append_journal_entry_batch(
+            paths.iter().map(PathBuf::as_path),
+            test_time(),
+            Some("Weather"),
+            "*Weather: Storm*\n",
+        );
+        assert_eq!(ok, 22, "every location journal should be written");
+
+        for p in &paths {
+            let body = std::fs::read_to_string(p).unwrap();
+            assert!(
+                body.contains("Weather") && body.contains("Storm"),
+                "journal {} missing weather entry:\n{}",
+                p.display(),
+                body
+            );
+        }
+    }
+
+    // AC-6: the batched helper renders the heading/body exactly once and reuses
+    // it — re-running the same batch is idempotent (no duplicate entries), the
+    // same guard the per-location path used to provide.
+    #[test]
+    fn batch_append_is_idempotent_per_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("loc-001.md");
+        let slice = [path.as_path()];
+
+        append_journal_entry_batch(slice, test_time(), Some("Weather"), "*Weather: Fog*\n");
+        append_journal_entry_batch(slice, test_time(), Some("Weather"), "*Weather: Fog*\n");
+
+        let body = std::fs::read_to_string(&path).unwrap();
+        let occurrences = body.matches("Weather: Fog").count();
+        assert_eq!(
+            occurrences, 1,
+            "duplicate world-wide event must not double-append:\n{}",
+            body
+        );
+    }
+
+    // A pre-rendered JournalEntry applied directly matches the single-path
+    // convenience wrapper — proves the batch path and the legacy single path
+    // produce byte-identical output.
+    #[test]
+    fn prepared_entry_matches_single_append() {
+        let tmp = tempfile::tempdir().unwrap();
+        let single = tmp.path().join("single.md");
+        let batched = tmp.path().join("batched.md");
+
+        append_journal_entry(&single, test_time(), Some("Weather"), "*Weather: Rain*\n").unwrap();
+        append_journal_entry_batch(
+            [batched.as_path()],
+            test_time(),
+            Some("Weather"),
+            "*Weather: Rain*\n",
+        );
+
+        assert_eq!(
+            std::fs::read_to_string(&single).unwrap(),
+            std::fs::read_to_string(&batched).unwrap(),
+            "batched fan-out output must match the single-append output byte-for-byte"
         );
     }
 }

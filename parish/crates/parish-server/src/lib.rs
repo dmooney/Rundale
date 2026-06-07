@@ -769,25 +769,25 @@ fn apply_outer_layers(
 
 // ── Extracted construction-step helpers ─────────────────────────────────────
 
-/// Loads `.env` in debug builds; warns about unloaded `.env` in release.
+/// Loads `.env` in debug builds; warns about an unloaded cwd `.env` in release.
+///
+/// Rule #9: a daemonised or packaged launch must not have its security-critical
+/// config silently overridden by an `.env` discovered by walking ancestors of
+/// the working directory. Release builds therefore only check the **explicit
+/// startup cwd** for an `.env` (to emit the #786 warning) and never parent-walk;
+/// debug builds keep `dotenvy::dotenv()` (which itself only checks the cwd, not
+/// ancestors) for local dev ergonomics.
 fn handle_dotenv() {
     #[cfg(debug_assertions)]
     dotenvy::dotenv().ok();
     #[cfg(not(debug_assertions))]
     {
-        fn find_dotenv() -> Option<std::path::PathBuf> {
-            let mut dir = std::env::current_dir().ok()?;
-            loop {
-                let path = dir.join(".env");
-                if path.is_file() {
-                    return Some(path);
-                }
-                if !dir.pop() {
-                    return None;
-                }
-            }
-        }
-        if let Some(path) = find_dotenv() {
+        // Only the startup cwd is inspected — no ancestor walk (rule #9).
+        let path = std::env::current_dir()
+            .map(|dir| dir.join(".env"))
+            .ok()
+            .filter(|p| p.is_file());
+        if let Some(path) = path {
             tracing::warn!(
                 ".env file found at '{}' but will NOT be loaded in \
                  release builds — set environment variables explicitly to avoid \
