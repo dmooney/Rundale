@@ -1000,7 +1000,7 @@ async fn dispatch_tier3(
 
             npc_mgr.set_tier3_in_flight(true);
 
-            let state_t3 = Arc::clone(&state);
+            let state_t3 = Arc::clone(state);
             // #9 — snapshot the sim-preemption token BEFORE spawn
             // so player input arriving mid-decode can cancel this
             // call. Cancelling replaces the token with a fresh one
@@ -1134,7 +1134,7 @@ async fn dispatch_tier2(
 
                 npc_mgr.set_tier2_in_flight(true);
 
-                let state_t2 = Arc::clone(&state);
+                let state_t2 = Arc::clone(state);
                 // #9 — snapshot the sim-preemption token (same
                 // semantics as the Tier 3 site above).
                 let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
