@@ -42,7 +42,7 @@ python3 rundale-bench/test_grade.py
 
 ## Local gotchas
 
-- **`v1-dev` — not frozen.** Dataset is intentionally undersized (155 prompts vs 1100 target). Freeze (`frozen=true` + `git tag rundale-bench-v1.0`) deferred until corpus growth and 3+ leaderboard targets on holdout.
+- **`v1-dev` — not frozen.** Dataset is intentionally undersized (309 records — 270 dev + 39 holdout, per `v1/MANIFEST.json` — vs 1100 target). Freeze (`frozen=true` + `git tag rundale-bench-v1.0`) deferred until corpus growth and 3+ leaderboard targets on holdout. The count is the sum of `records` across `MANIFEST.json` slices; don't hardcode it elsewhere.
 - **SHA-256 verified loader.** Every `load_slice()` call verifies the file's SHA-256 against `MANIFEST.json`. Drift surfaces as `RuntimeError` rather than silent score change.
 - **Slice record schema.** Each `*.jsonl` line: `{id, tier, persona, prompt, schema?, gold?}`. `dialogue` slice has neither `schema` nor `gold` — LLM-judge-only.
 - **Two judge paths.** Default `judge_sonnet_v1` queues bundles for Sonnet subagent scoring; `judge_v1` uses the HTTP judge directly. Judge JSON files in `v1/` carry `rubric_sha256` for integrity verification.

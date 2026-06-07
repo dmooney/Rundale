@@ -8,7 +8,7 @@ Generated benchmark outputs live in [`artifacts/`](artifacts/). The GitHub-rende
 
 ## Status
 
-`v1-dev` — in-development. Phases 1-7 of the rollout have landed structurally but the dataset is intentionally undersized (155 prompts total vs the plan's 1100 target). The framework is complete and produces measured per-slice scores; freeze (`MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0`) waits until the corpus is grown to the planned size and the leaderboard has at least three independently-evaluated targets (one frontier cloud, one open-weight, one local MLX) on the holdout split.
+`v1-dev` — in-development. Phases 1-7 of the rollout have landed structurally but the dataset is intentionally undersized (309 records total — 270 dev + 39 holdout, per `v1/MANIFEST.json` — vs the plan's 1100 target). The count is the sum of `records` across all slices in `MANIFEST.json`; do not hardcode it elsewhere. The framework is complete and produces measured per-slice scores; freeze (`MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0`) waits until the corpus is grown to the planned size and the leaderboard has at least three independently-evaluated targets (one frontier cloud, one open-weight, one local MLX) on the holdout split.
 
 | Phase                              | Status                  | Notes                                                                                                                                                                     |
 | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -141,9 +141,41 @@ After `frozen=true`, edits require a new version directory (`v1.1/`, `v2/`).
 against `http://127.0.0.1:<port>`, samples peak RAM at 4 Hz during
 inference (Metal-aware via `psutil.Process.memory_full_info().uss`),
 appends a row under `artifacts/local_leaderboard.md`, then SIGTERMs the
-server. The mlx-lm package lives in a dedicated venv at
-`/Users/dmooney/Rundale/.venv-mlx/`; the runner reads it via the
-hard-coded `_VENV` constant and otherwise has no project dependencies.
+server.
+
+### MLX venv (`MLX_VENV`)
+
+The mlx-lm package (and `psutil`) live in a dedicated venv. By default the
+runner looks for it at `<repo-root>/.venv-mlx/`; if yours lives elsewhere,
+point the runner at it with the **`MLX_VENV`** environment variable —
+`local_runner.py` reads `os.environ["MLX_VENV"]` (see the `_VENV` constant)
+and falls back to the sibling default when unset:
+
+```sh
+# psutil missing — run inside .venv-mlx? Set MLX_VENV to the real path:
+MLX_VENV=/abs/path/to/vllm-mlx \
+    .venv-mlx/bin/python3 rundale-bench/local_runner.py --slot tiny --slice intent
+```
+
+If you see `psutil missing — run inside .venv-mlx`, you launched the runner
+with a Python that lacks `psutil`/`mlx_lm`; invoke it with the venv's
+`bin/python3` (or set `MLX_VENV` and use `just -f rundale-bench/justfile`,
+which also honours `MLX_PY`).
+
+### RAM-cap kill switch (`--max-ram-gb`)
+
+The runner measures peak RSS continuously. Pass `--max-ram-gb N` to make it a
+hard ceiling: if a live sample exceeds `N` GB, the runner **SIGKILLs**
+`mlx_lm.server` immediately and skips the candidate's remaining slices,
+defending against an OOM that would otherwise take down the whole machine
+(and any Claude Code session driving it). Default: disabled. The
+`--headroom-gb` pre-flight estimate still gates which candidates start; the
+runtime cap is the safety net for an underestimate.
+
+On startup the runner also runs `candidates_schema.validate_candidates`
+against the TOML and refuses to run a malformed fleet (duplicate `hf_repo`,
+missing field, non-positive RAM estimate, unknown slot). Run the check
+standalone with `python3 rundale-bench/candidates_schema.py`.
 
 ```sh
 # Dry-run — list the candidates and their estimated RAM footprint:
