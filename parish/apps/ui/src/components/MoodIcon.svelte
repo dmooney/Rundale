@@ -21,6 +21,10 @@
 	 * `angry`, `passionate`, `restless`, `surprised`, and `warm` returned
 	 * different emojis from the Rust map vs this Svelte component. Keep them
 	 * in sync; the vitest suite asserts a representative cross-section.
+	 * Regression note (TD-056 / #1202): the irritated bucket gained
+	 * `sharp|caustic|acerbic|curt` (→ 😤) and a dedicated
+	 * `bitter|resentful|embittered|sour` bucket (→ 😒) to match Rust; without
+	 * them `mood="bitter"`/`"sharp"` fell through to the 🙂 fallback.
 	 */
 	const MOOD_EMOJI: Array<{
 		keywords: string[];
@@ -32,7 +36,11 @@
 		{ keywords: ['anxious', 'nervous', 'worried', 'uneasy'], emoji: '😰' },
 		{ keywords: ['sad', 'grief', 'mournful', 'sorrowful'], emoji: '😢' },
 		{ keywords: ['melanchol', 'wistful', 'nostalgic', 'pensive'], emoji: '😔' },
-		{ keywords: ['irritat', 'frustrat', 'annoyed', 'grumpy'], emoji: '😤' },
+		{
+			keywords: ['irritat', 'frustrat', 'annoyed', 'grumpy', 'sharp', 'caustic', 'acerbic', 'curt'],
+			emoji: '😤'
+		},
+		{ keywords: ['bitter', 'resentful', 'embittered', 'sour'], emoji: '😒' },
 		{ keywords: ['suspicious', 'wary', 'distrustful'], emoji: '🤨' },
 
 		// Positive

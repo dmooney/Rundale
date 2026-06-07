@@ -13,7 +13,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 use crate::session_store_impl::DbSessionStore;
-use crate::state::build_app_state;
+use crate::state::{AppStateParts, build_app_state};
 
 use super::{
     GlobalState, SessionEntry,
@@ -164,25 +164,25 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         inference_file_log.enabled_flag(),
     );
 
-    let app_state = build_app_state(
-        session_id.to_string(),
+    let app_state = build_app_state(AppStateParts {
+        session_id: session_id.to_string(),
         world,
         npc_manager,
-        client.clone(),
+        client: client.clone(),
         config,
         cloud_client,
-        global.transport.clone(),
-        global.ui_config.clone(),
-        global.theme_palette.clone(),
-        session_saves.clone(),
-        global.data_dir.clone(),
+        transport: global.transport.clone(),
+        ui_config: global.ui_config.clone(),
+        theme_palette: global.theme_palette.clone(),
+        saves_dir: session_saves.clone(),
+        data_dir: global.data_dir.clone(),
         game_mod,
         flags_path,
-        global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
+        inference_config: global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
         inference_file_log,
         chat_transcript_log,
-    );
+    });
 
     if let Err(e) = init_session_save(&app_state, &session_saves).await {
         tracing::warn!("Session initial save failed: {}", e);
@@ -309,25 +309,25 @@ async fn restore_session(
         inference_file_log.enabled_flag(),
     );
 
-    let app_state = build_app_state(
-        session_id.to_string(),
+    let app_state = build_app_state(AppStateParts {
+        session_id: session_id.to_string(),
         world,
         npc_manager,
-        client.clone(),
+        client: client.clone(),
         config,
         cloud_client,
-        global.transport.clone(),
-        global.ui_config.clone(),
-        global.theme_palette.clone(),
-        session_saves.clone(),
-        global.data_dir.clone(),
+        transport: global.transport.clone(),
+        ui_config: global.ui_config.clone(),
+        theme_palette: global.theme_palette.clone(),
+        saves_dir: session_saves.clone(),
+        data_dir: global.data_dir.clone(),
         game_mod,
         flags_path,
-        global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
+        inference_config: global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
         inference_file_log,
         chat_transcript_log,
-    );
+    });
 
     if let Some(ref c) = client {
         init_inference_queue(&app_state, c.clone()).await;

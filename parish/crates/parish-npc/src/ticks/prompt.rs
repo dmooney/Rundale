@@ -368,24 +368,43 @@ fn gossip_block(world: &WorldState, npc: &Npc) -> Option<String> {
 
 // ── composite context builder ─────────────────────────────────────────────
 
+/// Inputs to [`build_enhanced_context_with_config`].
+///
+/// Groups the Tier 1 context builder's parameters into one struct so call sites
+/// make ownership and the optional anchors explicit, and so the function no
+/// longer needs `#[allow(clippy::too_many_arguments)]` (TD-029). The `language`
+/// and `npc_names` fields are accepted for API uniformity with the system-prompt
+/// builders but are not used by the context builder — the language directive
+/// belongs in the system prompt.
+pub struct Tier1ContextParams<'a> {
+    pub npc: &'a Npc,
+    pub world: &'a WorldState,
+    pub player_input: &'a str,
+    pub other_npcs: &'a [&'a Npc],
+    pub language: &'a LanguageSettings,
+    pub config: &'a NpcConfig,
+    pub npc_names: &'a HashMap<NpcId, String>,
+    pub player_name_for_npc: Option<&'a str>,
+    pub was_introduced: bool,
+}
+
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base context with the NPC's recent memories and
 /// information about other NPCs present at the same location.
-/// The `_language` parameter is accepted for API uniformity with the system-prompt
-/// builders but is not used — the language directive belongs in the system prompt.
-#[allow(clippy::too_many_arguments)]
-pub fn build_enhanced_context_with_config(
-    npc: &Npc,
-    world: &WorldState,
-    player_input: &str,
-    other_npcs: &[&Npc],
-    _language: &LanguageSettings,
-    config: &NpcConfig,
-    _npc_names: &HashMap<NpcId, String>,
-    player_name_for_npc: Option<&str>,
-    was_introduced: bool,
-) -> String {
+pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> String {
+    let Tier1ContextParams {
+        npc,
+        world,
+        player_input,
+        other_npcs,
+        language: _language,
+        config,
+        npc_names: _npc_names,
+        player_name_for_npc,
+        was_introduced,
+    } = params;
+
     let mut context = build_tier1_context(world);
 
     // Mood goes into the dynamic context (not the system prompt) so that mood
@@ -445,17 +464,17 @@ pub(crate) fn build_enhanced_context(
     language: &LanguageSettings,
     npc_names: &HashMap<NpcId, String>,
 ) -> String {
-    let mut context = build_enhanced_context_with_config(
+    let mut context = build_enhanced_context_with_config(Tier1ContextParams {
         npc,
         world,
         player_input,
         other_npcs,
         language,
-        &NpcConfig::default(),
+        config: &NpcConfig::default(),
         npc_names,
-        None,
-        false,
-    );
+        player_name_for_npc: None,
+        was_introduced: false,
+    });
     // Player's current input last — everything above is context for this moment
     context.push_str("\n\n");
     context.push_str(&crate::build_named_action_line(player_input, None));
@@ -524,6 +543,58 @@ mod tests {
             context.contains("these are the only other people"),
             "other_npcs_block must anchor present-only addressing:\n{context}"
         );
+    }
+
+    #[test]
+    fn tier1_context_params_struct_matches_positional_behaviour() {
+        // TD-029: build_enhanced_context_with_config now takes a params struct.
+        // Assert the struct path produces the documented blocks, and that the
+        // `language`/`npc_names` fields (accepted for uniformity but unused by
+        // the context builder) do not affect the output — proving the refactor
+        // preserved behaviour byte-for-byte.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let other = make_test_npc(2, "Tommy", 1);
+        let world = WorldState::new();
+        let config = NpcConfig::default();
+
+        let names_a: HashMap<NpcId, String> = HashMap::new();
+        let names_b: HashMap<NpcId, String> =
+            [(NpcId(2), "Tommy".to_string())].into_iter().collect();
+        let others = [&other];
+
+        let ctx_a = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "greets everyone",
+            other_npcs: &others,
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names_a,
+            player_name_for_npc: Some("Aiden Carney"),
+            was_introduced: true,
+        });
+
+        // Varying the unused fields must not change the produced context.
+        let ctx_b = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "greets everyone",
+            other_npcs: &others,
+            language: &LanguageSettings::new("irish".to_string(), Some("english".to_string())),
+            config: &config,
+            npc_names: &names_b,
+            player_name_for_npc: Some("Aiden Carney"),
+            was_introduced: true,
+        });
+        assert_eq!(
+            ctx_a, ctx_b,
+            "language/npc_names are accepted-but-unused; they must not alter the context"
+        );
+
+        // Documented blocks still present via the struct path.
+        assert!(ctx_a.contains("Also present"));
+        assert!(ctx_a.contains("Tommy, the Test"));
+        assert!(ctx_a.contains("Aiden Carney"));
     }
 
     #[test]
