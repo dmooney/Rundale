@@ -340,6 +340,20 @@
 	:global(.term-name)     { color: var(--color-name); }
 	:global(.term-location) { color: var(--color-location); font-style: italic; }
 
+	/* #1226 — the player bubble is gold (var(--color-accent)) with cream text.
+	   The page-tuned term colours are legible on the light NPC/system
+	   background but clash on gold — the location colour (#b58900) is itself
+	   gold and vanishes, hiding the go-to destination ("go to The Crossroads"
+	   rendered the destination as gold-on-gold). The player echoes their own
+	   command, so semantic name/location/Irish colouring adds no value here:
+	   force every term span inside the player bubble back to the bubble's own
+	   readable foreground. (Location keeps its italic for a subtle accent.) */
+	.player .bubble :global(.term-irish),
+	.player .bubble :global(.term-name),
+	.player .bubble :global(.term-location) {
+		color: var(--color-bg);
+	}
+
 	/* Title card: splash message with <strong> title */
 	.entry.system :global(strong) {
 		font-family: var(--font-display);
@@ -371,6 +385,20 @@
 		display: flex;
 		flex-direction: column;
 		max-width: 75%;
+	}
+
+	/* #1275 — align the wrapper's stacked children (label, bubble, reaction
+	   bar) to the message side. Previously children defaulted to `stretch`, so
+	   when several NPC reaction chips made the bar the widest child the wrapper
+	   grew to the bar's width and the narrow player bubble floated at the LEFT
+	   while the chips sat elsewhere — they no longer lined up. Anchoring the
+	   column to the message side keeps bubble and chips on the same edge. */
+	.player .bubble-wrapper {
+		align-items: flex-end;
+	}
+
+	.npc .bubble-wrapper {
+		align-items: flex-start;
 	}
 
 	/* Name labels — Cinzel small caps */
@@ -501,6 +529,21 @@
 		flex-wrap: wrap;
 	}
 
+	/* #1275 — NPC reactions to the player's own message attach named chips to
+	   the player bubble. The bubble is right-aligned inside the 75 %-wide
+	   wrapper, but the reaction bar defaulted to flex-start, so multiple chips
+	   began at the wrapper's left edge — detached from the bubble and spilling
+	   left. Align the bar to the message side so chips sit under their bubble:
+	   right under player bubbles, left under NPC bubbles. flex-wrap keeps every
+	   chip visible; chips wrap as whole units (see .reaction-badge below). */
+	.player .reaction-bar {
+		justify-content: flex-end;
+	}
+
+	.npc .reaction-bar {
+		justify-content: flex-start;
+	}
+
 	.reaction-badge {
 		display: inline-flex;
 		align-items: center;
@@ -510,6 +553,11 @@
 		border: 1px solid var(--color-border);
 		border-radius: 10px;
 		padding: 0.1rem 0.35rem;
+		/* #1275 — keep each chip an intact, non-shrinking unit so a long NPC
+		   name never wraps its emoji onto a separate line and the bar wraps by
+		   whole chips, staying aligned. */
+		flex: 0 0 auto;
+		white-space: nowrap;
 	}
 
 	.reaction-source {
