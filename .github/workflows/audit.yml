@@ -37,7 +37,7 @@ jobs:
 
       # Pinned to match rust-quality-gate in ci.yml. Bump deliberately.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       # Caches ~/.cargo/bin so cargo-audit does not recompile each run.
       # cache-targets: false — there is no workspace target/ to preserve.

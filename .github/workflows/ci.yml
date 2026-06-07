@@ -122,7 +122,7 @@ jobs:
       # break PRs via newly-activated clippy lints. Bump deliberately in
       # a dedicated PR alongside any lint fixes the new version surfaces.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rustfmt, clippy
 
@@ -178,7 +178,7 @@ jobs:
       # Keep the coverage job on the same pinned toolchain as rust-quality-gate
       # so coverage drift is from tests/code, not a surprise compiler update.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: llvm-tools-preview
 
@@ -401,7 +401,7 @@ jobs:
           clean: true
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -452,7 +452,7 @@ jobs:
           clean: true
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -547,7 +547,7 @@ jobs:
           cache-dependency-path: parish/apps/ui/package-lock.json
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
