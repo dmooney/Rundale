@@ -116,6 +116,15 @@ impl ConversationLog {
         lines.join("\n")
     }
 
+    /// Returns the maximum number of exchanges the log retains.
+    ///
+    /// Useful as the `n` argument to [`recent_at`](Self::recent_at) when a
+    /// caller wants to scan the entire retained buffer (e.g. to find an NPC's
+    /// own most recent line for the anti-repetition guard, #1228).
+    pub const fn capacity() -> usize {
+        LOG_CAPACITY
+    }
+
     /// Returns the number of stored exchanges.
     pub fn len(&self) -> usize {
         self.exchanges.len()

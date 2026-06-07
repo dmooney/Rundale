@@ -799,6 +799,168 @@ pub fn forbidden_greeting_directive(time_of_day: TimeOfDay) -> Option<&'static s
     }
 }
 
+// ── #1228 — anti-repetition guard ──────────────────────────────────────────────
+//
+// Small / quantized models (e.g. the local MLX Qwen2.5-14B-4bit in #1228)
+// occasionally enter a degenerate sampling loop and emit the same clause dozens
+// of times inside one reply, or echo their own previous line near-verbatim on
+// the next turn. The #1224 length cap clips the *tail* but the surviving prefix
+// is still a wall of duplicate clauses, and it does nothing across turns. These
+// helpers are the deterministic, model-agnostic backstop: they need no live
+// inference and run identically for every provider.
+
+/// Normalizes a dialogue line for repetition comparison.
+///
+/// Lower-cases, collapses internal whitespace to single spaces, and trims
+/// surrounding whitespace and trailing sentence punctuation. Two lines that
+/// differ only in case, spacing, or trailing `.`/`!`/`?`/`…` normalize equal.
+fn normalize_for_repetition(s: &str) -> String {
+    let lowered = s.to_lowercase();
+    let collapsed = lowered.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed
+        .trim_matches(|c: char| c.is_whitespace() || matches!(c, '.' | '!' | '?' | '…' | ',' | ';'))
+        .to_string()
+}
+
+/// Splits a dialogue body into sentence-ish units on terminal punctuation,
+/// keeping the delimiter with each piece. Used by [`collapse_repeated_sentences`].
+fn split_sentences(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for ch in s.chars() {
+        current.push(ch);
+        if matches!(ch, '.' | '!' | '?' | '…') {
+            out.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.trim().is_empty() {
+        out.push(current);
+    }
+    out
+}
+
+/// Collapses consecutive duplicate sentences/clauses within a single dialogue
+/// string (#1228, intra-line repetition).
+///
+/// When a sentence normalizes equal to the one immediately before it, the
+/// duplicate is dropped. A run of N identical clauses collapses to a single
+/// instance. Non-repeating dialogue is returned unchanged (modulo whitespace
+/// re-joining). This is the primary defense against the degenerate
+/// "Speak yer mind, and we'll see what be in it, m'friend." loop in #1228.
+pub fn collapse_repeated_sentences(dialogue: &str) -> String {
+    let sentences = split_sentences(dialogue);
+    if sentences.len() < 2 {
+        return dialogue.to_string();
+    }
+    let mut kept: Vec<&str> = Vec::with_capacity(sentences.len());
+    let mut last_norm: Option<String> = None;
+    for sentence in &sentences {
+        let norm = normalize_for_repetition(sentence);
+        // Skip empty fragments and consecutive duplicates.
+        if norm.is_empty() {
+            continue;
+        }
+        if last_norm.as_deref() == Some(norm.as_str()) {
+            continue;
+        }
+        kept.push(sentence.trim());
+        last_norm = Some(norm);
+    }
+    if kept.is_empty() {
+        return dialogue.trim().to_string();
+    }
+    kept.join(" ")
+}
+
+/// Word-level Jaccard similarity of two normalized dialogue lines, in `[0.0, 1.0]`.
+///
+/// `1.0` means the two lines share the exact same set of words (ignoring order,
+/// case, spacing, and trailing punctuation); `0.0` means no shared words. Used as
+/// the deterministic near-identity signal for the cross-turn guard.
+fn dialogue_similarity(a: &str, b: &str) -> f32 {
+    let norm_a = normalize_for_repetition(a);
+    let norm_b = normalize_for_repetition(b);
+    if norm_a.is_empty() && norm_b.is_empty() {
+        return 1.0;
+    }
+    let set_a: std::collections::HashSet<&str> =
+        norm_a.split(' ').filter(|w| !w.is_empty()).collect();
+    let set_b: std::collections::HashSet<&str> =
+        norm_b.split(' ').filter(|w| !w.is_empty()).collect();
+    if set_a.is_empty() || set_b.is_empty() {
+        return if norm_a == norm_b { 1.0 } else { 0.0 };
+    }
+    let intersection = set_a.intersection(&set_b).count() as f32;
+    let union = set_a.union(&set_b).count() as f32;
+    intersection / union
+}
+
+/// Reports whether two dialogue lines are near-identical (#1228, cross-turn).
+///
+/// `threshold` is the minimum word-level Jaccard similarity (see
+/// [`dialogue_similarity`]) at or above which two lines count as near-identical.
+/// Exact normalized equality always counts. A threshold of `1.0` requires the
+/// same word set; lower thresholds catch lines that merely reshuffle/echo the
+/// same content.
+pub fn is_near_identical(a: &str, b: &str, threshold: f32) -> bool {
+    if normalize_for_repetition(a) == normalize_for_repetition(b) {
+        return true;
+    }
+    dialogue_similarity(a, b) >= threshold
+}
+
+/// Deterministic, varied fallback line used when an NPC would otherwise repeat
+/// its own previous line verbatim (#1228).
+///
+/// Picks from a small pool keyed by `seed` so the substituted line is stable for
+/// a given turn but varies across NPCs/turns. Period-neutral and content-free, so
+/// it is safe for any mod and any time of day. These are intentionally short — a
+/// brief acknowledgement reads better than re-emitting a degenerate wall of text.
+pub fn varied_repetition_fallback(seed: u64) -> &'static str {
+    const POOL: [&str; 6] = [
+        "Aye, as I said.",
+        "Sure, ye have the right of it.",
+        "Mm. There's little more to add to that.",
+        "Well now, I'll not say the same twice.",
+        "Aye, that's the way of it.",
+        "I've said my piece on that, so.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+/// Applies the full anti-repetition guard to a freshly generated NPC line
+/// (#1228). This is the single entry point the shared dialogue path calls.
+///
+/// Steps, in order:
+/// 1. Collapse consecutive duplicate clauses *within* the new line
+///    ([`collapse_repeated_sentences`]).
+/// 2. If the collapsed line is near-identical to the NPC's own `previous_line`
+///    ([`is_near_identical`] at `threshold`), substitute a deterministic varied
+///    fallback ([`varied_repetition_fallback`] keyed by `seed`).
+///
+/// `previous_line` is `None` when the NPC has no prior line at this location.
+/// A `threshold` of `0.0` disables the cross-turn check (intra-line collapse
+/// still runs, since runaway loops are always undesirable).
+pub fn guard_against_repetition(
+    new_line: &str,
+    previous_line: Option<&str>,
+    threshold: f32,
+    seed: u64,
+) -> String {
+    let collapsed = collapse_repeated_sentences(new_line);
+    if threshold <= 0.0 {
+        return collapsed;
+    }
+    if let Some(prev) = previous_line
+        && !collapsed.trim().is_empty()
+        && !prev.trim().is_empty()
+        && is_near_identical(&collapsed, prev, threshold)
+    {
+        return varied_repetition_fallback(seed).to_string();
+    }
+    collapsed
+}
+
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
 /// Renders the location description template (substituting `{time}`,
@@ -2110,6 +2272,119 @@ mod tests {
             prompt.contains("2-4 sentences"),
             "AC-4: length guidance missing from system prompt:\n{prompt}"
         );
+    }
+
+    // ── #1228 — anti-repetition guard ─────────────────────────────────────────
+
+    /// AC-1: a degenerate loop of one clause repeated many times collapses to a
+    /// single instance. This is the dominant #1228 failure mode.
+    #[test]
+    fn collapse_repeated_sentences_collapses_runaway_loop() {
+        let clause = "Speak yer mind, and we'll see what be in it, m'friend.";
+        let runaway = clause.repeat(20);
+        let collapsed = collapse_repeated_sentences(&runaway);
+        // The clause must appear exactly once after collapse.
+        let occurrences = collapsed.matches("Speak yer mind").count();
+        assert_eq!(
+            occurrences, 1,
+            "AC-1: runaway clause must collapse to one instance, got {occurrences}:\n{collapsed}"
+        );
+    }
+
+    /// AC-1: non-repeating multi-sentence dialogue is preserved (no false
+    /// collapse). Distinct adjacent sentences must all survive.
+    #[test]
+    fn collapse_repeated_sentences_preserves_distinct_sentences() {
+        let line = "Good evening to ye. The harvest looks fair this year. Will ye have a pint?";
+        let collapsed = collapse_repeated_sentences(line);
+        assert!(collapsed.contains("Good evening"), "got: {collapsed}");
+        assert!(collapsed.contains("harvest looks fair"), "got: {collapsed}");
+        assert!(
+            collapsed.contains("Will ye have a pint"),
+            "got: {collapsed}"
+        );
+    }
+
+    /// AC-2: identical text, case/whitespace/punctuation-only differences, and
+    /// high-overlap text are all flagged near-identical; distinct lines are not.
+    #[test]
+    fn is_near_identical_normalizes_and_thresholds() {
+        let a = "Aye, the rents be cruel this season.";
+        // Exact (always near-identical regardless of threshold).
+        assert!(is_near_identical(a, a, 1.0));
+        // Case / whitespace / trailing punctuation only.
+        assert!(is_near_identical(
+            a,
+            "  AYE,   the rents be cruel this season  ",
+            1.0
+        ));
+        // Clearly distinct content must NOT be flagged at a high threshold.
+        assert!(!is_near_identical(
+            a,
+            "The fiddler will play a reel at the céilí tonight.",
+            0.92
+        ));
+    }
+
+    /// AC-3: when the new line is near-identical to the NPC's previous line, the
+    /// guard substitutes a varied, non-empty fallback that differs from both the
+    /// previous line and a verbatim repeat.
+    #[test]
+    fn guard_against_repetition_varies_cross_turn_repeat() {
+        let prev = "Sure, the talk 'round here be always of the weather and the rents, m'friend.";
+        // Model echoes its own previous line near-verbatim (only trailing
+        // punctuation changed).
+        let new_line =
+            "Sure, the talk 'round here be always of the weather and the rents, m'friend!";
+        let out = guard_against_repetition(new_line, Some(prev), 0.92, 42);
+        assert!(!out.trim().is_empty(), "AC-3: fallback must be non-empty");
+        assert!(
+            !is_near_identical(&out, prev, 0.92),
+            "AC-3: guard must vary the repeated line, got:\n{out}"
+        );
+    }
+
+    /// AC-4: a clearly different new line passes through unchanged (no false
+    /// positive). Only intra-line collapse may touch it, and here there is none.
+    #[test]
+    fn guard_against_repetition_passes_distinct_line() {
+        let prev = "Good evening to ye, traveller.";
+        let new_line = "The miller's wife claims she saw a boat on the stream by night.";
+        let out = guard_against_repetition(new_line, Some(prev), 0.92, 7);
+        assert_eq!(
+            out, new_line,
+            "AC-4: distinct line must pass through unchanged"
+        );
+    }
+
+    /// AC-3 + AC-1 combined: the worst-case #1228 input (a previous line plus a
+    /// new line that is BOTH an internal loop AND a repeat of the previous line)
+    /// yields a short, varied, non-degenerate line.
+    #[test]
+    fn guard_against_repetition_handles_loop_that_echoes_previous() {
+        let prev = "Speak yer mind, and we'll see what be in it, m'friend.";
+        let new_line = "Speak yer mind, and we'll see what be in it, m'friend. ".repeat(15);
+        let out = guard_against_repetition(&new_line, Some(prev), 0.92, 3);
+        assert!(out.matches("Speak yer mind").count() <= 1, "got:\n{out}");
+        assert!(
+            !is_near_identical(&out, prev, 0.92),
+            "must not echo the previous line, got:\n{out}"
+        );
+    }
+
+    /// A threshold of 0.0 disables the cross-turn check, but intra-line collapse
+    /// still runs (runaway loops are always undesirable).
+    #[test]
+    fn guard_against_repetition_threshold_zero_disables_cross_turn_only() {
+        let prev = "Aye, as I said before.";
+        let new_line = "Aye, as I said before.";
+        let out = guard_against_repetition(new_line, Some(prev), 0.0, 1);
+        // Cross-turn check disabled: the line is NOT replaced by a fallback.
+        assert_eq!(out, new_line);
+        // But a runaway loop is still collapsed even with the check disabled.
+        let loop_line = "Same clause here. ".repeat(10);
+        let collapsed = guard_against_repetition(&loop_line, None, 0.0, 1);
+        assert_eq!(collapsed.matches("Same clause here").count(), 1);
     }
 }
 
