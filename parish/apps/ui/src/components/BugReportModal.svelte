@@ -5,7 +5,7 @@
 		bugReportScreenshot,
 		closeBugReport
 	} from '../stores/bugReport';
-	import { submitBugReport } from '$lib/ipc';
+	import { submitBugReport, openUrl } from '$lib/ipc';
 	import type { BugReportResult } from '$lib/types';
 
 	let title = $state('');
@@ -72,10 +72,13 @@
 					<div class="result" data-testid="bug-report-result">
 						<p class="result-message">{result.message}</p>
 						{#if result.issue_url}
+							{@const issueUrl = result.issue_url}
 							<p>
-								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- result.issue_url is an external GitHub issue URL, not a SvelteKit route -->
-								<a href={result.issue_url} target="_blank" rel="noreferrer noopener"
-									>Open issue #{result.issue_number}</a
+								<button
+									class="issue-link"
+									type="button"
+									onclick={() => void openUrl(issueUrl)}
+									>Open issue #{result.issue_number}</button
 								>
 							</p>
 						{:else if result.bundle_path}
@@ -247,6 +250,23 @@
 		color: var(--color-muted);
 		font-size: 0.7rem;
 		word-break: break-all;
+	}
+
+	/* Issue link — styled as an inline text link; rendered as a <button> so
+	   it works in both Tauri (where <a target="_blank"> is blocked) and web
+	   mode (where openUrl() falls through to window.open). (#1223) */
+	.issue-link {
+		background: none;
+		border: none;
+		padding: 0;
+		font-family: inherit;
+		font-size: 0.8rem;
+		color: var(--color-accent);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	.issue-link:hover {
+		color: var(--color-fg);
 	}
 
 	.modal-footer {

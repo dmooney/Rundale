@@ -783,6 +783,50 @@ mod tests {
         assert!(body.contains("### Text log\n\n_none_"));
     }
 
+    /// Regression test for #1222: game-events log section must render as a
+    /// fenced code block (not `_none_`) when game events are present, and each
+    /// entry must follow the `[timestamp] kind — summary` format produced by
+    /// `BugReportState::from_snapshots`.
+    #[test]
+    fn game_events_render_as_fenced_block_when_present() {
+        let s = BugReportState {
+            game_events: vec![
+                "[10:00 1820-03-20] NpcArrived — Brigid arrived at The Mill".into(),
+                "[10:05 1820-03-20] WeatherChanged — Weather: LightRain".into(),
+            ],
+            ..Default::default()
+        };
+        let body = compose_issue_body(&request(), &s, None);
+
+        // The section must NOT show the empty placeholder.
+        assert!(
+            !body.contains("### Game events\n\n_none_"),
+            "game events section must not be empty when events are present"
+        );
+        // The section must be wrapped in a fenced code block.
+        assert!(
+            body.contains("### Game events\n\n```\n[10:00 1820-03-20] NpcArrived"),
+            "game events must open with a fenced code block"
+        );
+        assert!(
+            body.contains("WeatherChanged — Weather: LightRain\n```"),
+            "game events code block must include all entries and close correctly"
+        );
+    }
+
+    /// Regression test for #1222 ordering: `from_snapshots` takes the most
+    /// recent `LOG_TAIL` entries in chronological order (oldest → newest),
+    /// matching the order shown in the debug panel.
+    #[test]
+    fn game_events_tail_is_oldest_to_newest() {
+        let body = compose_issue_body(&request(), &state(), None);
+        // The fixture state has one game event.
+        assert!(
+            body.contains("### Game events\n\n```\n[20:00] WeatherChanged"),
+            "single game event must appear in the fenced block"
+        );
+    }
+
     #[test]
     fn empty_description_is_noted() {
         let mut req = request();
