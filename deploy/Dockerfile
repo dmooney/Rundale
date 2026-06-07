@@ -2,7 +2,7 @@
 # Build:  docker build -f deploy/Dockerfile -t parish .
 #
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
-FROM node:22-slim AS frontend
+FROM node:26-slim AS frontend
 WORKDIR /build
 COPY parish/apps/ui/package*.json ./
 RUN npm ci
