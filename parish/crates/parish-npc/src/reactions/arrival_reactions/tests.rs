@@ -3,7 +3,7 @@
 use super::selection::{generate_arrival_reactions, is_negative_mood, reaction_threshold};
 use super::templates::{ReactionTemplates, substitute_placeholders};
 use super::types::{ArrivalContext, ReactionKind};
-use crate::{Npc, NpcId};
+use crate::NpcId;
 use parish_config::ReactionConfig;
 use parish_types::LocationId;
 use parish_types::dice::{DiceRoll, fixed_n};
@@ -14,10 +14,7 @@ use std::collections::HashSet;
 
 use super::prompt::build_reaction_prompt;
 use crate::LanguageSettings;
-
-fn test_npc(id: u32, name: &str, occupation: &str, workplace: Option<LocationId>) -> Npc {
-    crate::test_helpers::make_named_occupation_npc(id, name, occupation, workplace)
-}
+use crate::test_helpers::make_named_occupation_npc as test_npc;
 
 fn test_location(id: u32, indoor: bool) -> LocationData {
     LocationData {

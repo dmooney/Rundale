@@ -15,6 +15,11 @@ const DB_FILENAME: &str = "parish-world.db";
 /// anchor but is overridden by an explicit `--db` flag on the command line).
 const NPC_TOOL_DB_ENV: &str = "PARISH_NPC_TOOL_DB";
 
+/// Current world year for the simulation. Used to derive `birth_year` from an
+/// NPC's age in both `generate_parish` and `import_npcs_inner`; keeping it in
+/// one place prevents the two call sites from silently diverging.
+const WORLD_YEAR: i64 = 1820;
+
 /// Resolves the default NPC-tool DB path when `--db` is not given on the
 /// command line.  Resolution order (Rule 9 — never bare cwd-relative):
 ///
@@ -387,7 +392,7 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
 
     let mut rng = StdRng::seed_from_u64(seed.unwrap_or(42));
     let household_count = (pop / 6).max(1);
-    let now_year = 1820_i64;
+    let now_year = WORLD_YEAR;
 
     for i in 0..household_count {
         tx.execute(
@@ -841,7 +846,7 @@ fn import_npcs_inner(conn: &Connection, npcs: Vec<ExportNpc>) -> Result<(u64, u6
                 npc.id,
                 npc.name,
                 npc.sex,
-                1820 - npc.age,
+                WORLD_YEAR - npc.age,
                 npc.age,
                 parish_id,
                 npc.occupation,

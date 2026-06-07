@@ -18,17 +18,35 @@
 
 	// ── Handlers ────────────────────────────────────────────────────
 
-	async function refreshSaves() {
+	/**
+	 * Runs `fn` inside the shared loading-count guard (TD-040): increments
+	 * `loadingCount` for the duration, logs any rejection under `label`, then
+	 * decrements in `finally` so the spinner clears even on error. `onError`
+	 * lets a caller record extra state (e.g. a user-visible message) on failure.
+	 */
+	async function withLoading(
+		label: string,
+		fn: () => Promise<void>,
+		onError?: (e: unknown) => void
+	): Promise<void> {
 		loadingCount++;
 		try {
+			await fn();
+		} catch (e) {
+			console.error(`${label}:`, e);
+			onError?.(e);
+		} finally {
+			loadingCount--;
+		}
+	}
+
+	async function refreshSaves() {
+		await withLoading('Failed to discover saves', async () => {
 			const allFiles = await discoverSaveFiles();
 			saveFiles.set(allFiles);
 			const state = await getSaveState();
 			currentSaveState.set(state);
-		} catch (e) {
-			console.error('Failed to discover saves:', e);
-		}
-		loadingCount--;
+		});
 	}
 
 	async function refreshGameState() {
@@ -47,81 +65,66 @@
 	}
 
 	async function handleLoadBranch(file: SaveFileInfo, branch: SaveBranchDisplay) {
-		loadingCount++;
-		try {
+		await withLoading('Load failed', async () => {
 			await loadBranch(file.path, branch.id);
 			await refreshGameState();
 			savePickerVisible.set(false);
-		} catch (e) {
-			console.error('Load failed:', e);
-		}
-		loadingCount--;
+		});
 	}
 
 	async function handleForkLedger() {
-		loadingCount++;
-		try {
+		await withLoading('Fork ledger failed', async () => {
 			await newSaveFile();
 			await refreshGameState();
 			showLedgers = false;
 			savePickerVisible.set(false);
-		} catch (e) {
-			console.error('Fork ledger failed:', e);
-		}
-		loadingCount--;
+		});
 	}
 
 	async function handleNewGame() {
-		loadingCount++;
-		try {
+		await withLoading('New game failed', async () => {
 			await newGame();
 			await refreshGameState();
 			showLedgers = false;
 			savePickerVisible.set(false);
-		} catch (e) {
-			console.error('New game failed:', e);
-		}
-		loadingCount--;
+		});
 	}
 
 	async function handleSwitchLedger(file: SaveFileInfo) {
 		const branch = file.branches[0];
 		if (!branch) return;
-		loadingCount++;
-		try {
+		await withLoading('Switch ledger failed', async () => {
 			await loadBranch(file.path, branch.id);
 			await refreshGameState();
 			showLedgers = false;
 			await refreshSaves();
-		} catch (e) {
-			console.error('Switch ledger failed:', e);
-		}
-		loadingCount--;
+		});
 	}
 
 	async function handleFork(parentBranch: SaveBranchDisplay) {
 		const name = forkName.trim();
 		if (!name) return;
-		loadingCount++;
-		try {
-			await createBranch(name, parentBranch.id);
-			forkingBranchId = null;
-			forkName = '';
-			const body = modalBodyEl;
-			const scrollTop = body?.scrollTop ?? 0;
-			const scrollLeft = body?.scrollLeft ?? 0;
-			await refreshSaves();
-			requestAnimationFrame(() => {
-				if (body) {
-					body.scrollTop = scrollTop;
-					body.scrollLeft = scrollLeft;
-				}
-			});
-		} catch (e: unknown) {
-			console.error('Branch creation failed:', e);
-			forkError = (e instanceof Error ? e.message : String(e)).substring(0, 60);
-		}
-		loadingCount--;
+		await withLoading(
+			'Branch creation failed',
+			async () => {
+				await createBranch(name, parentBranch.id);
+				forkingBranchId = null;
+				forkName = '';
+				const body = modalBodyEl;
+				const scrollTop = body?.scrollTop ?? 0;
+				const scrollLeft = body?.scrollLeft ?? 0;
+				await refreshSaves();
+				requestAnimationFrame(() => {
+					if (body) {
+						body.scrollTop = scrollTop;
+						body.scrollLeft = scrollLeft;
+					}
+				});
+			},
+			(e) => {
+				forkError = (e instanceof Error ? e.message : String(e)).substring(0, 60);
+			}
+		);
 	}
 
 	function generateBranchName(parent: SaveBranchDisplay, branches: SaveBranchDisplay[]): string {

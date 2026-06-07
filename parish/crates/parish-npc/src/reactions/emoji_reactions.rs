@@ -296,11 +296,8 @@ pub async fn infer_player_message_reaction(
 mod tests {
     use super::*;
     use crate::reactions::REACTION_PALETTE;
+    use crate::test_helpers::make_named_occupation_npc as test_npc;
     use parish_types::LocationId;
-
-    fn test_npc(id: u32, name: &str, occupation: &str, workplace: Option<LocationId>) -> Npc {
-        crate::test_helpers::make_named_occupation_npc(id, name, occupation, workplace)
-    }
 
     #[test]
     fn generate_rule_reaction_keyword_match() {

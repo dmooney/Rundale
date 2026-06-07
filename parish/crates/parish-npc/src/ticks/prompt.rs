@@ -468,13 +468,10 @@ pub(crate) fn build_enhanced_context(
 mod tests {
     use super::*;
     use crate::NpcMetadata;
+    use crate::test_helpers::make_named_npc as make_test_npc;
     use parish_config::RelationshipLabelConfig;
     use parish_world::WorldState;
     use std::collections::HashMap;
-
-    fn make_test_npc(id: u32, name: &str, location: u32) -> Npc {
-        crate::test_helpers::make_named_npc(id, name, location)
-    }
 
     #[test]
     fn test_enhanced_system_prompt_includes_relationships() {
