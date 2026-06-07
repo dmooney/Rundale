@@ -20,7 +20,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 use parish_server::routes::new_game;
-use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
+use parish_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
 
 fn default_game_config() -> GameConfig {
     GameConfig {
@@ -92,25 +92,25 @@ async fn new_game_with_missing_world_file_returns_500() {
         std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
             saves_dir.clone(),
         ));
-    let state = build_app_state(
-        "test-session".to_string(),
-        WorldState::new(),
-        NpcManager::new(),
-        None,
-        default_game_config(),
-        None,
-        TransportConfig::default(),
-        default_ui_config(),
-        parish_core::game_mod::default_theme_palette(),
-        saves_dir.clone(),
-        data_dir.clone(),
-        None, // no game_mod → legacy fallback path is taken
-        data_dir.join("parish-flags.json"),
-        InferenceConfig::default(),
+    let state = build_app_state(AppStateParts {
+        session_id: "test-session".to_string(),
+        world: WorldState::new(),
+        npc_manager: NpcManager::new(),
+        client: None,
+        config: default_game_config(),
+        cloud_client: None,
+        transport: TransportConfig::default(),
+        ui_config: default_ui_config(),
+        theme_palette: parish_core::game_mod::default_theme_palette(),
+        saves_dir: saves_dir.clone(),
+        data_dir: data_dir.clone(),
+        game_mod: None, // no game_mod → legacy fallback path is taken
+        flags_path: data_dir.join("parish-flags.json"),
+        inference_config: InferenceConfig::default(),
         session_store,
-        parish_core::inference::file_log::InferenceFileLog::disabled(),
-        parish_core::chat_transcript::ChatTranscriptLog::disabled(),
-    );
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+    });
 
     let req = Request::builder()
         .method("POST")

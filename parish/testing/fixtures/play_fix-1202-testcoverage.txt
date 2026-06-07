@@ -1,0 +1,13 @@
+# Live verification fixture for fix-1202-testcoverage (#1202).
+# Exercises the runtime-shipping paths touched by the test-coverage PR:
+#  - movement + look drive parish-core ipc handlers (the Tier1 context
+#    builder refactored for TD-029) and the shared command path.
+#  - npcs / talk surface NPC mood (the MoodIcon fallback fixed for TD-056).
+# This is a deterministic harness run; it proves the refactors did not
+# change observable gameplay behaviour.
+look
+go to the church
+look
+npcs
+wait
+look

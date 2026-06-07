@@ -162,7 +162,11 @@ fn find_road_distance(
         // Add the snap distances (off-road walk to the road)
         let total_dist = road_dist + snap_a.distance + snap_b.distance;
 
-        if best.is_none() || total_dist < best.unwrap().0 {
+        // Keep the segment with the smallest total distance. `is_none_or`
+        // makes the "first candidate, or a strictly closer one" invariant
+        // explicit without an `unwrap` that a future edit could trip over
+        // (TD-023).
+        if best.is_none_or(|(best_dist, _)| total_dist < best_dist) {
             best = Some((total_dist, segment));
         }
     }
@@ -556,6 +560,97 @@ mod tests {
         assert!(
             desc.contains("fields"),
             "direct description should mention fields: {desc}"
+        );
+    }
+
+    // ── find_road_distance picks the closest candidate (TD-023) ──────────────
+
+    #[test]
+    fn find_road_distance_returns_closest_candidate() {
+        // Two features ~111m apart, both within the 100m snap threshold of two
+        // different roads. The first road runs exactly along the feature line
+        // (zero off-road snap); the second is offset ~74m east of both, so its
+        // total distance (along-road + two ~74m snaps) is strictly larger.
+        // The old `best.unwrap().0` comparison guarded exactly this "keep the
+        // smaller total" choice — assert the closer road wins regardless of
+        // iteration order.
+        let a = make_feature("A", LocationType::Pub, 53.5000, -8.0000);
+        let b = make_feature("B", LocationType::Pub, 53.5010, -8.0000);
+
+        // Road 1: directly on the feature line (snap distance ≈ 0).
+        let near = RoadSegment {
+            points: vec![
+                LatLon {
+                    lat: 53.5000,
+                    lon: -8.0000,
+                },
+                LatLon {
+                    lat: 53.5010,
+                    lon: -8.0000,
+                },
+            ],
+            highway_type: "primary".to_string(),
+            name: Some("Near Road".to_string()),
+        };
+        // Road 2: offset ~74m east of both features (0.001° lon at 53°N).
+        let far = RoadSegment {
+            points: vec![
+                LatLon {
+                    lat: 53.5000,
+                    lon: -7.9990,
+                },
+                LatLon {
+                    lat: 53.5010,
+                    lon: -7.9990,
+                },
+            ],
+            highway_type: "track".to_string(),
+            name: Some("Far Road".to_string()),
+        };
+
+        // Far-first ordering: the closer road must still win.
+        let segments = vec![far.clone(), near.clone()];
+        let (total, chosen) =
+            find_road_distance(&a, &b, &segments).expect("both roads are within snap threshold");
+        assert_eq!(
+            chosen.name.as_deref(),
+            Some("Near Road"),
+            "the road with the smaller total distance must win"
+        );
+
+        // Sanity: the chosen total is the near road's (~111m along, ~0 snap),
+        // strictly less than the far road would have produced.
+        let far_only = find_road_distance(&a, &b, &[far])
+            .expect("far road alone is within threshold")
+            .0;
+        assert!(
+            total < far_only,
+            "closest-candidate total {total} should be below far-only {far_only}"
+        );
+    }
+
+    #[test]
+    fn find_road_distance_none_when_no_road_in_range() {
+        // A road far outside the 100m snap threshold yields no connection.
+        let a = make_feature("A", LocationType::Pub, 53.5000, -8.0000);
+        let b = make_feature("B", LocationType::Pub, 53.5010, -8.0000);
+        let distant = RoadSegment {
+            points: vec![
+                LatLon {
+                    lat: 54.0000,
+                    lon: -8.0000,
+                },
+                LatLon {
+                    lat: 54.0010,
+                    lon: -8.0000,
+                },
+            ],
+            highway_type: "primary".to_string(),
+            name: None,
+        };
+        assert!(
+            find_road_distance(&a, &b, &[distant]).is_none(),
+            "no road within snap threshold ⇒ None"
         );
     }
 
