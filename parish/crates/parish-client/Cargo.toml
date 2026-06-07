@@ -18,7 +18,9 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
-dirs = "5"
+# Session-cookie path resolution is routed through the shared persistence
+# path helpers (rule #9) instead of an ad-hoc $HOME fallback (TD-003).
+parish-persistence = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

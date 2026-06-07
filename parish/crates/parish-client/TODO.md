@@ -2,9 +2,7 @@
 
 ## Open
 
-| ID     | Category       | Severity | Location              | Description                                                                                                                                                                                                                                                                                                                                                                  |
-| ------ | -------------- | -------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TD-003 | Config Hygiene | P3       | `src/session.rs:4-10` | Session cookie storage falls back to `$HOME/parish/session` when platform state/data dirs are unavailable. Document and test the fallback, or route it through the persistence path helpers if the CLI starts sharing more runtime state. (2026-06-06: partial — save/load tests added; HOME fallback branch still untested and not routed through persistence path helpers) |
+_(none — TD-003 resolved 2026-06-07 under #1203; see Done.)_
 
 ## In Progress
 
@@ -12,16 +10,18 @@ _(none)_
 
 ## Done
 
-| ID     | Category   | Severity | Description                                                                                                                                                                                                                                                                                                                                     |
-| ------ | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TD-001 | Weak Tests | P2       | `repl.rs` line-filter extracted into pure `should_skip`/`is_quit` helpers and unit-tested (blank/comment skip, all quit/exit sentinels, loop-filter ordering). With client.rs (5) + session.rs (5) already covered, the thin-client crate-local test gap is closed. (#1202)                                                                     |
-| TD-002 | API Drift  | P2       | Added a two-sided wire-compat guard: client tests deserialize a `sync_types::CommandResponse`-shaped JSON losslessly and pin the top-level key set; the server-side companion `sync_types::tests::command_response_wire_keys_match_client` pins the serialized keys. A rename on either side now fails CI. Crate stays dependency-free. (#1202) |
+| ID     | Category       | Severity | Description                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------ | -------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TD-001 | Weak Tests     | P2       | `repl.rs` line-filter extracted into pure `should_skip`/`is_quit` helpers and unit-tested (blank/comment skip, all quit/exit sentinels, loop-filter ordering). With client.rs (5) + session.rs (5) already covered, the thin-client crate-local test gap is closed. (#1202)                                                                                                                                                             |
+| TD-002 | API Drift      | P2       | Added a two-sided wire-compat guard: client tests deserialize a `sync_types::CommandResponse`-shaped JSON losslessly and pin the top-level key set; the server-side companion `sync_types::tests::command_response_wire_keys_match_client` pins the serialized keys. A rename on either side now fails CI. (#1202)                                                                                                                      |
+| TD-003 | Config Hygiene | P3       | `session.rs` no longer uses an ad-hoc `$HOME/parish/session` fallback. The cookie path is resolved through `parish_persistence::paths::resolve_user_data_dir(DEFAULT_APP_NAME)` (rule #9), honouring `PARISH_USER_DATA_DIR`, with the fallback documented in the module header. Tests cover the env-override save→load round-trip plus empty/whitespace/missing-file cases through the real resolved path. (resolved 2026-06-07, #1203) |
 
 ## Progress Log
 
 - **2026-05-25**: Initialized the crate debt ledger and recorded TD-001 through TD-003 from the current source scan.
 - **2026-06-06**: Re-audit vs current code. Resolved->Done: none. Still open: TD-001 (partial), TD-002, TD-003 (partial). Tracking epics re-opened: #1202, #1203.
 - **2026-06-06 (#1202)**: Resolved TD-001 (repl.rs tested) and TD-002 (wire-compat test). Still open: TD-003 (#1203).
+- **2026-06-07 (#1203)**: Resolved TD-003 — session-cookie path routed through `parish_persistence::paths` (rule #9), env-override + edge cases tested. This adds a `parish-persistence` dependency, so the crate is no longer dependency-free; the wire-compat guard from TD-002 is unaffected. No Open items remain.
 
 ## Discovery note
 
