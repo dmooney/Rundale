@@ -6,6 +6,14 @@ license = "GPL-3.0-only"
 publish = false
 description = "Model Context Protocol (MCP) server that lets LLM clients drive a Parish/Tauri instance"
 
+[features]
+# Off by default: ships the not-yet-implemented `GenericTauriBackend`
+# (WebDriver / `tauri-driver`) placeholder. Gated so the default public
+# surface never exposes an always-`Unimplemented` backend; enable to pin a
+# tool registry against the trait ahead of the real impl landing (#1200,
+# TD-002).
+generic-tauri-backend = []
+
 [[bin]]
 name = "parish-mcp"
 path = "src/main.rs"

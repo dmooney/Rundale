@@ -36,6 +36,9 @@ A second impl, `GenericTauriBackend`, is a stub for a future
 [WebDriver / `tauri-driver`](https://v2.tauri.app/develop/tests/webdriver/)
 backend that would drive any Tauri app's webview directly. It is wired
 through the same trait so the MCP layer needs no changes when it lands.
+It lives behind the off-by-default `generic-tauri-backend` cargo feature, so
+the default build never exposes an always-`Unimplemented` backend; enable the
+feature to compile the placeholder type.
 
 ## Architecture
 
@@ -45,7 +48,7 @@ flowchart TB
 
     subgraph mcp_proc["parish-mcp (stdio process)"]
         Tools["Tool registry<br/>parish_world_snapshot,<br/>parish_submit_input,<br/>parish_setup_byok, ..."]
-        Backend["TauriBackend trait<br/>↳ ParishHttpBackend<br/>↳ GenericTauriBackend (stub)"]
+        Backend["TauriBackend trait<br/>↳ ParishHttpBackend<br/>↳ GenericTauriBackend (stub, feature-gated)"]
         Tools --> Backend
     end
 
@@ -264,7 +267,8 @@ notification` fan-in would let the bridge push these proactively. ~80
   channel on `McpServer`.
 
 - **`GenericTauriBackend` (WebDriver).** The `BackendError::Unimplemented`
-  stub is wired through the `TauriBackend` trait so a future
+  stub (behind the off-by-default `generic-tauri-backend` feature) is wired
+  through the `TauriBackend` trait so a future
   [`tauri-driver`](https://v2.tauri.app/develop/tests/webdriver/) impl
   drops in without protocol changes. Unblocks DOM-level driving (click
   selectors, read visible text, real screenshots of the OS window) and
