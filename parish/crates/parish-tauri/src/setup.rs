@@ -9,7 +9,8 @@
 //!
 //! All functions take `&AppHandle` / `&Arc<AppState>` and emit via the
 //! existing `tauri::Emitter` impl on the handle. Behaviour is byte-for-byte
-//! identical to the inline closure that lived at lib.rs:898-1900.
+//! identical to the inline `.setup()` closure these helpers were extracted
+//! from (TD-003); the main tick loop now lives in `spawn_world_tick` below.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -990,7 +991,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                             // Re-acquire locks to apply updates.
                             // Lock ordering: `world` → `npc_manager`
                             // (matches the documented contract and the
-                            // main tick at lib.rs:955-956).  Acquiring
+                            // main tick at setup.rs:779-780).  Acquiring
                             // npc_manager first while a concurrent main
                             // tick holds world would deadlock (#337).
                             let world = state_t3.world.lock().await;
@@ -1127,7 +1128,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 // Re-acquire locks to apply events.
                                 // Lock ordering: `world` → `npc_manager`
                                 // (matches the documented contract and the
-                                // main tick at lib.rs:955-956).  Acquiring
+                                // main tick at setup.rs:779-780).  Acquiring
                                 // npc_manager first while a concurrent main
                                 // tick holds world would deadlock (#337).
                                 let mut world = state_t2.world.lock().await;

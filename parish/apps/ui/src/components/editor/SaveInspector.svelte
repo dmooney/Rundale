@@ -5,6 +5,7 @@
 		editorListBranches,
 		editorReadSnapshot
 	} from '$lib/editor-ipc';
+	import { runWithLoading } from '$lib/async-loading';
 	import type { SaveFileSummary, BranchSummary, SnapshotDetail } from '$lib/editor-types';
 
 	let saves: SaveFileSummary[] = $state([]);
@@ -15,47 +16,30 @@
 	let loading = $state(false);
 	let error = $state('');
 
+	const loadingHandlers = {
+		setLoading: (v: boolean) => (loading = v),
+		setError: (v: string) => (error = v)
+	};
+
 	async function refreshSaves() {
-		loading = true;
-		error = '';
-		try {
-			saves = await editorListSaves();
-		} catch (e) {
-			error = String(e);
-		} finally {
-			loading = false;
-		}
+		saves = (await runWithLoading(loadingHandlers, editorListSaves)) ?? saves;
 	}
 
 	async function selectSave(save: SaveFileSummary) {
 		selectedSave = save;
 		selectedBranch = null;
 		snapshot = null;
-		loading = true;
-		error = '';
-		try {
-			branches = await editorListBranches(save.path);
-		} catch (e) {
-			error = String(e);
-			branches = [];
-		} finally {
-			loading = false;
-		}
+		branches =
+			(await runWithLoading(loadingHandlers, () => editorListBranches(save.path))) ?? [];
 	}
 
 	async function selectBranch(branch: BranchSummary) {
 		if (!selectedSave) return;
 		selectedBranch = branch;
-		snapshot = null;
-		loading = true;
-		error = '';
-		try {
-			snapshot = await editorReadSnapshot(selectedSave.path, branch.id);
-		} catch (e) {
-			error = String(e);
-		} finally {
-			loading = false;
-		}
+		snapshot =
+			(await runWithLoading(loadingHandlers, () =>
+				editorReadSnapshot(selectedSave!.path, branch.id)
+			)) ?? null;
 	}
 
 	function exportSnapshot() {

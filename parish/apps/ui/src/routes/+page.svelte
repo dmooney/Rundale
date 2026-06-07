@@ -22,8 +22,6 @@
 	import { startDemoLoop, stopDemo } from '../lib/demo-player';
 	import { SceneDeduplicator } from '../lib/scene-dedup';
 
-	/** Which mobile-only panel is open (if any). Desktop ignores this. */
-	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
 	/** True on narrow viewports (<=768px). Desktop ignores focailOpen; on
 	 * mobile the chat column becomes the Focail panel when that store
 	 * is true. Fix for #355: without this gate both columns render the
@@ -609,7 +607,6 @@
 				if ($fullMapOpen) {
 					fullMapOpen.set(false);
 				} else {
-					mobilePanel = 'none';
 					focailOpen.set(false);
 					fullMapOpen.set(true);
 				}
@@ -625,7 +622,6 @@
 				if ($focailOpen) {
 					focailOpen.set(false);
 				} else {
-					mobilePanel = 'none';
 					fullMapOpen.set(false);
 					focailOpen.set(true);
 				}
@@ -634,7 +630,7 @@
 	</div>
 
 	<div class="main-area">
-		<div class="chat-col" class:mobile-hidden={mobilePanel !== 'none'}>
+		<div class="chat-col">
 			{#if $focailOpen && isMobile}
 				<Sidebar onclose={() => focailOpen.set(false)} />
 			{:else}
@@ -725,11 +721,6 @@
 
 		/* Hide the desktop right column entirely on mobile */
 		.right-col {
-			display: none;
-		}
-
-		/* Hide chat when a mobile panel is open */
-		.chat-col.mobile-hidden {
 			display: none;
 		}
 

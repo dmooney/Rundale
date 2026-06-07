@@ -19,10 +19,10 @@ use tokio::sync::mpsc;
 /// Builds a `reqwest::Client` with the given timeout, falling back to a default
 /// client (no timeout) if the builder fails.
 ///
-/// Historically this call used `.expect()` which would panic if the TLS
-/// backend failed to initialize (#98). We now log a warning and return a
-/// default client so the application can degrade gracefully rather than
-/// crashing at startup.
+/// Must not panic at this system boundary (#98): if the TLS backend fails to
+/// initialize we log a warning and return a default client so the application
+/// degrades gracefully rather than crashing at startup. See
+/// `test_openai_client_new_does_not_panic` for the regression guard.
 pub(crate) fn build_client_or_fallback(timeout: Duration, label: &'static str) -> reqwest::Client {
     match reqwest::Client::builder().timeout(timeout).build() {
         Ok(client) => client,
@@ -669,8 +669,7 @@ mod tests {
     }
 
     /// Regression test for #98: constructors must not panic at a system
-    /// boundary. Previously `.expect()` would abort the whole process
-    /// if reqwest failed to build.
+    /// boundary if reqwest fails to build the underlying client.
     #[test]
     fn test_openai_client_new_does_not_panic() {
         let _ = OpenAiClient::new("http://localhost:11434", None);

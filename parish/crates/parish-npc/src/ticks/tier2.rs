@@ -155,9 +155,9 @@ fn record_tier2_parse_failure() {
 /// cancellation (shutdown, `sim_cancel` on player input, demo turn cap)
 /// rather than a real failure. Both Tier 2 and Tier 3 paths construct
 /// their cancellation errors as `"Tier {N} cancelled mid-stream"`, so
-/// the substring `"cancelled mid-stream"` is the discriminator (TODO
-/// #54 — Tier 3 was emitting these at WARN instead of the lower-level
-/// the Tier 2 path already uses).
+/// the substring `"cancelled mid-stream"` is the discriminator. This
+/// keeps intentional cancellations off the WARN path that the Tier 2
+/// and Tier 3 failure classifiers reserve for real errors.
 pub(super) fn is_intentional_cancellation(msg: &str) -> bool {
     msg.contains("cancelled mid-stream")
 }
