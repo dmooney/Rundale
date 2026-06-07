@@ -13,6 +13,7 @@ import {
 	applyTheme,
 	addTextLog,
 } from './fixtures';
+import type { Page } from '@playwright/test';
 import { PALETTES, TEXT_LOG } from './mock-data';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,25 +23,35 @@ const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
 // Path is relative to apps/ui/e2e/screenshots.spec.ts → repo root → docs/screenshots/.
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 
+/**
+ * Shared page setup for both the screenshot-generation and visual-regression
+ * suites (TD-041): installs the Tauri mock for `time`, navigates, applies the
+ * matching theme palette, seeds the chat log, and waits for the last entry to
+ * render so the capture/comparison sees stable content.
+ */
+async function setupScreenshotPage(
+	page: Page,
+	time: (typeof TIMES_OF_DAY)[number],
+): Promise<void> {
+	await installTauriMock(page, time);
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+
+	await applyTheme(page, PALETTES[time]);
+
+	for (const entry of TEXT_LOG) {
+		await addTextLog(page, entry);
+	}
+
+	await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+		TEXT_LOG[TEXT_LOG.length - 1].content,
+	);
+}
+
 test.describe('Screenshot generation', () => {
 	for (const time of TIMES_OF_DAY) {
 		test(`capture gui-${time}`, async ({ page }) => {
-			await installTauriMock(page, time);
-			await page.goto('/');
-			await page.waitForLoadState('networkidle');
-
-			// Apply the correct theme palette
-			await applyTheme(page, PALETTES[time]);
-
-			// Add some chat content for visual interest
-			for (const entry of TEXT_LOG) {
-				await addTextLog(page, entry);
-			}
-
-			// Wait for the last log entry to appear before taking the screenshot.
-			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-				TEXT_LOG[TEXT_LOG.length - 1].content,
-			);
+			await setupScreenshotPage(page, time);
 
 			// Save to docs/screenshots/ for the project
 			await page.screenshot({
@@ -61,22 +72,7 @@ test.describe('Visual regression baselines', () => {
 
 	for (const time of TIMES_OF_DAY) {
 		test(`visual-regression-${time}`, async ({ page }) => {
-			await installTauriMock(page, time);
-			await page.goto('/');
-			await page.waitForLoadState('networkidle');
-
-			// Apply theme
-			await applyTheme(page, PALETTES[time]);
-
-			// Add chat content
-			for (const entry of TEXT_LOG) {
-				await addTextLog(page, entry);
-			}
-
-			// Wait for the last log entry to appear before comparing screenshots.
-			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-				TEXT_LOG[TEXT_LOG.length - 1].content,
-			);
+			await setupScreenshotPage(page, time);
 
 			// Playwright visual comparison (stores baselines in snapshotDir)
 			await expect(page).toHaveScreenshot(`gui-${time}.png`, {

@@ -80,7 +80,7 @@ fn weather_display(weather: &str) -> String {
 /// Words match the lowercase form of `TimeOfDay`'s `Display` impl
 /// (used in the demo prompt's `Date and time: ... | Season` line) so that
 /// "It is night." in the rendered description doesn't disagree with
-/// "Night | Spring" in the same prompt block (TODO #28). `arrival_reactions`
+/// "Night | Spring" in the same prompt block. `arrival_reactions`
 /// keeps its own `Night => "evening"` mapping for greeting register.
 fn time_display(tod: TimeOfDay) -> String {
     match tod {

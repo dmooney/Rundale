@@ -1,24 +1,25 @@
 <script lang="ts">
 	import { editorMods, editorSnapshot, editorTab, editorValidation } from '../../stores/editor';
 	import { editorOpenMod } from '$lib/editor-ipc';
+	import { runWithLoading } from '$lib/async-loading';
 	import type { ModSummary } from '$lib/editor-types';
 
 	let loading = $state(false);
 	let error = $state('');
 
+	const loadingHandlers = {
+		setLoading: (v: boolean) => (loading = v),
+		setError: (v: string) => (error = v)
+	};
+
 	async function openMod(mod_summary: ModSummary) {
-		loading = true;
-		error = '';
-		try {
-			const snapshot = await editorOpenMod(mod_summary.path);
-			editorSnapshot.set(snapshot);
-			editorValidation.set(snapshot.validation);
-			editorTab.set('npcs');
-		} catch (e) {
-			error = String(e);
-		} finally {
-			loading = false;
-		}
+		const snapshot = await runWithLoading(loadingHandlers, () =>
+			editorOpenMod(mod_summary.path)
+		);
+		if (snapshot === undefined) return;
+		editorSnapshot.set(snapshot);
+		editorValidation.set(snapshot.validation);
+		editorTab.set('npcs');
 	}
 
 	const mods = $derived($editorMods);

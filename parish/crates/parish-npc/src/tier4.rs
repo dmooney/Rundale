@@ -620,13 +620,9 @@ pub fn apply_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_aged_occupation_npc;
+    use crate::test_helpers::make_aged_occupation_npc as make_npc;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
-
-    fn make_npc(id: u32, age: u8, occupation: &str) -> Npc {
-        make_aged_occupation_npc(id, age, occupation)
-    }
 
     #[test]
     fn test_tier4_deterministic_with_seed() {

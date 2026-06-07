@@ -72,14 +72,10 @@ export interface StreamManager {
 		messageId?: string,
 	) => PendingNpcTurn;
 	ensureTurnEntry: (turn: PendingNpcTurn) => void;
-	finalizeStreamingEntry: (turnId: number) => void;
 	finishNpcStream: (hints?: LanguageHint[]) => void;
 	maybeFinishNpcStream: () => void;
-	stopTurnPump: (turn: PendingNpcTurn) => void;
-	scheduleTurnPump: (turn: PendingNpcTurn, delayMs: number) => void;
 	finalizePendingTurn: (turnId: number) => void;
 	startTurnPumpIfNeeded: (turn: PendingNpcTurn) => void;
-	pumpTurn: (turnId: number) => void;
 	setPendingEndHints: (hints: LanguageHint[] | null) => void;
 	pendingTurnCount: () => number;
 	hasPendingEndHints: () => boolean;
@@ -373,14 +369,10 @@ export function createStreamManager(): StreamManager {
 		findPendingTurn,
 		queuePendingTurn,
 		ensureTurnEntry,
-		finalizeStreamingEntry,
 		finishNpcStream,
 		maybeFinishNpcStream,
-		stopTurnPump,
-		scheduleTurnPump,
 		finalizePendingTurn,
 		startTurnPumpIfNeeded,
-		pumpTurn,
 		setPendingEndHints,
 		pendingTurnCount,
 		hasPendingEndHints,
