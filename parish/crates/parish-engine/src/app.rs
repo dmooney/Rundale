@@ -90,8 +90,6 @@ pub struct App {
     pub debug_scroll: u16,
     /// Rolling activity log for the debug panel.
     pub debug_log: VecDeque<String>,
-    /// Counter for rotating idle messages.
-    pub idle_counter: usize,
     /// The LLM client for inference requests.
     pub client: Option<AnyClient>,
     /// Current model name.
@@ -203,7 +201,6 @@ impl App {
             debug_selected_npc: None,
             debug_scroll: 0,
             debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
-            idle_counter: 0,
             client: None,
             model_name: String::new(),
             provider_name: String::from("ollama"),
@@ -574,7 +571,6 @@ mod tests {
         assert_eq!(app.npc_manager.npc_count(), 0);
         assert!(!app.improv_enabled);
         assert!(!app.reveal_unexplored_locations);
-        assert_eq!(app.idle_counter, 0);
     }
 
     #[test]

@@ -62,6 +62,11 @@ struct MockEntry {
 /// returned and the queue is left untouched.
 pub struct MockClient {
     queue: Mutex<VecDeque<MockEntry>>,
+    /// Records the `response_format` argument of each
+    /// `generate_stream_with_format` call in order, so tests can assert which
+    /// requests asked the provider for JSON mode (e.g. the Tier 2 retry — see
+    /// `parish-npc` TD-033). `true` = a response format was supplied.
+    format_log: Mutex<Vec<bool>>,
 }
 
 impl MockClient {
@@ -70,7 +75,22 @@ impl MockClient {
     pub fn new() -> Self {
         Self {
             queue: Mutex::new(VecDeque::new()),
+            format_log: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Records whether a `generate_stream_with_format` call carried a
+    /// `response_format`. Called by [`crate::AnyClient::Mock`]'s arm of
+    /// `generate_stream_with_format`.
+    pub(crate) fn record_response_format(&self, present: bool) {
+        self.format_log.lock().unwrap().push(present);
+    }
+
+    /// The recorded `response_format`-present flags, in call order. `true` at
+    /// index `i` means the `i`-th `generate_stream_with_format` call supplied a
+    /// response format. Lets tests assert JSON-mode activation per attempt.
+    pub fn response_format_log(&self) -> Vec<bool> {
+        self.format_log.lock().unwrap().clone()
     }
 
     /// Enqueues a scripted `completion`, served the next time a request matches

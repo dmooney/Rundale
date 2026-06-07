@@ -357,16 +357,22 @@ fn generate_world(conn: &Connection, counties: &[String]) -> Result<()> {
 fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>) -> Result<()> {
     // Ensure a county row exists before opening the generation transaction
     // so that the INSERT OR IGNORE below sees a valid county_id.
-    let county_id: i64 = conn
+    //
+    // TD-023: never auto-create a hard-coded county (it surprised authors of
+    // mods set in Galway/Mayo) and never `.expect()`-panic on a read-only or
+    // constrained DB. Require the caller to seed counties via `generate-world`
+    // first, surfacing a clear recoverable error instead of a process abort.
+    let county_id: i64 = match conn
         .query_row("SELECT id FROM counties ORDER BY id LIMIT 1", [], |r| {
             r.get(0)
         })
         .optional()?
-        .unwrap_or_else(|| {
-            conn.execute("INSERT INTO counties(name) VALUES ('roscommon')", [])
-                .expect("inserting default county should succeed");
-            conn.last_insert_rowid()
-        });
+    {
+        Some(id) => id,
+        None => bail!(
+            "no county exists — run `generate-world --counties <name,...>` before `generate-parish`"
+        ),
+    };
 
     // Wrap all NPC/relationship inserts in a single transaction (#606).
     // If any insert fails (disk full, constraint violation, process crash)
@@ -1090,6 +1096,35 @@ mod tests {
                 .to_string()
                 .contains("--counties is required"),
             "error must mention --counties"
+        );
+    }
+
+    /// TD-023: `generate_parish` against a county-less DB must return a clear
+    /// `Err` (no panic, no silently auto-created `'roscommon'` county). A
+    /// read-only or constrained DB previously hit `.expect()` and aborted the
+    /// whole process; now it surfaces a recoverable error pointing at
+    /// `generate-world`.
+    #[test]
+    fn test_generate_parish_without_county_errors_not_panics() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        // No generate_world call → counties table is empty.
+        let result = generate_parish(&conn, "Kiltoom", 10, Some(1));
+        assert!(
+            result.is_err(),
+            "generate_parish with no county must return Err, not panic or auto-create one"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("generate-world"),
+            "error must direct the user to run generate-world first"
+        );
+        // And no county was silently invented on the user's behalf.
+        let county_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM counties", [], |r| r.get(0))
+            .expect("count query should succeed");
+        assert_eq!(
+            county_count, 0,
+            "generate_parish must not auto-create a county (TD-023)"
         );
     }
 
