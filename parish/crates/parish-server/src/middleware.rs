@@ -632,12 +632,12 @@ mod tests {
         let identity_conn = open_sessions_db(&saves_dir).unwrap();
         let identity_store: std::sync::Arc<dyn parish_core::identity::IdentityStore> =
             std::sync::Arc::new(SqliteIdentityStore::new(identity_conn));
-        let app_state = crate::state::build_app_state(
-            "test-session".to_string(),
+        let app_state = crate::state::build_app_state(crate::state::AppStateParts {
+            session_id: "test-session".to_string(),
             world,
             npc_manager,
-            None,
-            crate::state::GameConfig {
+            client: None,
+            config: crate::state::GameConfig {
                 provider_name: String::new(),
                 base_url: String::new(),
                 api_key: None,
@@ -661,19 +661,19 @@ mod tests {
                 reveal_unexplored_locations: false,
                 auto_setup_model: None,
             },
-            None,
+            cloud_client: None,
             transport,
             ui_config,
             theme_palette,
-            saves_dir.clone(),
-            data_dir.clone(),
-            None,
-            data_dir.join("parish-flags.json"),
-            parish_core::config::InferenceConfig::default(),
+            saves_dir: saves_dir.clone(),
+            data_dir: data_dir.clone(),
+            game_mod: None,
+            flags_path: data_dir.join("parish-flags.json"),
+            inference_config: parish_core::config::InferenceConfig::default(),
             session_store,
-            parish_core::inference::file_log::InferenceFileLog::disabled(),
-            parish_core::chat_transcript::ChatTranscriptLog::disabled(),
-        );
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+        });
 
         let tile_cache = parish_core::tile_cache::TileCache::new(
             saves_dir.join("tile-cache"),

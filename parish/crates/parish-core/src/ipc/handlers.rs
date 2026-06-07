@@ -850,17 +850,17 @@ pub fn prepare_npc_conversation_turn(
         Some(&roster),
     );
 
-    let mut context = ticks::build_enhanced_context_with_config(
-        &npc,
+    let mut context = ticks::build_enhanced_context_with_config(ticks::Tier1ContextParams {
+        npc: &npc,
         world,
         player_input,
-        &other_npcs,
+        other_npcs: &other_npcs,
         language,
-        &crate::config::NpcConfig::default(),
-        &npc_names,
+        config: &crate::config::NpcConfig::default(),
+        npc_names: &npc_names,
         player_name_for_npc,
         was_introduced,
-    );
+    });
     let player_label = player_name_for_npc.unwrap_or("The newcomer");
     // Transcript history first (current player input excluded — shown separately below).
     append_transcript_context(&mut context, transcript, player_label, player_input);

@@ -307,29 +307,54 @@ impl AppState {
     }
 }
 
+/// All inputs required to construct the shared [`AppState`].
+///
+/// `AppState` is a flat bundle of every server-wide singleton; grouping its
+/// constructor inputs into one struct keeps the call sites named and ordering-
+/// independent so [`build_app_state`] no longer needs
+/// `#[allow(clippy::too_many_arguments)]` (TD-037).
+pub struct AppStateParts {
+    pub session_id: String,
+    pub world: WorldState,
+    pub npc_manager: NpcManager,
+    pub client: Option<AnyClient>,
+    pub config: GameConfig,
+    pub cloud_client: Option<AnyClient>,
+    pub transport: TransportConfig,
+    pub ui_config: UiConfigSnapshot,
+    pub theme_palette: ThemePalette,
+    pub saves_dir: PathBuf,
+    pub data_dir: PathBuf,
+    pub game_mod: Option<parish_core::game_mod::GameMod>,
+    pub flags_path: PathBuf,
+    pub inference_config: InferenceConfig,
+    pub session_store: Arc<dyn SessionStore>,
+    pub inference_file_log: parish_core::inference::file_log::InferenceFileLog,
+    pub chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
+}
+
 /// Creates the shared [`AppState`] from game data.
-// AppState is a flat bundle of all server-wide singletons; a builder pattern
-// would add complexity without benefit, so the many-argument constructor is intentional.
-#[allow(clippy::too_many_arguments)]
-pub fn build_app_state(
-    session_id: String,
-    world: WorldState,
-    npc_manager: NpcManager,
-    client: Option<AnyClient>,
-    config: GameConfig,
-    cloud_client: Option<AnyClient>,
-    transport: TransportConfig,
-    ui_config: UiConfigSnapshot,
-    theme_palette: ThemePalette,
-    saves_dir: PathBuf,
-    data_dir: PathBuf,
-    game_mod: Option<parish_core::game_mod::GameMod>,
-    flags_path: PathBuf,
-    inference_config: InferenceConfig,
-    session_store: Arc<dyn SessionStore>,
-    inference_file_log: parish_core::inference::file_log::InferenceFileLog,
-    chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog,
-) -> Arc<AppState> {
+pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
+    let AppStateParts {
+        session_id,
+        world,
+        npc_manager,
+        client,
+        config,
+        cloud_client,
+        transport,
+        ui_config,
+        theme_palette,
+        saves_dir,
+        data_dir,
+        game_mod,
+        flags_path,
+        inference_config,
+        session_store,
+        inference_file_log,
+        chat_transcript_log,
+    } = parts;
+
     // Extract pronunciations from game mod before moving it.
     let pronunciations = game_mod
         .as_ref()
@@ -439,5 +464,83 @@ mod tests {
                 payload: serde_json::Value::Null,
             },
         );
+    }
+
+    // ── AppStateParts builder (TD-037) ───────────────────────────────────────
+
+    fn test_game_config() -> GameConfig {
+        GameConfig {
+            provider_name: String::new(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            flags: parish_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+        }
+    }
+
+    /// `build_app_state` carries the supplied parts onto the constructed
+    /// `AppState` — pins the named-field plumbing after the TD-037 refactor
+    /// from a 17-arg positional constructor to the `AppStateParts` struct.
+    #[test]
+    fn build_app_state_carries_parts_onto_state() {
+        let saves_dir = PathBuf::from("/tmp/parish-td037-saves");
+        let data_dir = PathBuf::from("/tmp/parish-td037-data");
+        let flags_path = data_dir.join("parish-flags.json");
+        let session_store: Arc<dyn SessionStore> = Arc::new(
+            crate::session_store_impl::DbSessionStore::new(saves_dir.clone()),
+        );
+
+        let state = build_app_state(AppStateParts {
+            session_id: "td037-session".to_string(),
+            world: WorldState::new(),
+            npc_manager: NpcManager::new(),
+            client: None,
+            config: test_game_config(),
+            cloud_client: None,
+            transport: TransportConfig::default(),
+            ui_config: UiConfigSnapshot {
+                hints_label: String::new(),
+                default_accent: "#000".to_string(),
+                splash_text: String::new(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                auto_pause_timeout_seconds: 300,
+                app_icon_url: None,
+                favicon_url: None,
+                map_overlay: None,
+                base_mod_required: false,
+            },
+            theme_palette: parish_core::game_mod::default_theme_palette(),
+            saves_dir: saves_dir.clone(),
+            data_dir: data_dir.clone(),
+            game_mod: None,
+            flags_path: flags_path.clone(),
+            inference_config: InferenceConfig::default(),
+            session_store,
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+        });
+
+        assert_eq!(state.session_id, "td037-session");
+        assert_eq!(state.saves_dir, saves_dir);
+        assert_eq!(state.data_dir, data_dir);
+        assert_eq!(state.flags_path, flags_path);
     }
 }

@@ -177,3 +177,43 @@ describe('messageHints eviction (audit H3)', () => {
 		}
 	});
 });
+
+describe('trimTextLog (TD-049)', () => {
+	const makeLog = (n: number) =>
+		Array.from({ length: n }, (_, i) => ({
+			id: `e${i}`,
+			source: 'You',
+			content: String(i),
+		}));
+
+	it('is a no-op when the log is below the cap', () => {
+		const log = makeLog(100);
+		const out = trimTextLog(log);
+		expect(out).toBe(log); // same reference — not copied
+		expect(out.length).toBe(100);
+	});
+
+	it('is a no-op at exactly the cap (500 stays 500)', () => {
+		const log = makeLog(500);
+		const out = trimTextLog(log);
+		expect(out).toBe(log);
+		expect(out.length).toBe(500);
+	});
+
+	it('trims 501 down to 500, dropping the single oldest entry', () => {
+		const log = makeLog(501);
+		const out = trimTextLog(log);
+		expect(out.length).toBe(500);
+		// Oldest (e0) dropped; newest retained.
+		expect(out[0].id).toBe('e1');
+		expect(out[out.length - 1].id).toBe('e500');
+	});
+
+	it('trims 1000 down to 500, keeping the newest 500', () => {
+		const log = makeLog(1000);
+		const out = trimTextLog(log);
+		expect(out.length).toBe(500);
+		expect(out[0].id).toBe('e500');
+		expect(out[out.length - 1].id).toBe('e999');
+	});
+});

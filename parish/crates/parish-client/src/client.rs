@@ -221,4 +221,133 @@ mod tests {
         let v = body_json("look", opts);
         assert!(v.get("addressedTo").is_none(), "empty vec must be omitted");
     }
+
+    // ── Wire compatibility with parish-server::sync_types (TD-002) ───────────
+    //
+    // `parish-client` is dependency-free by design (it does not link
+    // `parish-server`), so the compat guard is a JSON-shape contract: a
+    // document carrying the exact field names the server's
+    // `sync_types::CommandResponse` emits must deserialize losslessly into
+    // this crate's `CommandResponse`. The companion server-side test
+    // (`parish-server` `sync_types::tests::command_response_wire_keys_match_client`)
+    // asserts the server actually serializes those same keys, so a rename on
+    // either side breaks one of the two tests. Keep the two in lockstep.
+
+    /// A JSON document shaped exactly like `parish-server` serializes a
+    /// `CommandResponse` for `kind == "moved"` (travel + state + map present).
+    /// Field names are snake_case for the response body and camelCase for the
+    /// request opts, matching the server's `#[serde(rename_all)]` choices.
+    fn server_command_response_json() -> serde_json::Value {
+        serde_json::json!({
+            "outcome": "ok",
+            "kind": "moved",
+            "echo": "go to the church",
+            "lines": [
+                { "id": "l1", "role": "system", "speaker": "System", "text": "You walk to the church." }
+            ],
+            "kind_detail": { "anything": "goes" },
+            "travel": { "from": "The Crossroads", "to": "The Church", "duration_minutes": 12 },
+            "state": {
+                "world": {
+                    "location_name": "The Church",
+                    "time_label": "morning",
+                    "season": "spring",
+                    "weather": "clear",
+                    // Extra, server-only fields land in `extra` via #[serde(flatten)].
+                    "extra_field": 42
+                },
+                "npcs_here": [
+                    { "name": "Father Quinn", "occupation": "Clergy", "mood": "calm" }
+                ],
+                "map": { "locations": [] }
+            },
+            "elapsed_ms": 137
+        })
+    }
+
+    #[test]
+    fn deserializes_server_command_response_losslessly() {
+        let doc = server_command_response_json();
+        let resp: CommandResponse = serde_json::from_value(doc)
+            .expect("server-shaped JSON must deserialize into the client wire type");
+
+        assert_eq!(resp.outcome, "ok");
+        assert_eq!(resp.kind, "moved");
+        assert_eq!(resp.echo, "go to the church");
+        assert_eq!(resp.elapsed_ms, 137);
+
+        assert_eq!(resp.lines.len(), 1);
+        assert_eq!(resp.lines[0].id, "l1");
+        assert_eq!(resp.lines[0].role, "system");
+        assert_eq!(resp.lines[0].speaker, "System");
+
+        let travel = resp.travel.expect("travel present for kind=moved");
+        assert_eq!(travel.from, "The Crossroads");
+        assert_eq!(travel.to, "The Church");
+        assert_eq!(travel.duration_minutes, 12);
+
+        let state = resp.state.expect("state bundle present");
+        assert_eq!(state.world.location_name, "The Church");
+        assert_eq!(state.world.time_label, "morning");
+        assert_eq!(state.world.season, "spring");
+        assert_eq!(state.world.weather, "clear");
+        // Unknown server-only world fields survive in `extra` (forward-compat).
+        assert_eq!(
+            state
+                .world
+                .extra
+                .get("extra_field")
+                .and_then(|v| v.as_i64()),
+            Some(42)
+        );
+        assert_eq!(state.npcs_here.len(), 1);
+        assert_eq!(state.npcs_here[0].name, "Father Quinn");
+        assert_eq!(state.npcs_here[0].occupation, "Clergy");
+        assert!(state.map.is_some(), "map field must round-trip");
+    }
+
+    #[test]
+    fn deserializes_minimal_server_response_without_optionals() {
+        // The server omits `travel`, `state`, and `map` via
+        // skip_serializing_if. The client must treat all three as absent.
+        let doc = serde_json::json!({
+            "outcome": "empty",
+            "kind": "empty",
+            "echo": "",
+            "lines": [],
+            "kind_detail": null,
+            "elapsed_ms": 0
+        });
+        let resp: CommandResponse =
+            serde_json::from_value(doc).expect("minimal server JSON must deserialize");
+        assert_eq!(resp.outcome, "empty");
+        assert!(resp.travel.is_none());
+        assert!(resp.state.is_none());
+        assert!(resp.lines.is_empty());
+    }
+
+    /// The exact key set the client expects at the top level of a
+    /// `CommandResponse`. Mirrored by the server-side companion test so a
+    /// renamed/added/removed server field fails CI on one side or the other.
+    #[test]
+    fn command_response_expected_top_level_keys() {
+        let resp: CommandResponse =
+            serde_json::from_value(server_command_response_json()).expect("deserializes");
+        // Round-trip back out and confirm the client re-serializes the same
+        // canonical key set (the client type is Serialize too).
+        let reser = serde_json::to_value(&resp).expect("client re-serializes");
+        let obj = reser.as_object().expect("object");
+        for key in [
+            "outcome",
+            "kind",
+            "echo",
+            "lines",
+            "kind_detail",
+            "travel",
+            "state",
+            "elapsed_ms",
+        ] {
+            assert!(obj.contains_key(key), "client response missing key {key}");
+        }
+    }
 }

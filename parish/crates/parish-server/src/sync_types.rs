@@ -122,3 +122,75 @@ pub struct StateResponse {
     /// UTC ISO-8601 timestamp from the server clock.
     pub server_time: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Companion to `parish-client`'s wire-compat tests (TD-002).
+    ///
+    /// `parish-client` hand-mirrors these structs without linking this crate.
+    /// This test pins the serialized key set so a field rename here fails CI
+    /// alongside the client-side `deserializes_server_command_response_*`
+    /// tests. Keep the two in lockstep.
+    #[test]
+    fn command_response_wire_keys_match_client() {
+        // `state` omitted (skip_serializing_if) so no WorldSnapshot needed;
+        // `travel` present so the optional-field key appears.
+        let resp = CommandResponse {
+            outcome: Outcome::Ok,
+            kind: Kind::Moved,
+            echo: "go to the church".to_string(),
+            lines: vec![OutputLine {
+                id: "l1".to_string(),
+                role: Role::System,
+                speaker: "System".to_string(),
+                text: "You walk to the church.".to_string(),
+            }],
+            kind_detail: serde_json::json!({"k": "v"}),
+            travel: Some(TravelDetail {
+                from: "The Crossroads".to_string(),
+                to: "The Church".to_string(),
+                duration_minutes: 12,
+            }),
+            state: None,
+            elapsed_ms: 137,
+        };
+
+        let v = serde_json::to_value(&resp).expect("serializes");
+        let obj = v.as_object().expect("object");
+
+        // Exactly the keys parish-client/src/client.rs::CommandResponse reads.
+        for key in [
+            "outcome",
+            "kind",
+            "echo",
+            "lines",
+            "kind_detail",
+            "travel",
+            "elapsed_ms",
+        ] {
+            assert!(obj.contains_key(key), "server response missing key {key}");
+        }
+        // `state` was None → omitted by skip_serializing_if.
+        assert!(
+            !obj.contains_key("state"),
+            "state must be omitted when absent"
+        );
+
+        // Enum values are the snake_case strings the client matches on.
+        assert_eq!(obj["outcome"], "ok");
+        assert_eq!(obj["kind"], "moved");
+        assert_eq!(obj["lines"][0]["role"], "system");
+
+        // Nested wire structs keep their client-expected keys.
+        let line = &obj["lines"][0];
+        for key in ["id", "role", "speaker", "text"] {
+            assert!(line.get(key).is_some(), "OutputLine missing key {key}");
+        }
+        let travel = &obj["travel"];
+        for key in ["from", "to", "duration_minutes"] {
+            assert!(travel.get(key).is_some(), "TravelDetail missing key {key}");
+        }
+    }
+}

@@ -861,10 +861,17 @@ fn import_npcs_inner(conn: &Connection, npcs: Vec<ExportNpc>) -> Result<(u64, u6
     Ok((inserted, updated))
 }
 
-fn import_npcs(conn: &Connection) -> Result<()> {
+/// Parses an export blob from any reader. Extracted from `import_npcs` so the
+/// JSON-validation contract (the `"invalid JSON input"` context on malformed
+/// bytes) is unit-testable without a live stdin (TD-025).
+fn parse_import_blob(mut reader: impl Read) -> Result<ExportBlob> {
     let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    let blob: ExportBlob = serde_json::from_str(&input).context("invalid JSON input")?;
+    reader.read_to_string(&mut input)?;
+    serde_json::from_str(&input).context("invalid JSON input")
+}
+
+fn import_npcs(conn: &Connection) -> Result<()> {
+    let blob = parse_import_blob(io::stdin().lock())?;
     let (inserted, updated) = import_npcs_inner(conn, blob.npcs)?;
     println!(
         "Imported NPCs from stdin: inserted {inserted}, updated {updated} (household_id and other non-export columns preserved on updates)"
@@ -974,6 +981,98 @@ mod tests {
                 .contains("validation failed"),
             "validation error should use the aggregate failure message"
         );
+    }
+
+    // ── weighted_occupation (TD-019) ─────────────────────────────────────────
+
+    #[test]
+    fn weighted_occupation_only_returns_known_occupations() {
+        // The weights sum to 100 so the `"Other"` fallback at the end of the
+        // loop is unreachable in practice; this RNG-driven sweep locks the
+        // distribution down — every draw must belong to OCCUPATIONS.
+        use std::collections::HashSet;
+        let known: HashSet<&str> = OCCUPATIONS.iter().map(|(occ, _)| *occ).collect();
+        let mut rng = StdRng::seed_from_u64(0xC0FFEE);
+        let mut seen: HashSet<&str> = HashSet::new();
+        for _ in 0..10_000 {
+            let occ = weighted_occupation(&mut rng);
+            assert!(
+                known.contains(occ),
+                "weighted_occupation returned an occupation outside the table: {occ}"
+            );
+            seen.insert(occ);
+        }
+        // Over 10k draws the high-weight occupations should all appear, proving
+        // the helper actually samples the table rather than always returning one.
+        assert!(
+            seen.contains("Tenant Farmer") && seen.contains("Laborer"),
+            "common occupations should be observed across 10k draws: {seen:?}"
+        );
+    }
+
+    // ── escape_like (TD-020) ─────────────────────────────────────────────────
+
+    #[test]
+    fn escape_like_escapes_backslash_percent_and_underscore() {
+        // Pure string-only coverage with no DB round-trip. The backslash branch
+        // (`\` -> `\\`) was previously only exercised indirectly via SQLite.
+        assert_eq!(escape_like("\\"), "\\\\");
+        assert_eq!(escape_like("%"), "\\%");
+        assert_eq!(escape_like("_"), "\\_");
+        // Backslash must be escaped first so the escapes of % and _ are not
+        // themselves re-escaped: `a\%_b` -> `a\\\%\_b`.
+        assert_eq!(escape_like("a\\%_b"), "a\\\\\\%\\_b");
+        // Plain text is left untouched.
+        assert_eq!(escape_like("Bridget"), "Bridget");
+    }
+
+    // ── DataTier round-trip (TD-021) ─────────────────────────────────────────
+
+    #[test]
+    fn data_tier_as_i64_from_i64_round_trip() {
+        for (tier, label) in [
+            (DataTier::Sketched, "Sketched"),
+            (DataTier::Elaborated, "Elaborated"),
+            (DataTier::Authored, "Authored"),
+        ] {
+            assert_eq!(DataTier::from_i64(tier.as_i64()), label);
+        }
+        // Explicit numeric contract.
+        assert_eq!(DataTier::Sketched.as_i64(), 0);
+        assert_eq!(DataTier::Elaborated.as_i64(), 1);
+        assert_eq!(DataTier::Authored.as_i64(), 2);
+    }
+
+    #[test]
+    fn data_tier_from_i64_out_of_range_is_unknown() {
+        // The "Unknown" fallback defends against schema drift / corrupt rows.
+        assert_eq!(DataTier::from_i64(-1), "Unknown");
+        assert_eq!(DataTier::from_i64(3), "Unknown");
+        assert_eq!(DataTier::from_i64(i64::MAX), "Unknown");
+    }
+
+    // ── import JSON-error path (TD-025) ──────────────────────────────────────
+
+    #[test]
+    fn parse_import_blob_rejects_malformed_json() {
+        use std::io::Cursor;
+        let err = parse_import_blob(Cursor::new(b"{ this is not json".to_vec()))
+            .expect_err("malformed JSON must error");
+        assert!(
+            err.to_string().contains("invalid JSON input"),
+            "JSON-validation context must bubble: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_import_blob_accepts_valid_blob() {
+        use std::io::Cursor;
+        let json = br#"{"npcs":[{"id":1,"name":"Bridget","age":40,"parish":"kilteevan","occupation":"Servant","data_tier":0,"mood":null,"personality":null}]}"#;
+        let blob = parse_import_blob(Cursor::new(json.to_vec())).expect("valid blob parses");
+        assert_eq!(blob.npcs.len(), 1);
+        assert_eq!(blob.npcs[0].name, "Bridget");
+        // The `sex` field defaults when absent (legacy blob compatibility).
+        assert_eq!(blob.npcs[0].sex, "unknown");
     }
 
     #[test]
