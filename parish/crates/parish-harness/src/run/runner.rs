@@ -2,7 +2,7 @@
 //! artifacts with per-turn gating, then run the end-of-run judge pass, score,
 //! and persist.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use uuid::Uuid;
@@ -134,7 +134,7 @@ pub async fn execute_run(db: &Db, params: RunParams) -> Result<RunSummary> {
             Err(HarnessError::Json { context, .. }) => {
                 let trip = gate
                     .observe(turn, &TurnEvent::JsonParseFail(context.clone()))
-                    .unwrap_or_else(|| GateTrip {
+                    .unwrap_or(GateTrip {
                         reason: GateReason::JsonParseFail,
                         turn,
                         detail: context,
@@ -275,7 +275,7 @@ fn is_crash(e: &HarnessError) -> bool {
     )
 }
 
-fn write_transcript(run_dir: &PathBuf, transcript: &RunTranscript) -> Result<()> {
+fn write_transcript(run_dir: &Path, transcript: &RunTranscript) -> Result<()> {
     let json = serde_json::to_string_pretty(transcript).map_err(|e| HarnessError::Json {
         context: "serialize transcript".into(),
         source: e,

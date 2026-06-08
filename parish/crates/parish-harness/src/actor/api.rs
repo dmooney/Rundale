@@ -18,7 +18,7 @@ use crate::error::{HarnessError, Result};
 use crate::score::{Axis, AxisScore, RawFinding};
 
 use super::traits::{Judge, Player};
-use super::types::{JudgeVerdict, Observation, PlayerMove, RunTranscript, summarize_state};
+use super::types::{JudgeVerdict, Observation, PlayerMove, RunTranscript};
 
 /// Build an [`AnyClient`] for a provider/model. `api_key` is read from the
 /// supplied value (callers typically source it from the environment).

@@ -4024,6 +4024,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "parish-core",
+ "parish-inference",
+ "parish-server",
+ "png 0.17.16",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
 name = "parish-inference"
 version = "0.1.0"
 dependencies = [

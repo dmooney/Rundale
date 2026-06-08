@@ -16,22 +16,19 @@ use crate::error::Result;
 /// `/api/health` for up to 60s before declaring the bridge live).
 pub async fn wait_ready(client: &dyn GameClient, timeout: Duration) -> Result<()> {
     let deadline = std::time::Instant::now() + timeout;
-    let mut last_err = None;
     loop {
-        match client.health().await {
+        let loop_err = match client.health().await {
             Ok(()) => {
                 // Health is up; confirm the engine answers too.
                 match client.engine_state().await {
                     Ok(_) => return Ok(()),
-                    Err(e) => last_err = Some(e),
+                    Err(e) => e,
                 }
             }
-            Err(e) => last_err = Some(e),
-        }
+            Err(e) => e,
+        };
         if std::time::Instant::now() >= deadline {
-            return Err(last_err.unwrap_or_else(|| {
-                crate::error::HarnessError::Config("backend never became ready".into())
-            }));
+            return Err(loop_err);
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
