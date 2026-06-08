@@ -128,10 +128,7 @@ mod tests {
     fn rubric_hash_ignores_non_text_fields() {
         // Same rubric text, different model field → identical hash.
         let a = Rubric::from_json(SAMPLE).unwrap();
-        let b = Rubric::from_json(
-            &SAMPLE.replace("claude-sonnet-4-6", "claude-opus-4-8"),
-        )
-        .unwrap();
+        let b = Rubric::from_json(&SAMPLE.replace("claude-sonnet-4-6", "claude-opus-4-8")).unwrap();
         assert_eq!(a.sha256, b.sha256);
     }
 
@@ -145,9 +142,6 @@ mod tests {
 
     #[test]
     fn unknown_version_is_config_error() {
-        assert!(matches!(
-            load_version("v99"),
-            Err(HarnessError::Config(_))
-        ));
+        assert!(matches!(load_version("v99"), Err(HarnessError::Config(_))));
     }
 }

@@ -54,7 +54,10 @@ fn run_gh_pr_number() -> Option<i64> {
     if !out.status.success() {
         return None;
     }
-    String::from_utf8_lossy(&out.stdout).trim().parse::<i64>().ok()
+    String::from_utf8_lossy(&out.stdout)
+        .trim()
+        .parse::<i64>()
+        .ok()
 }
 
 #[cfg(test)]

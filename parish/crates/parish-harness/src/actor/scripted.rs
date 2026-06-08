@@ -166,7 +166,10 @@ mod tests {
     #[tokio::test]
     async fn scripted_judge_scores_all_axes() {
         let judge = ScriptedJudge::new("sha");
-        let verdict = judge.judge_run(&transcript(&["ok", "ok", "ok"])).await.unwrap();
+        let verdict = judge
+            .judge_run(&transcript(&["ok", "ok", "ok"]))
+            .await
+            .unwrap();
         assert_eq!(verdict.axes.len(), 7);
         assert!(verdict.axes.iter().all(|a| a.score <= 100));
     }

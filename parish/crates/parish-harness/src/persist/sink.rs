@@ -54,7 +54,7 @@ pub struct RunSummary {
 
 /// The harness database handle.
 pub struct Db {
-    conn: Connection,
+    pub(super) conn: Connection,
 }
 
 impl Db {
@@ -219,6 +219,57 @@ impl Db {
             ],
         )?;
         Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Return the on-disk artifact directory for a run, or `None` if unknown.
+    pub fn run_artifact_dir(&self, run_id: i64) -> Result<Option<String>> {
+        let result = self
+            .conn
+            .query_row(
+                "SELECT artifact_dir FROM runs WHERE id = ?1",
+                params![run_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?;
+        Ok(result)
+    }
+
+    /// Check whether a finding with the given signature has already been filed
+    /// as an issue. Returns `Some((issue_url, finding_row_id))` when a prior
+    /// row exists with a non-null `issue_url`.
+    pub fn already_filed(&self, signature: &str) -> Result<Option<(String, i64)>> {
+        let result = self
+            .conn
+            .query_row(
+                "SELECT id, issue_url FROM findings
+                  WHERE signature = ?1
+                    AND issue_url IS NOT NULL
+                    AND issue_url NOT LIKE 'filing-error:%'
+                  ORDER BY id ASC
+                  LIMIT 1",
+                params![signature],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)),
+            )
+            .optional()?;
+        Ok(result.map(|(id, url)| (url, id)))
+    }
+
+    /// Mark a finding row as a duplicate of a prior finding.
+    pub fn mark_finding_dedup(&self, finding_row_id: i64, prior_row_id: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE findings SET issue_dedup_of = ?1 WHERE id = ?2",
+            params![prior_row_id, finding_row_id],
+        )?;
+        Ok(())
+    }
+
+    /// Record the issue URL (or dry-run bundle path) against a finding row.
+    pub fn set_finding_issue_url(&self, finding_row_id: i64, url: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE findings SET issue_url = ?1 WHERE id = ?2",
+            params![url, finding_row_id],
+        )?;
+        Ok(())
     }
 
     /// Read a run summary for output.

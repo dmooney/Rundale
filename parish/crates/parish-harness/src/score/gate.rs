@@ -204,7 +204,10 @@ mod tests {
         let mut g = GateState::new(cfg());
         // 3 rejects within tolerance.
         for i in 0..3 {
-            assert!(g.observe(i, &resp(Outcome::Rejected, &format!("s{i}"))).is_none());
+            assert!(
+                g.observe(i, &resp(Outcome::Rejected, &format!("s{i}")))
+                    .is_none()
+            );
         }
         // 4th exceeds tolerance of 3.
         let trip = g.observe(3, &resp(Outcome::Rejected, "s3")).expect("trips");

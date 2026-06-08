@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parish Harness Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e0e0e0; padding: 1.5rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 1rem; color: #c9b99a; }
+    h2 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: #a89880; }
+    h3 { font-size: .95rem; margin: .75rem 0 .25rem; color: #8a7a68; }
+    a { color: #9bb3e0; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+    .badge-completed { background: #1a3a1a; color: #6dbf6d; }
+    .badge-gated { background: #3a1a1a; color: #c06060; }
+    .badge-in_progress { background: #1a2a3a; color: #60a0c0; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #2a2a2a; color: #888; font-weight: 600; }
+    td { padding: .45rem .75rem; border-bottom: 1px solid #1a1a1a; }
+    tr:hover td { background: #181820; }
+    tr.clickable { cursor: pointer; }
+    #detail { margin-top: 1.5rem; display: none; }
+    #detail.visible { display: block; }
+    .axes-chart { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+    .axis-bar { display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: 70px; }
+    .axis-bar-label { font-size: .7rem; color: #888; text-align: center; }
+    .axis-bar-track { width: 40px; height: 80px; background: #1a1a1a; border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
+    .axis-bar-fill { width: 100%; background: #5080c0; transition: height .3s; }
+    .axis-bar-score { font-size: .75rem; color: #9bb3e0; }
+    .finding { background: #181820; border-left: 3px solid #5c4020; padding: .5rem .75rem; margin: .25rem 0; border-radius: 0 4px 4px 0; font-size: .82rem; }
+    .finding.severity-critical { border-color: #c04040; }
+    .finding.severity-high { border-color: #c07040; }
+    .finding.severity-medium { border-color: #c0a040; }
+    .finding.severity-low { border-color: #5c4020; }
+    .turn-gallery { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+    .turn-thumb { display: flex; flex-direction: column; align-items: center; gap: .2rem; }
+    .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; }
+    .turn-thumb-label { font-size: .68rem; color: #666; }
+    .error-msg { color: #c06060; padding: .5rem; background: #1a0f0f; border-radius: 4px; margin: .5rem 0; font-size: .82rem; }
+    .loading { color: #888; font-style: italic; }
+    .back-btn { cursor: pointer; color: #9bb3e0; border: none; background: none; font-size: .9rem; padding: .25rem 0; margin-bottom: .5rem; }
+    .back-btn:hover { text-decoration: underline; }
+    .quality-score { font-size: 1.2rem; font-weight: 700; color: #9bb3e0; }
+    .run-meta { font-size: .8rem; color: #666; margin: .25rem 0; }
+    .sse-status { font-size: .75rem; color: #668; margin-left: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Parish Harness Dashboard</h1>
+  <div id="runs-view">
+    <h2>Recent Runs <button id="refresh-btn" style="font-size:.75rem;cursor:pointer;margin-left:.5rem;background:#1a2a2a;color:#9bb3e0;border:1px solid #2a3a3a;border-radius:3px;padding:.1rem .4rem;">Refresh</button></h2>
+    <div id="runs-container"><span class="loading">Loading...</span></div>
+  </div>
+  <div id="detail">
+    <button class="back-btn" id="back-btn">&#8592; Back to runs</button>
+    <div id="detail-container"></div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let currentRunId = null;
+    let sse = null;
+
+    async function loadRuns() {
+      const c = $('runs-container');
+      c.innerHTML = '<span class="loading">Loading...</span>';
+      try {
+        const runs = await fetch('/api/runs').then(r => r.json());
+        if (!runs.length) { c.innerHTML = '<span class="loading">No runs yet.</span>'; return; }
+        c.innerHTML = '';
+        const tbl = document.createElement('table');
+        tbl.innerHTML = `<thead><tr>
+          <th>ID</th><th>Status</th><th>Quality</th><th>Gate</th><th>Turns</th>
+          <th>Findings</th><th>Git SHA</th><th>Branch</th><th>Started</th>
+        </tr></thead><tbody></tbody>`;
+        const tbody = tbl.querySelector('tbody');
+        for (const r of runs) {
+          const tr = document.createElement('tr');
+          tr.className = 'clickable';
+          tr.addEventListener('click', () => showDetail(r.id));
+          const status_badge = `<span class="badge badge-${r.status}">${r.status}</span>`;
+          const quality = r.quality_score != null ? r.quality_score.toFixed(1) : '—';
+          const gate = r.gate_reason ? `${r.gate_reason} @t${r.gate_turn}` : '—';
+          const sha = r.git_sha ? r.git_sha.substring(0, 8) : '—';
+          tr.innerHTML = `<td>${r.id}</td><td>${status_badge}</td><td>${quality}</td>
+            <td>${gate}</td><td>${r.turn_count}</td><td>${r.finding_count}</td>
+            <td><code>${sha}</code></td><td>${r.git_branch||'—'}</td>
+            <td>${(r.started_at||'').substring(0,16)}</td>`;
+          tbody.appendChild(tr);
+        }
+        c.appendChild(tbl);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load runs: ${e.message}</div>`;
+      }
+    }
+
+    async function showDetail(runId) {
+      currentRunId = runId;
+      $('runs-view').style.display = 'none';
+      $('detail').className = 'visible';
+      const c = $('detail-container');
+      c.innerHTML = '<span class="loading">Loading run detail...</span>';
+      try {
+        const d = await fetch(`/api/runs/${runId}`).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        });
+        renderDetail(d, c);
+        subscribeSSE(runId);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load run ${runId}: ${e.message}</div>`;
+      }
+    }
+
+    function renderDetail(d, container) {
+      const s = d.summary;
+      const quality = s.quality_score != null ? `<span class="quality-score">${s.quality_score.toFixed(1)}</span>` : '—';
+      const status_badge = `<span class="badge badge-${s.status}">${s.status}</span>`;
+      const gate_info = s.gate_reason ? `<br>Gate: ${s.gate_reason} at turn ${s.gate_turn}` : '';
+
+      let html = `<h2>Run #${s.id} ${status_badge} <span class="sse-status" id="sse-status"></span></h2>
+        <div class="run-meta">
+          Quality: ${quality}${gate_info}<br>
+          Git: <code>${(s.git_sha||'').substring(0,8)}</code> on <em>${s.git_branch||'?'}</em>
+          ${s.git_dirty ? '<strong style="color:#c09040"> (dirty)</strong>' : ''}<br>
+          Turns: ${s.turn_count} &nbsp; Findings: ${s.finding_count}<br>
+          Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
+        </div>`;
+
+      // Axes bar chart.
+      if (d.axes.length > 0) {
+        html += `<h3>Quality Axes</h3><div class="axes-chart">`;
+        for (const ax of d.axes) {
+          const pct = Math.max(0, Math.min(100, ax.score));
+          const label = ax.axis.replace(/_/g,' ');
+          html += `<div class="axis-bar">
+            <div class="axis-bar-track"><div class="axis-bar-fill" style="height:${pct}%"></div></div>
+            <div class="axis-bar-score">${ax.score}</div>
+            <div class="axis-bar-label">${label}</div>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+
+      // Findings.
+      if (d.findings.length > 0) {
+        html += `<h3>Findings (${d.findings.length})</h3>`;
+        for (const f of d.findings) {
+          const link = f.issue_url ? ` <a href="${f.issue_url}" target="_blank">[issue]</a>` : '';
+          html += `<div class="finding severity-${f.severity}">
+            <strong>${f.category}</strong> · <em>${f.severity}</em> · turn ${f.turn_index??'—'}${link}<br>
+            ${escHtml(f.description)}<br>
+            <small style="color:#666">${escHtml(f.signature.substring(0,16))}…</small>
+          </div>`;
+        }
+      }
+
+      // Turn gallery.
+      if (d.turns.length > 0) {
+        html += `<h3>Turns (${d.turns.length})</h3><div class="turn-gallery" id="turn-gallery">`;
+        for (const t of d.turns) {
+          const imgSrc = `/api/runs/${s.id}/turns/${t.turn_index}/frame.png`;
+          html += `<div class="turn-thumb">
+            <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="${escHtml(t.player_input)}">
+            <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function subscribeSSE(runId) {
+      if (sse) { sse.close(); sse = null; }
+      const statusEl = $('sse-status');
+      try {
+        sse = new EventSource(`/api/runs/${runId}/stream`);
+        sse.onopen = () => { if (statusEl) statusEl.textContent = '(live)'; };
+        sse.onmessage = (e) => {
+          // Future: handle live TurnEvent updates here.
+          console.log('sse event', e.data);
+        };
+        sse.onerror = () => { if (statusEl) statusEl.textContent = ''; };
+      } catch (_) {}
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    $('back-btn').addEventListener('click', () => {
+      if (sse) { sse.close(); sse = null; }
+      currentRunId = null;
+      $('detail').className = '';
+      $('runs-view').style.display = '';
+    });
+    $('refresh-btn').addEventListener('click', loadRuns);
+
+    loadRuns();
+  </script>
+</body>
+</html>

@@ -33,7 +33,9 @@ pub struct StateFrame {
 pub fn render(state: &EngineState, narrative: &str, turn_index: u32) -> Result<StateFrame> {
     let svg = render_svg(state, narrative, turn_index);
     if svg.trim().is_empty() {
-        return Err(HarnessError::BlankArtifact("state-frame SVG was empty".into()));
+        return Err(HarnessError::BlankArtifact(
+            "state-frame SVG was empty".into(),
+        ));
     }
     let pixels = render_pixels(state);
     if is_blank(&pixels) {

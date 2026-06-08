@@ -13,10 +13,11 @@ use crate::config::RunConfig;
 use crate::error::{HarnessError, Result};
 use crate::frame;
 use crate::git::GitProvenance;
+use crate::issue::IssueFiler;
 use crate::persist::{Db, RunSummary, TurnRecord};
 use crate::run::turn::{write_run_artifact, write_turn_artifacts};
-use crate::score::{GateState, GateTrip, TurnEvent, weighted_quality};
 use crate::score::gate::GateReason;
+use crate::score::{GateState, GateTrip, TurnEvent, weighted_quality};
 
 /// Everything needed to execute one run.
 pub struct RunParams {
@@ -28,6 +29,11 @@ pub struct RunParams {
     pub artifact_root: PathBuf,
     pub player: Box<dyn Player>,
     pub judge: Box<dyn Judge>,
+    /// When true, call the issue filer for each finding after the run.
+    /// Off by default so tests don't hit the network.
+    pub file_issues: bool,
+    /// Dashboard base URL used in issue bodies (e.g. `http://localhost:8787`).
+    pub dashboard_base: String,
 }
 
 /// Run a full session and return the persisted summary. `db` is borrowed so the
@@ -42,6 +48,8 @@ pub async fn execute_run(db: &Db, params: RunParams) -> Result<RunSummary> {
         artifact_root,
         player,
         judge,
+        file_issues,
+        dashboard_base,
     } = params;
 
     let git = GitProvenance::capture();
@@ -235,9 +243,23 @@ pub async fn execute_run(db: &Db, params: RunParams) -> Result<RunSummary> {
     let verdict_json = render_verdict_json(&verdict);
     write_run_artifact(&run_dir, "verdict.json", &verdict_json)?;
 
-    // Persist findings regardless of gating.
+    // Persist findings regardless of gating, then optionally file issues.
+    let mut finding_row_ids: Vec<(i64, &crate::score::Finding)> = Vec::new();
     for f in &verdict.findings {
-        db.insert_finding(run_id, f)?;
+        let row_id = db.insert_finding(run_id, f)?;
+        finding_row_ids.push((row_id, f));
+    }
+
+    if file_issues {
+        let filer = IssueFiler::from_env();
+        for (row_id, f) in &finding_row_ids {
+            if let Err(e) = filer
+                .file_finding(db, run_id, f, *row_id, &run_dir, &dashboard_base)
+                .await
+            {
+                tracing::warn!(run_id, "issue filing error: {e}");
+            }
+        }
     }
 
     if verdict.has_critical() {

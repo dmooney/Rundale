@@ -76,20 +76,23 @@ impl HttpGameClient {
     /// GET a path and deserialize the body into `T`.
     async fn get_json<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = self.url(path);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
+        let resp =
+            self.client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|source| HarnessError::Transport {
+                    url: url.clone(),
+                    source,
+                })?;
+        let status = resp.status();
+        let body = resp
+            .text()
             .await
             .map_err(|source| HarnessError::Transport {
                 url: url.clone(),
                 source,
             })?;
-        let status = resp.status();
-        let body = resp.text().await.map_err(|source| HarnessError::Transport {
-            url: url.clone(),
-            source,
-        })?;
         if !status.is_success() {
             return Err(HarnessError::HttpStatus {
                 method: "GET".into(),
@@ -118,10 +121,13 @@ impl HttpGameClient {
                 source,
             })?;
         let status = resp.status();
-        let text = resp.text().await.map_err(|source| HarnessError::Transport {
-            url: url.clone(),
-            source,
-        })?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|source| HarnessError::Transport {
+                url: url.clone(),
+                source,
+            })?;
         if !status.is_success() {
             return Err(HarnessError::HttpStatus {
                 method: "POST".into(),
@@ -143,15 +149,15 @@ impl GameClient for HttpGameClient {
     async fn health(&self) -> Result<()> {
         // Health may return any small body; we only care that it is 2xx.
         let url = self.url("/api/health");
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|source| HarnessError::Transport {
-                url: url.clone(),
-                source,
-            })?;
+        let resp =
+            self.client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|source| HarnessError::Transport {
+                    url: url.clone(),
+                    source,
+                })?;
         if resp.status().is_success() {
             Ok(())
         } else {
@@ -166,7 +172,9 @@ impl GameClient for HttpGameClient {
 
     async fn new_game(&self) -> Result<()> {
         // Body-less mutation: send `{}` (POST) like parish_new_game does.
-        self.post_text("/api/new-game", &json!({})).await.map(|_| ())
+        self.post_text("/api/new-game", &json!({}))
+            .await
+            .map(|_| ())
     }
 
     async fn submit_command(

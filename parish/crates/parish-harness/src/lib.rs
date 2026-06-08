@@ -13,9 +13,11 @@
 pub mod actor;
 pub mod client;
 pub mod config;
+pub mod dashboard;
 pub mod error;
 pub mod frame;
 pub mod git;
+pub mod issue;
 pub mod persist;
 pub mod run;
 pub mod score;

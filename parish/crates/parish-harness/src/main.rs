@@ -13,13 +13,18 @@ use parish_harness::actor::{
     ApiJudge, ApiPlayer, Judge, Player, ScriptedJudge, ScriptedPlayer, make_client,
 };
 use parish_harness::config::{ActorMode, RunConfig};
+use parish_harness::dashboard::serve;
 use parish_harness::error::{HarnessError, Result};
 use parish_harness::persist::{Db, default_db_path};
 use parish_harness::run::{RunParams, execute_run};
 use parish_harness::score::{Rubric, load_version};
 
 #[derive(Parser)]
-#[command(name = "parish-harness", version, about = "Game quality-control harness for Rundale")]
+#[command(
+    name = "parish-harness",
+    version,
+    about = "Game quality-control harness for Rundale"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -31,14 +36,27 @@ enum Command {
     Run(RunArgs),
     /// Print the resolved harness DB path.
     DbPath,
-    /// Serve the live dashboard (Phase 2).
-    Serve,
+    /// Serve the live dashboard.
+    Serve(ServeArgs),
     /// Manage the run queue (Phase 3).
     Queue,
     /// Run queued configs continuously (Phase 3).
     Worker,
     /// A/B compare two runs (Phase 3).
     Compare,
+}
+
+#[derive(clap::Args)]
+struct ServeArgs {
+    /// Path to the harness DB.
+    #[arg(long)]
+    db: Option<PathBuf>,
+    /// Where per-run artifacts are stored (defaults next to the DB).
+    #[arg(long)]
+    artifacts: Option<PathBuf>,
+    /// TCP port to listen on.
+    #[arg(long, default_value_t = 8787)]
+    port: u16,
 }
 
 #[derive(clap::Args)]
@@ -67,6 +85,12 @@ struct RunArgs {
     /// How long to wait for the backend to become ready, in seconds.
     #[arg(long, default_value_t = 30)]
     ready_timeout_secs: u64,
+    /// File GitHub issues for each finding (dry-run when no token is set).
+    #[arg(long)]
+    file_issues: bool,
+    /// Dashboard base URL embedded in issue bodies.
+    #[arg(long, default_value = "http://localhost:8787")]
+    dashboard_base: String,
 }
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -107,13 +131,22 @@ async fn run() -> Result<()> {
             Ok(())
         }
         Command::Run(args) => run_session(args).await,
-        Command::Serve | Command::Queue | Command::Worker | Command::Compare => {
-            Err(HarnessError::Config(
-                "this subcommand lands in a later phase; see docs/plans/game-quality-harness.md"
-                    .into(),
-            ))
-        }
+        Command::Serve(args) => run_serve(args).await,
+        Command::Queue | Command::Worker | Command::Compare => Err(HarnessError::Config(
+            "this subcommand lands in a later phase; see docs/plans/game-quality-harness.md".into(),
+        )),
     }
+}
+
+async fn run_serve(args: ServeArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let artifact_root = args.artifacts.unwrap_or_else(|| {
+        db_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
+    serve(db_path, artifact_root, args.port).await
 }
 
 async fn run_session(args: RunArgs) -> Result<()> {
@@ -149,6 +182,8 @@ async fn run_session(args: RunArgs) -> Result<()> {
         player,
         judge,
         config,
+        file_issues: args.file_issues,
+        dashboard_base: args.dashboard_base.clone(),
     };
 
     let summary = execute_run(&db, params).await?;
@@ -176,10 +211,7 @@ async fn run_session(args: RunArgs) -> Result<()> {
 }
 
 /// Build the player + judge actors for the configured modes.
-fn build_actors(
-    config: &RunConfig,
-    rubric: &Rubric,
-) -> Result<(Box<dyn Player>, Box<dyn Judge>)> {
+fn build_actors(config: &RunConfig, rubric: &Rubric) -> Result<(Box<dyn Player>, Box<dyn Judge>)> {
     let rubric_sha = rubric.sha256.clone();
     let player: Box<dyn Player> = match config.player.mode {
         ActorMode::Scripted => Box::new(ScriptedPlayer::default()),

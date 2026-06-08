@@ -77,11 +77,8 @@ impl RawFinding {
     /// Canonicalize into a [`Finding`] with a stable signature.
     pub fn canonicalize(self) -> Finding {
         let severity = Severity::from_label(&self.severity);
-        let signature = canonical_signature(
-            &self.category,
-            &self.signature_hint,
-            &self.evidence_quote,
-        );
+        let signature =
+            canonical_signature(&self.category, &self.signature_hint, &self.evidence_quote);
         Finding {
             category: self.category,
             turn_index: self.turn_index,
