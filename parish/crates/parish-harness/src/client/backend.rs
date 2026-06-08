@@ -59,8 +59,17 @@ impl HttpGameClient {
     /// makes all of a run's requests share one session (the same approach
     /// `parish-client` takes).
     pub fn new(base_url: impl Into<String>) -> Self {
+        // Defensive client-side timeouts so a hung connection can never block a
+        // run forever. The request timeout is deliberately longer than the
+        // server's own per-command ceiling (max 120s, see sync_types) so the
+        // backend's graceful partial-response path wins on a slow turn; the
+        // hard client timeout only fires on a genuinely dead socket. The short
+        // connect timeout surfaces "nothing listening" fast (it pairs with the
+        // Crash gate at run start).
         let client = reqwest::Client::builder()
             .cookie_store(true)
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(180))
             .build()
             .expect("reqwest client builds with cookie store");
         Self {

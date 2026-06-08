@@ -78,14 +78,29 @@ impl Player for ApiPlayer {
             .generate(&self.model, &prompt, Some(&system), params)
             .await
             .map_err(|e| HarnessError::Inference(e.to_string()))?;
-        let line = text
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .unwrap_or("look")
-            .trim_matches('"')
-            .to_string();
-        Ok(PlayerMove::new(line))
+        Ok(PlayerMove::new(extract_command(&text)))
+    }
+}
+
+/// Extract a single player command from a raw LLM reply.
+///
+/// Small models often wrap the answer in a markdown code fence or stray
+/// backticks/quotes despite the "one line, no formatting" instruction. We skip
+/// fence lines (```` ``` ````/```` ```text ````), take the first real line, and
+/// strip surrounding quotes/backticks. Falls back to `look` if nothing usable
+/// remains so a turn never sends an empty command.
+fn extract_command(text: &str) -> String {
+    let line = text
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with("```"))
+        .unwrap_or("look")
+        .trim_matches(|c| c == '"' || c == '`' || c == '\'')
+        .trim();
+    if line.is_empty() {
+        "look".to_string()
+    } else {
+        line.to_string()
     }
 }
 
@@ -204,5 +219,28 @@ mod tests {
     fn make_client_builds_anthropic() {
         // No network: build_client just constructs the typed client.
         assert!(make_client("anthropic", None, Some("sk-test")).is_ok());
+    }
+
+    #[test]
+    fn extract_command_strips_fences_quotes_and_picks_first_real_line() {
+        // Plain line.
+        assert_eq!(extract_command("go to the church"), "go to the church");
+        // Quoted.
+        assert_eq!(extract_command("\"look\""), "look");
+        // Markdown-fenced (the common small-model failure).
+        assert_eq!(
+            extract_command("```\ntalk to Maggie\n```"),
+            "talk to Maggie"
+        );
+        // Fence with a language tag + leading blank line.
+        assert_eq!(
+            extract_command("\n```text\nask about the harvest\n```"),
+            "ask about the harvest"
+        );
+        // Stray backticks.
+        assert_eq!(extract_command("`look`"), "look");
+        // Empty / fence-only falls back to a safe command.
+        assert_eq!(extract_command("```\n```"), "look");
+        assert_eq!(extract_command(""), "look");
     }
 }
