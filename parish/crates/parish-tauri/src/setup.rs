@@ -780,39 +780,8 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
             let mut world = state.world.lock().await;
             let mut npc_mgr = state.npc_manager.lock().await;
 
-            // Emit a fresh world snapshot to the frontend.
-            {
-                let snapshot = crate::commands::get_world_snapshot_inner(
-                    &world,
-                    Some(&npc_mgr),
-                    &state.pronunciations,
-                );
-                let _ = handle.emit(events::EVENT_WORLD_UPDATE, snapshot);
-                // Emit current palette (mod-keyframed when present, static
-                // mod palette otherwise, neutral grey when no mod loaded).
-                {
-                    use chrono::Timelike;
-                    use parish_core::config::PaletteConfig;
-                    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
-                    let raw = if !state.theme_keyframes.is_empty() {
-                        let now = world.clock.now();
-                        compute_palette_with_keyframes(
-                            now.hour(),
-                            now.minute(),
-                            &state.theme_keyframes,
-                            &PaletteConfig::default(),
-                        )
-                    } else if let Some(p) = state.static_raw_palette {
-                        p
-                    } else {
-                        neutral_grey_palette()
-                    };
-                    if last_palette != Some(raw) {
-                        let _ = handle.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
-                        last_palette = Some(raw);
-                    }
-                }
-            }
+            // Emit a fresh world snapshot + palette to the frontend.
+            emit_world_and_palette(&handle, &world, &npc_mgr, &state, &mut last_palette);
             {
                 // `now` is reused by the Tier-3/Tier-2 dispatch further down.
                 let now = world.clock.now();
@@ -848,320 +817,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
                 // Mirror the pump's report into the debug panel, in the same
                 // category order the pre-#1159 inline copy produced.
-                {
-                    let ts = world.clock.now().format("%H:%M %Y-%m-%d").to_string();
-                    let mut debug_events = state.debug_events.lock().await;
-                    let mut push = |category: &str, message: String, timestamp: String| {
-                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
-                        debug_events.push_back(DebugEvent {
-                            timestamp,
-                            category: category.to_string(),
-                            message,
-                        });
-                    };
-
-                    if let Some(new_weather) = report.weather_change {
-                        tracing::info!(old = %old_weather, new = %new_weather, "Weather changed");
-                        push(
-                            "weather",
-                            format!("Weather: {} → {}", old_weather, new_weather),
-                            String::new(),
-                        );
-                    }
-                    if !report.banshee.is_empty() {
-                        push(
-                            "banshee",
-                            format!(
-                                "{} wail(s), {} death(s)",
-                                report.banshee.wails.len(),
-                                report.banshee.deaths.len()
-                            ),
-                            ts.clone(),
-                        );
-                    }
-                    for evt in &report.schedule_events {
-                        push("schedule", evt.debug_string(), ts.clone());
-                    }
-                    for tt in &report.tier_transitions {
-                        let direction = if tt.promoted { "promoted" } else { "demoted" };
-                        push(
-                            "tier",
-                            format!(
-                                "{} {} {:?} → {:?}",
-                                tt.npc_name, direction, tt.old_tier, tt.new_tier,
-                            ),
-                            ts.clone(),
-                        );
-                    }
-                    if report.gossip_count > 0 {
-                        push(
-                            "gossip",
-                            format!(
-                                "{} rumor(s) spread among co-located NPCs",
-                                report.gossip_count
-                            ),
-                            String::new(),
-                        );
-                    }
-                    if report.tier4_event_count > 0 {
-                        for ge in &report.tier4_game_events {
-                            if let parish_core::world::events::GameEvent::LifeEvent {
-                                description,
-                                ..
-                            } = ge
-                            {
-                                push("life_event", description.clone(), String::new());
-                            }
-                        }
-                        push(
-                            "tier4",
-                            format!("Tier 4 tick: {} events", report.tier4_event_count),
-                            String::new(),
-                        );
-                    }
-                }
+                record_advance_report_to_debug(&world, &report, old_weather, &state).await;
 
                 // Dispatch Tier 3 batch LLM simulation for distant NPCs.
-                // The LLM call can take 10-30 s, so we spawn a detached task
-                // and release the world/npc_mgr locks before awaiting.
-                if npc_mgr.needs_tier3_tick(now) && !npc_mgr.tier3_in_flight() {
-                    use parish_core::npc::ticks::Tier3Snapshot;
-                    use parish_core::npc::ticks::tier3_snapshot_from_npc;
-
-                    let npc_names: std::collections::HashMap<_, _> =
-                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                    let tier3_ids = npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
-                    let snapshots: Vec<Tier3Snapshot> = tier3_ids
-                        .iter()
-                        .filter_map(|id| npc_mgr.get(*id))
-                        .map(|npc| tier3_snapshot_from_npc(npc, &world.graph, &npc_names))
-                        .collect();
-
-                    if !snapshots.is_empty() {
-                        let time_desc = world.clock.time_of_day().to_string();
-                        let weather_str = world.weather.to_string();
-                        let season_str = format!("{:?}", world.clock.season());
-                        let hours = 24u32;
-
-                        npc_mgr.set_tier3_in_flight(true);
-
-                        let state_t3 = Arc::clone(&state);
-                        // #9 — snapshot the sim-preemption token BEFORE spawn
-                        // so player input arriving mid-decode can cancel this
-                        // call. Cancelling replaces the token with a fresh one
-                        // for the *next* sim cycle.
-                        let cancel_t3 = state_t3.sim_cancel.lock().await.clone();
-                        tokio::spawn(async move {
-                            // Resolve the per-category Simulation client +
-                            // model. Direct-client dispatch (not the queue)
-                            // is what makes per-category routing actually
-                            // hit the small slot on the two-slot loadout —
-                            // the queue's worker only knows about the base
-                            // client (#?). Mirrors `emit_npc_reactions`.
-                            let (client_opt, model) = {
-                                let cfg = state_t3.config.lock().await;
-                                let base_client = state_t3.client.lock().await;
-                                cfg.resolve_category_client(
-                                    InferenceCategory::Simulation,
-                                    base_client.as_ref(),
-                                )
-                            };
-                            let Some(sim_client) = client_opt else {
-                                state_t3.npc_manager.lock().await.set_tier3_in_flight(false);
-                                return;
-                            };
-
-                            let ctx = parish_core::npc::ticks::Tier3Context {
-                                snapshots: &snapshots,
-                                client: &sim_client,
-                                model: &model,
-                                time_desc: &time_desc,
-                                weather: &weather_str,
-                                season: &season_str,
-                                hours,
-                                batch_size: 0,
-                                language: &state_t3.language_settings,
-                                cancel: Some(cancel_t3),
-                            };
-
-                            let result = parish_core::npc::ticks::tick_tier3(&ctx).await;
-
-                            // Re-acquire locks to apply updates.
-                            // Lock ordering: `world` → `npc_manager`
-                            // (matches the documented contract and the
-                            // main tick at setup.rs:779-780).  Acquiring
-                            // npc_manager first while a concurrent main
-                            // tick holds world would deadlock (#337).
-                            let world = state_t3.world.lock().await;
-                            let mut npc_mgr = state_t3.npc_manager.lock().await;
-                            let game_time = world.clock.now();
-
-                            match result {
-                                Ok(updates) => {
-                                    let _events = parish_core::npc::ticks::apply_tier3_updates(
-                                        &updates,
-                                        npc_mgr.npcs_mut(),
-                                        &world.graph,
-                                        game_time,
-                                        &world.event_bus,
-                                    );
-                                    npc_mgr.record_tier3_tick(game_time);
-                                    tracing::debug!(
-                                        "Tier 3 tick: {} updates applied",
-                                        updates.len()
-                                    );
-
-                                    let mut debug_events = state_t3.debug_events.lock().await;
-                                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                                        debug_events.pop_front();
-                                    }
-                                    debug_events.push_back(DebugEvent {
-                                        timestamp: String::new(),
-                                        category: "tier3".to_string(),
-                                        message: format!("Tier 3 tick: {} updates", updates.len()),
-                                    });
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Tier 3 tick failed: {}", e);
-                                }
-                            }
-
-                            npc_mgr.set_tier3_in_flight(false);
-                        });
-                    }
-                }
+                dispatch_tier3(&world, &mut npc_mgr, now, &state).await;
 
                 // Dispatch Tier 2 background simulation for nearby NPCs.
-                // Submits one LLM call per location group via the priority queue
-                // (Background lane, yields to Tier 1 dialogue).
-                if npc_mgr.needs_tier2_tick(now) && !npc_mgr.tier2_in_flight() {
-                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
-
-                    let groups_map = npc_mgr.tier2_groups();
-                    if !groups_map.is_empty() {
-                        let npc_names: std::collections::HashMap<_, _> =
-                            npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                        // Build owned snapshots inside the lock scope.
-                        let groups: Vec<Tier2Group> = groups_map
-                            .into_iter()
-                            .filter_map(|(loc, npc_ids)| {
-                                let location_name = world
-                                    .graph
-                                    .get(loc)
-                                    .map(|d| d.name.clone())
-                                    .unwrap_or_else(|| format!("Location {}", loc.0));
-                                let npcs: Vec<_> = npc_ids
-                                    .iter()
-                                    .filter_map(|id| npc_mgr.get(*id))
-                                    .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
-                                    .collect();
-                                if npcs.is_empty() {
-                                    return None;
-                                }
-                                Some(Tier2Group {
-                                    location: loc,
-                                    location_name,
-                                    npcs,
-                                })
-                            })
-                            .collect();
-
-                        if !groups.is_empty() {
-                            let time_desc = world.clock.time_of_day().to_string();
-                            let weather_str = world.weather.to_string();
-
-                            npc_mgr.set_tier2_in_flight(true);
-
-                            let state_t2 = Arc::clone(&state);
-                            // #9 — snapshot the sim-preemption token (same
-                            // semantics as the Tier 3 site above).
-                            let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
-                            tokio::spawn(async move {
-                                // Resolve the per-category Simulation client +
-                                // model. Direct-client dispatch is what makes
-                                // the two-slot loadout actually hit the small
-                                // slot for Simulation. Matches the Tier 3 site
-                                // above.
-                                let (client_opt, model) = {
-                                    let cfg = state_t2.config.lock().await;
-                                    let base_client = state_t2.client.lock().await;
-                                    cfg.resolve_category_client(
-                                        InferenceCategory::Simulation,
-                                        base_client.as_ref(),
-                                    )
-                                };
-                                let Some(sim_client) = client_opt else {
-                                    state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
-                                    return;
-                                };
-
-                                // Submit each group sequentially (one LLM call
-                                // per group, single connection).
-                                let mut events = Vec::new();
-                                for group in &groups {
-                                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                                        &sim_client,
-                                        &model,
-                                        group,
-                                        &time_desc,
-                                        &weather_str,
-                                        &state_t2.language_settings,
-                                        Some(cancel_t2.clone()),
-                                    )
-                                    .await
-                                    {
-                                        events.push(evt);
-                                    }
-                                    // If the player turn fired during the
-                                    // previous group's call, the snapshotted
-                                    // token is now cancelled — bail rather
-                                    // than burn the queue running every
-                                    // remaining group through a cancellation
-                                    // error.
-                                    if cancel_t2.is_cancelled() {
-                                        break;
-                                    }
-                                }
-
-                                // Re-acquire locks to apply events.
-                                // Lock ordering: `world` → `npc_manager`
-                                // (matches the documented contract and the
-                                // main tick at setup.rs:779-780).  Acquiring
-                                // npc_manager first while a concurrent main
-                                // tick holds world would deadlock (#337).
-                                let mut world = state_t2.world.lock().await;
-                                let mut npc_mgr = state_t2.npc_manager.lock().await;
-                                let game_time = world.clock.now();
-
-                                let _dbg = parish_core::game_loop::mint_tier2_gossip(
-                                    &events,
-                                    npc_mgr.npcs_mut(),
-                                    game_time,
-                                    &parish_core::config::NpcConfig::default(),
-                                    &mut world,
-                                );
-                                npc_mgr.record_tier2_tick(game_time);
-                                npc_mgr.set_tier2_in_flight(false);
-
-                                let mut debug_events = state_t2.debug_events.lock().await;
-                                if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                                    debug_events.pop_front();
-                                }
-                                debug_events.push_back(DebugEvent {
-                                    timestamp: String::new(),
-                                    category: "tier2".to_string(),
-                                    message: format!(
-                                        "Tier 2 tick: {} events from {} groups",
-                                        events.len(),
-                                        groups.len()
-                                    ),
-                                });
-                            });
-                        }
-                    }
-                }
+                dispatch_tier2(&world, &mut npc_mgr, now, &state).await;
             }
 
             // Advance the generation counter so handle_game_input can
@@ -1179,6 +841,387 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
             }
         }
     });
+}
+
+/// Emits a fresh world snapshot and the current palette to the frontend.
+///
+/// Palette source precedence: mod theme-keyframes (time-interpolated) when
+/// present, else the static mod palette, else neutral grey. The theme event
+/// is only emitted when the palette actually changes (`last_palette` dedup).
+/// Extracted verbatim from `spawn_world_tick` (#1200 TD-011).
+fn emit_world_and_palette(
+    handle: &AppHandle,
+    world: &parish_core::world::WorldState,
+    npc_mgr: &parish_core::npc::manager::NpcManager,
+    state: &AppState,
+    last_palette: &mut Option<parish_palette::RawPalette>,
+) {
+    let snapshot =
+        crate::commands::get_world_snapshot_inner(world, Some(npc_mgr), &state.pronunciations);
+    let _ = handle.emit(events::EVENT_WORLD_UPDATE, snapshot);
+    // Emit current palette (mod-keyframed when present, static mod palette
+    // otherwise, neutral grey when no mod loaded).
+    use chrono::Timelike;
+    use parish_core::config::PaletteConfig;
+    use parish_palette::{compute_palette_with_keyframes, neutral_grey_palette};
+    let raw = if !state.theme_keyframes.is_empty() {
+        let now = world.clock.now();
+        compute_palette_with_keyframes(
+            now.hour(),
+            now.minute(),
+            &state.theme_keyframes,
+            &PaletteConfig::default(),
+        )
+    } else if let Some(p) = state.static_raw_palette {
+        p
+    } else {
+        neutral_grey_palette()
+    };
+    if *last_palette != Some(raw) {
+        let _ = handle.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
+        *last_palette = Some(raw);
+    }
+}
+
+/// Mirrors an `AdvanceReport` into the debug-event ring buffer, in the same
+/// category order the pre-#1159 inline copy produced (weather, banshee,
+/// schedule, tier, gossip, life_event, tier4). Extracted verbatim from
+/// `spawn_world_tick` (#1200 TD-011).
+async fn record_advance_report_to_debug(
+    world: &parish_core::world::WorldState,
+    report: &parish_core::game_loop::AdvanceReport,
+    old_weather: parish_core::world::Weather,
+    state: &AppState,
+) {
+    let ts = world.clock.now().format("%H:%M %Y-%m-%d").to_string();
+    let mut debug_events = state.debug_events.lock().await;
+    let mut push = |category: &str, message: String, timestamp: String| {
+        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+            debug_events.pop_front();
+        }
+        debug_events.push_back(DebugEvent {
+            timestamp,
+            category: category.to_string(),
+            message,
+        });
+    };
+
+    if let Some(new_weather) = report.weather_change {
+        tracing::info!(old = %old_weather, new = %new_weather, "Weather changed");
+        push(
+            "weather",
+            format!("Weather: {} → {}", old_weather, new_weather),
+            String::new(),
+        );
+    }
+    if !report.banshee.is_empty() {
+        push(
+            "banshee",
+            format!(
+                "{} wail(s), {} death(s)",
+                report.banshee.wails.len(),
+                report.banshee.deaths.len()
+            ),
+            ts.clone(),
+        );
+    }
+    for evt in &report.schedule_events {
+        push("schedule", evt.debug_string(), ts.clone());
+    }
+    for tt in &report.tier_transitions {
+        let direction = if tt.promoted { "promoted" } else { "demoted" };
+        push(
+            "tier",
+            format!(
+                "{} {} {:?} → {:?}",
+                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+            ),
+            ts.clone(),
+        );
+    }
+    if report.gossip_count > 0 {
+        push(
+            "gossip",
+            format!(
+                "{} rumor(s) spread among co-located NPCs",
+                report.gossip_count
+            ),
+            String::new(),
+        );
+    }
+    if report.tier4_event_count > 0 {
+        for ge in &report.tier4_game_events {
+            if let parish_core::world::events::GameEvent::LifeEvent { description, .. } = ge {
+                push("life_event", description.clone(), String::new());
+            }
+        }
+        push(
+            "tier4",
+            format!("Tier 4 tick: {} events", report.tier4_event_count),
+            String::new(),
+        );
+    }
+}
+
+/// Dispatches the Tier 3 batch LLM simulation for distant NPCs when the
+/// tick interval has elapsed and no Tier 3 call is already in flight.
+///
+/// Snapshots are built under the held `world`/`npc_mgr` locks; the LLM call
+/// itself runs in a detached task that re-acquires the locks to apply
+/// updates (lock order: `world` -> `npc_manager`). Extracted verbatim from
+/// `spawn_world_tick` (#1200 TD-011).
+async fn dispatch_tier3(
+    world: &parish_core::world::WorldState,
+    npc_mgr: &mut parish_core::npc::manager::NpcManager,
+    now: chrono::DateTime<chrono::Utc>,
+    state: &Arc<AppState>,
+) {
+    // Dispatch Tier 3 batch LLM simulation for distant NPCs.
+    // The LLM call can take 10-30 s, so we spawn a detached task
+    // and release the world/npc_mgr locks before awaiting.
+    if npc_mgr.needs_tier3_tick(now) && !npc_mgr.tier3_in_flight() {
+        use parish_core::npc::ticks::Tier3Snapshot;
+        use parish_core::npc::ticks::tier3_snapshot_from_npc;
+
+        let npc_names: std::collections::HashMap<_, _> =
+            npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
+        let tier3_ids = npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
+        let snapshots: Vec<Tier3Snapshot> = tier3_ids
+            .iter()
+            .filter_map(|id| npc_mgr.get(*id))
+            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph, &npc_names))
+            .collect();
+
+        if !snapshots.is_empty() {
+            let time_desc = world.clock.time_of_day().to_string();
+            let weather_str = world.weather.to_string();
+            let season_str = format!("{:?}", world.clock.season());
+            let hours = 24u32;
+
+            npc_mgr.set_tier3_in_flight(true);
+
+            let state_t3 = Arc::clone(state);
+            // #9 — snapshot the sim-preemption token BEFORE spawn
+            // so player input arriving mid-decode can cancel this
+            // call. Cancelling replaces the token with a fresh one
+            // for the *next* sim cycle.
+            let cancel_t3 = state_t3.sim_cancel.lock().await.clone();
+            tokio::spawn(async move {
+                // Resolve the per-category Simulation client +
+                // model. Direct-client dispatch (not the queue)
+                // is what makes per-category routing actually
+                // hit the small slot on the two-slot loadout —
+                // the queue's worker only knows about the base
+                // client (#?). Mirrors `emit_npc_reactions`.
+                let (client_opt, model) = {
+                    let cfg = state_t3.config.lock().await;
+                    let base_client = state_t3.client.lock().await;
+                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                };
+                let Some(sim_client) = client_opt else {
+                    state_t3.npc_manager.lock().await.set_tier3_in_flight(false);
+                    return;
+                };
+
+                let ctx = parish_core::npc::ticks::Tier3Context {
+                    snapshots: &snapshots,
+                    client: &sim_client,
+                    model: &model,
+                    time_desc: &time_desc,
+                    weather: &weather_str,
+                    season: &season_str,
+                    hours,
+                    batch_size: 0,
+                    language: &state_t3.language_settings,
+                    cancel: Some(cancel_t3),
+                };
+
+                let result = parish_core::npc::ticks::tick_tier3(&ctx).await;
+
+                // Re-acquire locks to apply updates.
+                // Lock ordering: `world` → `npc_manager`
+                // (matches the documented contract and the
+                // main tick at setup.rs:779-780).  Acquiring
+                // npc_manager first while a concurrent main
+                // tick holds world would deadlock (#337).
+                let world = state_t3.world.lock().await;
+                let mut npc_mgr = state_t3.npc_manager.lock().await;
+                let game_time = world.clock.now();
+
+                match result {
+                    Ok(updates) => {
+                        let _events = parish_core::npc::ticks::apply_tier3_updates(
+                            &updates,
+                            npc_mgr.npcs_mut(),
+                            &world.graph,
+                            game_time,
+                            &world.event_bus,
+                        );
+                        npc_mgr.record_tier3_tick(game_time);
+                        tracing::debug!("Tier 3 tick: {} updates applied", updates.len());
+
+                        let mut debug_events = state_t3.debug_events.lock().await;
+                        if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        debug_events.push_back(DebugEvent {
+                            timestamp: String::new(),
+                            category: "tier3".to_string(),
+                            message: format!("Tier 3 tick: {} updates", updates.len()),
+                        });
+                    }
+                    Err(e) => {
+                        tracing::warn!("Tier 3 tick failed: {}", e);
+                    }
+                }
+
+                npc_mgr.set_tier3_in_flight(false);
+            });
+        }
+    }
+}
+
+/// Dispatches the Tier 2 background simulation for co-located nearby NPCs
+/// when the tick interval has elapsed and no Tier 2 call is already in
+/// flight. Snapshots are built under the held locks; the per-group LLM calls
+/// run in a detached task that re-acquires the locks to mint gossip and
+/// record the tick. Extracted verbatim from `spawn_world_tick` (#1200
+/// TD-011).
+async fn dispatch_tier2(
+    world: &parish_core::world::WorldState,
+    npc_mgr: &mut parish_core::npc::manager::NpcManager,
+    now: chrono::DateTime<chrono::Utc>,
+    state: &Arc<AppState>,
+) {
+    // Dispatch Tier 2 background simulation for nearby NPCs.
+    // Submits one LLM call per location group via the priority queue
+    // (Background lane, yields to Tier 1 dialogue).
+    if npc_mgr.needs_tier2_tick(now) && !npc_mgr.tier2_in_flight() {
+        use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+
+        let groups_map = npc_mgr.tier2_groups();
+        if !groups_map.is_empty() {
+            let npc_names: std::collections::HashMap<_, _> =
+                npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
+            // Build owned snapshots inside the lock scope.
+            let groups: Vec<Tier2Group> = groups_map
+                .into_iter()
+                .filter_map(|(loc, npc_ids)| {
+                    let location_name = world
+                        .graph
+                        .get(loc)
+                        .map(|d| d.name.clone())
+                        .unwrap_or_else(|| format!("Location {}", loc.0));
+                    let npcs: Vec<_> = npc_ids
+                        .iter()
+                        .filter_map(|id| npc_mgr.get(*id))
+                        .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
+                        .collect();
+                    if npcs.is_empty() {
+                        return None;
+                    }
+                    Some(Tier2Group {
+                        location: loc,
+                        location_name,
+                        npcs,
+                    })
+                })
+                .collect();
+
+            if !groups.is_empty() {
+                let time_desc = world.clock.time_of_day().to_string();
+                let weather_str = world.weather.to_string();
+
+                npc_mgr.set_tier2_in_flight(true);
+
+                let state_t2 = Arc::clone(state);
+                // #9 — snapshot the sim-preemption token (same
+                // semantics as the Tier 3 site above).
+                let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
+                tokio::spawn(async move {
+                    // Resolve the per-category Simulation client +
+                    // model. Direct-client dispatch is what makes
+                    // the two-slot loadout actually hit the small
+                    // slot for Simulation. Matches the Tier 3 site
+                    // above.
+                    let (client_opt, model) = {
+                        let cfg = state_t2.config.lock().await;
+                        let base_client = state_t2.client.lock().await;
+                        cfg.resolve_category_client(
+                            InferenceCategory::Simulation,
+                            base_client.as_ref(),
+                        )
+                    };
+                    let Some(sim_client) = client_opt else {
+                        state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
+                        return;
+                    };
+
+                    // Submit each group sequentially (one LLM call
+                    // per group, single connection).
+                    let mut events = Vec::new();
+                    for group in &groups {
+                        if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                            &sim_client,
+                            &model,
+                            group,
+                            &time_desc,
+                            &weather_str,
+                            &state_t2.language_settings,
+                            Some(cancel_t2.clone()),
+                        )
+                        .await
+                        {
+                            events.push(evt);
+                        }
+                        // If the player turn fired during the
+                        // previous group's call, the snapshotted
+                        // token is now cancelled — bail rather
+                        // than burn the queue running every
+                        // remaining group through a cancellation
+                        // error.
+                        if cancel_t2.is_cancelled() {
+                            break;
+                        }
+                    }
+
+                    // Re-acquire locks to apply events.
+                    // Lock ordering: `world` → `npc_manager`
+                    // (matches the documented contract and the
+                    // main tick at setup.rs:779-780).  Acquiring
+                    // npc_manager first while a concurrent main
+                    // tick holds world would deadlock (#337).
+                    let mut world = state_t2.world.lock().await;
+                    let mut npc_mgr = state_t2.npc_manager.lock().await;
+                    let game_time = world.clock.now();
+
+                    let _dbg = parish_core::game_loop::mint_tier2_gossip(
+                        &events,
+                        npc_mgr.npcs_mut(),
+                        game_time,
+                        &parish_core::config::NpcConfig::default(),
+                        &mut world,
+                    );
+                    npc_mgr.record_tier2_tick(game_time);
+                    npc_mgr.set_tier2_in_flight(false);
+
+                    let mut debug_events = state_t2.debug_events.lock().await;
+                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+                        debug_events.pop_front();
+                    }
+                    debug_events.push_back(DebugEvent {
+                        timestamp: String::new(),
+                        category: "tier2".to_string(),
+                        message: format!(
+                            "Tier 2 tick: {} events from {} groups",
+                            events.len(),
+                            groups.len()
+                        ),
+                    });
+                });
+            }
+        }
+    }
 }
 
 /// Inactivity tick: drives idle banter and auto-pause every 1 s.

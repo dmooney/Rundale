@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	formatBytes,
 	formatDuration,
 	formatElapsed,
 	formatDownloadStats,
+	DownloadRateTracker,
 } from './download-rate';
 
 describe('formatBytes', () => {
@@ -128,5 +129,53 @@ describe('formatDownloadStats', () => {
 		expect(result).toContain('0:30 left');
 		// Joined with bullet separator
 		expect(result).toContain(' • ');
+	});
+});
+
+describe('DownloadRateTracker', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('reset() with no argument clears speed and ETA', () => {
+		const tracker = new DownloadRateTracker();
+		expect(tracker.reset()).toEqual({ speedBps: null, etaSeconds: null });
+		expect(tracker.rate).toEqual({ speedBps: null, etaSeconds: null });
+	});
+
+	it('reports no rate until two samples span the minimum window', () => {
+		// Single seeded baseline sample → no span yet → speed stays null.
+		let now = 1_000;
+		vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const tracker = new DownloadRateTracker();
+		tracker.reset(0);
+		now += 100; // below MIN_RATE_SAMPLE_SPAN_MS (750)
+		expect(tracker.record(50, 1000)).toEqual({
+			speedBps: null,
+			etaSeconds: null,
+		});
+	});
+
+	it('computes a smoothed bytes/sec and ETA across a sufficient span', () => {
+		let now = 0;
+		vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const tracker = new DownloadRateTracker();
+		tracker.reset(0); // baseline at t=0, completed=0
+		now = 1000; // 1s later, past the 750ms min span + update interval
+		const { speedBps, etaSeconds } = tracker.record(1000, 4000);
+		// 1000 bytes over 1s → 1000 B/s (first sample is unsmoothed).
+		expect(speedBps).toBeCloseTo(1000, 5);
+		// 3000 bytes remaining at 1000 B/s → 3s.
+		expect(etaSeconds).toBeCloseTo(3, 5);
+	});
+
+	it('clears ETA once completed reaches total', () => {
+		let now = 0;
+		vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const tracker = new DownloadRateTracker();
+		tracker.reset(0);
+		now = 1000;
+		const { etaSeconds } = tracker.record(4000, 4000);
+		expect(etaSeconds).toBeNull();
 	});
 });
