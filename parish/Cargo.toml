@@ -85,7 +85,7 @@ toml = "0.8"
 dotenvy = "0.15"
 
 # Miscellaneous shared utilities
-rand = "0.9"
+rand = "0.10"
 strsim = "0.11"
 regex = "1"
 governor = "0.10"
