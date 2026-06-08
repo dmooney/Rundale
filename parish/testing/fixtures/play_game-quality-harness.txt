@@ -1,0 +1,44 @@
+# Game Quality Harness — turn-surface fixture
+# =============================================
+# The parish-harness deliverable is a TOOL that drives the game, not an in-game
+# feature. This fixture exercises the same per-turn surface the harness consumes
+# from /api/command + /api/engine-state, so a reviewer can see exactly what a
+# harness "turn" reads: the narrative lines, the outcome/kind, and the engine
+# state (clock, location, NPCs) used to render the per-turn state-frame.
+
+# 1. Baseline observation (what the harness reads before turn 0)
+/status
+/time
+/npcs
+look
+
+# 2. A movement turn (outcome=moved; kind=travel) — harness captures travel + new location
+go to Darcy's Pub
+look
+/npcs
+/status
+
+# 3. A dialogue turn (outcome=talked) — harness captures the NPC reply lines + addressed_to
+look
+/npcs
+
+# 4. A look turn (outcome=looked) — harness captures the scene description
+look
+/time
+
+# 5. Advance time, re-observe — harness captures clock + world delta between turns
+/wait 60
+/time
+/status
+/npcs
+
+# 6. Another movement turn — confirms the location graph the state-frame renders
+go to The Crossroads
+look
+/status
+/npcs
+
+# 7. Final state read — the snapshot the harness diffs for empty-turn-burn detection
+/debug here
+/status
+/map
