@@ -29,6 +29,6 @@ ignore: |
   .venv-dev/
   target/
   parish/apps/ui/
-  rundale-bench/bench-site/
+  promptfoo/bench-site/
   **/pnpm-lock.yaml
   parish/testing/

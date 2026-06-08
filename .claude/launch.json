@@ -25,6 +25,13 @@
       ],
       "cwd": "parish",
       "port": 3099
+    },
+    {
+      "name": "bench-site-v2",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "--port", "4321"],
+      "cwd": "promptfoo/bench-site",
+      "port": 4321
     }
   ]
 }

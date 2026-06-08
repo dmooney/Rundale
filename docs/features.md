@@ -736,7 +736,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - **Four evaluation slices:** dialogue quality, intent classification, reaction generation, NPC simulation
 - **Pinned-judge contract:** rubric prompts are SHA-256 hashed and verified before scoring to prevent drift
 - **ELO pairwise scoring** (K=32 → K=16 after 50 matches per candidate, bootstrap 5/95 CI via 500 i.i.d. match resamples) alongside absolute multi-axis 0-10 scoring
-- **Live leaderboard** at [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) with per-slice scores, per-provider perf matrix, and verbatim judge prompts
+- **Live leaderboard** at [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) (v2 promptfoo site): ranked per-category scores with 95% bootstrap CIs, a quality-vs-cost efficiency frontier, cost tiers, and per-model drill-downs
 - **Reproducible harness:** `rundale-bench/rundale_bench.py` single-entry orchestrator with a v1-dev dataset (155 prompts, growing to 1100)
 - **Local MLX sweep:** `local_runner.py` spawns `mlx_lm.server` per candidate and runs the full bench, appending rows to the local leaderboard
 - Status: v1-dev — structurally complete but dataset frozen tag (`v1.0`) waits for corpus growth and three independently-evaluated targets on the holdout split

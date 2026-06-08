@@ -1,0 +1,115 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadBenchData } from '../../lib/data';
+import { brandForFamily } from '../../lib/brands';
+import { fmt, fmtCi, fmtMoneyHour, fmtValue, tierClass } from '../../lib/render';
+
+export function getStaticPaths() {
+  const data = loadBenchData();
+  return data.rows.map((row) => ({
+    params: { slug: row.slug },
+    props: { row, history: data.history[row.candidate] ?? [], categoryOrder: data.categoryOrder },
+  }));
+}
+
+const { row, history, categoryOrder } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const brand = brandForFamily(row.family);
+
+// per-category horizontal bars (scaled to 5) with a CI whisker.
+const BW = 460, BH = 24, GAP = 8, LBL = 92, PADR = 56;
+const barX = LBL, barW = BW - LBL - PADR;
+const sx = (v: number) => barX + (Math.min(v, 5) / 5) * barW;
+const catRows = categoryOrder.map((c) => ({ c, cs: row.categories[c] }));
+const chartH = catRows.length * (BH + GAP);
+
+// overall history sparkline (oldest → newest)
+const series = history.map((h) => h.overall);
+const hasTrend = series.length > 1;
+let spark = '';
+if (hasTrend) {
+  const lo = Math.min(...series), hi = Math.max(...series);
+  const span = hi - lo || 1;
+  const W = 280, H = 56, pad = 6;
+  spark = series
+    .map((v, i) => {
+      const x = pad + (i / (series.length - 1)) * (W - 2 * pad);
+      const y = H - pad - ((v - lo) / span) * (H - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
+const metrics = [
+  { label: 'Overall', value: `${fmt(row.overall)}`, sub: `CI ${fmtCi(row.overall_ci95)}` },
+  { label: 'Rank', value: `${row.rank}${row.tied ? ' (tie)' : ''}`, sub: row.onFrontier ? 'on frontier ◆' : '' },
+  { label: '$ / game-hour', value: fmtMoneyHour(row.usd_per_game_hour), sub: `value ${fmtValue(row.value_score)}` },
+  { label: 'Latency p50 / p95', value: `${row.latency_p50_ms ?? '—'} / ${row.latency_p95_ms ?? '—'} ms`, sub: `${fmt(row.tokens_per_sec, 1)} tok/s` },
+];
+---
+
+<Base title={`Rundale Bench v2 — ${row.display_name}`}>
+  <p><a href={base}>← leaderboard</a></p>
+  <section class="hero head">
+    {brand?.kind === 'icon' && (
+      <svg class={`brand-icon ${brand.lowLum ? 'brand-dark' : ''}`} viewBox="0 0 24 24" width="30" height="30" role="img" aria-label={brand.title} style={`fill: #${brand.hex}`}><title>{brand.title}</title><path d={brand.svgPath} /></svg>
+    )}
+    {brand?.kind === 'fallback' && (
+      <span class="brand-fallback big" role="img" aria-label={brand.title} style={`background:#${brand.hex}`}>{brand.initials}</span>
+    )}
+    <h1>{row.display_name}</h1>
+    {row.tier && <span class={`badge ${tierClass(row.tier)}`}>{row.tier}</span>}
+  </section>
+  <p class="muted spec"><code>{row.candidate}</code></p>
+
+  <div class="cards">
+    {metrics.map((m) => (
+      <div class="card">
+        <div class="label">{m.label}</div>
+        <div class="value">{m.value}</div>
+        {m.sub && <div class="metric">{m.sub}</div>}
+      </div>
+    ))}
+  </div>
+
+  <div class="panel">
+    <h2>Per-category scores</h2>
+    <div class="scatter-wrap">
+      <svg viewBox={`0 0 ${BW} ${chartH}`} role="img" aria-label="per-category scores">
+        {catRows.map((cr, i) => {
+          const y = i * (BH + GAP);
+          const cs = cr.cs;
+          return (
+            <g transform={`translate(0 ${y})`}>
+              <text x="0" y={BH / 2 + 4} class="sc-tick" style="font-family:var(--sans);font-size:12px;fill:var(--fg-dim)">{cr.c}</text>
+              <rect x={barX} y="4" width={barW} height={BH - 8} rx="5" fill="var(--surface-2)" />
+              {cs && <rect x={barX} y="4" width={Math.max(2, sx(cs.score) - barX)} height={BH - 8} rx="5" fill="var(--accent)" />}
+              {cs && <line x1={sx(cs.ci95[0])} x2={sx(cs.ci95[1])} y1={BH / 2} y2={BH / 2} stroke="var(--fg)" stroke-width="1.5" opacity="0.55" />}
+              <text x={BW - PADR + 8} y={BH / 2 + 4} class="num" style="font-size:12px;fill:var(--fg)">{cs ? fmt(cs.score) : '—'}</text>
+              {cs && <text x={barX + 4} y={BH / 2 + 4} style="font-size:10px;fill:var(--muted);font-family:var(--mono)">n={cs.n}</text>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  </div>
+
+  {hasTrend && (
+    <div class="panel">
+      <h2>Overall over runs <span class="muted">({series.length})</span></h2>
+      <svg class="trend" width="280" height="56" role="img" aria-label="overall trend">
+        <polyline points={spark} fill="none" stroke="var(--accent)" stroke-width="2" />
+      </svg>
+      <p class="muted mono small">{series.map((v) => v.toFixed(2)).join('  →  ')}</p>
+    </div>
+  )}
+</Base>
+
+<style>
+  .head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .head h1 { margin: 0; }
+  .spec { margin: 0.2rem 0 0; }
+  .brand-fallback.big { width: 30px; height: 30px; border-radius: 8px; font-size: 0.85rem; }
+  .trend { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+  .small { font-size: 0.8rem; }
+</style>

@@ -1,0 +1,73 @@
+---
+import Base from '../layouts/Base.astro';
+import { loadBenchData } from '../lib/data';
+
+const data = loadBenchData();
+// Gameplay-token weights, derived from promptfoo/config/pricing.py
+// GAME_TIME_PROFILE (input+output tokens/min per category; gaeilge = 15% of
+// dialogue), renormalised to whichever categories a candidate was evaluated on.
+const weights = [
+  { cat: 'intent', pct: '18%', note: 'tool/label selection — deterministic match' },
+  { cat: 'dialogue', pct: '28%', note: 'in-character reply quality (5 axes); folds in multiturn' },
+  { cat: 'reaction', pct: '10%', note: 'in-character reaction to events' },
+  { cat: 'simulation', pct: '40%', note: 'plausible world simulation (tier2 + tier3)' },
+  { cat: 'gaeilge', pct: '4%', note: 'Irish-language fluency within dialogue' },
+];
+---
+
+<Base title="Rundale Bench v2 — methodology">
+  <section class="hero">
+    <h1>Methodology</h1>
+    <p class="sub">The v2 (promptfoo) benchmark of record. Every row is read
+      directly from <code>promptfoo/leaderboard/leaderboard.jsonl</code> — this
+      site does no scoring of its own.</p>
+  </section>
+
+  <div class="panel">
+    <h2>Overall score</h2>
+    <p>Scores are on a <strong>1–5</strong> scale. <strong>Overall</strong> is the
+      gameplay-token-weighted mean over the categories a candidate was evaluated
+      on, with weights renormalised to those present. Weights track the real
+      per-minute token volume the engine spends per inference category:</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Category</th><th class="num">Weight</th><th>Measures</th></tr></thead>
+        <tbody>
+          {weights.map((w) => (
+            <tr><td>{w.cat}</td><td class="num">{w.pct}</td><td class="muted">{w.note}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Confidence intervals &amp; rank</h2>
+    <p>Each score carries a <strong>95% bootstrap CI</strong> (2000 resamples,
+      deterministic seed) over the per-item scores. Ranking is
+      <strong>CI-aware</strong>, following the LMArena scheme: a model's rank rises
+      by one for every model whose <em>lower</em> CI exceeds this model's
+      <em>upper</em> CI. Models no one dominates by CI <strong>share a rank</strong>
+      (a tie, marked <span class="mono">⁼</span>) — overlapping CIs mean the gap
+      is not statistically real.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Cost, value &amp; the frontier</h2>
+    <p><code>$/game-hour</code> prices the candidate's per-Mtok rate against the
+      normal-play token profile (a five-minute vLLM-MLX demo run, gameplay
+      categories only). <strong>Value</strong> is <code>overall ÷ $/game-hour</code>;
+      free / flat-rate providers carry no per-token cost and rank by throughput.
+      The <strong>efficiency frontier</strong> (dashed line on the scatter, ◆ in the
+      table) is the Pareto set: models no other model beats on both quality and
+      cost. Cost <strong>tier</strong> (free / budget / mid / premium) comes from
+      the enumerated candidate catalog.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Provenance</h2>
+    <p>Judge model (pinned): <strong>{data.judgeModel}</strong>. Dataset merkle:
+      <code>{data.merkle || '—'}</code>. Every row stamps the judge model + dataset
+      merkle, so scores stay comparable across re-runs on the same frozen dataset.</p>
+  </div>
+</Base>
