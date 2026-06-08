@@ -52,7 +52,7 @@ human-like playtest findings into auto-fixable issues — closing the loop on pl
 
 ## Architecture overview
 
-```
+```text
 parish-harness run --config X
   └─ boots live Tauri (port 3030, owns screenshots + vllm-mlx)
      └─ new-game → apply BYOK models + flags
@@ -90,7 +90,7 @@ clients — see Libraries), `tokio`, `reqwest` (+`json`,`stream`), `rusqlite` (b
 (entry-point crate): `axum`, `tower-http`, and **`resvg`/`usvg`/`fontdb`** (pure-Rust, no
 system deps) for the state-frame renderer. Dev: `wiremock`, `tempfile`.
 
-```
+```text
 src/
   main.rs, lib.rs, config.rs, error.rs
   client/   backend.rs (GameClient trait + ParishHttpClient, reuses parish-mcp
