@@ -1,23 +1,22 @@
 //! `parish-harness` CLI.
 //!
 //! Phase 1 ships `run` (play one session against a backend) and `db-path`
-//! (print the resolved DB location). `serve` / `queue` / `worker` / `compare`
-//! are declared so the surface is stable and land in later phases.
+//! (print the resolved DB location). Phase 3 adds `worker` (poll and drain the
+//! queue), `queue` (manage the run queue), and `compare` (A/B delta table).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-use parish_harness::actor::{
-    ApiJudge, ApiPlayer, Judge, Player, ScriptedJudge, ScriptedPlayer, make_client,
-};
+use parish_harness::actor::{Judge, Player};
 use parish_harness::config::{ActorMode, RunConfig};
 use parish_harness::dashboard::serve;
 use parish_harness::error::{HarnessError, Result};
 use parish_harness::persist::{Db, default_db_path};
-use parish_harness::run::{RunParams, execute_run};
-use parish_harness::score::{Rubric, load_version};
+use parish_harness::queue::QueueStore;
+use parish_harness::run::{RunParams, build_actors, execute_run};
+use parish_harness::score::load_version;
 
 #[derive(Parser)]
 #[command(
@@ -38,12 +37,12 @@ enum Command {
     DbPath,
     /// Serve the live dashboard.
     Serve(ServeArgs),
-    /// Manage the run queue (Phase 3).
-    Queue,
-    /// Run queued configs continuously (Phase 3).
-    Worker,
-    /// A/B compare two runs (Phase 3).
-    Compare,
+    /// Manage the run queue.
+    Queue(QueueArgs),
+    /// Run queued configs continuously.
+    Worker(WorkerArgs),
+    /// A/B compare two runs.
+    Compare(CompareArgs),
 }
 
 #[derive(clap::Args)]
@@ -108,6 +107,82 @@ impl From<ActorKind> for ActorMode {
     }
 }
 
+// ── Queue subcommand ──────────────────────────────────────────────────────────
+
+#[derive(clap::Args)]
+struct QueueArgs {
+    /// Path to the harness DB.
+    #[arg(long)]
+    db: Option<PathBuf>,
+    #[command(subcommand)]
+    action: QueueAction,
+}
+
+#[derive(Subcommand)]
+enum QueueAction {
+    /// Add a config to the queue.
+    Add(QueueAddArgs),
+    /// Print queue counts and recent rows.
+    List,
+}
+
+#[derive(clap::Args)]
+struct QueueAddArgs {
+    /// Path to the run config JSON.
+    #[arg(long)]
+    config: PathBuf,
+    /// Priority (higher is claimed first).
+    #[arg(long, default_value_t = 0)]
+    priority: i64,
+}
+
+// ── Worker subcommand ─────────────────────────────────────────────────────────
+
+#[derive(clap::Args)]
+struct WorkerArgs {
+    /// Path to the harness DB.
+    #[arg(long)]
+    db: Option<PathBuf>,
+    /// Where to write per-run artifacts (defaults next to the DB).
+    #[arg(long)]
+    artifacts: Option<PathBuf>,
+    /// Backend base URL.
+    #[arg(long, default_value = "http://127.0.0.1:3030")]
+    base_url: String,
+    /// Number of turns to play per run.
+    #[arg(long, default_value_t = 100)]
+    turns: u32,
+    /// Drain all pending jobs then exit (no polling loop).
+    #[arg(long)]
+    once: bool,
+    /// Stop after this many runs (no cap when absent).
+    #[arg(long)]
+    max_runs: Option<u64>,
+    /// Worker identity embedded in claimed_by.
+    #[arg(long)]
+    worker_id: Option<String>,
+    /// Seconds to sleep between empty polls (ignored with --once).
+    #[arg(long, default_value_t = 5)]
+    poll_secs: u64,
+}
+
+// ── Compare subcommand ────────────────────────────────────────────────────────
+
+#[derive(clap::Args)]
+struct CompareArgs {
+    /// First run id.
+    #[arg(long)]
+    a: i64,
+    /// Second run id.
+    #[arg(long)]
+    b: i64,
+    /// Path to the harness DB.
+    #[arg(long)]
+    db: Option<PathBuf>,
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -132,9 +207,9 @@ async fn run() -> Result<()> {
         }
         Command::Run(args) => run_session(args).await,
         Command::Serve(args) => run_serve(args).await,
-        Command::Queue | Command::Worker | Command::Compare => Err(HarnessError::Config(
-            "this subcommand lands in a later phase; see docs/plans/game-quality-harness.md".into(),
-        )),
+        Command::Queue(args) => run_queue(args).await,
+        Command::Worker(args) => run_worker(args).await,
+        Command::Compare(args) => run_compare(args).await,
     }
 }
 
@@ -210,39 +285,238 @@ async fn run_session(args: RunArgs) -> Result<()> {
     Ok(())
 }
 
-/// Build the player + judge actors for the configured modes.
-fn build_actors(config: &RunConfig, rubric: &Rubric) -> Result<(Box<dyn Player>, Box<dyn Judge>)> {
-    let rubric_sha = rubric.sha256.clone();
-    let player: Box<dyn Player> = match config.player.mode {
-        ActorMode::Scripted => Box::new(ScriptedPlayer::default()),
-        ActorMode::Api => {
-            let key = std::env::var("ANTHROPIC_API_KEY").ok();
-            let client = make_client("anthropic", None, key.as_deref())?;
-            let model = config
-                .player
-                .model
-                .clone()
-                .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
-            Box::new(ApiPlayer::new(client, model))
+// ── Queue subcommand impl ─────────────────────────────────────────────────────
+
+async fn run_queue(args: QueueArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let db = Db::open(&db_path)?;
+    let q = QueueStore::new(&db);
+
+    match args.action {
+        QueueAction::Add(add) => {
+            let config = RunConfig::load(&add.config)?;
+            let config_id = db.upsert_config(&config)?;
+            let queue_id = q.enqueue(config_id, add.priority)?;
+            println!(
+                "enqueued queue_id={queue_id} config_id={config_id} priority={}",
+                add.priority
+            );
+        }
+        QueueAction::List => {
+            let counts = q.counts()?;
+            println!(
+                "pending={} running={} done={} failed={}",
+                counts.pending, counts.running, counts.done, counts.failed,
+            );
+            for state in &["pending", "running", "failed"] {
+                let rows = q.list(state)?;
+                if rows.is_empty() {
+                    continue;
+                }
+                println!("\n{state}:");
+                for r in &rows {
+                    println!(
+                        "  id={} config_id={} priority={} enqueued={} claimed_by={} run_id={}",
+                        r.id,
+                        r.config_id,
+                        r.priority,
+                        r.enqueued_at,
+                        r.claimed_by.as_deref().unwrap_or("-"),
+                        r.run_id
+                            .map(|x| x.to_string())
+                            .unwrap_or_else(|| "-".into()),
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// ── Worker subcommand impl ────────────────────────────────────────────────────
+
+/// Execute one queued job. Returns the run_id on success, `None` when the
+/// queue was empty.
+async fn run_one_queued(
+    db: &Db,
+    worker_id: &str,
+    base_url: &str,
+    turns: u32,
+    artifact_root: &Path,
+) -> Result<Option<i64>> {
+    let q = QueueStore::new(db);
+
+    let job = match q.claim_next(worker_id)? {
+        Some(j) => j,
+        None => return Ok(None),
+    };
+
+    let queue_id = job.queue_id;
+
+    // Load and verify the rubric pinned by this config.
+    let rubric = match load_version(&job.config.judge.rubric_version) {
+        Ok(r) => r,
+        Err(e) => {
+            q.fail(queue_id, &format!("rubric load failed: {e}"))?;
+            return Err(e);
         }
     };
-    let judge: Box<dyn Judge> = match config.judge.mode {
-        ActorMode::Scripted => Box::new(ScriptedJudge::new(rubric_sha)),
-        ActorMode::Api => {
-            let key = std::env::var("ANTHROPIC_API_KEY").ok();
-            let client = make_client("anthropic", None, key.as_deref())?;
-            let model = config
-                .judge
-                .model
-                .clone()
-                .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
-            Box::new(ApiJudge::new(
-                client,
-                model,
-                rubric.manifest.rubric.clone(),
-                rubric_sha,
-            ))
-        }
+    if let Err(e) = rubric.verify_pin(job.config.judge.rubric_sha256.as_deref()) {
+        q.fail(queue_id, &format!("rubric pin mismatch: {e}"))?;
+        return Err(e);
+    }
+
+    let (player, judge): (Box<dyn Player>, Box<dyn Judge>) =
+        match build_actors(&job.config, &rubric) {
+            Ok(actors) => actors,
+            Err(e) => {
+                q.fail(queue_id, &format!("build_actors failed: {e}"))?;
+                return Err(e);
+            }
+        };
+
+    let params = RunParams {
+        base_url: base_url.to_string(),
+        turns,
+        command_timeout_ms: 60_000,
+        ready_timeout: Duration::from_secs(30),
+        artifact_root: artifact_root.to_path_buf(),
+        player,
+        judge,
+        config: job.config,
+        file_issues: false,
+        dashboard_base: "http://localhost:8787".to_string(),
     };
-    Ok((player, judge))
+
+    match execute_run(db, params).await {
+        Ok(summary) => {
+            q.complete(queue_id, summary.id)?;
+            tracing::info!(queue_id, run_id = summary.id, "job completed");
+            Ok(Some(summary.id))
+        }
+        Err(e) => {
+            q.fail(queue_id, &format!("run failed: {e}"))?;
+            Err(e)
+        }
+    }
+}
+
+async fn run_worker(args: WorkerArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let artifact_root = args.artifacts.clone().unwrap_or_else(|| {
+        db_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
+    let db = Db::open(&db_path)?;
+
+    let worker_id = args.worker_id.unwrap_or_else(default_worker_id);
+    let mut runs_done: u64 = 0;
+
+    loop {
+        if let Some(max) = args.max_runs
+            && runs_done >= max
+        {
+            tracing::info!(runs_done, "reached --max-runs; exiting");
+            break;
+        }
+
+        match run_one_queued(&db, &worker_id, &args.base_url, args.turns, &artifact_root).await {
+            Ok(Some(run_id)) => {
+                runs_done += 1;
+                tracing::info!(run_id, runs_done, "run completed");
+            }
+            Ok(None) => {
+                if args.once {
+                    tracing::info!("queue empty and --once set; exiting");
+                    break;
+                }
+                tracing::debug!(poll_secs = args.poll_secs, "queue empty; sleeping");
+                tokio::time::sleep(Duration::from_secs(args.poll_secs)).await;
+            }
+            Err(e) => {
+                // Job was already marked failed by run_one_queued; log and
+                // continue so a single broken config doesn't kill the worker.
+                tracing::error!("job error: {e}; continuing");
+            }
+        }
+    }
+
+    println!("worker done; runs_executed={runs_done}");
+    Ok(())
+}
+
+/// Generate a default worker id from hostname (env) + pid.
+fn default_worker_id() -> String {
+    let host = std::env::var("HOSTNAME")
+        .or_else(|_| std::env::var("HOST"))
+        .unwrap_or_else(|_| "worker".to_string());
+    let pid = std::process::id();
+    format!("{host}:{pid}")
+}
+
+// ── Compare subcommand impl ───────────────────────────────────────────────────
+
+async fn run_compare(args: CompareArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let db = Db::open(&db_path)?;
+
+    let cmp = db.compare(args.a, args.b)?.ok_or_else(|| {
+        HarnessError::Config(format!(
+            "one or both run ids not found: a={} b={}",
+            args.a, args.b
+        ))
+    })?;
+
+    println!("A/B compare: run {} vs run {}", cmp.a.id, cmp.b.id);
+    println!(
+        "  A: status={} quality={} branch={} sha={}",
+        cmp.a.status,
+        cmp.a
+            .quality_score
+            .map(|q| format!("{q:.2}"))
+            .unwrap_or_else(|| "-".into()),
+        cmp.a.git_branch,
+        &cmp.a.git_sha[..cmp.a.git_sha.len().min(8)],
+    );
+    println!(
+        "  B: status={} quality={} branch={} sha={}",
+        cmp.b.status,
+        cmp.b
+            .quality_score
+            .map(|q| format!("{q:.2}"))
+            .unwrap_or_else(|| "-".into()),
+        cmp.b.git_branch,
+        &cmp.b.git_sha[..cmp.b.git_sha.len().min(8)],
+    );
+
+    println!("\nGate: A={} B={}", cmp.gate_diff.0, cmp.gate_diff.1);
+
+    if !cmp.axis_deltas.is_empty() {
+        println!("\nAxis deltas (B - A):");
+        println!("  {:<28} {:>6} {:>6} {:>8}", "axis", "A", "B", "delta");
+        println!("  {}", "-".repeat(52));
+        for d in &cmp.axis_deltas {
+            println!(
+                "  {:<28} {:>6} {:>6} {:>+8}",
+                d.axis, d.a_score, d.b_score, d.delta
+            );
+        }
+    }
+
+    if !cmp.findings_only_in_a.is_empty() {
+        println!("\nFindings only in A:");
+        for sig in &cmp.findings_only_in_a {
+            println!("  {sig}");
+        }
+    }
+    if !cmp.findings_only_in_b.is_empty() {
+        println!("\nFindings only in B:");
+        for sig in &cmp.findings_only_in_b {
+            println!("  {sig}");
+        }
+    }
+
+    Ok(())
 }

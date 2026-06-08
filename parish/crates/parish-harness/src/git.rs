@@ -43,6 +43,18 @@ fn run_git(args: &[&str]) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
+/// Return the ISO-8601 committer date for the given SHA.
+///
+/// Returns `None` when the SHA is unknown, `git` is unavailable, or the SHA is
+/// the placeholder `"unknown"`. Never fails — callers use `None` as "no date
+/// available" for sorting purposes.
+pub fn commit_date(sha: &str) -> Option<String> {
+    if sha == "unknown" || sha.is_empty() {
+        return None;
+    }
+    run_git(&["show", "-s", "--format=%cI", sha])
+}
+
 /// Best-effort PR number via `gh pr view`. Returns `None` when not on a PR
 /// branch or `gh` is unavailable — exactly the graceful degradation the issue
 /// filer relies on.

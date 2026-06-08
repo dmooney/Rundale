@@ -5,5 +5,8 @@ pub mod queries;
 pub mod schema;
 pub mod sink;
 
-pub use queries::{AxisScoreDto, FindingDto, RunDetail, RunSummaryDto, TurnSummaryDto};
+pub use queries::{
+    AbCompare, AxisDelta, AxisScoreDto, FindingDto, RunDetail, RunSummaryDto, TimelinePoint,
+    TurnSummaryDto,
+};
 pub use sink::{Db, RunSummary, TurnRecord, default_db_path};

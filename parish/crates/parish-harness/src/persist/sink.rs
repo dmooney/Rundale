@@ -54,7 +54,7 @@ pub struct RunSummary {
 
 /// The harness database handle.
 pub struct Db {
-    pub(super) conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl Db {

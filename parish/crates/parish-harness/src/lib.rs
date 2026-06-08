@@ -19,6 +19,7 @@ pub mod frame;
 pub mod git;
 pub mod issue;
 pub mod persist;
+pub mod queue;
 pub mod run;
 pub mod score;
 

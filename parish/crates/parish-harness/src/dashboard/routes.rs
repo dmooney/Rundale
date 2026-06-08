@@ -5,10 +5,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json, Response};
+use serde::Deserialize;
 use tokio::sync::broadcast;
 
 use crate::dashboard::sse::TurnEventMsg;
@@ -115,6 +116,50 @@ pub async fn stream_run(
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
+// ── GET /api/timeline?branch= ─────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct TimelineParams {
+    pub branch: Option<String>,
+}
+
+pub async fn get_timeline(
+    State(state): State<AppState>,
+    Query(params): Query<TimelineParams>,
+) -> Response {
+    let db = match state.open_db() {
+        Ok(db) => db,
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    match db.timeline(params.branch.as_deref()) {
+        Ok(points) => Json(points).into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
+
+// ── GET /api/compare?a=&b= ────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct CompareParams {
+    pub a: i64,
+    pub b: i64,
+}
+
+pub async fn get_compare(
+    State(state): State<AppState>,
+    Query(params): Query<CompareParams>,
+) -> Response {
+    let db = match state.open_db() {
+        Ok(db) => db,
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    match db.compare(params.a, params.b) {
+        Ok(Some(cmp)) => Json(cmp).into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "one or both run ids not found"),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
+
 // ── GET / ─────────────────────────────────────────────────────────────────────
 
 /// Serves the embedded single-file dashboard UI.
@@ -194,6 +239,45 @@ mod tests {
 
         let req = Request::builder()
             .uri("/api/runs/9999")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn get_api_timeline_returns_200_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("tl.db");
+        Db::open(&db_path).unwrap();
+
+        let state = make_state(db_path);
+        let app = build_router(state);
+
+        let req = Request::builder()
+            .uri("/api/timeline")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json.is_array());
+    }
+
+    #[tokio::test]
+    async fn get_api_compare_unknown_returns_404() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("cmp.db");
+        Db::open(&db_path).unwrap();
+
+        let state = make_state(db_path);
+        let app = build_router(state);
+
+        let req = Request::builder()
+            .uri("/api/compare?a=1&b=2")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();

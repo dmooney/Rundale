@@ -45,10 +45,36 @@
     .quality-score { font-size: 1.2rem; font-weight: 700; color: #9bb3e0; }
     .run-meta { font-size: .8rem; color: #666; margin: .25rem 0; }
     .sse-status { font-size: .75rem; color: #668; margin-left: .5rem; }
+    /* trends view */
+    .trends-svg { display: block; overflow: visible; margin: .5rem 0; }
+    .trends-no-data { color: #666; font-style: italic; font-size: .85rem; }
+    .trend-point { cursor: pointer; }
+    .trend-point:hover circle { r: 6; }
+    /* ab view */
+    .ab-form { display: flex; gap: .75rem; align-items: flex-end; margin: .5rem 0 1rem; }
+    .ab-form label { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: #888; }
+    .ab-form input { background: #1a2030; border: 1px solid #2a3a4a; border-radius: 4px; color: #e0e0e0; padding: .3rem .5rem; width: 80px; }
+    .ab-form button { background: #1a3050; color: #9bb3e0; border: 1px solid #2a4060; border-radius: 4px; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; }
+    .ab-form button:hover { background: #203860; }
+    .ab-table { font-size: .82rem; }
+    .delta-pos { color: #6dbf6d; }
+    .delta-neg { color: #c06060; }
+    .delta-zero { color: #666; }
+    .ab-findings { margin-top: .5rem; }
+    .ab-sig { font-size: .75rem; font-family: monospace; color: #888; }
+    .nav-tabs { display: flex; gap: .25rem; margin-bottom: 1rem; }
+    .nav-tab { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 4px 4px 0 0; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; color: #888; }
+    .nav-tab.active { background: #1a2a3a; color: #9bb3e0; border-bottom-color: #1a2a3a; }
   </style>
 </head>
 <body>
   <h1>Parish Harness Dashboard</h1>
+  <div class="nav-tabs" id="main-nav">
+    <button class="nav-tab active" data-tab="runs">Runs</button>
+    <button class="nav-tab" data-tab="trends">Trends</button>
+    <button class="nav-tab" data-tab="ab">A/B Compare</button>
+  </div>
+
   <div id="runs-view">
     <h2>Recent Runs <button id="refresh-btn" style="font-size:.75rem;cursor:pointer;margin-left:.5rem;background:#1a2a2a;color:#9bb3e0;border:1px solid #2a3a3a;border-radius:3px;padding:.1rem .4rem;">Refresh</button></h2>
     <div id="runs-container"><span class="loading">Loading...</span></div>
@@ -56,6 +82,26 @@
   <div id="detail">
     <button class="back-btn" id="back-btn">&#8592; Back to runs</button>
     <div id="detail-container"></div>
+  </div>
+
+  <div id="trends-view" style="display:none">
+    <h2>Trends
+      <span style="font-size:.8rem;color:#666;font-weight:400;margin-left:.5rem">
+        Branch: <input id="trends-branch" placeholder="(all)" style="background:#1a2030;border:1px solid #2a3040;border-radius:3px;color:#e0e0e0;padding:.15rem .4rem;font-size:.8rem;width:100px;">
+        <button id="trends-load-btn" style="font-size:.75rem;cursor:pointer;margin-left:.3rem;background:#1a2a2a;color:#9bb3e0;border:1px solid #2a3a3a;border-radius:3px;padding:.1rem .4rem;">Load</button>
+      </span>
+    </h2>
+    <div id="trends-container"><span class="loading">Loading...</span></div>
+  </div>
+
+  <div id="ab-view" style="display:none">
+    <h2>A/B Compare</h2>
+    <div class="ab-form">
+      <label>Run A <input id="ab-a" type="number" min="1" placeholder="id"></label>
+      <label>Run B <input id="ab-b" type="number" min="1" placeholder="id"></label>
+      <button id="ab-compare-btn">Compare</button>
+    </div>
+    <div id="ab-container"></div>
   </div>
 
   <script>
@@ -198,6 +244,187 @@
       $('runs-view').style.display = '';
     });
     $('refresh-btn').addEventListener('click', loadRuns);
+
+    // ── Tab navigation ─────────────────────────────────────────────────────
+    const VIEWS = { runs: 'runs-view', trends: 'trends-view', ab: 'ab-view' };
+    let activeTab = 'runs';
+
+    function switchTab(tab) {
+      activeTab = tab;
+      // Hide detail when switching away from runs.
+      if (tab !== 'runs') {
+        if (sse) { sse.close(); sse = null; }
+        $('detail').className = '';
+      }
+      Object.entries(VIEWS).forEach(([key, id]) => {
+        $(id).style.display = key === tab ? '' : 'none';
+      });
+      document.querySelectorAll('.nav-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+      });
+      if (tab === 'trends') loadTrends();
+    }
+
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // ── Trends view ───────────────────────────────────────────────────────
+    async function loadTrends() {
+      const c = $('trends-container');
+      const branch = $('trends-branch').value.trim();
+      const url = branch ? `/api/timeline?branch=${encodeURIComponent(branch)}` : '/api/timeline';
+      c.innerHTML = '<span class="loading">Loading...</span>';
+      try {
+        const points = await fetch(url).then(r => r.json());
+        renderTrends(points, c);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load timeline: ${e.message}</div>`;
+      }
+    }
+
+    function renderTrends(points, container) {
+      if (!points.length) {
+        container.innerHTML = '<span class="trends-no-data">No completed runs yet.</span>';
+        return;
+      }
+
+      // Filter to points with a quality score.
+      const scored = points.filter(p => p.quality_score != null);
+      if (!scored.length) {
+        container.innerHTML = '<span class="trends-no-data">No scored runs yet.</span>';
+        return;
+      }
+
+      // Build SVG line chart (quality score over runs).
+      const W = 600, H = 160, PAD = { top: 16, right: 16, bottom: 32, left: 40 };
+      const iW = W - PAD.left - PAD.right;
+      const iH = H - PAD.top - PAD.bottom;
+      const n = scored.length;
+      const minQ = Math.min(...scored.map(p => p.quality_score));
+      const maxQ = Math.max(...scored.map(p => p.quality_score));
+      const rangeQ = (maxQ - minQ) || 1;
+
+      const xOf = i => PAD.left + (n === 1 ? iW / 2 : (i / (n - 1)) * iW);
+      const yOf = q => PAD.top + iH - ((q - minQ) / rangeQ) * iH;
+
+      // Polyline points.
+      const pts = scored.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.quality_score).toFixed(1)}`).join(' ');
+
+      // Y-axis labels.
+      const yLabels = [minQ, (minQ + maxQ) / 2, maxQ].map(v =>
+        `<text x="${PAD.left - 4}" y="${yOf(v).toFixed(1)}" text-anchor="end" fill="#666" font-size="10">${v.toFixed(0)}</text>`
+      ).join('');
+
+      // Data circles + tooltips.
+      const circles = scored.map((p, i) => {
+        const sha = (p.git_sha || '').substring(0, 7);
+        const date = p.commit_date ? p.commit_date.substring(0, 10) : '';
+        const tip = `run ${p.run_id} q=${p.quality_score.toFixed(1)} ${sha} ${date}`;
+        return `<circle class="trend-point" cx="${xOf(i).toFixed(1)}" cy="${yOf(p.quality_score).toFixed(1)}" r="4" fill="#5080c0" stroke="#0f1117" stroke-width="1.5">
+          <title>${escHtml(tip)}</title></circle>`;
+      }).join('');
+
+      // X-axis ticks (show SHA for up to 6 points).
+      const showEvery = Math.max(1, Math.ceil(n / 6));
+      const xLabels = scored.map((p, i) => {
+        if (i % showEvery !== 0 && i !== n - 1) return '';
+        const sha = (p.git_sha || '').substring(0, 6);
+        return `<text x="${xOf(i).toFixed(1)}" y="${(PAD.top + iH + 14).toFixed(1)}" text-anchor="middle" fill="#555" font-size="9">${sha}</text>`;
+      }).join('');
+
+      const svg = `<svg class="trends-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+        <line x1="${PAD.left}" y1="${PAD.top + iH}" x2="${PAD.left + iW}" y2="${PAD.top + iH}" stroke="#2a2a2a" stroke-width="1"/>
+        <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + iH}" stroke="#2a2a2a" stroke-width="1"/>
+        ${yLabels}
+        ${n > 1 ? `<polyline points="${pts}" fill="none" stroke="#5080c0" stroke-width="1.5"/>` : ''}
+        ${circles}
+        ${xLabels}
+        <text x="${(W / 2).toFixed(0)}" y="${H - 2}" text-anchor="middle" fill="#444" font-size="9">commit (newest right)</text>
+      </svg>`;
+
+      container.innerHTML = `<div>${svg}</div><p style="font-size:.78rem;color:#666;margin-top:.4rem">${scored.length} scored run(s) shown. Click a dot to open that run.</p>`;
+
+      // Wire up dot click to showDetail.
+      container.querySelectorAll('.trend-point').forEach((el, i) => {
+        el.addEventListener('click', () => {
+          switchTab('runs');
+          showDetail(scored[i].run_id);
+        });
+      });
+    }
+
+    $('trends-load-btn').addEventListener('click', loadTrends);
+
+    // ── A/B Compare view ──────────────────────────────────────────────────
+    $('ab-compare-btn').addEventListener('click', async () => {
+      const aVal = $('ab-a').value.trim();
+      const bVal = $('ab-b').value.trim();
+      if (!aVal || !bVal) {
+        $('ab-container').innerHTML = '<div class="error-msg">Enter both run IDs.</div>';
+        return;
+      }
+      const c = $('ab-container');
+      c.innerHTML = '<span class="loading">Comparing...</span>';
+      try {
+        const resp = await fetch(`/api/compare?a=${encodeURIComponent(aVal)}&b=${encodeURIComponent(bVal)}`);
+        if (!resp.ok) {
+          const j = await resp.json();
+          c.innerHTML = `<div class="error-msg">${escHtml(j.error || 'compare failed')}</div>`;
+          return;
+        }
+        const cmp = await resp.json();
+        renderAbCompare(cmp, c);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+      }
+    });
+
+    function renderAbCompare(cmp, container) {
+      const runMeta = (s) => {
+        const q = s.quality_score != null ? s.quality_score.toFixed(1) : '—';
+        const sha = (s.git_sha || '').substring(0, 8);
+        return `run #${s.id} &nbsp; <span class="badge badge-${s.status}">${s.status}</span> &nbsp; quality=${q} &nbsp; <code>${sha}</code> on <em>${s.git_branch||'?'}</em>`;
+      };
+
+      let html = `<h3>Run A</h3><div class="run-meta">${runMeta(cmp.a)}</div>`;
+      html += `<h3>Run B</h3><div class="run-meta">${runMeta(cmp.b)}</div>`;
+      html += `<p style="font-size:.8rem;color:#888;margin:.4rem 0">Gate: A=${escHtml(cmp.gate_diff[0])} &nbsp; B=${escHtml(cmp.gate_diff[1])}</p>`;
+
+      if (cmp.axis_deltas.length) {
+        html += `<h3>Axis Deltas (B − A)</h3>
+          <table class="ab-table"><thead><tr>
+            <th>Axis</th><th>A</th><th>B</th><th>Delta</th>
+          </tr></thead><tbody>`;
+        for (const d of cmp.axis_deltas) {
+          const cls = d.delta > 0 ? 'delta-pos' : d.delta < 0 ? 'delta-neg' : 'delta-zero';
+          const sign = d.delta > 0 ? '+' : '';
+          html += `<tr>
+            <td>${d.axis.replace(/_/g,' ')}</td>
+            <td>${d.a_score}</td><td>${d.b_score}</td>
+            <td class="${cls}">${sign}${d.delta}</td>
+          </tr>`;
+        }
+        html += `</tbody></table>`;
+      }
+
+      if (cmp.findings_only_in_a.length) {
+        html += `<h3>Findings only in A (${cmp.findings_only_in_a.length})</h3><div class="ab-findings">`;
+        for (const sig of cmp.findings_only_in_a) {
+          html += `<div class="ab-sig">${escHtml(sig)}</div>`;
+        }
+        html += `</div>`;
+      }
+      if (cmp.findings_only_in_b.length) {
+        html += `<h3>Findings only in B (${cmp.findings_only_in_b.length})</h3><div class="ab-findings">`;
+        for (const sig of cmp.findings_only_in_b) {
+          html += `<div class="ab-sig">${escHtml(sig)}</div>`;
+        }
+        html += `</div>`;
+      }
+
+      container.innerHTML = html;
+    }
 
     loadRuns();
   </script>

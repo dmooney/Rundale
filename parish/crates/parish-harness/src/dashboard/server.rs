@@ -7,7 +7,9 @@ use std::sync::Arc;
 use axum::Router;
 use axum::routing::get;
 
-use crate::dashboard::routes::{AppState, get_frame, get_run, index_html, list_runs, stream_run};
+use crate::dashboard::routes::{
+    AppState, get_compare, get_frame, get_run, get_timeline, index_html, list_runs, stream_run,
+};
 use crate::dashboard::sse;
 use crate::error::Result;
 
@@ -44,5 +46,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/runs/{id}", get(get_run))
         .route("/api/runs/{id}/turns/{idx}/frame.png", get(get_frame))
         .route("/api/runs/{id}/stream", get(stream_run))
+        .route("/api/timeline", get(get_timeline))
+        .route("/api/compare", get(get_compare))
         .with_state(state)
 }
