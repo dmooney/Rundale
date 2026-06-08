@@ -14,7 +14,7 @@ path = "src/main.rs"
 parish-core = { workspace = true }
 parish-inference = { workspace = true }
 tokio = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "cookies"] }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

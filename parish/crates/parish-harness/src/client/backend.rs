@@ -51,10 +51,21 @@ pub struct HttpGameClient {
 impl HttpGameClient {
     /// Construct a client pointed at an Axum/Tauri backend root
     /// (e.g. `http://127.0.0.1:3030`).
+    ///
+    /// A per-client cookie store is essential: `parish-server` isolates state
+    /// per visitor keyed by the `parish_sid` cookie, so a cookieless client
+    /// would spin up a brand-new session on *every* request and exhaust the
+    /// server's session cap within a single run. Enabling the cookie store
+    /// makes all of a run's requests share one session (the same approach
+    /// `parish-client` takes).
     pub fn new(base_url: impl Into<String>) -> Self {
+        let client = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("reqwest client builds with cookie store");
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
-            client: reqwest::Client::new(),
+            client,
         }
     }
 
