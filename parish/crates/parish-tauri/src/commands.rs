@@ -32,8 +32,8 @@ pub mod snapshot;
 
 // ── Re-exports: snapshot ──────────────────────────────────────────────────────
 pub use snapshot::{
-    get_debug_snapshot, get_map, get_npcs_here, get_setup_snapshot, get_theme, get_ui_config,
-    get_world_snapshot, get_world_snapshot_inner, toggle_fullscreen,
+    get_debug_snapshot, get_engine_state, get_map, get_npcs_here, get_setup_snapshot, get_theme,
+    get_ui_config, get_world_snapshot, get_world_snapshot_inner, toggle_fullscreen,
 };
 
 // ── Re-exports: setup ─────────────────────────────────────────────────────────

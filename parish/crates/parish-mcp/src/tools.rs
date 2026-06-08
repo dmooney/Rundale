@@ -55,6 +55,10 @@ fn translate_npcs_here(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_npcs_here".into(), Value::Null))
 }
 
+fn translate_engine_state(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_engine_state".into(), Value::Null))
+}
+
 fn translate_save_state(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_save_state".into(), Value::Null))
 }
@@ -199,6 +203,22 @@ pub fn registry() -> Vec<ToolDef> {
             description: "Lists the NPCs co-located with the player at this moment.",
             input_schema: empty_object_schema(),
             translate: translate_npcs_here,
+        },
+        ToolDef {
+            name: "parish_engine_state",
+            description: "Reads the canonical, deterministic Parish engine state — the \
+                          authoritative snapshot a QA agent asserts the UI against after \
+                          each interaction. Returns `active_scene` (player location id + \
+                          name + indoor), `clock` (game time, day-of-week, day-type, \
+                          season, festival, paused), `weather`, `player` (location id, \
+                          visited count, name), `npcs` (co-located NPCs + roster totals), \
+                          and `grapevine` (gossip-network item count + distortion). \
+                          Read-only and deterministic: identical engine state yields an \
+                          identical snapshot. Pair with `parish_world_snapshot` / \
+                          `parish_npcs_here` to detect UI-vs-engine drift, and attach the \
+                          result to `parish_file_bug` when a mismatch is found.",
+            input_schema: empty_object_schema(),
+            translate: translate_engine_state,
         },
         ToolDef {
             name: "parish_save_state",
@@ -431,6 +451,7 @@ mod tests {
                 "parish_world_snapshot",
                 "parish_map",
                 "parish_npcs_here",
+                "parish_engine_state",
                 "parish_save_state",
                 "parish_submit_input",
                 "parish_new_game",
@@ -550,6 +571,20 @@ mod tests {
     }
 
     #[test]
+    fn engine_state_takes_no_args_and_routes_to_get() {
+        let (cmd, args) = translate_engine_state(&json!({})).unwrap();
+        assert_eq!(cmd, "get_engine_state");
+        // Null args ⇒ GET /api/engine-state.
+        assert!(args.is_null());
+    }
+
+    #[test]
+    fn registry_includes_engine_state_tool() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert!(names.contains(&"parish_engine_state"));
+    }
+
+    #[test]
     fn registry_includes_latest_screenshot_tool() {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_latest_screenshot"));
@@ -639,6 +674,7 @@ mod tests {
             ("parish_world_snapshot", json!({})),
             ("parish_map", json!({})),
             ("parish_npcs_here", json!({})),
+            ("parish_engine_state", json!({})),
             ("parish_save_state", json!({})),
             ("parish_new_game", json!({})),
             ("parish_save_game", json!({})),

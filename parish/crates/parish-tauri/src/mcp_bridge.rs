@@ -79,6 +79,9 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/world-snapshot", get(world_snapshot))
         .route("/api/map", get(map))
         .route("/api/npcs-here", get(npcs_here))
+        // `/api/engine-state` — canonical deterministic engine state for the
+        // MCP QA loop (#1331). Backs the `parish_engine_state` tool.
+        .route("/api/engine-state", get(engine_state))
         .route("/api/save-state", get(save_state))
         .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
@@ -194,6 +197,29 @@ async fn npcs_here(State(b): State<BridgeState>) -> Json<Vec<NpcInfo>> {
     let world = b.state.world.lock().await;
     let npc_manager = b.state.npc_manager.lock().await;
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
+}
+
+/// `GET /api/engine-state` — canonical deterministic engine state (#1331).
+/// Shares the `parish_core::ipc::build_engine_state` builder with the web
+/// server so the desktop and server snapshots can never drift (rule #12).
+async fn engine_state(
+    State(b): State<BridgeState>,
+) -> Result<Json<parish_core::ipc::EngineState>, AppError> {
+    if b.state
+        .config
+        .lock()
+        .await
+        .flags
+        .is_disabled("engine-state")
+    {
+        return Err(AppError("the engine-state feature is disabled".to_string()));
+    }
+    let world = b.state.world.lock().await;
+    let npc_manager = b.state.npc_manager.lock().await;
+    Ok(Json(parish_core::ipc::build_engine_state(
+        &world,
+        &npc_manager,
+    )))
 }
 
 #[derive(serde::Serialize)]
@@ -754,6 +780,7 @@ mod tests {
             "/api/world-snapshot",
             "/api/map",
             "/api/npcs-here",
+            "/api/engine-state",
             "/api/save-state",
             "/api/setup-snapshot",
             "/api/debug-snapshot",
@@ -789,6 +816,7 @@ mod tests {
             "get_world_snapshot",
             "get_map",
             "get_npcs_here",
+            "get_engine_state",
             "get_save_state",
             "get_setup_snapshot",
             "get_debug_snapshot",

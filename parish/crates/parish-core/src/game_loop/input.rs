@@ -108,6 +108,10 @@ pub async fn handle_game_input(
     reaction_templates: &ReactionTemplates,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) {
+    // Record the raw player input before any parsing so a bug report filed
+    // mid-turn carries the exact action that triggered the failure (#1331).
+    ctx.conversation.lock().await.record_player_input(&raw);
+
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
         let config = ctx.config.lock().await;

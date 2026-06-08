@@ -511,6 +511,7 @@ fn build_router(
         .route("/api/setup-snapshot", get(routes::get_setup_snapshot))
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
+        .route("/api/engine-state", get(routes::get_engine_state))
         .route("/api/theme", get(routes::get_theme))
         .route(
             "/api/list-available-providers",
