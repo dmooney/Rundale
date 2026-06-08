@@ -14,7 +14,7 @@ use parish_harness::config::{ActorMode, RunConfig};
 use parish_harness::dashboard::serve;
 use parish_harness::error::{HarnessError, Result};
 use parish_harness::persist::{Db, default_db_path};
-use parish_harness::queue::QueueStore;
+use parish_harness::queue::{QueueBackend, QueueStore};
 use parish_harness::run::{RunParams, build_actors, execute_run};
 use parish_harness::score::load_version;
 
@@ -96,6 +96,7 @@ struct RunArgs {
 enum ActorKind {
     Scripted,
     Api,
+    Subagent,
 }
 
 impl From<ActorKind> for ActorMode {
@@ -103,6 +104,7 @@ impl From<ActorKind> for ActorMode {
         match k {
             ActorKind::Scripted => ActorMode::Scripted,
             ActorKind::Api => ActorMode::Api,
+            ActorKind::Subagent => ActorMode::Subagent,
         }
     }
 }

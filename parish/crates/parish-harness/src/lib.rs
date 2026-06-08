@@ -13,6 +13,7 @@
 pub mod actor;
 pub mod client;
 pub mod config;
+pub mod cost;
 pub mod dashboard;
 pub mod error;
 pub mod frame;

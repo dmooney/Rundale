@@ -21,6 +21,11 @@ pub enum ActorMode {
     Scripted,
     /// `parish-inference`-backed LLM (Anthropic / OpenAI-compat / local).
     Api,
+    /// On-disk queue-file protocol: writes a pending bundle and polls for a
+    /// done file written by an external Claude Code subagent drain loop.
+    /// No API key required in-process.
+    #[serde(rename = "subagent")]
+    Subagent,
 }
 
 /// Player-role configuration.

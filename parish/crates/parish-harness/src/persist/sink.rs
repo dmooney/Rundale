@@ -7,6 +7,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::config::RunConfig;
+use crate::cost::CostSummary;
 use crate::error::{HarnessError, Result};
 use crate::git::GitProvenance;
 use crate::score::{AxisScore, Finding, GateTrip};
@@ -272,6 +273,35 @@ impl Db {
         Ok(())
     }
 
+    /// Aggregate cost summary across all runs (sums `cost_usd`, `player_tokens`,
+    /// `judge_tokens`).
+    ///
+    /// Token counts are 0 until `AnyClient` usage exposure is wired through.
+    pub fn cost_summary(&self) -> Result<CostSummary> {
+        let (total_runs, total_cost_usd, total_player_tokens, total_judge_tokens) =
+            self.conn.query_row(
+                "SELECT COUNT(*), COALESCE(SUM(cost_usd), 0.0),
+                        COALESCE(SUM(player_tokens), 0),
+                        COALESCE(SUM(judge_tokens), 0)
+                   FROM runs",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, f64>(1)?,
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, i64>(3)?,
+                    ))
+                },
+            )?;
+        Ok(CostSummary {
+            total_runs: total_runs as u64,
+            total_cost_usd,
+            total_player_tokens: total_player_tokens as u64,
+            total_judge_tokens: total_judge_tokens as u64,
+        })
+    }
+
     /// Read a run summary for output.
     pub fn run_summary(&self, run_id: i64) -> Result<RunSummary> {
         let summary = self.conn.query_row(
@@ -317,6 +347,56 @@ mod tests {
     use crate::config::{ActorMode, GateCfg, JudgeCfg, PlayerCfg};
     use crate::score::{Axis, GateReason, Severity};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn cost_summary_empty_db_returns_zeros() {
+        let db = Db::open_in_memory().unwrap();
+        let s = db.cost_summary().unwrap();
+        assert_eq!(s.total_runs, 0);
+        assert_eq!(s.total_cost_usd, 0.0);
+        assert_eq!(s.total_player_tokens, 0);
+        assert_eq!(s.total_judge_tokens, 0);
+    }
+
+    #[test]
+    fn cost_summary_sums_across_runs() {
+        let db = Db::open_in_memory().unwrap();
+        // Insert two runs; the columns default to 0 (no cost wired yet).
+        let cfg = RunConfig {
+            label: Some("c".into()),
+            engine_models: BTreeMap::new(),
+            flags: vec![],
+            player: PlayerCfg {
+                mode: ActorMode::Scripted,
+                model: None,
+                persona: String::new(),
+                strategy: String::new(),
+            },
+            judge: JudgeCfg {
+                mode: ActorMode::Scripted,
+                model: None,
+                rubric_version: "v1".into(),
+                rubric_sha256: None,
+            },
+            gate: GateCfg::default(),
+        };
+        let git = GitProvenance {
+            sha: "x".into(),
+            branch: "main".into(),
+            dirty: false,
+            pr_number: None,
+        };
+        let cid = db.upsert_config(&cfg).unwrap();
+        db.start_run(cid, &git, "sha", "/tmp/a").unwrap();
+        db.start_run(cid, &git, "sha", "/tmp/b").unwrap();
+
+        let s = db.cost_summary().unwrap();
+        assert_eq!(s.total_runs, 2);
+        // Columns default to 0; totals are 0.
+        assert_eq!(s.total_cost_usd, 0.0);
+        assert_eq!(s.total_player_tokens, 0);
+        assert_eq!(s.total_judge_tokens, 0);
+    }
 
     fn cfg() -> RunConfig {
         RunConfig {

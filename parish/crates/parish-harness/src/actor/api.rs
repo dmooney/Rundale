@@ -6,19 +6,16 @@
 //! vllm-mlx, rate-limiting, retry, and timeouts for free. No second HTTP-LLM
 //! client is introduced.
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
-use serde::Deserialize;
 
 use parish_core::config::{InferenceConfig, Provider};
 use parish_core::inference::{AnyClient, GenerateParams, build_client};
 
 use crate::error::{HarnessError, Result};
-use crate::score::{Axis, AxisScore, RawFinding};
 
 use super::traits::{Judge, Player};
 use super::types::{JudgeVerdict, Observation, PlayerMove, RunTranscript};
+use super::verdict::{JudgeVerdictJson, verdict_from_json};
 
 /// Build an [`AnyClient`] for a provider/model. `api_key` is read from the
 /// supplied value (callers typically source it from the environment).
@@ -153,53 +150,10 @@ pub fn render_transcript_prompt(transcript: &RunTranscript) -> String {
     s
 }
 
-/// The JSON shape the judge returns.
-#[derive(Debug, Deserialize)]
-struct JudgeVerdictJson {
-    #[serde(default)]
-    axes: HashMap<String, i64>,
-    #[serde(default)]
-    axis_rationales: HashMap<String, String>,
-    #[serde(default)]
-    findings: Vec<RawFinding>,
-}
-
-/// Convert the judge's JSON into a typed verdict (clamping scores, mapping
-/// axes, canonicalizing findings). Unknown axis keys are ignored; missing axes
-/// default to a neutral 50 so a partial verdict still rolls up.
-fn verdict_from_json(json: JudgeVerdictJson) -> JudgeVerdict {
-    let axes = Axis::ALL
-        .into_iter()
-        .map(|axis| {
-            let score = json
-                .axes
-                .get(axis.key())
-                .copied()
-                .unwrap_or(50)
-                .clamp(0, 100) as u8;
-            let rationale = json
-                .axis_rationales
-                .get(axis.key())
-                .cloned()
-                .unwrap_or_default();
-            AxisScore {
-                axis,
-                score,
-                rationale,
-            }
-        })
-        .collect();
-    let findings = json
-        .findings
-        .into_iter()
-        .map(RawFinding::canonicalize)
-        .collect();
-    JudgeVerdict { axes, findings }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::score::Axis;
 
     #[test]
     fn verdict_from_json_clamps_and_maps_axes() {

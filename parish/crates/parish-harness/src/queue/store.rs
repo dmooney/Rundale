@@ -1,11 +1,46 @@
 //! Queue store — enqueue / claim / complete / fail operations on the `queue`
 //! table. All operations are synchronous `rusqlite` calls (WAL, single writer).
+//!
+//! The [`QueueBackend`] trait abstracts the queue operations so a Postgres
+//! implementation can slot in for multi-machine workers without touching the
+//! worker loop. The current [`QueueStore`] (SQLite-backed) satisfies the trait.
 
 use rusqlite::{OptionalExtension, params};
 
 use crate::config::RunConfig;
 use crate::error::{HarnessError, Result};
 use crate::persist::Db;
+
+// ── Backend trait ─────────────────────────────────────────────────────────────
+
+/// Abstraction over queue-backend storage operations.
+///
+/// The current implementation is [`QueueStore`] backed by SQLite. A Postgres
+/// implementation can satisfy this trait for multi-machine worker deployments
+/// without changing the worker loop.
+pub trait QueueBackend {
+    /// Enqueue a config for execution. Returns the new queue row id.
+    fn enqueue(&self, config_id: i64, priority: i64) -> Result<i64>;
+
+    /// Atomically claim the highest-priority oldest pending job.
+    ///
+    /// Returns `None` when the queue is empty.
+    fn claim_next(&self, worker_id: &str) -> Result<Option<QueueJob>>;
+
+    /// Mark a queue job as done, linking it to the finished run.
+    fn complete(&self, queue_id: i64, run_id: i64) -> Result<()>;
+
+    /// Mark a queue job as failed with a reason string.
+    fn fail(&self, queue_id: i64, reason: &str) -> Result<()>;
+
+    /// Count pending jobs.
+    fn pending_count(&self) -> Result<u64>;
+
+    /// List queue rows in a given state (newest first).
+    fn list(&self, state: &str) -> Result<Vec<QueueRow>>;
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 /// A claimed queue job, ready to execute.
 #[derive(Debug)]
@@ -16,7 +51,31 @@ pub struct QueueJob {
     pub config: RunConfig,
 }
 
-/// Queue operations backed by the harness `Db`.
+/// A single queue row for display / debugging.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct QueueRow {
+    pub id: i64,
+    pub config_id: i64,
+    pub state: String,
+    pub priority: i64,
+    pub claimed_by: Option<String>,
+    pub enqueued_at: String,
+    pub claimed_at: Option<String>,
+    pub run_id: Option<i64>,
+}
+
+/// Queue counts grouped by state.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct QueueCounts {
+    pub pending: u64,
+    pub running: u64,
+    pub done: u64,
+    pub failed: u64,
+}
+
+// ── QueueStore ────────────────────────────────────────────────────────────────
+
+/// Queue operations backed by the harness `Db` (SQLite).
 pub struct QueueStore<'db> {
     db: &'db Db,
 }
@@ -27,11 +86,45 @@ impl<'db> QueueStore<'db> {
         QueueStore { db }
     }
 
+    /// Count rows grouped by state: (pending, running, done, failed).
+    pub fn counts(&self) -> Result<QueueCounts> {
+        let mut stmt = self
+            .db
+            .conn
+            .prepare("SELECT state, COUNT(*) FROM queue GROUP BY state")?;
+        let mut pending = 0u64;
+        let mut running = 0u64;
+        let mut done = 0u64;
+        let mut failed = 0u64;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+        for row in rows {
+            let (state, count) = row?;
+            let c = count as u64;
+            match state.as_str() {
+                "pending" => pending = c,
+                "running" => running = c,
+                "done" => done = c,
+                "failed" => failed = c,
+                _ => {}
+            }
+        }
+        Ok(QueueCounts {
+            pending,
+            running,
+            done,
+            failed,
+        })
+    }
+}
+
+// ── QueueBackend impl for QueueStore ─────────────────────────────────────────
+
+impl QueueBackend for QueueStore<'_> {
     /// Enqueue a config for execution. Returns the new queue row id.
     ///
     /// `state` is set to `'pending'`; the row is immediately visible to
     /// `claim_next`.
-    pub fn enqueue(&self, config_id: i64, priority: i64) -> Result<i64> {
+    fn enqueue(&self, config_id: i64, priority: i64) -> Result<i64> {
         self.db.conn.execute(
             "INSERT INTO queue (config_id, state, priority, enqueued_at)
              VALUES (?1, 'pending', ?2, ?3)",
@@ -45,7 +138,7 @@ impl<'db> QueueStore<'db> {
     /// Inside a transaction: SELECT the best candidate, UPDATE it to
     /// `running`, set `claimed_by` and `claimed_at`. Returns `None` when
     /// the queue is empty.
-    pub fn claim_next(&self, worker_id: &str) -> Result<Option<QueueJob>> {
+    fn claim_next(&self, worker_id: &str) -> Result<Option<QueueJob>> {
         let conn = &self.db.conn;
 
         // Use a savepoint-style transaction so concurrent workers in
@@ -96,7 +189,7 @@ impl<'db> QueueStore<'db> {
     }
 
     /// Mark a queue job as done, linking it to the finished run.
-    pub fn complete(&self, queue_id: i64, run_id: i64) -> Result<()> {
+    fn complete(&self, queue_id: i64, run_id: i64) -> Result<()> {
         self.db.conn.execute(
             "UPDATE queue SET state = 'done', run_id = ?1 WHERE id = ?2",
             params![run_id, queue_id],
@@ -105,7 +198,7 @@ impl<'db> QueueStore<'db> {
     }
 
     /// Mark a queue job as failed with a reason string.
-    pub fn fail(&self, queue_id: i64, reason: &str) -> Result<()> {
+    fn fail(&self, queue_id: i64, reason: &str) -> Result<()> {
         // Store the failure reason in `claimed_by` field (it's already set
         // to the worker; we repurpose the end-state as "worker|reason"). In
         // practice, dashboards read state='failed' and join back to runs for
@@ -119,7 +212,7 @@ impl<'db> QueueStore<'db> {
     }
 
     /// Count pending jobs.
-    pub fn pending_count(&self) -> Result<u64> {
+    fn pending_count(&self) -> Result<u64> {
         let n: i64 = self.db.conn.query_row(
             "SELECT COUNT(*) FROM queue WHERE state = 'pending'",
             [],
@@ -129,7 +222,7 @@ impl<'db> QueueStore<'db> {
     }
 
     /// List queue rows in a given state (newest first).
-    pub fn list(&self, state: &str) -> Result<Vec<QueueRow>> {
+    fn list(&self, state: &str) -> Result<Vec<QueueRow>> {
         let mut stmt = self.db.conn.prepare(
             "SELECT id, config_id, state, priority, claimed_by, enqueued_at, claimed_at, run_id
                FROM queue
@@ -154,62 +247,25 @@ impl<'db> QueueStore<'db> {
         }
         Ok(out)
     }
-
-    /// Count rows grouped by state: (pending, running, done, failed).
-    pub fn counts(&self) -> Result<QueueCounts> {
-        let mut stmt = self
-            .db
-            .conn
-            .prepare("SELECT state, COUNT(*) FROM queue GROUP BY state")?;
-        let mut pending = 0u64;
-        let mut running = 0u64;
-        let mut done = 0u64;
-        let mut failed = 0u64;
-        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
-        for row in rows {
-            let (state, count) = row?;
-            let c = count as u64;
-            match state.as_str() {
-                "pending" => pending = c,
-                "running" => running = c,
-                "done" => done = c,
-                "failed" => failed = c,
-                _ => {}
-            }
-        }
-        Ok(QueueCounts {
-            pending,
-            running,
-            done,
-            failed,
-        })
-    }
-}
-
-/// A single queue row for display / debugging.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct QueueRow {
-    pub id: i64,
-    pub config_id: i64,
-    pub state: String,
-    pub priority: i64,
-    pub claimed_by: Option<String>,
-    pub enqueued_at: String,
-    pub claimed_at: Option<String>,
-    pub run_id: Option<i64>,
-}
-
-/// Queue counts grouped by state.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct QueueCounts {
-    pub pending: u64,
-    pub running: u64,
-    pub done: u64,
-    pub failed: u64,
 }
 
 fn now() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+// ── Generic helper confirming the SQLite type satisfies the trait ─────────────
+
+/// Assert that a type implementing `QueueBackend` can enqueue and claim a job.
+/// This function is compiled for any `QueueBackend`, providing a compile-time
+/// (and runtime) check that `QueueStore` satisfies the trait.
+#[cfg(test)]
+fn assert_queue_backend<Q: QueueBackend>(q: &Q, config_id: i64) {
+    let qid = q.enqueue(config_id, 0).expect("enqueue");
+    assert!(qid > 0);
+    assert_eq!(q.pending_count().expect("pending_count"), 1);
+    let job = q.claim_next("test-worker").expect("claim").expect("job");
+    assert_eq!(job.queue_id, qid);
+    assert_eq!(q.pending_count().expect("pending_count after claim"), 0);
 }
 
 #[cfg(test)]
@@ -254,6 +310,16 @@ mod tests {
             },
             gate: GateCfg::default(),
         }
+    }
+
+    #[test]
+    fn sqlite_queue_satisfies_queue_backend_trait() {
+        let db = Db::open_in_memory().unwrap();
+        let cfg = make_config("trait-test");
+        let cid = db.upsert_config(&cfg).unwrap();
+        let q = QueueStore::new(&db);
+        // The generic helper verifies the trait contract.
+        assert_queue_backend(&q, cid);
     }
 
     #[test]

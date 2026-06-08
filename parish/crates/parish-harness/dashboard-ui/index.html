@@ -104,6 +104,10 @@
     <div id="ab-container"></div>
   </div>
 
+  <footer style="margin-top:2rem;padding-top:.75rem;border-top:1px solid #1e1e2a;font-size:.75rem;color:#555;">
+    <span id="cost-footer">Cost: loading…</span>
+  </footer>
+
   <script>
     const $ = id => document.getElementById(id);
     let currentRunId = null;
@@ -427,6 +431,23 @@
     }
 
     loadRuns();
+
+    // ── Cost footer ───────────────────────────────────────────────────────
+    async function loadCost() {
+      try {
+        const r = await fetch('/api/cost');
+        if (!r.ok) return;
+        const c = await r.json();
+        const footer = document.getElementById('cost-footer');
+        if (!footer) return;
+        footer.textContent =
+          `Cost: $${c.total_cost_usd.toFixed(4)} | ` +
+          `Runs: ${c.total_runs} | ` +
+          `Player tokens: ${c.total_player_tokens} | ` +
+          `Judge tokens: ${c.total_judge_tokens}`;
+      } catch (_) { /* network not ready */ }
+    }
+    loadCost();
   </script>
 </body>
 </html>

@@ -160,6 +160,19 @@ pub async fn get_compare(
     }
 }
 
+// ── GET /api/cost ─────────────────────────────────────────────────────────────
+
+pub async fn get_cost(State(state): State<AppState>) -> Response {
+    let db = match state.open_db() {
+        Ok(db) => db,
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    match db.cost_summary() {
+        Ok(summary) => Json(summary).into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
+
 // ── GET / ─────────────────────────────────────────────────────────────────────
 
 /// Serves the embedded single-file dashboard UI.
@@ -282,6 +295,52 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn get_api_cost_returns_200_json_with_fields() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("cost.db");
+        Db::open(&db_path).unwrap();
+
+        let state = make_state(db_path);
+        let app = build_router(state);
+
+        let req = Request::builder()
+            .uri("/api/cost")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let ct = resp
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("application/json"), "expected JSON, got: {ct}");
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            json.get("total_runs").is_some(),
+            "expected total_runs field"
+        );
+        assert!(
+            json.get("total_cost_usd").is_some(),
+            "expected total_cost_usd field"
+        );
+        assert!(
+            json.get("total_player_tokens").is_some(),
+            "expected total_player_tokens field"
+        );
+        assert!(
+            json.get("total_judge_tokens").is_some(),
+            "expected total_judge_tokens field"
+        );
+        assert_eq!(json["total_runs"], 0, "empty db should have 0 runs");
     }
 
     #[tokio::test]
