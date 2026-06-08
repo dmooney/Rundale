@@ -103,6 +103,7 @@ function loadCatalog(root: string): Map<string, CatalogMeta> {
 		} catch {
 			continue;
 		}
+		if (!c || typeof c !== 'object') continue;
 		const spec = c.spec as string | undefined;
 		if (!spec) continue;
 		out.set(spec, {
@@ -178,7 +179,10 @@ export function loadBenchData(): BenchData {
 		} catch {
 			continue;
 		}
-		if (!r.candidate) continue;
+		if (!r || typeof r !== 'object' || !r.candidate) continue;
+		// normalise categories so every downstream access is crash-safe even if
+		// a row in the jsonl omits or nulls it.
+		if (!r.categories || typeof r.categories !== 'object') r.categories = {};
 		(history[r.candidate] ??= []).push(r);
 	}
 
@@ -217,7 +221,7 @@ export function loadBenchData(): BenchData {
 	// category columns: canonical order first, then any extras the data carries.
 	const present = new Set<string>();
 	for (const r of rows)
-		for (const k of Object.keys(r.categories)) present.add(k);
+		for (const k of Object.keys(r.categories ?? {})) present.add(k);
 	const categoryOrder = [
 		...CANONICAL_ORDER.filter((c) => present.has(c)),
 		...[...present].filter((c) => !CANONICAL_ORDER.includes(c)).sort(),
@@ -298,7 +302,7 @@ function buildSummary(rows: BoardRow[]): Summary {
 	return {
 		overall: best((r) => r.overall),
 		value: best((r) => r.value_score),
-		dialogue: best((r) => r.categories.dialogue?.score),
+		dialogue: best((r) => r.categories?.dialogue?.score),
 		fastest: best((r) => (r.latency_p50_ms != null ? -r.latency_p50_ms : null)),
 	};
 }

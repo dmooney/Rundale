@@ -20,11 +20,13 @@ const brand = brandForFamily(row.family);
 const BW = 460, BH = 24, GAP = 8, LBL = 92, PADR = 56;
 const barX = LBL, barW = BW - LBL - PADR;
 const sx = (v: number) => barX + (Math.min(v, 5) / 5) * barW;
-const catRows = categoryOrder.map((c) => ({ c, cs: row.categories[c] }));
+const catRows = categoryOrder.map((c) => ({ c, cs: row.categories?.[c] }));
 const chartH = catRows.length * (BH + GAP);
 
 // overall history sparkline (oldest → newest)
-const series = history.map((h) => h.overall);
+const series = history
+  .map((h) => h.overall)
+  .filter((v): v is number => typeof v === 'number');
 const hasTrend = series.length > 1;
 let spark = '';
 if (hasTrend) {

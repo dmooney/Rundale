@@ -13,7 +13,7 @@ const s = data.summary;
 const cards = [
   { label: 'Top overall', row: s.overall, metric: (r: any) => `${fmt(r.overall)} / 5` },
   { label: 'Best value', row: s.value, metric: (r: any) => `${fmtValue(r.value_score)} value · ${fmtMoneyHour(r.usd_per_game_hour)}/hr` },
-  { label: 'Best dialogue', row: s.dialogue, metric: (r: any) => `${fmt(r.categories.dialogue?.score)} / 5` },
+  { label: 'Best dialogue', row: s.dialogue, metric: (r: any) => `${fmt(r.categories?.dialogue?.score)} / 5` },
   { label: 'Fastest', row: s.fastest, metric: (r: any) => (r.latency_p50_ms != null ? `${r.latency_p50_ms} ms p50` : '—') },
 ].filter((c) => c.row);
 ---

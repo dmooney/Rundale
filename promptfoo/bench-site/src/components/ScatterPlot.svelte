@@ -69,7 +69,10 @@
     }
     const out = [];
     const step = niceStep(xDom[1] / 5);
-    for (let v = 0; v <= xDom[1]; v += step) out.push({ x: M.l + (v / xDom[1]) * plotW, label: Math.round(v) });
+    // guard: a non-positive / non-finite step would loop forever
+    if (!(step > 0) || !isFinite(step)) return out;
+    for (let v = 0; v <= xDom[1] && out.length < 100; v += step)
+      out.push({ x: M.l + (v / xDom[1]) * plotW, label: Math.round(v) });
     return out;
   });
   function niceStep(raw) {

@@ -20,7 +20,12 @@ export function fmtValue(v: unknown): string {
 }
 
 export function fmtCi(ci: unknown): string {
-	if (Array.isArray(ci) && ci.length === 2 && typeof ci[0] === 'number') {
+	if (
+		Array.isArray(ci) &&
+		ci.length === 2 &&
+		typeof ci[0] === 'number' &&
+		typeof ci[1] === 'number'
+	) {
 		return `${ci[0].toFixed(2)}–${ci[1].toFixed(2)}`;
 	}
 	return '';
