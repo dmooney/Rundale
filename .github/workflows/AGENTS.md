@@ -126,12 +126,17 @@ just act-pr         # simulate the pull_request event
   `actions/ai-inference@v1`. Aggregates results into a CI summary table.
 - **Concurrency:** `eval-inference-${{ github.ref }}`, cancel-in-progress.
 
-### `publish-bench-site.yml` — Publish rundale-bench leaderboard
+### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
 
-- **Triggers:** `push` to `main` when `docs/proofs/rundale-bench/**`,
-  `rundale-bench/**`, or the workflow itself changes; `workflow_dispatch`.
-- **Key detail:** Builds site data via Python, builds with pnpm, deploys to
-  GitHub Pages with `actions/deploy-pages@v4`. Uses `pnpm/action-setup@v4`.
+- **Triggers:** `push` to `main` when `promptfoo/leaderboard/**`,
+  `promptfoo/bench-site/**`, `promptfoo/catalog/**`,
+  `promptfoo/v2/MANIFEST.json`, `promptfoo/config/judge.yaml`, or the workflow
+  itself changes; `workflow_dispatch`.
+- **Key detail:** No Python data step — the Astro site reads
+  `promptfoo/leaderboard/leaderboard.jsonl` directly at build time. Builds
+  `promptfoo/bench-site` with pnpm (`--frozen-lockfile`) and deploys
+  `dist/` to GitHub Pages with `actions/deploy-pages@v4`. Uses
+  `pnpm/action-setup@v4`. (The retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
 ### `release.yml` — Tag-driven release pipeline

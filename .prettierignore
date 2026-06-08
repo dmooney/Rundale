@@ -26,7 +26,7 @@ THIRD_PARTY_NOTICES.ui.md
 pnpm-lock.yaml
 **/pnpm-lock.yaml
 parish/crates/parish-tauri/gen/
-rundale-bench/bench-site/
+promptfoo/bench-site/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)

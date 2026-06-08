@@ -1,0 +1,58 @@
+---
+import '../styles/theme.css';
+const { title = 'Rundale Bench v2' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const nav = [
+  { href: base, label: 'Leaderboard' },
+  { href: `${base}/methodology`, label: 'Methodology' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta
+      name="description"
+      content="Rundale model benchmark of record — quality, cost, and speed of LLMs as the Rundale game engine's NPC brain."
+    />
+    <script is:inline>
+      // Dark is the default. A `?theme=light|dark` query param wins (shareable
+      // themed links + deterministic screenshots); otherwise an explicit saved
+      // 'light' choice applies.
+      const qp = new URLSearchParams(location.search).get('theme');
+      const pref = qp === 'light' || qp === 'dark' ? qp : localStorage.getItem('bench-theme');
+      if (pref === 'light') document.documentElement.dataset.theme = 'light';
+      else if (pref === 'dark') delete document.documentElement.dataset.theme;
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="inner">
+        <span class="wordmark">
+          <span class="dot"></span> Rundale&nbsp;Bench <span class="v">v2</span>
+        </span>
+        <nav>{nav.map((n) => <a href={n.href}>{n.label}</a>)}</nav>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          ◑ theme
+        </button>
+      </div>
+    </header>
+    <main><slot /></main>
+    <script is:inline>
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const root = document.documentElement;
+        const light = root.dataset.theme === 'light';
+        if (light) {
+          delete root.dataset.theme;
+          localStorage.setItem('bench-theme', 'dark');
+        } else {
+          root.dataset.theme = 'light';
+          localStorage.setItem('bench-theme', 'light');
+        }
+      });
+    </script>
+  </body>
+</html>

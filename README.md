@@ -197,11 +197,11 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 
 ## Model leaderboard
 
-Rundale ships with its own reproducible LLM benchmark — **rundale-bench** — that scores models on dialogue quality, Gaeilge (Irish-language) fluency, and per-provider latency under load.
+Rundale ships with its own reproducible LLM benchmark that scores models as the engine's NPC brain — in-character dialogue, reaction, world simulation, intent, and Gaeilge (Irish-language) fluency — then prices each candidate against real gameplay token volume. The **v2 promptfoo suite** is the benchmark of record; the v1 harness is archived.
 
-- **Live results:** [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) — dialogue + Gaeilge quality, per-provider perf matrix, dataset explorer, and the verbatim Sonnet judge prompts.
-- **Reproducible harness:** [`rundale-bench/`](rundale-bench/)
-- **Static snapshot:** [`rundale-bench/artifacts/leaderboard.md`](rundale-bench/artifacts/leaderboard.md)
+- **Live results:** [dmooney.github.io/Rundale](https://dmooney.github.io/Rundale/) — the ranked v2 leaderboard: per-category scores with 95% bootstrap CIs, a quality-vs-cost efficiency frontier, cost tiers, per-model drill-downs, and the methodology. (Populates once the first funded run lands; until then it renders the schema.)
+- **Reproducible harness:** [`promptfoo/`](promptfoo/) — the v2 benchmark of record. The v1 harness is archived under [`rundale-bench/`](rundale-bench/).
+- **Static snapshot:** `promptfoo/leaderboard/leaderboard.md` + `leaderboard.jsonl` (append-only history), committed once the first funded run is recorded.
 
 ## AI disclosure
 
