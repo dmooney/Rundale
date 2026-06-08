@@ -24,6 +24,22 @@ updates:
       actions-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The Rust compiler version is managed via rust-toolchain.toml (the
+      # rust-toolchain ecosystem below), NOT by bumping this action's ref.
+      # dtolnay encodes the toolchain version in the @ref and pre-publishes
+      # future-version branches (e.g. 1.100.0), so letting Dependabot bump it
+      # here installs an unreleased compiler -> rustup 404 (see closed #1312).
+      - dependency-name: "dtolnay/rust-toolchain"
+
+  # Rust toolchain: bumps rust-toolchain.toml `channel` to newly-released
+  # toolchains only (real stable releases, not dtolnay's future branches).
+  - package-ecosystem: "rust-toolchain"
+    directory: "/"
+    schedule:
+      { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
+    commit-message: { prefix: "chore(deps)" }
+    labels: ["dependencies", "infra"]
 
   - package-ecosystem: "npm"
     directories:
