@@ -164,51 +164,9 @@ pub(crate) async fn handle_game_input(
     state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
-    use parish_core::config::InferenceCategory;
-
-    // Resolve the intent client and model (Intent category override, or base).
-    let (client, model) = {
-        let config = state.config.lock().await;
-        let base_client = state.client.lock().await;
-        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
-    };
-
-    // Parse intent: tries local keywords first, then LLM for ambiguous input.
-    let intent = if let Some(client) = &client {
-        // Capture generation before releasing the lock so we can detect TOCTOU
-        // races on re-acquire (issue #283).
-        let gen_before = {
-            let mut world = state.world.lock().await;
-            world.clock.inference_pause();
-            world.tick_generation
-        };
-        let result = parse_intent(client, &raw, &model).await;
-        {
-            let mut world = state.world.lock().await;
-            world.clock.inference_resume();
-            let gen_after = world.tick_generation;
-            if gen_after != gen_before {
-                tracing::warn!(
-                    gen_before,
-                    gen_after,
-                    "World advanced during intent parse (TOCTOU #283) — \
-                     {} tick(s) elapsed; proceeding with parsed intent",
-                    gen_after.wrapping_sub(gen_before),
-                );
-                let _ = app.emit(
-                    crate::events::EVENT_TEXT_LOG,
-                    text_log(
-                        "system",
-                        "The world shifted while your words were in the air.",
-                    ),
-                );
-            }
-        }
-        result.ok()
-    } else {
-        // No client configured — use local keyword parsing only.
-        parish_core::input::parse_intent_local(&raw)
-    };
+    // Parse intent: tries local keywords first, then LLM for ambiguous input,
+    // inside a TOCTOU-guarded inference-pause window (#283).
+    let intent = parse_player_intent(&raw, state, &app).await;
 
     let is_move = intent
         .as_ref()
@@ -260,22 +218,90 @@ pub(crate) async fn handle_game_input(
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    // Chip selections (real names from the frontend) come first, then names
-    // detected in the player's text, then the LLM's single talk target when it
-    // supplied one. Deduping happens in `resolve_npc_targets` via
-    // `find_by_name`, which matches both real and display names.
-    // Pre-allocate at the fixed upper bound so the allocation argument is a
-    // constant — independent of any user-controlled input — and CodeQL's
-    // data-flow analyzer can see that.
+    let targets = assemble_npc_targets(addressed_to, &mentions.names, is_talk, talk_target);
+
+    handle_npc_conversation(mentions.remaining, targets, state, app).await;
+}
+
+/// Resolves and TOCTOU-guards the player's parsed intent.
+///
+/// Resolves the Intent-category inference client, brackets the (possibly slow)
+/// LLM intent parse in an inference-pause window, and warns the player if the
+/// world advanced mid-parse (#283). Falls back to local keyword parsing when no
+/// client is configured. Extracted from `handle_game_input` (#1200 TD-012).
+async fn parse_player_intent(
+    raw: &str,
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) -> Option<parish_core::input::PlayerIntent> {
+    use parish_core::config::InferenceCategory;
+
+    // Resolve the intent client and model (Intent category override, or base).
+    let (client, model) = {
+        let config = state.config.lock().await;
+        let base_client = state.client.lock().await;
+        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
+    };
+
+    if let Some(client) = &client {
+        // Capture generation before releasing the lock so we can detect TOCTOU
+        // races on re-acquire (issue #283).
+        let gen_before = {
+            let mut world = state.world.lock().await;
+            world.clock.inference_pause();
+            world.tick_generation
+        };
+        let result = parse_intent(client, raw, &model).await;
+        {
+            let mut world = state.world.lock().await;
+            world.clock.inference_resume();
+            let gen_after = world.tick_generation;
+            if gen_after != gen_before {
+                tracing::warn!(
+                    gen_before,
+                    gen_after,
+                    "World advanced during intent parse (TOCTOU #283) — \
+                     {} tick(s) elapsed; proceeding with parsed intent",
+                    gen_after.wrapping_sub(gen_before),
+                );
+                let _ = app.emit(
+                    crate::events::EVENT_TEXT_LOG,
+                    text_log(
+                        "system",
+                        "The world shifted while your words were in the air.",
+                    ),
+                );
+            }
+        }
+        result.ok()
+    } else {
+        // No client configured — use local keyword parsing only.
+        parish_core::input::parse_intent_local(raw)
+    }
+}
+
+/// Builds the deduplicated NPC target list for a talk turn.
+///
+/// Order of precedence: chip selections (`addressed_to`, real names from the
+/// frontend), then names mentioned in the player's text, then the LLM's single
+/// talk target. Pre-allocated at the fixed `MAX_TARGETS` upper bound so the
+/// allocation size is a constant CodeQL can see is input-independent. Extracted
+/// from `handle_game_input` (#1200 TD-012).
+fn assemble_npc_targets(
+    addressed_to: Vec<String>,
+    mention_names: &[String],
+    is_talk: bool,
+    talk_target: Option<String>,
+) -> Vec<String> {
     let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
         }
     }
-    for name in mentions.names {
-        if !targets.iter().any(|t| t == &name) {
-            targets.push(name);
+    for name in mention_names {
+        if !targets.iter().any(|t| t == name) {
+            targets.push(name.clone());
         }
     }
     if is_talk
@@ -284,8 +310,7 @@ pub(crate) async fn handle_game_input(
     {
         targets.push(target);
     }
-
-    handle_npc_conversation(mentions.remaining, targets, state, app).await;
+    targets
 }
 
 /// Routes input to one or more NPCs at the player's location, or shows an idle message.
