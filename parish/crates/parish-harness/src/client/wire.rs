@@ -12,10 +12,10 @@
 //! deserializing even if the server adds an enum variant or a state field. The
 //! harness interprets `outcome`/`kind` through the [`Outcome`] helper.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Mirror of `parish_server::sync_types::CommandResponse`.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommandResponse {
     pub outcome: String,
     pub kind: String,
@@ -35,7 +35,7 @@ pub struct CommandResponse {
 }
 
 /// One narrative line.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OutputLine {
     #[serde(default)]
     pub id: String,
@@ -45,7 +45,7 @@ pub struct OutputLine {
 }
 
 /// Travel detail present when `kind == "moved"`.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TravelDetail {
     pub from: String,
     pub to: String,
