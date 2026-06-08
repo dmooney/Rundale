@@ -1,0 +1,39 @@
+[package]
+name = "parish-harness"
+version = "0.1.0"
+edition = "2024"
+description = "Game quality-control harness — LLM-driven playtests, scoring, and persistence for Rundale"
+license = "GPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "parish-harness"
+path = "src/main.rs"
+
+[dependencies]
+parish-core = { workspace = true }
+parish-inference = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+sha2 = "0.10"
+png = "0.17"
+
+[dev-dependencies]
+wiremock = { workspace = true }
+tempfile = { workspace = true }
+# Test-only: round-trip parity check that our local wire mirror stays in
+# lockstep with the server's `sync_types`. A dev-dependency keeps the runtime
+# crate free of the axum-bearing server (architecture-fitness allows this for
+# an entry-point crate; the dep never enters the shipped binary).
+parish-server = { path = "../parish-server" }
