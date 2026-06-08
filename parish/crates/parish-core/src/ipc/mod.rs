@@ -10,6 +10,7 @@ pub mod commands;
 pub mod config;
 pub mod demo;
 pub mod editor;
+pub mod engine_state;
 pub mod event_emitter;
 pub mod handlers;
 pub mod state;
@@ -17,13 +18,14 @@ pub mod streaming;
 pub mod types;
 
 pub use bug_report::{
-    BugContext, BugReportError, BugReportRequest, BugReportResult, BugReportState, GitHubBugConfig,
-    create_bug_report,
+    BugContext, BugReportError, BugReportRequest, BugReportResult, BugReportState,
+    DiagnosticPayload, GitHubBugConfig, LlmExchange, create_bug_report,
 };
 pub use commands::{
     CommandEffect, CommandResult, TextPresentation, handle_command, render_look_text,
 };
 pub use config::GameConfig;
+pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_state};
 pub use event_emitter::{CapturingEmitter, EventEmitter};
 pub use handlers::*;
 pub use state::{ConversationRuntimeState, SaveState, UiConfigSnapshot};

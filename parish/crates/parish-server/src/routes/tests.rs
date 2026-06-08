@@ -1619,3 +1619,160 @@ fn mods_root_derives_from_game_mod_not_cwd() {
         "mods_root must be the active mod's parent dir, independent of cwd"
     );
 }
+
+// ── #1331 — engine-state route + MCP QA audit loop ─────────────────────────
+
+/// `GET /api/engine-state` returns the canonical engine state and reflects
+/// the live world (the scene the player can see).
+#[tokio::test]
+async fn engine_state_route_returns_canonical_scene() {
+    let state = test_app_state();
+    let Json(es) = super::get_engine_state(axum::extract::Extension(Arc::clone(&state)))
+        .await
+        .expect("engine-state must succeed when the feature is enabled");
+
+    let world = state.world.lock().await;
+    assert_eq!(es.active_scene.location_id, world.player_location.0);
+    assert_eq!(es.active_scene.location_name, world.current_location().name);
+    // Clock + grapevine fields are populated deterministically.
+    assert!(!es.clock.day_of_week.is_empty());
+    assert_eq!(es.grapevine.item_count, world.gossip_network.len());
+}
+
+/// The `engine-state` kill switch (rule #6) returns 403 when disabled.
+#[tokio::test]
+async fn engine_state_route_respects_kill_switch() {
+    let state = test_app_state();
+    state.config.lock().await.flags.disable("engine-state");
+    let err = super::get_engine_state(axum::extract::Extension(Arc::clone(&state)))
+        .await
+        .expect_err("disabled feature must error");
+    assert_eq!(err.0, axum::http::StatusCode::FORBIDDEN);
+}
+
+/// AC-4 (#1331): a full audit loop — complete a sequence of turns, read the
+/// canonical engine state, detect a forced UI/Engine mismatch, then file a
+/// bug whose bundle carries the **full** black-box diagnostic payload:
+/// engine-state JSON + raw LLM prompt/response history + last user intent.
+///
+/// Exercises the exact shared orchestration the `/api/submit-bug-report`
+/// route runs (engine-state capture → `from_snapshots` LLM capture →
+/// `with_diagnostic` → offline bundle write), kept hermetic by writing the
+/// bundle to a tempdir instead of the live saves dir.
+#[tokio::test]
+async fn audit_loop_detects_mismatch_and_files_full_payload() {
+    use parish_core::inference::{InferenceLogEntry, InferencePriority};
+    use parish_core::ipc::bug_report;
+
+    let state = test_app_state();
+
+    // ── Execute: complete a sequence of turns ─────────────────────────────
+    // Record the last raw player intent (what `handle_game_input` plumbs in
+    // production) and seed an LLM call so the history is non-empty.
+    {
+        let mut conv = state.conversation.lock().await;
+        conv.record_player_input("go to the church");
+        conv.record_player_input("greet the priest");
+    }
+    state.inference_log.lock().await.push(InferenceLogEntry {
+        request_id: 42,
+        timestamp: "09:15:00".into(),
+        model: "gemma".into(),
+        streaming: false,
+        duration_ms: 1200,
+        prompt_len: 64,
+        response_len: 40,
+        error: None,
+        system_prompt: Some("You are Father Walsh, the parish priest.".into()),
+        prompt_text: "The player greets you warmly.".into(),
+        response_text: "God bless you, child. A fine morning.".into(),
+        max_tokens: Some(256),
+        ttft_ms: None,
+        output_tokens: None,
+        temperature: Some(0.7),
+        priority: InferencePriority::Interactive,
+    });
+
+    // ── Validate: read the authoritative engine state ─────────────────────
+    let Json(engine_state) = super::get_engine_state(axum::extract::Extension(Arc::clone(&state)))
+        .await
+        .expect("engine-state read must succeed");
+    let engine_location = engine_state.active_scene.location_name.clone();
+
+    // Force a UI/Engine mismatch: the "UI" claims a scene the engine does
+    // not report. An MCP QA agent compares its rendered state against this.
+    let ui_reported_location = format!("{engine_location} (STALE UI)");
+    let mismatch = ui_reported_location != engine_location;
+    assert!(mismatch, "the forced mismatch must be detected");
+
+    // ── Teardown: on mismatch, file a bug with the full payload ───────────
+    // Build the report exactly as the route does, but write offline to a
+    // tempdir. `PARISH_BUG_REPORT_DRY_RUN=1` is forced via dry_run=true.
+    let world_snapshot = {
+        let world = state.world.lock().await;
+        parish_core::ipc::snapshot_from_world(&world)
+    };
+    let debug = super::world::build_full_debug_snapshot(&state).await;
+    let engine_state_json = serde_json::to_value(&engine_state).unwrap();
+    let last_user_intent = state.conversation.lock().await.last_player_input.clone();
+
+    let report_state = bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, None)
+        .with_diagnostic(engine_state_json, last_user_intent);
+
+    let req = bug_report::BugReportRequest {
+        title: "UI/Engine mismatch detected by audit loop".into(),
+        description: format!(
+            "UI reported scene {ui_reported_location:?} but engine reports {engine_location:?}."
+        ),
+        screenshot_data_url: None,
+        context: None,
+    };
+    let cfg = bug_report::GitHubBugConfig {
+        token: None,
+        repo: bug_report::DEFAULT_REPO.into(),
+        asset_branch: None,
+        dry_run: true,
+        api_base: "https://api.github.com".into(),
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let result = bug_report::create_bug_report(
+        &reqwest::Client::new(),
+        &cfg,
+        &req,
+        &report_state,
+        None,
+        tmp.path(),
+    )
+    .await
+    .expect("offline bug filing must succeed");
+
+    assert!(!result.created, "dry-run must not hit the network");
+    let bundle = result.bundle_path.expect("bundle path");
+    let issue = std::fs::read_to_string(&bundle).unwrap();
+
+    // ── Assert the FULL diagnostic payload is attached ────────────────────
+    assert!(issue.contains("## Diagnostic payload"));
+    // (1) Last user intent — the most recent action.
+    assert!(
+        issue.contains("greet the priest"),
+        "bundle must carry the last user intent"
+    );
+    // (2) Engine-state snapshot JSON.
+    assert!(issue.contains("### Engine state (get_engine_state)"));
+    assert!(
+        issue.contains(&engine_location),
+        "bundle must embed the engine-state scene"
+    );
+    // (3) Raw LLM prompt/response history (full text, not just lengths).
+    assert!(issue.contains("### LLM prompt/response history"));
+    assert!(
+        issue.contains("You are Father Walsh, the parish priest."),
+        "bundle must carry the raw LLM system prompt"
+    );
+    assert!(
+        issue.contains("God bless you, child. A fine morning."),
+        "bundle must carry the raw LLM response"
+    );
+    // The mismatch description is recorded too.
+    assert!(issue.contains("STALE UI"));
+}

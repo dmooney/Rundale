@@ -85,6 +85,27 @@ pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<V
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
+/// `GET /api/engine-state` — returns the canonical deterministic Parish engine
+/// state for the MCP automated-QA loop (#1331). Backs the `parish_engine_state`
+/// MCP tool. Read-only; gated behind the default-on `engine-state` kill switch
+/// (rule #6) so a misbehaving snapshot can be disabled without a redeploy.
+pub async fn get_engine_state(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<parish_core::ipc::EngineState>, (StatusCode, String)> {
+    if state.config.lock().await.flags.is_disabled("engine-state") {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "the engine-state feature is disabled".to_string(),
+        ));
+    }
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    Ok(Json(parish_core::ipc::build_engine_state(
+        &world,
+        &npc_manager,
+    )))
+}
+
 /// `GET /api/available-providers` — featured + other LLM provider lists,
 /// sourced from the runtime-loaded `ProviderRegistry` (builtins +
 /// `mods/<id>/providers/`). The same payload Tauri exposes via
@@ -419,8 +440,19 @@ pub async fn submit_bug_report(
             (None, None) => None,
         }
     };
+    // Capture the canonical engine-state snapshot + last raw player intent so
+    // the bug report carries the full "black box" context stack (#1331).
+    let engine_state_json = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let engine_state = parish_core::ipc::build_engine_state(&world, &npc_manager);
+        serde_json::to_value(&engine_state).unwrap_or(serde_json::Value::Null)
+    };
+    let last_user_intent = state.conversation.lock().await.last_player_input.clone();
+
     let report_state =
-        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary);
+        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary)
+            .with_diagnostic(engine_state_json, last_user_intent);
 
     let screenshot_png: Option<Vec<u8>> = match &request.screenshot_data_url {
         Some(data_url) => Some(
