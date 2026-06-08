@@ -260,8 +260,19 @@ pub(crate) async fn do_submit_bug_report(
             (None, None) => None,
         }
     };
+    // Capture the canonical engine-state snapshot + last raw player intent so
+    // the bug report carries the full "black box" context stack (#1331).
+    let engine_state_json = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let engine_state = parish_core::ipc::build_engine_state(&world, &npc_manager);
+        serde_json::to_value(&engine_state).unwrap_or(serde_json::Value::Null)
+    };
+    let last_user_intent = state.conversation.lock().await.last_player_input.clone();
+
     let report_state =
-        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary);
+        bug_report::BugReportState::from_snapshots(&world_snapshot, &debug, save_summary)
+            .with_diagnostic(engine_state_json, last_user_intent);
 
     // Resolve screenshot bytes: prefer the frontend-supplied data URL, else
     // trigger a live capture and read it back. A failed/timed-out capture is
