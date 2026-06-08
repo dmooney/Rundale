@@ -1,14 +1,20 @@
 name: Publish bench site
 
-# Build the static rundale-bench results site and deploy it to GitHub Pages.
-# Triggers when the site or its data sources change on main. Uses no event
-# payload input in run: steps, so there is no workflow-injection surface.
+# Build the static rundale-bench **v2** results site (promptfoo benchmark of
+# record) and deploy it to GitHub Pages. Triggers when the v2 leaderboard data
+# or the site source change on main. The site reads
+# promptfoo/leaderboard/leaderboard.jsonl directly at build time — no Python
+# data-generation step. Uses no event payload input in run: steps, so there is
+# no workflow-injection surface.
 on:
   push:
     branches: [main]
     paths:
-      - "docs/proofs/rundale-bench/**"
-      - "rundale-bench/**"
+      - "promptfoo/leaderboard/**"
+      - "promptfoo/bench-site/**"
+      - "promptfoo/catalog/**"
+      - "promptfoo/v2/MANIFEST.json"
+      - "promptfoo/config/judge.yaml"
       - ".github/workflows/publish-bench-site.yml"
   workflow_dispatch:
 
@@ -33,19 +39,17 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: rundale-bench/bench-site/pnpm-lock.yaml
-      - name: Regenerate site data from committed artifacts
-        run: python3 rundale-bench/build_site_data.py
+          cache-dependency-path: promptfoo/bench-site/pnpm-lock.yaml
       - name: Install
-        working-directory: rundale-bench/bench-site
+        working-directory: promptfoo/bench-site
         run: pnpm install --frozen-lockfile
       - name: Build
-        working-directory: rundale-bench/bench-site
+        working-directory: promptfoo/bench-site
         run: pnpm build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: rundale-bench/bench-site/dist
+          path: promptfoo/bench-site/dist
 
   deploy:
     needs: build

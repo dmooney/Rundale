@@ -42,8 +42,7 @@ updates:
     labels: ["dependencies", "infra"]
 
   - package-ecosystem: "npm"
-    directories:
-      ["/", "/parish/apps/ui", "/promptfoo", "/rundale-bench/bench-site"]
+    directories: ["/", "/parish/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5

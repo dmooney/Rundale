@@ -1,0 +1,583 @@
+/* Rundale Bench v2 — modern data-product theme.
+ *
+ * Dark-first (the default for an ML-benchmark audience) with a light toggle.
+ * A single warm-amber accent is the only nod to Rundale's 1820 parchment
+ * identity; everything else is a clean, high-contrast data surface. Numbers use
+ * a monospace stack with tabular figures so columns align. No serif anywhere.
+ *
+ * Tier colours are theme-independent (same hue in light + dark) so the cost
+ * tiers read consistently on the scatter, badges, and table. */
+:root {
+  --bg: #0d1117;
+  --surface: #151b23;
+  --surface-2: #1b232e;
+  --surface-hover: #20293563;
+  --border: #2a323d;
+  --border-strong: #3a4452;
+  --fg: #e6edf3;
+  --fg-dim: #c2cbd6;
+  --muted: #8b949e;
+  --accent: #e0a93f;
+  --accent-soft: #e0a93f26;
+  --accent-fg: #f2c66d;
+  --good: #3fb950;
+  --shadow: 0 1px 2px #00000040, 0 4px 16px #00000030;
+
+  --tier-free: #3fb950;
+  --tier-budget: #58a6ff;
+  --tier-mid: #e0a93f;
+  --tier-premium: #bc8cff;
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter,
+    "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code",
+    Menlo, Consolas, monospace;
+  --maxw: 1180px;
+}
+
+:root[data-theme='light'] {
+  --bg: #faf8f3;
+  --surface: #ffffff;
+  --surface-2: #f5f1e8;
+  --surface-hover: #b5841f10;
+  --border: #e6ded0;
+  --border-strong: #d6cbb6;
+  --fg: #1b1813;
+  --fg-dim: #3b352c;
+  --muted: #756b5b;
+  --accent: #b5841f;
+  --accent-soft: #b5841f1f;
+  --accent-fg: #936414;
+  --shadow: 0 1px 2px #2a201005, 0 4px 16px #2a201012;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+code,
+.mono,
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+code {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.05rem 0.32rem;
+  font-size: 0.86em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---- header / nav ---- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.site-header .inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0.7rem 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.02rem;
+}
+.wordmark .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.wordmark .v {
+  color: var(--muted);
+  font-weight: 600;
+}
+.site-header nav {
+  display: flex;
+  gap: 1.1rem;
+  flex: 1;
+}
+.site-header nav a {
+  color: var(--fg-dim);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+.site-header nav a:hover {
+  color: var(--fg);
+  text-decoration: none;
+}
+.theme-toggle {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  border-radius: 7px;
+  padding: 0.32rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+main {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 4rem;
+}
+
+/* ---- hero ---- */
+.hero h1 {
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0.4rem 0 0.5rem;
+}
+.hero .sub {
+  color: var(--muted);
+  font-size: 1.02rem;
+  max-width: 60ch;
+  margin: 0;
+}
+.provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+}
+.prov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+}
+.prov-chip b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ---- cards ---- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin: 1.4rem 0;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.95rem 1.05rem;
+  box-shadow: var(--shadow);
+}
+.card .label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.card .value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+.card .metric {
+  margin-top: 0.2rem;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  color: var(--accent-fg);
+}
+
+/* ---- panels / section headers ---- */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem 1.3rem;
+  box-shadow: var(--shadow);
+  margin: 1.4rem 0;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+}
+.panel-head .hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ---- controls ---- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.4rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+.controls .grp {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.controls .lbl {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.18rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  background: var(--surface-2);
+  color: var(--fg-dim);
+}
+.chip:hover {
+  border-color: var(--border-strong);
+}
+.chip.active {
+  color: var(--fg);
+  font-weight: 600;
+  border-color: currentColor;
+}
+.chip.clear {
+  background: transparent;
+}
+input.search,
+select {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+input.search:focus,
+select:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+input.search {
+  min-width: 200px;
+}
+
+/* ---- table ---- */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  z-index: 2;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--border);
+}
+thead th:hover {
+  color: var(--fg);
+}
+thead th.num,
+td.num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+tbody td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td {
+  border-bottom: none;
+}
+tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+/* in-cell score bar */
+.scorecell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.bar {
+  position: relative;
+  height: 6px;
+  width: 54px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  border-radius: 999px;
+}
+.scorecell .n {
+  min-width: 2.6em;
+  text-align: right;
+}
+.ci {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 1px;
+}
+td.leader .bar > span {
+  background: var(--good);
+}
+td.leader .n {
+  color: var(--good);
+}
+.rank {
+  font-family: var(--mono);
+  color: var(--muted);
+  font-weight: 600;
+}
+.rank.tie {
+  color: var(--accent-fg);
+}
+
+/* badges */
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+}
+.tier-free {
+  color: var(--tier-free);
+  background: color-mix(in srgb, var(--tier-free) 14%, transparent);
+}
+.tier-budget {
+  color: var(--tier-budget);
+  background: color-mix(in srgb, var(--tier-budget) 14%, transparent);
+}
+.tier-mid {
+  color: var(--tier-mid);
+  background: color-mix(in srgb, var(--tier-mid) 16%, transparent);
+}
+.tier-premium {
+  color: var(--tier-premium);
+  background: color-mix(in srgb, var(--tier-premium) 16%, transparent);
+}
+
+.overlap-mark {
+  color: var(--accent-fg);
+  font-weight: 700;
+  cursor: help;
+}
+
+/* model cell */
+.model-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.model-cell a {
+  color: var(--fg);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.model-cell a:hover {
+  color: var(--accent-fg);
+}
+
+/* empty / banner */
+.empty,
+.banner {
+  border-radius: 12px;
+  padding: 1.4rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.empty {
+  text-align: center;
+  color: var(--muted);
+  border-style: dashed;
+}
+.banner {
+  border-left: 3px solid var(--accent);
+  font-size: 0.9rem;
+}
+
+/* brand glyphs */
+.brand-icon,
+.brand-fallback {
+  display: inline-flex;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.brand-fallback {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.01em;
+}
+
+/* Brand glyphs whose official colour is near-black (Anthropic, OpenAI, GitHub,
+ * xAI…) vanish on the dark theme. On dark, recolour them to the foreground
+ * (the !important overrides the inline brand-hex fill); light theme keeps the
+ * real brand colour. Dark is the default — i.e. any theme that isn't 'light'. */
+:root:not([data-theme='light']) .brand-icon.brand-dark {
+  fill: var(--fg-dim) !important;
+}
+
+/* scatter */
+.scatter-wrap {
+  width: 100%;
+}
+.scatter-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.sc-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.sc-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.sc-tick {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.sc-axis-label {
+  fill: var(--fg-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sc-frontier {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.8;
+}
+.sc-dot {
+  cursor: pointer;
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+.sc-dot.frontier {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.sc-label {
+  fill: var(--fg-dim);
+  font-size: 10.5px;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .site-header .inner {
+    flex-wrap: wrap;
+    gap: 0.6rem 1rem;
+    padding: 0.6rem 1rem;
+  }
+  .site-header nav {
+    order: 3;
+    flex: 1 1 100%;
+    gap: 0.9rem;
+  }
+  main {
+    padding: 1.1rem 1rem 3rem;
+  }
+}
