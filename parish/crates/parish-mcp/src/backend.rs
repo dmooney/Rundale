@@ -187,17 +187,21 @@ impl ParishHttpBackend {
     }
 }
 
-// ── GenericTauriBackend (future) ────────────────────────────────────────────
+// ── GenericTauriBackend (future, feature-gated) ─────────────────────────────
 
 /// Placeholder for a generic, app-agnostic Tauri controller backed by
 /// WebDriver / `tauri-driver`. Returns [`BackendError::Unimplemented`] until
 /// the implementation lands.
 ///
-/// Kept as a real type (rather than a `// TODO`) so the MCP server can be
-/// wired against `Box<dyn TauriBackend>` end-to-end and the day this lands
-/// nothing else has to change.
+/// Gated behind the off-by-default `generic-tauri-backend` feature (#1200,
+/// TD-002) so the default public surface never ships an always-`Unimplemented`
+/// backend. Kept as a real type (rather than a `// TODO`) so downstream code
+/// that opts in can wire the MCP server against `Box<dyn TauriBackend>`
+/// end-to-end and the day the real impl lands nothing else has to change.
+#[cfg(feature = "generic-tauri-backend")]
 pub struct GenericTauriBackend;
 
+#[cfg(feature = "generic-tauri-backend")]
 #[async_trait]
 impl TauriBackend for GenericTauriBackend {
     fn name(&self) -> &'static str {
@@ -401,6 +405,7 @@ mod tests {
         assert!(matches!(err, BackendError::Rejected(_)), "got {err:?}");
     }
 
+    #[cfg(feature = "generic-tauri-backend")]
     #[tokio::test]
     async fn generic_backend_is_unimplemented() {
         let backend = GenericTauriBackend;

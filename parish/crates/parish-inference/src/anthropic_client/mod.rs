@@ -14,33 +14,36 @@
 //! The public method surface (`generate`, `generate_stream`, `generate_json`)
 //! mirrors [`crate::openai_client::OpenAiClient`] so callers can dispatch
 //! through [`crate::AnyClient`] without branching.
+//!
+//! Structure (#1200 decomposition): the former single module is split into
+//! - [`wire`] — request/response schema types + protocol constants;
+//! - [`json_isolation`] — JSON-mode system-prompt wrapping + structural-tag
+//!   hardening (#458 / #599);
+//! - [`sse`] — Anthropic SSE event parsing;
+//! - this `mod.rs` — the [`AnthropicClient`] type and its `generate*` methods.
+//!
+//! The submodules are crate-internal (`pub(super)` items) so the public API
+//! (`AnthropicClient` and its methods) is unchanged.
 
 use crate::SseResult;
-use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::client_base::ClientBase;
 use crate::rate_limit::InferenceRateLimiter;
 use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
-use regex::Regex;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
 use tokio::sync::mpsc;
-use tracing;
 
-/// Required Anthropic API version header value.
-///
-/// Anthropic pins request/response shape to this date. Bump only when the
-/// request builder and response deserializer have been updated to match.
-const ANTHROPIC_VERSION: &str = "2023-06-01";
+mod json_isolation;
+mod sse;
+mod wire;
 
-/// Default `max_tokens` when the caller passes `None`.
-///
-/// Anthropic requires `max_tokens` on every request. This default is large
-/// enough for streamed dialogue and JSON metadata but well under model
-/// context limits.
-const DEFAULT_MAX_TOKENS: u32 = 4096;
+use json_isolation::isolate_system_for_json;
+use sse::process_sse_line;
+use wire::{
+    ANTHROPIC_VERSION, DEFAULT_MAX_TOKENS, Message, MessagesRequest, MessagesResponse, SystemBlock,
+    extract_api_error_message, extract_text,
+};
 
 /// HTTP client for Anthropic's native Messages API (`/v1/messages`).
 ///
@@ -265,84 +268,6 @@ impl AnthropicClient {
     }
 }
 
-/// Engine instruction appended after every generate_json system prompt.
-/// Kept separate from the caller's text so the model can always attribute
-/// it to the engine, not to the caller.
-const JSON_INSTRUCTION: &str =
-    "Respond ONLY with a single JSON object. No prose, no code fences, no commentary.";
-
-/// Wraps the caller-supplied `system` string inside an XML delimiter and
-/// places the engine's JSON instruction in its own block (#458).
-///
-/// - If `system` is `Some`, returns
-///   `<caller_system>\n{sanitised}\n</caller_system>\n\n<engine_instruction>\n{JSON_INSTRUCTION}\n</engine_instruction>`
-///   where any close of the `<caller_system>` or `<engine_instruction>` tag in
-///   the input — in any XML-lax whitespace variant — is rewritten to the inert
-///   bracketed sentinel so the caller cannot escape either wrapper (#599).
-/// - If `system` is `None`, returns the bare engine instruction (no
-///   wrapping needed; there is no untrusted content to isolate).
-fn isolate_system_for_json(system: Option<&str>) -> String {
-    match system {
-        Some(s) => {
-            let safe = neutralise_structural_tags(s);
-            format!(
-                "<caller_system>\n{safe}\n</caller_system>\n\n<engine_instruction>\n{JSON_INSTRUCTION}\n</engine_instruction>"
-            )
-        }
-        None => JSON_INSTRUCTION.to_string(),
-    }
-}
-
-/// The set of XML tag names used as structural delimiters in the assembled
-/// system prompt.  Any close-tag variant for any of these names found in
-/// caller-supplied content is rewritten to `[/<name>]` so an attacker cannot
-/// escape the `<caller_system>` wrapper or inject a fake `<engine_instruction>`
-/// block (#458 / #599).
-///
-/// Sentinels use square brackets so they are visible in logs but not parseable
-/// as XML tags by the model.
-const STRUCTURAL_TAGS: &[(&str, &str)] = &[
-    ("caller_system", "[/caller_system]"),
-    ("engine_instruction", "[/engine_instruction]"),
-];
-
-/// Regex matching any XML-lax close-tag variant of a structural tag name.
-/// Matches `<` + optional whitespace + `/` + optional whitespace + tag name
-/// (case-insensitive) + optional whitespace + `>`.
-static STRUCTURAL_CLOSE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    let parts: Vec<String> = STRUCTURAL_TAGS
-        .iter()
-        .map(|(name, _)| regex::escape(name))
-        .collect();
-    let pattern = format!("(?i)<\\s*/\\s*({})\\s*>", parts.join("|"));
-    Regex::new(&pattern).expect("invalid structural close-tag regex")
-});
-
-/// Rewrites every close-tag variant of any structural tag to the inert
-/// bracketed sentinel (codex P1 on #458/#564/#599).
-///
-/// XML permits whitespace anywhere inside a tag, and is case-insensitive
-/// for HTML-style parsers, so `</caller_system>`, `</caller_system >`,
-/// `</ caller_system>`, and `</CALLER_SYSTEM>` are all equivalent.
-/// Replacing only the exact lowercase no-whitespace form would still let
-/// an attacker break out of the wrapper with any of the other variants.
-///
-/// Replaces the matched tag with the corresponding bracketed sentinel
-/// (e.g. `[/caller_system]`) so the injected close-tag is visible in logs
-/// but not parseable as XML by the model.
-fn neutralise_structural_tags(input: &str) -> String {
-    STRUCTURAL_CLOSE_RE
-        .replace_all(input, |caps: &regex::Captures| {
-            let matched = caps.get(1).map_or("", |m| m.as_str());
-            STRUCTURAL_TAGS
-                .iter()
-                .find(|(name, _)| matched.eq_ignore_ascii_case(name))
-                .map(|(_, sentinel)| *sentinel)
-                .expect("captured tag name must match a structural tag")
-        })
-        .into_owned()
-}
-
 // --- Streaming ----------------------------------------------------------
 
 impl AnthropicClient {
@@ -450,103 +375,13 @@ impl AnthropicClient {
     }
 }
 
-/// Processes a single SSE line: dispatches by event `type` field.
-///
-/// Anthropic SSE streams interleave `event: <name>` lines with
-/// `data: <json>` lines. The JSON payloads always carry a `type` field
-/// that matches the preceding event name, so we dispatch on `type`
-/// directly and ignore the `event:` lines — simpler and tolerant of
-/// keepalive or reordering.
-fn process_sse_line(
-    line: &str,
-    token_tx: &mpsc::Sender<String>,
-    accumulated: &mut String,
-) -> SseResult {
-    let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed.starts_with(':') || trimmed.starts_with("event:") {
-        return SseResult::Continue;
-    }
-    let Some(data) = trimmed.strip_prefix("data:").map(str::trim) else {
-        return SseResult::Continue;
-    };
-
-    let Ok(event) = serde_json::from_str::<StreamEvent>(data) else {
-        return SseResult::Continue;
-    };
-
-    match event {
-        StreamEvent::ContentBlockDelta { delta } => {
-            if let StreamDelta::TextDelta { text } = delta
-                && !text.is_empty()
-            {
-                if token_tx.try_send(text.clone()).is_err() {
-                    tracing::warn!(
-                        "token streaming channel full (capacity {}); token dropped — \
-                         consumer is not keeping up with LLM output (#83)",
-                        TOKEN_CHANNEL_CAPACITY,
-                    );
-                }
-                accumulated.push_str(&text);
-            }
-            SseResult::Continue
-        }
-        StreamEvent::MessageStop => SseResult::Done,
-        StreamEvent::Error { error } => {
-            let msg = format!(
-                "Anthropic stream error ({}): {}",
-                error.error_type, error.message
-            );
-            SseResult::Error(msg)
-        }
-        StreamEvent::Other => SseResult::Continue,
-    }
-}
-
-/// The subset of SSE event payloads we care about.
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum StreamEvent {
-    /// Incremental update to the current content block.
-    ContentBlockDelta {
-        #[serde(default)]
-        delta: StreamDelta,
-    },
-    /// Terminal event; stream is complete.
-    MessageStop,
-    /// Error event sent mid-stream (e.g. output token limit, internal error).
-    Error { error: StreamError },
-    /// Any other event we don't act on (kept so deserialisation never fails).
-    #[serde(other)]
-    Other,
-}
-
-/// Error payload inside an `error` SSE event.
-#[derive(Deserialize, Debug)]
-struct StreamError {
-    #[serde(rename = "type")]
-    error_type: String,
-    message: String,
-}
-
-/// Delta payload inside a `content_block_delta` event.
-#[derive(Deserialize, Debug, Default)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum StreamDelta {
-    /// Streamed text fragment from a text content block.
-    TextDelta {
-        #[serde(default)]
-        text: String,
-    },
-    /// Unknown delta type (e.g. `input_json_delta` for tool use). Ignored.
-    #[default]
-    #[serde(other)]
-    Other,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TOKEN_CHANNEL_CAPACITY;
     use crate::strip_json_fence;
+    use json_isolation::JSON_INSTRUCTION;
+    use serde::Deserialize;
 
     #[test]
     fn test_client_construction_does_not_panic() {
@@ -1316,122 +1151,4 @@ mod tests {
             .await;
         assert!(result.is_ok(), "got err: {:?}", result.err());
     }
-}
-
-// --- Request types ------------------------------------------------------
-
-/// A single turn in the conversation. Only `user`/`assistant` roles —
-/// the system prompt is a top-level field, not a message.
-#[derive(Serialize, Debug)]
-struct Message<'a> {
-    role: &'a str,
-    content: &'a str,
-}
-
-/// Cache-control breakpoint for Anthropic's prompt caching.
-///
-/// Setting `type = "ephemeral"` on a system-prompt block marks that block
-/// as a prefix-cache checkpoint, allowing Anthropic to reuse the KV-cache
-/// of the static persona text across turns for BYOK cloud deployments.
-/// This reduces per-turn token cost for the long static prefix (~600+ tokens).
-///
-/// Reference: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
-#[derive(Serialize, Debug)]
-struct CacheControl {
-    #[serde(rename = "type")]
-    kind: &'static str,
-}
-
-/// One block in the structured `system` array.
-///
-/// Anthropic supports a list of content blocks as the top-level `system`
-/// field. Sending `cache_control: {type: "ephemeral"}` on the persona block
-/// activates Anthropic's prompt caching for the stable persona prefix.
-#[derive(Serialize, Debug)]
-struct SystemBlock<'a> {
-    #[serde(rename = "type")]
-    kind: &'static str,
-    text: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cache_control: Option<CacheControl>,
-}
-
-impl<'a> SystemBlock<'a> {
-    /// Creates a system block with Anthropic's ephemeral cache-control breakpoint.
-    fn with_cache_control(text: &'a str) -> Self {
-        Self {
-            kind: "text",
-            text,
-            cache_control: Some(CacheControl { kind: "ephemeral" }),
-        }
-    }
-}
-
-/// Request body for `POST /v1/messages`.
-#[derive(Serialize, Debug)]
-struct MessagesRequest<'a> {
-    model: &'a str,
-    messages: Vec<Message<'a>>,
-    /// Top-level system prompt as a structured block list.
-    ///
-    /// Anthropic supports both a bare string and a list of typed blocks.
-    /// We always use the block form so we can attach `cache_control:
-    /// {type: "ephemeral"}` to the static persona prefix, enabling Anthropic's
-    /// prompt caching for BYOK cloud deployments (issue #1152, finding 4).
-    ///
-    /// When `None`, the field is omitted (no system prompt).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<Vec<SystemBlock<'a>>>,
-    /// Required by Anthropic — see [`DEFAULT_MAX_TOKENS`].
-    max_tokens: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f32>,
-    /// Only serialise when `true`; omitted flag defaults to non-streaming.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    stream: bool,
-}
-
-// --- Response types -----------------------------------------------------
-
-/// Non-streaming response from `POST /v1/messages`.
-#[derive(Deserialize, Debug, Default)]
-struct MessagesResponse {
-    #[serde(default)]
-    content: Vec<ContentBlock>,
-}
-
-/// One block in the response `content` array. Anthropic returns multiple
-/// block types; we only emit text from `text` blocks and ignore others
-/// (e.g. `tool_use`) for now.
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ContentBlock {
-    /// A span of plain text — the only kind we extract today.
-    Text { text: String },
-    /// Any other block type (tool_use, tool_result, …). Kept so
-    /// deserialization doesn't fail when models return them.
-    #[serde(other)]
-    Other,
-}
-
-/// Concatenates every `Text` block into one string, in order.
-///
-/// Models occasionally split a response across multiple text blocks
-/// (especially after tool use). Joining them preserves the full reply.
-fn extract_text(resp: &MessagesResponse) -> String {
-    let mut out = String::new();
-    for block in &resp.content {
-        if let ContentBlock::Text { text } = block {
-            out.push_str(text);
-        }
-    }
-    out
-}
-
-/// Attempts to extract the human-readable error message from an Anthropic
-/// API error response body (`{"type":"error","error":{"type":"…","message":"…"}}`).
-fn extract_api_error_message(body: &str) -> Option<String> {
-    let v: serde_json::Value = serde_json::from_str(body).ok()?;
-    let msg = v.get("error")?.get("message")?.as_str()?;
-    Some(msg.to_string())
 }

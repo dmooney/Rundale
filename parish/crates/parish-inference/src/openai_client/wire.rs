@@ -1,0 +1,147 @@
+//! OpenAI-compatible chat-completions wire types.
+//!
+//! Request body (`ChatCompletionRequest` + `ChatMessage`), the public
+//! sampling/format parameter types (`GenerateParams`, `ResponseFormat`,
+//! `JsonSchemaSpec`), and the response/stream-chunk deserialisation types.
+//! Split out of the monolithic `openai_client` module (#1200) so request /
+//! response schema drift is reviewable in isolation.
+//!
+//! The three parameter types are part of the crate's public API (re-exported
+//! from `lib.rs` via `openai_client::{GenerateParams, JsonSchemaSpec,
+//! ResponseFormat}`); the request/response structs are `pub(super)`
+//! crate-internal protocol details.
+
+use serde::{Deserialize, Serialize};
+
+/// A single message in the chat completions request.
+#[derive(Serialize, Debug)]
+pub(super) struct ChatMessage<'a> {
+    pub(super) role: &'a str,
+    pub(super) content: &'a str,
+}
+
+/// Request body for the `/v1/chat/completions` endpoint.
+#[derive(Serialize, Debug)]
+pub(super) struct ChatCompletionRequest<'a> {
+    pub(super) model: &'a str,
+    pub(super) messages: Vec<ChatMessage<'a>>,
+    pub(super) stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) response_format: Option<ResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) temperature: Option<f32>,
+    /// OpenAI-compat `frequency_penalty`. Range nominally `[-2.0, 2.0]`,
+    /// but the Tier 1 dialogue call site sets `0.5` to break the
+    /// degenerate repetition loops Qwen2.5-14B-4bit exhibits without a
+    /// penalty (TODO #10 / #23 / #34). vllm-mlx, OpenAI, OpenRouter and
+    /// most OpenAI-compat servers honour this field; Ollama ignores it.
+    /// `None` omits the key from the wire body entirely.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) frequency_penalty: Option<f32>,
+}
+
+/// Sampling and generation parameters shared across all generate methods.
+///
+/// Groups the three optional knobs that every generate call accepts so that
+/// functions with a `model + prompt + system + token_tx + response_format +
+/// GenerateParams` signature stay within Clippy's `too-many-arguments` limit
+/// (≤ 7 non-`self` parameters).
+#[derive(Debug, Clone, Default)]
+pub struct GenerateParams {
+    /// Maximum number of tokens the model may emit.  `None` lets the
+    /// provider apply its own default ceiling.
+    pub max_tokens: Option<u32>,
+    /// Sampling temperature.  `None` uses the provider default.
+    pub temperature: Option<f32>,
+    /// OpenAI-compat `frequency_penalty` (`[-2.0, 2.0]`). Forwarded to
+    /// vllm-mlx, LM Studio, OpenAI, and OpenRouter; ignored by Anthropic
+    /// and the Simulator (no equivalent).  `None` omits the key from the
+    /// wire body entirely.
+    pub frequency_penalty: Option<f32>,
+}
+
+/// Controls structured output format.
+///
+/// Wire format follows OpenAI's `response_format` shape, which Ollama and
+/// most OpenAI-compat servers accept. LM Studio and vllm-mlx both reject
+/// the bare `{"type": "json_object"}` shorthand and require either
+/// `{"type": "text"}` or `{"type": "json_schema", "json_schema": {...}}`.
+/// Callers should prefer `JsonSchema` and only fall back to `JsonObject`
+/// when targeting Ollama specifically. To send "no constraint", pass
+/// `None` instead of constructing a `Text` variant.
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ResponseFormat {
+    /// `{"type": "json_object"}` — legacy Ollama path. Constrains output
+    /// to *some* JSON; the structure is implied by the prompt.
+    JsonObject,
+    /// `{"type": "json_schema", "json_schema": {"name": ..., "schema": ...}}`
+    /// — strict-mode structured output. Required by vllm-mlx, LM Studio,
+    /// and OpenAI's structured-outputs feature. The model is constrained
+    /// to emit JSON matching the supplied schema.
+    JsonSchema { json_schema: JsonSchemaSpec },
+}
+
+/// The named-schema payload that sits under `response_format.json_schema`.
+#[derive(Serialize, Debug, Clone)]
+pub struct JsonSchemaSpec {
+    /// Schema name (display label, also a routing key in some servers).
+    pub name: String,
+    /// The JSON Schema document the model must conform to.
+    pub schema: serde_json::Value,
+}
+
+/// Non-streaming response from chat completions.
+#[derive(Deserialize, Debug)]
+pub(super) struct ChatCompletionResponse {
+    #[serde(default)]
+    pub(super) choices: Vec<Choice>,
+}
+
+/// A single completion choice.
+#[derive(Deserialize, Debug)]
+pub(super) struct Choice {
+    #[serde(default)]
+    pub(super) message: MessageContent,
+}
+
+/// Message content in a non-streaming response.
+#[derive(Deserialize, Debug, Default)]
+pub(super) struct MessageContent {
+    #[serde(default)]
+    pub(super) content: Option<String>,
+}
+
+/// A single SSE chunk from a streaming response.
+#[derive(Deserialize, Debug)]
+pub(super) struct ChatCompletionChunk {
+    #[serde(default)]
+    pub(super) choices: Vec<StreamChoice>,
+}
+
+/// A single choice in a streaming chunk.
+#[derive(Deserialize, Debug)]
+pub(super) struct StreamChoice {
+    #[serde(default)]
+    pub(super) delta: Delta,
+    #[serde(default)]
+    pub(super) finish_reason: Option<String>,
+}
+
+/// Delta content in a streaming chunk.
+#[derive(Deserialize, Debug, Default)]
+pub(super) struct Delta {
+    #[serde(default)]
+    pub(super) content: Option<String>,
+}
+
+/// Extracts the text content from a non-streaming response.
+pub(super) fn extract_content(resp: &ChatCompletionResponse) -> String {
+    resp.choices
+        .first()
+        .and_then(|c| c.message.content.as_deref())
+        .unwrap_or("")
+        .to_string()
+}

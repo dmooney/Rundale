@@ -12,13 +12,13 @@ importers:
         specifier: ^7.0.0
         version: 7.2.5(astro@6.4.4(rollup@4.61.1))(svelte@5.56.3)(typescript@5.9.3)
       astro:
-        specifier: ^6.1.10
+        specifier: ^6.4.4
         version: 6.4.4(rollup@4.61.1)
       simple-icons:
-        specifier: ^16.21.0
+        specifier: ^16.23.0
         version: 16.23.0
       svelte:
-        specifier: ^5.0.0
+        specifier: ^5.56.3
         version: 5.56.3
 
 packages:

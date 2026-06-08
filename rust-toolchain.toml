@@ -1,0 +1,11 @@
+# Single source of truth for the Rust toolchain used by CI and local dev.
+# Dependabot's `rust-toolchain` ecosystem (see .github/dependabot.yml) opens a
+# PR bumping `channel` when a newer stable releases; CI runs on it and the bump
+# only lands when green. rustup auto-installs this channel for any cargo command
+# run in the repo, so `cargo`/`clippy`/`rustfmt` all agree with CI.
+#
+# Jobs that intentionally float (the stable/beta channel matrix and the
+# eval-inference build) override this via the RUSTUP_TOOLCHAIN env var.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]

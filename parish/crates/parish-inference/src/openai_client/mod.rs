@@ -3,18 +3,33 @@
 //! Talks to any provider that implements the OpenAI chat completions API:
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
+//!
+//! Structure (#1200 decomposition): the former single module is split into
+//! - [`wire`] — request/response schema types and the public parameter
+//!   types (`GenerateParams`, `ResponseFormat`, `JsonSchemaSpec`);
+//! - [`sse`] — the streaming read loop and line parser;
+//! - this `mod.rs` — the [`OpenAiClient`] type and its `generate*` methods.
+//!
+//! The public parameter types are re-exported here (and from `lib.rs`) so the
+//! paths `openai_client::{GenerateParams, ResponseFormat, JsonSchemaSpec}`
+//! are unchanged.
 
-use crate::SseResult;
-use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::client_base::ClientBase;
 use crate::rate_limit::InferenceRateLimiter;
 use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
+
+mod sse;
+mod wire;
+
+pub use wire::{GenerateParams, JsonSchemaSpec, ResponseFormat};
+
+use sse::read_sse_stream;
+use wire::{ChatCompletionRequest, ChatCompletionResponse, ChatMessage, extract_content};
 
 /// Builds a `reqwest::Client` with the given timeout, falling back to a default
 /// client (no timeout) if the builder fails.
@@ -55,130 +70,6 @@ pub struct OpenAiClient {
     /// [`OpenAiClient::with_completions_path`] for providers that omit the
     /// `/v1` prefix (e.g. GitHub Models uses `"/chat/completions"`).
     completions_path: String,
-}
-
-/// A single message in the chat completions request.
-#[derive(Serialize, Debug)]
-struct ChatMessage<'a> {
-    role: &'a str,
-    content: &'a str,
-}
-
-/// Request body for the `/v1/chat/completions` endpoint.
-#[derive(Serialize, Debug)]
-struct ChatCompletionRequest<'a> {
-    model: &'a str,
-    messages: Vec<ChatMessage<'a>>,
-    stream: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    response_format: Option<ResponseFormat>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_tokens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f32>,
-    /// OpenAI-compat `frequency_penalty`. Range nominally `[-2.0, 2.0]`,
-    /// but the Tier 1 dialogue call site sets `0.5` to break the
-    /// degenerate repetition loops Qwen2.5-14B-4bit exhibits without a
-    /// penalty (TODO #10 / #23 / #34). vllm-mlx, OpenAI, OpenRouter and
-    /// most OpenAI-compat servers honour this field; Ollama ignores it.
-    /// `None` omits the key from the wire body entirely.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    frequency_penalty: Option<f32>,
-}
-
-/// Sampling and generation parameters shared across all generate methods.
-///
-/// Groups the three optional knobs that every generate call accepts so that
-/// functions with a `model + prompt + system + token_tx + response_format +
-/// GenerateParams` signature stay within Clippy's `too-many-arguments` limit
-/// (≤ 7 non-`self` parameters).
-#[derive(Debug, Clone, Default)]
-pub struct GenerateParams {
-    /// Maximum number of tokens the model may emit.  `None` lets the
-    /// provider apply its own default ceiling.
-    pub max_tokens: Option<u32>,
-    /// Sampling temperature.  `None` uses the provider default.
-    pub temperature: Option<f32>,
-    /// OpenAI-compat `frequency_penalty` (`[-2.0, 2.0]`). Forwarded to
-    /// vllm-mlx, LM Studio, OpenAI, and OpenRouter; ignored by Anthropic
-    /// and the Simulator (no equivalent).  `None` omits the key from the
-    /// wire body entirely.
-    pub frequency_penalty: Option<f32>,
-}
-
-/// Controls structured output format.
-///
-/// Wire format follows OpenAI's `response_format` shape, which Ollama and
-/// most OpenAI-compat servers accept. LM Studio and vllm-mlx both reject
-/// the bare `{"type": "json_object"}` shorthand and require either
-/// `{"type": "text"}` or `{"type": "json_schema", "json_schema": {...}}`.
-/// Callers should prefer `JsonSchema` and only fall back to `JsonObject`
-/// when targeting Ollama specifically. To send "no constraint", pass
-/// `None` instead of constructing a `Text` variant.
-#[derive(Serialize, Debug, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ResponseFormat {
-    /// `{"type": "json_object"}` — legacy Ollama path. Constrains output
-    /// to *some* JSON; the structure is implied by the prompt.
-    JsonObject,
-    /// `{"type": "json_schema", "json_schema": {"name": ..., "schema": ...}}`
-    /// — strict-mode structured output. Required by vllm-mlx, LM Studio,
-    /// and OpenAI's structured-outputs feature. The model is constrained
-    /// to emit JSON matching the supplied schema.
-    JsonSchema { json_schema: JsonSchemaSpec },
-}
-
-/// The named-schema payload that sits under `response_format.json_schema`.
-#[derive(Serialize, Debug, Clone)]
-pub struct JsonSchemaSpec {
-    /// Schema name (display label, also a routing key in some servers).
-    pub name: String,
-    /// The JSON Schema document the model must conform to.
-    pub schema: serde_json::Value,
-}
-
-/// Non-streaming response from chat completions.
-#[derive(Deserialize, Debug)]
-struct ChatCompletionResponse {
-    #[serde(default)]
-    choices: Vec<Choice>,
-}
-
-/// A single completion choice.
-#[derive(Deserialize, Debug)]
-struct Choice {
-    #[serde(default)]
-    message: MessageContent,
-}
-
-/// Message content in a non-streaming response.
-#[derive(Deserialize, Debug, Default)]
-struct MessageContent {
-    #[serde(default)]
-    content: Option<String>,
-}
-
-/// A single SSE chunk from a streaming response.
-#[derive(Deserialize, Debug)]
-struct ChatCompletionChunk {
-    #[serde(default)]
-    choices: Vec<StreamChoice>,
-}
-
-/// A single choice in a streaming chunk.
-#[derive(Deserialize, Debug)]
-struct StreamChoice {
-    #[serde(default)]
-    delta: Delta,
-    #[serde(default)]
-    finish_reason: Option<String>,
-}
-
-/// Delta content in a streaming chunk.
-#[derive(Deserialize, Debug, Default)]
-struct Delta {
-    #[serde(default)]
-    content: Option<String>,
 }
 
 impl OpenAiClient {
@@ -519,143 +410,12 @@ impl OpenAiClient {
     }
 }
 
-/// Reads an SSE response body, parsing data lines and forwarding tokens.
-///
-/// Shared by [`OpenAiClient::generate_stream`] and
-/// [`OpenAiClient::generate_stream_json`] to avoid duplicating the
-/// streaming-loop boilerplate (TD-004).
-async fn read_sse_stream(
-    response: reqwest::Response,
-    token_tx: &mpsc::Sender<String>,
-) -> Result<String, ParishError> {
-    let mut accumulated = String::new();
-    let mut line_buf = String::new();
-    let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
-
-    let mut response = response;
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|e| ParishError::Network(e.to_string()))?
-    {
-        line_buf.push_str(&decoder.push(&chunk));
-
-        while let Some(newline_pos) = line_buf.find('\n') {
-            let line: String = line_buf.drain(..=newline_pos).collect();
-            match process_sse_line(&line, token_tx, &mut accumulated) {
-                SseResult::Continue => {}
-                SseResult::Done => return Ok(accumulated),
-                SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
-            }
-        }
-    }
-
-    line_buf.push_str(&decoder.flush());
-    let remaining = line_buf.trim();
-    if !remaining.is_empty() {
-        match process_sse_line(remaining, token_tx, &mut accumulated) {
-            SseResult::Continue => {}
-            SseResult::Done => return Ok(accumulated),
-            SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
-        }
-    }
-
-    Ok(accumulated)
-}
-/// Processes a single SSE line: extracts content, sends tokens, detects completion.
-fn process_sse_line(
-    line: &str,
-    token_tx: &mpsc::Sender<String>,
-    accumulated: &mut String,
-) -> SseResult {
-    let Some(data) = parse_sse_line(line) else {
-        return SseResult::Continue;
-    };
-    match data {
-        SseData::Done => SseResult::Done,
-        SseData::Chunk(chunk_data) => {
-            if let Some(text) = chunk_data
-                .choices
-                .first()
-                .and_then(|c| c.delta.content.as_deref())
-                .filter(|t| !t.is_empty())
-            {
-                if token_tx.try_send(text.to_string()).is_err() {
-                    tracing::warn!(
-                        "token streaming channel full (capacity {}); token dropped — \
-                         consumer is not keeping up with LLM output (#83)",
-                        TOKEN_CHANNEL_CAPACITY,
-                    );
-                }
-                accumulated.push_str(text);
-            }
-            if chunk_data
-                .choices
-                .first()
-                .and_then(|c| c.finish_reason.as_deref())
-                == Some("stop")
-            {
-                return SseResult::Done;
-            }
-            SseResult::Continue
-        }
-    }
-}
-
-/// Parsed SSE data from a streaming line.
-enum SseData {
-    /// The `[DONE]` sentinel, indicating stream end.
-    Done,
-    /// A parsed chunk of streaming data.
-    Chunk(ChatCompletionChunk),
-}
-
-/// Parses a single SSE line from a streaming response.
-///
-/// Handles the `data: ` prefix (with or without space), `[DONE]` sentinel,
-/// and `: ` keepalive comments. Returns `None` for empty lines, comments,
-/// or unparseable data.
-fn parse_sse_line(line: &str) -> Option<SseData> {
-    let line = line.trim();
-    if line.is_empty() {
-        return None;
-    }
-
-    // SSE comment (keepalive)
-    if line.starts_with(": ") || line == ":" {
-        return None;
-    }
-
-    // Strip the "data: " or "data:" prefix
-    let data = if let Some(d) = line.strip_prefix("data: ") {
-        d
-    } else {
-        line.strip_prefix("data:")?
-    };
-
-    let data = data.trim();
-
-    if data == "[DONE]" {
-        return Some(SseData::Done);
-    }
-
-    serde_json::from_str::<ChatCompletionChunk>(data)
-        .ok()
-        .map(SseData::Chunk)
-}
-
-/// Extracts the text content from a non-streaming response.
-fn extract_content(resp: &ChatCompletionResponse) -> String {
-    resp.choices
-        .first()
-        .and_then(|c| c.message.content.as_deref())
-        .unwrap_or("")
-        .to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TOKEN_CHANNEL_CAPACITY;
+    use sse::{SseData, parse_sse_line};
+    use wire::ChatCompletionChunk;
 
     /// Regression test for #98: the helper must never panic, even when
     /// given an extreme timeout. The normal reqwest build path always
@@ -1097,7 +857,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires Ollama running on localhost:11434
     async fn test_generate_json_live() {
-        #[derive(Deserialize, Debug)]
+        #[derive(serde::Deserialize, Debug)]
         #[allow(dead_code)] // used only for JSON deserialization test
         struct TestResponse {
             #[serde(default)]

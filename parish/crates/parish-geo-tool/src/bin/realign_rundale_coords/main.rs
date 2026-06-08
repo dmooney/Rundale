@@ -1,13 +1,34 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+//! Geocode real Rundale locations and realign connected fictional coordinates.
+//!
+//! Structure (#1200 decomposition, TD-022): the former single-file binary is
+//! split into focused submodules —
+//! - [`overrides`] — `--set-coord` / `--set-source` application and
+//!   `--baseline-world` delta derivation;
+//! - [`geocode`] — Nominatim lookup + name-suffix normalisation;
+//! - [`realign`] — relative-position resolution + fictional realignment.
+//!
+//! This `main.rs` owns the CLI definition, the shared `WorldFile` type
+//! (via `include!`), and the orchestration in `main`.
+
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use parish_core::world::LocationId;
 use parish_core::world::graph::{GeoKind, LocationData};
-use parish_geo_tool::osm_model::EARTH_RADIUS_M;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+
+mod geocode;
+mod overrides;
+mod realign;
+
+use geocode::geocode_location;
+use overrides::{
+    apply_set_coord_overrides, apply_set_source_overrides, derive_deltas_from_baseline,
+};
+use realign::{realign_fictional_locations, resolve_relative_positions};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -40,13 +61,7 @@ struct Cli {
     set_source: Vec<String>,
 }
 
-include!("../world_file_shared.inc");
-
-#[derive(Debug, Deserialize)]
-struct NominatimHit {
-    lat: String,
-    lon: String,
-}
+include!("../../world_file_shared.inc");
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -142,299 +157,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn apply_set_coord_overrides(
-    entries: &[String],
-    locations: &mut [LocationData],
-    deltas: &mut HashMap<LocationId, (f64, f64)>,
-) -> Result<()> {
-    for raw in entries {
-        let (name, lat, lon) = parse_set_coord(raw)?;
-        let loc = locations
-            .iter_mut()
-            .find(|l| l.name == name)
-            .with_context(|| format!("--set-coord: no location named '{name}' in world"))?;
-        deltas.insert(loc.id, (lat - loc.lat, lon - loc.lon));
-        loc.lat = lat;
-        loc.lon = lon;
-        loc.relative_to = None;
-        loc.geo_kind = GeoKind::Manual;
-    }
-    Ok(())
-}
-
-fn apply_set_source_overrides(entries: &[String], locations: &mut [LocationData]) -> Result<()> {
-    for raw in entries {
-        let (name, note) = parse_set_source(raw)?;
-        let loc = locations
-            .iter_mut()
-            .find(|l| l.name == name)
-            .with_context(|| format!("--set-source: no location named '{name}' in world"))?;
-        loc.geo_source = Some(note);
-    }
-    Ok(())
-}
-
-fn parse_set_coord(raw: &str) -> Result<(String, f64, f64)> {
-    let (name, rest) = raw
-        .split_once('=')
-        .with_context(|| format!("--set-coord '{raw}' missing '=' separator"))?;
-    let (lat_s, lon_s) = rest
-        .split_once(',')
-        .with_context(|| format!("--set-coord '{raw}' needs 'lat,lon' after '='"))?;
-    let lat: f64 = lat_s
-        .trim()
-        .parse()
-        .with_context(|| format!("--set-coord '{raw}': invalid latitude"))?;
-    let lon: f64 = lon_s
-        .trim()
-        .parse()
-        .with_context(|| format!("--set-coord '{raw}': invalid longitude"))?;
-    Ok((name.trim().to_string(), lat, lon))
-}
-
-fn parse_set_source(raw: &str) -> Result<(String, String)> {
-    let (name, note) = raw
-        .split_once('=')
-        .with_context(|| format!("--set-source '{raw}' missing '=' separator"))?;
-    Ok((name.trim().to_string(), note.trim().to_string()))
-}
-
-fn derive_deltas_from_baseline(
-    baseline_path: &PathBuf,
-    current_locations: &[LocationData],
-) -> Result<HashMap<LocationId, (f64, f64)>> {
-    let baseline_text = std::fs::read_to_string(baseline_path)
-        .with_context(|| format!("failed to read {}", baseline_path.display()))?;
-    let baseline: WorldFile = serde_json::from_str(&baseline_text)
-        .with_context(|| format!("failed to parse {}", baseline_path.display()))?;
-
-    let current_by_id: HashMap<LocationId, &LocationData> =
-        current_locations.iter().map(|loc| (loc.id, loc)).collect();
-    let mut deltas = HashMap::new();
-
-    for old in &baseline.locations {
-        // Anchors for fictional realignment: locations whose position was
-        // authored independently. Fictional locations get realigned (not
-        // anchoring); relative_to locations derive from another anchor.
-        if matches!(old.geo_kind, GeoKind::Fictional) || old.relative_to.is_some() {
-            continue;
-        }
-        if let Some(new) = current_by_id.get(&old.id) {
-            let delta = (new.lat - old.lat, new.lon - old.lon);
-            if delta.0.abs() > 1e-12 || delta.1.abs() > 1e-12 {
-                deltas.insert(old.id, delta);
-            }
-        }
-    }
-    Ok(deltas)
-}
-
-async fn geocode_location(
-    client: &Client,
-    name: &str,
-    context: &str,
-) -> Result<Option<(f64, f64)>> {
-    let mut queries = vec![format!("{name}, {context}"), name.to_string()];
-    if let Some(stripped) = strip_type_suffix(name) {
-        queries.push(format!("{stripped}, {context}"));
-        queries.push(stripped);
-    }
-
-    for query in queries {
-        let response = client
-            .get("https://nominatim.openstreetmap.org/search")
-            .query(&[("q", query.as_str()), ("format", "jsonv2"), ("limit", "1")])
-            .send()
-            .await
-            .context("nominatim request failed")?
-            .error_for_status()
-            .context("nominatim non-success status")?;
-
-        let hits = response
-            .json::<Vec<NominatimHit>>()
-            .await
-            .context("invalid nominatim response")?;
-        if let Some(hit) = hits.first() {
-            let lat: f64 = hit
-                .lat
-                .parse()
-                .context("invalid latitude in nominatim response")?;
-            let lon: f64 = hit
-                .lon
-                .parse()
-                .context("invalid longitude in nominatim response")?;
-            return Ok(Some((lat, lon)));
-        }
-    }
-
-    Ok(None)
-}
-
-fn strip_type_suffix(name: &str) -> Option<String> {
-    const SUFFIXES: &[&str] = &[
-        "Village",
-        "Town",
-        "Parish",
-        "Hamlet",
-        "Townland",
-        "Crossroads",
-        "Cross",
-    ];
-    let trimmed = name.trim_end();
-    for suffix in SUFFIXES {
-        let Some(head) = trimmed.strip_suffix(suffix) else {
-            continue;
-        };
-        if head.is_empty() || !head.ends_with(|c: char| c.is_whitespace() || c == ',') {
-            continue;
-        }
-        let cleaned = head.trim_end_matches(|c: char| c == ',' || c.is_whitespace());
-        if !cleaned.is_empty() {
-            return Some(cleaned.to_string());
-        }
-    }
-    None
-}
-
-/// Offsets a lat/lon by a signed (north, east) meters delta using a local
-/// equirectangular approximation. Accurate to sub-metre at sub-kilometre
-/// offsets and latitudes in the 40–60° range (all of Ireland).
-fn offset_latlon(lat: f64, lon: f64, dnorth_m: f64, deast_m: f64) -> (f64, f64) {
-    let dlat = (dnorth_m / EARTH_RADIUS_M).to_degrees();
-    let dlon = (deast_m / (EARTH_RADIUS_M * lat.to_radians().cos())).to_degrees();
-    (lat + dlat, lon + dlon)
-}
-
-/// Resolves every location with a `relative_to` reference by walking the
-/// anchor chain and rewriting its `lat`/`lon` as `anchor + offset`.
-/// Errors on cycles or anchors that don't exist in the slice.
-fn resolve_relative_positions(locations: &mut [LocationData]) -> Result<()> {
-    let by_id: HashMap<LocationId, LocationData> =
-        locations.iter().cloned().map(|l| (l.id, l)).collect();
-
-    let mut resolved: HashMap<LocationId, (f64, f64)> = HashMap::new();
-    for (id, loc) in &by_id {
-        if loc.relative_to.is_none() {
-            resolved.insert(*id, (loc.lat, loc.lon));
-        }
-    }
-
-    for loc in locations.iter() {
-        if loc.relative_to.is_some() {
-            resolve_one(loc.id, &by_id, &mut resolved, &mut HashSet::new())?;
-        }
-    }
-
-    for loc in locations.iter_mut() {
-        if loc.relative_to.is_some() {
-            let (lat, lon) = resolved[&loc.id];
-            loc.lat = lat;
-            loc.lon = lon;
-        }
-    }
-    Ok(())
-}
-
-fn resolve_one(
-    id: LocationId,
-    by_id: &HashMap<LocationId, LocationData>,
-    resolved: &mut HashMap<LocationId, (f64, f64)>,
-    visiting: &mut HashSet<LocationId>,
-) -> Result<(f64, f64)> {
-    if let Some(&coord) = resolved.get(&id) {
-        return Ok(coord);
-    }
-    if !visiting.insert(id) {
-        bail!(
-            "cyclic relative_to reference involving location id {}",
-            id.0
-        );
-    }
-    let loc = by_id
-        .get(&id)
-        .with_context(|| format!("relative_to references unknown location id {}", id.0))?;
-    let coord = match loc.relative_to {
-        Some(r) => {
-            let (anchor_lat, anchor_lon) = resolve_one(r.anchor, by_id, resolved, visiting)?;
-            offset_latlon(anchor_lat, anchor_lon, r.dnorth_m, r.deast_m)
-        }
-        None => (loc.lat, loc.lon),
-    };
-    visiting.remove(&id);
-    resolved.insert(id, coord);
-    Ok(coord)
-}
-
-fn realign_fictional_locations(
-    locations: &mut [LocationData],
-    real_deltas: &HashMap<LocationId, (f64, f64)>,
-) -> usize {
-    let snapshot = locations.to_vec();
-    let graph: HashMap<LocationId, Vec<LocationId>> = snapshot
-        .iter()
-        .map(|loc| {
-            (
-                loc.id,
-                loc.connections.iter().map(|c| c.target).collect::<Vec<_>>(),
-            )
-        })
-        .collect();
-
-    let mut updated = 0usize;
-    for loc in locations
-        .iter_mut()
-        .filter(|l| l.geo_kind == GeoKind::Fictional && l.relative_to.is_none())
-    {
-        if let Some((d_lat, d_lon)) = infer_delta(loc.id, &graph, real_deltas, 6) {
-            loc.lat += d_lat;
-            loc.lon += d_lon;
-            updated += 1;
-        }
-    }
-    updated
-}
-
-fn infer_delta(
-    origin: LocationId,
-    graph: &HashMap<LocationId, Vec<LocationId>>,
-    real_deltas: &HashMap<LocationId, (f64, f64)>,
-    max_hops: usize,
-) -> Option<(f64, f64)> {
-    let mut queue: VecDeque<(LocationId, usize)> = VecDeque::from([(origin, 0)]);
-    let mut visited: HashSet<LocationId> = HashSet::from([origin]);
-    let mut weighted_lat = 0.0;
-    let mut weighted_lon = 0.0;
-    let mut total_weight = 0.0;
-
-    while let Some((node, hops)) = queue.pop_front() {
-        if hops > max_hops {
-            continue;
-        }
-        if node != origin
-            && let Some((d_lat, d_lon)) = real_deltas.get(&node)
-        {
-            let weight = 1.0 / hops as f64;
-            weighted_lat += d_lat * weight;
-            weighted_lon += d_lon * weight;
-            total_weight += weight;
-        }
-
-        if let Some(neighbors) = graph.get(&node) {
-            for next in neighbors {
-                if visited.insert(*next) {
-                    queue.push_back((*next, hops + 1));
-                }
-            }
-        }
-    }
-
-    (total_weight > 0.0).then_some((weighted_lat / total_weight, weighted_lon / total_weight))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use parish_core::world::graph::{Connection, RelativeRef};
+    use geocode::strip_type_suffix;
+    use overrides::{parse_set_coord, parse_set_source};
+    use parish_core::world::graph::{Connection, LocationData, RelativeRef};
+    use realign::{infer_delta, offset_latlon};
+    use std::collections::HashMap;
 
     #[test]
     fn strip_type_suffix_strips_trailing_village() {

@@ -23,10 +23,7 @@
 	import {
 		formatElapsed,
 		formatDownloadStats,
-		RATE_SAMPLE_WINDOW_MS,
-		RATE_UPDATE_INTERVAL_MS,
-		MIN_RATE_SAMPLE_SPAN_MS,
-		RATE_NEW_SAMPLE_WEIGHT
+		DownloadRateTracker
 	} from '$lib/setup/download-rate';
 	import {
 		INITIAL_SETUP_MESSAGE,
@@ -63,9 +60,10 @@
 	let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 	let hideTimer: ReturnType<typeof setTimeout> | null = null;
 	let waitMessageTimer: ReturnType<typeof setTimeout> | null = null;
-	let progressSamples: Array<{ completed: number; timestamp: number }> = [];
-	let lastRateUpdateAt = 0;
 	let waitMessageIndex = 0;
+	// Pure rate-sampling state lives in the tracker (#1200 TD-044); the
+	// component keeps only the rendered $state mirror below.
+	const downloadRate = new DownloadRateTracker();
 	let downloadSpeedBps = $state<number | null>(null);
 	let downloadEtaSeconds = $state<number | null>(null);
 	let longSetupWaitActive = false;
@@ -173,7 +171,8 @@
 			messages = [];
 			downloadCompleted = 0;
 			downloadTotal = 0;
-			resetDownloadRate();
+			({ speedBps: downloadSpeedBps, etaSeconds: downloadEtaSeconds } =
+				downloadRate.reset());
 			elapsedSeconds = 0;
 			longSetupWaitActive = false;
 		}
@@ -233,68 +232,16 @@
 			stopLongSetupWait();
 		}
 
-		if (!sampleSpeed || total <= 0 || switchedTransfer) {
-			resetDownloadRate(sampleSpeed && total > 0 ? completed : undefined);
-		} else {
-			recordDownloadSample(completed, total);
-		}
+		const { speedBps, etaSeconds } =
+			!sampleSpeed || total <= 0 || switchedTransfer
+				? downloadRate.reset(sampleSpeed && total > 0 ? completed : undefined)
+				: downloadRate.record(completed, total);
+		downloadSpeedBps = speedBps;
+		downloadEtaSeconds = etaSeconds;
 
 		downloadCompleted = completed;
 		downloadTotal = total;
 		persistSetupActivity();
-	}
-
-	function resetDownloadRate(initialCompleted?: number) {
-		downloadSpeedBps = null;
-		downloadEtaSeconds = null;
-		lastRateUpdateAt = 0;
-		progressSamples =
-			initialCompleted === undefined
-				? []
-				: [{ completed: initialCompleted, timestamp: performance.now() }];
-	}
-
-	function updateEtaFromDisplayedSpeed(completed: number, total: number) {
-		if (downloadSpeedBps === null || downloadSpeedBps <= 0 || total <= completed) {
-			downloadEtaSeconds = null;
-			return;
-		}
-
-		downloadEtaSeconds = (total - completed) / downloadSpeedBps;
-	}
-
-	function recordDownloadSample(completed: number, total: number) {
-		const now = performance.now();
-		progressSamples = [
-			...progressSamples.filter((sample) => sample.timestamp >= now - RATE_SAMPLE_WINDOW_MS),
-			{ completed, timestamp: now }
-		];
-
-		const first = progressSamples[0];
-		const last = progressSamples.at(-1);
-		if (!first || !last || last.completed <= first.completed) {
-			updateEtaFromDisplayedSpeed(completed, total);
-			return;
-		}
-
-		const spanMs = last.timestamp - first.timestamp;
-		if (spanMs < MIN_RATE_SAMPLE_SPAN_MS) {
-			updateEtaFromDisplayedSpeed(completed, total);
-			return;
-		}
-		if (lastRateUpdateAt > 0 && now - lastRateUpdateAt < RATE_UPDATE_INTERVAL_MS) {
-			updateEtaFromDisplayedSpeed(completed, total);
-			return;
-		}
-
-		const windowBps = (last.completed - first.completed) / (spanMs / 1000);
-		downloadSpeedBps =
-			downloadSpeedBps === null
-				? windowBps
-				: downloadSpeedBps * (1 - RATE_NEW_SAMPLE_WEIGHT) + windowBps * RATE_NEW_SAMPLE_WEIGHT;
-
-		updateEtaFromDisplayedSpeed(completed, total);
-		lastRateUpdateAt = now;
 	}
 
 	function applySetupDone(success: boolean, error: string) {

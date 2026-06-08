@@ -63,7 +63,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 hf-hub = { version = "0.5", default-features = false, features = ["tokio"] }
 
 # Database
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Time and dates
 chrono = { version = "0.4", features = ["serde"] }
@@ -73,9 +73,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 tracing-appender = "0.2"
 tracing-opentelemetry = "0.30"
-opentelemetry = "0.29"
-opentelemetry_sdk = { version = "0.29", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.29", features = ["http-proto", "reqwest-client"] }
+opentelemetry = "0.32"
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.32", features = ["http-proto", "reqwest-client"] }
 
 # CLI parsing
 clap = { version = "4", features = ["derive"] }
@@ -85,7 +85,7 @@ toml = "0.8"
 dotenvy = "0.15"
 
 # Miscellaneous shared utilities
-rand = "0.9"
+rand = "0.10"
 strsim = "0.11"
 regex = "1"
 governor = "0.10"

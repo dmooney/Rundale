@@ -131,6 +131,22 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
+/// Returns the canonical deterministic Parish engine state (#1331).
+///
+/// Backs the `parish_engine_state` MCP tool and the `/api/engine-state` route.
+/// Read-only; gated behind the default-on `engine-state` kill switch (rule #6).
+#[tauri::command]
+pub async fn get_engine_state(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<parish_core::ipc::EngineState, String> {
+    if state.config.lock().await.flags.is_disabled("engine-state") {
+        return Err("the engine-state feature is disabled".to_string());
+    }
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    Ok(parish_core::ipc::build_engine_state(&world, &npc_manager))
+}
+
 /// Returns the current palette as CSS hex colours.
 ///
 /// Resolution order:

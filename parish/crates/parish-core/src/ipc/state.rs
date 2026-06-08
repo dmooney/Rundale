@@ -31,6 +31,13 @@ pub struct ConversationRuntimeState {
     pub last_spoken_at: Instant,
     /// Whether a player- or idle-triggered NPC exchange is currently running.
     pub conversation_in_progress: bool,
+    /// The last raw player input / action submitted to the engine.
+    ///
+    /// Captured at the top of `handle_game_input` (before intent parsing) so a
+    /// bug report can carry the exact text that triggered the failing turn
+    /// (#1331). `None` until the player submits their first input. Runtime-only
+    /// — never persisted to save state.
+    pub last_player_input: Option<String>,
 }
 
 impl Default for ConversationRuntimeState {
@@ -49,6 +56,19 @@ impl ConversationRuntimeState {
             last_player_activity: now,
             last_spoken_at: now,
             conversation_in_progress: false,
+            last_player_input: None,
+        }
+    }
+
+    /// Records the raw player input most recently submitted to the engine.
+    ///
+    /// Blank input is ignored so a stray empty submission never overwrites a
+    /// meaningful prior action. Survives location changes — it is the last
+    /// *action*, not a per-scene transcript line.
+    pub fn record_player_input(&mut self, raw: &str) {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            self.last_player_input = Some(trimmed.to_string());
         }
     }
 

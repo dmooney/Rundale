@@ -83,6 +83,55 @@ pub struct BugContext {
     pub detail: Value,
 }
 
+// ── Black-box diagnostic payload (#1331) ──────────────────────────────────────
+//
+// The MCP automated-QA loop needs the *context stack* to reproduce local-LLM
+// drift: the raw prompt/response history, the deterministic engine state at
+// failure time, and the last raw player intent. We capture all three into one
+// structured payload and append it to every bug report, alongside the
+// screenshot + logs + game-state sections the report already carries.
+
+/// A single raw LLM prompt/response pair, drawn from the in-memory inference
+/// call log. Carries the full text (not just lengths) so a "this NPC line was
+/// poisoned" report can be replayed against the exact prompt that produced it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LlmExchange {
+    /// Inference request id (correlates with the chat-transcript log).
+    pub request_id: u64,
+    /// Wall-clock timestamp the call was logged at.
+    pub timestamp: String,
+    /// Model that served the request.
+    pub model: String,
+    /// System prompt sent, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
+    /// User prompt text.
+    pub prompt: String,
+    /// Response text (empty on error).
+    pub response: String,
+    /// Error message when the call failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// "Black box" diagnostic payload attached to a bug report (#1331).
+///
+/// Bundled in addition to the human-readable logs so an auto-QA agent (or a
+/// fix-agent) has the full machine-readable context stack to reproduce
+/// context-poisoning during local inference.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiagnosticPayload {
+    /// Raw LLM prompt/response pairs (oldest → newest, capped).
+    pub llm_history: Vec<LlmExchange>,
+    /// The exact `get_engine_state` snapshot at the time of failure, as JSON.
+    /// `Null` when the entry point could not capture one.
+    #[serde(default)]
+    pub engine_state: Value,
+    /// The last raw user intent / action passed to the engine, if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_user_intent: Option<String>,
+}
+
 /// Outcome of a bug-report submission.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BugReportResult {
@@ -181,6 +230,10 @@ pub struct BugReportState {
     pub conversations: Vec<String>,
     /// Recent inference-call lines (preformatted, errors flagged).
     pub inference_calls: Vec<String>,
+    /// "Black box" diagnostic payload (#1331): raw LLM prompt/response history,
+    /// the engine-state snapshot, and the last raw user intent. Built by
+    /// [`BugReportState::with_diagnostic`] and rendered as a dedicated section.
+    pub diagnostic: DiagnosticPayload,
 }
 
 impl BugReportState {
@@ -242,6 +295,27 @@ impl BugReportState {
             })
             .collect();
 
+        // Auto-capture the raw LLM prompt/response history from the in-memory
+        // call log (#1331). Unlike `inference_calls` (which keeps only the
+        // summary line) this carries the full prompt + response text so a
+        // context-poisoning report is reproducible. Capped to the same
+        // `LOG_TAIL` window to keep the payload bounded.
+        let llm_history: Vec<LlmExchange> = debug
+            .inference
+            .call_log
+            .iter()
+            .skip(tail(debug.inference.call_log.len()))
+            .map(|e| LlmExchange {
+                request_id: e.request_id,
+                timestamp: e.timestamp.clone(),
+                model: e.model.clone(),
+                system_prompt: e.system_prompt.clone(),
+                prompt: e.prompt_text.clone(),
+                response: e.response_text.clone(),
+                error: e.error.clone(),
+            })
+            .collect();
+
         Self {
             location: world.location_name.clone(),
             time_label: world.time_label.clone(),
@@ -263,7 +337,28 @@ impl BugReportState {
             debug_events,
             conversations,
             inference_calls,
+            diagnostic: DiagnosticPayload {
+                llm_history,
+                engine_state: Value::Null,
+                last_user_intent: None,
+            },
         }
+    }
+
+    /// Layers the engine-state snapshot and last raw user intent into the
+    /// diagnostic payload (#1331). The LLM history is already auto-captured by
+    /// [`Self::from_snapshots`]; the caller supplies the two values it owns:
+    /// the canonical `get_engine_state` JSON and the last input the player
+    /// submitted to the engine.
+    #[must_use]
+    pub fn with_diagnostic(
+        mut self,
+        engine_state: Value,
+        last_user_intent: Option<String>,
+    ) -> Self {
+        self.diagnostic.engine_state = engine_state;
+        self.diagnostic.last_user_intent = last_user_intent;
+        self
     }
 }
 
@@ -432,6 +527,8 @@ pub fn compose_issue_body(
     push_log_section(&mut s, "Recent conversations", &state.conversations);
     push_log_section(&mut s, "Inference calls", &state.inference_calls);
 
+    push_diagnostic_section(&mut s, &state.diagnostic);
+
     if let Some(ctx) = &req.context {
         s.push_str("## Filed-from context\n\n");
         s.push_str(&format!("**{}** — {}\n\n", ctx.kind, ctx.label));
@@ -446,6 +543,46 @@ pub fn compose_issue_body(
 
     s.push_str("---\n_Filed via the in-app bug reporter._\n");
     s
+}
+
+/// Renders the "black box" diagnostic payload section (#1331): the raw LLM
+/// prompt/response history, the engine-state snapshot, and the last raw user
+/// intent. Always emitted so a fix-agent knows the section exists even when a
+/// part is empty.
+fn push_diagnostic_section(out: &mut String, diag: &DiagnosticPayload) {
+    out.push_str("## Diagnostic payload\n\n");
+
+    out.push_str("### Last user intent\n\n");
+    match diag.last_user_intent.as_deref().map(str::trim) {
+        Some(intent) if !intent.is_empty() => {
+            out.push_str("```\n");
+            out.push_str(intent);
+            out.push_str("\n```\n\n");
+        }
+        _ => out.push_str("_none_\n\n"),
+    }
+
+    out.push_str("### Engine state (get_engine_state)\n\n");
+    if diag.engine_state.is_null() {
+        out.push_str("_none_\n\n");
+    } else {
+        let json = serde_json::to_string_pretty(&diag.engine_state)
+            .unwrap_or_else(|_| diag.engine_state.to_string());
+        out.push_str("```json\n");
+        out.push_str(&json);
+        out.push_str("\n```\n\n");
+    }
+
+    out.push_str("### LLM prompt/response history\n\n");
+    if diag.llm_history.is_empty() {
+        out.push_str("_none_\n\n");
+    } else {
+        let json =
+            serde_json::to_string_pretty(&diag.llm_history).unwrap_or_else(|_| "[]".to_string());
+        out.push_str("```json\n");
+        out.push_str(&json);
+        out.push_str("\n```\n\n");
+    }
 }
 
 fn push_log_section(out: &mut String, heading: &str, lines: &[String]) {
@@ -708,6 +845,19 @@ mod tests {
             debug_events: vec!["[20:01] [system] tick".into()],
             conversations: vec!["[20:04] @ Darcy's Pub — player: Evening | Seán: Aye.".into()],
             inference_calls: vec!["[20:03] #3 gemma ERROR 900ms — timeout".into()],
+            diagnostic: DiagnosticPayload {
+                llm_history: vec![LlmExchange {
+                    request_id: 3,
+                    timestamp: "20:03".into(),
+                    model: "gemma".into(),
+                    system_prompt: Some("You are Seán.".into()),
+                    prompt: "Player says: Evening".into(),
+                    response: "Aye, grand evening.".into(),
+                    error: None,
+                }],
+                engine_state: json!({"active_scene": {"location_name": "Darcy's Pub"}}),
+                last_user_intent: Some("go to the pub".into()),
+            },
         }
     }
 
@@ -761,6 +911,43 @@ mod tests {
         let body = compose_issue_body(&request(), &state(), Some("https://raw.example/x.png"));
         assert!(body.contains("## Screenshot"));
         assert!(body.contains("![screenshot](https://raw.example/x.png)"));
+    }
+
+    // ── Diagnostic payload (#1331) ────────────────────────────────────────────
+
+    #[test]
+    fn body_renders_diagnostic_payload_with_all_three_parts() {
+        let body = compose_issue_body(&request(), &state(), None);
+        assert!(body.contains("## Diagnostic payload"));
+        // 1. Last user intent.
+        assert!(body.contains("### Last user intent"));
+        assert!(body.contains("go to the pub"));
+        // 2. Engine-state snapshot JSON.
+        assert!(body.contains("### Engine state (get_engine_state)"));
+        assert!(body.contains("\"active_scene\""));
+        // 3. Raw LLM prompt/response history (full text, not just lengths).
+        assert!(body.contains("### LLM prompt/response history"));
+        assert!(body.contains("You are Seán."));
+        assert!(body.contains("Aye, grand evening."));
+        assert!(body.contains("\"request_id\": 3"));
+    }
+
+    #[test]
+    fn diagnostic_section_renders_none_placeholders_when_empty() {
+        // Default state has an empty diagnostic payload.
+        let body = compose_issue_body(&request(), &BugReportState::default(), None);
+        assert!(body.contains("## Diagnostic payload"));
+        assert!(body.contains("### Last user intent\n\n_none_"));
+        assert!(body.contains("### Engine state (get_engine_state)\n\n_none_"));
+        assert!(body.contains("### LLM prompt/response history\n\n_none_"));
+    }
+
+    #[test]
+    fn with_diagnostic_layers_engine_state_and_intent() {
+        let s = BugReportState::default()
+            .with_diagnostic(json!({"clock": {"hour": 9}}), Some("look".into()));
+        assert_eq!(s.diagnostic.engine_state["clock"]["hour"], 9);
+        assert_eq!(s.diagnostic.last_user_intent.as_deref(), Some("look"));
     }
 
     #[test]

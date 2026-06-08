@@ -2,12 +2,31 @@
 //!
 //! Takes raw Overpass API responses and produces a deduplicated list of
 //! [`GeoFeature`]s, each classified by [`LocationType`] based on OSM tags.
+//!
+//! Structure (#1200 decomposition): the former single module is split into
+//! - [`classify`] — OSM-tag → [`LocationType`] classification + name generation;
+//! - [`dedup`] — proximity de-duplication shared by both extraction passes;
+//! - [`crossroads`] — road-junction extraction;
+//! - this `mod.rs` — the POI pass [`extract_features`].
+//!
+//! `classify`/`crossroads` items are re-exported flat so the existing
+//! `super::extract::{extract_features, extract_crossroads}` paths used by
+//! `pipeline.rs` are unchanged.
 
-use std::collections::{HashMap, HashSet};
+mod classify;
+mod crossroads;
+mod dedup;
 
-use tracing::{debug, warn};
+pub use classify::classify_element;
+pub use crossroads::extract_crossroads;
 
-use super::osm_model::{GeoFeature, LocationType, OsmElement, OverpassResponse};
+use std::collections::HashSet;
+
+use tracing::debug;
+
+use self::classify::generate_name;
+use self::dedup::deduplicate_by_proximity;
+use super::osm_model::{GeoFeature, LocationType, OverpassResponse};
 
 /// Extracts game-relevant geographic features from an Overpass POI response.
 ///
@@ -77,289 +96,11 @@ pub fn extract_features(response: &OverpassResponse) -> Vec<GeoFeature> {
     features
 }
 
-fn classify_historic(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let historic = tags.get("historic")?;
-    match historic.as_str() {
-        "ring_fort" | "rath" | "cashel" | "crannog" => Some(LocationType::RingFort),
-        "standing_stone" | "ogham_stone" | "stone_circle" | "megalith" => {
-            Some(LocationType::StandingStone)
-        }
-        "holy_well" => Some(LocationType::Well),
-        "castle" | "ruins" | "monument" => Some(LocationType::Ruin),
-        _ => Some(LocationType::Other),
-    }
-}
-
-fn classify_amenity(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let amenity = tags.get("amenity")?;
-    match amenity.as_str() {
-        "pub" | "bar" | "restaurant" => Some(LocationType::Pub),
-        "place_of_worship" => Some(LocationType::Church),
-        "school" => Some(LocationType::School),
-        "post_office" => Some(LocationType::PostOffice),
-        "grave_yard" => Some(LocationType::Graveyard),
-        _ => None,
-    }
-}
-
-fn classify_building(
-    tags: &std::collections::HashMap<String, String>,
-    element: &OsmElement,
-) -> Option<LocationType> {
-    let building = tags.get("building")?;
-    match building.as_str() {
-        "church" | "chapel" | "cathedral" => Some(LocationType::Church),
-        "farm" | "farmhouse" | "barn" => Some(LocationType::Farm),
-        _ => {
-            if element.name().is_some() {
-                Some(LocationType::Other)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-fn classify_natural(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let natural = tags.get("natural")?;
-    match natural.as_str() {
-        "water" => Some(LocationType::Waterside),
-        "wetland" => Some(LocationType::Bog),
-        "wood" => Some(LocationType::Woodland),
-        "peak" | "hill" => Some(LocationType::Hill),
-        "spring" => Some(LocationType::Well),
-        _ => None,
-    }
-}
-
-fn classify_waterway(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let waterway = tags.get("waterway")?;
-    match waterway.as_str() {
-        "river" | "stream" | "canal" => Some(LocationType::Waterside),
-        _ => None,
-    }
-}
-
-fn classify_landuse(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let landuse = tags.get("landuse")?;
-    match landuse.as_str() {
-        "farmyard" | "farmland" => Some(LocationType::Farm),
-        "cemetery" => Some(LocationType::Graveyard),
-        _ => None,
-    }
-}
-
-fn classify_man_made(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let man_made = tags.get("man_made")?;
-    match man_made.as_str() {
-        "bridge" => Some(LocationType::Bridge),
-        "kiln" => Some(LocationType::LimeKiln),
-        "watermill" | "windmill" => Some(LocationType::Mill),
-        "pier" | "quay" => Some(LocationType::Harbour),
-        _ => None,
-    }
-}
-
-fn classify_place(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
-    let place = tags.get("place")?;
-    match place.as_str() {
-        "hamlet" | "village" | "isolated_dwelling" | "locality" | "townland" | "town" => {
-            Some(LocationType::NamedPlace)
-        }
-        _ => None,
-    }
-}
-
-/// Classifies an OSM element into a game-relevant location type.
-///
-/// Returns `None` if the element doesn't map to any game-relevant type.
-pub fn classify_element(element: &OsmElement) -> Option<LocationType> {
-    let tags = &element.tags;
-
-    classify_historic(tags)
-        .or_else(|| classify_amenity(tags))
-        .or_else(|| classify_building(tags, element))
-        .or_else(|| {
-            if tags.contains_key("shop") {
-                Some(LocationType::Shop)
-            } else {
-                None
-            }
-        })
-        .or_else(|| classify_natural(tags))
-        .or_else(|| classify_waterway(tags))
-        .or_else(|| classify_landuse(tags))
-        .or_else(|| classify_man_made(tags))
-        .or_else(|| {
-            if tags.get("craft").is_some_and(|v| v == "blacksmith") {
-                return Some(LocationType::Forge);
-            }
-            if tags.get("ford").is_some_and(|v| v == "yes") {
-                return Some(LocationType::Bridge);
-            }
-            None
-        })
-        .or_else(|| classify_place(tags))
-        .or_else(|| {
-            if tags
-                .get("leisure")
-                .is_some_and(|v| v == "harbour" || v == "marina")
-            {
-                return Some(LocationType::Harbour);
-            }
-            if tags.get("tourism").is_some_and(|v| v == "hotel") {
-                return Some(LocationType::Pub);
-            }
-            None
-        })
-}
-
-/// Generates a name for a feature from OSM tags or its location type.
-///
-/// Priority: explicit name tag > generated from type + context > None.
-fn generate_name(element: &OsmElement, location_type: LocationType) -> Option<String> {
-    // Use explicit name if available
-    if let Some(name) = element.name() {
-        return Some(name.to_string());
-    }
-
-    // Generate a name based on type and nearby context
-    match location_type {
-        LocationType::Crossroads => Some("A Crossroads".to_string()),
-        LocationType::Bridge => {
-            // Try to use the road name
-            if let Some(road) = element.tag("highway") {
-                Some(format!("Bridge on the {road}"))
-            } else {
-                Some("A Bridge".to_string())
-            }
-        }
-        LocationType::Well => Some("A Holy Well".to_string()),
-        LocationType::RingFort => Some("A Ring Fort".to_string()),
-        LocationType::StandingStone => Some("A Standing Stone".to_string()),
-        LocationType::LimeKiln => Some("A Lime Kiln".to_string()),
-        LocationType::Forge => Some("The Forge".to_string()),
-        LocationType::Farm => {
-            // Unnamed farms are too generic
-            None
-        }
-        LocationType::Bog => Some("The Bog".to_string()),
-        _ => None,
-    }
-}
-
-/// Deduplicates features that are within `threshold_meters` of each other.
-///
-/// When duplicates are found, keeps the one with the more specific
-/// location type (non-Other > Other, named > unnamed).
-fn deduplicate_by_proximity(features: &mut Vec<GeoFeature>, threshold_meters: f64) {
-    use super::osm_model::haversine_distance;
-
-    let mut to_remove = HashSet::new();
-
-    for i in 0..features.len() {
-        if to_remove.contains(&i) {
-            continue;
-        }
-        for j in (i + 1)..features.len() {
-            if to_remove.contains(&j) {
-                continue;
-            }
-            let dist = haversine_distance(
-                features[i].lat,
-                features[i].lon,
-                features[j].lat,
-                features[j].lon,
-            );
-            if dist < threshold_meters {
-                // Keep the more specific/better-named one
-                if features[j].location_type != LocationType::Other
-                    && features[i].location_type == LocationType::Other
-                {
-                    to_remove.insert(i);
-                } else {
-                    to_remove.insert(j);
-                }
-            }
-        }
-    }
-
-    // Remove in reverse index order to preserve indices
-    let mut remove_indices: Vec<usize> = to_remove.into_iter().collect();
-    remove_indices.sort_unstable_by(|a, b| b.cmp(a));
-    for idx in remove_indices {
-        let removed = features.remove(idx);
-        debug!(
-            "deduplicated: removed '{}' (too close to another feature)",
-            removed.name
-        );
-    }
-}
-
-/// Extracts junction nodes (crossroads) from road network data.
-///
-/// A junction is a node that appears in 3 or more ways (roads meeting at a point).
-/// These make natural location nodes in the world graph.
-pub fn extract_crossroads(road_response: &OverpassResponse) -> Vec<GeoFeature> {
-    let mut node_ways: HashMap<i64, HashSet<i64>> = HashMap::new();
-    let mut node_coords: HashMap<i64, (f64, f64)> = HashMap::new();
-
-    for element in &road_response.elements {
-        if element.element_type != "way" {
-            continue;
-        }
-
-        // Count unique ways each node belongs to (deduplicate repeated nodes within one way)
-        if let Some(ref geometry) = element.geometry {
-            if let Some(ref nodes) = element.nodes {
-                let mut seen = HashSet::new();
-                for (i, point) in geometry.iter().enumerate() {
-                    if i < nodes.len() && seen.insert(nodes[i]) {
-                        node_ways.entry(nodes[i]).or_default().insert(element.id);
-                        node_coords.insert(nodes[i], (point.lat, point.lon));
-                    }
-                }
-            }
-        } else if let Some(ref nodes) = element.nodes {
-            let unique_nodes: HashSet<i64> = nodes.iter().copied().collect();
-            for node_id in unique_nodes {
-                node_ways.entry(node_id).or_default().insert(element.id);
-            }
-        }
-    }
-
-    // Nodes belonging to 3+ unique ways are junctions
-    let mut crossroads = Vec::new();
-    for (node_id, ways) in &node_ways {
-        if ways.len() >= 3 {
-            if let Some(&(lat, lon)) = node_coords.get(node_id) {
-                crossroads.push(GeoFeature {
-                    osm_id: *node_id,
-                    osm_type: "node".to_string(),
-                    lat,
-                    lon,
-                    name: "A Crossroads".to_string(),
-                    name_ga: None,
-                    location_type: LocationType::Crossroads,
-                    tags: HashMap::new(),
-                    curated: false,
-                });
-            } else {
-                warn!("junction node {node_id} has no coordinates — skipping");
-            }
-        }
-    }
-
-    // Deduplicate crossroads within 50m of each other
-    deduplicate_by_proximity(&mut crossroads, 50.0);
-
-    crossroads
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::osm_model::{LatLon, OsmElement};
+    use std::collections::HashMap;
 
     fn make_element(tags: Vec<(&str, &str)>) -> OsmElement {
         let mut tag_map = HashMap::new();

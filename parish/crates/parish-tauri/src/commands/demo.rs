@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::AppState;
-use parish_core::inference::GenerateParams;
+use parish_core::inference::{AnyClient, GenerateParams};
 
 // Demo payload types and the prompt-builder live in `parish-core::ipc::demo`
 // so the builder can be constrained to GUI-facing inputs only (issue #998).
@@ -484,30 +484,9 @@ pub async fn get_llm_player_action(
         "demo turn: prompt built"
     );
 
-    // #1207 #32: freeze the world clock while the auto-player "thinks", exactly
-    // as NPC turns do (`clock.inference_pause()`). The 36x demo speed-factor
-    // otherwise advances game-time at real-time × 36 during the multi-second
-    // player-decision inference, so a standing conversation burned game-hours
-    // and movement time looked wildly inconsistent — the audit's "15 minutes on
-    // foot" walk appeared to consume ~5 game-hours of clock. Resume right after
-    // the call (before any `?`) so an inference error can't leave the clock
-    // stuck paused. Player-decision and NPC inference run sequentially in the
-    // demo loop, so this never overlaps the NPC-turn pause.
-    state.world.lock().await.clock.inference_pause();
-    let gen_result = client
-        .generate(
-            &model,
-            &user_prompt,
-            Some(&system_prompt),
-            GenerateParams {
-                max_tokens: Some(200),
-                temperature: Some(0.9),
-                frequency_penalty: None,
-            },
-        )
-        .await;
-    state.world.lock().await.clock.inference_resume();
-    let raw = gen_result.map_err(|e| e.to_string())?;
+    let raw =
+        generate_player_action_paused(&client, &model, &user_prompt, &system_prompt, 0.9, &state)
+            .await?;
 
     // Primary: extract the "action" field from JSON output.
     // The system prompt asks for {"action": "..."}, which is robust against
@@ -536,21 +515,15 @@ pub async fn get_llm_player_action(
             "demo turn: parsed action empty despite non-empty completion; retrying once"
         );
         // Freeze the clock across the retry inference too (#1207 #32).
-        state.world.lock().await.clock.inference_pause();
-        let retry_result = client
-            .generate(
-                &model,
-                &user_prompt,
-                Some(&system_prompt),
-                GenerateParams {
-                    max_tokens: Some(200),
-                    temperature: Some(1.0),
-                    frequency_penalty: None,
-                },
-            )
-            .await;
-        state.world.lock().await.clock.inference_resume();
-        let retry_raw = retry_result.map_err(|e| e.to_string())?;
+        let retry_raw = generate_player_action_paused(
+            &client,
+            &model,
+            &user_prompt,
+            &system_prompt,
+            1.0,
+            &state,
+        )
+        .await?;
         let retry_action = extract_action_from_response(&retry_raw);
         if !retry_action.is_empty() {
             tracing::info!(
@@ -583,6 +556,43 @@ pub async fn get_llm_player_action(
     }
 
     Ok(action_text)
+}
+
+/// Runs one auto-player generation with the world clock frozen for the
+/// duration of the inference call.
+///
+/// #1207 #32: freeze the world clock while the auto-player "thinks", exactly as
+/// NPC turns do (`clock.inference_pause()`). The 36x demo speed-factor
+/// otherwise advances game-time during the multi-second player-decision
+/// inference, so a standing conversation burned game-hours and movement time
+/// looked wildly inconsistent. The clock is resumed before the error is
+/// propagated so an inference failure can't leave it stuck paused. Extracted
+/// from `get_llm_player_action` (#1200 TD-012) — it deduplicates the primary
+/// and retry call sites, which previously inlined identical pause/generate/
+/// resume blocks.
+async fn generate_player_action_paused(
+    client: &AnyClient,
+    model: &str,
+    user_prompt: &str,
+    system_prompt: &str,
+    temperature: f32,
+    state: &Arc<AppState>,
+) -> Result<String, String> {
+    state.world.lock().await.clock.inference_pause();
+    let gen_result = client
+        .generate(
+            model,
+            user_prompt,
+            Some(system_prompt),
+            GenerateParams {
+                max_tokens: Some(200),
+                temperature: Some(temperature),
+                frequency_penalty: None,
+            },
+        )
+        .await;
+    state.world.lock().await.clock.inference_resume();
+    gen_result.map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
