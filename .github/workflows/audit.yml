@@ -35,9 +35,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Pinned to match rust-quality-gate in ci.yml. Bump deliberately.
+      # Channel from rust-toolchain.toml (same as ci.yml). Caching stays in the
+      # Swatinem step below.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          cache: false
 
       # Caches ~/.cargo/bin so cargo-audit does not recompile each run.
       # cache-targets: false — there is no workspace target/ to preserve.

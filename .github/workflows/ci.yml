@@ -118,13 +118,14 @@ jobs:
         with:
           clean: true
 
-      # Pinned to 1.95.0 so a new stable Rust release does not silently
-      # break PRs via newly-activated clippy lints. Bump deliberately in
-      # a dedicated PR alongside any lint fixes the new version surfaces.
+      # Toolchain channel comes from rust-toolchain.toml. Dependabot opens a
+      # dedicated PR when a new stable releases; CI runs on it here so any
+      # newly-activated clippy lints surface in that isolated PR, never on an
+      # unrelated one. rustfmt + clippy are declared in the toml.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
-          components: rustfmt, clippy
+          cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -218,11 +219,12 @@ jobs:
         with:
           clean: true
 
-      # Keep the coverage job on the same pinned toolchain as rust-quality-gate
-      # so coverage drift is from tests/code, not a surprise compiler update.
+      # Same toolchain as the rest of CI (rust-toolchain.toml) so coverage drift
+      # is from tests/code, not a surprise compiler update. Adds llvm-tools-preview.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
+          cache: false
           components: llvm-tools-preview
 
       # Distinct cache prefix: coverage instrumentation bakes -Cinstrument-coverage
@@ -267,6 +269,10 @@ jobs:
     if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # rust-toolchain.toml would otherwise pin every cargo command to the repo
+    # channel; override so this job actually exercises stable/beta.
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
     strategy:
       fail-fast: false
       matrix:
@@ -444,7 +450,9 @@ jobs:
           clean: true
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -495,7 +503,9 @@ jobs:
           clean: true
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -590,7 +600,9 @@ jobs:
           cache-dependency-path: parish/apps/ui/package-lock.json
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2

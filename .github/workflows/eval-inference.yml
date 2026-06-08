@@ -25,6 +25,10 @@ jobs:
     name: Build parish
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # rust-toolchain.toml would pin this to the repo channel; this job tracks
+    # @stable on purpose, so override the file.
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v4
 
