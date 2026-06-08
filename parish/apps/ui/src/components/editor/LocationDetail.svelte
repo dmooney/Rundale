@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import maplibregl from 'maplibre-gl';
 	import {
 		editorSelectedLocation,
 		editorLocations,
@@ -12,25 +11,11 @@
 	} from '../../stores/editor';
 	import { editorUpdateLocations, editorSave } from '$lib/editor-ipc';
 	import type { GeoKind, LocationData } from '$lib/editor-types';
-	import {
-		applyDraggedCoordinates,
-		buildEditorMapData,
-		getEditorMapCenter,
-		normalizeLocationCaches,
-		offsetLatLon
-	} from '$lib/editor-map';
-	import { getUiConfig } from '$lib/ipc';
-	import { buildStyle, readThemeColors } from '$lib/map/style';
-	import type { TileSource } from '$lib/types';
+	import { normalizeLocationCaches, offsetLatLon } from '$lib/editor-map';
+	import { EditorLocationMap } from '$lib/editor/location-map';
 
 	let mapContainer: HTMLDivElement | undefined = $state(undefined);
-	let map: maplibregl.Map | null = null;
-	let mapLoaded = false;
-	let mapInitializing = false;
 	let componentDisposed = false;
-	let dragTargetId: number | null = null;
-	let dragMoved = false;
-	let dragMouseupHandler: (() => void) | null = null;
 
 	const loc = $derived($editorSelectedLocation);
 	const locations = $derived($editorLocations);
@@ -160,202 +145,23 @@
 		}
 	}
 
-	// Track the last selection + coords we animated to, so updates that
-	// don't actually move the camera skip the easeTo animation (#410).
-	// Without this, every keystroke in a text field would dispatch a full
-	// camera pan — persistLocations swaps a new `locations` array into
-	// the store, re-firing the reactive statement below even when the map
-	// center hasn't moved. We key on (selectedId, lat, lon) tuple so that
-	// coordinate-changing actions (drag release, nudge, lat/lon field
-	// edits) *do* recenter — per codex P1 on #559.
-	let lastAnimatedSelectedId: number | null = null;
-	let lastAnimatedLat: number | null = null;
-	let lastAnimatedLon: number | null = null;
-
-	function setMapData(nextLocations: LocationData[], nextSelectedId: number | null, preview?: { id: number; lat: number; lon: number }) {
-		if (!map || !mapLoaded) return;
-		const { features, edgeFeatures } = buildEditorMapData(nextLocations, nextSelectedId, preview);
-		(map.getSource('editor-locations') as maplibregl.GeoJSONSource)?.setData({
-			type: 'FeatureCollection',
-			features
-		});
-		(map.getSource('editor-edges') as maplibregl.GeoJSONSource)?.setData({
-			type: 'FeatureCollection',
-			features: edgeFeatures
-		});
-		const center = getEditorMapCenter(features, nextSelectedId, preview);
-		if (!center) return;
-		const [lon, lat] = center;
-		// Animate only when something that affects the camera position
-		// actually changes: the selection, or the selected marker's
-		// coordinates. Unrelated field edits that bumped the locations
-		// array must not cause camera jitter. Preview frames (drag in
-		// progress) always animate so the camera tracks the cursor.
-		const selectionChanged = nextSelectedId !== lastAnimatedSelectedId;
-		const coordsChanged = lat !== lastAnimatedLat || lon !== lastAnimatedLon;
-		if (!preview && !selectionChanged && !coordsChanged) return;
-		map.easeTo({ center: [lon, lat], duration: 250 });
-		if (!preview) {
-			// Preview frames stream continuously during a drag; don't mark
-			// the selection as "animated" from them or we'd suppress the
-			// final settle-on-release animation.
-			lastAnimatedSelectedId = nextSelectedId;
-			lastAnimatedLat = lat;
-			lastAnimatedLon = lon;
-		}
-	}
-
-	function destroyMap() {
-		mapLoaded = false;
-		if (dragMouseupHandler) {
-			window.removeEventListener('mouseup', dragMouseupHandler);
-			dragMouseupHandler = null;
-		}
-		map?.remove();
-		map = null;
-		// Reset animation memo so a later remount (deselect → reselect
-		// the same item, or component re-mount) still animates the first
-		// setMapData call — codex P2 on #559.
-		lastAnimatedSelectedId = null;
-		lastAnimatedLat = null;
-		lastAnimatedLon = null;
-	}
-
-	function readLocationId(event: { features?: Array<{ properties?: { id?: number | string } }> }): number | null {
-		const rawId = event.features?.[0]?.properties?.id;
-		const id = typeof rawId === 'number' ? rawId : Number(rawId);
-		return Number.isNaN(id) ? null : id;
-	}
-
-	async function ensureMap() {
-		if (!mapContainer || map || mapInitializing || componentDisposed) return;
-		mapInitializing = true;
-
-		let initialTile: TileSource | undefined;
-		try {
-			const cfg = await getUiConfig();
-			initialTile =
-				cfg.tile_sources.find((t) => t.id === cfg.active_tile_source) ?? cfg.tile_sources[0];
-		} catch {
-			initialTile = undefined;
-		}
-
-		if (!mapContainer || map || componentDisposed) {
-			mapInitializing = false;
-			return;
-		}
-
-		const nextMap = new maplibregl.Map({
-			container: mapContainer,
-			style: buildStyle('full', readThemeColors(), initialTile),
-			center: [-8.0, 53.5],
-			zoom: 12,
-			boxZoom: false
-		});
-		map = nextMap;
-		nextMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-		nextMap.on('load', () => {
-			if (map !== nextMap || componentDisposed) return;
-			mapLoaded = true;
-			const canvas = nextMap.getCanvas();
-			nextMap.addSource('editor-locations', {
-				type: 'geojson',
-				data: { type: 'FeatureCollection', features: [] }
-			});
-			nextMap.addSource('editor-edges', {
-				type: 'geojson',
-				data: { type: 'FeatureCollection', features: [] }
-			});
-			const { mapEdge, mapSelected, mapRelative, mapStroke } = readThemeColors();
-			nextMap.addLayer({
-				id: 'editor-edges',
-				type: 'line',
-				source: 'editor-edges',
-				paint: { 'line-color': mapEdge, 'line-width': 2, 'line-opacity': 0.85 }
-			});
-			nextMap.addLayer({
-				id: 'editor-locations',
-				type: 'circle',
-				source: 'editor-locations',
-				paint: {
-					'circle-radius': ['case', ['==', ['get', 'selected'], 1], 8, 5],
-					'circle-color': [
-						'case',
-						['==', ['get', 'selected'], 1], mapSelected,
-						['==', ['get', 'relative'], 1], mapRelative,
-						mapEdge
-					],
-					'circle-stroke-width': 1.2,
-					'circle-stroke-color': mapStroke
-				}
-			});
-			nextMap.on('click', 'editor-locations', async (event) => {
-				const id = readLocationId(event);
-				if (id === null) return;
-				if (selectedId !== null && selectedId !== id && (event.originalEvent as MouseEvent).shiftKey) {
-					await toggleConnection(id);
-					return;
-				}
-				editorSelectedLocationId.set(id);
-			});
-			nextMap.on('mouseenter', 'editor-locations', () => {
-				canvas.style.cursor = 'pointer';
-			});
-			nextMap.on('mouseleave', 'editor-locations', () => {
-				canvas.style.cursor = '';
-			});
-			setMapData(locations, selectedId);
-		});
-
-		let dragging = false;
-		let dragLat = 0;
-		let dragLon = 0;
-		nextMap.on('mousedown', 'editor-locations', (event) => {
-			const id = readLocationId(event);
-			if (id === null || id !== selectedId || !loc) return;
-			if ((event.originalEvent as MouseEvent).shiftKey) return;
-			dragging = true;
-			dragTargetId = id;
-			dragMoved = false;
-			dragLat = loc.lat;
-			dragLon = loc.lon;
-			nextMap.dragPan.disable();
-		});
-		nextMap.on('mousemove', (event) => {
-			// Use dragTargetId (set at mousedown) as the authoritative drag ID.
-			// Do NOT use loc.id here: the reactive `loc` may have changed to a
-			// different location if the user also triggered a click-selection
-			// while the drag was in progress (race #408).
-			if (!dragging || dragTargetId === null) return;
-			dragLat = event.lngLat.lat;
-			dragLon = event.lngLat.lng;
-			dragMoved = true;
-			setMapData(locations, selectedId, { id: dragTargetId, lat: dragLat, lon: dragLon });
-		});
-		// Listen on window so releasing outside the map canvas still ends the drag.
-		dragMouseupHandler = async () => {
-			if (!dragging) return;
-			// Capture dragTargetId before clearing it so the async update
-			// targets the correct location even if `loc` has since changed.
-			const targetId = dragTargetId;
-			if (dragMoved && targetId !== null) {
-				await updateLocationById(targetId, (current) =>
-					applyDraggedCoordinates(current, locations, dragLat, dragLon)
-				);
-			}
-			dragging = false;
-			dragTargetId = null;
-			dragMoved = false;
-			nextMap.dragPan.enable();
-		};
-		window.addEventListener('mouseup', dragMouseupHandler);
-		mapInitializing = false;
-	}
+	// MapLibre instance lifecycle + marker-drag handlers live in the
+	// EditorLocationMap controller (#1200 TD-043); the component supplies
+	// reactive state + actions through its hooks.
+	const locationMap = new EditorLocationMap({
+		getLocations: () => locations,
+		getSelectedId: () => selectedId,
+		getSelectedLocation: () => loc ?? null,
+		isDisposed: () => componentDisposed,
+		onSelect: (id) => editorSelectedLocationId.set(id),
+		toggleConnection: (targetId) => toggleConnection(targetId),
+		updateLocationById: (id, mutator) => updateLocationById(id, mutator)
+	});
 
 	onMount(() => {
 		return () => {
 			componentDisposed = true;
-			destroyMap();
+			locationMap.destroy();
 		};
 	});
 
@@ -370,11 +176,11 @@
 	// Also update map data when locations or selection changes.
 	$effect(() => {
 		if (loc && mapContainer) {
-			if (!map) void ensureMap();
-		} else if (map) {
-			destroyMap();
+			if (!locationMap.exists) void locationMap.ensure(mapContainer);
+		} else if (locationMap.exists) {
+			locationMap.destroy();
 		}
-		setMapData(locations, selectedId);
+		locationMap.setMapData(locations, selectedId);
 	});
 </script>
 
