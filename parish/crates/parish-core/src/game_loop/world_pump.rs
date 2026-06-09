@@ -478,7 +478,7 @@ mod tests {
         // harness stays deterministic (this is the harness per-turn config).
         use crate::world::WorldState;
         use rand::rngs::StdRng;
-        use rand::{RngCore, SeedableRng};
+        use rand::{Rng, SeedableRng};
 
         let mut world = WorldState::new();
         let mut npc = NpcManager::new();

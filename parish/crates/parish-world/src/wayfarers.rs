@@ -6,7 +6,7 @@
 
 use parish_types::{LocationId, TimeOfDay};
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 
 use crate::Weather;
 use crate::time::Season;

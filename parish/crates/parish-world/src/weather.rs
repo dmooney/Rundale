@@ -5,7 +5,7 @@
 //! Minimum 2 game-hours between transitions to prevent rapid flipping.
 
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use parish_types::{Season, Weather};
 
