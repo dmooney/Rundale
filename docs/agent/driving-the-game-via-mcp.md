@@ -5,6 +5,11 @@ notes — read before automating gameplay. Companion to
 [`parish-mcp/README.md`](../../parish/crates/parish-mcp/README.md) and
 [`parish-tauri/src/mcp_bridge.rs`](../../parish/crates/parish-tauri/src/mcp_bridge.rs).
 
+**To run a full critical playtest, invoke the `/quality-harness` skill**
+([`.agents/skills/quality-harness/SKILL.md`](../../.agents/skills/quality-harness/SKILL.md)) —
+it encodes this procedure step-by-step (preflight → `/pause` time control → in-character turn
+loop → anchored critical judge → file findings). This doc is its reference manual.
+
 ## Golden rules
 
 - **Drive the Tauri desktop app via the parish MCP (`mcp__parish__*`).** Never the headless
