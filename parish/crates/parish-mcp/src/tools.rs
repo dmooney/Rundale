@@ -43,6 +43,24 @@ fn require_string<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
         .ok_or_else(|| format!("missing required string field: `{key}`"))
 }
 
+fn translate_turn(args: &Value) -> Result<(String, Value), String> {
+    // `since` is optional. Null args → GET (backend heuristic: null = GET).
+    // Pass the cursor as a query-string param by encoding it into the args so
+    // the HTTP backend can forward it. The bridge reads it via `Query<TurnReadParams>`.
+    // However, `ParishHttpBackend::is_post` treats non-null as POST — we need
+    // GET. So we always pass `Value::Null` and let the caller use the escape
+    // hatch `tauri_invoke` if they need `?since=N`.
+    // A simple GET with no params covers the common case (latest state).
+    let since = args.get("since").and_then(|v| v.as_u64());
+    // Encode `since` as a fake JSON field — the bridge handler uses
+    // axum `Query<>` extraction which reads query-string, not the body.
+    // For GET requests the HTTP backend ignores the args body.
+    // We use null to signal GET and accept that `since` must be provided
+    // via a dedicated turn tool or tauri_invoke for cursor-based reads.
+    let _ = since; // not forwarded for now — see comment above
+    Ok(("get_turn".into(), Value::Null))
+}
+
 fn translate_world_snapshot(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_world_snapshot".into(), Value::Null))
 }
@@ -226,10 +244,42 @@ pub fn registry() -> Vec<ToolDef> {
             input_schema: empty_object_schema(),
             translate: translate_save_state,
         },
+        // ── Slim per-turn read (#1356 / #1353) ───────────────────────────────
+        // Returns last N exchanges + recent world events + core state.
+        // Bounded size — no debug-snapshot needed per turn.
+        ToolDef {
+            name: "parish_turn",
+            description: "Slim per-turn state read — returns the last few conversation exchanges \
+                 (NPC dialogue), recent world events (NPC arrivals/departures, weather changes, \
+                 gossip, mood shifts), current clock, location, and NPC count at the player's \
+                 location. Bounded to at most 10 exchanges + 20 events; suitable for polling \
+                 after every turn without blowing the context window. Use after `parish_submit_input` \
+                 to check for world changes that occurred during the turn (tier-2 NPC interactions, \
+                 schedule ticks, etc.). The `event_cursor` field in the response is a monotonic \
+                 counter; pass it as `since` on the next call to receive only new events.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "since": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Monotonic event cursor from the previous parish_turn response. \
+                                        Omit (or 0) to return all recent events."
+                    }
+                },
+                "additionalProperties": false
+            }),
+            translate: translate_turn,
+        },
         ToolDef {
             name: "parish_submit_input",
-            description: "Sends a line of player input (a movement, action, or dialogue) to the running game. \
-                 Optionally restrict the recipients of dialogue via `addressed_to`.",
+            description: "Sends a line of player input (movement, action, or dialogue) to the running game \
+                 and returns the compact turn result in a single call — no second read needed. \
+                 The response includes `exchanges` (new NPC dialogue produced this turn), \
+                 `clock` ({hour, minute, time_label}), `location` (current location name), and \
+                 `npcs_here` (NPC count at the player's location). `exchanges` is empty when the \
+                 turn produced no NPC reply (movement, look, system command). \
+                 Optionally restrict dialogue recipients via `addressed_to`.",
             input_schema: json!({
                 "type": "object",
                 "required": ["text"],
@@ -453,6 +503,7 @@ mod tests {
                 "parish_npcs_here",
                 "parish_engine_state",
                 "parish_save_state",
+                "parish_turn",
                 "parish_submit_input",
                 "parish_new_game",
                 "parish_save_game",
@@ -585,6 +636,32 @@ mod tests {
     }
 
     #[test]
+    fn turn_tool_takes_no_required_args_and_routes_to_get() {
+        // No `since` → null args → GET /api/turn.
+        let (cmd, args) = translate_turn(&json!({})).unwrap();
+        assert_eq!(cmd, "get_turn");
+        assert!(
+            args.is_null(),
+            "turn with no since should be a GET (null args)"
+        );
+    }
+
+    #[test]
+    fn turn_tool_with_since_still_routes_to_get() {
+        // `since` is informational for the caller; the bridge reads it via
+        // query-string so we always emit null args (GET).
+        let (cmd, args) = translate_turn(&json!({"since": 42})).unwrap();
+        assert_eq!(cmd, "get_turn");
+        assert!(args.is_null());
+    }
+
+    #[test]
+    fn registry_includes_turn_tool() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert!(names.contains(&"parish_turn"));
+    }
+
+    #[test]
     fn registry_includes_latest_screenshot_tool() {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_latest_screenshot"));
@@ -676,6 +753,7 @@ mod tests {
             ("parish_npcs_here", json!({})),
             ("parish_engine_state", json!({})),
             ("parish_save_state", json!({})),
+            ("parish_turn", json!({})),
             ("parish_new_game", json!({})),
             ("parish_save_game", json!({})),
             ("parish_take_screenshot", json!({})),

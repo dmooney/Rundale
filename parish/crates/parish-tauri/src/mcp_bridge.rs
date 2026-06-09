@@ -22,12 +22,13 @@
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
+use chrono::Timelike;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::ScreenshotInfo;
@@ -85,6 +86,10 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/save-state", get(save_state))
         .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
+        // `/api/turn` — slim per-turn read (#1356 / #1353). Returns last N
+        // exchanges + recent world events + core state. Bounded size; accepts
+        // an optional `?since=<cursor>` to stream only new events.
+        .route("/api/turn", get(turn_read))
         // `/api/debug-snapshot` — same introspection blob `parish-server`
         // exposes. The bridge previously omitted it, so a desktop-launched
         // MCP session got a 404 where the web server returned data (#1207 #16).
@@ -222,7 +227,90 @@ async fn engine_state(
     )))
 }
 
-#[derive(serde::Serialize)]
+// ── Shared response types ────────────────────────────────────────────────────
+
+/// A single conversation exchange (player + NPC) returned by
+/// `submit_input` and `GET /api/turn` (#1356 / #1353).
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct TurnExchange {
+    /// What the player said.
+    pub player_input: String,
+    /// What the NPC replied.
+    pub npc_dialogue: String,
+    /// Display name of the NPC who replied.
+    pub speaker_name: String,
+    /// Location name where the exchange happened.
+    pub location: String,
+}
+
+/// Compact game-clock snapshot included in per-turn responses.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct TurnClock {
+    /// Current game hour (0–23).
+    pub hour: u8,
+    /// Current game minute (0–59).
+    pub minute: u8,
+    /// Human-readable time label (e.g. "Morning").
+    pub time_label: String,
+}
+
+/// The compact response body returned by `POST /api/submit-input` (#1353).
+///
+/// Carries only the delta produced by this turn so the MCP agent never needs
+/// a second round-trip to read the NPC reply.
+#[derive(Debug, Serialize)]
+pub(crate) struct SubmitInputResult {
+    /// New conversation exchange(s) added by this turn. Empty if the turn
+    /// produced no NPC dialogue (movement, look, system command, etc.).
+    pub exchanges: Vec<TurnExchange>,
+    /// Clock state after the turn completes.
+    pub clock: TurnClock,
+    /// Player location name after the turn.
+    pub location: String,
+    /// Number of NPCs at the player's location after the turn.
+    pub npcs_here: usize,
+}
+
+/// A summarised world event for `GET /api/turn` (#1356).
+#[derive(Debug, Serialize)]
+pub(crate) struct TurnEvent {
+    /// Event discriminant (e.g. "NpcArrived", "WeatherChanged").
+    pub kind: String,
+    /// Human-readable summary of the event.
+    pub summary: String,
+}
+
+/// The response body returned by `GET /api/turn` (#1356).
+///
+/// Bounded to at most `TURN_MAX_EXCHANGES` exchanges + `TURN_MAX_EVENTS`
+/// events so the token cost is constant regardless of session length.
+#[derive(Debug, Serialize)]
+pub(crate) struct TurnReadResult {
+    /// Recent conversation exchanges (newest last, capped).
+    pub exchanges: Vec<TurnExchange>,
+    /// Recent world events since `since_cursor`, capped at `TURN_MAX_EVENTS`.
+    pub events: Vec<TurnEvent>,
+    /// Current clock state.
+    pub clock: TurnClock,
+    /// Current player location name.
+    pub location: String,
+    /// Number of NPCs at the player's location.
+    pub npcs_here: usize,
+    /// Monotonic cursor for the next `?since=` call. Equals the total number
+    /// of game events accumulated in `AppState::game_events` at the time this
+    /// response was built. Pass this value as `?since=<cursor>` on the next
+    /// call to receive only events that arrived after this snapshot.
+    pub event_cursor: usize,
+}
+
+/// Maximum conversation exchanges returned by `GET /api/turn`.
+const TURN_MAX_EXCHANGES: usize = 10;
+/// Maximum world events returned by `GET /api/turn` (per call).
+const TURN_MAX_EVENTS: usize = 20;
+
+// ── Transcript (kept for Tauri UI compatibility) ─────────────────────────────
+
+#[derive(Serialize)]
 struct TranscriptLine {
     speaker: String,
     text: String,
@@ -239,6 +327,156 @@ async fn transcript(State(b): State<BridgeState>) -> Json<Vec<TranscriptLine>> {
         })
         .collect();
     Json(lines)
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Builds a [`TurnClock`] from the live world state without holding the lock.
+async fn read_turn_clock(state: &Arc<AppState>) -> TurnClock {
+    let world = state.world.lock().await;
+    let now = world.clock.now();
+    TurnClock {
+        hour: now.hour() as u8,
+        minute: now.minute() as u8,
+        time_label: world.clock.time_of_day().to_string(),
+    }
+}
+
+/// Reads the current location name and NPC-here count from the live world.
+async fn read_location_and_npcs(state: &Arc<AppState>) -> (String, usize) {
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let location_name = world.current_location().name.clone();
+    let npcs_here = npc_manager.npcs_at(world.player_location).len();
+    (location_name, npcs_here)
+}
+
+/// Converts the `game_events` ring buffer to summarised [`TurnEvent`]s.
+///
+/// Returns a slice starting at `since_cursor` (by ring-buffer position),
+/// capped at [`TURN_MAX_EVENTS`]. Also returns the new cursor value.
+async fn read_events_since(state: &Arc<AppState>, since_cursor: usize) -> (Vec<TurnEvent>, usize) {
+    let events = state.game_events.lock().await;
+    let total = events.len();
+    // `since_cursor` is the total count at last read. Events with index >=
+    // since_cursor in the ring buffer are "new".  Since game_events is a
+    // VecDeque that pops from the front when full (see setup), the oldest
+    // entry's logical index can be below `since_cursor` if the deque wrapped.
+    // We use a simple strategy: skip entries the caller has already seen
+    // (total - len is how many have been evicted), then take up to MAX.
+    let evicted = total.saturating_sub(events.len());
+    let start = since_cursor.saturating_sub(evicted);
+    let new_entries: Vec<TurnEvent> = events
+        .iter()
+        .skip(start)
+        .take(TURN_MAX_EVENTS)
+        .map(|e| TurnEvent {
+            kind: e.event_type().to_string(),
+            summary: summarise_game_event(e),
+        })
+        .collect();
+    let new_cursor = total;
+    (new_entries, new_cursor)
+}
+
+/// Builds a one-line human-readable summary for a [`GameEvent`].
+fn summarise_game_event(event: &parish_core::world::events::GameEvent) -> String {
+    use parish_core::world::events::GameEvent;
+    match event {
+        GameEvent::DialogueOccurred { summary, .. } => summary.clone(),
+        GameEvent::MoodChanged {
+            npc_id, new_mood, ..
+        } => {
+            format!("NPC #{} mood → {new_mood}", npc_id.0)
+        }
+        GameEvent::RelationshipChanged {
+            npc_a,
+            npc_b,
+            delta,
+            ..
+        } => {
+            format!("Relationship #{}/{} Δ{delta:+.2}", npc_a.0, npc_b.0)
+        }
+        GameEvent::NpcArrived {
+            npc_id, location, ..
+        } => {
+            format!("NPC #{} arrived at loc #{}", npc_id.0, location.0)
+        }
+        GameEvent::NpcDeparted {
+            npc_id,
+            location,
+            to,
+            ..
+        } => {
+            format!("NPC #{} departed loc #{} → #{}", npc_id.0, location.0, to.0)
+        }
+        GameEvent::NpcActivity {
+            npc_id, activity, ..
+        } => {
+            format!("NPC #{}: {activity}", npc_id.0)
+        }
+        GameEvent::GossipSpread { content, .. } => {
+            format!("Gossip: {content}")
+        }
+        GameEvent::AddressedAbsentNpc { name, .. } => {
+            format!("{name} not present")
+        }
+        GameEvent::WeatherChanged { new_weather, .. } => {
+            format!("Weather → {new_weather}")
+        }
+        GameEvent::FestivalStarted { name, .. } => {
+            format!("Festival: {name}")
+        }
+        GameEvent::PlayerMoved { from, to, .. } => {
+            format!("Player moved loc #{} → #{}", from.0, to.0)
+        }
+        GameEvent::LifeEvent {
+            npc_id,
+            description,
+            ..
+        } => {
+            format!("NPC #{}: {description}", npc_id.0)
+        }
+        GameEvent::NpcInteraction { summary, .. } => summary.clone(),
+    }
+}
+
+/// Builds the `exchanges` delta from the conversation transcript.
+///
+/// Reads `transcript` (length up to 12) and returns only the entries that
+/// were added after `len_before`. The location field comes from
+/// `ConversationRuntimeState::location` (converted via the world graph).
+async fn read_transcript_delta(
+    state: &Arc<AppState>,
+    len_before: usize,
+    player_input: &str,
+) -> Vec<TurnExchange> {
+    let conv = state.conversation.lock().await;
+    let world = state.world.lock().await;
+    let transcript = &conv.transcript;
+    let len_after = transcript.len();
+    if len_after <= len_before {
+        return Vec::new();
+    }
+    // The transcript is a ring buffer capped at 12. Determine the location
+    // name from the world at current player position.
+    let location_name = world.current_location().name.clone();
+    // Entries that appear after len_before in the ring buffer. Because the
+    // ring buffer may have wrapped, we take from the tail.
+    let new_count = len_after - len_before;
+    transcript
+        .iter()
+        .rev()
+        .take(new_count)
+        .rev()
+        .filter(|l| l.speaker != "player")
+        .map(|l| TurnExchange {
+            player_input: player_input.to_string(),
+            npc_dialogue: l.text.clone(),
+            speaker_name: l.speaker.clone(),
+            location: location_name.clone(),
+        })
+        .collect()
 }
 
 async fn save_state(State(b): State<BridgeState>) -> Json<SaveState> {
@@ -273,14 +511,97 @@ struct SubmitInputBody {
     addressed_to: Vec<String>,
 }
 
+/// `POST /api/submit-input` — bridge handler.
+///
+/// Keeps `do_submit_input` signature unchanged (the Tauri UI command still
+/// returns `Result<(), String>`). The bridge wrapper reads the transcript
+/// length before and after the call to extract the delta, then assembles a
+/// compact JSON body so the MCP agent never needs a second round-trip to
+/// read the NPC reply (#1353 / #1356).
 async fn submit_input(
     State(b): State<BridgeState>,
     Json(body): Json<SubmitInputBody>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<SubmitInputResult>, AppError> {
+    let text = body.text.clone();
+
+    // Snapshot the transcript length before the turn so we can diff after.
+    let len_before = {
+        let conv = b.state.conversation.lock().await;
+        conv.transcript.len()
+    };
+
     crate::commands::do_submit_input(&b.state, &b.app, body.text, body.addressed_to)
         .await
         .map_err(AppError::from)?;
-    Ok(StatusCode::OK)
+
+    let exchanges = read_transcript_delta(&b.state, len_before, &text).await;
+    let clock = read_turn_clock(&b.state).await;
+    let (location, npcs_here) = read_location_and_npcs(&b.state).await;
+
+    Ok(Json(SubmitInputResult {
+        exchanges,
+        clock,
+        location,
+        npcs_here,
+    }))
+}
+
+/// `GET /api/turn?since=<cursor>` — slim per-turn read (#1356).
+///
+/// Returns last [`TURN_MAX_EXCHANGES`] exchanges + up to [`TURN_MAX_EVENTS`]
+/// world events since `since` cursor + core state. Bounded size; does not
+/// require `get_debug_snapshot`.
+async fn turn_read(
+    State(b): State<BridgeState>,
+    Query(params): Query<TurnReadParams>,
+) -> Result<Json<TurnReadResult>, AppError> {
+    let since_cursor = params.since.unwrap_or(0);
+
+    let (events, event_cursor) = read_events_since(&b.state, since_cursor).await;
+    let clock = read_turn_clock(&b.state).await;
+    let (location, npcs_here) = read_location_and_npcs(&b.state).await;
+
+    // Read last N exchanges from the conversation transcript.
+    let exchanges: Vec<TurnExchange> = {
+        let conv = b.state.conversation.lock().await;
+        let world = b.state.world.lock().await;
+        let location_name = world.current_location().name.clone();
+        // Pair transcript lines: player line followed by NPC line(s). Walk in
+        // reverse pairs to find the exchanges. The transcript stores speaker +
+        // text lines; we look for NPC (non-"player") lines and pair with the
+        // most recent player input from ConversationRuntimeState.
+        let last_player = conv.last_player_input.clone().unwrap_or_default();
+        let entries: Vec<TurnExchange> = conv
+            .transcript
+            .iter()
+            .rev()
+            .take(TURN_MAX_EXCHANGES * 2)
+            .filter(|l| l.speaker != "player")
+            .map(|l| TurnExchange {
+                player_input: last_player.clone(),
+                npc_dialogue: l.text.clone(),
+                speaker_name: l.speaker.clone(),
+                location: location_name.clone(),
+            })
+            .take(TURN_MAX_EXCHANGES)
+            .collect();
+        // Re-reverse so newest is last.
+        entries.into_iter().rev().collect()
+    };
+
+    Ok(Json(TurnReadResult {
+        exchanges,
+        events,
+        clock,
+        location,
+        npcs_here,
+        event_cursor,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct TurnReadParams {
+    since: Option<usize>,
 }
 
 async fn new_game(State(b): State<BridgeState>) -> Result<StatusCode, AppError> {
@@ -788,6 +1109,8 @@ mod tests {
             "/api/new-game",
             "/api/save-game",
             "/api/load-branch",
+            // Slim per-turn read (#1356 / #1353).
+            "/api/turn",
             // Screenshot routes.
             "/api/latest-screenshot",
             "/api/take-screenshot",
@@ -824,6 +1147,7 @@ mod tests {
             "new_game",
             "save_game",
             "load_branch",
+            "get_turn",
             "get_latest_screenshot",
             "take_screenshot",
             "submit_bug_report",
@@ -836,5 +1160,145 @@ mod tests {
                 "parish-mcp would route {cmd} to {path} but the bridge router does not expose it",
             );
         }
+    }
+
+    // ── submit_input response shape tests (#1353 / #1356) ───────────────────
+
+    /// `read_transcript_delta` returns empty when no new entries were added.
+    #[tokio::test]
+    async fn submit_input_result_empty_exchanges_when_no_npc_reply() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        // Transcript starts empty; delta from len_before=0 to len_after=0 is
+        // still empty.
+        let delta = read_transcript_delta(&state, 0, "look").await;
+        assert!(
+            delta.is_empty(),
+            "expected no exchanges when transcript is unchanged"
+        );
+    }
+
+    /// `read_transcript_delta` returns only entries added after len_before.
+    #[tokio::test]
+    async fn submit_input_result_carries_new_exchange() {
+        use parish_core::ipc::ConversationLine;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        // Pre-populate transcript with one line to simulate a prior exchange.
+        {
+            let mut conv = state.conversation.lock().await;
+            conv.push_line(ConversationLine {
+                speaker: "Seán".to_string(),
+                text: "Good evening to ye.".to_string(),
+            });
+        }
+        let len_before = {
+            let conv = state.conversation.lock().await;
+            conv.transcript.len()
+        };
+        // Simulate a new NPC reply appended during this turn.
+        {
+            let mut conv = state.conversation.lock().await;
+            conv.push_line(ConversationLine {
+                speaker: "Mary".to_string(),
+                text: "The weather is fierce today.".to_string(),
+            });
+        }
+
+        let delta = read_transcript_delta(&state, len_before, "hello").await;
+        assert_eq!(delta.len(), 1, "expected exactly one new exchange");
+        assert_eq!(delta[0].speaker_name, "Mary");
+        assert_eq!(delta[0].npc_dialogue, "The weather is fierce today.");
+        assert_eq!(delta[0].player_input, "hello");
+    }
+
+    // ── turn_read helper tests (#1356) ───────────────────────────────────────
+
+    /// `read_events_since` with cursor=0 returns all accumulated events.
+    #[tokio::test]
+    async fn read_events_since_cursor_zero_returns_all() {
+        use chrono::Utc;
+        use parish_core::npc::NpcId;
+        use parish_core::world::LocationId;
+        use parish_core::world::events::GameEvent;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        {
+            let mut events = state.game_events.lock().await;
+            events.push_back(GameEvent::NpcArrived {
+                npc_id: NpcId(1),
+                location: LocationId(1),
+                timestamp: Utc::now(),
+            });
+            events.push_back(GameEvent::WeatherChanged {
+                new_weather: "Rain".to_string(),
+                timestamp: Utc::now(),
+            });
+        }
+
+        let (events, cursor) = read_events_since(&state, 0).await;
+        assert_eq!(events.len(), 2);
+        assert_eq!(cursor, 2);
+        assert_eq!(events[0].kind, "NpcArrived");
+        assert_eq!(events[1].kind, "WeatherChanged");
+    }
+
+    /// `read_events_since` with `since=total` returns nothing new.
+    #[tokio::test]
+    async fn read_events_since_cursor_at_end_returns_empty() {
+        use chrono::Utc;
+        use parish_core::world::events::GameEvent;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        {
+            let mut events = state.game_events.lock().await;
+            events.push_back(GameEvent::WeatherChanged {
+                new_weather: "Sun".to_string(),
+                timestamp: Utc::now(),
+            });
+        }
+        // Simulate the agent already saw that event.
+        let (_, cursor) = read_events_since(&state, 0).await;
+        let (new_events, new_cursor) = read_events_since(&state, cursor).await;
+        assert!(new_events.is_empty(), "no events since cursor");
+        assert_eq!(new_cursor, cursor, "cursor is stable when nothing new");
+    }
+
+    /// `TurnReadResult` shape: exchanges + events + core state fields present.
+    #[tokio::test]
+    async fn turn_read_result_shape_is_correct() {
+        use parish_core::ipc::ConversationLine;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        // Add an NPC line to the transcript.
+        {
+            let mut conv = state.conversation.lock().await;
+            conv.last_player_input = Some("evening".to_string());
+            conv.push_line(ConversationLine {
+                speaker: "Brigid".to_string(),
+                text: "Ah, grand so.".to_string(),
+            });
+        }
+
+        let clock = read_turn_clock(&state).await;
+        let (location, npcs_here) = read_location_and_npcs(&state).await;
+        let (events, event_cursor) = read_events_since(&state, 0).await;
+
+        // Validate the fields that must always be present.
+        assert!(!location.is_empty(), "location must be non-empty");
+        let _ = npcs_here; // usize, always valid
+        let _ = clock.hour;
+        let _ = clock.minute;
+        assert!(!clock.time_label.is_empty());
+        assert!(event_cursor == 0, "no events added");
+        assert!(events.is_empty());
     }
 }
