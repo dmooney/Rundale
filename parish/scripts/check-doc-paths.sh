@@ -49,10 +49,14 @@ for doc in "${sources[@]}"; do
         # Skip gitignored paths (build outputs like `parish/target/...`):
         # docs may legitimately cite them, but they never exist on a fresh
         # checkout, so existence is not a meaningful sensor for them.
-        # (stderr silenced: check-ignore is fatal-but-harmless on paths that
-        # traverse a symlink, e.g. `.claude/skills/...`; those fall through
-        # to the normal existence check.)
-        git check-ignore -q -- "$path" 2>/dev/null && continue
+        # Query both `path` and `path/`: dir-only ignore patterns (trailing
+        # slash, e.g. `parish/target/`) never match a slashless NONEXISTENT
+        # path, and check-ignore exits 0 if any given path is ignored.
+        # (output silenced instead of -q: --quiet is fatal with more than one
+        # pathspec. stderr too: check-ignore is fatal-but-harmless on paths
+        # that traverse a symlink, e.g. `.claude/skills/...`; those fall
+        # through to the normal existence check.)
+        git check-ignore -- "$path" "$path/" >/dev/null 2>&1 && continue
         # Normalise: drop trailing slash so directory refs match `test -e`.
         path="${path%/}"
 
