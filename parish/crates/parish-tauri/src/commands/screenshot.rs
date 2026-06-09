@@ -310,6 +310,99 @@ fn is_app_window(app_name: &str) -> bool {
     a.contains("parish") || a.contains("rundale")
 }
 
+/// Whether the game clock was player-paused at the moment a capture began.
+///
+/// Used to restore the pause state after window-raise capture (#1355): raising
+/// the window to front can trigger a focus event that, depending on whether
+/// #1357's auto-focus-pause flag is set, might resume the clock. Reading and
+/// restoring the state around the capture is a safe, explicit guard.
+///
+/// Pure — no Tauri or xcap types — so it is exercisable in unit tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerPauseState {
+    /// The clock was player-paused before the capture.
+    Paused,
+    /// The clock was not player-paused before the capture.
+    Running,
+}
+
+/// Reads the current player-pause state from the game clock.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub(crate) async fn read_player_pause_state(state: &Arc<AppState>) -> PlayerPauseState {
+    let world = state.world.lock().await;
+    if world.clock.is_paused() {
+        PlayerPauseState::Paused
+    } else {
+        PlayerPauseState::Running
+    }
+}
+
+/// Restores the player-pause state to what it was before a capture.
+///
+/// Called after the native window-raise capture path has finished so that
+/// the act of foregrounding the window (which may have triggered a focus
+/// event) does not permanently change the clock state. Only player-pause is
+/// touched; inference-pause is independent and left alone.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub(crate) async fn restore_player_pause_state(state: &Arc<AppState>, prior: PlayerPauseState) {
+    let mut world = state.world.lock().await;
+    match prior {
+        PlayerPauseState::Paused => world.clock.pause(),
+        PlayerPauseState::Running => world.clock.resume(),
+    }
+}
+
+/// Raises the Tauri main window to the front and gives it focus so that
+/// `CGWindowListCopyWindowInfo(OptionOnScreenOnly)` can enumerate it for
+/// xcap capture (#1355).
+///
+/// xcap on macOS calls `CGWindowListCopyWindowInfo` with the
+/// `OptionOnScreenOnly` flag, which only lists windows that are composited
+/// by the Window Server — a window on a different Space, behind a full-screen
+/// app, or with the display asleep is not composited and cannot be found.
+/// Calling `unminimize` + `show` + `set_focus` on the Tauri `WebviewWindow`
+/// brings the window back onto the active Space so the subsequent xcap
+/// enumeration succeeds.
+///
+/// Returns `Ok(true)` when the window was found and raised, `Ok(false)` when
+/// it was already focused (no action needed), and `Err` when the window label
+/// `"main"` does not resolve — the caller should fall through to the
+/// html-to-image path or return an immediate error rather than hanging.
+///
+/// Side effect note: raising the window to front may fire a focus event. The
+/// caller is responsible for reading the pause state before this call and
+/// restoring it afterwards via [`restore_player_pause_state`]. When #1357's
+/// focus-auto-pause flag is active this restore is load-bearing; without that
+/// flag it is a no-op double-apply and still safe.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn raise_main_window(app: &tauri::AppHandle) -> Result<bool, String> {
+    use tauri::Manager as _;
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found — cannot raise for capture".to_string())?;
+
+    // If the window is already focused we need no intervention; return early so
+    // we do not disturb the user's window arrangement unnecessarily.
+    if win.is_focused().unwrap_or(false) {
+        return Ok(false);
+    }
+
+    // Unminimize first: a minimised window is not on-screen even after set_focus.
+    if win.is_minimized().unwrap_or(false) {
+        win.unminimize()
+            .map_err(|e| format!("unminimize main window: {e}"))?;
+    }
+
+    // show() restores the window if it was hidden; set_focus() brings it to the
+    // front of the window stack and activates the app. Together they ensure the
+    // Window Server composites the window so xcap can capture it.
+    win.show().map_err(|e| format!("show main window: {e}"))?;
+    win.set_focus()
+        .map_err(|e| format!("focus main window: {e}"))?;
+
+    Ok(true)
+}
+
 /// Captures the Parish/Rundale desktop window as PNG bytes using native OS
 /// screen capture (`xcap`).
 ///
@@ -357,11 +450,65 @@ fn capture_app_window_png() -> Result<Vec<u8>, String> {
 /// Native-capture path: grab the window pixels, write them under
 /// `<saves_dir>/screenshots/`, and update `latest_screenshot_path` so it
 /// behaves identically to the frontend round-trip from the caller's view.
+///
+/// On macOS/Windows, if the native xcap enumeration fails (window not on the
+/// active Space, display asleep, etc.), this path first raises the Tauri main
+/// window to the front via [`raise_main_window`], records the player-pause
+/// state before raising, attempts capture, then restores the pause state so
+/// the window-raise focus event cannot leave the clock in the wrong state
+/// (#1355).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotInfo, String> {
-    let png = tokio::task::spawn_blocking(capture_app_window_png)
+async fn do_take_screenshot_native(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) -> Result<ScreenshotInfo, String> {
+    // First attempt: capture without disturbing the window stack.
+    match tokio::task::spawn_blocking(capture_app_window_png)
         .await
-        .map_err(|e| format!("capture task join: {e}"))??;
+        .map_err(|e| format!("capture task join: {e}"))?
+    {
+        Ok(png) => {
+            // Fast path: window was already composited and captured cleanly.
+            reject_blank_capture(&png)?;
+            let now = chrono::Utc::now();
+            let info = write_screenshot_to_disk(&state.saves_dir, &png, now)?;
+            *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
+            return Ok(info);
+        }
+        Err(first_err) => {
+            tracing::debug!(
+                "native capture attempt 1 failed ({first_err}); \
+                 raising main window and retrying"
+            );
+        }
+    }
+
+    // Second attempt: raise the window to front so CGWindowListCopyWindowInfo
+    // can enumerate it (#1355). Read pause state before raising so we can
+    // restore it if the focus event changes it.
+    let prior_pause = read_player_pause_state(state).await;
+
+    // raise_main_window is a synchronous Tauri call; run it on the async
+    // executor (it does no blocking I/O, just IPC to the window server).
+    raise_main_window(app)?;
+
+    // Brief yield: the Window Server may not finish compositing the window
+    // before the next xcap enumeration if we call it immediately. A short
+    // sleep is preferable to a busy-poll; 120 ms is enough for one display
+    // refresh cycle on a 60 Hz panel without noticeably delaying the capture.
+    tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+
+    let png_result = tokio::task::spawn_blocking(capture_app_window_png)
+        .await
+        .map_err(|e| format!("capture task join: {e}"))?;
+
+    // Restore pause state regardless of whether the capture succeeded or
+    // failed — the window-raise must never leave the clock in a different
+    // state from what it entered with.
+    restore_player_pause_state(state, prior_pause).await;
+
+    let png = png_result?;
+
     // Guard against a degenerate capture (window left the compositor → solid
     // frame) before reporting success (#1301). On a blank native frame we
     // return Err so do_take_screenshot falls back to the html-to-image path,
@@ -377,17 +524,20 @@ async fn do_take_screenshot_native(state: &Arc<AppState>) -> Result<ScreenshotIn
 /// Agent-triggered screenshot capture.
 ///
 /// Tries native window capture first ([`do_take_screenshot_native`]) so the
-/// WebGL minimap appears in the image. If native capture is unavailable (no
-/// window, missing screen-recording permission, headless), it falls back to the
-/// frontend `html-to-image` round-trip in [`do_take_screenshot_frontend`]
-/// (which carries the #1160 deadline + late-capture handling). The map may be
-/// blank in the fallback, but a screenshot is still produced.
+/// WebGL minimap appears in the image. The native path raises the Tauri main
+/// window to the front if xcap cannot find it on the active Space, captures,
+/// then restores the prior pause state (#1355). If native capture is
+/// unavailable (missing screen-recording permission, headless, or window-raise
+/// also failed), it falls back to the frontend `html-to-image` round-trip in
+/// [`do_take_screenshot_frontend`] (which carries the #1160 deadline +
+/// late-capture handling). The map may be blank in the fallback, but a
+/// screenshot is still produced.
 pub(crate) async fn do_take_screenshot(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    match do_take_screenshot_native(state).await {
+    match do_take_screenshot_native(state, app).await {
         Ok(info) => return Ok(info),
         Err(e) => {
             tracing::warn!(
@@ -798,5 +948,110 @@ mod tests {
         assert!(!is_app_window("Safari"));
         assert!(!is_app_window("Terminal"));
         assert!(!is_app_window(""));
+    }
+
+    // ── #1355 pause-state restore around window-raise capture ────────────────
+
+    /// Helper: construct an AppState with the clock in a specific pause state.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    fn state_with_clock_paused(paused: bool) -> std::sync::Arc<AppState> {
+        let mut state = test_app_state();
+        {
+            let s = std::sync::Arc::get_mut(&mut state)
+                .expect("test_app_state must hand back a unique Arc");
+            if paused {
+                s.world.get_mut().clock.pause();
+            }
+            // Ensure not inference-paused so the two flags don't interfere.
+        }
+        state
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn read_player_pause_state_reflects_clock() {
+        let paused_state = state_with_clock_paused(true);
+        assert_eq!(
+            read_player_pause_state(&paused_state).await,
+            PlayerPauseState::Paused,
+            "paused clock should read as Paused"
+        );
+
+        let running_state = state_with_clock_paused(false);
+        assert_eq!(
+            read_player_pause_state(&running_state).await,
+            PlayerPauseState::Running,
+            "running clock should read as Running"
+        );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn restore_player_pause_state_reapplies_paused() {
+        // Start paused, simulate a focus event that resumes the clock, then
+        // restore — the clock should end up paused again.
+        let state = state_with_clock_paused(true);
+        let prior = read_player_pause_state(&state).await;
+        assert_eq!(prior, PlayerPauseState::Paused);
+
+        // Simulate focus event resuming the clock.
+        state.world.lock().await.clock.resume();
+        assert!(
+            !state.world.lock().await.clock.is_paused(),
+            "sanity: clock should be running after resume"
+        );
+
+        restore_player_pause_state(&state, prior).await;
+        assert!(
+            state.world.lock().await.clock.is_paused(),
+            "clock should be paused again after restore"
+        );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn restore_player_pause_state_reapplies_running() {
+        // Start running, simulate a focus event that pauses the clock, then
+        // restore — the clock should end up running again.
+        let state = state_with_clock_paused(false);
+        let prior = read_player_pause_state(&state).await;
+        assert_eq!(prior, PlayerPauseState::Running);
+
+        // Simulate focus event pausing the clock.
+        state.world.lock().await.clock.pause();
+        assert!(
+            state.world.lock().await.clock.is_paused(),
+            "sanity: clock should be paused after pause()"
+        );
+
+        restore_player_pause_state(&state, prior).await;
+        assert!(
+            !state.world.lock().await.clock.is_paused(),
+            "clock should be running again after restore"
+        );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn restore_does_not_disturb_inference_pause() {
+        // Inference-pause is a separate flag and must not be cleared by the
+        // player-pause restore path.
+        let state = state_with_clock_paused(false);
+        {
+            let mut world = state.world.lock().await;
+            world.clock.inference_pause();
+        }
+        let prior = read_player_pause_state(&state).await;
+        assert_eq!(prior, PlayerPauseState::Running);
+
+        // Restore does not touch inference_paused.
+        restore_player_pause_state(&state, prior).await;
+
+        let world = state.world.lock().await;
+        assert!(!world.clock.is_paused(), "player-pause should remain off");
+        assert!(
+            world.clock.is_inference_paused(),
+            "inference-pause must not be disturbed by player-pause restore"
+        );
     }
 }
