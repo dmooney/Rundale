@@ -327,6 +327,7 @@ pub enum PlayerPauseState {
 }
 
 /// Reads the current player-pause state from the game clock.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) async fn read_player_pause_state(state: &Arc<AppState>) -> PlayerPauseState {
     let world = state.world.lock().await;
     if world.clock.is_paused() {
@@ -342,6 +343,7 @@ pub(crate) async fn read_player_pause_state(state: &Arc<AppState>) -> PlayerPaus
 /// the act of foregrounding the window (which may have triggered a focus
 /// event) does not permanently change the clock state. Only player-pause is
 /// touched; inference-pause is independent and left alone.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) async fn restore_player_pause_state(state: &Arc<AppState>, prior: PlayerPauseState) {
     let mut world = state.world.lock().await;
     match prior {
@@ -951,6 +953,7 @@ mod tests {
     // ── #1355 pause-state restore around window-raise capture ────────────────
 
     /// Helper: construct an AppState with the clock in a specific pause state.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn state_with_clock_paused(paused: bool) -> std::sync::Arc<AppState> {
         let mut state = test_app_state();
         {
@@ -964,6 +967,7 @@ mod tests {
         state
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[tokio::test]
     async fn read_player_pause_state_reflects_clock() {
         let paused_state = state_with_clock_paused(true);
@@ -981,6 +985,7 @@ mod tests {
         );
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[tokio::test]
     async fn restore_player_pause_state_reapplies_paused() {
         // Start paused, simulate a focus event that resumes the clock, then
@@ -1003,6 +1008,7 @@ mod tests {
         );
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[tokio::test]
     async fn restore_player_pause_state_reapplies_running() {
         // Start running, simulate a focus event that pauses the clock, then
@@ -1025,6 +1031,7 @@ mod tests {
         );
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[tokio::test]
     async fn restore_does_not_disturb_inference_pause() {
         // Inference-pause is a separate flag and must not be cleared by the
