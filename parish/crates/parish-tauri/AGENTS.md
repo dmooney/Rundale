@@ -12,7 +12,7 @@ just run                                          # cargo tauri dev (full UI loo
 
 ## Local gotchas
 
-- **MCP bridge expects backend on 127.0.0.1:3030.** When starting the desktop, the `--mcp-port` flag also opens the bridge — `mcp__parish__*` tools speak to it via HTTP. Without `--mcp-port`, MCP tools error with "transport error".
+- **MCP bridge expects backend on 127.0.0.1:3030.** When starting the desktop, the `--mcp-port` flag also opens the bridge — `mcp__parish__*` tools speak to it via HTTP. Without `--mcp-port`, MCP tools error with "transport error". **Driving the game via MCP** (time control via `/pause`+`/resume`, async-world event deltas, screenshot/focus gotchas, `submit_input` returns `null`): see [`docs/agent/driving-the-game-via-mcp.md`](../../../docs/agent/driving-the-game-via-mcp.md).
 - **Tauri IPC types must match TS** (`parish/apps/ui/src/lib/types.ts`). serde uses snake_case — drift breaks the frontend silently.
 - **Cross-runtime orchestration belongs in `parish-core`** (rule #12). Do not duplicate handlers from `parish-server`. Wire via `EventEmitter`.
 - **`commands/` and `editor_commands/` are typed adapters only.** Real work delegates into `parish-core`; this layer only marshalls + emits events.
