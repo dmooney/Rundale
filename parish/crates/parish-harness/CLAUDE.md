@@ -5,6 +5,9 @@ player and an LLM judges the transcript, then scores (gate + quality axes), reco
 findings, and persists everything to its own SQLite DB + on-disk artifacts. Tool/entry-point
 crate (binary `parish-harness`), **not** part of the game runtime.
 
+**Usage / command cookbook:** [`README.md`](./README.md) (build → backend → `run` / `serve` /
+`queue` / `worker` / `compare` / `db-path`, config knobs, player/judge modes, caveats).
+
 See root [`AGENTS.md`](../../../AGENTS.md) and the approved design in
 [`docs/design/game-quality-harness.md`](../../../docs/design/game-quality-harness.md).
 
@@ -29,8 +32,12 @@ See root [`AGENTS.md`](../../../AGENTS.md) and the approved design in
 
 ```sh
 cargo test -p parish-harness                              # deterministic core + wire parity
-cargo run  -p parish-harness -- run --config configs/smoke.json --turns 12 --player scripted
+cargo clippy -p parish-harness --all-targets -- -D warnings
 bash parish/scripts/parish-mcp-backend.sh start           # boot a backend first (port 3030)
+# play one run (see README.md for run/serve/queue/worker/compare):
+cargo run -p parish-harness -- run --config parish/crates/parish-harness/configs/smoke.json \
+  --turns 12 --player scripted --db /tmp/harness.db --artifacts /tmp/harness
+cargo run -p parish-harness -- serve --db /tmp/harness.db --artifacts /tmp/harness --port 8787
 ```
 
 ## Module map
