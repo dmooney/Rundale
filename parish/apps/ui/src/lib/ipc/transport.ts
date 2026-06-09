@@ -64,7 +64,9 @@ export async function command<T>(
 			});
 		} catch (e) {
 			if (controller?.signal.aborted) {
-				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`, {
+					cause: e,
+				});
 			}
 			throw e;
 		}
@@ -81,7 +83,9 @@ export async function command<T>(
 			text = await resp.text();
 		} catch (e) {
 			if (controller?.signal.aborted) {
-				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`);
+				throw new Error(`API timeout after ${COMMAND_TIMEOUT_MS}ms: ${name}`, {
+					cause: e,
+				});
 			}
 			throw e;
 		}
