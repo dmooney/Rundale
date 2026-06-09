@@ -664,6 +664,11 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # No checkout, so override the workflow-level `working-directory: parish`
+    # default (that dir doesn't exist here) to the always-present workspace root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Require gated jobs to succeed or be skipped
         env:
