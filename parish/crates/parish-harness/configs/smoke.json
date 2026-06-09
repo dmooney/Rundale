@@ -1,0 +1,21 @@
+{
+  "label": "smoke",
+  "engine_models": {},
+  "flags": [],
+  "player": {
+    "mode": "scripted",
+    "model": null,
+    "persona": "A curious newcomer exploring the parish for the first time.",
+    "strategy": "Look around, greet anyone present, and move between nearby locations."
+  },
+  "judge": {
+    "mode": "scripted",
+    "model": "claude-sonnet-4-6",
+    "rubric_version": "v1",
+    "rubric_sha256": null
+  },
+  "gate": {
+    "max_rejects": 3,
+    "empty_burn_limit": 5
+  }
+}

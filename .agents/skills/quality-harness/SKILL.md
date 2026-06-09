@@ -1,0 +1,123 @@
+---
+name: quality-harness
+description: Run a game quality-control playtest — YOU drive the LIVE Rundale game via the parish MCP against real models, play in-character for N turns, observe the world, then judge it CRITICALLY (anchored rubric, discrete findings) and file bugs. Trigger when the user says "run the quality harness", "do a harness run", "playtest the game", "QA the game", "drive a playtest", or similar. NOT for model benchmarking (that is /rundale-bench) and NOT for scripted bug-probing (that is /demo-audit-mcp).
+argument-hint: '[turns N] [persona "..."] [goal "..."]'
+paths:
+  - parish/crates/parish-tauri/**
+  - parish/crates/parish-mcp/**
+  - docs/agent/driving-the-game-via-mcp.md
+---
+
+# quality-harness — agent-driven critical playtest
+
+**You are the harness.** You drive the live game through the parish MCP, play it like a real
+player, observe the world (dialogue **and** the async simulation), then judge it as a
+**hard-to-please human playtester** and file every defect. No standalone binary, no `/api`, no
+headless, no reading a database. Full background:
+[`docs/agent/driving-the-game-via-mcp.md`](../../../docs/agent/driving-the-game-via-mcp.md).
+
+Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
+
+## Hard rules (non-negotiable)
+
+- **Tauri + parish MCP only.** Drive via `mcp__parish__*`. Never the headless `parish-server`,
+  never raw `/api/*` curl, never read a SQLite DB. The cloud env runs the desktop app.
+- **Real models.** Dialogue is real (vllm-mlx Qwen). Do not "simulate" a run.
+- **Control time explicitly** (see below). Never rely on window focus.
+- **Judge critically.** Default skeptical. See the rubric — inflated scores are a failure of
+  the harness.
+
+## 1. Preflight (do this first, every time)
+
+1. Confirm the MCP tools exist: call `mcp__parish__parish_engine_state`.
+   - **If `mcp__parish__*` is unavailable**, the parish MCP server did not register. It only
+     spawns at **session init** and there is **no in-session reload**. Tell the user to **start a
+     fresh session** (Tauri must be running first); pre-build with
+     `cargo build -p parish-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
+2. Confirm the game is up: `parish_engine_state` returns a scene. If it errors with a transport
+   error, the Tauri app isn't running — ask the user to launch
+   `cargo run -p parish-tauri -- --mcp-port 3030` (it auto-starts the bundled models).
+3. Disable focus-auto-pause so window/focus events can't toggle game time during the run
+   (once #1357 lands): the harness owns pause state. Until then, just always set `/pause`
+   explicitly each loop and never foreground the window except to screenshot (then restore).
+
+## 2. Set up the run
+
+- `mcp__parish__parish_new_game` for a clean transcript.
+- `parish_submit_input("/pause")` — freeze the world so it can't drift while you think.
+- Read the opening: `parish_engine_state` + `parish_world_snapshot` (scene description) +
+  `parish_npcs_here`.
+- Adopt the persona/goal (default persona: a curious newcomer to the parish, 1820; default
+  goal: meet villagers and find your feet). Play in-character — a real player, not a command
+  fuzzer.
+
+## 3. Turn loop (repeat for `turns`)
+
+For each turn:
+
+1. **OBSERVE** — `parish_engine_state` (+ `parish_world_snapshot` / `parish_npcs_here` as
+   needed). Once #1356 lands, use `tauri_invoke("get_turn")` (or `parish_turn`) for the slim
+   bundle (last exchanges + world events + state) — **do not** pull `get_debug_snapshot`
+   per turn (≈357 KB).
+2. **ACT** — choose one meaningful in-character input; `parish_submit_input(text, addressed_to:
+[npc])` for dialogue. Vary: greet, ask, move (`go to X`), act, use a slash command.
+3. **RESULT** — read the NPC reply. Once #1356 lands, `submit_input` returns the exchange
+   directly; until then read `tauri_invoke("get_transcript")` (NOTE: it is **location-scoped** —
+   it clears on movement; full history is `get_debug_snapshot.conversations`).
+4. **ADVANCE THE WORLD** (so autonomous life happens): `/resume` → `/wait N` → `/pause`, then
+   re-read state. NPCs arrive/leave, gossip spreads, weather/mood shift — capture these deltas.
+   The transcript will NOT show them; engine_state + events will.
+5. **SCREENSHOT** (periodically) — `parish_take_screenshot`. If it 45s-times-out, the window is
+   backgrounded; raise it (`osascript -e 'tell application "System Events" to set frontmost of
+(first process whose name contains "parish") to true'`), capture, then **restore `/pause`**
+   (foregrounding can resume the clock pre-#1357). Once #1355 lands, capture is robust.
+6. **RECORD** — note input, reply, state delta, and any defect you'd flag as a player.
+
+## 4. Judge — be a HARD critic
+
+Score the whole session on 7 axes, **0–100**, using these anchors. **Default skeptical; require
+evidence to go high; never round up.** A category that fails consistently caps its axis at 60.
+
+- **90–100** — indistinguishable from a skilled human author; zero immersion breaks.
+- **75–89** — solid; only minor, isolated blemishes.
+- **60–74** — flaws a real player notices (mood/voice mismatch, mild incoherence, verbosity).
+- **40–59** — repeated or serious flaws; immersion regularly broken.
+- **< 40** — broken.
+
+Axes (weights for the quality mean in parens): `narrative_coherence` (1.5),
+`character_fidelity` (1.5), `world_responsiveness` (1.0), `intent_fidelity` (0.75),
+`immersion` (1.0), `progression` (1.0), `common_sense` (0.75).
+
+**Itemize EVERY defect as a discrete finding** — do not summarize them away. Each finding:
+`{category, turn, severity (low|med|high|critical), description, evidence (exact quote),
+signature}`. Examples of things a critical playtester MUST flag (not an exhaustive list):
+
+- NPC **mood tag not reflected** in dialogue tone (e.g. a `sharp`/`bitter` NPC speaking warmly)
+  — this is a character-fidelity **failure**, not a nitpick; cap `character_fidelity` ≤ 60 if it
+  happens across NPCs.
+- **Unfounded familiarity** — an NPC implying prior knowledge of a stranger.
+- **Command treated as dialogue** / intent misfire (#1351).
+- **Small-model verbosity** — rambling, repetition, multiple questions crammed in one reply.
+- Any anachronism, contradiction, retcon, teleport, or scaffolding/JSON leak.
+- A turn where the world did **not** respond when it should have.
+
+Compute the weighted-mean quality. **Gate** the run (quality = N/A) on any hard fail: a crash
+(MCP transport error mid-run), a parser reject, a turn timeout, or the player stuck with no
+state change for several turns.
+
+## 5. Output + file bugs
+
+Produce: per-turn log, the 7 axis scores + rationale, the weighted quality (or GATED + reason),
+and the full findings list. Then **file the substantive findings** via
+`mcp__parish__parish_file_bug(title, description, context)` — it bundles a screenshot + logs +
+state into a GitHub issue labeled for the `/backlog` drain. Dedup obvious repeats. Recurring
+model-quality findings (mood-blind dialogue, verbosity) are real bugs — file them.
+
+## Calibration example (be this harsh)
+
+A 5-turn run with coherent multi-NPC plot but **every** NPC ignoring its mood tag, one
+"I've seen ye carry yer own weight" said to a stranger, and one rambling reply scores roughly:
+`narrative_coherence 85, character_fidelity 58 (mood-blind across NPCs), world_responsiveness
+88, intent_fidelity 92, immersion 72, progression 78, common_sense 62` → **quality ≈ 75**, with
+3+ filed findings. A generous reviewer would have said 82 — that is exactly the inflation to
+avoid.

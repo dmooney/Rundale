@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parish Harness Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e0e0e0; padding: 1.5rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 1rem; color: #c9b99a; }
+    h2 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: #a89880; }
+    h3 { font-size: .95rem; margin: .75rem 0 .25rem; color: #8a7a68; }
+    a { color: #9bb3e0; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+    .badge-completed { background: #1a3a1a; color: #6dbf6d; }
+    .badge-gated { background: #3a1a1a; color: #c06060; }
+    .badge-in_progress { background: #1a2a3a; color: #60a0c0; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #2a2a2a; color: #888; font-weight: 600; }
+    td { padding: .45rem .75rem; border-bottom: 1px solid #1a1a1a; }
+    tr:hover td { background: #181820; }
+    tr.clickable { cursor: pointer; }
+    #detail { margin-top: 1.5rem; display: none; }
+    #detail.visible { display: block; }
+    .axes-chart { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+    .axis-bar { display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: 70px; }
+    .axis-bar-label { font-size: .7rem; color: #888; text-align: center; }
+    .axis-bar-track { width: 40px; height: 80px; background: #1a1a1a; border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
+    .axis-bar-fill { width: 100%; background: #5080c0; transition: height .3s; }
+    .axis-bar-score { font-size: .75rem; color: #9bb3e0; }
+    .finding { background: #181820; border-left: 3px solid #5c4020; padding: .5rem .75rem; margin: .25rem 0; border-radius: 0 4px 4px 0; font-size: .82rem; }
+    .finding.severity-critical { border-color: #c04040; }
+    .finding.severity-high { border-color: #c07040; }
+    .finding.severity-medium { border-color: #c0a040; }
+    .finding.severity-low { border-color: #5c4020; }
+    .turn-gallery { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+    .turn-thumb { display: flex; flex-direction: column; align-items: center; gap: .2rem; }
+    .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; }
+    .turn-thumb-label { font-size: .68rem; color: #666; }
+    .error-msg { color: #c06060; padding: .5rem; background: #1a0f0f; border-radius: 4px; margin: .5rem 0; font-size: .82rem; }
+    .loading { color: #888; font-style: italic; }
+    .back-btn { cursor: pointer; color: #9bb3e0; border: none; background: none; font-size: .9rem; padding: .25rem 0; margin-bottom: .5rem; }
+    .back-btn:hover { text-decoration: underline; }
+    .quality-score { font-size: 1.2rem; font-weight: 700; color: #9bb3e0; }
+    .run-meta { font-size: .8rem; color: #666; margin: .25rem 0; }
+    .sse-status { font-size: .75rem; color: #668; margin-left: .5rem; }
+    /* trends view */
+    .trends-svg { display: block; overflow: visible; margin: .5rem 0; }
+    .trends-no-data { color: #666; font-style: italic; font-size: .85rem; }
+    .trend-point { cursor: pointer; }
+    .trend-point:hover circle { r: 6; }
+    /* ab view */
+    .ab-form { display: flex; gap: .75rem; align-items: flex-end; margin: .5rem 0 1rem; }
+    .ab-form label { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: #888; }
+    .ab-form input { background: #1a2030; border: 1px solid #2a3a4a; border-radius: 4px; color: #e0e0e0; padding: .3rem .5rem; width: 80px; }
+    .ab-form button { background: #1a3050; color: #9bb3e0; border: 1px solid #2a4060; border-radius: 4px; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; }
+    .ab-form button:hover { background: #203860; }
+    .ab-table { font-size: .82rem; }
+    .delta-pos { color: #6dbf6d; }
+    .delta-neg { color: #c06060; }
+    .delta-zero { color: #666; }
+    .ab-findings { margin-top: .5rem; }
+    .ab-sig { font-size: .75rem; font-family: monospace; color: #888; }
+    .nav-tabs { display: flex; gap: .25rem; margin-bottom: 1rem; }
+    .nav-tab { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 4px 4px 0 0; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; color: #888; }
+    .nav-tab.active { background: #1a2a3a; color: #9bb3e0; border-bottom-color: #1a2a3a; }
+  </style>
+</head>
+<body>
+  <h1>Parish Harness Dashboard</h1>
+  <div class="nav-tabs" id="main-nav">
+    <button class="nav-tab active" data-tab="runs">Runs</button>
+    <button class="nav-tab" data-tab="trends">Trends</button>
+    <button class="nav-tab" data-tab="ab">A/B Compare</button>
+  </div>
+
+  <div id="runs-view">
+    <h2>Recent Runs <button id="refresh-btn" style="font-size:.75rem;cursor:pointer;margin-left:.5rem;background:#1a2a2a;color:#9bb3e0;border:1px solid #2a3a3a;border-radius:3px;padding:.1rem .4rem;">Refresh</button></h2>
+    <div id="runs-container"><span class="loading">Loading...</span></div>
+  </div>
+  <div id="detail">
+    <button class="back-btn" id="back-btn">&#8592; Back to runs</button>
+    <div id="detail-container"></div>
+  </div>
+
+  <div id="trends-view" style="display:none">
+    <h2>Trends
+      <span style="font-size:.8rem;color:#666;font-weight:400;margin-left:.5rem">
+        Branch: <input id="trends-branch" placeholder="(all)" style="background:#1a2030;border:1px solid #2a3040;border-radius:3px;color:#e0e0e0;padding:.15rem .4rem;font-size:.8rem;width:100px;">
+        <button id="trends-load-btn" style="font-size:.75rem;cursor:pointer;margin-left:.3rem;background:#1a2a2a;color:#9bb3e0;border:1px solid #2a3a3a;border-radius:3px;padding:.1rem .4rem;">Load</button>
+      </span>
+    </h2>
+    <div id="trends-container"><span class="loading">Loading...</span></div>
+  </div>
+
+  <div id="ab-view" style="display:none">
+    <h2>A/B Compare</h2>
+    <div class="ab-form">
+      <label>Run A <input id="ab-a" type="number" min="1" placeholder="id"></label>
+      <label>Run B <input id="ab-b" type="number" min="1" placeholder="id"></label>
+      <button id="ab-compare-btn">Compare</button>
+    </div>
+    <div id="ab-container"></div>
+  </div>
+
+  <footer style="margin-top:2rem;padding-top:.75rem;border-top:1px solid #1e1e2a;font-size:.75rem;color:#555;">
+    <span id="cost-footer">Cost: loading…</span>
+  </footer>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let currentRunId = null;
+    let sse = null;
+
+    async function loadRuns() {
+      const c = $('runs-container');
+      c.innerHTML = '<span class="loading">Loading...</span>';
+      try {
+        const runs = await fetch('/api/runs').then(r => r.json());
+        if (!runs.length) { c.innerHTML = '<span class="loading">No runs yet.</span>'; return; }
+        c.innerHTML = '';
+        const tbl = document.createElement('table');
+        tbl.innerHTML = `<thead><tr>
+          <th>ID</th><th>Status</th><th>Quality</th><th>Gate</th><th>Turns</th>
+          <th>Findings</th><th>Git SHA</th><th>Branch</th><th>Started</th>
+        </tr></thead><tbody></tbody>`;
+        const tbody = tbl.querySelector('tbody');
+        for (const r of runs) {
+          const tr = document.createElement('tr');
+          tr.className = 'clickable';
+          tr.addEventListener('click', () => showDetail(r.id));
+          const status_badge = `<span class="badge badge-${r.status}">${r.status}</span>`;
+          const quality = r.quality_score != null ? r.quality_score.toFixed(1) : '—';
+          const gate = r.gate_reason ? `${r.gate_reason} @t${r.gate_turn}` : '—';
+          const sha = r.git_sha ? r.git_sha.substring(0, 8) : '—';
+          tr.innerHTML = `<td>${r.id}</td><td>${status_badge}</td><td>${quality}</td>
+            <td>${gate}</td><td>${r.turn_count}</td><td>${r.finding_count}</td>
+            <td><code>${sha}</code></td><td>${r.git_branch||'—'}</td>
+            <td>${(r.started_at||'').substring(0,16)}</td>`;
+          tbody.appendChild(tr);
+        }
+        c.appendChild(tbl);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load runs: ${e.message}</div>`;
+      }
+    }
+
+    async function showDetail(runId) {
+      currentRunId = runId;
+      $('runs-view').style.display = 'none';
+      $('detail').className = 'visible';
+      const c = $('detail-container');
+      c.innerHTML = '<span class="loading">Loading run detail...</span>';
+      try {
+        const d = await fetch(`/api/runs/${runId}`).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        });
+        renderDetail(d, c);
+        subscribeSSE(runId);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load run ${runId}: ${e.message}</div>`;
+      }
+    }
+
+    function renderDetail(d, container) {
+      const s = d.summary;
+      const quality = s.quality_score != null ? `<span class="quality-score">${s.quality_score.toFixed(1)}</span>` : '—';
+      const status_badge = `<span class="badge badge-${s.status}">${s.status}</span>`;
+      const gate_info = s.gate_reason ? `<br>Gate: ${s.gate_reason} at turn ${s.gate_turn}` : '';
+
+      let html = `<h2>Run #${s.id} ${status_badge} <span class="sse-status" id="sse-status"></span></h2>
+        <div class="run-meta">
+          Quality: ${quality}${gate_info}<br>
+          Git: <code>${(s.git_sha||'').substring(0,8)}</code> on <em>${s.git_branch||'?'}</em>
+          ${s.git_dirty ? '<strong style="color:#c09040"> (dirty)</strong>' : ''}<br>
+          Turns: ${s.turn_count} &nbsp; Findings: ${s.finding_count}<br>
+          Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
+        </div>`;
+
+      // Axes bar chart.
+      if (d.axes.length > 0) {
+        html += `<h3>Quality Axes</h3><div class="axes-chart">`;
+        for (const ax of d.axes) {
+          const pct = Math.max(0, Math.min(100, ax.score));
+          const label = ax.axis.replace(/_/g,' ');
+          html += `<div class="axis-bar">
+            <div class="axis-bar-track"><div class="axis-bar-fill" style="height:${pct}%"></div></div>
+            <div class="axis-bar-score">${ax.score}</div>
+            <div class="axis-bar-label">${label}</div>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+
+      // Findings.
+      if (d.findings.length > 0) {
+        html += `<h3>Findings (${d.findings.length})</h3>`;
+        for (const f of d.findings) {
+          const link = f.issue_url ? ` <a href="${f.issue_url}" target="_blank">[issue]</a>` : '';
+          html += `<div class="finding severity-${f.severity}">
+            <strong>${f.category}</strong> · <em>${f.severity}</em> · turn ${f.turn_index??'—'}${link}<br>
+            ${escHtml(f.description)}<br>
+            <small style="color:#666">${escHtml(f.signature.substring(0,16))}…</small>
+          </div>`;
+        }
+      }
+
+      // Turn gallery.
+      if (d.turns.length > 0) {
+        html += `<h3>Turns (${d.turns.length})</h3><div class="turn-gallery" id="turn-gallery">`;
+        for (const t of d.turns) {
+          const imgSrc = `/api/runs/${s.id}/turns/${t.turn_index}/frame.png`;
+          html += `<div class="turn-thumb">
+            <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="${escHtml(t.player_input)}">
+            <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function subscribeSSE(runId) {
+      if (sse) { sse.close(); sse = null; }
+      const statusEl = $('sse-status');
+      try {
+        sse = new EventSource(`/api/runs/${runId}/stream`);
+        sse.onopen = () => { if (statusEl) statusEl.textContent = '(live)'; };
+        sse.onmessage = (e) => {
+          // Future: handle live TurnEvent updates here.
+          console.log('sse event', e.data);
+        };
+        sse.onerror = () => { if (statusEl) statusEl.textContent = ''; };
+      } catch (_) {}
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    $('back-btn').addEventListener('click', () => {
+      if (sse) { sse.close(); sse = null; }
+      currentRunId = null;
+      $('detail').className = '';
+      $('runs-view').style.display = '';
+    });
+    $('refresh-btn').addEventListener('click', loadRuns);
+
+    // ── Tab navigation ─────────────────────────────────────────────────────
+    const VIEWS = { runs: 'runs-view', trends: 'trends-view', ab: 'ab-view' };
+    let activeTab = 'runs';
+
+    function switchTab(tab) {
+      activeTab = tab;
+      // Hide detail when switching away from runs.
+      if (tab !== 'runs') {
+        if (sse) { sse.close(); sse = null; }
+        $('detail').className = '';
+      }
+      Object.entries(VIEWS).forEach(([key, id]) => {
+        $(id).style.display = key === tab ? '' : 'none';
+      });
+      document.querySelectorAll('.nav-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+      });
+      if (tab === 'trends') loadTrends();
+    }
+
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // ── Trends view ───────────────────────────────────────────────────────
+    async function loadTrends() {
+      const c = $('trends-container');
+      const branch = $('trends-branch').value.trim();
+      const url = branch ? `/api/timeline?branch=${encodeURIComponent(branch)}` : '/api/timeline';
+      c.innerHTML = '<span class="loading">Loading...</span>';
+      try {
+        const points = await fetch(url).then(r => r.json());
+        renderTrends(points, c);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Failed to load timeline: ${e.message}</div>`;
+      }
+    }
+
+    function renderTrends(points, container) {
+      if (!points.length) {
+        container.innerHTML = '<span class="trends-no-data">No completed runs yet.</span>';
+        return;
+      }
+
+      // Filter to points with a quality score.
+      const scored = points.filter(p => p.quality_score != null);
+      if (!scored.length) {
+        container.innerHTML = '<span class="trends-no-data">No scored runs yet.</span>';
+        return;
+      }
+
+      // Build SVG line chart (quality score over runs).
+      const W = 600, H = 160, PAD = { top: 16, right: 16, bottom: 32, left: 40 };
+      const iW = W - PAD.left - PAD.right;
+      const iH = H - PAD.top - PAD.bottom;
+      const n = scored.length;
+      const minQ = Math.min(...scored.map(p => p.quality_score));
+      const maxQ = Math.max(...scored.map(p => p.quality_score));
+      const rangeQ = (maxQ - minQ) || 1;
+
+      const xOf = i => PAD.left + (n === 1 ? iW / 2 : (i / (n - 1)) * iW);
+      const yOf = q => PAD.top + iH - ((q - minQ) / rangeQ) * iH;
+
+      // Polyline points.
+      const pts = scored.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.quality_score).toFixed(1)}`).join(' ');
+
+      // Y-axis labels.
+      const yLabels = [minQ, (minQ + maxQ) / 2, maxQ].map(v =>
+        `<text x="${PAD.left - 4}" y="${yOf(v).toFixed(1)}" text-anchor="end" fill="#666" font-size="10">${v.toFixed(0)}</text>`
+      ).join('');
+
+      // Data circles + tooltips.
+      const circles = scored.map((p, i) => {
+        const sha = (p.git_sha || '').substring(0, 7);
+        const date = p.commit_date ? p.commit_date.substring(0, 10) : '';
+        const tip = `run ${p.run_id} q=${p.quality_score.toFixed(1)} ${sha} ${date}`;
+        return `<circle class="trend-point" cx="${xOf(i).toFixed(1)}" cy="${yOf(p.quality_score).toFixed(1)}" r="4" fill="#5080c0" stroke="#0f1117" stroke-width="1.5">
+          <title>${escHtml(tip)}</title></circle>`;
+      }).join('');
+
+      // X-axis ticks (show SHA for up to 6 points).
+      const showEvery = Math.max(1, Math.ceil(n / 6));
+      const xLabels = scored.map((p, i) => {
+        if (i % showEvery !== 0 && i !== n - 1) return '';
+        const sha = (p.git_sha || '').substring(0, 6);
+        return `<text x="${xOf(i).toFixed(1)}" y="${(PAD.top + iH + 14).toFixed(1)}" text-anchor="middle" fill="#555" font-size="9">${sha}</text>`;
+      }).join('');
+
+      const svg = `<svg class="trends-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+        <line x1="${PAD.left}" y1="${PAD.top + iH}" x2="${PAD.left + iW}" y2="${PAD.top + iH}" stroke="#2a2a2a" stroke-width="1"/>
+        <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + iH}" stroke="#2a2a2a" stroke-width="1"/>
+        ${yLabels}
+        ${n > 1 ? `<polyline points="${pts}" fill="none" stroke="#5080c0" stroke-width="1.5"/>` : ''}
+        ${circles}
+        ${xLabels}
+        <text x="${(W / 2).toFixed(0)}" y="${H - 2}" text-anchor="middle" fill="#444" font-size="9">commit (newest right)</text>
+      </svg>`;
+
+      container.innerHTML = `<div>${svg}</div><p style="font-size:.78rem;color:#666;margin-top:.4rem">${scored.length} scored run(s) shown. Click a dot to open that run.</p>`;
+
+      // Wire up dot click to showDetail.
+      container.querySelectorAll('.trend-point').forEach((el, i) => {
+        el.addEventListener('click', () => {
+          switchTab('runs');
+          showDetail(scored[i].run_id);
+        });
+      });
+    }
+
+    $('trends-load-btn').addEventListener('click', loadTrends);
+
+    // ── A/B Compare view ──────────────────────────────────────────────────
+    $('ab-compare-btn').addEventListener('click', async () => {
+      const aVal = $('ab-a').value.trim();
+      const bVal = $('ab-b').value.trim();
+      if (!aVal || !bVal) {
+        $('ab-container').innerHTML = '<div class="error-msg">Enter both run IDs.</div>';
+        return;
+      }
+      const c = $('ab-container');
+      c.innerHTML = '<span class="loading">Comparing...</span>';
+      try {
+        const resp = await fetch(`/api/compare?a=${encodeURIComponent(aVal)}&b=${encodeURIComponent(bVal)}`);
+        if (!resp.ok) {
+          const j = await resp.json();
+          c.innerHTML = `<div class="error-msg">${escHtml(j.error || 'compare failed')}</div>`;
+          return;
+        }
+        const cmp = await resp.json();
+        renderAbCompare(cmp, c);
+      } catch (e) {
+        c.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+      }
+    });
+
+    function renderAbCompare(cmp, container) {
+      const runMeta = (s) => {
+        const q = s.quality_score != null ? s.quality_score.toFixed(1) : '—';
+        const sha = (s.git_sha || '').substring(0, 8);
+        return `run #${s.id} &nbsp; <span class="badge badge-${s.status}">${s.status}</span> &nbsp; quality=${q} &nbsp; <code>${sha}</code> on <em>${s.git_branch||'?'}</em>`;
+      };
+
+      let html = `<h3>Run A</h3><div class="run-meta">${runMeta(cmp.a)}</div>`;
+      html += `<h3>Run B</h3><div class="run-meta">${runMeta(cmp.b)}</div>`;
+      html += `<p style="font-size:.8rem;color:#888;margin:.4rem 0">Gate: A=${escHtml(cmp.gate_diff[0])} &nbsp; B=${escHtml(cmp.gate_diff[1])}</p>`;
+
+      if (cmp.axis_deltas.length) {
+        html += `<h3>Axis Deltas (B − A)</h3>
+          <table class="ab-table"><thead><tr>
+            <th>Axis</th><th>A</th><th>B</th><th>Delta</th>
+          </tr></thead><tbody>`;
+        for (const d of cmp.axis_deltas) {
+          const cls = d.delta > 0 ? 'delta-pos' : d.delta < 0 ? 'delta-neg' : 'delta-zero';
+          const sign = d.delta > 0 ? '+' : '';
+          html += `<tr>
+            <td>${d.axis.replace(/_/g,' ')}</td>
+            <td>${d.a_score}</td><td>${d.b_score}</td>
+            <td class="${cls}">${sign}${d.delta}</td>
+          </tr>`;
+        }
+        html += `</tbody></table>`;
+      }
+
+      if (cmp.findings_only_in_a.length) {
+        html += `<h3>Findings only in A (${cmp.findings_only_in_a.length})</h3><div class="ab-findings">`;
+        for (const sig of cmp.findings_only_in_a) {
+          html += `<div class="ab-sig">${escHtml(sig)}</div>`;
+        }
+        html += `</div>`;
+      }
+      if (cmp.findings_only_in_b.length) {
+        html += `<h3>Findings only in B (${cmp.findings_only_in_b.length})</h3><div class="ab-findings">`;
+        for (const sig of cmp.findings_only_in_b) {
+          html += `<div class="ab-sig">${escHtml(sig)}</div>`;
+        }
+        html += `</div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    loadRuns();
+
+    // ── Cost footer ───────────────────────────────────────────────────────
+    async function loadCost() {
+      try {
+        const r = await fetch('/api/cost');
+        if (!r.ok) return;
+        const c = await r.json();
+        const footer = document.getElementById('cost-footer');
+        if (!footer) return;
+        footer.textContent =
+          `Cost: $${c.total_cost_usd.toFixed(4)} | ` +
+          `Runs: ${c.total_runs} | ` +
+          `Player tokens: ${c.total_player_tokens} | ` +
+          `Judge tokens: ${c.total_judge_tokens}`;
+      } catch (_) { /* network not ready */ }
+    }
+    loadCost();
+  </script>
+</body>
+</html>

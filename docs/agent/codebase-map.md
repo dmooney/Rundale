@@ -44,7 +44,7 @@ symlink where present.
 
 ## Parish Crates
 
-The Parish workspace currently has 16 crates under `parish/crates/`.
+The Parish workspace currently has 17 crates under `parish/crates/`.
 
 | Path                                | Purpose                                                                                                           | Entry / key file                                                  | Scope doc                                                   |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -64,6 +64,7 @@ The Parish workspace currently has 16 crates under `parish/crates/`.
 | `parish/crates/parish-mcp/`         | MCP server bridging Claude/Codex to a running Parish backend                                                      | `src/main.rs`, [README](../../parish/crates/parish-mcp/README.md) | -                                                           |
 | `parish/crates/parish-geo-tool/`    | Geo CLI used by the `/rundale-geo-tool` skill                                                                     | `src/main.rs`                                                     | -                                                           |
 | `parish/crates/parish-npc-tool/`    | NPC editing and validation CLI                                                                                    | `src/main.rs`                                                     | -                                                           |
+| `parish/crates/parish-harness/`     | Game quality-control harness: LLM-driven N-turn playtests, gate+axes scoring, findings, SQLite telemetry          | `src/run/runner.rs`, `src/score/`, `src/client/`                  | `parish/crates/parish-harness/CLAUDE.md`                    |
 
 ## Local / Generated Paths
 
