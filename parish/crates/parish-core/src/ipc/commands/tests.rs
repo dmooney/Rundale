@@ -283,6 +283,79 @@ fn redundant_resume_silent_is_noop() {
     assert!(!world.clock.is_paused());
 }
 
+// ── focus-auto-pause flag (fix #1357) ────────────────────────────────────
+
+#[test]
+fn focus_auto_pause_flag_off_pause_silent_is_noop() {
+    // AC-2: when focus-auto-pause is explicitly disabled, PauseSilent must
+    // not mutate the clock.
+    let (mut world, mut npc, mut config) = default_state();
+    config.flags.disable("focus-auto-pause");
+    assert!(!world.clock.is_paused());
+    let result = handle_command(Command::PauseSilent, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.is_empty(),
+        "PauseSilent must not emit text even when flag is off"
+    );
+    assert!(
+        !world.clock.is_paused(),
+        "clock must remain running when focus-auto-pause is disabled"
+    );
+}
+
+#[test]
+fn focus_auto_pause_flag_off_resume_silent_is_noop() {
+    // AC-3: when focus-auto-pause is explicitly disabled, ResumeSilent must
+    // not mutate the clock.
+    let (mut world, mut npc, mut config) = default_state();
+    config.flags.disable("focus-auto-pause");
+    world.clock.pause();
+    assert!(world.clock.is_paused());
+    let result = handle_command(Command::ResumeSilent, &mut world, &mut npc, &mut config);
+    assert!(
+        result.response.is_empty(),
+        "ResumeSilent must not emit text even when flag is off"
+    );
+    assert!(
+        world.clock.is_paused(),
+        "clock must remain paused when focus-auto-pause is disabled"
+    );
+}
+
+#[test]
+fn focus_auto_pause_flag_on_pause_silent_still_pauses() {
+    // AC-1 / AC-5: flag explicitly ON behaves identically to the default
+    // (unknown flag also runs the feature; default-on is implemented via
+    // is_disabled, not is_enabled).
+    let (mut world, mut npc, mut config) = default_state();
+    config.flags.enable("focus-auto-pause");
+    assert!(!world.clock.is_paused());
+    let result = handle_command(Command::PauseSilent, &mut world, &mut npc, &mut config);
+    assert!(result.response.is_empty());
+    assert!(world.clock.is_paused(), "clock must pause when flag is on");
+}
+
+#[test]
+fn focus_auto_pause_flag_explicit_pause_resume_unaffected() {
+    // AC-4: /pause and /resume are not gated — the flag only controls
+    // the focus-driven silent variants.
+    let (mut world, mut npc, mut config) = default_state();
+    config.flags.disable("focus-auto-pause");
+    let r = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
+    assert!(
+        r.response.contains("stand still"),
+        "explicit /pause must work with flag off"
+    );
+    assert!(world.clock.is_paused());
+
+    let r = handle_command(Command::Resume, &mut world, &mut npc, &mut config);
+    assert!(
+        r.response.contains("stirs again"),
+        "explicit /resume must work with flag off"
+    );
+    assert!(!world.clock.is_paused());
+}
+
 // ── Additional coverage for previously untested Command variants ─────────
 
 #[test]

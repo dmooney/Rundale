@@ -4,16 +4,21 @@ use chrono::Timelike;
 use parish_types::minute_word;
 
 use crate::input::Command;
+use crate::ipc::config::GameConfig;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
 use super::CommandResult;
 
 /// Handle time-control commands: pause/resume clock, status, speed, wait, tick.
+///
+/// `config` is used to check the `focus-auto-pause` feature flag for
+/// [`Command::PauseSilent`] and [`Command::ResumeSilent`].
 pub(super) fn handle_time_control_command(
     cmd: Command,
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
+    config: &GameConfig,
 ) -> CommandResult {
     match cmd {
         Command::Pause => {
@@ -42,7 +47,11 @@ pub(super) fn handle_time_control_command(
             // Focus/visibility-driven pause: clock freezes but no message is
             // emitted.  The edge-gate still applies — a redundant silent pause
             // while already paused is a no-op with empty response.
-            if !world.clock.is_paused() {
+            //
+            // When the `focus-auto-pause` flag is explicitly disabled (e.g. by
+            // the QA harness), this command is a no-op so that focus events
+            // cannot silently toggle game time (#1357).
+            if !config.flags.is_disabled("focus-auto-pause") && !world.clock.is_paused() {
                 world.clock.pause();
             }
             CommandResult::text("")
@@ -50,7 +59,9 @@ pub(super) fn handle_time_control_command(
         Command::ResumeSilent => {
             // Focus/visibility-driven resume: clock restarts but no message is
             // emitted.  The edge-gate still applies.
-            if world.clock.is_paused() {
+            //
+            // Skipped when `focus-auto-pause` is explicitly disabled (#1357).
+            if !config.flags.is_disabled("focus-auto-pause") && world.clock.is_paused() {
                 world.clock.resume();
             }
             CommandResult::text("")
