@@ -58,27 +58,57 @@ jobs:
           path: parish/target/release/parish-server
           retention-days: 1
 
+  # ── Select scenarios ──────────────────────────────────────────────────────
+  # `matrix` is not a valid context in a job-level `if:`, so the per-scenario
+  # filtering for workflow_dispatch is computed here and consumed by `eval`
+  # via `needs`/`fromJson` (both legal in a job `if`).
+  setup:
+    name: Select scenarios
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      has_jobs: ${{ steps.select.outputs.has_jobs }}
+    steps:
+      - id: select
+        shell: python3 {0}
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCENARIO: ${{ github.event.inputs.scenario }}
+        run: |
+          import json, os
+
+          all_scenarios = [
+              {"scenario": "smoke", "turns": 10},
+              {"scenario": "intent", "turns": 25},
+              {"scenario": "reactions", "turns": 15},
+              {"scenario": "tier2", "turns": 12},
+              {"scenario": "dialogue", "turns": 20},
+          ]
+          event = os.environ.get("EVENT_NAME", "")
+          selected = os.environ.get("SCENARIO") or "all"
+          if event == "schedule" or selected == "all":
+              include = all_scenarios
+          else:
+              include = [s for s in all_scenarios if s["scenario"] == selected]
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("matrix=" + json.dumps({"include": include}) + "\n")
+              out.write("has_jobs=" + ("true" if include else "false") + "\n")
+
   # ── Per-scenario eval matrix ──────────────────────────────────────────────
   eval:
     name: Eval / ${{ matrix.scenario }}
-    needs: build
+    needs: [build, setup]
+    # Run only when at least one scenario was selected (e.g. skipped entirely
+    # when `full_session` is dispatched — that has its own job below).
+    if: ${{ needs.setup.outputs.has_jobs == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
-      matrix:
-        include:
-          - { scenario: smoke, turns: 10 }
-          - { scenario: intent, turns: 25 }
-          - { scenario: reactions, turns: 15 }
-          - { scenario: tier2, turns: 12 }
-          - { scenario: dialogue, turns: 20 }
       fail-fast: false
-
-    # Skip scenarios not requested when running via workflow_dispatch
-    if: >
-      github.event_name == 'schedule' ||
-      github.event.inputs.scenario == 'all' ||
-      github.event.inputs.scenario == matrix.scenario
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     env:
       # Provider config read at server startup via resolve_config env vars.
@@ -163,7 +193,7 @@ jobs:
 
             Session log:
             ${{ steps.read_log.outputs.log }}
-          max-completion-tokens: "600"
+          max-tokens: "600"
 
       - name: Parse verdict and write summary
         shell: python3 {0}
@@ -319,7 +349,7 @@ jobs:
 
             Session log:
             ${{ steps.read_log.outputs.log }}
-          max-completion-tokens: "800"
+          max-tokens: "800"
 
       - name: Parse verdict
         shell: python3 {0}
