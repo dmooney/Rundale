@@ -46,6 +46,13 @@ for doc in "${sources[@]}"; do
         [[ "$path" == *'{'* ]] && continue
         [[ "$path" == http* ]] && continue
         [[ "$path" == *'...'* ]] && continue
+        # Skip gitignored paths (build outputs like `parish/target/...`):
+        # docs may legitimately cite them, but they never exist on a fresh
+        # checkout, so existence is not a meaningful sensor for them.
+        # (stderr silenced: check-ignore is fatal-but-harmless on paths that
+        # traverse a symlink, e.g. `.claude/skills/...`; those fall through
+        # to the normal existence check.)
+        git check-ignore -q -- "$path" 2>/dev/null && continue
         # Normalise: drop trailing slash so directory refs match `test -e`.
         path="${path%/}"
 
