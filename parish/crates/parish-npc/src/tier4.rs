@@ -7,7 +7,7 @@
 use std::collections::VecDeque;
 
 use chrono::{DateTime, NaiveDate, Utc};
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use crate::types::RelationshipKind;
 use crate::{Npc, NpcId};

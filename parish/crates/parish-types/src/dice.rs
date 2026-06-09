@@ -4,7 +4,7 @@
 //! threshold checks, index selection, and deterministic testing via fixed
 //! values.  Higher-level helpers ([`roll_n`], [`fixed_n`]) create batches.
 
-use rand::Rng;
+use rand::RngExt;
 
 /// A single probability roll in `0.0..1.0`.
 ///

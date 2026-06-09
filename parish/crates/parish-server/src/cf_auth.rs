@@ -407,7 +407,7 @@ fn signing_key() -> &'static [u8] {
         }
         #[cfg(debug_assertions)]
         {
-            use rand::RngCore;
+            use rand::Rng;
             let mut key = vec![0u8; 32];
             rand::rng().fill_bytes(&mut key);
             key
