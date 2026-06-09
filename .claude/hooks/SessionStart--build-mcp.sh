@@ -43,7 +43,7 @@ _resolve_mcp_bin() {
         cargo metadata --no-deps --format-version 1 \
             --manifest-path "$REPO/parish/Cargo.toml" 2>/dev/null \
             | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p'
-    )
+    ) || meta_target=""
     if [ -n "$meta_target" ]; then
         echo "$meta_target/debug/parish-mcp"
         return
