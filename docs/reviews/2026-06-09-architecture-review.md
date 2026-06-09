@@ -21,6 +21,62 @@ The improvement opportunities cluster in five areas, ordered by impact below. No
 are blockers; most are gradual erosion of stated principles rather than design
 mistakes.
 
+## System diagram
+
+```mermaid
+flowchart TB
+    subgraph clients["Frontends & clients"]
+        UI["Svelte 5 UI<br/>parish/apps/ui<br/>(one transport.ts for both backends)"]
+        CLI["parish CLI client<br/>parish-client"]
+        MCP["parish-mcp<br/>MCP bridge for AI agents"]
+    end
+
+    subgraph entry["Runtime entry points (thin adapters, mode parity)"]
+        TAURI["parish-tauri<br/>Tauri 2 desktop"]
+        SERVER["parish-server<br/>Axum HTTP + WS<br/>(sessions, auth, idempotency)"]
+        ENGINE["parish-engine<br/>headless REPL / --script / Tauri launch"]
+    end
+
+    CORE["parish-core — composition + orchestration (~29k lines)<br/>ipc/ (11k) • game_loop/ (4.5k) • game_session<br/>game_mod loader • editor/ • debug_snapshot/ • event_bus • prompts"]
+
+    subgraph leaf["Shared leaf crates (backend-agnostic, enforced)"]
+        WORLD["parish-world<br/>graph, movement, weather, geo"]
+        NPC["parish-npc<br/>tiers, mood, memory, ticks, gossip"]
+        INPUT["parish-input<br/>parsing, intent (local + LLM)"]
+        INFER["parish-inference<br/>queue, rate limits, provider clients"]
+        PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
+        CONFIG["parish-config<br/>TOML + env + flags"]
+        PALETTE["parish-palette<br/>day/night palette"]
+        TYPES["parish-types<br/>ids, time, events, errors (zero internal deps)"]
+    end
+
+    subgraph external["Content & external systems"]
+        MODS[("mods/rundale<br/>world.json, npcs.json, prompts…")]
+        DB[("SQLite saves<br/>per-user data dir")]
+        LLM["LLM providers<br/>Ollama / OpenAI-compat / Anthropic / simulator"]
+    end
+
+    UI -- "Tauri IPC invoke/listen" --> TAURI
+    UI -- "fetch + WebSocket" --> SERVER
+    CLI -- "POST /api/command" --> SERVER
+    MCP -- "HTTP :3030" --> SERVER
+
+    TAURI -- "handle_command + EventEmitter" --> CORE
+    SERVER --> CORE
+    ENGINE --> CORE
+
+    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE
+    INPUT -. "intent LLM" .-> INFER
+    NPC -. "dialogue" .-> INFER
+    NPC -.-> WORLD
+    PERSIST -.-> NPC
+    NPC -. "all leaves depend on types" .-> TYPES
+
+    CORE -- "mod.toml manifest + validation" --> MODS
+    PERSIST --> DB
+    INFER --> LLM
+```
+
 ---
 
 ## 1. `parish-core` has outgrown its "thin composition layer" billing (HIGH)
