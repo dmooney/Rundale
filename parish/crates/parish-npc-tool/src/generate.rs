@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use rand::prelude::IndexedRandom;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::WORLD_YEAR;

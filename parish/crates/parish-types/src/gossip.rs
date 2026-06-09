@@ -7,7 +7,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 use crate::NpcId;
