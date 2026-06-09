@@ -17,6 +17,7 @@ members = [
     "crates/parish-persistence",
     "crates/parish-input",
     "crates/parish-client",
+    "crates/parish-harness",
 ]
 default-members = ["crates/parish-engine"]
 
