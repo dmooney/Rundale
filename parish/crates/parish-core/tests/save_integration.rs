@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -9,6 +10,7 @@ use parish_core::ipc::ConversationRuntimeState;
 use parish_core::ipc::event_emitter::EventEmitter;
 use parish_core::npc::manager::NpcManager;
 use parish_core::persistence::Database;
+use parish_core::world::events::GameEvent;
 use parish_core::world::transport::TransportMode;
 use parish_core::world::{LocationId, WorldState};
 use tempfile::TempDir;
@@ -123,6 +125,7 @@ async fn do_new_game_creates_save_file_and_updates_state() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
 
     let params = NewGameParams {
@@ -138,6 +141,7 @@ async fn do_new_game_creates_save_file_and_updates_state() {
         pronunciations: &game_mod.pronunciations,
         default_transport: game_mod.transport.default_mode(),
         emitter: &emitter,
+        game_events: &game_events,
     };
 
     do_new_game(params).await.expect("do_new_game failed");
@@ -200,6 +204,7 @@ async fn do_new_game_resets_conversation_state() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
 
     let params = NewGameParams {
@@ -215,6 +220,7 @@ async fn do_new_game_resets_conversation_state() {
         pronunciations: &game_mod.pronunciations,
         default_transport: game_mod.transport.default_mode(),
         emitter: &emitter,
+        game_events: &game_events,
     };
 
     do_new_game(params).await.unwrap();
@@ -225,6 +231,79 @@ async fn do_new_game_resets_conversation_state() {
         "conversation location should reset"
     );
     assert!(conv.transcript.is_empty(), "transcript should be cleared");
+}
+
+/// #1395 — `do_new_game` must clear the world-event ring buffer so that stale
+/// events from game A do not bleed into game B's `parish_turn` responses.
+///
+/// The `read_events_since` cursor derives from `events.len()`, so clearing the
+/// deque also resets the cursor to 0.
+#[tokio::test]
+async fn do_new_game_clears_game_events_ring_buffer() {
+    use chrono::Utc;
+    use parish_core::npc::NpcId;
+    use parish_core::world::LocationId;
+    use parish_core::world::events::GameEvent;
+
+    let tmp = TempDir::new().unwrap();
+    let mod_dir = rundale_mod_dir();
+    let game_mod = GameMod::load(&mod_dir).unwrap();
+
+    let world = Mutex::new(WorldState::new());
+    let npc_manager = Mutex::new(NpcManager::new());
+    let conversation = Mutex::new(ConversationRuntimeState::new());
+    let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
+    let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
+    let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
+    let emitter = NoopEmitter;
+
+    // Pre-populate game_events with stale events from "game A".
+    {
+        let mut events = game_events.lock().await;
+        events.push_back(GameEvent::NpcArrived {
+            npc_id: NpcId(1),
+            location: LocationId(1),
+            timestamp: Utc::now(),
+        });
+        events.push_back(GameEvent::WeatherChanged {
+            new_weather: "Rain".to_string(),
+            timestamp: Utc::now(),
+        });
+        assert_eq!(events.len(), 2, "pre-condition: two stale events");
+    }
+
+    let params = NewGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        conversation: &conversation,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        saves_dir: tmp.path(),
+        game_mod: Some(&game_mod),
+        data_dir: &mod_dir,
+        pronunciations: &game_mod.pronunciations,
+        default_transport: game_mod.transport.default_mode(),
+        emitter: &emitter,
+        game_events: &game_events,
+    };
+
+    do_new_game(params).await.expect("do_new_game failed");
+
+    // After new-game the ring must be empty — no bleed from game A.
+    let events_after = game_events.lock().await;
+    assert!(
+        events_after.is_empty(),
+        "game_events must be cleared on new-game; found {} stale event(s)",
+        events_after.len()
+    );
+    // Cursor (derived from len()) is also 0 — rebaselined for game B.
+    assert_eq!(
+        events_after.len(),
+        0,
+        "event cursor derived from len() must be 0 after new-game"
+    );
 }
 
 #[tokio::test]
@@ -238,6 +317,7 @@ async fn do_new_game_without_mod_fallback_to_data_dir_errors() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
 
     let params = NewGameParams {
@@ -253,6 +333,7 @@ async fn do_new_game_without_mod_fallback_to_data_dir_errors() {
         pronunciations: &[],
         default_transport: &TransportMode::walking(),
         emitter: &emitter,
+        game_events: &game_events,
     };
 
     let result = do_new_game(params).await;
