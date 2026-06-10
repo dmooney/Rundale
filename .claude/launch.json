@@ -32,6 +32,16 @@
       "runtimeArgs": ["dev", "--port", "4321"],
       "cwd": "promptfoo/bench-site",
       "port": 4321
+    },
+    {
+      "name": "harness-dashboard",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "source $HOME/.cargo/env && cargo run -p parish-harness -- serve --port 8787"
+      ],
+      "cwd": "parish",
+      "port": 8787
     }
   ]
 }
