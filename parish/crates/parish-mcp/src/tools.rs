@@ -10,6 +10,12 @@
 //! model better-typed, narrower affordances than the raw IPC surface.
 
 use serde_json::{Value, json};
+use std::sync::OnceLock;
+
+/// Translates a tool's validated `tools/call` arguments into the underlying
+/// backend `(command, args)` pair. Returning `Err` produces a JSON-RPC
+/// invalid-params error.
+pub type TranslateFn = fn(&Value) -> Result<(String, Value), String>;
 
 /// Description of one MCP tool, exposed by `tools/list`.
 #[derive(Debug, Clone)]
@@ -17,10 +23,7 @@ pub struct ToolDef {
     pub name: &'static str,
     pub description: &'static str,
     pub input_schema: Value,
-    /// Translates the validated `tools/call` arguments into the underlying
-    /// backend `(command, args)` pair. Returning `Err` produces a JSON-RPC
-    /// invalid-params error.
-    pub translate: fn(&Value) -> Result<(String, Value), String>,
+    pub translate: TranslateFn,
 }
 
 impl ToolDef {
@@ -31,10 +34,6 @@ impl ToolDef {
             "inputSchema": self.input_schema,
         })
     }
-}
-
-fn empty_object_schema() -> Value {
-    json!({"type": "object", "properties": {}, "additionalProperties": false})
 }
 
 fn require_string<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
@@ -186,264 +185,153 @@ fn translate_setup_byok(args: &Value) -> Result<(String, Value), String> {
     ))
 }
 
-/// Returns the curated tool registry. Tools are listed in the order the
-/// MCP client will see them via `tools/list`.
+/// All `translate` functions keyed by tool name. This is the Rust half of the
+/// tool contract; `manifest.json` is the wire half (name + description +
+/// inputSchema). `manifest_translate_bijection` asserts the two halves agree,
+/// so a tool can never appear in one without the other.
+fn translate_for(name: &str) -> Option<TranslateFn> {
+    Some(match name {
+        "tauri_invoke" => translate_invoke,
+        "parish_world_snapshot" => translate_world_snapshot,
+        "parish_map" => translate_map,
+        "parish_npcs_here" => translate_npcs_here,
+        "parish_engine_state" => translate_engine_state,
+        "parish_save_state" => translate_save_state,
+        "parish_turn" => translate_turn,
+        "parish_submit_input" => translate_submit_input,
+        "parish_new_game" => translate_new_game,
+        "parish_save_game" => translate_save_game,
+        "parish_load_branch" => translate_load_branch,
+        "parish_take_screenshot" => translate_take_screenshot,
+        "parish_latest_screenshot" => translate_latest_screenshot,
+        "parish_file_bug" => translate_file_bug,
+        "parish_byok_env_keys" => translate_byok_env_keys,
+        "parish_setup_status" => translate_setup_status,
+        "parish_setup_byok" => translate_setup_byok,
+        _ => return None,
+    })
+}
+
+/// One tool's wire descriptor, parsed once from the committed `manifest.json`.
+/// `name`/`description` are leaked to `'static` so `ToolDef` keeps its
+/// `&'static str` fields (the protocol layer and every caller are unchanged);
+/// the leak is one-time and bounded by the tool count.
+struct ManifestTool {
+    name: &'static str,
+    description: &'static str,
+    input_schema: Value,
+}
+
+/// `manifest.json` is the single source of truth for the tool wire shape. It is
+/// compiled in via `include_str!` and parsed exactly once. The no-build cold
+/// shim (`parish/scripts/parish-mcp-cold-shim.py`) serves the very same file, so
+/// `tools/list` is identical whether answered by this binary or the shim.
+static MANIFEST_JSON: &str = include_str!("../manifest.json");
+
+fn manifest_tools() -> &'static [ManifestTool] {
+    static CELL: OnceLock<Vec<ManifestTool>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let parsed: Value = serde_json::from_str(MANIFEST_JSON)
+            .expect("parish-mcp manifest.json must be valid JSON");
+        let tools = parsed
+            .get("tools")
+            .and_then(Value::as_array)
+            .expect("manifest.json must have a `tools` array");
+        tools
+            .iter()
+            .map(|t| {
+                let name = t
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .expect("manifest tool missing `name`");
+                let description = t
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .expect("manifest tool missing `description`");
+                let input_schema = t
+                    .get("inputSchema")
+                    .cloned()
+                    .expect("manifest tool missing `inputSchema`");
+                ManifestTool {
+                    name: Box::leak(name.to_owned().into_boxed_str()),
+                    description: Box::leak(description.to_owned().into_boxed_str()),
+                    input_schema,
+                }
+            })
+            .collect()
+    })
+}
+
+/// Returns the curated tool registry, in `manifest.json` order. Each manifest
+/// tool is paired with its Rust `translate` fn; a manifest entry with no fn is
+/// dropped here and caught by `manifest_translate_bijection`.
 pub fn registry() -> Vec<ToolDef> {
-    vec![
-        ToolDef {
-            name: "tauri_invoke",
-            description: "Generic escape hatch — invoke any backend command by name with a JSON args object. \
-                 Useful for endpoints that do not yet have a dedicated tool.",
-            input_schema: json!({
-                "type": "object",
-                "required": ["command"],
-                "properties": {
-                    "command": {"type": "string", "description": "Tauri-style command name (e.g. get_world_snapshot)."},
-                    "args": {"description": "Arguments object forwarded as-is. Omit or null for GET-style calls."}
-                }
-            }),
-            translate: translate_invoke,
-        },
-        ToolDef {
-            name: "parish_world_snapshot",
-            description: "Reads the current world snapshot (clock, player location, weather, recent log entries).",
-            input_schema: empty_object_schema(),
-            translate: translate_world_snapshot,
-        },
-        ToolDef {
-            name: "parish_map",
-            description: "Reads the location graph plus the player's current position.",
-            input_schema: empty_object_schema(),
-            translate: translate_map,
-        },
-        ToolDef {
-            name: "parish_npcs_here",
-            description: "Lists the NPCs co-located with the player at this moment.",
-            input_schema: empty_object_schema(),
-            translate: translate_npcs_here,
-        },
-        ToolDef {
-            name: "parish_engine_state",
-            description: "Reads the canonical, deterministic Parish engine state — the \
-                          authoritative snapshot a QA agent asserts the UI against after \
-                          each interaction. Returns `active_scene` (player location id + \
-                          name + indoor), `clock` (game time, day-of-week, day-type, \
-                          season, festival, paused), `weather`, `player` (location id, \
-                          visited count, name), `npcs` (co-located NPCs + roster totals), \
-                          and `grapevine` (gossip-network item count + distortion). \
-                          Read-only and deterministic: identical engine state yields an \
-                          identical snapshot. Pair with `parish_world_snapshot` / \
-                          `parish_npcs_here` to detect UI-vs-engine drift, and attach the \
-                          result to `parish_file_bug` when a mismatch is found.",
-            input_schema: empty_object_schema(),
-            translate: translate_engine_state,
-        },
-        ToolDef {
-            name: "parish_save_state",
-            description: "Reads metadata about the active save file and current branch.",
-            input_schema: empty_object_schema(),
-            translate: translate_save_state,
-        },
-        // ── Slim per-turn read (#1356 / #1353) ───────────────────────────────
-        // Returns last N exchanges + recent world events + core state.
-        // Bounded size — no debug-snapshot needed per turn.
-        ToolDef {
-            name: "parish_turn",
-            description: "Slim per-turn state read — returns the last few conversation exchanges \
-                 (NPC dialogue), recent world events (NPC arrivals/departures, weather changes, \
-                 gossip, mood shifts), current clock, location, and NPC count at the player's \
-                 location. Bounded to at most 10 exchanges + 20 events; suitable for polling \
-                 after every turn without blowing the context window. Use after `parish_submit_input` \
-                 to check for world changes that occurred during the turn (tier-2 NPC interactions, \
-                 schedule ticks, etc.). The `event_cursor` field in the response is a monotonic \
-                 counter; pass it as `since` on the next call to receive only new events.",
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "since": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "description": "Monotonic event cursor from the previous parish_turn response. \
-                                        Omit (or 0) to return all recent events."
-                    }
-                },
-                "additionalProperties": false
-            }),
-            translate: translate_turn,
-        },
-        ToolDef {
-            name: "parish_submit_input",
-            description: "Sends a line of player input (movement, action, or dialogue) to the running game \
-                 and returns the compact turn result in a single call — no second read needed. \
-                 The response includes `exchanges` (new NPC dialogue produced this turn), \
-                 `clock` ({hour, minute, time_label}), `location` (current location name), and \
-                 `npcs_here` (NPC count at the player's location). `exchanges` is empty when the \
-                 turn produced no NPC reply (movement, look, system command). \
-                 Optionally restrict dialogue recipients via `addressed_to`.",
-            input_schema: json!({
-                "type": "object",
-                "required": ["text"],
-                "properties": {
-                    "text": {"type": "string", "minLength": 1, "maxLength": 2000},
-                    "addressed_to": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "default": []
-                    }
-                }
-            }),
-            translate: translate_submit_input,
-        },
-        ToolDef {
-            name: "parish_new_game",
-            description: "Starts a fresh game on a new save branch, discarding any unsaved state.",
-            input_schema: empty_object_schema(),
-            translate: translate_new_game,
-        },
-        ToolDef {
-            name: "parish_save_game",
-            description: "Saves the current branch to the active save file. Returns a status message.",
-            input_schema: empty_object_schema(),
-            translate: translate_save_game,
-        },
-        ToolDef {
-            name: "parish_load_branch",
-            description: "Loads the named branch (by integer id) from the active save file.",
-            input_schema: json!({
-                "type": "object",
-                "required": ["branch_id"],
-                "properties": {
-                    "branch_id": {"type": "integer"}
-                }
-            }),
-            translate: translate_load_branch,
-        },
-        // ── Screenshot tools ─────────────────────────────────────────────────
-        // `parish_take_screenshot` triggers a fresh capture; the bridge emits
-        // a `request-screenshot` event to the live desktop window, waits for
-        // the frontend to call back with the PNG metadata (up to 15 s), and
-        // returns the result. Only works when a Tauri desktop window is open.
-        //
-        // `parish_latest_screenshot` is the read-only companion: it returns
-        // the most recently captured screenshot without triggering a new one.
-        ToolDef {
-            name: "parish_take_screenshot",
-            description: "Captures the current game view as a PNG screenshot and returns \
-                          its path, ISO-8601 taken_at timestamp, and size in bytes. \
-                          Requires the live desktop window — returns an error when running \
-                          in headless / web-server mode or when the desktop window does not \
-                          respond within 15 seconds. Use `parish_latest_screenshot` if you \
-                          only need to read a previously captured image.",
-            input_schema: empty_object_schema(),
-            translate: translate_take_screenshot,
-        },
-        ToolDef {
-            name: "parish_latest_screenshot",
-            description: "Reads metadata for the most recently captured screenshot \
-                          (path, ISO-8601 taken_at, size_bytes). Returns null when no \
-                          screenshot exists yet — capture is player-initiated by pressing \
-                          F2 in the live desktop window or via `parish_take_screenshot`. \
-                          The path is on the host filesystem; pair this tool with a \
-                          separate Read to view the PNG.",
-            input_schema: empty_object_schema(),
-            translate: translate_latest_screenshot,
-        },
-        // ── Bug reporting ────────────────────────────────────────────────────
-        // Files a well-formed GitHub issue (screenshot + logs + game state) so
-        // an auto-QA agent can report a reproducible bug for a fix-agent. The
-        // backend captures the screenshot via the same round-trip as
-        // `parish_take_screenshot` when a live desktop window is attached;
-        // otherwise it proceeds without one. In dry-run / no-token mode the
-        // composed report is written to disk and `created` is false.
-        ToolDef {
-            name: "parish_file_bug",
-            description: "Files a bug report for the running game. Bundles a screenshot \
-                          (captured live from the desktop window when one is attached), \
-                          recent logs, and current game state into a GitHub issue on the \
-                          configured repository and returns the issue URL. In dry-run or \
-                          no-token mode the report is written to disk instead (created=false, \
-                          bundle_path set). Use during auto-QA to file reproducible bugs. \
-                          Attach a specific debug record via the optional `context` object.",
-            input_schema: json!({
-                "type": "object",
-                "required": ["title"],
-                "properties": {
-                    "title": {"type": "string", "minLength": 1, "maxLength": 500},
-                    "description": {"type": "string", "maxLength": 8000},
-                    "context": {
-                        "type": "object",
-                        "description": "Optional debug-panel record for extra context.",
-                        "properties": {
-                            "kind": {"type": "string"},
-                            "label": {"type": "string"},
-                            "detail": {}
-                        }
-                    }
-                }
-            }),
-            translate: translate_file_bug,
-        },
-        // ── BYOK setup-flow ──────────────────────────────────────────────────
-        ToolDef {
-            name: "parish_byok_env_keys",
-            description: "Returns `{provider_id: bool}` for every supported provider — true \
-                          when the standard API-key env var (ANTHROPIC_API_KEY, OPENAI_API_KEY, \
-                          etc.) is set in the host process. Lets a wizard or MCP client tell \
-                          the user 'leave the field blank to use your existing env var' \
-                          before they commit to a provider.",
-            input_schema: empty_object_schema(),
-            translate: translate_byok_env_keys,
-        },
-        ToolDef {
-            name: "parish_setup_status",
-            description: "Reads the BYOK setup state. Returns `{complete, provider, model, \
-                          base_url, has_api_key, has_env_key}`: `complete` is true once the \
-                          user (or the model, via parish_setup_byok) has picked a provider; \
-                          `has_env_key` is true if a standard provider env var \
-                          (ANTHROPIC_API_KEY etc.) is already set in the host process.",
-            input_schema: empty_object_schema(),
-            translate: translate_setup_status,
-        },
-        ToolDef {
-            name: "parish_setup_byok",
-            description: "Persists a 'bring your own key' provider configuration: writes the \
-                          API key to the OS keychain, updates the user config TOML, and \
-                          rebuilds the live inference worker so subsequent dialogue uses \
-                          the new provider. Returns `{ok, provider, model, base_url, \
-                          has_api_key}` on success or an HTTP 500 with a structured error \
-                          message on failure (missing key for a hosted provider, missing \
-                          base_url for `custom`, invalid provider name, etc.).",
-            input_schema: json!({
-                "type": "object",
-                "required": ["provider"],
-                "properties": {
-                    "provider": {
-                        "type": "string",
-                        "description": "Provider id (e.g. anthropic, openrouter, openai, groq, ollama, lmstudio, custom)."
-                    },
-                    "api_key": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Required for hosted providers; omit for keyless local providers (ollama, lmstudio, vllm, simulator)."
-                    },
-                    "base_url": {
-                        "type": "string",
-                        "description": "Optional override for the provider's base URL; required when provider is `custom`."
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Optional explicit model id; defaults to the provider's dialogue preset."
-                    }
-                }
-            }),
-            translate: translate_setup_byok,
-        },
-    ]
+    manifest_tools()
+        .iter()
+        .filter_map(|t| {
+            let translate = translate_for(t.name)?;
+            Some(ToolDef {
+                name: t.name,
+                description: t.description,
+                input_schema: t.input_schema.clone(),
+                translate,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Manifest-as-source-of-truth guards (parish-mcp-cold-register) ─────────
+    #[test]
+    fn manifest_translate_bijection() {
+        let parsed: serde_json::Value =
+            serde_json::from_str(MANIFEST_JSON).expect("manifest.json is valid JSON");
+        let manifest_names: std::collections::BTreeSet<String> = parsed["tools"]
+            .as_array()
+            .expect("manifest has a `tools` array")
+            .iter()
+            .map(|t| t["name"].as_str().expect("tool has a `name`").to_string())
+            .collect();
+
+        // Every manifest tool resolves a Rust translate fn.
+        for n in &manifest_names {
+            assert!(
+                translate_for(n).is_some(),
+                "manifest tool {n:?} has no translate fn — add it to translate_for()"
+            );
+        }
+        // registry() only yields tools that have BOTH halves, so its name set
+        // must equal the manifest's — no orphan translate fn, no dropped tool.
+        let registry_names: std::collections::BTreeSet<String> =
+            registry().iter().map(|t| t.name.to_string()).collect();
+        assert_eq!(
+            registry_names, manifest_names,
+            "registry() and manifest.json tool sets diverged — every tool needs a \
+             manifest entry AND a translate fn"
+        );
+    }
+
+    #[test]
+    fn manifest_protocol_and_server_match_consts() {
+        // The cold shim serves protocolVersion + serverInfo.name straight from
+        // manifest.json; the real binary serves the mcp.rs consts. Pin them equal
+        // so the shim→binary handoff is seamless.
+        let parsed: serde_json::Value =
+            serde_json::from_str(MANIFEST_JSON).expect("manifest.json is valid JSON");
+        assert_eq!(
+            parsed["protocolVersion"],
+            crate::mcp::PROTOCOL_VERSION,
+            "manifest protocolVersion must equal mcp::PROTOCOL_VERSION"
+        );
+        assert_eq!(
+            parsed["serverInfo"]["name"],
+            crate::mcp::SERVER_NAME,
+            "manifest serverInfo.name must equal mcp::SERVER_NAME"
+        );
+    }
 
     #[test]
     fn submit_input_requires_text() {
