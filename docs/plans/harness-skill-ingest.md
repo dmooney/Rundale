@@ -36,7 +36,7 @@ Ordered, one commit per step, conventional-commit prefixes. All code changes are
 - Tests in `sink.rs`: scored ingest sets status/quality/axes/cost; gated ingest nulls quality;
   two ingests reuse one config row.
 
-## Step 3 — `feat(harness): wire `ingest` subcommand`
+## Step 3 — ``feat(harness): wire `ingest` subcommand``
 
 - `src/main.rs`: add `Ingest(IngestArgs)` to the `Command` enum + `match`.
   `IngestArgs { payload: PathBuf, artifacts: PathBuf, db: Option<PathBuf> }`.
