@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
@@ -110,6 +110,23 @@ import ModelDropdown from './ModelDropdown.svelte';
 			editorEl.focus();
 		}
 	});
+
+	// ── #1379: flush in-flight stream on first interaction ───────────────────
+	// The intended UX (owner-confirmed): blocking the player idle until a long
+	// stream finishes is annoying. Instead, the moment the player starts typing
+	// the next command, immediately flush the in-flight NPC reply to completion
+	// (reveal the full text, cancel the token animation) and only then accept
+	// the next turn. This calls the live stream manager's flush (wired into the
+	// `flushStream` store by the page controller). Returns true if a stream was
+	// actually flushed, so the caller knows the field just transitioned out of
+	// the streaming state.
+	function flushInFlightStream(): boolean {
+		if (!$streamingActive) return false;
+		const flushed = get(flushStream)();
+		// flushAll clears streamingActive itself; if it was a pure-spinner state
+		// with nothing buffered it still clears, so the field becomes editable.
+		return flushed >= 0;
+	}
 
 	$effect(() => {
 		if (dropdownMode === 'mention' && selectedIndex >= filteredNpcs.length) {
@@ -479,6 +496,27 @@ import ModelDropdown from './ModelDropdown.svelte';
 	// ── Keyboard handling ───────────────────────────────────────────────────
 
 	function handleKeydown(e: KeyboardEvent) {
+		// #1379: the first keystroke while a reply is streaming flushes that
+		// reply to completion, then proceeds normally so the typed character
+		// lands in a now-editable field. Modifier-only presses (Shift, Ctrl,
+		// Alt, Meta) are ignored so e.g. holding Shift doesn't prematurely snap
+		// the stream; an actual character / Enter / navigation key triggers it.
+		if (
+			$streamingActive &&
+			e.key !== 'Shift' &&
+			e.key !== 'Control' &&
+			e.key !== 'Alt' &&
+			e.key !== 'Meta'
+		) {
+			flushInFlightStream();
+			// Enter while streaming should only flush, never submit the (empty)
+			// field — swallow it so the player sees the full reply first.
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				return;
+			}
+		}
+
 		// Dropdown navigation (mention, slash, or model)
 		if (dropdownMode !== null) {
 			const items =
@@ -673,6 +711,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 	}
 
 	function handleInput() {
+		// #1379: defensive flush — IME composition / dictation can land text via
+		// `input` without a character `keydown` (key === 'Process'). Snap the
+		// in-flight reply to completion before processing the new draft.
+		flushInFlightStream();
 		// Reset history browsing on any typed input
 		if (historyIndex >= 0) {
 			historyIndex = -1;
@@ -698,6 +740,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 	// sync the reactive state ourselves.
 	function handlePaste(e: ClipboardEvent) {
 		e.preventDefault();
+		// #1379: pasting the next command counts as starting the next turn —
+		// flush the in-flight reply first.
+		flushInFlightStream();
 		const text = e.clipboardData?.getData('text/plain') ?? '';
 		if (!text || !editorEl) return;
 
@@ -797,12 +842,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 			<div
 				bind:this={editorEl}
 				class="input-field"
-				class:disabled={$streamingActive}
-				contenteditable={!$streamingActive}
+				class:streaming={$streamingActive}
+				contenteditable="true"
 				role="combobox"
 				tabindex="0"
 				aria-label="Player input"
-				aria-disabled={$streamingActive}
 				aria-haspopup="listbox"
 				aria-expanded={dropdownMode !== null}
 				aria-controls={dropdownListboxId}
@@ -811,7 +855,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 				onkeydown={handleKeydown}
 				oninput={handleInput}
 				onpaste={handlePaste}
-				data-placeholder={$streamingActive ? 'Waiting…' : 'What do you do? (@ to mention NPC)'}
+				onpointerdown={() => flushInFlightStream()}
+				data-placeholder={$streamingActive ? 'Type to skip ahead…' : 'What do you do? (@ to mention NPC)'}
 			></div>
 		</div>
 		<button
@@ -873,10 +918,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 		border-color: var(--color-accent);
 	}
 
-	.input-field.disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-		pointer-events: none;
+	/* While a reply streams the field stays interactive (so the first keystroke
+	 * can flush the stream, #1379) but is dimmed to signal the in-flight reply. */
+	.input-field.streaming {
+		opacity: 0.6;
 	}
 
 	/* Placeholder via :empty pseudo-element */
