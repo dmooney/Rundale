@@ -21,7 +21,7 @@ Four binaries built from this workspace, each with a single job:
 
 ```mermaid
 flowchart LR
-    subgraph Engine["Parish engine (parish-core composes 8 leaf crates)"]
+    subgraph Engine["Parish engine (parish-core composes 9 leaf crates)"]
         Core[("game loop · world · NPCs · inference · save store")]
     end
 
@@ -280,7 +280,7 @@ through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ## Architecture
 
-One engine, three thin entry points, eight backend-agnostic leaf crates. The full
+One engine, three thin entry points, nine backend-agnostic leaf crates. The full
 crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture.md).
 
 ```mermaid
@@ -303,7 +303,8 @@ flowchart TB
         WORLD["parish-world<br/>graph, movement, weather, geo"]
         NPC["parish-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
         INPUT["parish-input<br/>parsing, intent (local + LLM)"]
-        INFER["parish-inference<br/>queue, rate limits, provider clients"]
+        INFER["parish-inference<br/>queue, priority lanes, worker, validation"]
+        PROVIDERS["parish-providers<br/>provider HTTP clients, simulator/mock,<br/>AnyClient dispatch, rate limits"]
         PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
         CONFIG["parish-config<br/>TOML + env + flags"]
         PALETTE["parish-palette<br/>day/night palette"]
