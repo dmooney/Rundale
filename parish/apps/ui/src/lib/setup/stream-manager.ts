@@ -186,6 +186,10 @@ export function createStreamManager(): StreamManager {
 				return [...log.slice(0, entryIndex), ...log.slice(entryIndex + 1)];
 			}
 
+			// Clear stream_turn_id so that a post-reset resumed stream for the
+			// same turn_id cannot match this already-finalized entry via
+			// appendStreamToken and re-fill it, which would produce a duplicate
+			// dialogue bubble (#1377).
 			return [
 				...log.slice(0, entryIndex),
 				{
@@ -193,6 +197,7 @@ export function createStreamManager(): StreamManager {
 					streaming: false,
 					latest_chunk: undefined,
 					stream_chunk_id: undefined,
+					stream_turn_id: undefined,
 				},
 				...log.slice(entryIndex + 1),
 			];
@@ -350,11 +355,15 @@ export function createStreamManager(): StreamManager {
 				}
 				changed = true;
 				if (entry.content === '') continue; // drop empty placeholder
+				// Also clear stream_turn_id so a post-reset resumed stream
+				// cannot match this finalized entry by turn id and re-fill it,
+				// which would produce a duplicate dialogue bubble (#1377).
 				out.push({
 					...entry,
 					streaming: false,
 					latest_chunk: undefined,
 					stream_chunk_id: undefined,
+					stream_turn_id: undefined,
 				});
 			}
 			return changed ? out : log;

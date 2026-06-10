@@ -333,6 +333,81 @@ describe('createStreamManager — resumed stream rebinds to a reactable id (#116
 	});
 });
 
+describe('reset() clears stream_turn_id from finalized entries (#1377)', () => {
+	// C4: After reset() finalizes a streaming textLog entry, its stream_turn_id
+	// must be undefined so post-reset resumed streams cannot match it.
+	it('clears stream_turn_id on finalized entries after reset', async () => {
+		vi.useFakeTimers();
+		const sm = createStreamManager();
+
+		// Simulate an in-progress stream: queue a turn, add some content.
+		const turn = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		sm.ensureTurnEntry(turn);
+		// Directly update the textLog to simulate a partially-streamed entry.
+		textLog.update((log) =>
+			log.map((e) =>
+				e.stream_turn_id === 42
+					? { ...e, content: 'Mornin', streaming: true, stream_chunk_id: 1 }
+					: e,
+			),
+		);
+
+		// Reset orphans the in-progress stream (e.g. WS reconnect).
+		sm.reset();
+
+		const entries = get(textLog);
+		const orphan = entries.find((e) => e.content === 'Mornin');
+		expect(orphan).toBeDefined();
+		// C4: stream_turn_id must be cleared after reset.
+		expect(orphan?.stream_turn_id).toBeUndefined();
+		// streaming flag must also be cleared.
+		expect(orphan?.streaming).toBeFalsy();
+
+		vi.useRealTimers();
+	});
+
+	// C5: appendStreamToken after reset for a now-finalized turn_id must NOT
+	// find and re-fill the old finalized entry; it must create a fresh one.
+	it('post-reset appendStreamToken does not re-fill the old finalized entry', async () => {
+		vi.useFakeTimers();
+		const sm = createStreamManager();
+
+		// Partially-stream turn 42, then reset.
+		const turn = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		sm.ensureTurnEntry(turn);
+		textLog.update((log) =>
+			log.map((e) =>
+				e.stream_turn_id === 42
+					? { ...e, content: 'Mornin', streaming: true, stream_chunk_id: 1 }
+					: e,
+			),
+		);
+		sm.reset();
+
+		// Simulate backend resuming the stream after reconnect.
+		const resumed = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		resumed.buffer += ' lad';
+		resumed.complete = true;
+		sm.startTurnPumpIfNeeded(resumed);
+
+		// Drain the pump.
+		await vi.waitFor(() => sm.pendingTurnCount() === 0);
+		vi.runAllTimers();
+		await vi.waitFor(() => sm.pendingTurnCount() === 0);
+
+		const entries = get(textLog);
+		// The old finalized entry ('Mornin') must still have its content intact
+		// and stream_turn_id undefined — it was not re-filled.
+		const old = entries.find((e) => e.content === 'Mornin');
+		expect(old?.stream_turn_id).toBeUndefined();
+		// C5: A fresh entry was created for the resumed turn, not the old one.
+		// (The resumed content ' lad' should not appear appended to 'Mornin'.)
+		expect(old?.content).toBe('Mornin');
+
+		vi.useRealTimers();
+	});
+});
+
 describe('reconnect re-asserts streamingActive from turn_in_flight (#1164 AC3)', () => {
 	// Models the +page.svelte onReconnect resync decision: after sm.reset() +
 	// streamingActive.set(false), the handler reads the authoritative snapshot
