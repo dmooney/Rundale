@@ -12,7 +12,7 @@ symlink where present.
 | `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)          | [AGENTS.md](../../AGENTS.md)                |
 | `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)    | -                                           |
 | `parish/`                                         | Main Rust workspace and frontend workspace for the Parish engine             | [Cargo.toml](../../parish/Cargo.toml) | -                                           |
-| `parish/crates/`                                  | 16 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)   | per crate                                   |
+| `parish/crates/`                                  | 18 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)   | per crate                                   |
 | `parish/apps/ui/`                                 | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`             | [AGENTS.md](../../parish/apps/ui/AGENTS.md) |
 | `parish/testing/`                                 | Harness fixtures, eval scripts, and test data                                | `fixtures/`, `evals/`                 | [AGENTS.md](../../parish/testing/AGENTS.md) |
 | `parish/scripts/`                                 | Check, proof, MCP-backend, screenshot, and release helper scripts            | `*.sh`, `*.py`                        | -                                           |
@@ -44,7 +44,7 @@ symlink where present.
 
 ## Parish Crates
 
-The Parish workspace currently has 17 crates under `parish/crates/`.
+The Parish workspace currently has 18 crates under `parish/crates/`.
 
 | Path                                | Purpose                                                                                                           | Entry / key file                                                  | Scope doc                                                   |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -57,6 +57,7 @@ The Parish workspace currently has 17 crates under `parish/crates/`.
 | `parish/crates/parish-inference/`   | LLM clients, setup, routing, request queue, and provider integration                                              | `src/lib.rs`                                                      | [AGENTS.md](../../parish/crates/parish-inference/AGENTS.md) |
 | `parish/crates/parish-input/`       | Player input parsing and command interpretation                                                                   | `src/lib.rs`                                                      | -                                                           |
 | `parish/crates/parish-npc/`         | NPC simulation, memory, schedules, tiers, reactions, and autonomous updates                                       | `src/lib.rs`                                                      | [AGENTS.md](../../parish/crates/parish-npc/AGENTS.md)       |
+| `parish/crates/parish-mod/`         | Content-mod loader: manifest, discovery, runtime data; re-exported as `parish_core::game_mod`                     | `src/lib.rs`, [README](../../parish/crates/parish-mod/README.md)  | -                                                           |
 | `parish/crates/parish-palette/`     | Mood and colour palette helpers                                                                                   | `src/lib.rs`                                                      | -                                                           |
 | `parish/crates/parish-persistence/` | SQLite saves, branches, snapshots, and user-data path helpers                                                     | `src/lib.rs`                                                      | -                                                           |
 | `parish/crates/parish-world/`       | Geography, map graph, weather, and world loading                                                                  | `src/lib.rs`                                                      | -                                                           |

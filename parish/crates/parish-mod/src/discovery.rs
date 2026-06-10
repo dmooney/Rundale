@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use super::manifest::{ModKind, ModMeta};
-use crate::error::ParishError;
+use parish_types::error::ParishError;
 
 /// All mods discovered under a `mods/` root.
 ///
@@ -145,8 +145,9 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
 /// cwd-walk below is a **development fallback only**. Production and packaged
 /// builds must set `PARISH_MODS_DIR` so this walk is never reached.
 ///
-/// See [`LocalDiskModSource::with_root`] for the explicit-path API.
-pub(crate) fn find_mods_root() -> Option<PathBuf> {
+/// See `parish_core::mod_source::LocalDiskModSource::with_root` for the
+/// explicit-path API.
+pub fn find_mods_root() -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("PARISH_MODS_DIR") {
         let p = PathBuf::from(explicit);
         if p.is_dir() {
