@@ -3,12 +3,15 @@
 //! A "mod" is a directory containing a `mod.toml` manifest plus data files
 //! (world graph, NPCs, encounters, etc.). The engine loads a [`GameMod`] at
 //! startup and uses it to access all game-specific content at runtime.
+//!
+//! This crate is the sole owner of the content-mod loader. `parish-core`
+//! re-exports it as `parish_core::game_mod` so every historical consumer path
+//! keeps compiling unchanged.
 
 use std::path::{Path, PathBuf};
 
-use crate::error::ParishError;
-use crate::npc::LanguageHint;
-use crate::world::transport::TransportConfig;
+use parish_types::{LanguageHint, error::ParishError};
+use parish_world::transport::TransportConfig;
 
 mod assets;
 
@@ -32,8 +35,10 @@ pub use types::*;
 // Re-export world bridge
 pub use world::world_state_from_mod;
 
-// Re-export discovery items
-pub(crate) use discovery::find_mods_root;
+// Re-export discovery items. `find_mods_root` is consumed by
+// `parish_core::mod_source`, so it must be `pub` now that this loader lives in
+// its own crate (it was `pub(crate)` while co-located with `parish-core`).
+pub use discovery::find_mods_root;
 pub use discovery::{
     DiscoveredMod, DiscoveredMods, discover_mods, discover_mods_in, find_default_mod,
 };
@@ -70,7 +75,7 @@ pub struct GameMod {
     /// Transport modes configuration.
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
-    pub reactions: crate::npc::reactions::ReactionTemplates,
+    pub reactions: parish_npc::reactions::ReactionTemplates,
 }
 
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
@@ -240,7 +245,7 @@ impl GameMod {
                 ParishError::Config(format!("failed to parse {reactions_file}: {e}"))
             })?
         } else {
-            crate::npc::reactions::ReactionTemplates::default()
+            parish_npc::reactions::ReactionTemplates::default()
         };
 
         Ok(Self {

@@ -14,6 +14,7 @@ members = [
     "crates/parish-palette",
     "crates/parish-npc",
     "crates/parish-npc-tool",
+    "crates/parish-mod",
     "crates/parish-persistence",
     "crates/parish-input",
     "crates/parish-client",
@@ -43,6 +44,7 @@ parish-inference = { path = "crates/parish-inference" }
 parish-world = { path = "crates/parish-world" }
 parish-palette = { path = "crates/parish-palette" }
 parish-npc = { path = "crates/parish-npc" }
+parish-mod = { path = "crates/parish-mod" }
 parish-persistence = { path = "crates/parish-persistence" }
 parish-input = { path = "crates/parish-input" }
 parish-core = { path = "crates/parish-core" }

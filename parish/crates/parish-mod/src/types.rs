@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ipc::ThemePalette;
-use crate::npc::LanguageHint;
 use parish_types::AnachronismEntry;
+use parish_types::LanguageHint;
+use parish_types::ThemePalette;
 
 /// Prompt templates loaded from text files.
 #[derive(Debug, Clone)]

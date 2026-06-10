@@ -14,7 +14,6 @@ pub mod debug_snapshot;
 pub mod editor;
 pub mod event_bus;
 pub mod game_loop;
-pub mod game_mod;
 pub mod game_session;
 pub mod identity;
 pub mod inference_guard;
@@ -34,8 +33,12 @@ pub const AUTOSAVE_INTERVAL_SECS: u64 = 60;
 
 // Sub-crate re-exports — preserves `crate::X::...` paths used throughout
 pub use parish_config as config;
+// The content-mod loader was extracted into its own crate (`parish-mod`).
+// This alias preserves the historical `parish_core::game_mod::...` path for
+// every consumer so the extraction stays behaviour-preserving.
 pub use parish_inference as inference;
 pub use parish_input as input;
+pub use parish_mod as game_mod;
 pub use parish_npc as npc;
 pub use parish_persistence as persistence;
 pub use parish_types::dice;
