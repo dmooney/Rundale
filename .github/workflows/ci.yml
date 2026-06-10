@@ -643,3 +643,51 @@ jobs:
           name: playwright-report
           path: parish/apps/ui/playwright-report/
           if-no-files-found: ignore
+
+  # ── Aggregate required-checks gate ─────────────────────────────────────────
+  # Branch protection requires THIS single job, not the individual Rust matrix
+  # leaves. The Rust jobs above are path-gated (skipped on doc / CI / script-only
+  # PRs via the `changes` filter). A *required matrix leaf* that is skipped never
+  # reports a status, so such PRs got stuck on "Expected — Waiting for status to
+  # be reported" forever. This job always runs and passes when every gated job
+  # either succeeded or was legitimately skipped — non-Rust PRs go green instead
+  # of hanging, while a real Rust failure still blocks the merge.
+  ci-gate:
+    name: CI gate
+    needs:
+      [
+        rust-quality-gate,
+        rust-coverage-ratchet,
+        rust-multi-channel,
+        game-harness,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # No checkout, so override the workflow-level `working-directory: parish`
+    # default (that dir doesn't exist here) to the always-present workspace root.
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Require gated jobs to succeed or be skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "gated job results: $RESULTS"
+          read -ra results <<< "$RESULTS"
+          status=0
+          for r in "${results[@]}"; do
+            case "$r" in
+              success | skipped) ;;
+              *)
+                echo "::error::a required CI job ended with '$r'"
+                status=1
+                ;;
+            esac
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "CI gate: FAIL — a required job failed or was cancelled."
+            exit 1
+          fi
+          echo "CI gate: PASS — all gated jobs succeeded or were legitimately skipped."
