@@ -176,12 +176,63 @@ pub async fn get_cost(State(state): State<AppState>) -> Response {
 // ── GET / ─────────────────────────────────────────────────────────────────────
 
 /// Serves the embedded single-file dashboard UI.
+///
+/// The `__COMMIT_BASE__` token is replaced with the GitHub repo base derived
+/// from the local `origin` remote so the UI can link each run's git sha to its
+/// commit; it is replaced with an empty string when there is no GitHub origin
+/// (the UI then renders shas unlinked).
 pub async fn index_html() -> impl IntoResponse {
+    const HTML: &str = include_str!("../../dashboard-ui/index.html");
+    let body = HTML.replace(
+        "__COMMIT_BASE__",
+        github_commit_base().as_deref().unwrap_or(""),
+    );
     (
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        include_str!("../../dashboard-ui/index.html"),
+        body,
     )
+}
+
+/// The GitHub repo base URL (`https://github.com/<owner>/<repo>`) for the
+/// `origin` remote, computed once. `None` when there is no git origin or it is
+/// not a GitHub remote.
+fn github_commit_base() -> Option<String> {
+    use std::sync::OnceLock;
+    static BASE: OnceLock<Option<String>> = OnceLock::new();
+    BASE.get_or_init(|| {
+        let out = std::process::Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        parse_github_base(&String::from_utf8_lossy(&out.stdout))
+    })
+    .clone()
+}
+
+/// Parses a git remote URL into a `https://github.com/<owner>/<repo>` base.
+///
+/// Handles the SSH (`git@github.com:owner/repo.git`), HTTPS
+/// (`https://github.com/owner/repo(.git)`), and `ssh://` forms; returns `None`
+/// for non-GitHub remotes or anything that is not exactly `owner/repo`. Pure for
+/// unit testing.
+fn parse_github_base(remote: &str) -> Option<String> {
+    let s = remote.trim();
+    let slug = s
+        .strip_prefix("git@github.com:")
+        .or_else(|| s.strip_prefix("https://github.com/"))
+        .or_else(|| s.strip_prefix("ssh://git@github.com/"))?;
+    let slug = slug
+        .strip_suffix(".git")
+        .unwrap_or(slug)
+        .trim_end_matches('/');
+    if slug.split('/').filter(|p| !p.is_empty()).count() != 2 {
+        return None;
+    }
+    Some(format!("https://github.com/{slug}"))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -379,16 +430,95 @@ mod tests {
             html.contains("<polygon"),
             "radar must draw an SVG data polygon"
         );
-        // The existing bar chart is retained alongside the radar (C5).
+        // The radar is the sole axis visualization — the bar chart was removed.
         assert!(
-            html.contains("axes-chart"),
-            "dashboard must keep the axes bar chart"
+            !html.contains("axes-chart") && !html.contains("axis-bar"),
+            "dashboard must not render the axis bar chart (radar replaces it)"
         );
         // No external/CDN dependency — the dashboard stays offline (C2).
         let lower = html.to_lowercase();
         assert!(
             !lower.contains("script src") && !lower.contains("cdn") && !lower.contains("chart.js"),
             "dashboard radar must be pure inline SVG with no external script dependency"
+        );
+    }
+
+    #[test]
+    fn dashboard_html_links_commit_sha() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // The sha-link helper + injected commit base are present so a run's git
+        // sha can render as a GitHub commit link.
+        assert!(html.contains("shaCell"), "dashboard must define shaCell");
+        assert!(
+            html.contains("window.COMMIT_BASE") && html.contains("/commit/"),
+            "dashboard must build a /commit/ link from COMMIT_BASE"
+        );
+        assert!(
+            html.contains("__COMMIT_BASE__"),
+            "the raw HTML must carry the __COMMIT_BASE__ token for serve-time injection"
+        );
+    }
+
+    #[test]
+    fn dashboard_html_has_run_routing() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // Runs are deep-linkable pages via hash routing.
+        assert!(
+            html.contains("function router"),
+            "must define a hash router"
+        );
+        assert!(
+            html.contains("hashchange"),
+            "must listen for hashchange to navigate run pages"
+        );
+        assert!(
+            html.contains("'run/'") || html.contains("#run/"),
+            "must use #run/<id> URLs for run pages"
+        );
+    }
+
+    #[test]
+    fn parse_github_base_handles_remote_forms() {
+        let want = Some("https://github.com/dmooney/Rundale".to_string());
+        assert_eq!(
+            parse_github_base("git@github.com:dmooney/Rundale.git\n"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("https://github.com/dmooney/Rundale.git"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("https://github.com/dmooney/Rundale"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("ssh://git@github.com/dmooney/Rundale.git"),
+            want
+        );
+        // Non-GitHub or malformed remotes yield no base (sha stays unlinked).
+        assert_eq!(parse_github_base("git@gitlab.com:foo/bar.git"), None);
+        assert_eq!(parse_github_base("https://github.com/onlyowner"), None);
+        assert_eq!(parse_github_base(""), None);
+    }
+
+    #[tokio::test]
+    async fn index_html_replaces_commit_base_token() {
+        // The served HTML must not leak the raw placeholder — it is replaced with
+        // the repo base (this repo has a GitHub origin) or an empty string.
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("idx.db");
+        Db::open(&db_path).unwrap();
+        let app = build_router(make_state(db_path));
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(
+            !html.contains("__COMMIT_BASE__"),
+            "served HTML must replace the __COMMIT_BASE__ token"
         );
     }
 }

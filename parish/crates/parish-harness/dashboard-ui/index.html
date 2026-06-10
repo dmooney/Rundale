@@ -23,12 +23,6 @@
     tr.clickable { cursor: pointer; }
     #detail { margin-top: 1.5rem; display: none; }
     #detail.visible { display: block; }
-    .axes-chart { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
-    .axis-bar { display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: 70px; }
-    .axis-bar-label { font-size: .7rem; color: #888; text-align: center; }
-    .axis-bar-track { width: 40px; height: 80px; background: #1a1a1a; border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
-    .axis-bar-fill { width: 100%; background: #5080c0; transition: height .3s; }
-    .axis-bar-score { font-size: .75rem; color: #9bb3e0; }
     .axes-radar { display: block; margin: .25rem 0 .5rem; }
     .finding { background: #181820; border-left: 3px solid #5c4020; padding: .5rem .75rem; margin: .25rem 0; border-radius: 0 4px 4px 0; font-size: .82rem; }
     .finding.severity-critical { border-color: #c04040; }
@@ -110,9 +104,22 @@
   </footer>
 
   <script>
+    // Injected by the serve binary from `git remote get-url origin`; empty when
+    // the repo has no GitHub origin, in which case shas render unlinked.
+    window.COMMIT_BASE = "__COMMIT_BASE__";
+  </script>
+  <script>
     const $ = id => document.getElementById(id);
     let currentRunId = null;
     let sse = null;
+
+    // Render a git sha as a GitHub commit link when COMMIT_BASE is set, else
+    // plain code. Short-form (8 chars) display; GitHub resolves the short sha.
+    function shaCell(sha) {
+      const short = sha ? sha.substring(0, 8) : '—';
+      if (!sha || !window.COMMIT_BASE) return `<code>${short}</code>`;
+      return `<a href="${window.COMMIT_BASE}/commit/${sha}" target="_blank" rel="noopener"><code>${short}</code></a>`;
+    }
 
     async function loadRuns() {
       const c = $('runs-container');
@@ -130,20 +137,34 @@
         for (const r of runs) {
           const tr = document.createElement('tr');
           tr.className = 'clickable';
-          tr.addEventListener('click', () => showDetail(r.id));
+          tr.addEventListener('click', () => { location.hash = 'run/' + r.id; });
           const status_badge = `<span class="badge badge-${r.status}">${r.status}</span>`;
           const quality = r.quality_score != null ? r.quality_score.toFixed(1) : '—';
           const gate = r.gate_reason ? `${r.gate_reason} @t${r.gate_turn}` : '—';
-          const sha = r.git_sha ? r.git_sha.substring(0, 8) : '—';
           tr.innerHTML = `<td>${r.id}</td><td>${status_badge}</td><td>${quality}</td>
             <td>${gate}</td><td>${r.turn_count}</td><td>${r.finding_count}</td>
-            <td><code>${sha}</code></td><td>${r.git_branch||'—'}</td>
+            <td>${shaCell(r.git_sha)}</td><td>${r.git_branch||'—'}</td>
             <td>${(r.started_at||'').substring(0,16)}</td>`;
           tbody.appendChild(tr);
         }
         c.appendChild(tbl);
       } catch (e) {
         c.innerHTML = `<div class="error-msg">Failed to load runs: ${e.message}</div>`;
+      }
+    }
+
+    // Hash router: `#run/<id>` is a deep-linkable run page (shareable URL,
+    // browser back/forward, survives refresh); any other hash shows the list.
+    function router() {
+      const m = location.hash.match(/^#run\/(\d+)/);
+      if (m) {
+        if (activeTab !== 'runs') switchTab('runs');
+        showDetail(parseInt(m[1], 10));
+      } else {
+        if (sse) { sse.close(); sse = null; }
+        currentRunId = null;
+        $('detail').className = '';
+        $('runs-view').style.display = '';
       }
     }
 
@@ -165,9 +186,9 @@
       }
     }
 
-    // Pure SVG 7-axis radar (spider) chart. No external library — the dashboard
-    // is offline/zero-dependency. Returns '' when there is no axis data so the
-    // caller degrades to the bar chart alone.
+    // Pure SVG 7-axis radar (spider) chart — the sole axis visualization. No
+    // external library; the dashboard is offline/zero-dependency. Returns '' when
+    // there is no axis data so the caller simply renders no chart.
     const RADAR_LABELS = {
       narrative_coherence: 'narrative', character_fidelity: 'character',
       world_responsiveness: 'world resp.', intent_fidelity: 'intent',
@@ -227,27 +248,16 @@
       let html = `<h2>Run #${s.id} ${status_badge} <span class="sse-status" id="sse-status"></span></h2>
         <div class="run-meta">
           Quality: ${quality}${gate_info}<br>
-          Git: <code>${(s.git_sha||'').substring(0,8)}</code> on <em>${s.git_branch||'?'}</em>
+          Git: ${shaCell(s.git_sha)} on <em>${s.git_branch||'?'}</em>
           ${s.git_dirty ? '<strong style="color:#c09040"> (dirty)</strong>' : ''}<br>
           Turns: ${s.turn_count} &nbsp; Findings: ${s.finding_count}<br>
           Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
         </div>`;
 
-      // Axes radar + bar chart.
+      // Axes radar — the per-vertex scores are drawn on the chart itself.
       if (d.axes.length > 0) {
         html += `<h3>Quality Axes</h3>`;
         html += buildAxesRadar(d.axes);
-        html += `<div class="axes-chart">`;
-        for (const ax of d.axes) {
-          const pct = Math.max(0, Math.min(100, ax.score));
-          const label = ax.axis.replace(/_/g,' ');
-          html += `<div class="axis-bar">
-            <div class="axis-bar-track"><div class="axis-bar-fill" style="height:${pct}%"></div></div>
-            <div class="axis-bar-score">${ax.score}</div>
-            <div class="axis-bar-label">${label}</div>
-          </div>`;
-        }
-        html += `</div>`;
       }
 
       // Findings.
@@ -297,12 +307,7 @@
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    $('back-btn').addEventListener('click', () => {
-      if (sse) { sse.close(); sse = null; }
-      currentRunId = null;
-      $('detail').className = '';
-      $('runs-view').style.display = '';
-    });
+    $('back-btn').addEventListener('click', () => { location.hash = ''; });
     $('refresh-btn').addEventListener('click', loadRuns);
 
     // ── Tab navigation ─────────────────────────────────────────────────────
@@ -407,10 +412,7 @@
 
       // Wire up dot click to showDetail.
       container.querySelectorAll('.trend-point').forEach((el, i) => {
-        el.addEventListener('click', () => {
-          switchTab('runs');
-          showDetail(scored[i].run_id);
-        });
+        el.addEventListener('click', () => { location.hash = 'run/' + scored[i].run_id; });
       });
     }
 
@@ -486,7 +488,10 @@
       container.innerHTML = html;
     }
 
-    loadRuns();
+    // Load the list, then route — so a deep-linked `#run/<id>` opens that run's
+    // page on first load and on every back/forward navigation.
+    window.addEventListener('hashchange', router);
+    loadRuns().then(router);
 
     // ── Cost footer ───────────────────────────────────────────────────────
     async function loadCost() {
