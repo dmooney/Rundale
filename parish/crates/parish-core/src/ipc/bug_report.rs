@@ -501,7 +501,9 @@ pub fn truncate_to_budget(text: &str, budget: usize) -> String {
         start += 1;
     }
     let kept = &text[start..];
-    format!("[truncated {dropped} chars — oldest content dropped]\n{kept}")
+    // Count chars in the dropped prefix (not bytes) for an accurate marker.
+    let dropped_chars = text[..start].chars().count();
+    format!("[truncated {dropped_chars} chars — oldest content dropped]\n{kept}")
 }
 
 // ── Issue-body composition (pure) ─────────────────────────────────────────────
@@ -595,16 +597,19 @@ pub fn compose_issue_body(
     s.push_str("---\n_Filed via the in-app bug reporter._\n");
 
     // Hard cap: if somehow the body still exceeds the budget (e.g. a very large
-    // description or context blob), truncate the tail so we never 422.
+    // description or context blob), truncate so the body + marker stay ≤ budget.
     if s.len() > BODY_BUDGET {
-        let dropped = s.len() - BODY_BUDGET;
-        let mut end = BODY_BUDGET;
+        // The marker itself is ~50 bytes; subtract 60 to ensure body+marker ≤ BODY_BUDGET.
+        let target_len = BODY_BUDGET.saturating_sub(60);
+        let mut end = target_len;
         while end > 0 && !s.is_char_boundary(end) {
             end -= 1;
         }
+        // Count chars in the dropped suffix for an accurate marker.
+        let dropped_chars = s[end..].chars().count();
         s.truncate(end);
         s.push_str(&format!(
-            "\n[truncated {dropped} chars — body exceeded budget]"
+            "\n[truncated {dropped_chars} chars — body exceeded budget]"
         ));
     }
 
@@ -1373,7 +1378,31 @@ mod tests {
         assert!(result.contains("[truncated"), "marker missing: {result:?}");
         assert!(
             result.contains("10 chars"),
-            "dropped byte count missing: {result:?}"
+            "dropped char count missing: {result:?}"
+        );
+    }
+
+    /// `truncate_to_budget` — marker reports char count, not byte count, for
+    /// multi-byte UTF-8 strings. Regression test for gemini finding #1.
+    #[test]
+    fn truncate_to_budget_reports_char_count_not_bytes() {
+        // "é" is 2 bytes but 1 char. Build a string where byte count ≠ char count.
+        // "aaa" (3 bytes/chars) + "é" (2 bytes, 1 char) = 5 bytes, 4 chars total.
+        // With a budget of 3 bytes we keep "aé" won't fit cleanly — keep "aaa" tail.
+        // More deterministic: 10 × "é" = 20 bytes, 10 chars. Budget = 10 bytes.
+        // That aligns on a 2-byte boundary exactly, so start = 10, dropped prefix = first 5 × "é" (10 bytes, 5 chars).
+        let text = "éééééééééé"; // 10 × 'é' = 20 bytes, 10 chars
+        assert_eq!(text.len(), 20);
+        assert_eq!(text.chars().count(), 10);
+        let result = truncate_to_budget(text, 10); // keep last 5 chars (10 bytes)
+        // Marker must say "5 chars", not "10" (bytes).
+        assert!(
+            result.contains("5 chars"),
+            "marker must report char count (5), not byte count (10): {result:?}"
+        );
+        assert!(
+            result.ends_with("ééééé"),
+            "tail must be preserved: {result:?}"
         );
     }
 
@@ -1457,6 +1486,28 @@ mod tests {
             body.len() <= BODY_BUDGET,
             "body length {} exceeds BODY_BUDGET {BODY_BUDGET}",
             body.len()
+        );
+    }
+
+    /// The hard-cap path (very large description that bypasses diagnostic
+    /// pre-truncation) must not push the body+marker over `BODY_BUDGET`.
+    /// Regression test for gemini finding #2.
+    #[test]
+    fn hard_cap_body_plus_marker_within_budget() {
+        // Build a state with a description large enough to trigger the hard cap.
+        let huge_description = "A".repeat(BODY_BUDGET + 1_000);
+        let mut req = request();
+        req.description = huge_description;
+        let body = compose_issue_body(&req, &BugReportState::default(), None);
+        assert!(
+            body.len() <= BODY_BUDGET,
+            "hard-cap body (including marker) length {} exceeds BODY_BUDGET {BODY_BUDGET}",
+            body.len()
+        );
+        // The marker must be present to confirm the hard-cap ran.
+        assert!(
+            body.contains("[truncated") && body.contains("body exceeded budget"),
+            "hard-cap truncation marker missing from oversized-description body"
         );
     }
 
