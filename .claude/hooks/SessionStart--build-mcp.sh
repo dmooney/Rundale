@@ -16,7 +16,15 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
 fi
 
 REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-TARGET_DIR="${CARGO_TARGET_DIR:-$REPO/parish/target}"
+# Resolve the real cargo target dir — worktrees share ~/.cargo/target via
+# ~/.cargo/config.toml, so "$REPO/parish/target" is wrong here and the fast-path
+# below would never fire (rebuilding every session). Mirror parish-mcp-launch.sh.
+TARGET_DIR="${CARGO_TARGET_DIR:-}"
+if [ -z "$TARGET_DIR" ]; then
+    TARGET_DIR="$( (cd "$REPO/parish" && cargo metadata --no-deps --offline --format-version 1 2>/dev/null) \
+        | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])' 2>/dev/null || true)"
+fi
+[ -z "$TARGET_DIR" ] && TARGET_DIR="$REPO/parish/target"
 MCP_BIN="$TARGET_DIR/debug/parish-mcp"
 
 if [ -x "$MCP_BIN" ]; then
