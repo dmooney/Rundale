@@ -21,32 +21,46 @@ test.describe('Input field interactions', () => {
 		await expect(input).toHaveText('');
 	});
 
-	test('input is disabled during streaming', async ({ page }) => {
-		// Simulate loading state
+	// #1379: the input is always editable — no aria-disabled toggling.
+	// During streaming the field is dimmed (css class "streaming") to signal
+	// the in-flight reply, but it remains contenteditable so the first
+	// keystroke can flush the stream to completion.
+	test('input stays editable during streaming (flush-on-interaction, #1379)', async ({
+		page,
+	}) => {
+		const input = page.locator('[data-testid="input-field"]');
+
+		// Simulate loading/streaming state
 		await emitEvent(page, 'loading', { active: true });
 
-		const input = page.locator('[data-testid="input-field"]');
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		// Field must never become aria-disabled; it should have the streaming class.
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
+		await expect(input).toHaveAttribute('contenteditable', 'true');
+		await expect(input).toHaveClass(/streaming/);
 
 		// End loading
 		await emitEvent(page, 'loading', { active: false });
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		await expect(input).not.toHaveClass(/streaming/);
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
 	});
 
 	// Regression for #991: the backend's handle_npc_conversation cancels
 	// and re-spawns the loading animation per addressed NPC turn, so
 	// `loading {active:false}` arrives mid-chain (between phase-1 NPC
 	// turns, or between phase-1 and the autonomous follow-up chain).
-	// The frontend must NOT re-enable the input field on that mid-chain
-	// loading=false — only the chain's terminal `stream-end` may.
-	test('input stays disabled across mid-chain loading=false (#991)', async ({
+	// #1379: the input is never aria-disabled; instead streamingActive is
+	// reflected by the "streaming" CSS class. The mid-chain loading=false
+	// must NOT remove the streaming class — only the terminal `stream-end` may.
+	test('input stays in streaming state across mid-chain loading=false (#991)', async ({
 		page,
 	}) => {
 		const input = page.locator('[data-testid="input-field"]');
 
 		// Chain begins.
 		await emitEvent(page, 'loading', { active: true });
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		// #1379: always editable, never aria-disabled; streaming class is the signal.
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
+		await expect(input).toHaveClass(/streaming/);
 
 		// NPC 1 streams a reply and the per-turn cancel fires.
 		await emitEvent(page, 'stream-token', {
@@ -57,13 +71,14 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1001 });
 		await emitEvent(page, 'loading', { active: false });
 
-		// Input must remain disabled even though loading=false has arrived,
-		// because the chain has not yet emitted `stream-end`.
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		// Input must remain in streaming state even though loading=false has
+		// arrived, because the chain has not yet emitted `stream-end`.
+		await expect(input).toHaveClass(/streaming/);
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
 
 		// Capture the mid-chain state as proof for #991 (rule #10 screenshot tier).
 		await page.screenshot({
-			path: '../../../docs/proofs/991-streaming-active-chain-gap/screenshots/mid-chain-input-disabled.png',
+			path: '../../../docs/proofs/991-streaming-active-chain-gap/screenshots/mid-chain-input-streaming.png',
 			fullPage: false,
 		});
 
@@ -75,14 +90,15 @@ test.describe('Input field interactions', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1002 });
 
-		// Still disabled — chain still alive.
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		// Still streaming — chain still alive.
+		await expect(input).toHaveClass(/streaming/);
 
 		// Chain terminates.
 		await emitEvent(page, 'stream-end', { hints: [] });
 
-		// Only now does the input re-enable.
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		// Only now does the streaming class clear and the field return to idle.
+		await expect(input).not.toHaveClass(/streaming/);
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
 	});
 });
 
