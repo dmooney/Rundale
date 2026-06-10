@@ -390,12 +390,23 @@ async fn cf_access_guard(
 }
 
 /// Starts the Parish web server on the given port.
-pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
+///
+/// When `headless_models` is true the server brings up (or detect-reuses) the
+/// bundled local vllm-mlx Qwen two-slot loadout and binds the four inference
+/// categories to it, so `POST /api/command` produces real NPC dialogue with no
+/// desktop app (#1364). Otherwise the provider is resolved from env/presets as
+/// before.
+pub async fn run_server(
+    port: u16,
+    data_dir: PathBuf,
+    static_dir: PathBuf,
+    headless_models: bool,
+) -> anyhow::Result<()> {
     handle_dotenv();
     let world_path = resolve_world_path(&data_dir);
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (provider_cfg, config) = build_client_and_config();
+    let (provider_cfg, config) = build_client_and_config(headless_models);
     let (config, runtime_processes) = run_llm_bootstrap(provider_cfg, config).await?;
 
     // ── Game mod / engine config / UI config ──────────────────────────────────
@@ -1218,7 +1229,12 @@ fn sanitize_base_url(url: &str) -> String {
 /// the session `GameConfig` template. The caller runs the bootstrap and
 /// then overwrites `config.model_name` with the auto-resolved tag (for
 /// Ollama, the tier selector's pick).
-fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig) {
+fn build_client_and_config(
+    headless_models: bool,
+) -> (parish_core::config::ProviderConfig, GameConfig) {
+    if headless_models {
+        return build_headless_local_config();
+    }
     let provider_cfg = parish_core::config::resolve_config(None, &Default::default())
         .unwrap_or_else(|e| {
             tracing::warn!(
@@ -1278,6 +1294,66 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
         reveal_unexplored_locations: false,
         auto_setup_model: None,
     };
+
+    (provider_cfg, config)
+}
+
+/// Builds the provider + game config for `--headless-models` (#1364): the
+/// bundled local vllm-mlx Qwen two-slot loadout. The base [`ProviderConfig`]
+/// points at the 14B dialogue slot (`:8000`); the per-category overrides on
+/// [`GameConfig`] (set by [`GameConfig::apply_local_qwen_two_slot`]) route
+/// Intent to the 1.5B slot (`:8001`) and Simulation/Reaction to the in-process
+/// simulator. `vllm_mlx_extra_slots()` then emits the `:8001` slot so
+/// `setup_provider_client` detect-reuses (or spawns) both servers — never
+/// double-spawning a port that a running Tauri app already owns.
+///
+/// This reuses the shared loadout definition in `parish-core` rather than
+/// re-deriving model ids / ports here (rule #12).
+fn build_headless_local_config() -> (parish_core::config::ProviderConfig, GameConfig) {
+    use parish_core::ipc::config::local_models;
+
+    let provider_cfg = parish_core::config::ProviderConfig {
+        provider: parish_core::config::Provider::from_str_loose(local_models::PROVIDER)
+            .unwrap_or_default(),
+        base_url: local_models::DIALOGUE_BASE_URL.to_string(),
+        api_key: None,
+        model: Some(local_models::DIALOGUE_MODEL.to_string()),
+    };
+
+    let mut config = GameConfig {
+        provider_name: local_models::PROVIDER.to_string(),
+        base_url: local_models::DIALOGUE_BASE_URL.to_string(),
+        api_key: None,
+        model_name: local_models::DIALOGUE_MODEL.to_string(),
+        cloud_provider_name: None,
+        cloud_model_name: None,
+        cloud_api_key: None,
+        cloud_base_url: None,
+        improv_enabled: false,
+        max_follow_up_turns: 2,
+        idle_banter_after_secs: 25,
+        auto_pause_after_secs: 60,
+        category_provider: Default::default(),
+        category_model: Default::default(),
+        category_api_key: Default::default(),
+        category_base_url: Default::default(),
+        flags: FeatureFlags::default(),
+        category_rate_limit: Default::default(),
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
+        reveal_unexplored_locations: false,
+        auto_setup_model: None,
+    };
+    config.apply_local_qwen_two_slot();
+
+    tracing::info!(
+        provider = %config.provider_name,
+        dialogue_model = %local_models::DIALOGUE_MODEL,
+        dialogue_url = %local_models::DIALOGUE_BASE_URL,
+        intent_model = %local_models::INTENT_MODEL,
+        intent_url = %local_models::INTENT_BASE_URL,
+        "Headless local-model loadout: detect-or-spawn vllm-mlx Qwen two-slot"
+    );
 
     (provider_cfg, config)
 }
@@ -1517,8 +1593,68 @@ mod tests {
     fn build_client_and_config_defaults() {
         // In test env, clear PARISH_PROVIDER to ensure it defaults to "simulator"
         unsafe { std::env::remove_var("PARISH_PROVIDER") };
-        let (_client, config) = build_client_and_config();
+        let (_client, config) = build_client_and_config(false);
         assert_eq!(config.provider_name, "simulator");
+    }
+
+    /// `--headless-models` selects the bundled local two-slot Qwen loadout:
+    /// base provider vllm-mlx @ :8000 (14B dialogue), Intent @ :8001 (1.5B),
+    /// Simulation/Reaction on the simulator. This is the #1364 AC1 binding.
+    #[test]
+    #[serial(parish_env)]
+    fn build_client_and_config_headless_models_binds_local_qwen() {
+        use parish_core::config::InferenceCategory;
+        use parish_core::ipc::config::local_models;
+
+        let (provider_cfg, config) = build_client_and_config(true);
+
+        // Base slot → 14B @ :8000.
+        assert_eq!(provider_cfg.provider.id(), "vllmmlx");
+        assert_eq!(provider_cfg.base_url, local_models::DIALOGUE_BASE_URL);
+        assert_eq!(
+            provider_cfg.model.as_deref(),
+            Some(local_models::DIALOGUE_MODEL)
+        );
+        assert!(provider_cfg.api_key.is_none());
+
+        // Dialogue inherits the base 14B slot.
+        assert_eq!(
+            config
+                .category_base_url
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some(local_models::DIALOGUE_BASE_URL)
+        );
+        // Intent → 1.5B @ :8001.
+        assert_eq!(
+            config
+                .category_base_url
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
+            Some(local_models::INTENT_BASE_URL)
+        );
+        assert_eq!(
+            config
+                .category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
+            Some(local_models::INTENT_MODEL)
+        );
+        // Simulation + Reaction → simulator.
+        for cat in [InferenceCategory::Simulation, InferenceCategory::Reaction] {
+            assert_eq!(
+                config.category_provider.get(&cat).map(String::as_str),
+                Some(local_models::SIMULATOR_PROVIDER)
+            );
+        }
+
+        // The extra-slot builder emits exactly the 1.5B :8001 slot (the base
+        // 14B :8000 slot is auto-spawned by setup_provider_client, and the
+        // simulator categories spawn nothing).
+        let extra = config.vllm_mlx_extra_slots();
+        assert_eq!(extra.len(), 1, "only the 1.5B intent slot is an extra slot");
+        assert_eq!(extra[0].base_url, local_models::INTENT_BASE_URL);
+        assert_eq!(extra[0].model, local_models::INTENT_MODEL);
     }
 
     #[test]

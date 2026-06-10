@@ -9,9 +9,41 @@ use crate::actor::{
     ApiJudge, ApiPlayer, Judge, Player, ScriptedJudge, ScriptedPlayer, SubagentJudge, make_client,
 };
 use crate::config::{ActorMode, RunConfig};
-use crate::error::Result;
+use crate::error::{HarnessError, Result};
 use crate::persist::default_db_path;
 use crate::score::Rubric;
+
+/// Default cloud provider for the API-backed player + judge (#1363). Both run
+/// on the harness operator's own key (resolved from env), kept separate from
+/// the game's NPC models (which may be local Qwen via #1364).
+const DEFAULT_ACTOR_PROVIDER: &str = "anthropic";
+
+/// Resolves the API key for the API-backed player/judge from the environment,
+/// returning a clear, actionable error when it's missing (#1363 AC3).
+///
+/// Without this, `build_client` would receive `None` and the run would only
+/// fail deep inside the first turn with an opaque 401 — far from the operator's
+/// invocation. We fail fast at actor construction instead.
+fn resolve_actor_key(provider_name: &str, role: &str) -> Result<String> {
+    let provider = parish_core::config::Provider::from_str_loose(provider_name).map_err(|e| {
+        HarnessError::Config(format!("unknown {role} provider {provider_name:?}: {e}"))
+    })?;
+    let var = provider.api_key_env_var().ok_or_else(|| {
+        HarnessError::Config(format!(
+            "{role} provider {provider_name:?} has no API-key env var; \
+             use a cloud provider (e.g. anthropic) for --{role} api"
+        ))
+    })?;
+    std::env::var(var)
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| {
+            HarnessError::Config(format!(
+                "missing API key for the {role}: set {var} in the environment \
+                 (the autonomous --{role} api path is driven only by env keys)."
+            ))
+        })
+}
 
 /// Default subagent queue directory: a `subagent-queue` sibling of the harness DB.
 fn default_subagent_queue_dir() -> std::path::PathBuf {
@@ -35,8 +67,10 @@ pub fn build_actors(
     let player: Box<dyn Player> = match config.player.mode {
         ActorMode::Scripted => Box::new(ScriptedPlayer::default()),
         ActorMode::Api => {
-            let key = std::env::var("ANTHROPIC_API_KEY").ok();
-            let client = make_client("anthropic", None, key.as_deref())?;
+            // Fail fast with a clear error when the env key is missing (#1363
+            // AC3) instead of constructing an unauthorised client.
+            let key = resolve_actor_key(DEFAULT_ACTOR_PROVIDER, "player")?;
+            let client = make_client(DEFAULT_ACTOR_PROVIDER, None, Some(&key))?;
             let model = config
                 .player
                 .model
@@ -51,8 +85,8 @@ pub fn build_actors(
     let judge: Box<dyn Judge> = match config.judge.mode {
         ActorMode::Scripted => Box::new(ScriptedJudge::new(rubric_sha)),
         ActorMode::Api => {
-            let key = std::env::var("ANTHROPIC_API_KEY").ok();
-            let client = make_client("anthropic", None, key.as_deref())?;
+            let key = resolve_actor_key(DEFAULT_ACTOR_PROVIDER, "judge")?;
+            let client = make_client(DEFAULT_ACTOR_PROVIDER, None, Some(&key))?;
             let model = config
                 .judge
                 .model
@@ -72,4 +106,33 @@ pub fn build_actors(
         )),
     };
     Ok((player, judge))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// AC3 (#1363): an unknown provider name yields a clear Config error naming
+    /// the role — env-independent, so safe to run without serialisation.
+    #[test]
+    fn resolve_actor_key_unknown_provider_is_clear_error() {
+        let err = resolve_actor_key("definitely-not-a-provider", "player").unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, HarnessError::Config(_)), "got {err:?}");
+        assert!(msg.contains("player"), "error should name the role: {msg}");
+    }
+
+    /// AC3 (#1363): a keyless provider (no `api_key_env_var`) used for `--judge
+    /// api` is rejected with a clear message — also env-independent.
+    #[test]
+    fn resolve_actor_key_keyless_provider_is_clear_error() {
+        // `simulator` is a local provider with no API-key env var.
+        let err = resolve_actor_key("simulator", "judge").unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, HarnessError::Config(_)), "got {err:?}");
+        assert!(
+            msg.contains("no API-key env var") && msg.contains("judge"),
+            "expected keyless-provider error naming the role, got {msg}"
+        );
+    }
 }

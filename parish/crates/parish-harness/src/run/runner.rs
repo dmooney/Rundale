@@ -91,16 +91,11 @@ pub async fn execute_run(db: &Db, params: RunParams) -> Result<RunSummary> {
         client.apply_flag(&flag.name, flag.on).await?;
     }
     for (category, model) in &config.engine_models {
-        if let Err(e) = client.apply_byok(category, model).await {
-            // The headless server lacks /api/submit-byok; a 404 is a soft skip,
-            // anything else is a real failure.
-            match &e {
-                HarnessError::HttpStatus { status: 404, .. } => {
-                    tracing::warn!(category, "backend has no BYOK endpoint; skipping override");
-                }
-                _ => return Err(e),
-            }
-        }
+        // BYOK now applies via the runtime slash commands over /api/command
+        // (`/provider.<cat>`, `/model.<cat>`, `/key.<cat>`), which parish-server
+        // accepts and which trigger rebuild_inference (#1365). A failure here is
+        // a real error — there is no missing-endpoint soft-skip any more.
+        client.apply_byok(category, model).await?;
     }
 
     // ── Turn loop ─────────────────────────────────────────────────────────

@@ -49,6 +49,15 @@ pub(super) fn parse_key_command(_trimmed: &str, rest: &str) -> Option<Command> {
     }
 }
 
+pub(super) fn parse_baseurl_command(_trimmed: &str, rest: &str) -> Option<Command> {
+    if rest.is_empty() {
+        Some(Command::ShowBaseUrl)
+    } else {
+        // Case-preserving: URLs may carry case-sensitive path components.
+        Some(Command::SetBaseUrl(rest.to_string()))
+    }
+}
+
 pub(super) fn parse_cloud_command(_trimmed: &str, rest: &str) -> Option<Command> {
     if rest.is_empty() {
         Some(Command::ShowCloud)
@@ -96,8 +105,8 @@ pub(super) fn parse_cloud_subcommand(rest: &str) -> Option<Command> {
 /// Parses dot-notation per-category commands like `/model.dialogue`, `/provider.intent`.
 ///
 /// Returns `Some(Command)` if the input matches a `/<base>.<category>` pattern
-/// where base is `model`, `provider`, or `key`, and category is `dialogue`,
-/// `simulation`, or `intent`.
+/// where base is `model`, `provider`, `key`, or `url`, and category is
+/// `dialogue`, `simulation`, `intent`, or `reaction`.
 pub(super) fn parse_category_command(trimmed: &str, lower: &str) -> Option<Command> {
     for (prefix, show_fn, set_fn) in &[
         (
@@ -114,6 +123,11 @@ pub(super) fn parse_category_command(trimmed: &str, lower: &str) -> Option<Comma
             "/key.",
             Command::ShowCategoryKey as fn(InferenceCategory) -> Command,
             Command::SetCategoryKey as fn(InferenceCategory, String) -> Command,
+        ),
+        (
+            "/url.",
+            Command::ShowCategoryBaseUrl as fn(InferenceCategory) -> Command,
+            Command::SetCategoryBaseUrl as fn(InferenceCategory, String) -> Command,
         ),
     ] {
         if let Some(rest) = lower.strip_prefix(prefix) {
@@ -187,6 +201,54 @@ mod tests {
             Some(Command::SetKey("sk-or-v1-abc123".to_string()))
         );
     }
+    #[test]
+    fn test_parse_base_url_set_and_show() {
+        // Base `/url` (no category) sets the base/Dialogue slot URL.
+        assert_eq!(
+            crate::parser::parse_system_command("/url"),
+            Some(Command::ShowBaseUrl)
+        );
+        assert_eq!(
+            crate::parser::parse_system_command("/url http://localhost:8001"),
+            Some(Command::SetBaseUrl("http://localhost:8001".to_string()))
+        );
+        // Case-preserving for path components.
+        assert_eq!(
+            crate::parser::parse_system_command("/url https://API.Example.com/V1"),
+            Some(Command::SetBaseUrl(
+                "https://API.Example.com/V1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_url_set_preserves_case() {
+        // `/url.<cat>` sets a per-category base URL; the URL argument is
+        // preserved verbatim (case-sensitive path components must survive).
+        assert_eq!(
+            crate::parser::parse_system_command("/url.dialogue http://localhost:8001"),
+            Some(Command::SetCategoryBaseUrl(
+                InferenceCategory::Dialogue,
+                "http://localhost:8001".to_string()
+            ))
+        );
+        assert_eq!(
+            crate::parser::parse_system_command("/url.intent https://API.Example.com/v1"),
+            Some(Command::SetCategoryBaseUrl(
+                InferenceCategory::Intent,
+                "https://API.Example.com/v1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_url_show_bare() {
+        assert_eq!(
+            crate::parser::parse_system_command("/url.dialogue"),
+            Some(Command::ShowCategoryBaseUrl(InferenceCategory::Dialogue))
+        );
+    }
+
     #[test]
     fn test_parse_preset_show_bare() {
         assert_eq!(
