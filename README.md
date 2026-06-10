@@ -325,7 +325,7 @@ flowchart TB
     SERVER --> CORE
     ENGINE --> CORE
 
-    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE
+    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE & TYPES
     INPUT -. "intent LLM" .-> INFER
     NPC -. "T1 dialogue • T2 group sim + gossip • T3 batch sim" .-> INFER
     NPC -.-> WORLD
