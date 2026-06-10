@@ -70,6 +70,7 @@ def proxy_handoff(binpath: str, child_args, saved_init, pending_call) -> None:
         stdout=subprocess.PIPE,
         stderr=None,  # inherit — binary logs to stderr
         text=True,
+        encoding="utf-8",  # tool descriptions contain non-ASCII (—, Seán)
         bufsize=1,
     )
 
@@ -93,9 +94,15 @@ def proxy_handoff(binpath: str, child_args, saved_init, pending_call) -> None:
     to_child(pending_call)
 
     # 4. Transparent bidirectional pump for the rest of the session.
+    #    Use readline() (not `for line in f`) — file iteration reads ahead into a
+    #    hidden buffer, which would swallow bytes already pulled past the pending
+    #    tools/call on sys.stdin during the handoff above.
     def pump(src, dst):
         try:
-            for line in src:
+            while True:
+                line = src.readline()
+                if line == "":
+                    break
                 dst.write(line)
                 dst.flush()
         except Exception:
@@ -113,6 +120,12 @@ def proxy_handoff(binpath: str, child_args, saved_init, pending_call) -> None:
 
 
 def main() -> None:
+    # Pin stdio to UTF-8 — the JSON-RPC stream and tool descriptions contain
+    # non-ASCII, which a C/POSIX locale default would mis-decode.
+    for stream in (sys.stdin, sys.stdout):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
     manifest_path, binpath, child_args = parse_args()
     try:
         with open(manifest_path, encoding="utf-8") as f:
@@ -128,7 +141,12 @@ def main() -> None:
 
     saved_init = None
 
-    for raw in sys.stdin:
+    # readline() (not `for line in sys.stdin`) so no input is stranded in an
+    # iterator's read-ahead buffer when we hand off to the real binary mid-stream.
+    while True:
+        raw = sys.stdin.readline()
+        if raw == "":
+            break  # EOF — client closed the connection
         line = raw.strip()
         if not line:
             continue
