@@ -41,6 +41,18 @@ const USER_AGENT: &str = "parish-bug-reporter";
 const ISSUE_LABELS: &[&str] = &["bug", "agent-filed"];
 /// Maximum number of log lines included per section, to keep issues readable.
 const LOG_TAIL: usize = 15;
+/// GitHub's hard limit for issue bodies (characters).
+const GITHUB_BODY_LIMIT: usize = 65_536;
+/// Safe ceiling we target: leaves ~5.5 KB of headroom below the GitHub limit.
+///
+/// `pub` so tests can assert against the same constant.
+pub const BODY_BUDGET: usize = 60_000;
+/// Byte budget allocated to the entire diagnostic payload section.
+///
+/// Non-diagnostic sections (description + game state + recent logs) are
+/// typically 1–4 KB combined. We reserve 40 KB for the diagnostic section;
+/// the rest flows to the fixed content above.
+const DIAGNOSTIC_BUDGET: usize = 40_000;
 
 // ── Payload types (serde snake_case — mirrored in ui/src/lib/types.ts) ────────
 
@@ -466,12 +478,44 @@ fn parse_gh_token(stdout: &[u8]) -> Option<String> {
     if token.is_empty() { None } else { Some(token) }
 }
 
+// ── Body-budget helpers ───────────────────────────────────────────────────────
+
+/// Truncates `text` to fit within `budget` bytes, keeping the **tail** (most
+/// recent content is most useful for debugging) and prepending a
+/// `[truncated N chars — oldest content dropped]\n` marker when a cut was made.
+///
+/// `budget` is measured in bytes (UTF-8). Splitting is on a char boundary so
+/// the result is always valid UTF-8.
+///
+/// # Special cases
+/// - `budget == 0` → returns the marker with an empty body.
+/// - `text.len() <= budget` → returns `text` unchanged (no allocation).
+pub fn truncate_to_budget(text: &str, budget: usize) -> String {
+    if text.len() <= budget {
+        return text.to_owned();
+    }
+    let dropped = text.len() - budget;
+    // Start from `dropped` bytes in, then advance to the next char boundary.
+    let mut start = dropped;
+    while start < text.len() && !text.is_char_boundary(start) {
+        start += 1;
+    }
+    let kept = &text[start..];
+    format!("[truncated {dropped} chars — oldest content dropped]\n{kept}")
+}
+
 // ── Issue-body composition (pure) ─────────────────────────────────────────────
 
 /// Builds the markdown body of the GitHub issue from the gathered state.
 ///
 /// Pure and deterministic given its inputs — unit-tested in isolation. The
 /// screenshot section is emitted only when `screenshot_url` is supplied.
+///
+/// The composed body is capped at [`BODY_BUDGET`] bytes before returning.
+/// When the diagnostic payload would push the body over the limit, its content
+/// is truncated (keeping the tail — most recent entries) with a
+/// `[truncated N chars]` marker so readers know data was dropped. This prevents
+/// GitHub 422 "body too long" errors (limit: [`GITHUB_BODY_LIMIT`] chars).
 pub fn compose_issue_body(
     req: &BugReportRequest,
     state: &BugReportState,
@@ -527,7 +571,14 @@ pub fn compose_issue_body(
     push_log_section(&mut s, "Recent conversations", &state.conversations);
     push_log_section(&mut s, "Inference calls", &state.inference_calls);
 
-    push_diagnostic_section(&mut s, &state.diagnostic);
+    // Compute how much budget remains for the diagnostic section.
+    // We give it up to DIAGNOSTIC_BUDGET bytes, further constrained by what
+    // is left of BODY_BUDGET minus what we have already written.
+    let used_so_far = s.len();
+    // Reserve ~512 bytes for the footer and filed-from context that follows.
+    let remaining = BODY_BUDGET.saturating_sub(used_so_far).saturating_sub(512);
+    let diag_budget = remaining.min(DIAGNOSTIC_BUDGET);
+    push_diagnostic_section(&mut s, &state.diagnostic, diag_budget);
 
     if let Some(ctx) = &req.context {
         s.push_str("## Filed-from context\n\n");
@@ -542,6 +593,28 @@ pub fn compose_issue_body(
     }
 
     s.push_str("---\n_Filed via the in-app bug reporter._\n");
+
+    // Hard cap: if somehow the body still exceeds the budget (e.g. a very large
+    // description or context blob), truncate the tail so we never 422.
+    if s.len() > BODY_BUDGET {
+        let dropped = s.len() - BODY_BUDGET;
+        let mut end = BODY_BUDGET;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        s.truncate(end);
+        s.push_str(&format!(
+            "\n[truncated {dropped} chars — body exceeded budget]"
+        ));
+    }
+
+    // Emit a warning in debug builds so a developer knows truncation happened.
+    debug_assert!(
+        s.len() <= GITHUB_BODY_LIMIT,
+        "composed issue body ({} bytes) still exceeds the GitHub limit ({GITHUB_BODY_LIMIT})",
+        s.len()
+    );
+
     s
 }
 
@@ -549,38 +622,62 @@ pub fn compose_issue_body(
 /// prompt/response history, the engine-state snapshot, and the last raw user
 /// intent. Always emitted so a fix-agent knows the section exists even when a
 /// part is empty.
-fn push_diagnostic_section(out: &mut String, diag: &DiagnosticPayload) {
+///
+/// `budget` is the maximum number of bytes this section may consume in `out`.
+/// When a sub-section's serialized text would push the section past its budget,
+/// the text is truncated (tail kept, `[truncated N chars]` marker prefixed) via
+/// [`truncate_to_budget`]. This prevents GitHub 422 "body too long" errors.
+fn push_diagnostic_section(out: &mut String, diag: &DiagnosticPayload, budget: usize) {
+    let start_len = out.len();
+
     out.push_str("## Diagnostic payload\n\n");
 
+    // ── Last user intent ──────────────────────────────────────────────────────
     out.push_str("### Last user intent\n\n");
     match diag.last_user_intent.as_deref().map(str::trim) {
         Some(intent) if !intent.is_empty() => {
+            // Intent is typically short; apply budget defensively.
+            let used = out.len() - start_len;
+            let remaining = budget.saturating_sub(used).saturating_sub(16);
+            let intent_text = truncate_to_budget(intent, remaining);
             out.push_str("```\n");
-            out.push_str(intent);
+            out.push_str(&intent_text);
             out.push_str("\n```\n\n");
         }
         _ => out.push_str("_none_\n\n"),
     }
 
+    // ── Engine state ──────────────────────────────────────────────────────────
     out.push_str("### Engine state (get_engine_state)\n\n");
     if diag.engine_state.is_null() {
         out.push_str("_none_\n\n");
     } else {
         let json = serde_json::to_string_pretty(&diag.engine_state)
             .unwrap_or_else(|_| diag.engine_state.to_string());
+        // Reserve at least half the remaining budget for LLM history (more
+        // diagnostic value). Engine state gets the other half.
+        let used = out.len() - start_len;
+        let remaining = budget.saturating_sub(used);
+        // Split: engine state gets at most half of what's left (with fence overhead).
+        let engine_budget = (remaining / 2).saturating_sub(16);
+        let json_text = truncate_to_budget(&json, engine_budget);
         out.push_str("```json\n");
-        out.push_str(&json);
+        out.push_str(&json_text);
         out.push_str("\n```\n\n");
     }
 
+    // ── LLM prompt/response history ───────────────────────────────────────────
     out.push_str("### LLM prompt/response history\n\n");
     if diag.llm_history.is_empty() {
         out.push_str("_none_\n\n");
     } else {
         let json =
             serde_json::to_string_pretty(&diag.llm_history).unwrap_or_else(|_| "[]".to_string());
+        let used = out.len() - start_len;
+        let remaining = budget.saturating_sub(used).saturating_sub(16);
+        let json_text = truncate_to_budget(&json, remaining);
         out.push_str("```json\n");
-        out.push_str(&json);
+        out.push_str(&json_text);
         out.push_str("\n```\n\n");
     }
 }
@@ -1250,5 +1347,178 @@ mod tests {
         .await
         .unwrap_err();
         assert!(matches!(err, BugReportError::GitHub { status: 422, .. }));
+    }
+
+    // ── Body-budget / truncation tests (#1375) ────────────────────────────────
+
+    /// `truncate_to_budget` — no-op when content fits.
+    #[test]
+    fn truncate_to_budget_no_op_when_fits() {
+        let text = "hello world";
+        assert_eq!(truncate_to_budget(text, 100), text);
+        assert_eq!(truncate_to_budget(text, text.len()), text);
+    }
+
+    /// `truncate_to_budget` — keeps the tail and prepends the marker.
+    #[test]
+    fn truncate_to_budget_keeps_tail_with_marker() {
+        // 20 chars, budget 10 → keep last 10.
+        let text = "01234567890123456789"; // 20 bytes
+        let result = truncate_to_budget(text, 10);
+        // The kept tail must be at the end of the original string.
+        assert!(
+            result.ends_with("0123456789"),
+            "tail not preserved: {result:?}"
+        );
+        assert!(result.contains("[truncated"), "marker missing: {result:?}");
+        assert!(
+            result.contains("10 chars"),
+            "dropped byte count missing: {result:?}"
+        );
+    }
+
+    /// `truncate_to_budget` — budget 0 produces only the marker.
+    #[test]
+    fn truncate_to_budget_zero_budget() {
+        let result = truncate_to_budget("some content", 0);
+        assert!(
+            result.contains("[truncated"),
+            "marker missing at zero budget"
+        );
+        // No original content should remain (the marker itself is not original content).
+        assert!(
+            !result.contains("some content"),
+            "original content must not appear at zero budget"
+        );
+    }
+
+    /// `truncate_to_budget` — never splits on a non-char-boundary (UTF-8 safety).
+    #[test]
+    fn truncate_to_budget_utf8_safe() {
+        // "é" is 2 bytes; with a budget of 1 we must not produce invalid UTF-8.
+        let text = "aé"; // 3 bytes: 'a'(1) + 'é'(2)
+        let result = truncate_to_budget(text, 1); // 1-byte budget → can only keep 'a'
+        assert!(
+            std::str::from_utf8(result.as_bytes()).is_ok(),
+            "result is not valid UTF-8"
+        );
+    }
+
+    /// Builds an oversized diagnostic payload (15 LLM exchanges × 4 KB each +
+    /// a large engine-state JSON) and asserts the composed body fits in the budget.
+    fn oversized_state() -> BugReportState {
+        let big_text: String = "x".repeat(4_096);
+        let llm_history: Vec<LlmExchange> = (0..15)
+            .map(|i| LlmExchange {
+                request_id: i,
+                timestamp: format!("20:{i:02}"),
+                model: "gemma".into(),
+                system_prompt: Some(big_text.clone()),
+                prompt: big_text.clone(),
+                response: big_text.clone(),
+                error: None,
+            })
+            .collect();
+        // ~6 KB engine-state blob.
+        let engine_state = json!({"data": "y".repeat(6_000)});
+        BugReportState {
+            location: "Darcy's Pub".into(),
+            time_label: "Evening".into(),
+            hour: 20,
+            minute: 0,
+            day_of_week: "Friday".into(),
+            weather: "LightRain".into(),
+            season: "Autumn".into(),
+            festival: None,
+            paused: false,
+            player_location_id: 7,
+            visited_count: 4,
+            player_name: None,
+            provider: "ollama".into(),
+            model: "gemma".into(),
+            save_summary: None,
+            text_log: vec![],
+            game_events: vec![],
+            debug_events: vec![],
+            conversations: vec![],
+            inference_calls: vec![],
+            diagnostic: DiagnosticPayload {
+                llm_history,
+                engine_state,
+                last_user_intent: Some("go to the pub".into()),
+            },
+        }
+    }
+
+    #[test]
+    fn body_len_capped_under_github_limit() {
+        let body = compose_issue_body(&request(), &oversized_state(), None);
+        assert!(
+            body.len() <= BODY_BUDGET,
+            "body length {} exceeds BODY_BUDGET {BODY_BUDGET}",
+            body.len()
+        );
+    }
+
+    #[test]
+    fn body_truncation_marker_present() {
+        let body = compose_issue_body(&request(), &oversized_state(), None);
+        assert!(
+            body.contains("[truncated"),
+            "truncation marker missing from oversized body"
+        );
+    }
+
+    #[test]
+    fn body_sections_present_after_truncation() {
+        let body = compose_issue_body(&request(), &oversized_state(), None);
+        assert!(
+            body.contains("## Description"),
+            "Description section missing"
+        );
+        assert!(body.contains("## Game state"), "Game state section missing");
+        assert!(
+            body.contains("## Recent logs"),
+            "Recent logs section missing"
+        );
+        assert!(
+            body.contains("## Diagnostic payload"),
+            "Diagnostic payload section missing"
+        );
+    }
+
+    #[tokio::test]
+    async fn dry_run_oversized_payload_writes_valid_bundle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cfg = offline_cfg();
+        let result = create_bug_report(
+            &reqwest::Client::new(),
+            &cfg,
+            &request(),
+            &oversized_state(),
+            None,
+            tmp.path(),
+        )
+        .await
+        .expect("dry-run with oversized payload must not error");
+
+        assert!(!result.created, "dry-run must not create a real issue");
+        let bundle = result.bundle_path.expect("bundle_path must be set");
+        let contents = std::fs::read_to_string(&bundle).expect("issue.md must be readable");
+        // Rule #14: validate content, not just the envelope.
+        assert!(!contents.is_empty(), "issue.md must not be empty");
+        assert!(
+            contents.contains("## Game state"),
+            "issue.md must contain ## Game state section"
+        );
+        assert!(
+            contents.contains("[truncated"),
+            "issue.md must contain the truncation marker"
+        );
+        assert!(
+            contents.len() <= BODY_BUDGET + 512, // allow for title prefix
+            "bundle body too large: {} bytes",
+            contents.len()
+        );
     }
 }
