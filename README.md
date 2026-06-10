@@ -278,6 +278,80 @@ trigger, uploads the bundle as an artifact). For dev iteration on
 `cargo tauri dev`, you can skip the bundle build — the runtime falls
 through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
+## Architecture
+
+One engine, three thin entry points, eight backend-agnostic leaf crates. The full
+crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture.md).
+
+```mermaid
+flowchart TB
+    subgraph clients["Frontends & clients"]
+        UI["Svelte 5 UI<br/>parish/apps/ui<br/>(one transport.ts for both backends)"]
+        CLI["parish CLI client<br/>parish-client"]
+        MCP["parish-mcp<br/>MCP bridge for AI agents"]
+    end
+
+    subgraph entry["Runtime entry points (thin adapters, mode parity)"]
+        TAURI["parish-tauri<br/>Tauri 2 desktop"]
+        SERVER["parish-server<br/>Axum HTTP + WS<br/>(sessions, auth, idempotency)"]
+        ENGINE["parish-engine<br/>headless REPL / --script / Tauri launch"]
+    end
+
+    CORE["parish-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>game_mod loader • editor/ • debug_snapshot/ • event_bus • prompts"]
+
+    subgraph leaf["Shared leaf crates (backend-agnostic, enforced)"]
+        WORLD["parish-world<br/>graph, movement, weather, geo"]
+        NPC["parish-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
+        INPUT["parish-input<br/>parsing, intent (local + LLM)"]
+        INFER["parish-inference<br/>queue, rate limits, provider clients"]
+        PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
+        CONFIG["parish-config<br/>TOML + env + flags"]
+        PALETTE["parish-palette<br/>day/night palette"]
+        TYPES["parish-types<br/>ids, time, events, errors (zero internal deps)"]
+    end
+
+    subgraph external["Content & external systems"]
+        MODS[("mods/rundale<br/>world.json, npcs.json, prompts…")]
+        DB[("SQLite saves<br/>per-user data dir")]
+        LLM["LLM providers<br/>Ollama / OpenAI-compat / Anthropic / simulator"]
+    end
+
+    UI -- "Tauri IPC invoke/listen" --> TAURI
+    UI -- "fetch + WebSocket" --> SERVER
+    CLI -- "POST /api/command" --> SERVER
+    MCP -- "HTTP :3030" --> SERVER
+
+    TAURI -- "handle_command + EventEmitter" --> CORE
+    SERVER --> CORE
+    ENGINE --> CORE
+
+    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE & TYPES
+    INPUT -. "intent LLM" .-> INFER
+    NPC -. "T1 dialogue • T2 group sim + gossip • T3 batch sim" .-> INFER
+    NPC -.-> WORLD
+    PERSIST -.-> NPC
+    NPC -. "all leaves depend on types" .-> TYPES
+
+    CORE -- "mod.toml manifest + validation" --> MODS
+    PERSIST --> DB
+    INFER --> LLM
+
+    classDef clientNode fill:#d7e7f7,stroke:#4a7aab,color:#1f2328
+    classDef entryNode fill:#fae3bd,stroke:#c08a2e,color:#1f2328
+    classDef coreNode fill:#e3d3f4,stroke:#8a5fb8,color:#1f2328
+    classDef leafNode fill:#cdeccf,stroke:#4f9457,color:#1f2328
+    classDef extNode fill:#ffffff,stroke:#777777,color:#1f2328
+    class UI,CLI,MCP clientNode
+    class TAURI,SERVER,ENGINE entryNode
+    class CORE coreNode
+    class WORLD,NPC,INPUT,INFER,PERSIST,CONFIG,PALETTE,TYPES leafNode
+    class MODS,DB,LLM extNode
+    style clients fill:#eef4fb,stroke:#9db8d4,color:#1f2328
+    style entry fill:#fdf3e3,stroke:#d8b873,color:#1f2328
+    style leaf fill:#e9f6ea,stroke:#9ccca0,color:#1f2328
+    style external fill:#f6f6f6,stroke:#bbbbbb,color:#1f2328
+```
+
 ## Repository Layout
 
 ```text
