@@ -3974,6 +3974,7 @@ dependencies = [
  "parish-config",
  "parish-inference",
  "parish-input",
+ "parish-mod",
  "parish-npc",
  "parish-palette",
  "parish-persistence",
@@ -4119,6 +4120,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-mod"
+version = "0.1.0"
+dependencies = [
+ "parish-config",
+ "parish-npc",
+ "parish-palette",
+ "parish-persistence",
+ "parish-types",
+ "parish-world",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 1.1.2+spec-1.1.0",
+ "tracing",
+]
+
+[[package]]
 name = "parish-npc"
 version = "0.1.0"
 dependencies = [
@@ -4159,6 +4177,8 @@ name = "parish-palette"
 version = "0.1.0"
 dependencies = [
  "parish-config",
+ "parish-types",
+ "serde_json",
 ]
 
 [[package]]

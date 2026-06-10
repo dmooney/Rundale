@@ -17,7 +17,7 @@ pub use error::ParishError;
 pub use events::{EventBus, GameEvent};
 pub use gossip::{GossipItem, GossipNetwork};
 pub use ids::{
-    DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, Weather,
+    DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, ThemePalette, Weather,
     extract_dialogue_from_partial_json, floor_char_boundary,
 };
 pub use time::{

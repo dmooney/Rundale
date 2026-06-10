@@ -1,0 +1,18 @@
+# Verification fixture for extract-mod.
+#
+# Proves the content-mod loader still works after being extracted from
+# parish-core/src/game_mod/ into the standalone `parish-mod` crate (re-exported
+# as parish_core::game_mod). A fresh CLI script run must:
+#   - load the Rundale base mod (status shows Kilteevan Village + period prose)
+#   - serve a non-empty location description via `look`
+#   - resolve a route between two named Rundale locations via `go to`
+#   - apply a theme via `/theme` (ThemePalette path, relocated to parish-types)
+#
+# The transcript must be structurally identical before and after the
+# extraction (only timestamps / branch ids may vary).
+
+/status
+look
+go to the church
+/theme default
+/theme

@@ -13,6 +13,7 @@ parish-inference = { workspace = true }
 parish-world = { workspace = true }
 parish-palette = { workspace = true }
 parish-npc = { workspace = true }
+parish-mod = { workspace = true }
 parish-persistence = { workspace = true }
 parish-input = { workspace = true }
 tokio = { workspace = true }

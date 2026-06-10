@@ -8,3 +8,7 @@ description = "Backend-agnostic time-of-day color interpolation for Parish"
 
 [dependencies]
 parish-config = { workspace = true }
+parish-types = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
