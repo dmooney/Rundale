@@ -1172,16 +1172,21 @@ fn forbidden_greeting_directive_covers_non_morning_buckets() {
 
 // ── #1224 — length instruction in system prompt (AC-4) ────────────────────
 
-/// AC-4 (fix-1224-1225): the Tier 1 system prompt must contain a length
-/// instruction so the model has an explicit sentence-count target.
+/// AC-4 (fix-1224-1225, updated fix-1373-1374): the Tier 1 system prompt must contain a length
+/// instruction so the model has an explicit sentence-count target. Updated to 2-3 sentences
+/// with a single-question cap to also address #1374 (run-on / stacked questions).
 #[test]
 fn build_tier1_system_prompt_contains_length_guidance() {
     let npc = Npc::new_test_npc();
     let lang = LanguageSettings::english_only();
     let prompt = build_tier1_system_prompt(&npc, false, &lang);
     assert!(
-        prompt.contains("2-4 sentences"),
+        prompt.contains("2-3 sentences") || prompt.contains("2–3 sentences"),
         "AC-4: length guidance missing from system prompt:\n{prompt}"
+    );
+    assert!(
+        prompt.contains("AT MOST ONE question") || prompt.contains("at most one question"),
+        "AC-3 (#1374): single-question cap missing from system prompt:\n{prompt}"
     );
 }
 
