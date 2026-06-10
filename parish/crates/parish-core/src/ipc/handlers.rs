@@ -794,8 +794,8 @@ pub struct NpcConversationSetup {
 /// `npc_cfg` is forwarded to the prompt builders so runtime feature-flag
 /// overrides (e.g. the `dialogue-quality-continuity` kill-switch) take effect.
 // 8 params: world, npc_manager, player_input, speaker_id, transcript,
-// improv_enabled, language, npc_cfg — a future cleanup can bundle these into
-// a struct (#TD), but adding the npc_cfg arg here is the minimal footprint
+// improv_enabled, language, npc_cfg — these could be bundled into a struct
+// in a future cleanup, but adding npc_cfg here is the minimal footprint
 // for threading the kill-switch without duplicating the config-load.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_npc_conversation_turn(
