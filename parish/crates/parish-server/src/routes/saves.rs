@@ -165,6 +165,7 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         pronunciations: &state.pronunciations,
         default_transport: state.transport.default_mode(),
         emitter: &emitter,
+        game_events: &state.game_events,
     })
     .await
 }

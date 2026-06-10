@@ -283,6 +283,7 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         pronunciations: &state.pronunciations,
         default_transport: state.transport.default_mode(),
         emitter: &emitter,
+        game_events: &state.game_events,
     })
     .await
 }

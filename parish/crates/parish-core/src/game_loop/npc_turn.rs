@@ -118,6 +118,11 @@ pub async fn run_npc_turn(
             prompt_input,
             speaker_id,
         );
+        let npc_cfg = crate::config::NpcConfig {
+            dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
+            grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
+            ..crate::config::NpcConfig::default()
+        };
         crate::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
@@ -126,7 +131,7 @@ pub async fn run_npc_turn(
             transcript,
             config.improv_enabled,
             &ctx.language,
-            !config.flags.is_disabled("npc-dialogue-grounding"),
+            &npc_cfg,
         )
     }?;
 

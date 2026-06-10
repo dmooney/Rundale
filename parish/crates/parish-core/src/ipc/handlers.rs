@@ -791,9 +791,12 @@ pub struct NpcConversationSetup {
 ///
 /// The supplied `player_input` describes the current trigger for this turn,
 /// while `transcript` carries the recent local exchange for continuity.
-// TD-029 migrated most params to `Tier1ContextParams`; `grounding_enabled`
-// was added in #1394 to carry the feature-flag state. Grouping into a second
-// params struct would add more indirection than value here.
+/// `npc_cfg` is forwarded to the prompt builders so runtime feature-flag
+/// overrides (e.g. `dialogue-quality-continuity` kill-switch and
+/// `npc-dialogue-grounding`) take effect.
+// TD-029 migrated most params to `Tier1ContextParams`; both the
+// `dialogue_quality_continuity` (#1387/#1388) and `grounding_enabled` (#1394)
+// flags now live on `NpcConfig` and are threaded via `npc_cfg`.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_npc_conversation_turn(
     world: &WorldState,
@@ -803,11 +806,7 @@ pub fn prepare_npc_conversation_turn(
     transcript: &[ConversationLine],
     improv_enabled: bool,
     language: &LanguageSettings,
-    // When `true`, injects the real location-graph place names into the
-    // system prompt and adds an anti-sycophancy instruction (#1394).
-    // Controlled by `!flags.is_disabled("npc-dialogue-grounding")` at each
-    // entry-point call site (default-on).
-    grounding_enabled: bool,
+    npc_cfg: &crate::config::NpcConfig,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
     // Capture introduced state BEFORE marking. The dialogue context builder
@@ -853,7 +852,7 @@ pub fn prepare_npc_conversation_turn(
     // Location grounding (#1394): build the place-name list from the world
     // graph when grounding is enabled, so the system prompt can instruct the
     // NPC not to confirm nonexistent places/people.
-    let location_names: Option<Vec<String>> = if grounding_enabled {
+    let location_names: Option<Vec<String>> = if npc_cfg.grounding_enabled {
         let mut names: Vec<String> = world
             .graph
             .location_ids()
@@ -869,7 +868,7 @@ pub fn prepare_npc_conversation_turn(
         &npc,
         improv_enabled,
         language,
-        &crate::config::NpcConfig::default(),
+        npc_cfg,
         &npc_names,
         Some(&roster),
         location_names.as_deref(),
@@ -881,7 +880,7 @@ pub fn prepare_npc_conversation_turn(
         player_input,
         other_npcs: &other_npcs,
         language,
-        config: &crate::config::NpcConfig::default(),
+        config: npc_cfg,
         npc_names: &npc_names,
         player_name_for_npc,
         was_introduced,
@@ -937,7 +936,7 @@ pub fn prepare_npc_conversation(
     target_name: Option<&str>,
     improv_enabled: bool,
     language: &LanguageSettings,
-    grounding_enabled: bool,
+    npc_cfg: &crate::config::NpcConfig,
 ) -> Option<NpcConversationSetup> {
     let target_names = target_name
         .map(|name| vec![name.to_string()])
@@ -953,7 +952,7 @@ pub fn prepare_npc_conversation(
         &[],
         improv_enabled,
         language,
-        grounding_enabled,
+        npc_cfg,
     )
 }
 

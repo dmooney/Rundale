@@ -1005,6 +1005,11 @@ async fn handle_headless_game_input(
 
             // Route to NPC conversation if one is present
             let lang = app.language_settings();
+            let npc_cfg = parish_core::config::NpcConfig {
+                dialogue_quality_continuity: !app.flags.is_disabled("dialogue-quality-continuity"),
+                grounding_enabled: !app.flags.is_disabled("npc-dialogue-grounding"),
+                ..parish_core::config::NpcConfig::default()
+            };
             if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
                 &app.world,
                 &mut app.npc_manager,
@@ -1012,7 +1017,7 @@ async fn handle_headless_game_input(
                 target_name.as_deref(),
                 app.improv_enabled,
                 &lang,
-                !app.flags.is_disabled("npc-dialogue-grounding"),
+                &npc_cfg,
             ) {
                 // Teach this NPC the player's name if introduced
                 if app.world.player_name.is_some()

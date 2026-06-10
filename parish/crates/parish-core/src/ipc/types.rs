@@ -7,7 +7,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::npc::LanguageHint;
-use parish_palette::{RawColor, RawPalette};
 
 // ── World snapshot ──────────────────────────────────────────────────────────
 
@@ -133,39 +132,15 @@ pub struct NpcInfo {
 
 // ── Theme palette ───────────────────────────────────────────────────────────
 
-/// CSS hex-string theme palette derived from [`RawPalette`].
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ThemePalette {
-    /// Main background colour (`"#rrggbb"`).
-    pub bg: String,
-    /// Foreground (text) colour.
-    pub fg: String,
-    /// Accent colour for highlights and the status bar.
-    pub accent: String,
-    /// Slightly offset panel background.
-    pub panel_bg: String,
-    /// Input field background.
-    pub input_bg: String,
-    /// Border/separator colour.
-    pub border: String,
-    /// Muted colour for secondary text.
-    pub muted: String,
-}
-
-impl From<RawPalette> for ThemePalette {
-    fn from(raw: RawPalette) -> Self {
-        let hex = |c: RawColor| format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b);
-        ThemePalette {
-            bg: hex(raw.bg),
-            fg: hex(raw.fg),
-            accent: hex(raw.accent),
-            panel_bg: hex(raw.panel_bg),
-            input_bg: hex(raw.input_bg),
-            border: hex(raw.border),
-            muted: hex(raw.muted),
-        }
-    }
-}
+/// CSS hex-string theme palette derived from [`parish_palette::RawPalette`].
+///
+/// The struct now lives in `parish-types` (the zero-dependency leaf) so the
+/// mod loader (`parish-mod`) and this IPC layer can both name it without a
+/// dependency cycle. This re-export preserves the historical
+/// `parish_core::ipc::ThemePalette` path for every consumer. The
+/// `From<RawPalette>` conversion lives in `parish-palette` (where `RawPalette`
+/// is local) and is always in scope wherever `RawPalette` is.
+pub use parish_types::ThemePalette;
 
 // ── Event payloads ──────────────────────────────────────────────────────────
 
@@ -419,6 +394,7 @@ mod tests {
 
     #[test]
     fn theme_palette_from_raw_palette() {
+        use parish_palette::{RawColor, RawPalette};
         let raw = RawPalette {
             bg: RawColor::new(10, 20, 30),
             fg: RawColor::new(200, 210, 220),
