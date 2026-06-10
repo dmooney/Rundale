@@ -31,7 +31,7 @@ player_tokens / judge_tokens`).
 
 New **transport** struct (serde, not persisted directly):
 
-```
+```text
 IngestPayload {
   config:        RunConfigPayload,   // label forced to "skill:quality-harness"; hashed -> configs row
   git:           GitProvenance,      // sha, branch, dirty, pr_number  (existing struct, derive Deserialize)
