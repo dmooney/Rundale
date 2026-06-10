@@ -463,6 +463,12 @@ pub struct AppState {
     /// Rolling `GameEvent` ring buffer captured from the world event bus.
     /// Populated by a background task that subscribes to `world.event_bus`.
     pub game_events: Mutex<std::collections::VecDeque<parish_core::world::events::GameEvent>>,
+    /// Monotonic lifetime count of all `GameEvent`s ever pushed to
+    /// `game_events` (including those already evicted from the ring). Used
+    /// as the `event_cursor` returned by `GET /api/turn` so that a `since=N`
+    /// caller reliably receives only events enqueued after position N,
+    /// regardless of how many times the ring has wrapped (#1389).
+    pub total_game_events: std::sync::atomic::AtomicUsize,
     /// Shared inference call log for the debug panel.
     pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
@@ -1324,6 +1330,7 @@ pub fn run() {
         game_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
+        total_game_events: std::sync::atomic::AtomicUsize::new(0),
         inference_log: new_inference_log(),
         ui_config,
         theme_palette,

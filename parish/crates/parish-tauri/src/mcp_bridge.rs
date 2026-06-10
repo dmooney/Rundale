@@ -353,30 +353,36 @@ async fn read_location_and_npcs(state: &Arc<AppState>) -> (String, usize) {
 
 /// Converts the `game_events` ring buffer to summarised [`TurnEvent`]s.
 ///
-/// Returns a slice starting at `since_cursor` (by ring-buffer position),
-/// capped at [`TURN_MAX_EVENTS`]. Also returns the new cursor value.
+/// `since_cursor` is the monotonic lifetime event count returned by a
+/// previous call (i.e. `AppState::total_game_events` at that point in time).
+/// Returns only events enqueued AFTER `since_cursor`, capped at
+/// [`TURN_MAX_EVENTS`]. Also returns the new cursor value (current
+/// `total_game_events`) so the caller can page forward (#1389).
 async fn read_events_since(state: &Arc<AppState>, since_cursor: usize) -> (Vec<TurnEvent>, usize) {
+    // Read the monotonic total BEFORE locking the ring so the cursor
+    // reflects all events that existed at query time, even if a concurrent
+    // push races this read (it would merely appear on the next call).
+    let total = state
+        .total_game_events
+        .load(std::sync::atomic::Ordering::Relaxed);
     let events = state.game_events.lock().await;
-    let total = events.len();
-    // `since_cursor` is the total count at last read. Events with index >=
-    // since_cursor in the ring buffer are "new".  Since game_events is a
-    // VecDeque that pops from the front when full (see setup), the oldest
-    // entry's logical index can be below `since_cursor` if the deque wrapped.
-    // We use a simple strategy: skip entries the caller has already seen
-    // (total - len is how many have been evicted), then take up to MAX.
-    let evicted = total.saturating_sub(events.len());
-    let start = since_cursor.saturating_sub(evicted);
+    let ring_len = events.len();
+    // `total - ring_len` is the number of events evicted from the front of
+    // the ring. The first entry in the deque has lifetime index `evicted`.
+    // We want events with lifetime index >= since_cursor, so we skip
+    // `since_cursor - evicted` entries from the front (clamped to 0).
+    let evicted = total.saturating_sub(ring_len);
+    let skip = since_cursor.saturating_sub(evicted);
     let new_entries: Vec<TurnEvent> = events
         .iter()
-        .skip(start)
+        .skip(skip)
         .take(TURN_MAX_EVENTS)
         .map(|e| TurnEvent {
             kind: e.event_type().to_string(),
             summary: summarise_game_event(e),
         })
         .collect();
-    let new_cursor = total;
-    (new_entries, new_cursor)
+    (new_entries, total)
 }
 
 /// Builds a one-line human-readable summary for a [`GameEvent`].
@@ -930,6 +936,7 @@ mod tests {
             game_events: Mutex::new(std::collections::VecDeque::with_capacity(
                 DEBUG_EVENT_CAPACITY,
             )),
+            total_game_events: std::sync::atomic::AtomicUsize::new(0),
             game_mod: None,
             inference_log: new_inference_log(),
             ui_config,
@@ -1214,7 +1221,26 @@ mod tests {
         assert_eq!(delta[0].player_input, "hello");
     }
 
-    // ── turn_read helper tests (#1356) ───────────────────────────────────────
+    // ── turn_read helper tests (#1356 / #1389) ───────────────────────────────
+
+    /// Push N test events into `game_events` and increment `total_game_events`
+    /// to keep the monotonic counter consistent (simulates what the background
+    /// event-bus task does in production).
+    async fn push_test_events(
+        state: &Arc<AppState>,
+        events: Vec<parish_core::world::events::GameEvent>,
+    ) {
+        let mut buf = state.game_events.lock().await;
+        for evt in events {
+            if buf.len() >= crate::DEBUG_EVENT_CAPACITY {
+                buf.pop_front();
+            }
+            buf.push_back(evt);
+            state
+                .total_game_events
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 
     /// `read_events_since` with cursor=0 returns all accumulated events.
     #[tokio::test]
@@ -1227,18 +1253,21 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let state = byok_test_state(&dir);
 
-        {
-            let mut events = state.game_events.lock().await;
-            events.push_back(GameEvent::NpcArrived {
-                npc_id: NpcId(1),
-                location: LocationId(1),
-                timestamp: Utc::now(),
-            });
-            events.push_back(GameEvent::WeatherChanged {
-                new_weather: "Rain".to_string(),
-                timestamp: Utc::now(),
-            });
-        }
+        push_test_events(
+            &state,
+            vec![
+                GameEvent::NpcArrived {
+                    npc_id: NpcId(1),
+                    location: LocationId(1),
+                    timestamp: Utc::now(),
+                },
+                GameEvent::WeatherChanged {
+                    new_weather: "Rain".to_string(),
+                    timestamp: Utc::now(),
+                },
+            ],
+        )
+        .await;
 
         let (events, cursor) = read_events_since(&state, 0).await;
         assert_eq!(events.len(), 2);
@@ -1256,18 +1285,91 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let state = byok_test_state(&dir);
 
-        {
-            let mut events = state.game_events.lock().await;
-            events.push_back(GameEvent::WeatherChanged {
+        push_test_events(
+            &state,
+            vec![GameEvent::WeatherChanged {
                 new_weather: "Sun".to_string(),
                 timestamp: Utc::now(),
-            });
-        }
+            }],
+        )
+        .await;
+
         // Simulate the agent already saw that event.
         let (_, cursor) = read_events_since(&state, 0).await;
         let (new_events, new_cursor) = read_events_since(&state, cursor).await;
         assert!(new_events.is_empty(), "no events since cursor");
         assert_eq!(new_cursor, cursor, "cursor is stable when nothing new");
+    }
+
+    /// Regression test for #1389: two sequential reads with advancing `since`
+    /// must return DIFFERENT, forward-moving event windows.
+    ///
+    /// Push 3 events, read (cursor=3), push 2 more, read with since=3 →
+    /// must get exactly the 2 new events, not the original 3.
+    #[tokio::test]
+    async fn read_events_since_returns_only_new_events_after_cursor() {
+        use chrono::Utc;
+        use parish_core::world::events::GameEvent;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        // Push 3 initial events.
+        push_test_events(
+            &state,
+            vec![
+                GameEvent::WeatherChanged {
+                    new_weather: "Clear".to_string(),
+                    timestamp: Utc::now(),
+                },
+                GameEvent::WeatherChanged {
+                    new_weather: "Mist".to_string(),
+                    timestamp: Utc::now(),
+                },
+                GameEvent::WeatherChanged {
+                    new_weather: "Rain".to_string(),
+                    timestamp: Utc::now(),
+                },
+            ],
+        )
+        .await;
+
+        // First read: caller sees all 3, gets cursor=3.
+        let (first_events, cursor_after_first) = read_events_since(&state, 0).await;
+        assert_eq!(
+            first_events.len(),
+            3,
+            "initial read should return all 3 events"
+        );
+        assert_eq!(cursor_after_first, 3);
+
+        // Push 2 new events after the first read.
+        push_test_events(
+            &state,
+            vec![
+                GameEvent::WeatherChanged {
+                    new_weather: "Snow".to_string(),
+                    timestamp: Utc::now(),
+                },
+                GameEvent::WeatherChanged {
+                    new_weather: "Hail".to_string(),
+                    timestamp: Utc::now(),
+                },
+            ],
+        )
+        .await;
+
+        // Second read with since=3 must return ONLY the 2 new events.
+        let (second_events, cursor_after_second) =
+            read_events_since(&state, cursor_after_first).await;
+        assert_eq!(
+            second_events.len(),
+            2,
+            "since=3 must return only the 2 new events, not the original 3"
+        );
+        assert_eq!(second_events[0].summary, "Weather → Snow");
+        assert_eq!(second_events[1].summary, "Weather → Hail");
+        assert_eq!(cursor_after_second, 5, "cursor must advance to total=5");
     }
 
     /// `TurnReadResult` shape: exchanges + events + core state fields present.

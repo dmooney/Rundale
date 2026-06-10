@@ -43,21 +43,17 @@ fn require_string<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
 }
 
 fn translate_turn(args: &Value) -> Result<(String, Value), String> {
-    // `since` is optional. Null args → GET (backend heuristic: null = GET).
-    // Pass the cursor as a query-string param by encoding it into the args so
-    // the HTTP backend can forward it. The bridge reads it via `Query<TurnReadParams>`.
-    // However, `ParishHttpBackend::is_post` treats non-null as POST — we need
-    // GET. So we always pass `Value::Null` and let the caller use the escape
-    // hatch `tauri_invoke` if they need `?since=N`.
-    // A simple GET with no params covers the common case (latest state).
+    // `since` is optional. When absent we issue a plain `GET /api/turn`.
+    // When present we forward it as `?since=N` via the `_qs` convention
+    // understood by `ParishHttpBackend::invoke` (#1389): a `_qs` object in
+    // the args is extracted and appended as query-string parameters; the
+    // presence of `_qs` is not itself treated as a POST trigger.
     let since = args.get("since").and_then(|v| v.as_u64());
-    // Encode `since` as a fake JSON field — the bridge handler uses
-    // axum `Query<>` extraction which reads query-string, not the body.
-    // For GET requests the HTTP backend ignores the args body.
-    // We use null to signal GET and accept that `since` must be provided
-    // via a dedicated turn tool or tauri_invoke for cursor-based reads.
-    let _ = since; // not forwarded for now — see comment above
-    Ok(("get_turn".into(), Value::Null))
+    let out_args = match since {
+        Some(cursor) => json!({"_qs": {"since": cursor}}),
+        None => Value::Null,
+    };
+    Ok(("get_turn".into(), out_args))
 }
 
 fn translate_world_snapshot(_args: &Value) -> Result<(String, Value), String> {
@@ -535,12 +531,28 @@ mod tests {
     }
 
     #[test]
-    fn turn_tool_with_since_still_routes_to_get() {
-        // `since` is informational for the caller; the bridge reads it via
-        // query-string so we always emit null args (GET).
+    fn turn_tool_with_since_encodes_qs_param() {
+        // `since` must be forwarded as a `_qs` object so `ParishHttpBackend`
+        // appends `?since=42` to the URL and issues a GET (#1389).
         let (cmd, args) = translate_turn(&json!({"since": 42})).unwrap();
         assert_eq!(cmd, "get_turn");
-        assert!(args.is_null());
+        // Must NOT be null — contains the query-string carrier.
+        assert!(!args.is_null(), "since must produce _qs args");
+        assert_eq!(
+            args["_qs"]["since"], 42,
+            "since value must be inside _qs object"
+        );
+    }
+
+    #[test]
+    fn turn_tool_with_since_is_still_a_get() {
+        // A `_qs`-only args object must NOT trigger POST in the backend.
+        use crate::backend::ParishHttpBackend;
+        let (_, args) = translate_turn(&json!({"since": 42})).unwrap();
+        assert!(
+            !ParishHttpBackend::is_post_pub(&args),
+            "turn with since must still dispatch as GET"
+        );
     }
 
     #[test]

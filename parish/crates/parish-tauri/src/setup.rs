@@ -748,6 +748,12 @@ pub(crate) async fn spawn_event_bus_fanin(state: &Arc<AppState>) {
                                 buf.pop_front();
                             }
                             buf.push_back(evt);
+                            // Increment the monotonic lifetime counter AFTER
+                            // the push so `total_game_events` always equals
+                            // the total number of events ever enqueued (#1389).
+                            state_events
+                                .total_game_events
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
