@@ -346,15 +346,118 @@ fn ltm_block(npc: &Npc, player_input: &str, world: &WorldState) -> Option<String
 /// the system prompt so that mood changes do not bust the stable system-prompt
 /// prefix that the model-runtime prefix cache (vllm-mlx `--enable-prefix-cache`)
 /// depends on.
+///
+/// Includes an explicit tone directive so small models act on the mood rather
+/// than treating it as an inert label (fixes #1373: sharp/alert/busy NPCs were
+/// speaking cheerful-warm because the bare label lost to the cultural-warmth
+/// directive in the system prompt).
 fn mood_block(npc: &Npc) -> String {
-    let mood = npc.mood.trim();
+    let mood = npc.mood.trim().trim_end_matches('.');
     if mood.is_empty() {
-        String::new()
-    } else if mood.ends_with('.') {
-        format!("\n\nYour current mood: {mood}")
-    } else {
-        format!("\n\nYour current mood: {mood}.")
+        return String::new();
     }
+    let tone_directive = mood_tone_directive(mood);
+    format!("\n\nYour current mood: {mood}. {tone_directive}")
+}
+
+/// Returns a tone directive sentence for the given mood word.
+///
+/// Maps mood categories to an explicit behavioral instruction so small models
+/// honour the mood rather than defaulting to the cheerful-warm register that
+/// the cultural guideline ("Show warmth") would otherwise produce.
+fn mood_tone_directive(mood: &str) -> &'static str {
+    let m = mood.to_lowercase();
+
+    // Negative / tense
+    if m.contains("sharp") || m.contains("curt") || m.contains("caustic") || m.contains("acerbic") {
+        return "Speak curtly and directly — no pleasantries, no warm welcome.";
+    }
+    if m.contains("irritat")
+        || m.contains("frustrat")
+        || m.contains("annoyed")
+        || m.contains("grumpy")
+    {
+        return "Let your irritation show — short replies, clipped tone.";
+    }
+    if m.contains("angry") || m.contains("furious") || m.contains("irate") {
+        return "Your anger colours every word — brusque, sharp-edged.";
+    }
+    if m.contains("bitter") || m.contains("resentful") || m.contains("sour") {
+        return "Your bitterness shows — guarded and cynical in tone.";
+    }
+    if m.contains("suspicious") || m.contains("wary") || m.contains("distrustful") {
+        return "Keep your guard up — watchful, measured, trust nothing freely.";
+    }
+    if m.contains("anxious") || m.contains("nervous") || m.contains("worried") {
+        return "Your unease comes through — halting, glancing, not quite settled.";
+    }
+    if m.contains("sad") || m.contains("grief") || m.contains("mournful") || m.contains("sorrowful")
+    {
+        return "Grief weighs on your words — slow, subdued, heavy.";
+    }
+    if m.contains("melanchol") || m.contains("wistful") {
+        return "A quiet sadness colours your tone — reflective, not bright.";
+    }
+
+    // Busy / distracted
+    if m.contains("busy") || m.contains("distracted") || m.contains("preoccupied") {
+        return "You are pressed for time — brief, to the point, no lingering.";
+    }
+    if m.contains("restless") || m.contains("agitated") {
+        return "Your restlessness shows — short attention, quick to move on.";
+    }
+    if m.contains("tired") || m.contains("weary") || m.contains("exhausted") {
+        return "Fatigue dulls your words — slow, spare, no energy for warmth.";
+    }
+
+    // Alert / watchful
+    if m.contains("alert") || m.contains("watchful") || m.contains("vigilant") {
+        return "You are on edge — attentive, scanning, your words chosen carefully.";
+    }
+
+    // Neutral cognitive
+    if m.contains("contemplat")
+        || m.contains("thoughtful")
+        || m.contains("reflective")
+        || m.contains("ponder")
+    {
+        return "You are in your own thoughts — measured, unhurried, somewhat inward.";
+    }
+    if m.contains("calm") || m.contains("serene") || m.contains("tranquil") {
+        return "Speak evenly and unhurried — a steady, settled manner.";
+    }
+    if m.contains("stoic") || m.contains("guarded") || m.contains("reserved") {
+        return "Say only what needs saying — no excess, no effusion.";
+    }
+    if m.contains("determined") || m.contains("resolute") {
+        return "Your resolve is clear — purposeful, direct, focused.";
+    }
+    if m.contains("calculating") {
+        return "Weigh your words — careful, deliberate, giving little away.";
+    }
+
+    // Positive (but still specific)
+    if m.contains("cheerful") || m.contains("jovial") || m.contains("merry") {
+        return "Let your good spirits show — warm and easy, quick to smile.";
+    }
+    if m.contains("eager") || m.contains("excited") || m.contains("enthus") {
+        return "Your enthusiasm is genuine — bright tone, leaning in.";
+    }
+    if m.contains("curious") || m.contains("intrigued") {
+        return "Your curiosity is alive — lean in, ask with genuine interest.";
+    }
+    if m.contains("passionate") || m.contains("fervent") {
+        return "Your passion comes through — animated, heartfelt.";
+    }
+    if m.contains("warm") || m.contains("friendly") || m.contains("welcoming") {
+        return "Be genuinely warm — open, unhurried, glad of the company.";
+    }
+    if m.contains("content") || m.contains("satisfied") {
+        return "You are at ease — pleasant but not excitable, simply present.";
+    }
+
+    // Fallback: no strong directive
+    "Let your mood colour your register naturally."
 }
 
 /// Gossip context from the gossip network.
@@ -834,19 +937,61 @@ mod tests {
     }
 
     #[test]
-    fn mood_block_normal_mood_appends_period() {
+    fn mood_block_normal_mood_includes_label_and_directive() {
         let mut npc = make_test_npc(1, "Padraig", 1);
         npc.mood = "calm".to_string();
-        assert_eq!(mood_block(&npc), "\n\nYour current mood: calm.");
+        let result = mood_block(&npc);
+        assert!(
+            result.starts_with("\n\nYour current mood: calm."),
+            "mood block must start with label: {result}"
+        );
+        // Directive sentence follows the label.
+        assert!(
+            result.len() > "\n\nYour current mood: calm.".len(),
+            "mood block must include tone directive after label: {result}"
+        );
     }
 
     #[test]
-    fn mood_block_mood_already_ending_with_period_no_double_punctuation() {
+    fn mood_block_sharp_mood_has_curt_directive() {
+        // Regression: sharp NPCs were speaking cheerful-warm (#1373).
         let mut npc = make_test_npc(1, "Padraig", 1);
-        npc.mood = "calm.".to_string();
+        npc.mood = "sharp".to_string();
         let result = mood_block(&npc);
-        assert_eq!(result, "\n\nYour current mood: calm.");
-        assert!(!result.contains("calm.."), "must not double the period");
+        assert!(result.contains("sharp"), "mood label must appear: {result}");
+        assert!(
+            result.to_lowercase().contains("curt")
+                || result.to_lowercase().contains("pleasantries")
+                || result.to_lowercase().contains("direct"),
+            "sharp mood must include a curt/direct directive: {result}"
+        );
+    }
+
+    #[test]
+    fn mood_block_busy_mood_has_brevity_directive() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "busy".to_string();
+        let result = mood_block(&npc);
+        assert!(
+            result.to_lowercase().contains("brief")
+                || result.to_lowercase().contains("time")
+                || result.to_lowercase().contains("point"),
+            "busy mood must include a brevity directive: {result}"
+        );
+    }
+
+    #[test]
+    fn mood_block_alert_mood_has_watchful_directive() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "alert".to_string();
+        let result = mood_block(&npc);
+        assert!(
+            result.to_lowercase().contains("edge")
+                || result.to_lowercase().contains("watchful")
+                || result.to_lowercase().contains("attentive")
+                || result.to_lowercase().contains("careful"),
+            "alert mood must include a watchful/tense directive: {result}"
+        );
     }
 
     /// Regression guard: the system prompt must be byte-stable when only the

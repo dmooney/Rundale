@@ -81,7 +81,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     let stripped = strip_json_fence(trimmed);
 
     if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(stripped) {
-        let dialogue = json_resp.dialogue.clone();
+        let dialogue = strip_trailing_action_token(&json_resp.dialogue);
         let metadata = Some(NpcMetadata {
             action: json_resp.action,
             mood: json_resp.mood,
@@ -98,15 +98,63 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     // demo).
     if let Some(dlg) = extract_dialogue_field_heuristic(stripped) {
         return NpcStreamResponse {
-            dialogue: dlg,
+            dialogue: strip_trailing_action_token(&dlg),
             metadata: None,
         };
     }
 
     NpcStreamResponse {
-        dialogue: trimmed.to_string(),
+        dialogue: strip_trailing_action_token(trimmed),
         metadata: None,
     }
+}
+
+/// Strips a trailing bare action token from the dialogue string.
+///
+/// Small models (notably Qwen2.5-14B) sometimes append a stage-direction
+/// token — a lone capitalised word like `Nod`, `Smile`, `Laugh`, `Shrug` —
+/// at the very end of the `dialogue` field instead of emitting it in `action`.
+/// This is a parse-boundary fix: we remove the token here so it never reaches
+/// the player (fixes #1374).
+///
+/// Only strips the last word when:
+/// - it is a single word (no spaces),
+/// - it starts with an ASCII uppercase letter, and
+/// - the preceding text ends with sentence-ending punctuation (`.`, `!`, `?`).
+///
+/// This avoids over-stripping names or title-case sentence endings.
+pub(crate) fn strip_trailing_action_token(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    // Split at the last whitespace boundary.
+    if let Some(last_space) = text.rfind(|c: char| c.is_whitespace()) {
+        let before = text[..last_space].trim_end();
+        let last_word = text[last_space + 1..].trim();
+
+        // Last word must be a single capitalised word (no digits, no punctuation).
+        let is_capitalised_word = last_word
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_uppercase())
+            .unwrap_or(false)
+            && last_word.chars().all(|c| c.is_alphabetic());
+
+        // The text before the last word must end with sentence-ending punctuation.
+        let before_ends_with_sentence_punct = before
+            .chars()
+            .last()
+            .map(|c| matches!(c, '.' | '!' | '?'))
+            .unwrap_or(false);
+
+        if is_capitalised_word && before_ends_with_sentence_punct {
+            return before.to_string();
+        }
+    }
+
+    text.to_string()
 }
 
 /// Extracts the value of a `"dialogue": "..."` JSON field from a possibly
@@ -160,6 +208,100 @@ fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
         None
     } else {
         Some(trimmed.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── strip_trailing_action_token ───────────────────────────────────────
+
+    #[test]
+    fn action_tag_nod_stripped_from_dialogue() {
+        // AC-5 (fix #1374): "Nod" after a sentence-ending `.` must be stripped.
+        assert_eq!(
+            strip_trailing_action_token("Aye, fine so. Nod"),
+            "Aye, fine so."
+        );
+    }
+
+    #[test]
+    fn action_tag_various_tokens_stripped() {
+        assert_eq!(
+            strip_trailing_action_token("Off with ye. Smile"),
+            "Off with ye."
+        );
+        assert_eq!(strip_trailing_action_token("Indeed? Laugh"), "Indeed?");
+        assert_eq!(
+            strip_trailing_action_token("I'll think on it. Shrug"),
+            "I'll think on it."
+        );
+    }
+
+    #[test]
+    fn action_tag_not_stripped_when_no_sentence_punct_before() {
+        // If what precedes the last word isn't sentence-ending punctuation,
+        // don't strip — it may be a proper name or title-case word mid-sentence.
+        assert_eq!(
+            strip_trailing_action_token("Good morning Padraig"),
+            "Good morning Padraig"
+        );
+    }
+
+    #[test]
+    fn action_tag_not_stripped_for_lowercase_last_word() {
+        // Lowercase last words are dialogue, not action tags.
+        assert_eq!(
+            strip_trailing_action_token("Come in, friend."),
+            "Come in, friend."
+        );
+    }
+
+    #[test]
+    fn action_tag_not_stripped_for_multi_word_suffix() {
+        // A multi-word action tag (two words) should not be stripped by this function.
+        // We only strip a single bare word.
+        let input = "Right so. Waves hand";
+        assert_eq!(strip_trailing_action_token(input), input);
+    }
+
+    #[test]
+    fn action_tag_not_stripped_when_last_word_has_digits() {
+        // Action tokens are pure alpha. A word with digits is not a tag.
+        assert_eq!(
+            strip_trailing_action_token("Come back at 7."),
+            "Come back at 7."
+        );
+    }
+
+    #[test]
+    fn action_tag_empty_string_returns_empty() {
+        assert_eq!(strip_trailing_action_token(""), "");
+        assert_eq!(strip_trailing_action_token("   "), "");
+    }
+
+    // ── parse_npc_stream_response with action-tag ─────────────────────────
+
+    #[test]
+    fn parse_response_strips_trailing_action_token() {
+        let json = r#"{"dialogue": "Aye, workin' metal, ain't it? Nod", "action": "nods", "mood": "cheerful"}"#;
+        let resp = parse_npc_stream_response(json);
+        assert_eq!(
+            resp.dialogue, "Aye, workin' metal, ain't it?",
+            "trailing 'Nod' must be stripped from dialogue"
+        );
+        // Metadata still parsed normally
+        let meta = resp.metadata.expect("metadata must parse");
+        assert_eq!(meta.action, "nods");
+        assert_eq!(meta.mood, "cheerful");
+    }
+
+    #[test]
+    fn parse_response_no_action_token_unchanged() {
+        let json = r#"{"dialogue": "A fine morning to ye.", "action": "nods", "mood": "calm"}"#;
+        let resp = parse_npc_stream_response(json);
+        assert_eq!(resp.dialogue, "A fine morning to ye.");
     }
 }
 
