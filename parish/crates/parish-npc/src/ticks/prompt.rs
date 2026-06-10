@@ -611,9 +611,7 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
     // Anti-phrase-recycling block (#1387): inject the NPC's own recent lines
     // as a "do not repeat" list so the model cannot recycle verbatim phrases
     // from turns that fall outside the short conversation-history window.
-    if quality_continuity
-        && let Some(block) = prior_phrases_block(world, npc)
-    {
+    if quality_continuity && let Some(block) = prior_phrases_block(world, npc) {
         context.push_str(&block);
     }
 
