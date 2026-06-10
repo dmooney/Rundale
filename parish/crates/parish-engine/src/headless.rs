@@ -12,7 +12,9 @@ use crate::inference::{
     self, AnyClient, InferenceClients, InferencePriority, InferenceQueue, InferenceWorkerConfig,
     QueueRequest,
 };
-use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
+use crate::input::{
+    Command, InputResult, classify_input, extract_mention, is_player_dialogue, parse_intent,
+};
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
 use crate::npc::parse_npc_stream_response;
@@ -160,7 +162,11 @@ async fn run_headless_repl_loop(
                     &mut request_id,
                 )
                 .await?;
-                emit_headless_npc_reactions(app, &text).await;
+                // #1351 — NPCs react only to genuine dialogue, not to a bare
+                // `look`/movement command routed down the GameInput path.
+                if is_player_dialogue(&text) {
+                    emit_headless_npc_reactions(app, &text).await;
+                }
             }
         }
 

@@ -172,6 +172,34 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     None
 }
 
+/// Returns `true` if `raw_input` should be surfaced as a player *dialogue*
+/// utterance — i.e. shown as a speech bubble and reacted to by co-located NPCs.
+///
+/// # Why this exists (#1351)
+///
+/// `submit-input` routes any non-`/` input that is not a bare command intercept
+/// down the `GameInput` path, which historically *unconditionally* emitted a
+/// player speech bubble and fired `emit_npc_reactions`. That made deterministic
+/// non-dialogue actions — a bare `look`, `look around`, or a movement phrase —
+/// render as player speech and provoke NPC reactions ("NPC reacts to `look`").
+///
+/// This predicate is a deterministic, no-LLM gate: an input that
+/// [`parse_intent_local`] resolves to a non-dialogue action (`Move`, `Look`,
+/// `Examine`, `Interact`) is **not** dialogue. Only a locally-recognised `Talk`
+/// (first-person narrative) or an input that falls through to the LLM (`None`,
+/// where the intent parser decides) is treated as dialogue. Mirrors the
+/// look-command set the intent path already short-circuits, so a bare `look`
+/// never reaches the small intent model that intermittently misclassifies it.
+pub fn is_player_dialogue(raw_input: &str) -> bool {
+    match parse_intent_local(raw_input) {
+        // Locally-recognised first-person narrative is genuine speech.
+        Some(intent) => matches!(intent.intent, IntentKind::Talk),
+        // Ambiguous input falls through to the LLM intent parser; treat it as
+        // dialogue (speech bubble + reactions), as the pre-#1351 path did.
+        None => true,
+    }
+}
+
 /// Shared helper: checks if `lower` starts with any prefix in `prefixes`,
 /// extracts the target from the original (cased) `trimmed` input using
 /// char-count-based byte-offset computation, and returns a `Move` intent.
@@ -659,5 +687,39 @@ mod tests {
         assert!(parse_intent_local("amble").is_none());
         assert!(parse_intent_local("run").is_none());
         assert!(parse_intent_local("dash").is_none());
+    }
+
+    // ── is_player_dialogue (#1351) ──────────────────────────────────────────
+
+    #[test]
+    fn bare_look_is_not_dialogue() {
+        // The reported bug: a bare `look` rendered as player speech and NPCs
+        // reacted to it. The deterministic gate must classify it as non-dialogue.
+        assert!(!is_player_dialogue("look"));
+        assert!(!is_player_dialogue("look around"));
+        assert!(!is_player_dialogue("l"));
+        assert!(!is_player_dialogue("LOOK"));
+        assert!(!is_player_dialogue("  look  "));
+    }
+
+    #[test]
+    fn movement_is_not_dialogue() {
+        // Movement phrases route to the look/move path, not speech — NPCs must
+        // not react to "go to the pub" as if the player said it to them.
+        assert!(!is_player_dialogue("go to the pub"));
+        assert!(!is_player_dialogue("head to Murphy's Farm"));
+        assert!(!is_player_dialogue("visit the fairy fort"));
+    }
+
+    #[test]
+    fn speech_is_dialogue() {
+        // Locally-recognised first-person narrative is genuine speech.
+        assert!(is_player_dialogue("I came from the coast"));
+        assert!(is_player_dialogue("I'm not from around here"));
+        // Input that falls through to the LLM intent parser is treated as
+        // dialogue (preserves the pre-#1351 behaviour for ambiguous text).
+        assert!(is_player_dialogue("hello there"));
+        assert!(is_player_dialogue("tell Mary the rent is too high"));
+        assert!(is_player_dialogue("good morning, Father"));
     }
 }

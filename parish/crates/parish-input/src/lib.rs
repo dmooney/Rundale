@@ -13,7 +13,7 @@ mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
 pub use intent_llm::parse_intent;
-pub use intent_local::parse_intent_local;
+pub use intent_local::{is_player_dialogue, parse_intent_local};
 pub use intent_types::{InputResult, IntentKind, PlayerIntent};
 pub use mention::{MentionExtraction, extract_mention};
 pub use parser::{classify_input, parse_system_command};

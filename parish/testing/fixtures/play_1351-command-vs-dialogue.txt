@@ -1,0 +1,8 @@
+# #1351 — a bare `look` (and movement) must route as a command, never as
+# player speech, and must not provoke NPC reactions. A genuine greeting must
+# still produce dialogue + reactions.
+look
+go to the pub
+look
+good morning to ye all
+/quit
