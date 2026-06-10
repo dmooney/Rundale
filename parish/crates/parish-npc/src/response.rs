@@ -132,7 +132,7 @@ pub(crate) fn strip_trailing_action_token(dialogue: &str) -> String {
     // Split at the last whitespace boundary.
     if let Some(last_space) = text.rfind(|c: char| c.is_whitespace()) {
         let before = text[..last_space].trim_end();
-        let last_word = text[last_space + 1..].trim();
+        let last_word = text[last_space..].trim_start();
 
         // Last word must be a single capitalised word (no digits, no punctuation).
         let is_capitalised_word = last_word
@@ -297,6 +297,20 @@ mod tests {
     fn action_tag_empty_string_returns_empty() {
         assert_eq!(strip_trailing_action_token(""), "");
         assert_eq!(strip_trailing_action_token("   "), "");
+    }
+
+    #[test]
+    fn action_tag_multibyte_whitespace_no_panic() {
+        // EM SPACE (U+2003) is a 3-byte UTF-8 character. Slicing at
+        // `last_space + 1` would land mid-codepoint and panic; using
+        // `text[last_space..].trim_start()` is always char-boundary-safe.
+        let em_space = "\u{2003}";
+        let input = format!("Right so.{em_space}Nod");
+        assert_eq!(strip_trailing_action_token(&input), "Right so.");
+
+        // Also verify it doesn't strip when the punctuation guard fails.
+        let no_punct = format!("Good morning{em_space}Padraig");
+        assert_eq!(strip_trailing_action_token(&no_punct), no_punct.trim());
     }
 
     // ── parse_npc_stream_response with action-tag ─────────────────────────
