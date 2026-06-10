@@ -130,15 +130,17 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    [`parish/crates/parish-harness/README.md`](../../../parish/crates/parish-harness/README.md)
    under `ingest`). Fill `git` from the worktree (`git rev-parse HEAD` / `--abbrev-ref HEAD` /
    `status --porcelain`), set `rubric_sha256` to the binary's pinned rubric sha
-   (`cargo run -p parish-harness -- ... ` records it; or read the rubric file hash), include all
+   (`cargo run -p parish-harness -- ...` records it; or read the rubric file hash), include all
    `turns`, the 7 `axes` with rationales, every `finding` (with the same `signature` you used
    when filing the issue), and a `cost` tally. On a hard fail set `gate` and omit
    `quality_score`.
 
 3. **Ingest:**
+
    ```sh
    cargo run -p parish-harness -- ingest --payload <run.json> --artifacts <root>
    ```
+
    It prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
    they can open the run on the dashboard.
 
