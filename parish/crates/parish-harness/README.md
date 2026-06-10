@@ -105,6 +105,40 @@ $BIN compare --a <run_id> --b <run_id> [--db <path>]
 Prints a per-axis delta table, the gate-status diff, and the finding-signature diff. The
 dashboard `/api/compare` + `/api/timeline` give the same data plus score-vs-git-history.
 
+### `ingest` — land an externally-produced run
+
+```sh
+$BIN ingest --payload <run.json> --artifacts <root> [--db <path>]
+```
+
+Persists a complete run that was produced **outside** the `run` loop — specifically a
+quality-harness **skill** run (an agent drives the live game over the parish MCP, judges by
+hand, and files bugs). The payload is replayed through the exact same sink writers `run` uses,
+so the run shows on the dashboard indistinguishably from a binary run (quality score, 7-axis
+bars, findings, per-turn frames, cost). Prints `ingested run <id>`.
+
+`--artifacts <root>` must contain `runs/<uuid>/turns/NNN/frame.png` for every turn the payload
+references (each frame must be non-empty — rule #14). The run's `artifact_dir` is stored as
+`<root>/runs/<uuid>` so the dashboard's frame route resolves unchanged.
+
+Payload schema (one JSON object):
+
+| Field           | Type    | Notes                                                                                                      |
+| --------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `config`        | object  | A `RunConfig`; its `label` is forced to `skill:quality-harness` so all skill runs share one `configs` row. |
+| `git`           | object  | `{sha, branch, dirty, pr_number}`.                                                                         |
+| `rubric_sha256` | string  | Pass the binary's pinned rubric sha so timeline / A-B treat skill and binary runs as comparable.           |
+| `uuid`          | string  | Run dir name under `runs/`.                                                                                |
+| `gate`          | object? | `{reason, turn, detail}` — present **iff** the run hard-failed; stores it gated with NULL quality.         |
+| `quality_score` | number? | Weighted mean; recomputed from `axes` when omitted on a non-gated run.                                     |
+| `cost`          | object  | `{cost_usd, player_tokens, judge_tokens}`.                                                                 |
+| `turns[]`       | array   | Mirror of a `TurnRecord`; `frame_path` / `lines_path` are relative (`turns/NNN/...`).                      |
+| `axes[]`        | array   | `{axis, score, rationale}` — the 7 quality-axis keys.                                                      |
+| `findings[]`    | array   | `{category, turn_index?, severity, description, evidence_quote, signature}`.                               |
+
+A worked sample lives at `parish/testing/fixtures/ingest_harness_skill/sample-payload.json`
+(with `verify.sh` exercising the full ingest → serve → API round-trip).
+
 ### `db-path`
 
 ```sh

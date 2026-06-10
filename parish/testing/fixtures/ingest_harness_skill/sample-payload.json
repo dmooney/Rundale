@@ -1,0 +1,103 @@
+{
+  "config": {
+    "label": "skill:quality-harness",
+    "engine_models": {},
+    "flags": [],
+    "player": {
+      "mode": "subagent",
+      "model": "opus",
+      "persona": "curious newcomer, 1820",
+      "strategy": "meet villagers, find lodging and work"
+    },
+    "judge": {
+      "mode": "subagent",
+      "model": "opus",
+      "rubric_version": "v1",
+      "rubric_sha256": null
+    },
+    "gate": {}
+  },
+  "git": {
+    "sha": "85aeeefe",
+    "branch": "claude/musing-shamir-b28938",
+    "dirty": true,
+    "pr_number": null
+  },
+  "rubric_sha256": "PLACEHOLDER_BINARY_PINNED_RUBRIC_SHA",
+  "uuid": "00000000-0000-0000-0000-0000000000aa",
+  "status": "completed",
+  "quality_score": 74.0,
+  "gate": null,
+  "cost": { "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 },
+  "turns": [
+    {
+      "turn_index": 0,
+      "player_input": "Good morning to you. I'm new to Kilteevan. Might I ask your name?",
+      "outcome": "ok",
+      "kind": "dialogue",
+      "elapsed_ms": 1200,
+      "engine_state_json": "{\"scene\":\"Kilteevan Village\"}",
+      "location_id": 15,
+      "location_name": "Kilteevan Village",
+      "game_clock": "08:01",
+      "npcs_here_count": 1,
+      "frame_path": "turns/000/frame.png",
+      "lines_path": "turns/000/lines.json"
+    }
+  ],
+  "axes": [
+    {
+      "axis": "narrative_coherence",
+      "score": 85,
+      "rationale": "referral chain carried across NPCs"
+    },
+    {
+      "axis": "character_fidelity",
+      "score": 55,
+      "rationale": "mood-blind dialogue across 3/4 NPCs"
+    },
+    {
+      "axis": "world_responsiveness",
+      "score": 85,
+      "rationale": "schedule-driven autonomous life on /wait"
+    },
+    {
+      "axis": "intent_fidelity",
+      "score": 82,
+      "rationale": "all inputs routed; one spurious system line"
+    },
+    {
+      "axis": "immersion",
+      "score": 63,
+      "rationale": "run-on replies + scaffolding leak break it"
+    },
+    {
+      "axis": "progression",
+      "score": 84,
+      "rationale": "arrival -> lodging -> work -> name in 9 turns"
+    },
+    {
+      "axis": "common_sense",
+      "score": 70,
+      "rationale": "minor unfounded familiarity"
+    }
+  ],
+  "findings": [
+    {
+      "category": "character_fidelity",
+      "turn_index": 0,
+      "severity": "high",
+      "description": "NPC mood tag not reflected in dialogue tone",
+      "evidence_quote": "Welcome to Kilteevan ... this fine mornin'",
+      "signature": "mood-blind-dialogue"
+    },
+    {
+      "category": "immersion",
+      "turn_index": 5,
+      "severity": "high",
+      "description": "run-on multi-question monologue",
+      "evidence_quote": "What say ye to that, then? Shall we settle ...",
+      "signature": "verbosity-runon"
+    }
+  ]
+}

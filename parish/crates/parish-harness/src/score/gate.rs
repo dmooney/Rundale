@@ -39,6 +39,20 @@ impl GateReason {
             GateReason::JudgeCritical => "judge_critical",
         }
     }
+
+    /// Parse a gate reason from its snake_case label. Unknown labels degrade to
+    /// `Crash` (the most conservative "broken run" reason) rather than failing —
+    /// an ingested run is always recordable even if its reason string drifted.
+    pub fn from_label(s: &str) -> GateReason {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "parser_reject" => GateReason::ParserReject,
+            "timeout" => GateReason::Timeout,
+            "json_parse_fail" => GateReason::JsonParseFail,
+            "empty_turn_burn" => GateReason::EmptyTurnBurn,
+            "judge_critical" => GateReason::JudgeCritical,
+            _ => GateReason::Crash,
+        }
+    }
 }
 
 /// A tripped gate: the reason, the turn index it fired on, and a human detail.

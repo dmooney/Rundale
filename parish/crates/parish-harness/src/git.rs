@@ -7,8 +7,10 @@
 
 use std::process::Command;
 
+use serde::{Deserialize, Serialize};
+
 /// Git + PR identity at the moment a run started.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitProvenance {
     pub sha: String,
     pub branch: String,
