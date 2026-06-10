@@ -214,13 +214,25 @@ fn location_anchor_block(world: &WorldState) -> String {
 /// other name that may appear in the recent-events buffer (fixed: #35 — a
 /// shopkeeper at a new location called the player "Nora" because the prior
 /// location's NPC named Nora was still in the dialogue history).
-fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
+///
+/// When `familiar` is true (the player has had enough prior exchanges with
+/// this NPC that "stranger" is socially inappropriate), the unknown-name
+/// vocabulary is narrowed to "the newcomer" / "friend" — dropping "stranger"
+/// (#1388).
+fn interlocutor_block(player_name_for_npc: Option<&str>, familiar: bool) -> String {
     match player_name_for_npc {
         Some(name) => format!(
             "\n\nPERSON YOU ARE SPEAKING WITH:\n{name}.\n\
              Address them by the name '{name}' only. Do not call them any \
              other name, even if a different name appears in the recent \
              conversation history."
+        ),
+        None if familiar => String::from(
+            "\n\nPERSON YOU ARE SPEAKING WITH:\nA person you have already spoken with.\n\
+             You do not yet know their name, but you have met before — do NOT \
+             address them as 'stranger'. Refer to them as 'the newcomer', \
+             'friend', 'mo chara', or by a brief description. Do not invent a \
+             name and do not borrow a name from the recent conversation history.",
         ),
         None => String::from(
             "\n\nPERSON YOU ARE SPEAKING WITH:\nA newcomer to the parish.\n\
@@ -229,6 +241,39 @@ fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
              not borrow a name from the recent conversation history.",
         ),
     }
+}
+
+/// Anti-phrase-recycling block — injects the NPC's own recent dialogue lines
+/// as a "do not repeat" list so the model cannot recycle verbatim phrases from
+/// turns that fall outside the short conversation-history window (#1387).
+///
+/// Only renders when there are prior NPC lines at this location.
+fn prior_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
+    let lines = world
+        .conversation_log
+        .npc_prior_lines(world.player_location, npc.id, 6);
+    if lines.is_empty() {
+        return None;
+    }
+    let mut block = String::from(
+        "\n\nDO NOT REPEAT THESE PHRASES — you have already used them in \
+         this conversation. Using them again would be verbatim repetition:\n",
+    );
+    for line in &lines {
+        // Truncate very long prior lines to avoid bloating the prompt.
+        let excerpt: &str = if line.len() > 120 {
+            // Safe UTF-8 truncation: find the last char boundary at or before 120.
+            let mut end = 120;
+            while end > 0 && !line.is_char_boundary(end) {
+                end -= 1;
+            }
+            &line[..end]
+        } else {
+            line
+        };
+        block.push_str(&format!("- \"{excerpt}\"\n"));
+    }
+    Some(block)
 }
 
 /// Describes other NPCs present at the location with relationship context.
@@ -286,10 +331,16 @@ fn conversation_block(
 }
 
 /// Continuity cue when the NPC is already in conversation.
+///
+/// Extended for #1388: when `add_no_reask` is true (the `dialogue-quality-
+/// continuity` flag is on), appends an explicit directive instructing the NPC
+/// not to re-ask questions whose answers already appear in the conversation
+/// history block shown above.
 fn continuity_block(
     world: &WorldState,
     npc: &Npc,
     player_name_for_npc: Option<&str>,
+    add_no_reask: bool,
 ) -> Option<String> {
     if !world
         .conversation_log
@@ -298,9 +349,16 @@ fn continuity_block(
         return None;
     }
     let name = player_name_for_npc.unwrap_or("this newcomer");
+    let no_reask = if add_no_reask {
+        " Treat any facts or answers already established in the conversation \
+         history above as settled — do not re-ask questions whose answers have \
+         already been given."
+    } else {
+        ""
+    };
     Some(format!(
         "\n\nYou are already in conversation with {name}. \
-         Do not re-introduce yourself or greet them again."
+         Do not re-introduce yourself or greet them again.{no_reask}"
     ))
 }
 
@@ -491,6 +549,11 @@ pub struct Tier1ContextParams<'a> {
     pub was_introduced: bool,
 }
 
+/// Minimum number of prior NPC–player exchanges at this location before
+/// the NPC is considered "familiar" with the player and "stranger" is dropped
+/// from the interlocutor address vocabulary (#1388).
+const FAMILIARITY_EXCHANGE_THRESHOLD: usize = 2;
+
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base context with the NPC's recent memories and
@@ -508,6 +571,16 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
         was_introduced,
     } = params;
 
+    let quality_continuity = config.dialogue_quality_continuity;
+
+    // Familiarity: has the NPC spoken with this player enough times that
+    // "stranger" is no longer an appropriate address? (#1388)
+    let familiar = quality_continuity
+        && world
+            .conversation_log
+            .exchange_count_with(world.player_location, npc.id)
+            >= FAMILIARITY_EXCHANGE_THRESHOLD;
+
     let mut context = build_tier1_context(world);
 
     // Mood goes into the dynamic context (not the system prompt) so that mood
@@ -517,7 +590,7 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
 
     context.push_str(&location_anchor_block(world));
 
-    context.push_str(&interlocutor_block(player_name_for_npc));
+    context.push_str(&interlocutor_block(player_name_for_npc, familiar));
 
     if let Some(block) = introduced_anchor_block(npc, was_introduced) {
         context.push_str(&block);
@@ -531,7 +604,14 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
         context.push_str(&block);
     }
 
-    if let Some(block) = continuity_block(world, npc, player_name_for_npc) {
+    if let Some(block) = continuity_block(world, npc, player_name_for_npc, quality_continuity) {
+        context.push_str(&block);
+    }
+
+    // Anti-phrase-recycling block (#1387): inject the NPC's own recent lines
+    // as a "do not repeat" list so the model cannot recycle verbatim phrases
+    // from turns that fall outside the short conversation-history window.
+    if quality_continuity && let Some(block) = prior_phrases_block(world, npc) {
         context.push_str(&block);
     }
 
@@ -705,7 +785,7 @@ mod tests {
         // Name anchor (fixed: #35) — when the NPC knows the player's name,
         // the block must explicitly forbid addressing them by any other
         // name from recent history.
-        let block = interlocutor_block(Some("Aiden Carney"));
+        let block = interlocutor_block(Some("Aiden Carney"), false);
         assert!(block.contains("Aiden Carney"), "missing player name");
         assert!(
             block.contains("Address them by the name 'Aiden Carney' only"),
@@ -721,7 +801,7 @@ mod tests {
     fn test_interlocutor_block_unintroduced_player_has_anchor() {
         // Pre-introduction (fixed: #35 corollary) — the NPC must NOT borrow a
         // name from the history buffer when it doesn't yet know the player.
-        let block = interlocutor_block(None);
+        let block = interlocutor_block(None, false);
         assert!(block.contains("A newcomer to the parish"));
         assert!(
             block.contains("do not invent a name"),
@@ -730,6 +810,40 @@ mod tests {
         assert!(
             block.contains("do not borrow a name"),
             "missing borrow-from-history guard:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_interlocutor_block_familiar_drops_stranger() {
+        // AC-4 (#1388): after sufficient prior exchanges, "stranger" must not
+        // appear as a valid address option in the interlocutor block.
+        // The word "stranger" may still appear in a prohibitive clause
+        // (e.g. "do NOT address them as 'stranger'") — the assertion targets
+        // only the positive recommendations after "Refer to them as".
+        let block = interlocutor_block(None, true);
+        let refer_to_section = block.split("Refer to them as").nth(1).unwrap_or("");
+        assert!(
+            !refer_to_section.contains("stranger"),
+            "familiar interlocutor block must not list 'stranger' as a valid address:\n{block}"
+        );
+        assert!(
+            block.contains("do not") || block.contains("NOT"),
+            "familiar block must contain a prohibition on 'stranger':\n{block}"
+        );
+        assert!(
+            block.contains("friend") || block.contains("newcomer"),
+            "familiar block must name an alternative address:\n{block}"
+        );
+    }
+
+    #[test]
+    fn test_interlocutor_block_unfamiliar_permits_stranger() {
+        // Regression guard: on the first encounter (familiar=false), the
+        // original vocabulary including "stranger" must still be offered.
+        let block = interlocutor_block(None, false);
+        assert!(
+            block.contains("stranger"),
+            "unfamiliar block must still offer 'stranger':\n{block}"
         );
     }
 
@@ -1188,5 +1302,283 @@ mod tests {
             super::super::tier1::apply_tier1_response(&mut npc, &response, "hello", game_time);
         assert_eq!(npc.mood, "calm"); // mood should not change
         assert!(!events.iter().any(|e| e.contains("mood:")));
+    }
+
+    // ── AC-1: prior-phrases anti-recycling block (#1387) ────────────────────
+
+    /// Build a WorldState with one conversation exchange for `npc_id` at
+    /// the default location.
+    fn world_with_prior_exchange(npc_id: u32, npc_name: &str, prior_line: &str) -> WorldState {
+        use chrono::TimeZone;
+        use parish_types::conversation::ConversationExchange;
+
+        let mut world = WorldState::new();
+        world.conversation_log.add(ConversationExchange {
+            timestamp: chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            speaker_id: NpcId(npc_id),
+            speaker_name: npc_name.to_string(),
+            player_input: "Good morning".to_string(),
+            npc_dialogue: prior_line.to_string(),
+            location: world.player_location,
+        });
+        world
+    }
+
+    #[test]
+    fn prior_phrases_block_present_when_npc_has_prior_lines() {
+        // AC-1 (#1387): context must contain a "do not repeat" block when the
+        // NPC has spoken before at this location.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let world = world_with_prior_exchange(1, "Padraig", "Ye've a keen eye for introductions.");
+        let block = prior_phrases_block(&world, &npc);
+        assert!(
+            block.is_some(),
+            "prior_phrases_block must render when NPC has prior lines"
+        );
+        let text = block.unwrap();
+        assert!(
+            text.contains("DO NOT REPEAT THESE PHRASES"),
+            "block must contain the anti-repeat header:\n{text}"
+        );
+        assert!(
+            text.contains("keen eye for introductions"),
+            "block must quote the prior line:\n{text}"
+        );
+    }
+
+    #[test]
+    fn prior_phrases_block_absent_on_first_encounter() {
+        // Regression guard: no prior lines → block must not render.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let world = WorldState::new();
+        assert!(
+            prior_phrases_block(&world, &npc).is_none(),
+            "prior_phrases_block must be None on first encounter"
+        );
+    }
+
+    #[test]
+    fn context_includes_prior_phrases_block_when_quality_continuity_enabled() {
+        // AC-1 integrated: build_enhanced_context_with_config must include
+        // the anti-recycling block when quality_continuity is true.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let world =
+            world_with_prior_exchange(1, "Padraig", "Mayhap ye'll find yer trade keeps ye busy.");
+        let config = NpcConfig {
+            dialogue_quality_continuity: true,
+            ..NpcConfig::default()
+        };
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+        assert!(
+            context.contains("DO NOT REPEAT THESE PHRASES"),
+            "context must include anti-recycling block:\n{context}"
+        );
+        assert!(
+            context.contains("busy"),
+            "context must quote the prior NPC line:\n{context}"
+        );
+    }
+
+    #[test]
+    fn context_omits_prior_phrases_block_when_quality_continuity_disabled() {
+        // Kill-switch: with quality_continuity=false, the block must not appear.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let world =
+            world_with_prior_exchange(1, "Padraig", "Mayhap ye'll find yer trade keeps ye busy.");
+        let config = NpcConfig {
+            dialogue_quality_continuity: false,
+            ..NpcConfig::default()
+        };
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+        assert!(
+            !context.contains("DO NOT REPEAT THESE PHRASES"),
+            "kill-switched context must NOT include anti-recycling block:\n{context}"
+        );
+    }
+
+    // ── AC-3: no-reask continuity directive (#1388) ──────────────────────────
+
+    #[test]
+    fn continuity_block_includes_no_reask_directive_when_enabled() {
+        // AC-3 (#1388): continuity block must contain a "do not re-ask" directive
+        // when quality_continuity is true and a prior exchange exists.
+        use chrono::TimeZone;
+        use parish_types::conversation::ConversationExchange;
+
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        // Add two exchanges so has_recent_exchange_with(n=2) fires.
+        for h in [8u32, 9u32] {
+            world.conversation_log.add(ConversationExchange {
+                timestamp: chrono::Utc.with_ymd_and_hms(1820, 3, 20, h, 0, 0).unwrap(),
+                speaker_id: NpcId(1),
+                speaker_name: "Padraig".to_string(),
+                player_input: "What do you do?".to_string(),
+                npc_dialogue: "I run the pub.".to_string(),
+                location: world.player_location,
+            });
+        }
+        let block = continuity_block(&world, &npc, None, true);
+        assert!(
+            block.is_some(),
+            "continuity_block must render when NPC has prior exchanges"
+        );
+        let text = block.unwrap();
+        assert!(
+            text.contains("already established")
+                || text.contains("do not re-ask")
+                || text.contains("settled"),
+            "continuity block must contain no-reask directive when add_no_reask=true:\n{text}"
+        );
+    }
+
+    #[test]
+    fn continuity_block_omits_no_reask_directive_when_disabled() {
+        // Kill-switch: with add_no_reask=false, the no-reask clause must not appear.
+        use chrono::TimeZone;
+        use parish_types::conversation::ConversationExchange;
+
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        for h in [8u32, 9u32] {
+            world.conversation_log.add(ConversationExchange {
+                timestamp: chrono::Utc.with_ymd_and_hms(1820, 3, 20, h, 0, 0).unwrap(),
+                speaker_id: NpcId(1),
+                speaker_name: "Padraig".to_string(),
+                player_input: "What do you do?".to_string(),
+                npc_dialogue: "I run the pub.".to_string(),
+                location: world.player_location,
+            });
+        }
+        let block = continuity_block(&world, &npc, None, false);
+        let text = block.unwrap_or_default();
+        assert!(
+            !text.contains("already established") && !text.contains("do not re-ask"),
+            "disabled continuity block must NOT contain no-reask clause:\n{text}"
+        );
+    }
+
+    // ── AC-4: familiarity-aware interlocutor address (#1388) ─────────────────
+
+    #[test]
+    fn context_drops_stranger_after_familiarity_threshold() {
+        // AC-4 (#1388): once FAMILIARITY_EXCHANGE_THRESHOLD exchanges exist,
+        // "stranger" must not appear in the interlocutor block.
+        use chrono::TimeZone;
+        use parish_types::conversation::ConversationExchange;
+
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        // Add FAMILIARITY_EXCHANGE_THRESHOLD exchanges.
+        for h in 0..FAMILIARITY_EXCHANGE_THRESHOLD {
+            world.conversation_log.add(ConversationExchange {
+                timestamp: chrono::Utc
+                    .with_ymd_and_hms(1820, 3, 20, 8 + h as u32, 0, 0)
+                    .unwrap(),
+                speaker_id: NpcId(1),
+                speaker_name: "Padraig".to_string(),
+                player_input: "Hello again".to_string(),
+                npc_dialogue: "Welcome back.".to_string(),
+                location: world.player_location,
+            });
+        }
+        let config = NpcConfig {
+            dialogue_quality_continuity: true,
+            ..NpcConfig::default()
+        };
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None, // NPC does NOT know player's name
+            was_introduced: false,
+        });
+        // The PERSON YOU ARE SPEAKING WITH block must not offer "stranger"
+        // as a valid address. The word may still appear in a prohibitive
+        // clause ("do NOT address them as 'stranger'"); we therefore check
+        // only the positive recommendations after "Refer to them as".
+        let interlocutor_start = context
+            .find("PERSON YOU ARE SPEAKING WITH")
+            .expect("interlocutor block must be present");
+        let interlocutor_end = context[interlocutor_start..]
+            .find("\n\n")
+            .map(|off| interlocutor_start + off)
+            .unwrap_or(context.len());
+        let interlocutor_section = &context[interlocutor_start..interlocutor_end];
+        let refer_to_section = interlocutor_section
+            .split("Refer to them as")
+            .nth(1)
+            .unwrap_or("");
+        assert!(
+            !refer_to_section.contains("stranger"),
+            "interlocutor block must not list 'stranger' as valid address after {FAMILIARITY_EXCHANGE_THRESHOLD} exchanges:\n{interlocutor_section}"
+        );
+    }
+
+    #[test]
+    fn context_permits_stranger_before_familiarity_threshold() {
+        // Regression guard: below the threshold, "stranger" must still be
+        // an available address option.
+        let npc = make_test_npc(1, "Padraig", 1);
+        let world = WorldState::new(); // no prior exchanges
+        let config = NpcConfig {
+            dialogue_quality_continuity: true,
+            ..NpcConfig::default()
+        };
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+        assert!(
+            context.contains("stranger"),
+            "context must still offer 'stranger' before familiarity threshold:\n{context}"
+        );
+    }
+
+    // ── AC-6: feature-flag name present in code path ─────────────────────────
+
+    #[test]
+    fn npc_config_dialogue_quality_continuity_defaults_true() {
+        // AC-6: the kill-switch defaults on so the fix ships enabled.
+        let cfg = NpcConfig::default();
+        assert!(
+            cfg.dialogue_quality_continuity,
+            "dialogue_quality_continuity must default to true"
+        );
     }
 }
