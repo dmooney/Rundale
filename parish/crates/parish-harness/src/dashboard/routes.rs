@@ -362,4 +362,33 @@ mod tests {
             .unwrap_or("");
         assert!(ct.contains("text/html"), "expected HTML, got: {ct}");
     }
+
+    #[test]
+    fn dashboard_html_has_axes_radar() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // Radar renderer is present and wired into the detail view (C1, C3).
+        assert!(
+            html.contains("buildAxesRadar"),
+            "dashboard must define the buildAxesRadar renderer"
+        );
+        assert!(
+            html.contains("axes-radar"),
+            "dashboard must include the axes-radar container"
+        );
+        assert!(
+            html.contains("<polygon"),
+            "radar must draw an SVG data polygon"
+        );
+        // The existing bar chart is retained alongside the radar (C5).
+        assert!(
+            html.contains("axes-chart"),
+            "dashboard must keep the axes bar chart"
+        );
+        // No external/CDN dependency — the dashboard stays offline (C2).
+        let lower = html.to_lowercase();
+        assert!(
+            !lower.contains("script src") && !lower.contains("cdn") && !lower.contains("chart.js"),
+            "dashboard radar must be pure inline SVG with no external script dependency"
+        );
+    }
 }

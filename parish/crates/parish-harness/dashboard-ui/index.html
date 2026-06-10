@@ -29,6 +29,7 @@
     .axis-bar-track { width: 40px; height: 80px; background: #1a1a1a; border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
     .axis-bar-fill { width: 100%; background: #5080c0; transition: height .3s; }
     .axis-bar-score { font-size: .75rem; color: #9bb3e0; }
+    .axes-radar { display: block; margin: .25rem 0 .5rem; }
     .finding { background: #181820; border-left: 3px solid #5c4020; padding: .5rem .75rem; margin: .25rem 0; border-radius: 0 4px 4px 0; font-size: .82rem; }
     .finding.severity-critical { border-color: #c04040; }
     .finding.severity-high { border-color: #c07040; }
@@ -164,6 +165,59 @@
       }
     }
 
+    // Pure SVG 7-axis radar (spider) chart. No external library — the dashboard
+    // is offline/zero-dependency. Returns '' when there is no axis data so the
+    // caller degrades to the bar chart alone.
+    const RADAR_LABELS = {
+      narrative_coherence: 'narrative', character_fidelity: 'character',
+      world_responsiveness: 'world resp.', intent_fidelity: 'intent',
+      immersion: 'immersion', progression: 'progression', common_sense: 'common sense',
+    };
+    function buildAxesRadar(axes) {
+      if (!axes || !axes.length) return '';
+      const W = 380, H = 280, cx = W / 2, cy = H / 2, maxR = 96;
+      const n = axes.length;
+      const ang = i => (-Math.PI / 2) + (i / n) * Math.PI * 2;
+      const at = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
+      // Concentric rings + scale labels at 20/40/60/80/100.
+      let rings = '';
+      for (let v = 20; v <= 100; v += 20) {
+        const rr = (v / 100) * maxR;
+        const poly = axes.map((_, i) => at(i, rr).map(c => c.toFixed(1)).join(',')).join(' ');
+        rings += `<polygon points="${poly}" fill="none" stroke="#23232e" stroke-width="1"/>`;
+        rings += `<text x="${cx + 3}" y="${(cy - rr + 3).toFixed(1)}" fill="#4a4a55" font-size="8">${v}</text>`;
+      }
+      // Spokes + axis labels.
+      let spokes = '', labels = '';
+      axes.forEach((ax, i) => {
+        const [ex, ey] = at(i, maxR);
+        spokes += `<line x1="${cx}" y1="${cy}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="#23232e" stroke-width="1"/>`;
+        const [lx, ly] = at(i, maxR + 14);
+        const cos = Math.cos(ang(i));
+        const anchor = cos > 0.3 ? 'start' : cos < -0.3 ? 'end' : 'middle';
+        const name = RADAR_LABELS[ax.axis] || ax.axis.replace(/_/g, ' ');
+        labels += `<text x="${lx.toFixed(1)}" y="${(ly + 3).toFixed(1)}" text-anchor="${anchor}" fill="#8a8a96" font-size="9">${escHtml(name)}</text>`;
+      });
+      // Data polygon (clamped 0-100) + vertices with scores.
+      const dataPts = axes.map((ax, i) => {
+        const score = Math.max(0, Math.min(100, ax.score));
+        return at(i, (score / 100) * maxR).map(c => c.toFixed(1)).join(',');
+      }).join(' ');
+      let verts = '';
+      axes.forEach((ax, i) => {
+        const score = Math.max(0, Math.min(100, ax.score));
+        const [px, py] = at(i, (score / 100) * maxR);
+        verts += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#5080c0"/>`;
+        const [tx, ty] = at(i, (score / 100) * maxR + 9);
+        verts += `<text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" fill="#9bb3e0" font-size="8">${Math.round(ax.score)}</text>`;
+      });
+      return `<svg class="axes-radar" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Radar chart of the ${n} quality axes">
+        ${rings}${spokes}
+        <polygon points="${dataPts}" fill="rgba(80,128,192,.18)" stroke="#5080c0" stroke-width="1.5"/>
+        ${verts}${labels}
+      </svg>`;
+    }
+
     function renderDetail(d, container) {
       const s = d.summary;
       const quality = s.quality_score != null ? `<span class="quality-score">${s.quality_score.toFixed(1)}</span>` : '—';
@@ -179,9 +233,11 @@
           Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
         </div>`;
 
-      // Axes bar chart.
+      // Axes radar + bar chart.
       if (d.axes.length > 0) {
-        html += `<h3>Quality Axes</h3><div class="axes-chart">`;
+        html += `<h3>Quality Axes</h3>`;
+        html += buildAxesRadar(d.axes);
+        html += `<div class="axes-chart">`;
         for (const ax of d.axes) {
           const pct = Math.max(0, Math.min(100, ax.score));
           const label = ax.axis.replace(/_/g,' ');
