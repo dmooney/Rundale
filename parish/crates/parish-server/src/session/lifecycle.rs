@@ -283,6 +283,15 @@ async fn restore_session(
     .map_err(|e| e.to_string())?;
 
     snapshot.restore(&mut world, &mut npc_manager);
+    // Gate: clear in-memory introduced set so NPCs must be re-introduced each
+    // session (#1396, npc-dialogue-grounding flag, default-on).
+    if !global
+        .template_config
+        .flags
+        .is_disabled("npc-dialogue-grounding")
+    {
+        npc_manager.clear_introduced_for_session();
+    }
     npc_manager.assign_tiers(&world, &[]);
 
     let (client, config) = build_session_client(global);

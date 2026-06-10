@@ -792,11 +792,11 @@ pub struct NpcConversationSetup {
 /// The supplied `player_input` describes the current trigger for this turn,
 /// while `transcript` carries the recent local exchange for continuity.
 /// `npc_cfg` is forwarded to the prompt builders so runtime feature-flag
-/// overrides (e.g. the `dialogue-quality-continuity` kill-switch) take effect.
-// 8 params: world, npc_manager, player_input, speaker_id, transcript,
-// improv_enabled, language, npc_cfg — these could be bundled into a struct
-// in a future cleanup, but adding npc_cfg here is the minimal footprint
-// for threading the kill-switch without duplicating the config-load.
+/// overrides (e.g. `dialogue-quality-continuity` kill-switch and
+/// `npc-dialogue-grounding`) take effect.
+// TD-029 migrated most params to `Tier1ContextParams`; both the
+// `dialogue_quality_continuity` (#1387/#1388) and `grounding_enabled` (#1394)
+// flags now live on `NpcConfig` and are threaded via `npc_cfg`.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_npc_conversation_turn(
     world: &WorldState,
@@ -849,6 +849,21 @@ pub fn prepare_npc_conversation_turn(
             ),
         );
     }
+    // Location grounding (#1394): build the place-name list from the world
+    // graph when grounding is enabled, so the system prompt can instruct the
+    // NPC not to confirm nonexistent places/people.
+    let location_names: Option<Vec<String>> = if npc_cfg.grounding_enabled {
+        let mut names: Vec<String> = world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| world.graph.get(id).map(|d| d.name.clone()))
+            .collect();
+        names.sort();
+        Some(names)
+    } else {
+        None
+    };
     let system_prompt = ticks::build_enhanced_system_prompt_with_config(
         &npc,
         improv_enabled,
@@ -856,6 +871,7 @@ pub fn prepare_npc_conversation_turn(
         npc_cfg,
         &npc_names,
         Some(&roster),
+        location_names.as_deref(),
     );
 
     let mut context = ticks::build_enhanced_context_with_config(ticks::Tier1ContextParams {
@@ -920,6 +936,7 @@ pub fn prepare_npc_conversation(
     target_name: Option<&str>,
     improv_enabled: bool,
     language: &LanguageSettings,
+    npc_cfg: &crate::config::NpcConfig,
 ) -> Option<NpcConversationSetup> {
     let target_names = target_name
         .map(|name| vec![name.to_string()])
@@ -935,7 +952,7 @@ pub fn prepare_npc_conversation(
         &[],
         improv_enabled,
         language,
-        &crate::config::NpcConfig::default(),
+        npc_cfg,
     )
 }
 
