@@ -32,7 +32,19 @@
     .turn-gallery { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
     .turn-thumb { display: flex; flex-direction: column; align-items: center; gap: .2rem; }
     .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; }
+    .turn-thumb.clickable { cursor: pointer; }
+    .turn-thumb.clickable:hover img, .turn-thumb.active img { border-color: #5080c0; }
+    .turn-thumb.active img { box-shadow: 0 0 0 1px #5080c0; }
     .turn-thumb-label { font-size: .68rem; color: #666; }
+    .turn-log { margin: .5rem 0 1rem; background: #14141c; border: 1px solid #23232e; border-radius: 5px; padding: .6rem .8rem; font-size: .82rem; }
+    .turn-log h4 { font-size: .9rem; color: #a89880; margin: 0 0 .4rem; }
+    .tl-line { margin: .15rem 0; line-height: 1.45; }
+    .tl-speaker { color: #9bb3e0; font-weight: 600; margin-right: .35rem; }
+    .turn-log details { margin-top: .5rem; border-top: 1px solid #23232e; padding-top: .4rem; }
+    .turn-log summary { cursor: pointer; color: #8a8a96; font-size: .78rem; }
+    .tl-infer { margin: .5rem 0; }
+    .tl-infer-head { font-size: .72rem; color: #666; margin-bottom: .2rem; }
+    .tl-infer pre { white-space: pre-wrap; word-break: break-word; background: #0d0d13; border: 1px solid #20202a; border-radius: 4px; padding: .4rem .5rem; margin: .15rem 0; font-size: .75rem; color: #cfcfd6; max-height: 320px; overflow: auto; }
     .error-msg { color: #c06060; padding: .5rem; background: #1a0f0f; border-radius: 4px; margin: .5rem 0; font-size: .82rem; }
     .loading { color: #888; font-style: italic; }
     .back-btn { cursor: pointer; color: #9bb3e0; border: none; background: none; font-size: .9rem; padding: .25rem 0; margin-bottom: .5rem; }
@@ -156,10 +168,17 @@
     // Hash router: `#run/<id>` is a deep-linkable run page (shareable URL,
     // browser back/forward, survives refresh); any other hash shows the list.
     function router() {
-      const m = location.hash.match(/^#run\/(\d+)/);
+      const m = location.hash.match(/^#run\/(\d+)(?:\/turn\/(\d+))?/);
       if (m) {
         if (activeTab !== 'runs') switchTab('runs');
-        showDetail(parseInt(m[1], 10));
+        const id = parseInt(m[1], 10);
+        const turn = m[2] != null ? parseInt(m[2], 10) : null;
+        // Already on this run? just open the turn log (no detail re-fetch).
+        if (currentRunId === id && $('detail').className === 'visible') {
+          if (turn != null) showTurnLog(id, turn);
+        } else {
+          showDetail(id, turn);
+        }
       } else {
         if (sse) { sse.close(); sse = null; }
         currentRunId = null;
@@ -168,7 +187,7 @@
       }
     }
 
-    async function showDetail(runId) {
+    async function showDetail(runId, openTurn = null) {
       currentRunId = runId;
       $('runs-view').style.display = 'none';
       $('detail').className = 'visible';
@@ -181,6 +200,8 @@
         });
         renderDetail(d, c);
         subscribeSSE(runId);
+        // Deep-linked to a specific turn: open its log after the detail renders.
+        if (openTurn != null) showTurnLog(runId, openTurn);
       } catch (e) {
         c.innerHTML = `<div class="error-msg">Failed to load run ${runId}: ${e.message}</div>`;
       }
@@ -273,20 +294,71 @@
         }
       }
 
-      // Turn gallery.
+      // Turn gallery — a turn with a captured inference log is clickable.
       if (d.turns.length > 0) {
-        html += `<h3>Turns (${d.turns.length})</h3><div class="turn-gallery" id="turn-gallery">`;
+        const anyLog = d.turns.some(t => t.has_transcript);
+        const hint = anyLog ? ' <span style="font-size:.7rem;color:#666;font-weight:400">— click a turn to view its inference log</span>' : '';
+        html += `<h3>Turns (${d.turns.length})${hint}</h3><div class="turn-gallery" id="turn-gallery">`;
         for (const t of d.turns) {
           const imgSrc = `/api/runs/${s.id}/turns/${t.turn_index}/frame.png`;
-          html += `<div class="turn-thumb">
+          const clk = t.has_transcript ? ' clickable' : '';
+          html += `<div class="turn-thumb${clk}" data-turn="${t.turn_index}">
             <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="${escHtml(t.player_input)}">
             <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
           </div>`;
         }
-        html += `</div>`;
+        html += `</div><div id="turn-log"></div>`;
       }
 
       container.innerHTML = html;
+
+      // Wire turn clicks → deep-link to that turn's log.
+      container.querySelectorAll('.turn-thumb.clickable').forEach(el => {
+        el.addEventListener('click', () => {
+          location.hash = 'run/' + s.id + '/turn/' + el.dataset.turn;
+        });
+      });
+    }
+
+    // Fetch and render one turn's inference log into the #turn-log panel: the
+    // dialogue exchange by default, with a collapsible raw prompt/response.
+    async function showTurnLog(runId, turnIdx) {
+      const panel = $('turn-log');
+      if (!panel) return;
+      document.querySelectorAll('.turn-thumb').forEach(t =>
+        t.classList.toggle('active', t.dataset.turn === String(turnIdx)));
+      panel.innerHTML = '<span class="loading">Loading turn log…</span>';
+      let log;
+      try {
+        const r = await fetch(`/api/runs/${runId}/turns/${turnIdx}/transcript`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        log = await r.json();
+      } catch (e) {
+        panel.innerHTML = `<div class="error-msg">No inference log for turn ${turnIdx}: ${e.message}</div>`;
+        return;
+      }
+      let html = `<h4>Turn ${log.turn_index ?? turnIdx} — inference log</h4>`;
+      const exchanges = log.exchanges && log.exchanges.length
+        ? log.exchanges
+        : (log.player_input ? [{ speaker: 'You', text: log.player_input }] : []);
+      for (const ex of exchanges) {
+        html += `<div class="tl-line"><span class="tl-speaker">${escHtml(ex.speaker || '')}</span>${escHtml(ex.text || '')}</div>`;
+      }
+      const infers = log.inferences || [];
+      if (infers.length) {
+        html += `<details><summary>Raw prompt / response (${infers.length} call${infers.length === 1 ? '' : 's'})</summary>`;
+        for (const inf of infers) {
+          const meta = [inf.category, inf.model, inf.latency_ms != null ? inf.latency_ms + 'ms' : null]
+            .filter(Boolean).join(' · ');
+          html += `<div class="tl-infer"><div class="tl-infer-head">${escHtml(meta)}</div>`;
+          if (inf.prompt != null) html += `<pre>${escHtml(inf.prompt)}</pre>`;
+          if (inf.response != null) html += `<pre>${escHtml(inf.response)}</pre>`;
+          html += `</div>`;
+        }
+        html += `</details>`;
+      }
+      panel.innerHTML = html;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function subscribeSSE(runId) {

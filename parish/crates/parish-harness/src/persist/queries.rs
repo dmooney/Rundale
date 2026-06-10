@@ -61,6 +61,9 @@ pub struct TurnSummaryDto {
     pub game_clock: Option<String>,
     pub npcs_here_count: Option<u32>,
     pub frame_path: String,
+    /// True when this turn has a captured inference log (`turns/NNN/llm.json`),
+    /// so the dashboard can make the turn clickable to view it.
+    pub has_transcript: bool,
 }
 
 /// Full run detail for the `/api/runs/{id}` endpoint.
@@ -242,7 +245,8 @@ impl Db {
         // Turn summaries.
         let mut turns_stmt = conn.prepare(
             "SELECT turn_index, player_input, outcome, kind, elapsed_ms,
-                    location_name, game_clock, npcs_here_count, frame_path
+                    location_name, game_clock, npcs_here_count, frame_path,
+                    llm_transcript_path IS NOT NULL
                FROM turns WHERE run_id = ?1 ORDER BY turn_index ASC",
         )?;
         let turns: Vec<TurnSummaryDto> = turns_stmt
@@ -257,6 +261,7 @@ impl Db {
                     game_clock: r.get(6)?,
                     npcs_here_count: r.get(7)?,
                     frame_path: r.get(8)?,
+                    has_transcript: r.get(9)?,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?;

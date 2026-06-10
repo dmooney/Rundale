@@ -93,6 +93,40 @@ pub async fn get_frame(
     }
 }
 
+// ── GET /api/runs/{id}/turns/{idx}/transcript ─────────────────────────────────
+
+/// Serves a turn's inference log (`turns/NNN/llm.json`) as JSON. 404 when the
+/// run, or that turn's log, does not exist — runs captured without per-turn logs
+/// simply have no file here, and the dashboard renders such turns non-clickable.
+pub async fn get_turn_transcript(
+    State(state): State<AppState>,
+    Path((run_id, turn_idx)): Path<(i64, u32)>,
+) -> Response {
+    let db = match state.open_db() {
+        Ok(db) => db,
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    let artifact_dir = match db.run_artifact_dir(run_id) {
+        Ok(Some(dir)) => PathBuf::from(dir),
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "run not found"),
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+
+    let log_path = artifact_dir.join(format!("turns/{turn_idx:03}/llm.json"));
+    match std::fs::read(&log_path) {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(
+                axum::http::header::CONTENT_TYPE,
+                "application/json; charset=utf-8",
+            )],
+            Body::from(bytes),
+        )
+            .into_response(),
+        Err(_) => error_response(StatusCode::NOT_FOUND, "turn inference log not found"),
+    }
+}
+
 // ── GET /api/runs/{id}/stream (SSE) ───────────────────────────────────────────
 
 pub async fn stream_run(
@@ -414,6 +448,69 @@ mod tests {
         assert!(ct.contains("text/html"), "expected HTML, got: {ct}");
     }
 
+    #[tokio::test]
+    async fn get_turn_transcript_serves_log_then_404() {
+        use crate::ingest::load_and_ingest;
+        let tmp = tempfile::tempdir().unwrap();
+        let artifacts = tmp.path().join("artifacts");
+        let uuid = "00000000-0000-0000-0000-0000000000a7";
+        let tdir = artifacts.join("runs").join(uuid).join("turns").join("000");
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(tdir.join("frame.png"), b"frame-bytes").unwrap();
+        std::fs::write(tdir.join("lines.json"), b"[]").unwrap();
+        std::fs::write(
+            tdir.join("llm.json"),
+            br#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
+        )
+        .unwrap();
+        let payload_json = format!(
+            r#"{{
+              "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
+              "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
+              "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
+              "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
+              "turns": [ {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }} ],
+              "axes": [], "findings": []
+            }}"#
+        );
+        let ppath = tmp.path().join("p.json");
+        std::fs::write(&ppath, &payload_json).unwrap();
+        let db_path = tmp.path().join("t.db");
+        let db = Db::open(&db_path).unwrap();
+        let run_id = load_and_ingest(&db, &ppath, &artifacts).unwrap();
+
+        let app = build_router(make_state(db_path));
+        // Present → 200 JSON.
+        let ok = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/runs/{run_id}/turns/0/transcript"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ok.status(), StatusCode::OK);
+        let ct = ok
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("application/json"), "got: {ct}");
+        // Absent turn → 404.
+        let miss = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/runs/{run_id}/turns/9/transcript"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(miss.status(), StatusCode::NOT_FOUND);
+    }
+
     #[test]
     fn dashboard_html_has_axes_radar() {
         let html = include_str!("../../dashboard-ui/index.html");
@@ -474,6 +571,16 @@ mod tests {
         assert!(
             html.contains("'run/'") || html.contains("#run/"),
             "must use #run/<id> URLs for run pages"
+        );
+        // Per-turn inference log viewer: clickable turns open a log panel and
+        // are deep-linkable as #run/<id>/turn/<idx>.
+        assert!(
+            html.contains("showTurnLog") && html.contains("/turn/"),
+            "must support clicking a turn to view its inference log via #run/<id>/turn/<idx>"
+        );
+        assert!(
+            html.contains("/transcript"),
+            "must fetch the per-turn transcript endpoint"
         );
     }
 

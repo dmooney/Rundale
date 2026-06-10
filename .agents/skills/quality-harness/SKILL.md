@@ -126,6 +126,28 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    `frame.png`. Also write `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine).
    Every `frame.png` must be non-empty (the ingest validates this — rule #14).
 
+   **Per-turn inference log (clickable on the run page).** For each turn, also write
+   `turns/NNN/llm.json` and reference it from that turn's payload as
+   `"llm_transcript_path": "turns/NNN/llm.json"`. The dashboard makes a turn with a log
+   clickable, opening a panel that shows the dialogue exchange by default with a collapsible
+   raw prompt/response section. Capture the raw model I/O from the Tauri black-box (the
+   `get_debug_snapshot.conversations` history / the session `inference_logs/<ts>.jsonl` gen_ai
+   spans) for the calls that fired during the turn. Schema:
+
+   ```json
+   { "turn_index": 0,
+     "player_input": "…",
+     "exchanges": [ { "speaker": "You" | "<npc-name>", "text": "…" } ],
+     "inferences": [ { "category": "intent" | "dialogue" | "reaction" | "…",
+                       "model": "mlx-community/Qwen2.5-14B-Instruct-4bit",
+                       "prompt": "<full system+user prompt>", "response": "<raw completion>",
+                       "latency_ms": 1234, "tokens": { "prompt": 0, "completion": 0 } } ] }
+   ```
+
+   A referenced `llm_transcript_path` **must** exist in the bundle or ingest rejects the run
+   (no dangling reference). Omit the field for turns where you captured no inference (movement,
+   `look`, a system command). Turns without a log render non-clickable.
+
 2. **Emit the payload JSON** (schema in
    [`parish/crates/parish-harness/README.md`](../../../parish/crates/parish-harness/README.md)
    under `ingest`). Fill `git` from the worktree (`git rev-parse HEAD` / `--abbrev-ref HEAD` /

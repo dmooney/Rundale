@@ -97,6 +97,12 @@ pub struct TurnPayload {
     pub npcs_here_count: Option<u32>,
     pub frame_path: String,
     pub lines_path: String,
+    /// Optional relative path (e.g. `turns/NNN/llm.json`) to this turn's
+    /// inference log. When present the file must exist in the bundle; the
+    /// dashboard serves it so a turn can be clicked to view its raw
+    /// prompt/response. Absent => the turn has no captured log.
+    #[serde(default)]
+    pub llm_transcript_path: Option<String>,
 }
 
 fn ok() -> String {
@@ -178,6 +184,19 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
                 frame_abs.display()
             )));
         }
+        // A referenced inference log must exist — never store a dangling path.
+        if let Some(rel) = &t.llm_transcript_path {
+            let abs = artifact_dir.join(rel);
+            if !abs.is_file() {
+                return Err(HarnessError::io(
+                    abs.display().to_string(),
+                    std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("turn {} llm_transcript_path missing", t.turn_index),
+                    ),
+                ));
+            }
+        }
         turns.push(TurnRecord {
             turn_index: t.turn_index,
             player_input: t.player_input,
@@ -192,7 +211,7 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
             screenshot_path: None,
             frame_path: t.frame_path,
             lines_path: t.lines_path,
-            llm_transcript_path: None,
+            llm_transcript_path: t.llm_transcript_path,
         });
     }
 

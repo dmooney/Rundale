@@ -160,6 +160,73 @@ fn ingest_persists_finding_issue_url() {
 }
 
 #[test]
+fn ingest_turn_llm_log_drives_has_transcript() {
+    let tmp = tempfile::tempdir().unwrap();
+    let artifacts = tmp.path().join("artifacts");
+    let uuid = "00000000-0000-0000-0000-0000000000f1";
+    write_frame(&artifacts, uuid, 0);
+    write_frame(&artifacts, uuid, 1);
+    // Turn 0 gets an inference log; turn 1 does not.
+    let log_dir = artifacts.join("runs").join(uuid).join("turns").join("000");
+    fs::write(
+        log_dir.join("llm.json"),
+        br#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
+    )
+    .unwrap();
+    let json = format!(
+        r#"{{
+          "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
+          "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
+          "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
+          "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
+          "turns": [
+            {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }},
+            {{ "turn_index": 1, "player_input": "bye", "frame_path": "turns/001/frame.png", "lines_path": "turns/001/lines.json" }}
+          ],
+          "axes": [], "findings": []
+        }}"#
+    );
+    let payload = write_payload(tmp.path(), "logged.json", &json);
+    let db = Db::open(&tmp.path().join("harness.db")).unwrap();
+    let run_id = load_and_ingest(&db, &payload, &artifacts).unwrap();
+
+    let detail = db.run_detail(run_id).unwrap().unwrap();
+    let t0 = detail.turns.iter().find(|t| t.turn_index == 0).unwrap();
+    let t1 = detail.turns.iter().find(|t| t.turn_index == 1).unwrap();
+    assert!(t0.has_transcript, "turn 0 has an llm log");
+    assert!(!t1.has_transcript, "turn 1 has no llm log");
+}
+
+#[test]
+fn ingest_rejects_dangling_llm_log_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let artifacts = tmp.path().join("artifacts");
+    let uuid = "00000000-0000-0000-0000-0000000000f2";
+    write_frame(&artifacts, uuid, 0);
+    // Reference an llm log that was never written.
+    let json = format!(
+        r#"{{
+          "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
+          "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
+          "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
+          "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
+          "turns": [
+            {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }}
+          ],
+          "axes": [], "findings": []
+        }}"#
+    );
+    let payload = write_payload(tmp.path(), "dangling.json", &json);
+    let db = Db::open(&tmp.path().join("harness.db")).unwrap();
+    let err = load_and_ingest(&db, &payload, &artifacts).unwrap_err();
+    assert!(
+        format!("{err}").contains("llm_transcript_path"),
+        "missing llm log must error, got: {err}"
+    );
+    assert_eq!(db.list_runs(50).unwrap().len(), 0, "nothing persisted");
+}
+
+#[test]
 fn ingest_gated_run_has_null_quality_and_reason() {
     let tmp = tempfile::tempdir().unwrap();
     let artifacts = tmp.path().join("artifacts");
