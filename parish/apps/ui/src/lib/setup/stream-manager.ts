@@ -76,6 +76,14 @@ export interface StreamManager {
 	maybeFinishNpcStream: () => void;
 	finalizePendingTurn: (turnId: number) => void;
 	startTurnPumpIfNeeded: (turn: PendingNpcTurn) => void;
+	/** Immediately reveals the full text of every in-flight streamed NPC line:
+	 *  drains each pending turn's buffer into its textLog entry, cancels the
+	 *  token-by-token pump timers, finalizes the entries (clears `streaming`),
+	 *  and clears `streamingActive`. Triggered when the player starts typing the
+	 *  next input so the current reply snaps fully into view before the next
+	 *  turn is accepted (#1379). Returns the number of turns that were flushed.
+	 *  A no-op (returns 0) when nothing is streaming. */
+	flushAll: () => number;
 	setPendingEndHints: (hints: LanguageHint[] | null) => void;
 	pendingTurnCount: () => number;
 	hasPendingEndHints: () => boolean;
@@ -309,6 +317,51 @@ export function createStreamManager(): StreamManager {
 		scheduleTurnPump(turn, getStreamChunkDelayMs(chunk));
 	}
 
+	function flushAll(): number {
+		if (pendingNpcTurns.size === 0) {
+			// Nothing buffered. The loading spinner may still be up (tokens not
+			// yet arrived) — only clear streamingActive if a chain was genuinely
+			// in progress, leaving the idle case untouched.
+			if (chainInProgress) {
+				finishNpcStream(pendingStreamEndHints ?? []);
+				pendingStreamEndHints = null;
+			}
+			return 0;
+		}
+
+		let flushed = 0;
+		// Snapshot keys: finalizePendingTurn mutates the map as it promotes turns.
+		for (const turnId of [...pendingNpcTurns.keys()]) {
+			const turn = pendingNpcTurns.get(turnId);
+			if (!turn) continue;
+			stopTurnPump(turn);
+			// Reveal the full buffered text at once. ensureTurnEntry guarantees a
+			// log entry exists even for a turn that had only its placeholder.
+			if (turn.buffer.length > 0) {
+				ensureTurnEntry(turn);
+				appendStreamToken(
+					turn.turnId,
+					turn.source,
+					turn.buffer,
+					turn.messageId,
+				);
+				turn.buffer = '';
+			}
+			finalizeStreamingEntry(turnId);
+			pendingNpcTurns.delete(turnId);
+			flushed += 1;
+		}
+		activeTurnId = null;
+
+		// Apply whatever end-hints we already have (the terminal stream-end may
+		// not have arrived yet; that's fine — a late stream-end finds an empty
+		// pool and maybeFinishNpcStream is a no-op since chainInProgress is now
+		// cleared by finishNpcStream).
+		finishNpcStream(pendingStreamEndHints ?? []);
+		pendingStreamEndHints = null;
+		return flushed;
+	}
+
 	function setPendingEndHints(hints: LanguageHint[] | null) {
 		pendingStreamEndHints = hints;
 	}
@@ -373,6 +426,7 @@ export function createStreamManager(): StreamManager {
 		maybeFinishNpcStream,
 		finalizePendingTurn,
 		startTurnPumpIfNeeded,
+		flushAll,
 		setPendingEndHints,
 		pendingTurnCount,
 		hasPendingEndHints,
