@@ -10,6 +10,7 @@
 //! should use [`neutral_grey_palette`] so the boot UI still renders.
 
 use parish_config::PaletteConfig;
+use parish_types::ThemePalette;
 
 /// A backend-agnostic RGB color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,9 +234,76 @@ pub fn compute_palette_with_keyframes(
     palette
 }
 
+/// Converts an interpolated byte-RGB [`RawPalette`] into the CSS hex-string
+/// [`ThemePalette`] consumed by the frontend.
+///
+/// The `ThemePalette` type itself lives in `parish-types` (the zero-dep leaf)
+/// so the IPC layer and the mod loader can name it without depending on this
+/// crate; the conversion lives here because `RawPalette` is local, satisfying
+/// the orphan rule.
+impl From<RawPalette> for ThemePalette {
+    fn from(raw: RawPalette) -> Self {
+        let hex = |c: RawColor| format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b);
+        ThemePalette {
+            bg: hex(raw.bg),
+            fg: hex(raw.fg),
+            accent: hex(raw.accent),
+            panel_bg: hex(raw.panel_bg),
+            input_bg: hex(raw.input_bg),
+            border: hex(raw.border),
+            muted: hex(raw.muted),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn theme_palette_from_raw_palette() {
+        let raw = RawPalette {
+            bg: RawColor::new(10, 20, 30),
+            fg: RawColor::new(200, 210, 220),
+            accent: RawColor::new(255, 128, 0),
+            panel_bg: RawColor::new(15, 25, 35),
+            input_bg: RawColor::new(20, 30, 40),
+            border: RawColor::new(50, 60, 70),
+            muted: RawColor::new(100, 110, 120),
+        };
+        let palette = ThemePalette::from(raw);
+        assert_eq!(palette.bg, "#0a141e");
+        assert_eq!(palette.fg, "#c8d2dc");
+        assert_eq!(palette.accent, "#ff8000");
+    }
+
+    #[test]
+    fn theme_palette_serde_shape_is_seven_hex_keys() {
+        // Serde shape contract for the TS interface `types.ts:88`: the JSON
+        // object must carry exactly these seven keys.
+        let palette = ThemePalette {
+            bg: "#000000".to_string(),
+            fg: "#ffffff".to_string(),
+            accent: "#ff8000".to_string(),
+            panel_bg: "#111111".to_string(),
+            input_bg: "#222222".to_string(),
+            border: "#333333".to_string(),
+            muted: "#444444".to_string(),
+        };
+        let value =
+            serde_json::to_value(&palette).expect("ThemePalette should serialize to a value");
+        let obj = value
+            .as_object()
+            .expect("serialized ThemePalette should be a JSON object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "accent", "bg", "border", "fg", "input_bg", "muted", "panel_bg"
+            ]
+        );
+    }
 
     /// Test fixture: parchment time-of-day keyframes (the former engine
     /// default; Rundale now ships an equivalent set in `mods/rundale/ui.toml`).

@@ -86,6 +86,7 @@ pub fn test_app_state() -> Arc<AppState> {
         game_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
+        total_game_events: std::sync::atomic::AtomicUsize::new(0),
         game_mod: None,
         inference_log: new_inference_log(),
         ui_config,

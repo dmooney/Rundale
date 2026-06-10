@@ -1287,6 +1287,64 @@ fn guard_against_repetition_handles_loop_that_echoes_previous() {
     );
 }
 
+// ── AC-2: double farewell token dedup (#1387) ────────────────────────────────
+
+/// AC-2 (#1387): a reply containing "Slán abhaile" twice (non-consecutively)
+/// must have the second occurrence removed by `dedup_farewell_tokens`.
+#[test]
+fn dedup_farewell_tokens_removes_second_slan_abhaile() {
+    let input = "Come back when ye've a mind to. \
+                 Slán abhaile to ye for now, then. \
+                 Safe journey to ye, stranger. Slán abhaile";
+    let out = dedup_farewell_tokens(input);
+    // Only one "Slán abhaile" must survive.
+    let lower = out.to_lowercase();
+    let count = lower.matches("slán abhaile").count();
+    assert_eq!(
+        count, 1,
+        "double 'Slán abhaile' must be reduced to one, got:\n{out}"
+    );
+    // The text before the first farewell must be preserved.
+    assert!(
+        out.contains("Come back when ye've a mind to"),
+        "preceding text must be preserved:\n{out}"
+    );
+}
+
+/// Single farewell token is left untouched.
+#[test]
+fn dedup_farewell_tokens_single_farewell_unchanged() {
+    let input = "Good luck to ye. Slán abhaile.";
+    let out = dedup_farewell_tokens(input);
+    assert!(
+        out.contains("Slán abhaile"),
+        "single farewell must remain:\n{out}"
+    );
+}
+
+/// No farewell tokens: text passes through unchanged.
+#[test]
+fn dedup_farewell_tokens_no_farewell_unchanged() {
+    let input = "A fine day for the harvest, to be sure.";
+    let out = dedup_farewell_tokens(input);
+    assert_eq!(
+        out,
+        input.trim(),
+        "text without farewells must pass through:\n{out}"
+    );
+}
+
+/// `guard_against_repetition` integrates `dedup_farewell_tokens` so a
+/// double-farewell reply is cleaned before reaching the player.
+#[test]
+fn guard_against_repetition_deduplicates_farewell_tokens() {
+    let double = "May yer trade flourish. Slán abhaile to ye. Safe journey. Slán abhaile";
+    let out = guard_against_repetition(double, None, 0.92, 0);
+    let lower = out.to_lowercase();
+    let count = lower.matches("slán abhaile").count();
+    assert_eq!(count, 1, "guard must dedup double farewell, got:\n{out}");
+}
+
 /// A threshold of 0.0 disables the cross-turn check, but intra-line collapse
 /// still runs (runaway loops are always undesirable).
 #[test]
