@@ -1,0 +1,50 @@
+# Verification fixture for extract-setup.
+#
+# Proves that `setup_provider_client` still bootstraps correctly after
+# `parish-inference/src/setup/` is extracted into the new `parish-setup`
+# crate and re-exported via a shim in `parish-inference`.
+#
+# The fixture is deterministic: it uses the simulator provider
+# (PARISH_PROVIDER=simulator), which exercises the `setup_provider_client`
+# dispatch path without requiring a running Ollama server or GPU.
+#
+# Run (set env first so the CLI resolves the provider correctly):
+#   PARISH_PROVIDER=simulator \
+#   cargo run --manifest-path parish/Cargo.toml -p parish-engine -- \
+#     --provider simulator \
+#     --script parish/testing/fixtures/play_extract-setup.txt \
+#     > .proofs/extract-setup/transcript.txt
+#
+# Expected signals (criterion numbers refer to acceptance-criteria.md):
+#   Criteria 10, 11: JSON line with "scene" or "location" key set to a
+#     non-null, non-error value — engine reached a playable state.
+#   Criterion 10: "provider" field in /status output reports "simulator".
+#   Criterion 11: No top-level "error" JSON line referencing setup failure.
+
+# 1. Check engine is alive and scene is accessible
+/status
+/time
+
+# 2. Confirm startup location is populated (engine bootstrapped a session)
+look
+
+# 3. Provider info: confirm the simulator provider was selected
+/provider
+
+# 4. Confirm NPCs table is readable (world state was fully initialised)
+/npcs
+
+# 5. Move around and look — proves world graph and session are intact
+go to the crossroads
+look
+/status
+
+# 6. Return and check time after movement (clock ticking normally)
+/time
+/wait 30
+/time
+/status
+
+# 7. Final sanity check
+look
+/npcs

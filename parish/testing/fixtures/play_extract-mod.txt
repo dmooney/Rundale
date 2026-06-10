@@ -1,0 +1,63 @@
+# Verification fixture for extract-mod.
+#
+# This fixture proves that after extracting game_mod/ into a new `parish-mod`
+# crate (with parish-core re-exporting it), the Rundale mod still loads
+# correctly and all mod-derived data is visible end-to-end:
+#
+#   1. /status shows the Rundale mod name and start location.
+#   2. look returns a non-empty location description (world graph loaded).
+#   3. Movement between Rundale locations resolves correctly.
+#   4. /npcs shows NPCs present (mod's npcs.json was loaded).
+#   5. /theme confirms the /theme command executes (ThemePalette still
+#      serializable; shape preserved after relocation to parish-types).
+#   6. A second look after movement proves the route graph is intact.
+#
+# Run:
+#   cargo run --manifest-path parish/Cargo.toml -p parish-engine \
+#     -- --script parish/testing/fixtures/play_extract-mod.txt
+#
+# The transcript is captured to .proofs/extract-mod/transcript.txt and
+# each criterion is mapped to output lines in evidence.md.
+
+# ── Criterion 1 + 10: mod name and start location visible in /status ─────────
+/status
+
+# ── Criterion 10: location description contains period prose ─────────────────
+look
+
+# ── Criterion 4: NPC list populated from mod's npcs.json ─────────────────────
+/npcs
+
+# ── Criterion 11: ThemePalette serialization unchanged — /theme returns help
+#    text listing available theme names (confirms command is routed correctly
+#    and ThemePalette-related code compiled successfully) ─────────────────────
+/theme
+
+# ── Apply a named theme to exercise the ThemePalette path ────────────────────
+/theme solarized light
+
+# ── Revert to default to confirm the revert path also compiles ───────────────
+/theme default
+
+# ── Criterion 3: movement between named Rundale locations ─────────────────────
+go to The Crossroads
+
+# ── Criterion 10 (again): look at the new location ───────────────────────────
+look
+
+# ── Show adjacent locations to confirm the graph is intact ───────────────────
+/map
+
+# ── Move to a second location to confirm multi-hop resolution ────────────────
+go to Darcy's Pub
+
+look
+
+# ── Criterion 4 (reprise): NPCs at second location ───────────────────────────
+/npcs
+
+# ── Time and world-state sanity: confirms game clock (loaded from mod start
+#    date) and weather system are operational ─────────────────────────────────
+/time
+
+/status
