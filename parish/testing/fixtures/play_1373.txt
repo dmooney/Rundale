@@ -1,0 +1,30 @@
+# 1373 / 1374 — NPC mood directive + run-on + action-tag leak
+# ============================================================
+# Proves:
+#   AC-1/AC-3: system prompt / context contains tone directive + single-question cap
+#   AC-2: Peig Hannigan (mood: sharp) greets curtly, not warmly
+#   AC-4: no NPC reply stacks >= 3 question marks in one turn
+#   AC-5/AC-6: no trailing action tokens (Nod, Smile, etc.) in dialogue output
+#
+# This fixture exercises the headless harness path only. AC-2/AC-4/AC-6 require
+# a live model and are proven via the MCP live proof transcript.
+
+# --- Start at Kilteevan and see who's here ---
+look
+/npcs
+
+# --- Navigate to Peig Hannigan (sharp mood) and greet her ---
+go to Peig Hannigan
+hello
+
+# --- Follow up — probe for stacked questions ---
+what do you know of this place?
+
+# --- Navigate to Roisin Connolly (alert mood) ---
+go to Roisin Connolly
+hello
+
+# --- One more exchange to probe for trailing action tokens ---
+tell me about yourself
+
+/status
