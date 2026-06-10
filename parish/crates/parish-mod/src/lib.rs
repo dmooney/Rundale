@@ -10,8 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use parish_types::LanguageHint;
-use parish_types::error::ParishError;
+use parish_types::{LanguageHint, error::ParishError};
 use parish_world::transport::TransportConfig;
 
 mod assets;

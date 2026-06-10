@@ -90,7 +90,7 @@ Rundale (on Parish engine)/
 
 ## Module ownership
 
-All **shared game logic** lives in the workspace's leaf crates (`parish-config`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`). `parish-core` composes them into stable namespaces used by every binary: `crate::config::…`, `crate::inference::…`, `crate::game_mod::…`, `crate::npc::…`, `crate::palette::…`, `crate::world::…`, `crate::persistence::…`, `crate::input::…`, `crate::error::…`, `crate::dice::…`.
+All **shared game logic** lives in the workspace's leaf crates (`parish-config`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-types`, `parish-world`). `parish-core` composes them into stable namespaces used by every binary: `crate::config::…`, `crate::dice::…`, `crate::error::…`, `crate::game_mod::…`, `crate::inference::…`, `crate::input::…`, `crate::npc::…`, `crate::palette::…`, `crate::persistence::…`, `crate::world::…`.
 
 `parish-engine` re-exports `parish_core` via `pub use parish_core::*` in `parish/crates/parish-engine/src/lib.rs` and only adds binary-specific modules: `main.rs`, `headless.rs`, `testing.rs`, `app.rs`, `config.rs` (CLI overrides on top of `parish_config`), `debug.rs`.
 

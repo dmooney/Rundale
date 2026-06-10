@@ -290,8 +290,11 @@ mod tests {
             border: "#333333".to_string(),
             muted: "#444444".to_string(),
         };
-        let value = serde_json::to_value(&palette).unwrap();
-        let obj = value.as_object().unwrap();
+        let value =
+            serde_json::to_value(&palette).expect("ThemePalette should serialize to a value");
+        let obj = value
+            .as_object()
+            .expect("serialized ThemePalette should be a JSON object");
         let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
         keys.sort_unstable();
         assert_eq!(
