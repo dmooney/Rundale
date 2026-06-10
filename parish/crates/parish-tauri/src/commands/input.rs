@@ -218,22 +218,29 @@ pub(crate) async fn handle_game_input(
     // the target list — they would generate a spurious "{name} is not here."
     // message (#1376). Mirrors the same guard in `parish-core`'s
     // `handle_game_input` (rule #12 / #2 mode-parity).
-    let (mentions, validated_talk_target) = {
+    //
+    // Lock ordering: capture `player_location` from `world` then drop the world
+    // guard before acquiring `npc_manager`, re-acquiring `world` only for the
+    // `extract_npc_mentions` call. Holding both locks simultaneously caused
+    // unnecessary latency on the heavily-contended `world` state and risked
+    // lock-order inversions on other paths that acquire them in the opposite order.
+    let player_location = state.world.lock().await.player_location;
+    let npc_manager = state.npc_manager.lock().await;
+    let mentions = {
         let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        let mentions = parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager);
-        let validated = if is_talk {
-            talk_target.filter(|t| {
-                npc_manager
-                    .find_by_name(t, world.player_location)
-                    .or_else(|| npc_manager.find_by_role_at(t, world.player_location))
-                    .is_some()
-            })
-        } else {
-            None
-        };
-        (mentions, validated)
+        parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
+    let validated_talk_target = if is_talk {
+        talk_target.filter(|t| {
+            npc_manager
+                .find_by_name(t, player_location)
+                .or_else(|| npc_manager.find_by_role_at(t, player_location))
+                .is_some()
+        })
+    } else {
+        None
+    };
+    drop(npc_manager);
 
     let targets = assemble_npc_targets(
         addressed_to,
