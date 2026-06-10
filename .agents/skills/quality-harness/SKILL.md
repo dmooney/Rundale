@@ -166,6 +166,24 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    It prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
    they can open the run on the dashboard.
 
+## 7. Close Rundale (always, once the run is complete)
+
+A run **owns** the Rundale desktop app it drove — shut it down once the run is finished and
+persisted, so the bundled models and window are released. This is the final step, after the
+ingest in §6; do it whether the run completed or hard-failed (a gated run still closes the app).
+**Order matters:** ingest first, then close — quitting the app drops the MCP bridge on
+`127.0.0.1:3030`, so no `mcp__parish__*` call will work afterward.
+
+```sh
+# Graceful quit of the packaged desktop app, then a fallback for the dev binary:
+osascript -e 'quit app "Rundale"' 2>/dev/null || true
+pkill -f 'parish-tauri' 2>/dev/null || true
+```
+
+Do **not** touch the dashboard `serve` process (port 8787) — only the game app is closed, so the
+user can still open the run you just ingested. Confirm it is down (`curl -sf
+http://127.0.0.1:3030/api/health` should fail) and tell the user Rundale was closed.
+
 ## Calibration example (be this harsh)
 
 A 5-turn run with coherent multi-NPC plot but **every** NPC ignoring its mood tag, one
