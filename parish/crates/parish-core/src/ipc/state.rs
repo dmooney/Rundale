@@ -60,6 +60,31 @@ impl ConversationRuntimeState {
         }
     }
 
+    /// Atomically claims the conversation for a new player- or idle-triggered
+    /// NPC turn (#1379 turn serialization).
+    ///
+    /// Returns `true` and sets `conversation_in_progress` when no turn was
+    /// already in flight; returns `false` (leaving the flag set) when a turn is
+    /// already streaming, so the caller must abandon the late turn. Because the
+    /// check and set happen under a single `&mut self` borrow (the caller holds
+    /// the conversation mutex across both), two concurrent turns cannot both
+    /// observe an idle conversation and proceed — only the first wins.
+    ///
+    /// On the abandon paths *before* streaming actually begins, the winner must
+    /// call [`Self::end_turn`] to release the claim.
+    pub fn try_begin_turn(&mut self) -> bool {
+        if self.conversation_in_progress {
+            return false;
+        }
+        self.conversation_in_progress = true;
+        true
+    }
+
+    /// Releases the conversation claim taken by [`Self::try_begin_turn`].
+    pub fn end_turn(&mut self) {
+        self.conversation_in_progress = false;
+    }
+
     /// Records the raw player input most recently submitted to the engine.
     ///
     /// Blank input is ignored so a stray empty submission never overwrites a

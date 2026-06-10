@@ -333,6 +333,120 @@ describe('createStreamManager — resumed stream rebinds to a reactable id (#116
 	});
 });
 
+describe('createStreamManager — flushAll() snaps in-flight reply to completion (#1379)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('reveals the full buffered text instantly and finalizes the entry', () => {
+		const sm = createStreamManager();
+		streamingActive.set(true);
+
+		// A long reply is mid-reveal: only a few chars have been pumped, the
+		// rest sits in the buffer.
+		const t1 = sm.queuePendingTurn(1, 'Seamus', 'm1');
+		t1.buffer = 'Aye, that I can, and gladly too, for the forge is cold.';
+		t1.complete = true;
+		sm.startTurnPumpIfNeeded(t1);
+
+		// Player starts typing → flush.
+		const flushed = sm.flushAll();
+
+		expect(flushed).toBe(1);
+		const log = get(textLog);
+		// After flush, finalizeStreamingEntry clears stream_turn_id (#1377) so
+		// look up by content instead.
+		const entry = log.find(
+			(e) =>
+				e.content === 'Aye, that I can, and gladly too, for the forge is cold.',
+		);
+		expect(entry).toBeDefined();
+		// Full text is revealed, not just the few pumped chars.
+		expect(entry?.content).toBe(
+			'Aye, that I can, and gladly too, for the forge is cold.',
+		);
+		// Entry is finalized — no longer streaming. stream_turn_id was cleared by
+		// finalizeStreamingEntry to prevent post-reset stream re-fill (#1377).
+		expect(entry?.streaming).toBe(false);
+		expect(entry?.latest_chunk).toBeUndefined();
+		expect(entry?.stream_turn_id).toBeUndefined();
+		// Pump timers cancelled, pool drained, streaming cleared.
+		expect(t1.pumpHandle).toBeNull();
+		expect(sm.pendingTurnCount()).toBe(0);
+		expect(sm.isChainInProgress()).toBe(false);
+		expect(get(streamingActive)).toBe(false);
+	});
+
+	it('flushes every parked turn, not just the head', () => {
+		const sm = createStreamManager();
+		streamingActive.set(true);
+
+		const t1 = sm.queuePendingTurn(1, 'Padraig', 'm1');
+		t1.buffer = 'First reply in full.';
+		sm.startTurnPumpIfNeeded(t1);
+
+		const t2 = sm.queuePendingTurn(2, 'Nora', 'm2');
+		t2.buffer = 'Second reply in full.';
+		sm.startTurnPumpIfNeeded(t2); // parked behind head
+
+		sm.flushAll();
+
+		// After flush, finalizeStreamingEntry clears stream_turn_id (#1377) so
+		// look up by content instead.
+		const log = get(textLog);
+		expect(log.find((e) => e.content === 'First reply in full.')).toBeDefined();
+		expect(
+			log.find((e) => e.content === 'Second reply in full.'),
+		).toBeDefined();
+		expect(sm.pendingTurnCount()).toBe(0);
+		expect(get(streamingActive)).toBe(false);
+	});
+
+	it('is a no-op (returns 0) when nothing is streaming', () => {
+		const sm = createStreamManager();
+		streamingActive.set(false);
+		expect(sm.flushAll()).toBe(0);
+		expect(get(streamingActive)).toBe(false);
+	});
+
+	it('clears a pure-spinner state (loading but no tokens yet)', () => {
+		const sm = createStreamManager();
+		streamingActive.set(true);
+		// Chain started (loading) but the first token hasn't queued a turn.
+		sm.queuePendingTurn(1, 'Maire'); // placeholder, empty buffer
+		// Drop it to simulate "no tokens buffered" — actually keep it; flush
+		// should still finalize/clear. Here we test the empty-buffer turn.
+		sm.flushAll();
+		expect(sm.pendingTurnCount()).toBe(0);
+		expect(get(streamingActive)).toBe(false);
+		expect(sm.isChainInProgress()).toBe(false);
+	});
+
+	it('a late stream-end after flush does not re-open the stream', () => {
+		const sm = createStreamManager();
+		streamingActive.set(true);
+		const t1 = sm.queuePendingTurn(1, 'Brigid', 'm1');
+		t1.buffer = 'Done and dusted.';
+		t1.complete = true;
+		sm.startTurnPumpIfNeeded(t1);
+
+		sm.flushAll();
+		expect(get(streamingActive)).toBe(false);
+
+		// The terminal stream-end arrives late (it raced the flush).
+		sm.setPendingEndHints([]);
+		sm.maybeFinishNpcStream();
+
+		// Pool is empty and chain already finished — no resurrection.
+		expect(get(streamingActive)).toBe(false);
+		expect(sm.isChainInProgress()).toBe(false);
+		expect(sm.pendingTurnCount()).toBe(0);
+	});
+});
+
 describe('reset() clears stream_turn_id from finalized entries (#1377)', () => {
 	// C4: After reset() finalizes a streaming textLog entry, its stream_turn_id
 	// must be undefined so post-reset resumed streams cannot match it.

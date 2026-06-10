@@ -27,6 +27,14 @@ export function trimTextLog(log: TextLogEntry[]): TextLogEntry[] {
 
 export const streamingActive = writable<boolean>(false);
 
+/// Flushes any in-flight streamed NPC line to completion (reveals the full text
+/// instantly, cancels the token animation) and clears `streamingActive`.
+/// Returns the number of turns flushed. Set by the page controller to the live
+/// stream manager's `flushAll`; a no-op until then (#1379). The input field
+/// calls this on the player's first keystroke so the current reply snaps fully
+/// into view before the next turn is accepted.
+export const flushStream = writable<() => number>(() => 0);
+
 /// Current fun loading phrase (e.g. "Consulting the sheep...").
 export const loadingPhrase = writable<string>('');
 

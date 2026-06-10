@@ -63,7 +63,10 @@ test.describe('App layout', () => {
 	test('input field is visible and enabled', async ({ page }) => {
 		const input = page.locator('[data-testid="input-field"]');
 		await expect(input).toBeVisible();
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		// #1379: the input is always contenteditable (never aria-disabled="true");
+		// the field must be present and interactive at idle state.
+		await expect(input).toHaveAttribute('contenteditable', 'true');
+		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
 	});
 
 	test('sidebar shows name pronunciation hints from world snapshot', async ({
