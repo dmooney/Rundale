@@ -1,0 +1,26 @@
+# 1395 — new-game does not flush the world-event ring buffer
+# ===========================================================
+# Proves (headless path):
+#   AC-1: game_events ring is empty immediately after /new_game
+#   AC-2: no cross-game event bleed in the turn response
+#   AC-4: unit tests cover the ring-clear path
+#
+# The live MCP proof (AC-1/AC-2/AC-3) is captured separately against the
+# Tauri app via parish_new_game → parish_turn.
+
+# --- Generate some events in game A ---
+look
+/npcs
+/wait 30
+
+# --- Reset to game B ---
+/new_game
+
+# --- Immediately check state — events ring must be empty ---
+/status
+look
+
+# --- Move around to generate game-B events ---
+/wait 10
+/npcs
+/status
