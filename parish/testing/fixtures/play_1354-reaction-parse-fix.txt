@@ -1,0 +1,29 @@
+# Issue #1354 — lenient emoji-reaction parsing
+# =============================================
+# Verifies that after fixing parse_reaction_decision, the engine
+# no longer emits ERROR-level Serialization errors for the reaction path.
+# The headless CLI uses the simulator backend so no real model call
+# is made; this fixture exercises the routing and parse code paths.
+#
+# Acceptance criteria exercised:
+# AC3  happy-path JSON parses correctly
+# AC8  pre-existing tests unaffected
+
+# 1. Confirm provider and reaction model routing.
+/provider
+/model.reaction
+
+# 2. Take several turns that invoke the reaction inference path:
+#    greeting (triggers keyword + LLM path), rent (charged topic),
+#    social dialogue.
+look
+say Hello, good morning to ye!
+say The landlord's agent came collecting rent again.
+say Have you heard any news from the market?
+say It's a grand day for the harvest.
+say Tell me, what's the word on the weather?
+go to the crossroads
+look
+say Good evening, neighbour.
+say The fairies were out last night near the fort.
+say My father told me a strange story.
