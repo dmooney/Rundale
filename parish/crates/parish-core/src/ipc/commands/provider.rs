@@ -32,7 +32,12 @@ pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> 
         }
         Command::SetModel(name) => {
             config.model_name = name.clone();
-            CommandResult::text(format!("Model changed to {}.", name))
+            // Rebind the base worker so the new dialogue/base model takes
+            // effect immediately (#1365) — a model change is a routing change.
+            CommandResult::with_effect(
+                format!("Model changed to {}.", name),
+                CommandEffect::RebuildInference,
+            )
         }
         Command::ShowKey => match &config.api_key {
             Some(key) => CommandResult::text(format!("API key: {}", mask_key(key))),
@@ -41,6 +46,14 @@ pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> 
         Command::SetKey(value) => {
             config.api_key = Some(value);
             CommandResult::with_effect("API key updated.", CommandEffect::RebuildInference)
+        }
+        Command::ShowBaseUrl => CommandResult::text(format!("Base URL: {}", config.base_url)),
+        Command::SetBaseUrl(url) => {
+            config.base_url = url.clone();
+            CommandResult::with_effect(
+                format!("Base URL changed to {url}."),
+                CommandEffect::RebuildInference,
+            )
         }
         _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
@@ -132,7 +145,15 @@ pub(super) fn handle_category_provider_command(
         },
         Command::SetCategoryModel(cat, name) => {
             config.category_model.insert(cat, name.clone());
-            CommandResult::text(format!("{} model changed to {}.", cat.name(), name))
+            // Rebind the worker so the new model takes effect immediately. The
+            // provider/key category commands already rebuild; a model change is
+            // just as much a routing change (a keyless provider whose only knob
+            // is the model would otherwise not re-bind until the next
+            // provider/key command), so it must rebuild too (#1365).
+            CommandResult::with_effect(
+                format!("{} model changed to {}.", cat.name(), name),
+                CommandEffect::RebuildInference,
+            )
         }
         Command::ShowCategoryKey(cat) => match config.category_api_key.get(&cat) {
             Some(key) => CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key))),
@@ -143,6 +164,25 @@ pub(super) fn handle_category_provider_command(
             config.category_api_key.insert(cat, value);
             CommandResult::with_effect(
                 format!("{} API key updated.", cat_name),
+                CommandEffect::RebuildInference,
+            )
+        }
+        Command::ShowCategoryBaseUrl(cat) => match config.category_base_url.get(&cat) {
+            Some(u) => CommandResult::text(format!("{} base URL: {}", cat.name(), u)),
+            None => CommandResult::text(format!(
+                "{} base URL: (inherits base: {})",
+                cat.name(),
+                config.base_url
+            )),
+        },
+        Command::SetCategoryBaseUrl(cat, url) => {
+            let cat_name = cat.name().to_string();
+            config.category_base_url.insert(cat, url.clone());
+            // A URL change reroutes the category to a different slot/host, so
+            // rebind the worker (multi-slot vllm-mlx + BYOK targets whose URL
+            // differs from the provider default — #1365).
+            CommandResult::with_effect(
+                format!("{cat_name} base URL changed to {url}."),
                 CommandEffect::RebuildInference,
             )
         }

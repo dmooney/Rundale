@@ -1825,7 +1825,10 @@ mod tests {
         let (quit, rebuild) =
             handle_headless_command(&mut app, Command::SetModel("new-model".to_string())).await;
         assert!(!quit);
-        assert!(!rebuild);
+        // A base model change now rebinds the worker (#1365) — a model change
+        // is a routing change, so it must rebuild for parity with the
+        // server/Tauri shared dispatch.
+        assert!(rebuild);
         assert_eq!(app.model_name, "new-model");
     }
 
@@ -1889,7 +1892,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.cloud_model_name.as_deref(), Some("gpt-4"));
         assert_eq!(app.dialogue_model, "gpt-4");
     }
@@ -1903,7 +1907,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.intent.model, "qwen3:1.5b");
     }
 
@@ -1916,7 +1921,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.simulation.model, "qwen3:8b");
     }
 

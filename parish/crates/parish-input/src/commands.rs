@@ -123,6 +123,16 @@ pub enum Command {
     ShowCategoryKey(InferenceCategory),
     /// Set API key for a specific inference category.
     SetCategoryKey(InferenceCategory, String),
+    /// Show the base provider URL.
+    ShowBaseUrl,
+    /// Set the base provider URL (the Dialogue/base slot). Needed for BYOK
+    /// dialogue targets whose URL differs from the provider default.
+    SetBaseUrl(String),
+    /// Show base URL for a specific inference category.
+    ShowCategoryBaseUrl(InferenceCategory),
+    /// Set base URL for a specific inference category (multi-slot loadouts +
+    /// BYOK targets whose URL differs from the provider default).
+    SetCategoryBaseUrl(InferenceCategory, String),
     /// Apply a recommended provider preset across all inference categories.
     ApplyPreset(String),
     /// Show usage / list of providers with available presets.
