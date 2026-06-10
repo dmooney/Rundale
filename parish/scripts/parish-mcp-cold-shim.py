@@ -23,6 +23,7 @@ Everything after `--` is forwarded verbatim to the real binary on handoff.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -73,6 +74,8 @@ def proxy_handoff(binpath: str, child_args, saved_init, pending_call) -> None:
         encoding="utf-8",  # tool descriptions contain non-ASCII (—, Seán)
         bufsize=1,
     )
+    # stdin=PIPE / stdout=PIPE guarantee these are not None.
+    assert child.stdin is not None and child.stdout is not None
 
     def to_child(obj):
         child.stdin.write(json.dumps(obj) + "\n")
@@ -108,10 +111,8 @@ def proxy_handoff(binpath: str, child_args, saved_init, pending_call) -> None:
         except Exception:
             pass
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 dst.close()
-            except Exception:
-                pass
 
     t = threading.Thread(target=pump, args=(sys.stdin, child.stdin), daemon=True)
     t.start()
