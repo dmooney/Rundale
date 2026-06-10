@@ -113,6 +113,35 @@ and the full findings list. Then **file the substantive findings** via
 state into a GitHub issue labeled for the `/backlog` drain. Dedup obvious repeats. Recurring
 model-quality findings (mood-blind dialogue, verbosity) are real bugs — file them.
 
+## 6. Persist to the dashboard
+
+A skill run is invisible to the `parish-harness` dashboard unless you ingest it. Do this at the
+end of every run so it shows on `serve` (`http://localhost:8787`) next to binary runs.
+
+1. **Lay out an artifact dir.** Pick a `uuid` for the run and create
+   `<root>/runs/<uuid>/turns/NNN/frame.png` for each turn, where `<root>` is the same
+   `--artifacts` dir the dashboard serves (default: next to `harness.db`). You capture
+   screenshots periodically, not per-turn — map each turn to the **most recent** screenshot at
+   or before it; for turns before your first capture, copy a single shared placeholder
+   `frame.png`. Also write `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine).
+   Every `frame.png` must be non-empty (the ingest validates this — rule #14).
+
+2. **Emit the payload JSON** (schema in
+   [`parish/crates/parish-harness/README.md`](../../../parish/crates/parish-harness/README.md)
+   under `ingest`). Fill `git` from the worktree (`git rev-parse HEAD` / `--abbrev-ref HEAD` /
+   `status --porcelain`), set `rubric_sha256` to the binary's pinned rubric sha
+   (`cargo run -p parish-harness -- ... ` records it; or read the rubric file hash), include all
+   `turns`, the 7 `axes` with rationales, every `finding` (with the same `signature` you used
+   when filing the issue), and a `cost` tally. On a hard fail set `gate` and omit
+   `quality_score`.
+
+3. **Ingest:**
+   ```sh
+   cargo run -p parish-harness -- ingest --payload <run.json> --artifacts <root>
+   ```
+   It prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
+   they can open the run on the dashboard.
+
 ## Calibration example (be this harsh)
 
 A 5-turn run with coherent multi-NPC plot but **every** NPC ignoring its mood tag, one

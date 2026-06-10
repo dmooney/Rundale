@@ -38,6 +38,27 @@ pub struct TurnRecord {
     pub llm_transcript_path: Option<String>,
 }
 
+/// A complete, externally-produced run ready to persist in one shot. Mirrors
+/// what the live `run` pipeline writes incrementally, but assembled up front by
+/// an external producer (the quality-harness skill) and replayed through the
+/// same sink writers via [`Db::ingest_complete_run`].
+pub struct IngestRecord {
+    pub config: RunConfig,
+    pub git: GitProvenance,
+    pub rubric_sha256: String,
+    /// Absolute path to the run's artifact directory (`.../runs/<uuid>`).
+    pub artifact_dir: String,
+    pub turns: Vec<TurnRecord>,
+    pub axes: Vec<AxisScore>,
+    pub findings: Vec<Finding>,
+    /// `Some` => gated (quality is forced NULL); `None` => scored.
+    pub gate: Option<GateTrip>,
+    pub quality_score: Option<f64>,
+    pub cost_usd: f64,
+    pub player_tokens: u64,
+    pub judge_tokens: u64,
+}
+
 /// A compact run summary for CLI output and the dashboard list.
 #[derive(Debug, Clone)]
 pub struct RunSummary {
@@ -222,6 +243,14 @@ impl Db {
         Ok(self.conn.last_insert_rowid())
     }
 
+    /// Count rows in `configs` (distinct run configurations seen). Used to
+    /// assert content-hash dedup behaviour.
+    pub fn config_count(&self) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row("SELECT COUNT(*) FROM configs", [], |r| r.get(0))?)
+    }
+
     /// Return the on-disk artifact directory for a run, or `None` if unknown.
     pub fn run_artifact_dir(&self, run_id: i64) -> Result<Option<String>> {
         let result = self
@@ -300,6 +329,48 @@ impl Db {
             total_player_tokens: total_player_tokens as u64,
             total_judge_tokens: total_judge_tokens as u64,
         })
+    }
+
+    /// Write the cost/token totals for a run. The `run` pipeline leaves these
+    /// at their 0 defaults until `AnyClient` usage exposure is wired through;
+    /// the ingest path supplies them from the skill's own accounting.
+    pub fn update_run_cost(
+        &self,
+        run_id: i64,
+        cost_usd: f64,
+        player_tokens: u64,
+        judge_tokens: u64,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE runs SET cost_usd = ?1, player_tokens = ?2, judge_tokens = ?3
+              WHERE id = ?4",
+            params![cost_usd, player_tokens as i64, judge_tokens as i64, run_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persist a complete, externally-produced run in one transaction, reusing
+    /// the exact same sink writers the live `run` pipeline calls — there is no
+    /// second write path, so scored/gated semantics cannot drift. Returns the
+    /// new run id. Used by the `ingest` subcommand to land quality-harness
+    /// **skill** runs in the same DB the dashboard reads.
+    pub fn ingest_complete_run(&self, rec: IngestRecord) -> Result<i64> {
+        let tx = self.conn.unchecked_transaction()?;
+        let config_id = self.upsert_config(&rec.config)?;
+        let run_id = self.start_run(config_id, &rec.git, &rec.rubric_sha256, &rec.artifact_dir)?;
+        for t in &rec.turns {
+            self.record_turn(run_id, t)?;
+        }
+        for f in &rec.findings {
+            self.insert_finding(run_id, f)?;
+        }
+        self.update_run_cost(run_id, rec.cost_usd, rec.player_tokens, rec.judge_tokens)?;
+        match &rec.gate {
+            Some(trip) => self.finish_run_gated(run_id, trip)?,
+            None => self.finish_run_scored(run_id, rec.quality_score, &rec.axes)?,
+        }
+        tx.commit()?;
+        Ok(run_id)
     }
 
     /// Read a run summary for output.

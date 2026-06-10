@@ -641,6 +641,10 @@ fn set_category_model_stores_override() {
         Some("mini-model")
     );
     assert!(result.response.contains("mini-model"));
+    // A per-category model change must rebind the worker so the new model
+    // takes effect immediately (#1365) — a keyless provider whose only knob is
+    // the model would otherwise not re-bind.
+    assert!(result.effects.contains(&CommandEffect::RebuildInference));
 }
 
 #[test]

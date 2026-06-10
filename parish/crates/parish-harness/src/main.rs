@@ -43,6 +43,21 @@ enum Command {
     Worker(WorkerArgs),
     /// A/B compare two runs.
     Compare(CompareArgs),
+    /// Ingest an externally-produced run (e.g. a quality-harness skill run).
+    Ingest(IngestArgs),
+}
+
+#[derive(clap::Args)]
+struct IngestArgs {
+    /// Path to the ingest payload JSON (a complete skill-run record).
+    #[arg(long)]
+    payload: PathBuf,
+    /// Artifact root holding `runs/<uuid>/turns/NNN/frame.png`.
+    #[arg(long)]
+    artifacts: PathBuf,
+    /// Path to the harness DB (defaults to the user-data root).
+    #[arg(long)]
+    db: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -69,9 +84,16 @@ struct RunArgs {
     /// Backend base URL.
     #[arg(long, default_value = "http://127.0.0.1:3030")]
     base_url: String,
-    /// Override the player/judge actor mode from the config.
+    /// Override the player actor mode from the config. When `--judge` is
+    /// omitted this also sets the judge mode (back-compat); pass `--judge`
+    /// explicitly to keep the roles independent (#1363 AC5).
     #[arg(long, value_enum)]
     player: Option<ActorKind>,
+    /// Override the judge actor mode from the config, independently of
+    /// `--player`. The judge model stays whatever the config pins (Sonnet 4.6
+    /// by default) — this only selects the judge's driver (scripted/api/subagent).
+    #[arg(long, value_enum)]
+    judge: Option<ActorKind>,
     /// Path to the harness DB (defaults to the user-data root).
     #[arg(long)]
     db: Option<PathBuf>,
@@ -212,7 +234,16 @@ async fn run() -> Result<()> {
         Command::Queue(args) => run_queue(args).await,
         Command::Worker(args) => run_worker(args).await,
         Command::Compare(args) => run_compare(args).await,
+        Command::Ingest(args) => run_ingest(args),
     }
+}
+
+fn run_ingest(args: IngestArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let db = Db::open(&db_path)?;
+    let run_id = parish_harness::ingest::load_and_ingest(&db, &args.payload, &args.artifacts)?;
+    println!("ingested run {run_id}");
+    Ok(())
 }
 
 async fn run_serve(args: ServeArgs) -> Result<()> {
@@ -228,10 +259,19 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
 async fn run_session(args: RunArgs) -> Result<()> {
     let mut config = RunConfig::load(&args.config)?;
+    // `--player` sets the player mode. For back-compat it also sets the judge
+    // mode UNLESS `--judge` is given, in which case the two roles are
+    // independent (#1363 AC5: `--player api --judge api`, or `--player scripted
+    // --judge api`, etc.).
     if let Some(kind) = args.player {
         let mode: ActorMode = kind.into();
         config.player.mode = mode;
-        config.judge.mode = mode;
+        if args.judge.is_none() {
+            config.judge.mode = mode;
+        }
+    }
+    if let Some(kind) = args.judge {
+        config.judge.mode = kind.into();
     }
 
     // Load + pin the rubric.

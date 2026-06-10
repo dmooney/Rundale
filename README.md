@@ -180,7 +180,7 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 
 - **`parish-geo-tool`** — Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box, with cached responses, dry-run preview, hand-curated merge mode, and a `realign-coords` utility for snapping to historical map coordinates.
 - **`parish-npc-tool`** — SQLite-backed NPC builder: bulk-generate parish or county populations with seedable randomness and 1820s demographic weights, query/filter by parish/occupation/tier, edit moods, promote tiers, batch-elaborate backstories with an LLM, validate referential integrity, and export/import JSON. Also splits the monolithic `mods/rundale/npcs.json` catalogue into per-NPC source files (`split-catalog`) and re-joins them into a byte-identical canonical file (`join-catalog`), with a standalone `validate-catalog` integrity pass.
-- **`parish-harness`** — game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against a live backend over HTTP. Each run plays N turns capturing the engine state and a rendered "state-frame" per turn; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) into a weighted-mean quality number when gates pass; records discrete human-like **findings**; and persists everything to its own SQLite DB + on-disk artifacts. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `parish-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p parish-harness -- run --config <cfg> --turns N` against a running backend; later phases add per-turn screenshots, issue-filing for `/backlog` drain, and a live dashboard.
+- **`parish-harness`** — game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against a live backend over HTTP. Each run plays N turns capturing the engine state and a rendered "state-frame" per turn; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) into a weighted-mean quality number when gates pass; records discrete human-like **findings**; and persists everything to its own SQLite DB + on-disk artifacts. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `parish-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p parish-harness -- run --config <cfg> --turns N` against a running backend; later phases add per-turn screenshots, issue-filing for `/backlog` drain, and a live dashboard. For a **fully headless real-model game** to drive — no desktop app — boot the web server with `parish-server --headless-models` (or `PARISH_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through the runtime slash commands (`/provider`, `/url`, `/model`, `/key`) over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `parish-harness run --player api --judge api` is driven solely by env API keys — no Claude Code session, no MCP, no subagent queue — and `--player`/`--judge` select each actor's driver independently.
 - **Script harness** — `.txt` fixtures in `testing/fixtures/` drive the engine through scripted scenes; structured `ScriptResult` JSON output enables deterministic regression checking. Run a single fixture (`just game-test-one <name>`), all of them (`just game-test-all`), or list available scripts (`just game-test-list`).
 - **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
 - **Architecture fitness tests** — `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
@@ -277,6 +277,80 @@ CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
 trigger, uploads the bundle as an artifact). For dev iteration on
 `cargo tauri dev`, you can skip the bundle build — the runtime falls
 through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
+
+## Architecture
+
+One engine, three thin entry points, eight backend-agnostic leaf crates. The full
+crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture.md).
+
+```mermaid
+flowchart TB
+    subgraph clients["Frontends & clients"]
+        UI["Svelte 5 UI<br/>parish/apps/ui<br/>(one transport.ts for both backends)"]
+        CLI["parish CLI client<br/>parish-client"]
+        MCP["parish-mcp<br/>MCP bridge for AI agents"]
+    end
+
+    subgraph entry["Runtime entry points (thin adapters, mode parity)"]
+        TAURI["parish-tauri<br/>Tauri 2 desktop"]
+        SERVER["parish-server<br/>Axum HTTP + WS<br/>(sessions, auth, idempotency)"]
+        ENGINE["parish-engine<br/>headless REPL / --script / Tauri launch"]
+    end
+
+    CORE["parish-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>game_mod loader • editor/ • debug_snapshot/ • event_bus • prompts"]
+
+    subgraph leaf["Shared leaf crates (backend-agnostic, enforced)"]
+        WORLD["parish-world<br/>graph, movement, weather, geo"]
+        NPC["parish-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
+        INPUT["parish-input<br/>parsing, intent (local + LLM)"]
+        INFER["parish-inference<br/>queue, rate limits, provider clients"]
+        PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
+        CONFIG["parish-config<br/>TOML + env + flags"]
+        PALETTE["parish-palette<br/>day/night palette"]
+        TYPES["parish-types<br/>ids, time, events, errors (zero internal deps)"]
+    end
+
+    subgraph external["Content & external systems"]
+        MODS[("mods/rundale<br/>world.json, npcs.json, prompts…")]
+        DB[("SQLite saves<br/>per-user data dir")]
+        LLM["LLM providers<br/>Ollama / OpenAI-compat / Anthropic / simulator"]
+    end
+
+    UI -- "Tauri IPC invoke/listen" --> TAURI
+    UI -- "fetch + WebSocket" --> SERVER
+    CLI -- "POST /api/command" --> SERVER
+    MCP -- "HTTP :3030" --> SERVER
+
+    TAURI -- "handle_command + EventEmitter" --> CORE
+    SERVER --> CORE
+    ENGINE --> CORE
+
+    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE & TYPES
+    INPUT -. "intent LLM" .-> INFER
+    NPC -. "T1 dialogue • T2 group sim + gossip • T3 batch sim" .-> INFER
+    NPC -.-> WORLD
+    PERSIST -.-> NPC
+    NPC -. "all leaves depend on types" .-> TYPES
+
+    CORE -- "mod.toml manifest + validation" --> MODS
+    PERSIST --> DB
+    INFER --> LLM
+
+    classDef clientNode fill:#d7e7f7,stroke:#4a7aab,color:#1f2328
+    classDef entryNode fill:#fae3bd,stroke:#c08a2e,color:#1f2328
+    classDef coreNode fill:#e3d3f4,stroke:#8a5fb8,color:#1f2328
+    classDef leafNode fill:#cdeccf,stroke:#4f9457,color:#1f2328
+    classDef extNode fill:#ffffff,stroke:#777777,color:#1f2328
+    class UI,CLI,MCP clientNode
+    class TAURI,SERVER,ENGINE entryNode
+    class CORE coreNode
+    class WORLD,NPC,INPUT,INFER,PERSIST,CONFIG,PALETTE,TYPES leafNode
+    class MODS,DB,LLM extNode
+    style clients fill:#eef4fb,stroke:#9db8d4,color:#1f2328
+    style entry fill:#fdf3e3,stroke:#d8b873,color:#1f2328
+    style leaf fill:#e9f6ea,stroke:#9ccca0,color:#1f2328
+    style external fill:#f6f6f6,stroke:#bbbbbb,color:#1f2328
+```
 
 ## Repository Layout
 

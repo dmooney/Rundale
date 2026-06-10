@@ -12,7 +12,9 @@ use crate::inference::{
     self, AnyClient, InferenceClients, InferencePriority, InferenceQueue, InferenceWorkerConfig,
     QueueRequest,
 };
-use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
+use crate::input::{
+    Command, InputResult, classify_input, extract_mention, is_player_dialogue, parse_intent,
+};
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
 use crate::npc::parse_npc_stream_response;
@@ -160,7 +162,11 @@ async fn run_headless_repl_loop(
                     &mut request_id,
                 )
                 .await?;
-                emit_headless_npc_reactions(app, &text).await;
+                // #1351 — NPCs react only to genuine dialogue, not to a bare
+                // `look`/movement command routed down the GameInput path.
+                if is_player_dialogue(&text) {
+                    emit_headless_npc_reactions(app, &text).await;
+                }
             }
         }
 
@@ -1825,7 +1831,10 @@ mod tests {
         let (quit, rebuild) =
             handle_headless_command(&mut app, Command::SetModel("new-model".to_string())).await;
         assert!(!quit);
-        assert!(!rebuild);
+        // A base model change now rebinds the worker (#1365) — a model change
+        // is a routing change, so it must rebuild for parity with the
+        // server/Tauri shared dispatch.
+        assert!(rebuild);
         assert_eq!(app.model_name, "new-model");
     }
 
@@ -1889,7 +1898,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.cloud_model_name.as_deref(), Some("gpt-4"));
         assert_eq!(app.dialogue_model, "gpt-4");
     }
@@ -1903,7 +1913,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.intent.model, "qwen3:1.5b");
     }
 
@@ -1916,7 +1927,8 @@ mod tests {
         )
         .await;
         assert!(!quit);
-        assert!(!rebuild);
+        // Per-category model change now rebinds the worker (#1365).
+        assert!(rebuild);
         assert_eq!(app.simulation.model, "qwen3:8b");
     }
 

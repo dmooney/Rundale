@@ -36,10 +36,33 @@ pub trait GameClient: Send + Sync {
     async fn engine_state(&self) -> Result<EngineState>;
     /// Apply a feature flag via the `/flag` slash command.
     async fn apply_flag(&self, name: &str, on: bool) -> Result<()>;
-    /// Apply a per-category BYOK model override. Best-effort: a backend without
-    /// the endpoint (e.g. the headless server) returns
-    /// [`HarnessError::HttpStatus`] with 404, which the caller may downgrade.
+    /// Apply a per-category BYOK model override by issuing the runtime
+    /// slash commands `/provider.<cat>`, `/model.<cat>`, and (when a key is
+    /// resolvable from the environment) `/key.<cat>` over `POST /api/command`.
+    ///
+    /// Each command routes through `handle_system_command`, which triggers
+    /// `rebuild_inference`, so the worker rebinds the category at runtime —
+    /// no `/api/submit-byok` route is required (that route 404s on
+    /// parish-server and is base-only on the Tauri bridge; see #1365).
+    ///
+    /// **Key hygiene (#1365):** the API key is resolved from the harness's
+    /// environment at apply-time (via the provider's `api_key_env_var`), never
+    /// carried in [`EngineModel`] / `RunConfig` (which is content-hashed and
+    /// persisted). The `/key` command text is never logged verbatim.
     async fn apply_byok(&self, category: &str, model: &EngineModel) -> Result<()>;
+}
+
+/// Resolves the API key for a provider from the harness environment.
+///
+/// Returns `Some(key)` when the provider declares an `api_key_env_var` and that
+/// variable is set to a non-empty value. Returns `None` for keyless providers
+/// (local vllm-mlx / ollama / simulator) and when a cloud provider's key var is
+/// unset (the caller then skips the `/key` command rather than sending an empty
+/// secret). The key VALUE is never returned to a logging path.
+pub(crate) fn resolve_provider_key_from_env(provider_name: &str) -> Option<String> {
+    let provider = parish_core::config::Provider::from_str_loose(provider_name).ok()?;
+    let var = provider.api_key_env_var()?;
+    std::env::var(var).ok().filter(|v| !v.trim().is_empty())
 }
 
 /// Concrete HTTP client.
@@ -218,16 +241,77 @@ impl GameClient for HttpGameClient {
     }
 
     async fn apply_byok(&self, category: &str, model: &EngineModel) -> Result<()> {
-        let mut body = json!({
-            "category": category,
-            "provider": model.provider,
-            "model": model.model,
-        });
+        // The `dialogue` category is served by the game's BASE provider/model
+        // slot, not by per-category client resolution: the NPC dialogue path
+        // uses `GameConfig::model_name` + the base worker, whereas
+        // intent/reaction/simulation are routed through
+        // `resolve_category_client`. So `engine_models.dialogue` maps to the
+        // base slash commands (`/provider`, `/url`, `/model`, `/key`) and every
+        // other category maps to its dotted form (`/provider.<cat>`, …). This
+        // is why a prior naive `/provider.dialogue` left dialogue on the base
+        // 14B model even though the snapshot showed the override (#1365).
+        let suffix = if category == "dialogue" {
+            String::new()
+        } else {
+            format!(".{category}")
+        };
+
+        // 1. Provider.
+        tracing::info!(category, provider = %model.provider, "applying engine_model provider");
+        self.submit_command(
+            &format!("/provider{suffix} {}", model.provider),
+            &[],
+            30_000,
+        )
+        .await?;
+
+        // 2. Base URL, if the config pins one. Setting the provider resets the
+        //    URL to the provider default, so a BYOK target whose URL differs
+        //    (e.g. the 1.5B slot on :8001) must override it AFTER the provider.
         if let Some(base_url) = &model.base_url {
-            body["base_url"] = json!(base_url);
+            tracing::info!(category, base_url = %base_url, "applying engine_model base_url");
+            self.submit_command(&format!("/url{suffix} {base_url}"), &[], 30_000)
+                .await?;
         }
-        self.post_text("/api/submit-byok", &body).await.map(|_| ())
+
+        // 3. Model.
+        tracing::info!(category, model = %model.model, "applying engine_model model");
+        self.submit_command(&format!("/model{suffix} {}", model.model), &[], 30_000)
+            .await?;
+
+        // 4. Key — resolved from the harness env at apply-time, never from the
+        //    config. Skip silently for keyless providers; warn (without the
+        //    secret) when a cloud provider's key var is unset.
+        match resolve_provider_key_from_env(&model.provider) {
+            Some(key) => {
+                // The command text carries the secret; build it locally and
+                // never log it verbatim (#1365 AC3).
+                tracing::info!(category, provider = %model.provider, "applying engine_model key from env (redacted)");
+                self.submit_command(&format!("/key{suffix} {key}"), &[], 30_000)
+                    .await?;
+            }
+            None => {
+                if needs_api_key(&model.provider) {
+                    tracing::warn!(
+                        category,
+                        provider = %model.provider,
+                        "no API key in env for this provider; skipping /key — dialogue may be unauthorised. \
+                         Set the provider's key env var (e.g. ANTHROPIC_API_KEY)."
+                    );
+                }
+            }
+        }
+        Ok(())
     }
+}
+
+/// Whether a provider requires an API key (i.e. declares an `api_key_env_var`).
+/// Local providers (vllm-mlx / ollama / simulator) return false.
+fn needs_api_key(provider_name: &str) -> bool {
+    parish_core::config::Provider::from_str_loose(provider_name)
+        .ok()
+        .and_then(|p| p.api_key_env_var().map(|_| ()))
+        .is_some()
 }
 
 #[cfg(test)]
@@ -282,6 +366,138 @@ mod tests {
         let client = HttpGameClient::new(server.uri());
         let err = client.new_game().await.unwrap_err();
         assert!(matches!(err, HarnessError::HttpStatus { status: 500, .. }));
+    }
+
+    /// AC1 (#1365): apply_byok issues `/provider.<cat>` and `/model.<cat>` over
+    /// `/api/command` (NOT the removed `/api/submit-byok`). For a keyless
+    /// provider (no env key) it sends exactly those two commands and no `/key`.
+    #[tokio::test]
+    async fn apply_byok_issues_provider_and_model_slash_commands() {
+        let server = MockServer::start().await;
+        // Every command returns a benign ok response.
+        Mock::given(method("POST"))
+            .and(path("/api/command"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "outcome": "ok",
+                "kind": "system",
+                "echo": "",
+                "lines": [],
+                "kind_detail": {},
+                "elapsed_ms": 1
+            })))
+            .mount(&server)
+            .await;
+
+        let client = HttpGameClient::new(server.uri());
+        // vllm-mlx is keyless, so no env key is consulted/required.
+        let model = EngineModel {
+            provider: "vllm-mlx".into(),
+            model: "mlx-community/Qwen2.5-14B-Instruct-4bit".into(),
+            base_url: Some("http://localhost:8000".into()),
+        };
+        client.apply_byok("dialogue", &model).await.unwrap();
+
+        // Inspect the recorded request bodies: a `/provider.dialogue` and a
+        // `/model.dialogue` command, and NO `/api/submit-byok` request.
+        let requests = server.received_requests().await.unwrap();
+        let texts: Vec<String> = requests
+            .iter()
+            .filter(|r| r.url.path() == "/api/command")
+            .map(|r| {
+                let v: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+                v["text"].as_str().unwrap_or_default().to_string()
+            })
+            .collect();
+        // Dialogue maps to the BASE slash commands (no `.dialogue` suffix),
+        // because the dialogue path is served by the base provider slot.
+        assert!(
+            texts.iter().any(|t| t == "/provider vllm-mlx"),
+            "expected base /provider command for dialogue, got {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t == "/url http://localhost:8000"),
+            "expected base /url command for a pinned base_url, got {texts:?}"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "/model mlx-community/Qwen2.5-14B-Instruct-4bit"),
+            "expected base /model command for dialogue, got {texts:?}"
+        );
+        // No /key command for a keyless provider.
+        assert!(
+            !texts.iter().any(|t| t.starts_with("/key.")),
+            "keyless provider must not send a /key command, got {texts:?}"
+        );
+        // The removed flat endpoint must never be hit.
+        assert!(
+            requests.iter().all(|r| r.url.path() != "/api/submit-byok"),
+            "apply_byok must not POST /api/submit-byok any more"
+        );
+    }
+
+    /// A non-dialogue category (intent) maps to the DOTTED slash commands
+    /// (`/provider.intent`, `/url.intent`, `/model.intent`), routed via
+    /// per-category client resolution.
+    #[tokio::test]
+    async fn apply_byok_intent_uses_dotted_category_commands() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/command"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "outcome": "ok", "kind": "system", "echo": "",
+                "lines": [], "kind_detail": {}, "elapsed_ms": 1
+            })))
+            .mount(&server)
+            .await;
+
+        let client = HttpGameClient::new(server.uri());
+        let model = EngineModel {
+            provider: "vllm-mlx".into(),
+            model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit".into(),
+            base_url: Some("http://localhost:8001".into()),
+        };
+        client.apply_byok("intent", &model).await.unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        let texts: Vec<String> = requests
+            .iter()
+            .filter(|r| r.url.path() == "/api/command")
+            .map(|r| {
+                let v: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+                v["text"].as_str().unwrap_or_default().to_string()
+            })
+            .collect();
+        assert!(
+            texts.iter().any(|t| t == "/provider.intent vllm-mlx"),
+            "{texts:?}"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "/url.intent http://localhost:8001"),
+            "{texts:?}"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "/model.intent mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
+            "{texts:?}"
+        );
+    }
+
+    /// AC2/AC3 (#1365): the key is resolved from the harness env at apply-time
+    /// and never carried in EngineModel. EngineModel has no api_key field
+    /// (structural guarantee); this asserts the env resolver wiring.
+    #[test]
+    fn resolve_provider_key_reads_env_for_cloud_and_skips_local() {
+        // Local providers have no key env var → None regardless of env.
+        assert!(resolve_provider_key_from_env("vllm-mlx").is_none());
+        assert!(resolve_provider_key_from_env("simulator").is_none());
+        // Anthropic declares ANTHROPIC_API_KEY; needs_api_key is true even when
+        // unset, so the caller warns rather than sending an empty secret.
+        assert!(needs_api_key("anthropic"));
+        assert!(!needs_api_key("vllm-mlx"));
     }
 
     #[tokio::test]

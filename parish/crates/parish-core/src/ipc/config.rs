@@ -12,6 +12,28 @@ use crate::config::{FeatureFlags, InferenceCategory, RateLimitConfig};
 const DEFAULT_AUTO_PAUSE_SECS: u64 = 300;
 use crate::inference::InferenceRateLimiter;
 
+/// Canonical identifiers for the bundled local two-slot Apple Silicon loadout
+/// (Qwen-14B-4bit on `:8000` + Qwen-1.5B-4bit on `:8001`).
+///
+/// Single source of truth shared by the Tauri setup wizard and
+/// `parish-server --headless-models` (#1364) so the two entry points can't
+/// drift on model ids or ports (rule #12). The port/model strings mirror the
+/// values `parish-tauri`'s wizard writes and the bundled `vllm-mlx` serves.
+pub mod local_models {
+    /// Base provider id for the local Apple Silicon runtime.
+    pub const PROVIDER: &str = "vllm-mlx";
+    /// In-process simulator provider id for categories the 1.5B can't serve.
+    pub const SIMULATOR_PROVIDER: &str = "simulator";
+    /// Big slot: 14B model, used for Dialogue.
+    pub const DIALOGUE_MODEL: &str = "mlx-community/Qwen2.5-14B-Instruct-4bit";
+    /// Big-slot base URL (`:8000`).
+    pub const DIALOGUE_BASE_URL: &str = "http://localhost:8000";
+    /// Small slot: 1.5B model, used for Intent.
+    pub const INTENT_MODEL: &str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit";
+    /// Small-slot base URL (`:8001`).
+    pub const INTENT_BASE_URL: &str = "http://localhost:8001";
+}
+
 /// Mutable runtime configuration for provider, model, and cloud settings.
 ///
 /// Each backend wraps this in the appropriate synchronisation primitive
@@ -374,6 +396,62 @@ impl GameConfig {
         }
     }
 
+    /// Configures this `GameConfig` for the bundled local two-slot Apple
+    /// Silicon loadout used by the Tauri wizard's `two-slot` path and by
+    /// `parish-server --headless-models` (#1364):
+    ///
+    /// - base provider `vllm-mlx`, Qwen-14B-4bit on `:8000` (Dialogue),
+    /// - Intent on the 1.5B slot `:8001`,
+    /// - Simulation + Reaction on the in-process simulator (the 1.5B can't
+    ///   hold the strict Tier-2/Tier-3 JSON; the simulator returns valid
+    ///   shapes so the living world stays quiet and the slots stay free for
+    ///   dialogue).
+    ///
+    /// This is the single backend-agnostic definition of the loadout (rule
+    /// #12): the headless server and the desktop wizard both route through it
+    /// instead of hand-rolling the same per-category override map. The actual
+    /// process bring-up is handled downstream by
+    /// [`crate::inference::setup::setup_provider_client`], which detect-reuses
+    /// any vllm-mlx server already listening on `:8000` / `:8001` (a running
+    /// Tauri app) rather than double-spawning.
+    pub fn apply_local_qwen_two_slot(&mut self) {
+        self.provider_name = local_models::PROVIDER.to_string();
+        self.base_url = local_models::DIALOGUE_BASE_URL.to_string();
+        self.api_key = None;
+        self.model_name = local_models::DIALOGUE_MODEL.to_string();
+
+        // Dialogue inherits the base slot (14B @ :8000); set it explicitly so
+        // the debug snapshot shows the binding rather than "(inherits base)".
+        self.category_provider
+            .insert(InferenceCategory::Dialogue, local_models::PROVIDER.into());
+        self.category_base_url.insert(
+            InferenceCategory::Dialogue,
+            local_models::DIALOGUE_BASE_URL.into(),
+        );
+        self.category_model.insert(
+            InferenceCategory::Dialogue,
+            local_models::DIALOGUE_MODEL.into(),
+        );
+
+        // Intent → 1.5B @ :8001.
+        self.category_provider
+            .insert(InferenceCategory::Intent, local_models::PROVIDER.into());
+        self.category_base_url.insert(
+            InferenceCategory::Intent,
+            local_models::INTENT_BASE_URL.into(),
+        );
+        self.category_model
+            .insert(InferenceCategory::Intent, local_models::INTENT_MODEL.into());
+
+        // Simulation + Reaction → in-process simulator.
+        for cat in [InferenceCategory::Simulation, InferenceCategory::Reaction] {
+            self.category_provider
+                .insert(cat, local_models::SIMULATOR_PROVIDER.into());
+            self.category_base_url.remove(&cat);
+            self.category_model.remove(&cat);
+        }
+    }
+
     pub fn fill_missing_models_from_presets(&mut self) -> bool {
         use parish_config::Provider;
         let mut changed = false;
@@ -492,6 +570,55 @@ impl Default for GameConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apply_local_qwen_two_slot_routes_categories() {
+        let mut c = GameConfig::default();
+        c.apply_local_qwen_two_slot();
+
+        assert_eq!(c.provider_name, local_models::PROVIDER);
+        assert_eq!(c.base_url, local_models::DIALOGUE_BASE_URL);
+        assert_eq!(c.model_name, local_models::DIALOGUE_MODEL);
+        assert!(c.api_key.is_none(), "no key for a local provider");
+
+        // Dialogue → 14B @ :8000.
+        assert_eq!(
+            c.category_base_url
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some(local_models::DIALOGUE_BASE_URL)
+        );
+        // Intent → 1.5B @ :8001.
+        assert_eq!(
+            c.category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
+            Some(local_models::INTENT_MODEL)
+        );
+        assert_eq!(
+            c.category_base_url
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
+            Some(local_models::INTENT_BASE_URL)
+        );
+        // Simulation + Reaction → simulator (no URL/model so they don't spawn
+        // a vllm-mlx slot).
+        for cat in [InferenceCategory::Simulation, InferenceCategory::Reaction] {
+            assert_eq!(
+                c.category_provider.get(&cat).map(String::as_str),
+                Some(local_models::SIMULATOR_PROVIDER)
+            );
+            assert!(!c.category_base_url.contains_key(&cat));
+            assert!(!c.category_model.contains_key(&cat));
+        }
+
+        // Exactly one extra vllm-mlx slot (the 1.5B :8001); the base 14B :8000
+        // slot is auto-spawned by setup_provider_client, simulator spawns none.
+        let extra = c.vllm_mlx_extra_slots();
+        assert_eq!(extra.len(), 1);
+        assert_eq!(extra[0].base_url, local_models::INTENT_BASE_URL);
+        assert_eq!(extra[0].model, local_models::INTENT_MODEL);
+    }
 
     #[test]
     fn default_config() {

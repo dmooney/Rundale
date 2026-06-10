@@ -56,7 +56,9 @@ pub fn handle_command(
         | Command::ShowModel
         | Command::SetModel(_)
         | Command::ShowKey
-        | Command::SetKey(_) => handle_provider_command(cmd, config),
+        | Command::SetKey(_)
+        | Command::ShowBaseUrl
+        | Command::SetBaseUrl(_) => handle_provider_command(cmd, config),
 
         Command::ShowCloud
         | Command::SetCloudProvider(_)
@@ -70,7 +72,9 @@ pub fn handle_command(
         | Command::ShowCategoryModel(_)
         | Command::SetCategoryModel(_, _)
         | Command::ShowCategoryKey(_)
-        | Command::SetCategoryKey(_, _) => handle_category_provider_command(cmd, config),
+        | Command::SetCategoryKey(_, _)
+        | Command::ShowCategoryBaseUrl(_)
+        | Command::SetCategoryBaseUrl(_, _) => handle_category_provider_command(cmd, config),
 
         Command::ShowPreset | Command::ApplyPreset(_) => handle_preset_command(cmd, config),
 
