@@ -60,7 +60,7 @@ fn scored_payload(uuid: &str) -> String {
           ],
           "findings": [
             {{ "category": "character_fidelity", "turn_index": 0, "severity": "high", "description": "mood-blind", "evidence_quote": "warm", "signature": "mood-blind" }},
-            {{ "category": "immersion", "turn_index": 0, "severity": "high", "description": "verbose", "evidence_quote": "ramble", "signature": "verbosity" }}
+            {{ "category": "immersion", "turn_index": 0, "severity": "high", "description": "verbose", "evidence_quote": "ramble", "signature": "verbosity", "issue_url": "https://github.com/dmooney/Rundale/issues/1387" }}
           ]
         }}"#
     )
@@ -122,6 +122,41 @@ fn ingest_scored_run_is_readable_via_dashboard_dtos() {
     assert!((cost.total_cost_usd - 0.42).abs() < 1e-9);
     assert_eq!(cost.total_player_tokens, 1000);
     assert_eq!(cost.total_judge_tokens, 500);
+}
+
+#[test]
+fn ingest_persists_finding_issue_url() {
+    let tmp = tempfile::tempdir().unwrap();
+    let artifacts = tmp.path().join("artifacts");
+    let uuid = "00000000-0000-0000-0000-0000000000ee";
+    write_frame(&artifacts, uuid, 0);
+    let payload = write_payload(tmp.path(), "linked.json", &scored_payload(uuid));
+
+    let db = Db::open(&tmp.path().join("harness.db")).unwrap();
+    let run_id = load_and_ingest(&db, &payload, &artifacts).unwrap();
+
+    // The finding that carried an `issue_url` in the payload round-trips to the
+    // DTO with the link set; the one without stays None (C1, C2, C4).
+    let detail = db.run_detail(run_id).unwrap().unwrap();
+    let linked = detail
+        .findings
+        .iter()
+        .find(|f| f.signature == "verbosity")
+        .expect("verbosity finding present");
+    assert_eq!(
+        linked.issue_url.as_deref(),
+        Some("https://github.com/dmooney/Rundale/issues/1387"),
+        "ingested issue_url must persist to the finding row"
+    );
+    let unlinked = detail
+        .findings
+        .iter()
+        .find(|f| f.signature == "mood-blind")
+        .expect("mood-blind finding present");
+    assert_eq!(
+        unlinked.issue_url, None,
+        "a finding with no issue_url stays unlinked"
+    );
 }
 
 #[test]

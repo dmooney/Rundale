@@ -131,6 +131,11 @@ pub struct FindingPayload {
     #[serde(default)]
     pub evidence_quote: String,
     pub signature: String,
+    /// Optional GitHub issue URL the skill filed for this finding. When present
+    /// it is persisted onto the finding row so the dashboard renders an `[issue]`
+    /// link, matching binary runs whose filer sets the same column.
+    #[serde(default)]
+    pub issue_url: Option<String>,
 }
 
 /// Read, validate, and ingest a skill-run payload. Returns the new run id.
@@ -203,18 +208,21 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
         });
     }
 
-    let findings = payload
-        .findings
-        .into_iter()
-        .map(|f| Finding {
+    // Carry each finding's optional issue URL in a parallel vec so the sink can
+    // set it on the row after insert (the domain `Finding` stays link-agnostic).
+    let mut findings = Vec::with_capacity(payload.findings.len());
+    let mut finding_issue_urls = Vec::with_capacity(payload.findings.len());
+    for f in payload.findings {
+        finding_issue_urls.push(f.issue_url);
+        findings.push(Finding {
             category: f.category,
             turn_index: f.turn_index,
             severity: Severity::from_label(&f.severity),
             description: f.description,
             evidence_quote: f.evidence_quote,
             signature: f.signature,
-        })
-        .collect();
+        });
+    }
 
     let gate = payload.gate.map(|g| GateTrip {
         reason: GateReason::from_label(&g.reason),
@@ -237,6 +245,7 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
         turns,
         axes,
         findings,
+        finding_issue_urls,
         gate,
         quality_score,
         cost_usd: payload.cost.cost_usd,
