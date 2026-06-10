@@ -1,0 +1,49 @@
+# play_1376 -- NPC recipient resolver: no spurious "not here" for co-located NPC
+# ================================================================================
+# Covers GitHub issues #1376 and #1377 (engine-side portion of #1376 verified
+# here; #1377 UI stream-manager portion covered by jest/vitest unit tests).
+#
+# Bug: addressing Maire Gallagher (present at Connolly's Shop) via
+#   addressed_to: ["Maire Gallagher"] also pushed the LLM's unvalidated
+#   talk_target (e.g. "Gallagher" / "Mr. Gallagher") into the target list, causing
+#   resolve_addressed_targets to emit a spurious "{name} is not here." system line
+#   for absent Seamus Gallagher.
+#
+# Fix: validate the LLM talk_target against co-located NPCs in assemble_npc_targets
+#   (Tauri path) before including it, matching the guard already present in the
+#   shared parish-core handle_game_input.
+#
+# Fixture strategy:
+#   - Game starts 1820-03-01 08:00 (Wednesday). Maire's schedule: location 13
+#     (Connolly's Shop) from start_hour 8 to end_hour 9 (all seasons, all days).
+#   - Wait 30 mins so schedules tick and Maire is present at Connolly's Shop.
+#   - Navigate to Connolly's Shop.
+#   - Confirm Maire Gallagher is present and Seamus Gallagher is NOT.
+#   - Address Maire by full name with a stub reply. Verify:
+#       C1: No "is not here." line in output.
+#       C3: Maire's stub reply appears (she was correctly routed as addressee).
+
+# 1. Let schedules tick so Maire moves from forge (16) to Connolly's Shop (13)
+/time
+/wait 30
+/time
+
+# 2. Navigate to Connolly's Shop (directly connected to The Crossroads)
+go to The Crossroads
+go to Connolly's Shop
+
+# 3. Confirm NPC co-location: Maire present, Seamus absent
+/debug here
+/debug npcs
+
+# 4. Pre-stage a stub reply for Maire Gallagher
+/stub Maire Gallagher: Good morning to ye, and what can I do for you?
+
+# 5. Address Maire Gallagher directly (simulates chip-selected addressed_to)
+# The harness "talk to <name>" path sets the NPC as addressed target.
+# C1: No "Gallagher is not here." or "Mr. Gallagher is not here." in output.
+# C3: Maire's stub reply appears (not an idle message).
+talk to Maire Gallagher about the price of flour
+
+# 6. Final status check
+/status

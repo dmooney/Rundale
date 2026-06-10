@@ -1,0 +1,33 @@
+# Issue 1375 — parish_file_bug body-too-long fix
+# ================================================
+# This fixture builds up game state for a bug report, exercising the state
+# paths that `compose_issue_body` will capture. The fix is validated by unit
+# tests (not this fixture) since the bug manifests at compose-time with a
+# synthetic oversized payload. This script verifies the game still runs normally
+# after the fix.
+
+/status
+/time
+/debug clock
+/debug here
+/npcs
+
+look
+say Good morning.
+/debug events
+
+go to The Crossroads
+look
+/npcs
+
+go to Darcy's Pub
+look
+say A fine evening, is it not?
+
+/speed fast
+/wait 60
+/time
+/status
+/debug npcs
+/debug events
+/status

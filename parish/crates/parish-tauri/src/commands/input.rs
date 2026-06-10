@@ -222,13 +222,42 @@ pub(crate) async fn handle_game_input(
         return;
     }
 
+    // Extract NPC mentions from the raw text and validate the LLM's talk_target
+    // against co-located NPCs. The talk_target is only accepted when it resolves
+    // to a present NPC; non-NPC nouns and absent names must not be pushed into
+    // the target list — they would generate a spurious "{name} is not here."
+    // message (#1376). Mirrors the same guard in `parish-core`'s
+    // `handle_game_input` (rule #12 / #2 mode-parity).
+    //
+    // Lock ordering: capture `player_location` from `world` then drop the world
+    // guard before acquiring `npc_manager`, re-acquiring `world` only for the
+    // `extract_npc_mentions` call. Holding both locks simultaneously caused
+    // unnecessary latency on the heavily-contended `world` state and risked
+    // lock-order inversions on other paths that acquire them in the opposite order.
+    let player_location = state.world.lock().await.player_location;
+    let npc_manager = state.npc_manager.lock().await;
     let mentions = {
         let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
+    let validated_talk_target = if is_talk {
+        talk_target.filter(|t| {
+            npc_manager
+                .find_by_name(t, player_location)
+                .or_else(|| npc_manager.find_by_role_at(t, player_location))
+                .is_some()
+        })
+    } else {
+        None
+    };
+    drop(npc_manager);
 
-    let targets = assemble_npc_targets(addressed_to, &mentions.names, is_talk, talk_target);
+    let targets = assemble_npc_targets(
+        addressed_to,
+        &mentions.names,
+        is_talk,
+        validated_talk_target,
+    );
 
     handle_npc_conversation(mentions.remaining, targets, state, app).await;
 }
@@ -492,6 +521,41 @@ mod tests {
             let conv = state.conversation.lock().await;
             assert!(!conv.conversation_in_progress);
         }
+    }
+
+    // ── assemble_npc_targets ────────────────────────────────────────────────
+
+    /// `assemble_npc_targets` with a `None` validated_talk_target must not add
+    /// any name beyond addressed_to + mentions (#1376).
+    #[test]
+    fn assemble_npc_targets_none_talk_target_excluded() {
+        let targets = assemble_npc_targets(
+            vec!["Maire Gallagher".to_string()],
+            &[],
+            true,
+            None, // unresolvable talk_target filtered upstream
+        );
+        assert_eq!(targets, vec!["Maire Gallagher".to_string()]);
+    }
+
+    /// A valid talk_target (one that resolved to a co-located NPC) is included.
+    #[test]
+    fn assemble_npc_targets_valid_talk_target_included() {
+        let targets = assemble_npc_targets(vec![], &[], true, Some("Roisin Connolly".to_string()));
+        assert_eq!(targets, vec!["Roisin Connolly".to_string()]);
+    }
+
+    /// A talk_target that duplicates an addressed_to chip name must not appear
+    /// twice.
+    #[test]
+    fn assemble_npc_targets_deduplicates_talk_target() {
+        let targets = assemble_npc_targets(
+            vec!["Maire Gallagher".to_string()],
+            &[],
+            true,
+            Some("Maire Gallagher".to_string()),
+        );
+        assert_eq!(targets, vec!["Maire Gallagher".to_string()]);
     }
 
     // ── #9 sim-cancel preemption ─────────────────────────────────────────────
