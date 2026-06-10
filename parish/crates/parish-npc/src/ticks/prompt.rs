@@ -92,6 +92,7 @@ pub(crate) fn build_enhanced_system_prompt(
         &NpcConfig::default(),
         npc_names,
         None,
+        None, // no location grounding for test convenience wrapper
     )
 }
 
@@ -102,6 +103,12 @@ pub fn build_enhanced_system_prompt_with_config(
     config: &NpcConfig,
     npc_names: &HashMap<NpcId, String>,
     known_roster: Option<&[(NpcId, String, String)]>,
+    // Real location names from the world graph. When `Some`, injects a
+    // `PLACES IN THIS PARISH` block with an anti-sycophancy instruction
+    // so the NPC declines to confirm places or people not on the lists
+    // (fixes #1394). Pass `None` for test/legacy callers; the block is
+    // silently omitted.
+    location_names: Option<&[String]>,
 ) -> String {
     let mut prompt = build_tier1_system_prompt(npc, improv, language);
 
@@ -153,6 +160,23 @@ pub fn build_enhanced_system_prompt_with_config(
         for item in &npc.knowledge {
             prompt.push_str(&format!("- {}\n", item));
         }
+    }
+
+    // Location grounding block (#1394): inject real place names and an
+    // anti-sycophancy instruction so the NPC refuses to confirm invented
+    // locations or people rather than agreeing with the player's false premises.
+    if let Some(places) = location_names.filter(|p| !p.is_empty()) {
+        prompt.push_str("\n\nPLACES IN THIS PARISH:\n");
+        for place in places {
+            prompt.push_str(&format!("- {place}\n"));
+        }
+        prompt.push_str(
+            "These are the only real places in this parish. \
+            If someone mentions a place or person you do not recognise \
+            from the lists above, say you know of no such place or person \
+            \u{2014} do not confirm, describe, or invent details about \
+            anything not listed. Politely correct or deflect instead.\n",
+        );
     }
 
     prompt
@@ -861,8 +885,9 @@ mod tests {
         let npc_names: HashMap<NpcId, String> =
             [(NpcId(2), "Brigid".to_string())].into_iter().collect();
         let lang = LanguageSettings::english_only();
-        let prompt =
-            build_enhanced_system_prompt_with_config(&npc, false, &lang, &config, &npc_names, None);
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc, false, &lang, &config, &npc_names, None, None,
+        );
         // 0.8 is below 0.9 threshold, so should be "friendly" not "very close"
         assert!(prompt.contains("friendly"));
         assert!(!prompt.contains("very close"));

@@ -62,4 +62,15 @@ impl NpcManager {
     pub fn restore_introduced_set(&mut self, set: HashSet<NpcId>) {
         self.introduced_npcs = set;
     }
+
+    /// Clears the in-memory introduced-NPC set so the current session starts
+    /// with no pre-known introductions (#1396).
+    ///
+    /// Call this after `snapshot.restore(…)` when the
+    /// `npc-dialogue-grounding` feature flag is enabled (default-on).
+    /// The save file still persists the set for schema stability; this method
+    /// only resets the live in-memory state.
+    pub fn clear_introduced_for_session(&mut self) {
+        self.introduced_npcs.clear();
+    }
 }

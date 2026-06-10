@@ -536,6 +536,11 @@ async fn load_and_restore_snapshot(
                 .await
                 .unwrap_or_default();
             snapshot.restore(&mut app.world, &mut app.npc_manager);
+            // Gate: clear in-memory introduced set so NPCs must be re-introduced
+            // each session (#1396, npc-dialogue-grounding flag, default-on).
+            if !app.flags.is_disabled("npc-dialogue-grounding") {
+                app.npc_manager.clear_introduced_for_session();
+            }
             crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
             app.active_branch_id = branch_id;
             app.latest_snapshot_id = snap_id;
@@ -1007,6 +1012,7 @@ async fn handle_headless_game_input(
                 target_name.as_deref(),
                 app.improv_enabled,
                 &lang,
+                !app.flags.is_disabled("npc-dialogue-grounding"),
             ) {
                 // Teach this NPC the player's name if introduced
                 if app.world.player_name.is_some()
@@ -1496,6 +1502,7 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
                 batch_size: 0,
                 language: &lang,
                 cancel: None,
+                grounding_enabled: !app.flags.is_disabled("npc-dialogue-grounding"),
             };
 
             match parish_core::npc::ticks::tick_tier3(&ctx).await {

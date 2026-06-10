@@ -126,6 +126,7 @@ pub async fn run_npc_turn(
             transcript,
             config.improv_enabled,
             &ctx.language,
+            !config.flags.is_disabled("npc-dialogue-grounding"),
         )
     }?;
 
