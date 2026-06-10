@@ -81,6 +81,17 @@ pub struct NpcConfig {
     /// (`flags.is_disabled("dialogue-quality-continuity")` → false).
     #[serde(default = "default_dialogue_quality_continuity")]
     pub dialogue_quality_continuity: bool,
+    /// Inject real place-name grounding into the system prompt (#1394).
+    ///
+    /// When `true` (the default), `prepare_npc_conversation_turn` builds a
+    /// sorted list of every location name from the world graph and passes it to
+    /// the system-prompt assembler, which adds an anti-sycophancy instruction
+    /// forbidding the NPC from confirming nonexistent places or people. Set to
+    /// `false` to disable. Controlled at runtime by the
+    /// `npc-dialogue-grounding` feature flag
+    /// (`flags.is_disabled("npc-dialogue-grounding")` → false).
+    #[serde(default = "default_grounding_enabled")]
+    pub grounding_enabled: bool,
 }
 
 impl Default for NpcConfig {
@@ -100,6 +111,7 @@ impl Default for NpcConfig {
             dialogue_display_max_chars: default_dialogue_display_max_chars(),
             dialogue_repetition_threshold: default_dialogue_repetition_threshold(),
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
+            grounding_enabled: default_grounding_enabled(),
         }
     }
 }
@@ -148,6 +160,10 @@ fn default_dialogue_display_max_chars() -> usize {
     800
 }
 fn default_dialogue_quality_continuity() -> bool {
+    true
+}
+
+fn default_grounding_enabled() -> bool {
     true
 }
 
