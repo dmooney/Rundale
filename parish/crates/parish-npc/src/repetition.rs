@@ -136,8 +136,8 @@ pub fn varied_repetition_fallback(seed: u64) -> &'static str {
 /// one reply when they are separated by intervening text —
 /// `collapse_repeated_sentences` only removes *consecutive* duplicates, so
 /// "...Slán abhaile to ye. Safe journey. Slán abhaile" passes through
-/// unchanged. This function strips every occurrence after the first for each
-/// known farewell token.
+/// without modification. This function strips every occurrence after the first
+/// for each known farewell token.
 ///
 /// Matching is case-insensitive.
 pub fn dedup_farewell_tokens(dialogue: &str) -> String {
