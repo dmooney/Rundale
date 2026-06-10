@@ -211,6 +211,24 @@ fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
     }
 }
 
+/// Strips Markdown code-fence wrappers that some models emit around JSON.
+pub(crate) fn strip_json_fence(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix("```json") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    if let Some(inner) = t.strip_prefix("```") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    t
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,22 +321,4 @@ mod tests {
         let resp = parse_npc_stream_response(json);
         assert_eq!(resp.dialogue, "A fine morning to ye.");
     }
-}
-
-/// Strips Markdown code-fence wrappers that some models emit around JSON.
-pub(crate) fn strip_json_fence(raw: &str) -> &str {
-    let t = raw.trim();
-    if let Some(inner) = t.strip_prefix("```json") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    if let Some(inner) = t.strip_prefix("```") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    t
 }

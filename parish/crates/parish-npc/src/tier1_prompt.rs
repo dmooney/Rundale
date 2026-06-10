@@ -149,6 +149,27 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
     prompt
 }
 
+/// Builds the action line for an NPC prompt, using the player's name if the NPC knows it.
+///
+/// This is the name-aware variant of [`build_action_line`]. If `player_name` is provided,
+/// the NPC addresses the player by name. Otherwise falls back to "The newcomer".
+pub fn build_named_action_line(player_input: &str, player_name: Option<&str>) -> String {
+    let label = player_name.unwrap_or("The newcomer");
+
+    if let Some(inner) = player_input
+        .strip_prefix('*')
+        .and_then(|s| s.strip_suffix('*'))
+        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
+    {
+        return format!(
+            "{label} performs an action: {inner}\n\
+            ({label} is emoting rather than speaking. \
+            Respond to their physical action naturally.)"
+        );
+    }
+    format!("{label} says: \"{player_input}\"")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,25 +200,4 @@ mod tests {
             "system prompt must include 2-3 sentence length cap"
         );
     }
-}
-
-/// Builds the action line for an NPC prompt, using the player's name if the NPC knows it.
-///
-/// This is the name-aware variant of [`build_action_line`]. If `player_name` is provided,
-/// the NPC addresses the player by name. Otherwise falls back to "The newcomer".
-pub fn build_named_action_line(player_input: &str, player_name: Option<&str>) -> String {
-    let label = player_name.unwrap_or("The newcomer");
-
-    if let Some(inner) = player_input
-        .strip_prefix('*')
-        .and_then(|s| s.strip_suffix('*'))
-        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
-    {
-        return format!(
-            "{label} performs an action: {inner}\n\
-            ({label} is emoting rather than speaking. \
-            Respond to their physical action naturally.)"
-        );
-    }
-    format!("{label} says: \"{player_input}\"")
 }
