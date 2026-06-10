@@ -357,15 +357,22 @@ describe('createStreamManager — flushAll() snaps in-flight reply to completion
 
 		expect(flushed).toBe(1);
 		const log = get(textLog);
-		const entry = log.find((e) => e.stream_turn_id === 1);
+		// After flush, finalizeStreamingEntry clears stream_turn_id (#1377) so
+		// look up by content instead.
+		const entry = log.find(
+			(e) =>
+				e.content === 'Aye, that I can, and gladly too, for the forge is cold.',
+		);
 		expect(entry).toBeDefined();
 		// Full text is revealed, not just the few pumped chars.
 		expect(entry?.content).toBe(
 			'Aye, that I can, and gladly too, for the forge is cold.',
 		);
-		// Entry is finalized — no longer streaming.
+		// Entry is finalized — no longer streaming. stream_turn_id was cleared by
+		// finalizeStreamingEntry to prevent post-reset stream re-fill (#1377).
 		expect(entry?.streaming).toBe(false);
 		expect(entry?.latest_chunk).toBeUndefined();
+		expect(entry?.stream_turn_id).toBeUndefined();
 		// Pump timers cancelled, pool drained, streaming cleared.
 		expect(t1.pumpHandle).toBeNull();
 		expect(sm.pendingTurnCount()).toBe(0);
@@ -387,13 +394,13 @@ describe('createStreamManager — flushAll() snaps in-flight reply to completion
 
 		sm.flushAll();
 
+		// After flush, finalizeStreamingEntry clears stream_turn_id (#1377) so
+		// look up by content instead.
 		const log = get(textLog);
-		expect(log.find((e) => e.stream_turn_id === 1)?.content).toBe(
-			'First reply in full.',
-		);
-		expect(log.find((e) => e.stream_turn_id === 2)?.content).toBe(
-			'Second reply in full.',
-		);
+		expect(log.find((e) => e.content === 'First reply in full.')).toBeDefined();
+		expect(
+			log.find((e) => e.content === 'Second reply in full.'),
+		).toBeDefined();
 		expect(sm.pendingTurnCount()).toBe(0);
 		expect(get(streamingActive)).toBe(false);
 	});
@@ -437,6 +444,81 @@ describe('createStreamManager — flushAll() snaps in-flight reply to completion
 		expect(get(streamingActive)).toBe(false);
 		expect(sm.isChainInProgress()).toBe(false);
 		expect(sm.pendingTurnCount()).toBe(0);
+	});
+});
+
+describe('reset() clears stream_turn_id from finalized entries (#1377)', () => {
+	// C4: After reset() finalizes a streaming textLog entry, its stream_turn_id
+	// must be undefined so post-reset resumed streams cannot match it.
+	it('clears stream_turn_id on finalized entries after reset', async () => {
+		vi.useFakeTimers();
+		const sm = createStreamManager();
+
+		// Simulate an in-progress stream: queue a turn, add some content.
+		const turn = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		sm.ensureTurnEntry(turn);
+		// Directly update the textLog to simulate a partially-streamed entry.
+		textLog.update((log) =>
+			log.map((e) =>
+				e.stream_turn_id === 42
+					? { ...e, content: 'Mornin', streaming: true, stream_chunk_id: 1 }
+					: e,
+			),
+		);
+
+		// Reset orphans the in-progress stream (e.g. WS reconnect).
+		sm.reset();
+
+		const entries = get(textLog);
+		const orphan = entries.find((e) => e.content === 'Mornin');
+		expect(orphan).toBeDefined();
+		// C4: stream_turn_id must be cleared after reset.
+		expect(orphan?.stream_turn_id).toBeUndefined();
+		// streaming flag must also be cleared.
+		expect(orphan?.streaming).toBeFalsy();
+
+		vi.useRealTimers();
+	});
+
+	// C5: appendStreamToken after reset for a now-finalized turn_id must NOT
+	// find and re-fill the old finalized entry; it must create a fresh one.
+	it('post-reset appendStreamToken does not re-fill the old finalized entry', async () => {
+		vi.useFakeTimers();
+		const sm = createStreamManager();
+
+		// Partially-stream turn 42, then reset.
+		const turn = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		sm.ensureTurnEntry(turn);
+		textLog.update((log) =>
+			log.map((e) =>
+				e.stream_turn_id === 42
+					? { ...e, content: 'Mornin', streaming: true, stream_chunk_id: 1 }
+					: e,
+			),
+		);
+		sm.reset();
+
+		// Simulate backend resuming the stream after reconnect.
+		const resumed = sm.queuePendingTurn(42, 'Seamus', 'msg-42');
+		resumed.buffer += ' lad';
+		resumed.complete = true;
+		sm.startTurnPumpIfNeeded(resumed);
+
+		// Drain the pump.
+		await vi.waitFor(() => sm.pendingTurnCount() === 0);
+		vi.runAllTimers();
+		await vi.waitFor(() => sm.pendingTurnCount() === 0);
+
+		const entries = get(textLog);
+		// The old finalized entry ('Mornin') must still have its content intact
+		// and stream_turn_id undefined — it was not re-filled.
+		const old = entries.find((e) => e.content === 'Mornin');
+		expect(old?.stream_turn_id).toBeUndefined();
+		// C5: A fresh entry was created for the resumed turn, not the old one.
+		// (The resumed content ' lad' should not appear appended to 'Mornin'.)
+		expect(old?.content).toBe('Mornin');
+
+		vi.useRealTimers();
 	});
 });
 

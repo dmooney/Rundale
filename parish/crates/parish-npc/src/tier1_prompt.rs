@@ -119,7 +119,8 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         Put the \"dialogue\" field FIRST. The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions.\n\
         \n\
-        LENGTH: 2-4 sentences. Be conversational, not a monologue.\n\
+        LENGTH: 2-3 sentences maximum. Be conversational, not a monologue. \
+        Ask AT MOST ONE question per reply — never stack multiple questions.\n\
         \n\
         JSON fields:\n\
         - \"dialogue\": your spoken words (this is shown to the player)\n\
@@ -167,4 +168,36 @@ pub fn build_named_action_line(player_input: &str, player_name: Option<&str>) ->
         );
     }
     format!("{label} says: \"{player_input}\"")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::make_named_npc;
+
+    #[test]
+    fn system_prompt_contains_single_question_cap() {
+        // AC-3 (fix #1374): the system prompt must constrain the model to at
+        // most one question per reply so stacked-question monologues are prevented.
+        let npc = make_named_npc(1, "Padraig", 1);
+        let lang = crate::LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        assert!(
+            prompt.contains("AT MOST ONE question")
+                || prompt.contains("at most one question")
+                || prompt.contains("single question"),
+            "system prompt must include single-question cap: missing in:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn system_prompt_contains_length_constraint() {
+        let npc = make_named_npc(1, "Padraig", 1);
+        let lang = crate::LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        assert!(
+            prompt.contains("2-3 sentences") || prompt.contains("2–3 sentences"),
+            "system prompt must include 2-3 sentence length cap"
+        );
+    }
 }
