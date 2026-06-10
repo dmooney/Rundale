@@ -18,6 +18,7 @@ pub mod dashboard;
 pub mod error;
 pub mod frame;
 pub mod git;
+pub mod ingest;
 pub mod issue;
 pub mod persist;
 pub mod queue;

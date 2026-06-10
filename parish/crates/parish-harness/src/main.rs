@@ -43,6 +43,21 @@ enum Command {
     Worker(WorkerArgs),
     /// A/B compare two runs.
     Compare(CompareArgs),
+    /// Ingest an externally-produced run (e.g. a quality-harness skill run).
+    Ingest(IngestArgs),
+}
+
+#[derive(clap::Args)]
+struct IngestArgs {
+    /// Path to the ingest payload JSON (a complete skill-run record).
+    #[arg(long)]
+    payload: PathBuf,
+    /// Artifact root holding `runs/<uuid>/turns/NNN/frame.png`.
+    #[arg(long)]
+    artifacts: PathBuf,
+    /// Path to the harness DB (defaults to the user-data root).
+    #[arg(long)]
+    db: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -212,7 +227,16 @@ async fn run() -> Result<()> {
         Command::Queue(args) => run_queue(args).await,
         Command::Worker(args) => run_worker(args).await,
         Command::Compare(args) => run_compare(args).await,
+        Command::Ingest(args) => run_ingest(args),
     }
+}
+
+fn run_ingest(args: IngestArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let db = Db::open(&db_path)?;
+    let run_id = parish_harness::ingest::load_and_ingest(&db, &args.payload, &args.artifacts)?;
+    println!("ingested run {run_id}");
+    Ok(())
 }
 
 async fn run_serve(args: ServeArgs) -> Result<()> {
