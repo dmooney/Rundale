@@ -47,12 +47,17 @@ test.describe('Parish Web UI', () => {
 		await input.fill('look');
 		await input.press('Enter');
 
-		// Chat panel should update with player input echo and system response.
+		// Since #1351, a bare `look` is routed as a game action, NOT echoed as
+		// a player speech bubble. The chat panel should receive a new system
+		// message (the location description) rather than a `> look` speech line.
+		// We wait for at least 2 system entries: the initial location description
+		// that appears on page load, plus the one emitted by the look command.
 		// Timeout is 30 s, not 5 s, because the chat panel only updates after
 		// the backend's first round-trip — which on a cold-start CI runner
 		// can exceed 5 s when the inference worker hasn't warmed up (#1086).
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText('look', { timeout: 30_000 });
+		const systemEntries = chatPanel.locator('.entry.system');
+		await expect(systemEntries).toHaveCount(2, { timeout: 30_000 });
 	});
 
 	test('player can move to a location', async ({ page }) => {
