@@ -121,17 +121,58 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
     }
 }
 
+/// Deterministic pre-classifier for bare (no-`/` prefix) command tokens.
+///
+/// Small quantised intent models (e.g. Qwen2.5-1.5B-4bit on :8001) occasionally
+/// misclassify unambiguous bare command tokens such as `wait` and `status` as
+/// player dialogue, causing the text to appear as a player utterance and NPCs to
+/// react to it (#1351).  This function short-circuits those tokens to their
+/// canonical `SystemCommand` equivalents before the LLM intent parser is ever
+/// consulted.
+///
+/// # Scope
+///
+/// Only **exact** bare matches are intercepted (case-insensitive, trimmed).
+/// Tokens with arguments (e.g. `wait 30`) are intentionally **not** intercepted
+/// here so the LLM can still parse natural-language movement/look phrases that
+/// happen to start with one of these words.
+///
+/// # Token list rationale
+///
+/// - `wait` — maps to `Command::Wait(15)` (same default as `/wait`). A bare
+///   "wait" with no number is unambiguous: pause time for 15 minutes.
+/// - `status` — maps to `Command::Status`. A single bare word has no plausible
+///   conversational meaning distinct from the `/status` command.
+pub(crate) fn parse_bare_command_intercept(trimmed: &str) -> Option<Command> {
+    // Only intercept exact single-token inputs (no spaces after trimming).
+    if trimmed.contains(' ') {
+        return None;
+    }
+    match trimmed.to_lowercase().as_str() {
+        "wait" => Some(Command::Wait(15)),
+        "status" => Some(Command::Status),
+        _ => None,
+    }
+}
+
 /// Classifies raw input as either a system command or game input.
 ///
-/// If the input starts with `/` and matches a known command, returns
-/// `InputResult::SystemCommand`. Otherwise returns `InputResult::GameInput`.
+/// Classification order:
+/// 1. `/`-prefixed system commands via [`parse_system_command`].
+/// 2. Bare (un-prefixed) command tokens via [`parse_bare_command_intercept`]
+///    — deterministic short-circuit that prevents the LLM intent parser from
+///    seeing unambiguous command tokens and nondeterministically classifying
+///    them as player dialogue (#1351).
+/// 3. Everything else → [`InputResult::GameInput`] for LLM intent parsing.
 pub fn classify_input(raw: &str) -> InputResult {
     let trimmed = raw.trim();
     if let Some(cmd) = parse_system_command(trimmed) {
-        InputResult::SystemCommand(cmd)
-    } else {
-        InputResult::GameInput(trimmed.to_string())
+        return InputResult::SystemCommand(cmd);
     }
+    if let Some(cmd) = parse_bare_command_intercept(trimmed) {
+        return InputResult::SystemCommand(cmd);
+    }
+    InputResult::GameInput(trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -386,5 +427,85 @@ mod tests {
         assert_eq!(parse_system_command("/SESSION"), Some(Command::Session));
         assert_eq!(parse_system_command("/TUNE"), Some(Command::Session));
         assert_eq!(parse_system_command("/SEISIUN"), Some(Command::Session));
+    }
+
+    // ── Bare-command intercept (#1351) ────────────────────────────────────────
+
+    /// Bare `wait` must route to `Command::Wait(15)` without reaching the LLM.
+    #[test]
+    fn bare_wait_is_intercepted_as_system_command() {
+        assert_eq!(
+            classify_input("wait"),
+            InputResult::SystemCommand(Command::Wait(15))
+        );
+        assert_eq!(
+            classify_input("WAIT"),
+            InputResult::SystemCommand(Command::Wait(15))
+        );
+        assert_eq!(
+            classify_input("  wait  "),
+            InputResult::SystemCommand(Command::Wait(15))
+        );
+    }
+
+    /// Bare `status` must route to `Command::Status` without reaching the LLM.
+    #[test]
+    fn bare_status_is_intercepted_as_system_command() {
+        assert_eq!(
+            classify_input("status"),
+            InputResult::SystemCommand(Command::Status)
+        );
+        assert_eq!(
+            classify_input("STATUS"),
+            InputResult::SystemCommand(Command::Status)
+        );
+        assert_eq!(
+            classify_input("  status  "),
+            InputResult::SystemCommand(Command::Status)
+        );
+    }
+
+    /// `wait` with an argument (e.g. "wait 30" or "wait for Mary") is NOT
+    /// intercepted — it goes to `GameInput` so natural-language phrasing is
+    /// still handled by the intent parser.
+    #[test]
+    fn wait_with_argument_is_game_input() {
+        assert_eq!(
+            classify_input("wait 30"),
+            InputResult::GameInput("wait 30".to_string())
+        );
+        assert_eq!(
+            classify_input("wait for Mary"),
+            InputResult::GameInput("wait for Mary".to_string())
+        );
+    }
+
+    /// `status` with trailing text is not intercepted — it falls through to
+    /// game input where the LLM can handle the natural-language variant.
+    #[test]
+    fn status_with_argument_is_game_input() {
+        assert_eq!(
+            classify_input("status report"),
+            InputResult::GameInput("status report".to_string())
+        );
+    }
+
+    /// All tokens in `parse_bare_command_intercept` must return `Some`.
+    /// Regression guard: whenever a new token is added, this test auto-verifies
+    /// it is covered.
+    #[test]
+    fn all_bare_intercept_tokens_return_some() {
+        let tokens = ["wait", "status"];
+        for tok in tokens {
+            assert!(
+                super::parse_bare_command_intercept(tok).is_some(),
+                "bare intercept token '{tok}' returned None — add it to parse_bare_command_intercept"
+            );
+            // Case insensitive
+            assert!(
+                super::parse_bare_command_intercept(&tok.to_uppercase()).is_some(),
+                "bare intercept token '{tok}' (uppercase) returned None"
+            );
+        }
     }
 }

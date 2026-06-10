@@ -16,7 +16,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
-use parish_core::input::{InputResult, classify_input};
+use parish_core::input::{InputResult, classify_input, is_player_dialogue};
 use parish_core::ipc::{LoadingPayload, text_log};
 
 use crate::state::AppState;
@@ -69,23 +69,33 @@ pub async fn submit_input(
             handle_system_command(cmd, &state).await;
         }
         InputResult::GameInput(raw) => {
-            // Emit the player's own text as a dialogue bubble only for actual dialogue
-            let player_msg = text_log("player", format!("> {}", raw));
-            let player_msg_id = player_msg.id.clone();
-            state
-                .event_bus
-                .emit_named(Topic::TextLog, "text-log", &player_msg);
-            let raw_for_reactions = raw.clone();
+            // #1351 — only surface a player speech bubble + NPC reactions for
+            // genuine dialogue. Deterministic non-dialogue actions (a bare
+            // `look`, `look around`, movement phrases) must not render as player
+            // speech or provoke NPC reactions. `handle_game_input` still runs so
+            // the look/move action itself executes.
+            let dispatch = if is_player_dialogue(&raw) {
+                let player_msg = text_log("player", format!("> {}", raw));
+                let player_msg_id = player_msg.id.clone();
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &player_msg);
+                Some((player_msg_id, raw.clone()))
+            } else {
+                None
+            };
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
             handle_game_input(raw, body.addressed_to, &state).await;
             // Generate NPC reactions to the player's message in the background.
-            emit_npc_reactions(
-                &player_msg_id,
-                &raw_for_reactions,
-                reaction_location,
-                &state,
-            );
+            if let Some((player_msg_id, raw_for_reactions)) = dispatch {
+                emit_npc_reactions(
+                    &player_msg_id,
+                    &raw_for_reactions,
+                    reaction_location,
+                    &state,
+                );
+            }
         }
     }
 
