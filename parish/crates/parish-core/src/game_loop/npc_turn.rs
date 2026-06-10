@@ -51,6 +51,15 @@ use crate::npc::parse_npc_stream_response;
 /// returns `false` for an unset flag, which matches the desired "opt in" shape.
 pub const AUTONOMOUS_NPC_CHAIN_FLAG: &str = "autonomous-npc-chain";
 
+/// Feature-flag name (default **on**) that serializes player-initiated NPC
+/// conversation turns against an already-in-flight stream (#1379). When a turn
+/// arrives while `conversation_in_progress` is `true`, the new turn is rejected
+/// rather than spawning a second, interleaving NPC stream. This is a
+/// kill-switch: it is enforced unless explicitly disabled
+/// (`flags.is_disabled(SERIALIZE_TURN_STREAM_FLAG)`), so disabling it restores
+/// the legacy interleaving behavior for debugging.
+pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
@@ -464,6 +473,40 @@ pub async fn handle_npc_conversation(
 ) {
     let trimmed = raw.trim().to_string();
 
+    // #1379 — serialize player turns against in-flight NPC streaming.
+    //
+    // `conversation_in_progress` is owned by the turn currently streaming. If a
+    // second player turn arrives before the first chain emits its terminal
+    // `stream-end`, spawning another NPC stream here would interleave the two
+    // replies (the long-stream overlap of #1374, the duplicate bubble of
+    // #1377). Reject the late turn instead so only one NPC stream is ever live.
+    //
+    // This is the cross-runtime enforcement point (rule #2/#12): every entry
+    // point (Tauri, server, CLI) reaches NPC dialogue through this shared
+    // function, so the guard holds for all of them — the frontend
+    // `streamingActive` gate is now a UX convenience, not the sole safeguard.
+    //
+    // Kill-switch flag (default on): `flags.is_disabled(...)` restores the
+    // legacy interleaving behavior when explicitly disabled (rule #6).
+    //
+    // When enabled we atomically claim the conversation here via
+    // `try_begin_turn` (check-and-set under one lock acquisition), so two
+    // concurrent turns can never both pass the guard. The claim is released by
+    // `end_turn()` on every early-return path below that bails *before*
+    // streaming starts, and by the normal terminal block once the chain ends.
+    let serialize_turns = !ctx
+        .config
+        .lock()
+        .await
+        .flags
+        .is_disabled(SERIALIZE_TURN_STREAM_FLAG);
+    if serialize_turns && !ctx.conversation.lock().await.try_begin_turn() {
+        tracing::debug!(
+            "dropping player turn: an NPC conversation is already streaming (#1379 turn serialization)"
+        );
+        return;
+    }
+
     let (
         npc_present,
         player_location,
@@ -506,7 +549,17 @@ pub async fn handle_npc_conversation(
         )
     };
 
+    // Releases the turn claim taken above when bailing out before any NPC
+    // stream begins, so a non-dialogue / no-target outcome doesn't wedge the
+    // conversation as permanently "in progress" (#1379).
+    let release_claim = || async {
+        if serialize_turns {
+            ctx.conversation.lock().await.end_turn();
+        }
+    };
+
     if !npc_present {
+        release_claim().await;
         let msg = if ctx.idle_messages.is_empty() {
             let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
             IDLE_MESSAGES[idx].to_string()
@@ -522,6 +575,7 @@ pub async fn handle_npc_conversation(
     }
 
     if trimmed.is_empty() {
+        release_claim().await;
         ctx.emitter.emit_event(
             "text-log",
             serde_json::to_value(text_log(
@@ -562,6 +616,7 @@ pub async fn handle_npc_conversation(
     }
 
     if targets.is_empty() {
+        release_claim().await;
         // Either the input had no named targets and the location is empty
         // (handled above by `npc_present`), or every named target was absent
         // (already reported via the loop above). Nothing more to say.
@@ -579,6 +634,7 @@ pub async fn handle_npc_conversation(
     }
 
     let Some(queue) = queue else {
+        release_claim().await;
         ctx.emitter.emit_event(
             "text-log",
             serde_json::to_value(text_log(
@@ -1298,5 +1354,162 @@ pub mod tests {
             conversation.last_spoken_at > last_spoken_before,
             "disabled path must still bump last_spoken_at so inactivity ticks back off"
         );
+    }
+
+    // ── #1379 turn-stream serialization guard ────────────────────────────────
+
+    /// AC1/AC2: when a conversation is already streaming
+    /// (`conversation_in_progress == true`), a newly arriving dialogue turn is
+    /// rejected before any work — no events, and the in-flight claim is left
+    /// untouched (still owned by the first turn).
+    #[tokio::test]
+    async fn rejects_turn_while_stream_in_flight() {
+        use crate::npc::Npc;
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = player_loc;
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        // Pre-mark a turn as already in flight (the first stream owns the claim).
+        let mut conv = ConversationRuntimeState::new();
+        conv.conversation_in_progress = true;
+        let conversation = tokio::sync::Mutex::new(conv);
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;
+
+        assert!(
+            emitter.event_names().is_empty(),
+            "a turn arriving mid-stream must emit nothing (no second NPC stream, no stream-end); got {:?}",
+            emitter.event_names()
+        );
+        assert!(
+            ctx.conversation.lock().await.conversation_in_progress,
+            "the first turn's in-flight claim must stay owned — the late turn must not clear it"
+        );
+    }
+
+    /// AC3: with the kill-switch flag explicitly disabled, the guard is bypassed
+    /// and the late turn proceeds (here it reaches the no-LLM branch, proving it
+    /// was NOT short-circuited by the serialization guard).
+    #[tokio::test]
+    async fn disabled_flag_restores_interleaving() {
+        use crate::npc::Npc;
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = player_loc;
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let mut cfg = GameConfig::default();
+        cfg.flags.disable(super::SERIALIZE_TURN_STREAM_FLAG);
+        let config = tokio::sync::Mutex::new(cfg);
+        let mut conv = ConversationRuntimeState::new();
+        conv.conversation_in_progress = true; // a stream is "in flight"
+        let conversation = tokio::sync::Mutex::new(conv);
+        let inference_queue = tokio::sync::Mutex::new(None); // No LLM
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;
+
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            events.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.contains("LLM is not configured"))
+            }),
+            "with the guard disabled the turn must proceed past serialization (reaches no-LLM branch)"
+        );
+    }
+
+    /// AC1 release: a turn that bails out before streaming (here: no NPC
+    /// present) must release the claim it took, so the conversation is not
+    /// wedged permanently "in progress".
+    #[tokio::test]
+    async fn guard_claim_released_when_no_npc_present() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;
+
+        assert!(
+            !ctx.conversation.lock().await.conversation_in_progress,
+            "a no-target turn must release the serialization claim it took"
+        );
+    }
+
+    /// AC1 atomicity: two concurrent turns racing on an idle conversation —
+    /// only one may claim it via `try_begin_turn`.
+    #[test]
+    fn try_begin_turn_is_exclusive() {
+        let mut conv = ConversationRuntimeState::new();
+        assert!(conv.try_begin_turn(), "first claim wins");
+        assert!(
+            !conv.try_begin_turn(),
+            "second claim while in flight must be refused"
+        );
+        conv.end_turn();
+        assert!(conv.try_begin_turn(), "after release, a new turn may claim");
     }
 }

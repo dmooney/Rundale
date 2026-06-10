@@ -29,6 +29,7 @@ import {
 	trimTextLog,
 	pushErrorLog,
 	formatIpcError,
+	flushStream,
 } from '../stores/game';
 import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
@@ -221,6 +222,9 @@ export async function createPageController(): Promise<() => void> {
 	}
 
 	const sm = createStreamManager();
+	// Expose the flush so the input field can snap an in-flight reply fully into
+	// view on the player's first keystroke before the next turn lands (#1379).
+	flushStream.set(() => sm.flushAll());
 
 	const listeners: Array<() => void> = [];
 	try {
@@ -500,6 +504,7 @@ export async function createPageController(): Promise<() => void> {
 		window.removeEventListener('blur', onWindowBlur);
 		document.removeEventListener('visibilitychange', handleVisibilityChange);
 		tracker.dispose();
+		flushStream.set(() => 0);
 		sm.dispose();
 		listeners.forEach((fn) => fn());
 	};

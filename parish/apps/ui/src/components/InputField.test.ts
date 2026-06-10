@@ -7,6 +7,7 @@ import {
 	mapData,
 	textLog,
 	worldState,
+	flushStream,
 } from '../stores/game';
 import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
@@ -72,6 +73,8 @@ function typeIntoEditor(editor: HTMLElement, text: string) {
 describe('InputField', () => {
 	beforeEach(() => {
 		streamingActive.set(false);
+		flushStream.set(() => 0);
+		mockSubmitInput.mockClear();
 		npcsHere.set([]);
 		mapData.set(null);
 		textLog.set([]);
@@ -96,11 +99,53 @@ describe('InputField', () => {
 		);
 	});
 
-	it('is not editable when streaming', () => {
+	// #1379: the field is now ALWAYS editable. While a reply streams it stays
+	// editable so the player's first keystroke can flush the in-flight stream to
+	// completion (instead of hard-blocking the input). The dimmed "streaming"
+	// state is signalled via a class + placeholder, not by disabling the field.
+	it('stays editable while streaming so the first keystroke can flush', () => {
 		streamingActive.set(true);
 		const { getByRole } = render(InputField);
 		const editor = getByRole('combobox');
-		expect(editor.getAttribute('contenteditable')).toBe('false');
+		expect(editor.getAttribute('contenteditable')).toBe('true');
+		expect(editor.classList.contains('streaming')).toBe(true);
+		expect(editor.dataset.placeholder).toBe('Type to skip ahead…');
+	});
+
+	it('flushes the in-flight stream on the first keystroke (#1379)', async () => {
+		streamingActive.set(true);
+		let flushCalls = 0;
+		flushStream.set(() => {
+			flushCalls += 1;
+			streamingActive.set(false); // a real flushAll clears this
+			return 1;
+		});
+		const { getByRole } = render(InputField);
+		const editor = getByRole('combobox');
+
+		// Player types a character while the reply is still streaming.
+		await fireEvent.keyDown(editor, { key: 'a' });
+
+		expect(flushCalls).toBe(1);
+		expect(get(streamingActive)).toBe(false);
+	});
+
+	it('Enter while streaming only flushes, never submits an empty turn (#1379)', async () => {
+		streamingActive.set(true);
+		let flushCalls = 0;
+		flushStream.set(() => {
+			flushCalls += 1;
+			streamingActive.set(false);
+			return 1;
+		});
+		const { getByRole } = render(InputField);
+		const editor = getByRole('combobox');
+
+		await fireEvent.keyDown(editor, { key: 'Enter' });
+
+		expect(flushCalls).toBe(1);
+		// Nothing was submitted (the field was empty); submitInput must not fire.
+		expect(mockSubmitInput).not.toHaveBeenCalled();
 	});
 
 	it('clears editor after submit', async () => {
