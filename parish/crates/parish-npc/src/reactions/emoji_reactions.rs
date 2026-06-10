@@ -171,7 +171,103 @@ fn generate_rule_reaction_deterministic(player_input: &str) -> Option<String> {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct LlmReactionDecision {
     /// Emoji from [`REACTION_PALETTE`], or `None` for no visible reaction.
+    #[serde(default)]
     pub emoji: Option<String>,
+}
+
+/// Strips Markdown JSON code fences (`` ```json `` or `` ``` ``) and trims whitespace.
+fn strip_code_fence(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix("```json") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    if let Some(inner) = t.strip_prefix("```") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    t
+}
+
+/// Extracts the first complete `{...}` JSON object substring from `s`.
+///
+/// Used to tolerate trailing text after the closing brace — a common
+/// Qwen2.5-1.5B deviation from the expected schema.
+fn extract_first_json_object(s: &str) -> Option<&str> {
+    let start = s.find('{')?;
+    let mut depth: usize = 0;
+    for (i, ch) in s[start..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&s[start..start + i + 1]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Lenient parser for raw LLM output from the reaction model.
+///
+/// Handles two characteristic Qwen2.5-1.5B failure modes:
+/// 1. `{"emoji": {"value": "😊"}}` — nested map where a bare string is expected.
+/// 2. `{"emoji": "😊"} some extra text` — trailing characters after the JSON object.
+///
+/// Falls back to treating the entire cleaned string as a bare emoji when no
+/// JSON object is found at all. Returns `None` only when nothing can be
+/// extracted.
+pub fn parse_reaction_decision(raw: &str) -> Option<LlmReactionDecision> {
+    let cleaned = strip_code_fence(raw);
+
+    // Try to find and parse the first `{...}` block (handles trailing chars).
+    let json_str = extract_first_json_object(cleaned).unwrap_or(cleaned);
+
+    match serde_json::from_str::<LlmReactionDecision>(json_str) {
+        Ok(decision) => return Some(decision),
+        Err(e) => {
+            let msg = e.to_string();
+            // Qwen2.5-1.5B sometimes nests the emoji as a map, e.g.
+            // {"emoji": {"value": "😊"}} or {"emoji": {"emoji": "😊"}}.
+            // Extract any string value from that nested object.
+            if msg.contains("invalid type: map")
+                && let Ok(outer) = serde_json::from_str::<serde_json::Value>(json_str)
+                && let Some(inner_obj) = outer.get("emoji").and_then(|v| v.as_object())
+            {
+                for v in inner_obj.values() {
+                    if let Some(s) = v.as_str() {
+                        return Some(LlmReactionDecision {
+                            emoji: Some(s.to_string()),
+                        });
+                    }
+                }
+            }
+            // Anything else (or extraction failed): fall through.
+            tracing::debug!(error = %e, raw = raw, "reaction decision parse failed; trying bare-string fallback");
+        }
+    }
+
+    // Last resort: treat the whole cleaned output as a bare emoji string.
+    // This catches models that return just the emoji character without any JSON.
+    // Only fire when the output contains no ASCII letters/digits (to avoid treating
+    // verbose prose or error messages as emoji).
+    let bare = cleaned.trim();
+    let looks_like_emoji =
+        !bare.is_empty() && !bare.contains('{') && !bare.chars().any(|c| c.is_ascii_alphanumeric());
+    if looks_like_emoji {
+        return Some(LlmReactionDecision {
+            emoji: Some(bare.to_string()),
+        });
+    }
+
+    None
 }
 
 /// Builds the system and user prompts used to infer an NPC emoji reaction to
@@ -259,7 +355,7 @@ pub async fn infer_player_message_reaction(
     // so a 1.5B-class model picks across the full palette rather than always
     // returning 🤔 / 😊. The output schema is constrained to one of the
     // palette entries, so the higher temperature does not break correctness.
-    let call = client.generate_json::<LlmReactionDecision>(
+    let call = client.generate(
         model,
         &prompt,
         Some(&system),
@@ -270,17 +366,25 @@ pub async fn infer_player_message_reaction(
         },
     );
 
-    let response = match tokio::time::timeout(timeout, call).await {
+    let raw = match tokio::time::timeout(timeout, call).await {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => {
-            tracing::error!(error = ?e, "inference call failed in infer_player_message_reaction");
+            tracing::debug!(error = ?e, "inference call failed in infer_player_message_reaction");
             return None;
         }
         Err(_) => {
-            tracing::warn!(
+            tracing::debug!(
                 "inference call timed out after {:?} in infer_player_message_reaction",
                 timeout
             );
+            return None;
+        }
+    };
+
+    let response = match parse_reaction_decision(&raw) {
+        Some(d) => d,
+        None => {
+            tracing::debug!(raw = %raw, "could not extract reaction decision from model output");
             return None;
         }
     };
@@ -498,5 +602,76 @@ mod tests {
         assert!(generate_rule_reaction_deterministic("rent and landlord").is_some());
         assert!(generate_rule_reaction_deterministic("strange ghost").is_some());
         assert!(generate_rule_reaction_deterministic("Just walking by here").is_none());
+    }
+
+    // ── parse_reaction_decision unit tests ──────────────────────────────────
+
+    /// Happy path: well-formed JSON with a string emoji value.
+    #[test]
+    fn parse_reaction_decision_happy_path() {
+        let result = parse_reaction_decision(r#"{"emoji": "😊"}"#);
+        let d = result.expect("should parse happy-path JSON");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
+    }
+
+    /// Qwen2.5-1.5B failure mode 1: emoji is a nested JSON map instead of a
+    /// bare string — `{"emoji": {"value": "😊"}}`.
+    /// Must parse without error and extract the emoji string from the map.
+    #[test]
+    fn parse_reaction_decision_map_where_string_expected() {
+        let result = parse_reaction_decision(r#"{"emoji": {"value": "😊"}}"#);
+        let d = result.expect("should recover emoji from nested map");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
+    }
+
+    /// Qwen2.5-1.5B failure mode 1 (alternate key): nested map uses a
+    /// different key name — `{"emoji": {"emoji": "😊"}}`.
+    #[test]
+    fn parse_reaction_decision_map_alternate_key() {
+        let result = parse_reaction_decision(r#"{"emoji": {"emoji": "😊"}}"#);
+        let d = result.expect("should recover emoji from nested map with alternate key");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
+    }
+
+    /// Qwen2.5-1.5B failure mode 2: trailing text after the closing brace.
+    /// Must extract the first `{...}` block and parse it successfully.
+    #[test]
+    fn parse_reaction_decision_trailing_characters() {
+        let result = parse_reaction_decision(r#"{"emoji": "😊"} some extra text"#);
+        let d = result.expect("should parse despite trailing characters");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
+    }
+
+    /// Bare emoji string fallback: no JSON object present at all.
+    /// Must return a decision with the emoji set to the raw string.
+    #[test]
+    fn parse_reaction_decision_bare_emoji_string() {
+        let result = parse_reaction_decision("😊");
+        let d = result.expect("should treat bare string as emoji fallback");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
+    }
+
+    /// Total garbage: neither parseable JSON nor a bare emoji.
+    /// Must return `None` without panicking.
+    #[test]
+    fn parse_reaction_decision_garbage_returns_none() {
+        assert!(parse_reaction_decision("not json at all and not an emoji").is_none());
+    }
+
+    /// Explicit null in well-formed JSON → `emoji` is `None`.
+    #[test]
+    fn parse_reaction_decision_explicit_null() {
+        let result = parse_reaction_decision(r#"{"emoji": null}"#);
+        let d = result.expect("should parse null decision");
+        assert!(d.emoji.is_none());
+    }
+
+    /// Code-fence-wrapped JSON is handled.
+    #[test]
+    fn parse_reaction_decision_code_fence() {
+        let raw = "```json\n{\"emoji\": \"😊\"}\n```";
+        let result = parse_reaction_decision(raw);
+        let d = result.expect("should strip code fence and parse");
+        assert_eq!(d.emoji.as_deref(), Some("😊"));
     }
 }
