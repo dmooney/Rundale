@@ -1,0 +1,233 @@
+{
+  "protocolVersion": "2025-06-18",
+  "serverInfo": {
+    "name": "parish-mcp"
+  },
+  "tools": [
+    {
+      "description": "Generic escape hatch — invoke any backend command by name with a JSON args object. Useful for endpoints that do not yet have a dedicated tool.",
+      "inputSchema": {
+        "properties": {
+          "args": {
+            "description": "Arguments object forwarded as-is. Omit or null for GET-style calls."
+          },
+          "command": {
+            "description": "Tauri-style command name (e.g. get_world_snapshot).",
+            "type": "string"
+          }
+        },
+        "required": ["command"],
+        "type": "object"
+      },
+      "name": "tauri_invoke"
+    },
+    {
+      "description": "Reads the current world snapshot (clock, player location, weather, recent log entries).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_world_snapshot"
+    },
+    {
+      "description": "Reads the location graph plus the player's current position.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_map"
+    },
+    {
+      "description": "Lists the NPCs co-located with the player at this moment.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_npcs_here"
+    },
+    {
+      "description": "Reads the canonical, deterministic Parish engine state — the authoritative snapshot a QA agent asserts the UI against after each interaction. Returns `active_scene` (player location id + name + indoor), `clock` (game time, day-of-week, day-type, season, festival, paused), `weather`, `player` (location id, visited count, name), `npcs` (co-located NPCs + roster totals), and `grapevine` (gossip-network item count + distortion). Read-only and deterministic: identical engine state yields an identical snapshot. Pair with `parish_world_snapshot` / `parish_npcs_here` to detect UI-vs-engine drift, and attach the result to `parish_file_bug` when a mismatch is found.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_engine_state"
+    },
+    {
+      "description": "Reads metadata about the active save file and current branch.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_save_state"
+    },
+    {
+      "description": "Slim per-turn state read — returns the last few conversation exchanges (NPC dialogue), recent world events (NPC arrivals/departures, weather changes, gossip, mood shifts), current clock, location, and NPC count at the player's location. Bounded to at most 10 exchanges + 20 events; suitable for polling after every turn without blowing the context window. Use after `parish_submit_input` to check for world changes that occurred during the turn (tier-2 NPC interactions, schedule ticks, etc.). The `event_cursor` field in the response is a monotonic counter; pass it as `since` on the next call to receive only new events.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "since": {
+            "description": "Monotonic event cursor from the previous parish_turn response. Omit (or 0) to return all recent events.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "parish_turn"
+    },
+    {
+      "description": "Sends a line of player input (movement, action, or dialogue) to the running game and returns the compact turn result in a single call — no second read needed. The response includes `exchanges` (new NPC dialogue produced this turn), `clock` ({hour, minute, time_label}), `location` (current location name), and `npcs_here` (NPC count at the player's location). `exchanges` is empty when the turn produced no NPC reply (movement, look, system command). Optionally restrict dialogue recipients via `addressed_to`.",
+      "inputSchema": {
+        "properties": {
+          "addressed_to": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["text"],
+        "type": "object"
+      },
+      "name": "parish_submit_input"
+    },
+    {
+      "description": "Starts a fresh game on a new save branch, discarding any unsaved state.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_new_game"
+    },
+    {
+      "description": "Saves the current branch to the active save file. Returns a status message.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_save_game"
+    },
+    {
+      "description": "Loads the named branch (by integer id) from the active save file.",
+      "inputSchema": {
+        "properties": {
+          "branch_id": {
+            "type": "integer"
+          }
+        },
+        "required": ["branch_id"],
+        "type": "object"
+      },
+      "name": "parish_load_branch"
+    },
+    {
+      "description": "Captures the current game view as a PNG screenshot and returns its path, ISO-8601 taken_at timestamp, and size in bytes. Requires the live desktop window — returns an error when running in headless / web-server mode or when the desktop window does not respond within 15 seconds. Use `parish_latest_screenshot` if you only need to read a previously captured image.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_take_screenshot"
+    },
+    {
+      "description": "Reads metadata for the most recently captured screenshot (path, ISO-8601 taken_at, size_bytes). Returns null when no screenshot exists yet — capture is player-initiated by pressing F2 in the live desktop window or via `parish_take_screenshot`. The path is on the host filesystem; pair this tool with a separate Read to view the PNG.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_latest_screenshot"
+    },
+    {
+      "description": "Files a bug report for the running game. Bundles a screenshot (captured live from the desktop window when one is attached), recent logs, and current game state into a GitHub issue on the configured repository and returns the issue URL. In dry-run or no-token mode the report is written to disk instead (created=false, bundle_path set). Use during auto-QA to file reproducible bugs. Attach a specific debug record via the optional `context` object.",
+      "inputSchema": {
+        "properties": {
+          "context": {
+            "description": "Optional debug-panel record for extra context.",
+            "properties": {
+              "detail": {},
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "description": {
+            "maxLength": 8000,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["title"],
+        "type": "object"
+      },
+      "name": "parish_file_bug"
+    },
+    {
+      "description": "Returns `{provider_id: bool}` for every supported provider — true when the standard API-key env var (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) is set in the host process. Lets a wizard or MCP client tell the user 'leave the field blank to use your existing env var' before they commit to a provider.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_byok_env_keys"
+    },
+    {
+      "description": "Reads the BYOK setup state. Returns `{complete, provider, model, base_url, has_api_key, has_env_key}`: `complete` is true once the user (or the model, via parish_setup_byok) has picked a provider; `has_env_key` is true if a standard provider env var (ANTHROPIC_API_KEY etc.) is already set in the host process.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_setup_status"
+    },
+    {
+      "description": "Persists a 'bring your own key' provider configuration: writes the API key to the OS keychain, updates the user config TOML, and rebuilds the live inference worker so subsequent dialogue uses the new provider. Returns `{ok, provider, model, base_url, has_api_key}` on success or an HTTP 500 with a structured error message on failure (missing key for a hosted provider, missing base_url for `custom`, invalid provider name, etc.).",
+      "inputSchema": {
+        "properties": {
+          "api_key": {
+            "description": "Required for hosted providers; omit for keyless local providers (ollama, lmstudio, vllm, simulator).",
+            "minLength": 1,
+            "type": "string"
+          },
+          "base_url": {
+            "description": "Optional override for the provider's base URL; required when provider is `custom`.",
+            "type": "string"
+          },
+          "model": {
+            "description": "Optional explicit model id; defaults to the provider's dialogue preset.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "Provider id (e.g. anthropic, openrouter, openai, groq, ollama, lmstudio, custom).",
+            "type": "string"
+          }
+        },
+        "required": ["provider"],
+        "type": "object"
+      },
+      "name": "parish_setup_byok"
+    }
+  ]
+}
