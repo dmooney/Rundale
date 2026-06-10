@@ -35,6 +35,32 @@ struct Cli {
     /// debug, bare default + this flag (or `PARISH_STATIC_DIR`) in release.
     #[arg(long, env = "PARISH_STATIC_DIR", value_name = "DIR")]
     static_dir: Option<PathBuf>,
+
+    /// Bring up (or detect-and-reuse) the bundled local vllm-mlx Qwen models
+    /// and bind the four inference categories to them, so `POST /api/command`
+    /// produces real NPC dialogue with no desktop app (#1364). Dialogue uses
+    /// Qwen-14B-4bit on `:8000`, Intent uses Qwen-1.5B-4bit on `:8001`, and
+    /// Simulation/Reaction use the in-process simulator. If a vllm-mlx server
+    /// is already listening on those ports (a running Tauri app), it is reused
+    /// rather than re-spawned. Off by default; the normal env/preset provider
+    /// resolution is unchanged when this flag is absent.
+    ///
+    /// Also enabled by the `PARISH_HEADLESS_MODELS` env var (any truthy value:
+    /// `1`, `true`, `yes`, `on`) — handled separately from clap so `=1` parses.
+    #[arg(long)]
+    headless_models: bool,
+}
+
+/// Parses a truthy env-flag value (`1`, `true`, `yes`, `on`, case-insensitive).
+fn env_flag_truthy(name: &str) -> bool {
+    std::env::var(name)
+        .map(|v| {
+            matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 #[tokio::main]
@@ -46,14 +72,16 @@ async fn main() -> Result<()> {
 
     let data_dir = cli.data_dir.unwrap_or_else(find_data_dir);
     let static_dir = cli.static_dir.unwrap_or_else(find_ui_dist_dir);
+    let headless_models = cli.headless_models || env_flag_truthy("PARISH_HEADLESS_MODELS");
     tracing::info!(
-        "Listening on port {} (data={}, static={})",
+        "Listening on port {} (data={}, static={}, headless_models={})",
         cli.port,
         data_dir.display(),
-        static_dir.display()
+        static_dir.display(),
+        headless_models,
     );
 
-    parish_server::run_server(cli.port, data_dir, static_dir).await
+    parish_server::run_server(cli.port, data_dir, static_dir, headless_models).await
 }
 
 /// Sets up tracing and optional OpenTelemetry.

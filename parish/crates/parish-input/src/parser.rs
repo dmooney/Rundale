@@ -61,6 +61,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         ("/provider", inference::parse_provider_command),
         ("/model", inference::parse_model_command),
         ("/key", inference::parse_key_command),
+        ("/url", inference::parse_baseurl_command),
         ("/spinner", display::parse_spinner_command),
         ("/debug", display::parse_debug_command),
         ("/speed", display::parse_speed_command),
@@ -76,10 +77,12 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         }
     }
 
-    // Dot-notation per-category commands: /model.<cat>, /provider.<cat>, /key.<cat>
+    // Dot-notation per-category commands: /model.<cat>, /provider.<cat>,
+    // /key.<cat>, /url.<cat>
     if keyword.starts_with("/model.")
         || keyword.starts_with("/provider.")
         || keyword.starts_with("/key.")
+        || keyword.starts_with("/url.")
     {
         // Re-assemble the full trimmed string for parse_category_command since it
         // expects the original (potentially mixed-case) trimmed input alongside the
