@@ -66,6 +66,21 @@ pub struct NpcConfig {
     /// recommended in production); 1.0 requires an identical word set.
     #[serde(default = "default_dialogue_repetition_threshold")]
     pub dialogue_repetition_threshold: f32,
+    /// Enable dialogue quality and continuity improvements (#1387, #1388).
+    ///
+    /// When `true` (the default), the Tier 1 prompt assembler:
+    /// - injects the NPC's own recent dialogue lines as a "do not repeat"
+    ///   list (anti-verbatim-recycling, #1387);
+    /// - adds a "do not re-ask already-answered questions" continuity directive
+    ///   to the conversation history block (#1388);
+    /// - uses a familiarity-aware interlocutor address that drops "stranger"
+    ///   after sufficient prior exchanges (#1388).
+    ///
+    /// Set to `false` to kill-switch back to the pre-fix behaviour. Controlled
+    /// at runtime by the `dialogue-quality-continuity` feature flag
+    /// (`flags.is_disabled("dialogue-quality-continuity")` → false).
+    #[serde(default = "default_dialogue_quality_continuity")]
+    pub dialogue_quality_continuity: bool,
 }
 
 impl Default for NpcConfig {
@@ -84,6 +99,7 @@ impl Default for NpcConfig {
             reactions: ReactionConfig::default(),
             dialogue_display_max_chars: default_dialogue_display_max_chars(),
             dialogue_repetition_threshold: default_dialogue_repetition_threshold(),
+            dialogue_quality_continuity: default_dialogue_quality_continuity(),
         }
     }
 }
@@ -131,6 +147,10 @@ fn default_dialogue_display_max_chars() -> usize {
     // pass through unchanged in normal operation.
     800
 }
+fn default_dialogue_quality_continuity() -> bool {
+    true
+}
+
 fn default_dialogue_repetition_threshold() -> f32 {
     // 0.92 word-level Jaccard: two lines must share ~92% of their word set to
     // count as a near-identical repeat. Exact normalized equality always

@@ -791,6 +791,13 @@ pub struct NpcConversationSetup {
 ///
 /// The supplied `player_input` describes the current trigger for this turn,
 /// while `transcript` carries the recent local exchange for continuity.
+/// `npc_cfg` is forwarded to the prompt builders so runtime feature-flag
+/// overrides (e.g. the `dialogue-quality-continuity` kill-switch) take effect.
+// 8 params: world, npc_manager, player_input, speaker_id, transcript,
+// improv_enabled, language, npc_cfg — a future cleanup can bundle these into
+// a struct (#TD), but adding the npc_cfg arg here is the minimal footprint
+// for threading the kill-switch without duplicating the config-load.
+#[allow(clippy::too_many_arguments)]
 pub fn prepare_npc_conversation_turn(
     world: &WorldState,
     npc_manager: &mut NpcManager,
@@ -799,6 +806,7 @@ pub fn prepare_npc_conversation_turn(
     transcript: &[ConversationLine],
     improv_enabled: bool,
     language: &LanguageSettings,
+    npc_cfg: &crate::config::NpcConfig,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
     // Capture introduced state BEFORE marking. The dialogue context builder
@@ -845,7 +853,7 @@ pub fn prepare_npc_conversation_turn(
         &npc,
         improv_enabled,
         language,
-        &crate::config::NpcConfig::default(),
+        npc_cfg,
         &npc_names,
         Some(&roster),
     );
@@ -856,7 +864,7 @@ pub fn prepare_npc_conversation_turn(
         player_input,
         other_npcs: &other_npcs,
         language,
-        config: &crate::config::NpcConfig::default(),
+        config: npc_cfg,
         npc_names: &npc_names,
         player_name_for_npc,
         was_introduced,
@@ -927,6 +935,7 @@ pub fn prepare_npc_conversation(
         &[],
         improv_enabled,
         language,
+        &crate::config::NpcConfig::default(),
     )
 }
 

@@ -129,13 +129,79 @@ pub fn varied_repetition_fallback(seed: u64) -> &'static str {
     POOL[(seed as usize) % POOL.len()]
 }
 
+/// Removes duplicate occurrences of known farewell tokens within a single
+/// reply (#1387: double-farewell regression on Qwen2.5-14B).
+///
+/// Farewell phrases like "Slán abhaile" or "Slán leat" can appear twice in
+/// one reply when they are separated by intervening text —
+/// `collapse_repeated_sentences` only removes *consecutive* duplicates, so
+/// "...Slán abhaile to ye. Safe journey. Slán abhaile" passes through
+/// unchanged. This function strips every occurrence after the first for each
+/// known farewell token.
+///
+/// Matching is case-insensitive.
+pub fn dedup_farewell_tokens(dialogue: &str) -> String {
+    // The tokens from ALLOWED_FAREWELL_PHRASES that are worth deduplicating.
+    // "Slán leat" and "Slán abhaile" are the ones observed doubling; the
+    // English phrases are already handled by the general sentence-collapse.
+    const FAREWELL_TOKENS: &[&str] = &[
+        "Slán abhaile",
+        "Slán leat",
+        "sláinte",
+        "Go raibh maith agat",
+        "Céad míle fáilte",
+        "slán abhaile",
+        "slán leat",
+    ];
+
+    let mut result = dialogue.to_string();
+    for token in FAREWELL_TOKENS {
+        let lower_token = token.to_lowercase();
+        let lower_result = result.to_lowercase();
+        // Find first occurrence
+        if let Some(first_pos) = lower_result.find(&lower_token) {
+            // Find second occurrence
+            if let Some(rel_pos) = lower_result[first_pos + token.len()..].find(&lower_token) {
+                let second_pos = first_pos + token.len() + rel_pos;
+                // Remove the second occurrence (and any leading punctuation/space before it).
+                // Walk back to eat a preceding comma, period, or space.
+                let trim_start = {
+                    let bytes = result.as_bytes();
+                    let mut start = second_pos;
+                    while start > 0 && matches!(bytes[start - 1], b' ' | b'.' | b',' | b';' | b'!')
+                    {
+                        start -= 1;
+                    }
+                    // Leave one space if we ate back into the preceding sentence.
+                    if start < second_pos && start > 0 {
+                        start + 1
+                    } else {
+                        start
+                    }
+                };
+                result = format!(
+                    "{}{}",
+                    result[..trim_start].trim_end(),
+                    // Preserve anything after the second token.
+                    &result[second_pos + token.len()..]
+                )
+                .trim()
+                .to_string();
+            }
+        }
+    }
+    result
+}
+
 /// Applies the full anti-repetition guard to a freshly generated NPC line
-/// (#1228). This is the single entry point the shared dialogue path calls.
+/// (#1228, #1387). This is the single entry point the shared dialogue path calls.
 ///
 /// Steps, in order:
 /// 1. Collapse consecutive duplicate clauses *within* the new line
 ///    ([`collapse_repeated_sentences`]).
-/// 2. If the collapsed line is near-identical to the NPC's own `previous_line`
+/// 2. Remove duplicate farewell tokens that are not consecutive
+///    ([`dedup_farewell_tokens`], #1387).
+/// 3. If the collapsed line is near-identical to the NPC's own `previous_line`
 ///    ([`is_near_identical`] at `threshold`), substitute a deterministic varied
 ///    fallback ([`varied_repetition_fallback`] keyed by `seed`).
 ///
@@ -149,15 +215,17 @@ pub fn guard_against_repetition(
     seed: u64,
 ) -> String {
     let collapsed = collapse_repeated_sentences(new_line);
+    let deduped = dedup_farewell_tokens(&collapsed);
     if threshold <= 0.0 {
-        return collapsed;
+        return deduped;
     }
-    if let Some(prev) = previous_line
-        && !collapsed.trim().is_empty()
-        && !prev.trim().is_empty()
-        && is_near_identical(&collapsed, prev, threshold)
+    if !deduped.trim().is_empty()
+        && previous_line
+            .filter(|prev| !prev.trim().is_empty())
+            .map(|prev| is_near_identical(&deduped, prev, threshold))
+            .unwrap_or(false)
     {
         return varied_repetition_fallback(seed).to_string();
     }
-    collapsed
+    deduped
 }

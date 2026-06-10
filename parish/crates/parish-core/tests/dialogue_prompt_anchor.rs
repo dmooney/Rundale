@@ -72,6 +72,7 @@ fn build_dialogue_context_with_first_npc(
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("prepare_npc_conversation_turn returned None");
 
@@ -149,6 +150,7 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn 1 setup");
     assert!(
@@ -169,6 +171,7 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn 2 setup");
     assert!(
@@ -241,6 +244,7 @@ fn dialogue_context_alerts_on_player_modern_register_echo() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn setup");
     assert!(
@@ -281,6 +285,7 @@ fn dialogue_context_no_register_alert_on_clean_input() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn setup");
     assert!(
