@@ -1,0 +1,9 @@
+# play_server-log-guard.txt
+# Verification fixture for the server-log-guard fix.
+# This fixture is intentionally minimal — the bug is in the server binary's
+# tracing setup, not in game logic. The real proof is the live server run
+# that confirms logs/parish-server.log.<date> is non-empty after startup.
+#
+# Run against parish-engine (headless) just to confirm the fixture parses:
+look
+/status
