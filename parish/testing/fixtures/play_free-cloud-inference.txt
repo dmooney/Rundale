@@ -1,0 +1,21 @@
+# Verification fixture — free-cloud-inference
+#
+# Proves cloud-provider inference (OpenRouter) works for automated testing in
+# a sandbox with a TLS-intercepting egress proxy and no local inference
+# hardware. Run via the thin client against a live server:
+#
+#   PARISH_PROVIDER=openrouter PARISH_MODEL=qwen/qwen3-14b \
+#     bash parish/scripts/parish-mcp-backend.sh start
+#   PARISH_SERVER=http://127.0.0.1:3030 \
+#     parish --script testing/fixtures/play_free-cloud-inference.txt
+#
+# Pass = the two dialogue turns produce in-character NPC replies, not the
+# mod's inference_failure_messages (crow / wind / fog lines).
+
+/status
+look
+/npcs
+Good morning! Fierce cold on the road today, is it not?
+What news from the parish this week?
+/time
+/quit

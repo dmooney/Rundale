@@ -39,6 +39,13 @@ bottom; don't lengthen items past 2-3 lines.
 - **`RB_SLICE` from a config's `env:` block is NOT applied before the dataset loader runs (promptfoo >=0.118).** `tests: file://load_dataset.py:generate_tests` resolves during config _load_, before `env:` reaches the process, so a bare `npx promptfoo eval -c promptfooconfig.<slice>.yaml` dies with "RB_SLICE env var required". The `promptfoo/justfile` `_eval` recipe now exports `RB_SLICE` itself — drive runs through `just -f promptfoo/justfile …`, or export `RB_SLICE`/`RB_TARGET`/`RB_LIMIT` yourself before a raw `npx promptfoo eval`.
 - **v2 has no multi-run results persistence yet (#1232).** `scripts/report.py` is a single-target rollup over `output/` (gitignored); a second model overwrites the first. Don't expect a v1-style cross-run leaderboard until #1232 lands.
 
+## Cloud inference in sandboxes (Claude Code web, CI)
+
+- **TLS-intercepting egress proxies break engine inference while `curl` works.** The sandbox MITMs TLS with a CA only in the system store; symptom is `network error: error sending request for url (...)` on every provider call. Fixed by building reqwest with `rustls-tls-native-roots` (+ webpki) in `parish/Cargo.toml` — don't revert to plain `rustls-tls`.
+- **Env-injected API keys can carry a trailing newline** (this sandbox's `OPENROUTER_API_KEY` does) → invalid `Authorization` header → provider 401s with "Missing Authentication header". The engine now trims at `ClientBase::new` and `env_non_empty`; same gotcha as the bench's `Target.api_key()` strip above.
+- **`parish-server` ignores per-category env vars.** `PARISH_DIALOGUE_MODEL`/`PARISH_INTENT_MODEL`/… resolve only on the `parish-engine` CLI path (`parish-engine/src/config.rs`). In server mode with a cloud provider, the four roles fill from the provider's _first_ preset (OpenRouter = Claude tier) even when `PARISH_MODEL` pins a cheap model — watch the cost on automated runs.
+- **`parish-server` tracing goes to `./logs/parish-server.log.<date>` relative to cwd**, not the nohup'd stdout file — and repo `.claude/settings.json` denies reading `logs/**`, so start the server from `/tmp` when you need to inspect its log.
+
 ## Agent + tooling gotchas
 
 - **`gh pr view --json baseRepository` was removed** ("Unknown JSON field: baseRepository"). `parish/scripts/attach-proof.sh` no longer uses it — it derives `<owner>/<repo>` from `gh pr view --json url --jq .url` + `sed` (see the comment at attach-proof.sh:63-70). If you hit the error elsewhere, use the same parse. Fallback for posting the proof bundle by hand: `bash parish/scripts/render-proof-comment.sh <task-id> | gh pr comment <pr> --body-file -`.

@@ -302,8 +302,15 @@ pub fn resolve_cloud_config(
     }))
 }
 
+/// Reads an env var, trimming surrounding whitespace and mapping empty (or
+/// whitespace-only) values to `None`. Trimming matters for API keys: secret
+/// stores and `echo key >> .env` leave a trailing newline, which poisons the
+/// `Authorization` header downstream and fails every cloud-inference call.
 fn env_non_empty(key: &str) -> Option<String> {
-    std::env::var(key).ok().filter(|v| !v.is_empty())
+    std::env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 pub(super) fn read_toml_config(path: &Path) -> Result<TomlConfig, ParishError> {

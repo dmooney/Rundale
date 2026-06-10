@@ -56,11 +56,21 @@ impl ClientBase {
             trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
         };
 
+        // API keys injected via env vars or secret stores routinely carry a
+        // trailing newline; embedded whitespace makes the auth header value
+        // invalid, so every request fails (or the provider sees no header at
+        // all and returns 401). Trim here — the one seam every key source
+        // (env, TOML, keychain, BYOK) flows through.
+        let api_key = api_key
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+
         Self {
             client,
             streaming_client,
             base_url: normalized,
-            api_key: api_key.map(|s| s.to_string()),
+            api_key,
             rate_limiter: None,
         }
     }

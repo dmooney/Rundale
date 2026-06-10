@@ -1170,6 +1170,45 @@ model = "toml-model"
         assert_eq!(config.model, Some("gemma3:4b".to_string()));
     }
 
+    // AC-2 (free-cloud-inference): env-injected secrets routinely carry a
+    // trailing newline (secret stores, `echo key >> .env`); the resolved key
+    // must be whitespace-trimmed or the Authorization header is invalid and
+    // every cloud-inference call fails.
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_trims_whitespace_from_env_api_key() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "openrouter");
+            std::env::set_var("PARISH_MODEL", "qwen/qwen3-14b");
+            std::env::set_var("OPENROUTER_API_KEY", " sk-or-v1-test-key\n");
+        }
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider.id(), "openrouter");
+        assert_eq!(config.api_key.as_deref(), Some("sk-or-v1-test-key"));
+    }
+
+    // AC-3 (free-cloud-inference): a whitespace-only key is still "no key" —
+    // for a provider that requires one, resolution must fail with the
+    // actionable missing-key error, not smuggle blank whitespace into headers.
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_whitespace_only_env_api_key_is_missing() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "openrouter");
+            std::env::set_var("PARISH_MODEL", "qwen/qwen3-14b");
+            std::env::set_var("OPENROUTER_API_KEY", " \n");
+        }
+        let cli = CliOverrides::default();
+        let err = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap_err();
+        assert!(
+            err.to_string().contains("OPENROUTER_API_KEY"),
+            "missing-key error should name the env var: {err}"
+        );
+    }
+
     #[test]
     #[serial(parish_env)]
     fn test_resolve_config_deprecated_parish_ollama_url_fallback() {

@@ -62,8 +62,17 @@ anyhow = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 
-# HTTP client — base features; crates needing json/stream add them locally
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# HTTP client — base features; crates needing json/stream add them locally.
+# Both rustls root sets: bundled webpki (Mozilla) roots keep packaged desktop
+# builds working on machines with a broken/empty system store, and native
+# roots make the system CA store trusted too — CI sandboxes and corporate
+# networks intercept TLS with a custom CA that only exists in the system
+# store, and with webpki roots alone every cloud-inference call fails while
+# `curl` to the same URL succeeds.
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls-webpki-roots",
+    "rustls-tls-native-roots",
+] }
 
 # HuggingFace Hub client (Apache-2.0). Used by parish-inference for the
 # vllm-mlx onboarding download path. `tokio` feature gives the async API.

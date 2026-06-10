@@ -454,6 +454,22 @@ mod tests {
         assert_eq!(client.base.api_key.as_deref(), Some("sk-test"));
     }
 
+    // Keys sourced from env vars / secret stores often carry a trailing
+    // newline; embedded whitespace makes the Authorization header invalid and
+    // fails every request, so the client must store the trimmed key.
+    #[test]
+    fn test_openai_client_trims_api_key_whitespace() {
+        let client = OpenAiClient::new("https://openrouter.ai/api", Some(" sk-test\n"));
+        assert_eq!(client.base.api_key.as_deref(), Some("sk-test"));
+    }
+
+    // A whitespace-only key is "no key", not an empty Bearer header.
+    #[test]
+    fn test_openai_client_whitespace_only_api_key_is_none() {
+        let client = OpenAiClient::new("https://openrouter.ai/api", Some(" \n"));
+        assert!(client.base.api_key.is_none());
+    }
+
     #[test]
     fn test_openai_client_starts_without_rate_limiter() {
         let client = OpenAiClient::new("http://localhost:11434", None);
