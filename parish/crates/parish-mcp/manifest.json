@@ -16,9 +16,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "command"
-        ],
+        "required": ["command"],
         "type": "object"
       },
       "name": "tauri_invoke"
@@ -100,9 +98,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "text"
-        ],
+        "required": ["text"],
         "type": "object"
       },
       "name": "parish_submit_input"
@@ -133,9 +129,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "branch_id"
-        ],
+        "required": ["branch_id"],
         "type": "object"
       },
       "name": "parish_load_branch"
@@ -185,9 +179,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "title"
-        ],
+        "required": ["title"],
         "type": "object"
       },
       "name": "parish_file_bug"
@@ -232,9 +224,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "provider"
-        ],
+        "required": ["provider"],
         "type": "object"
       },
       "name": "parish_setup_byok"

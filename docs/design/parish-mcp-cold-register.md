@@ -67,7 +67,7 @@ leaf crate; reqwest/clap already in the graph elsewhere). Acceptable.
 
 `parish-mcp-launch.sh` logic:
 
-```
+```sh
 MCP_BIN="$TARGET_DIR/debug/parish-mcp"
 if [ -x "$MCP_BIN" ]; then
     exec "$MCP_BIN" "$@"                      # warm fast path — unchanged
