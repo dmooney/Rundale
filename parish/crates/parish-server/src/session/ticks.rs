@@ -141,9 +141,17 @@ pub(super) fn spawn_session_ticks(
                             // bounded channel. On a full channel this `await`
                             // BLOCKS — applying backpressure to this recv loop —
                             // rather than dropping the work item. A closed channel
-                            // means the writer task exited, so stop.
-                            if tx.send((manager.clone(), event)).await.is_err() {
-                                break;
+                            // means the writer task exited, so stop. Select on the
+                            // shutdown token so a saturated send cannot stall
+                            // session teardown (the in-flight item is abandoned —
+                            // the session is being evicted).
+                            tokio::select! {
+                                _ = token.cancelled() => break,
+                                send_res = tx.send((manager.clone(), event)) => {
+                                    if send_res.is_err() {
+                                        break;
+                                    }
+                                }
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -223,9 +231,17 @@ pub(super) fn spawn_session_ticks(
                             // Enqueue (post-rebind manager clone, event) onto the
                             // bounded channel. On a full channel this `await`
                             // BLOCKS rather than dropping. A closed channel means
-                            // the writer task exited, so stop.
-                            if tx.send((manager.clone(), event)).await.is_err() {
-                                break;
+                            // the writer task exited, so stop. Select on the
+                            // shutdown token so a saturated send cannot stall
+                            // session teardown (the in-flight item is abandoned —
+                            // the session is being evicted).
+                            tokio::select! {
+                                _ = token.cancelled() => break,
+                                send_res = tx.send((manager.clone(), event)) => {
+                                    if send_res.is_err() {
+                                        break;
+                                    }
+                                }
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
