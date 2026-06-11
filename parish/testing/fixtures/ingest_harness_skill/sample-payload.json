@@ -42,7 +42,8 @@
       "game_clock": "08:01",
       "npcs_here_count": 1,
       "frame_path": "turns/000/frame.png",
-      "lines_path": "turns/000/lines.json"
+      "lines_path": "turns/000/lines.json",
+      "llm_transcript_path": "turns/000/llm.json"
     }
   ],
   "axes": [
