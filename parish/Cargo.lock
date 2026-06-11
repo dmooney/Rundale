@@ -3938,6 +3938,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-chronicle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "parish-inference",
+ "parish-npc",
+ "parish-persistence",
+ "parish-types",
+ "parish-world",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "parish-client"
 version = "0.1.0"
 dependencies = [
@@ -3971,6 +3988,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "chrono",
+ "parish-chronicle",
  "parish-config",
  "parish-diagnostics",
  "parish-editor",

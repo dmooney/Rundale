@@ -1,0 +1,75 @@
+# extract-chronicle play-test
+# ============================
+# Exercises the three chronicle writers end-to-end after the
+# parish-chronicle crate extraction:
+#
+#  * CharacterLogManager::write_all_profiles  (profile section on disk)
+#  * CharacterLogManager::process_event       (PlayerMoved → player.md journal)
+#  * LocationLogManager::write_all_profiles   (loc-*.md profile section on disk)
+#  * LocationLogManager::process_event        (PlayerMoved → loc-*.md journal)
+#  * ChatTranscriptLog (wired but no-ops without live inference)
+#
+# Run with PARISH_USER_DATA_DIR=/tmp/parish-chronicle-test so files
+# land in an inspectable temp directory. Check after the run:
+#
+#   ls /tmp/parish-chronicle-test/logs/branch-1/
+#   grep '<!-- PROFILE_START -->' /tmp/parish-chronicle-test/logs/branch-1/player.md
+#   grep '^### ' /tmp/parish-chronicle-test/logs/branch-1/player.md
+#   ls /tmp/parish-chronicle-test/logs/branch-1/loc-*.md
+#
+# C6/C7 signal: player.md contains a PROFILE_START marker (write_all_profiles
+# ran) AND at least one "### HH:MM" heading (process_event wrote a PlayerMoved
+# journal entry). At least one loc-*.md file confirms LocationLogManager.
+
+# 1. Baseline: confirm world is up and capture starting location.
+/status
+/time
+/debug here
+/npcs
+
+# 2. Move to a neighbouring location to fire a PlayerMoved event.
+#    CharacterLogManager writes "Arrived at <Location>" to player.md.
+#    LocationLogManager writes a "Player arrived" entry to the destination loc.
+go to The Crossroads
+/debug here
+/status
+
+# 3. Move again for a second journal entry with a distinct timestamp.
+/wait 5
+go to Darcy's Pub
+/debug here
+/status
+
+# 4. Talk to an NPC at the pub via /stub so a DialogueOccurred event fires.
+#    CharacterLogManager writes a **You:** / **I:** block to the NPC's log.
+#    LocationLogManager writes a Dialogue entry to the pub's loc log.
+/npcs
+/stub Padraig Darcy: Sure, the parish is quiet this morning.
+say Good morning, Padraig.
+/wait 1
+
+# 5. Second stub exchange — ensures more than one DialogueOccurred entry lands.
+/stub Padraig Darcy: The roads are soft after the rain, God help us.
+say What news from the road?
+/wait 1
+
+# 6. Walk back to the crossroads to fire another PlayerMoved.
+go to The Crossroads
+/wait 2
+/debug here
+
+# 7. Advance time so mood-tick / schedule transitions can fire
+#    (NpcArrived / NpcDeparted events → NPC and location log entries).
+/speed fast
+/wait 120
+/status
+/npcs
+
+# 8. One more movement for a third distinct timestamp in player.md.
+go to Kilteevan Village
+/status
+/debug here
+
+# 9. Final snapshot — confirms world is still live, engine has not crashed.
+/time
+/map

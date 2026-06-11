@@ -18,6 +18,7 @@ members = [
     "crates/parish-npc-tool",
     "crates/parish-mod",
     "crates/parish-editor",
+    "crates/parish-chronicle",
     "crates/parish-diagnostics",
     "crates/parish-persistence",
     "crates/parish-input",
@@ -52,6 +53,7 @@ parish-palette = { path = "crates/parish-palette" }
 parish-npc = { path = "crates/parish-npc" }
 parish-mod = { path = "crates/parish-mod" }
 parish-editor = { path = "crates/parish-editor" }
+parish-chronicle = { path = "crates/parish-chronicle" }
 parish-diagnostics = { path = "crates/parish-diagnostics" }
 parish-persistence = { path = "crates/parish-persistence" }
 parish-input = { path = "crates/parish-input" }
