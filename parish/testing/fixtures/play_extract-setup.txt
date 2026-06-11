@@ -1,0 +1,34 @@
+# extract-setup — setup-bootstrap crate split is behaviour-preserving
+# ====================================================================
+# Exercises the provider-bootstrap surface end-to-end after extracting
+# parish-inference's setup/ modules (GPU detect, model select, Ollama/vllm
+# provider bootstrap, orchestration) into the new backend-agnostic
+# parish-setup crate. The engine still resolves its provider through
+# setup_provider_client (now in parish-setup, re-exported at the unchanged
+# parish_inference::setup::* paths), boots into a playable scene, and
+# answers the structured /status, look, /time and /provider commands
+# identically before and after the move.
+#
+# Signals the evidence maps to acceptance criteria:
+#  - /status reports the resolved location + clock — bootstrap succeeded,
+#    the engine reached a playable scene (criterion 11).
+#  - /provider reports the provider resolved by setup_provider_client,
+#    confirming the re-exported setup bootstrap path is live (criteria
+#    5/6/7/10). The headless harness reports the configured provider
+#    (no simulator fallback).
+#  - look returns the location description + exits — world wiring intact.
+#  - /time returns the deterministic clock block.
+#  - No "error" line referencing setup / parish_setup / parish_inference::setup.
+
+# 1. Confirm the engine bootstrapped into a playable scene.
+/status
+
+# 2. Confirm the provider resolved through the (re-exported) setup bootstrap.
+/provider
+
+# 3. World wiring + clock — structural diff anchors.
+look
+/time
+
+# 4. Final status block for the structural diff.
+/status

@@ -1,9 +1,9 @@
 //! Provider setup orchestration — Ollama install/start/pull/warmup and the
 //! unified [`setup_provider_client`] entry point.
 
-use crate::AnyClient;
-use crate::openai_client::{OpenAiClient, build_client_or_fallback};
 use parish_config::{InferenceConfig, ProviderConfig};
+use parish_providers::AnyClient;
+use parish_providers::openai_client::{OpenAiClient, build_client_or_fallback};
 use parish_types::ParishError;
 use reqwest::StatusCode;
 use serde::Deserialize;
@@ -591,7 +591,7 @@ pub async fn setup_ollama_with_config(
     // Attach the configured base rate limiter so all calls that fall through
     // to the base provider (no per-category override) are throttled together.
     let base_limiter =
-        crate::rate_limit::InferenceRateLimiter::from_config(config.rate_limits.default);
+        parish_providers::rate_limit::InferenceRateLimiter::from_config(config.rate_limits.default);
     let client =
         OpenAiClient::new_with_config(base_url, None, config).maybe_with_rate_limit(base_limiter);
 
@@ -733,7 +733,7 @@ pub async fn setup_provider_client(
             all_slots.extend(extra_vllm_mlx_slots.iter().cloned());
             let vllm_mlx = VllmMlxProcess::ensure_slots(&all_slots).await?;
             let vllm = VllmProcess::ensure_slots(extra_vllm_slots).await?;
-            let client = crate::build_client(
+            let client = parish_providers::build_client(
                 &config.provider,
                 &config.base_url,
                 config.api_key.as_deref(),
@@ -763,7 +763,7 @@ pub async fn setup_provider_client(
             all_slots.extend(extra_vllm_slots.iter().cloned());
             let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_mlx_slots).await?;
             let vllm = VllmProcess::ensure_slots(&all_slots).await?;
-            let client = crate::build_client(
+            let client = parish_providers::build_client(
                 &config.provider,
                 &config.base_url,
                 config.api_key.as_deref(),
@@ -786,7 +786,7 @@ pub async fn setup_provider_client(
                     config.provider.id()
                 ))
             })?;
-            let client = crate::build_client(
+            let client = parish_providers::build_client(
                 &config.provider,
                 &config.base_url,
                 config.api_key.as_deref(),

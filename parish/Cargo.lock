@@ -4090,6 +4090,7 @@ dependencies = [
  "hf-hub",
  "parish-config",
  "parish-providers",
+ "parish-setup",
  "parish-types",
  "regex",
  "reqwest 0.12.28",
@@ -4274,6 +4275,21 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "parish-setup"
+version = "0.1.0"
+dependencies = [
+ "parish-config",
+ "parish-providers",
+ "parish-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
  "wiremock",
 ]
 
