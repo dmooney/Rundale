@@ -193,6 +193,26 @@ pub fn build_enhanced_system_prompt_with_config(
             An invented name asked of you as fact is still invented \u{2014} \
             answer with honest non-recognition, not a friendly yarn.\n",
         );
+        // #1420: the SAME presupposition trap applies to PLACES. A player asks
+        // after "the abbey in town" or "Father Pendleton's chapel" as settled
+        // fact; the small model confirms it exists and even gives directions
+        // ("right in the heart of Kilteevan"). A named building or settlement
+        // stated as fact is just as invented as a named person. Cover it
+        // explicitly and forbid confirming existence OR giving a location.
+        prompt.push_str(
+            "Watch equally for a PRESUPPOSED place: if someone speaks of a \
+            specific building or settlement by name (an abbey, a chapel, a mill, \
+            a named inn, a named townland) as though it plainly exists \u{2014} \
+            asking where it is or how to reach it \u{2014} and it is NOT in the \
+            PLACES IN THIS PARISH list above, do not go along with it. Say \
+            plainly there is no such place hereabouts (\"there's no abbey in \
+            these parts\", \"I know of no such place\"). NEVER confirm it exists, \
+            NEVER say it is in or near any real place, and NEVER give directions \
+            to it. A place named to you as fact is still invented unless it is on \
+            the list. When in doubt, declare non-recognition rather than invent a \
+            location \u{2014} a wrong yarn is worse than an honest \"I don't know \
+            it.\"\n",
+        );
     }
 
     prompt
@@ -313,6 +333,45 @@ fn prior_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
         };
         block.push_str(&format!("- \"{excerpt}\"\n"));
     }
+    Some(block)
+}
+
+/// Cross-NPC crutch-phrase suppression block (#1422).
+///
+/// The per-NPC [`prior_phrases_block`] only catches an NPC recycling *its own*
+/// lines. Small models (Qwen 14B) instead reach for an identical opener *frame*
+/// across consecutive *different* NPCs in a session ("ye've come to the right
+/// place" from three NPCs in a row). This injects recent lines from OTHER
+/// speakers at the location so the model is told to vary the frame rather than
+/// echo a neighbour. Only renders when another NPC has spoken here recently.
+fn cross_npc_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
+    let lines = world
+        .conversation_log
+        .other_npcs_recent_lines(world.player_location, npc.id, 4);
+    if lines.is_empty() {
+        return None;
+    }
+    let mut block = String::from(
+        "\n\nOTHER FOLK HERE JUST SAID THESE \u{2014} do NOT echo their opener \
+         or frame; reach for plainly different wording of your own:\n",
+    );
+    for line in &lines {
+        let excerpt: &str = if line.len() > 120 {
+            let mut end = 120;
+            while end > 0 && !line.is_char_boundary(end) {
+                end -= 1;
+            }
+            &line[..end]
+        } else {
+            line
+        };
+        block.push_str(&format!("- \"{excerpt}\"\n"));
+    }
+    block.push_str(
+        "In particular, never greet with \"ye've come to the right place\" or any \
+         near-copy of a frame already used above \u{2014} a parish where everyone \
+         says the same line rings false.",
+    );
     Some(block)
 }
 
@@ -455,7 +514,18 @@ fn mood_block(npc: &Npc) -> String {
         return String::new();
     }
     let tone_directive = mood_tone_directive(mood);
-    format!("\n\nYour current mood: {mood}. {tone_directive}")
+    // #1421: a bare "Your current mood: X" label was inconsistently honoured —
+    // the small model would invert it (a `sharp` widow giving "a warm welcome",
+    // an `alert` shopkeeper reading cheerful) because the cultural-warmth
+    // guideline in the system prompt out-pulls a soft label. Frame the mood as
+    // an OVERRIDE the model must obey even on a first greeting, so the
+    // formulaic-warm register cannot wash it out.
+    format!(
+        "\n\nYOUR CURRENT MOOD: {mood}. This mood OVERRIDES any default-friendly \
+         or welcoming register \u{2014} let it shape THIS reply, including your \
+         very first greeting. {tone_directive} Do not paper over this mood with a \
+         warm welcome or cheerful opener if the mood does not call for one."
+    )
 }
 
 /// Returns a tone directive sentence for the given mood word.
@@ -655,6 +725,12 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
         context.push_str(&block);
     }
 
+    // Cross-NPC crutch-phrase suppression (#1422): catch a frame shared across
+    // *different* NPCs in a session, which the per-NPC guard above cannot see.
+    if quality_continuity && let Some(block) = cross_npc_phrases_block(world, npc) {
+        context.push_str(&block);
+    }
+
     if let Some(block) = reactions_block(npc, config) {
         context.push_str(&block);
     }
@@ -741,6 +817,62 @@ mod tests {
         let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(!prompt.contains("PEOPLE IN YOUR LIFE:"));
         assert!(!prompt.contains("WHAT'S ON YOUR MIND:"));
+    }
+
+    /// AC-8 (#1422): the cross-NPC crutch block must list a recent line from a
+    /// DIFFERENT NPC at the location and tell the model not to echo the frame.
+    #[test]
+    fn cross_npc_phrases_block_suppresses_shared_frame() {
+        use parish_types::conversation::ConversationExchange;
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        // A different NPC (id 2) already used the crutch frame here.
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(2),
+            speaker_name: "Peig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Ye've come to the right place for a spot of gossip.".to_string(),
+            location: loc,
+        });
+
+        let block = cross_npc_phrases_block(&world, &npc)
+            .expect("block must render when another NPC spoke here");
+        assert!(
+            block.contains("OTHER FOLK HERE JUST SAID"),
+            "block must head the other-folk list:\n{block}"
+        );
+        assert!(
+            block.contains("Ye've come to the right place"),
+            "block must surface the neighbour's recent line:\n{block}"
+        );
+        assert!(
+            block.contains("ye've come to the right place") && block.contains("near-copy"),
+            "block must forbid echoing the shared frame:\n{block}"
+        );
+    }
+
+    /// AC-8 negative: the NPC's own lines (id matches) must NOT appear in the
+    /// cross-NPC block — that is the per-NPC guard's job, not this one's.
+    #[test]
+    fn cross_npc_phrases_block_excludes_self() {
+        use parish_types::conversation::ConversationExchange;
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Padraig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Only my own line here.".to_string(),
+            location: loc,
+        });
+        assert!(
+            cross_npc_phrases_block(&world, &npc).is_none(),
+            "block must not render when only the NPC's own lines exist"
+        );
     }
 
     #[test]
@@ -1081,6 +1213,40 @@ mod tests {
         );
     }
 
+    /// AC-1/AC-2 (#1420): the grounding block must ALSO cover a *presupposed*
+    /// unknown place — an abbey/chapel/townland asserted as fact — and forbid
+    /// confirming it exists or giving directions to it.
+    #[test]
+    fn grounding_block_covers_presupposed_unknown_place() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+        let places = vec!["Darcy's Pub".to_string(), "The Mill".to_string()];
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &lang,
+            &config,
+            &names,
+            None,
+            Some(&places),
+        );
+        assert!(
+            prompt.contains("PRESUPPOSED place"),
+            "grounding block must name the presupposed-place case:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("no such place"),
+            "grounding block must instruct non-recognition of an unknown place:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("NEVER give directions"),
+            "grounding block must forbid giving directions to an invented place:\n{prompt}"
+        );
+    }
+
     /// AC-7 (#1401): kill-switch — with grounding disabled (`location_names`
     /// is `None`), neither the PLACES block nor the presupposition directive
     /// is emitted.
@@ -1101,6 +1267,10 @@ mod tests {
         assert!(
             !prompt.contains("PRESUPPOSED name"),
             "no presupposition directive when grounding disabled:\n{prompt}"
+        );
+        assert!(
+            !prompt.contains("PRESUPPOSED place"),
+            "no place-presupposition directive when grounding disabled:\n{prompt}"
         );
     }
 
@@ -1156,13 +1326,33 @@ mod tests {
         npc.mood = "calm".to_string();
         let result = mood_block(&npc);
         assert!(
-            result.starts_with("\n\nYour current mood: calm."),
+            result.starts_with("\n\nYOUR CURRENT MOOD: calm."),
             "mood block must start with label: {result}"
         );
         // Directive sentence follows the label.
         assert!(
-            result.len() > "\n\nYour current mood: calm.".len(),
+            result.len() > "\n\nYOUR CURRENT MOOD: calm.".len(),
             "mood block must include tone directive after label: {result}"
+        );
+    }
+
+    /// AC-6 (#1421): the mood block must frame the mood as an OVERRIDE of the
+    /// default-friendly register so the small model stops washing it out with a
+    /// formulaic warm greeting.
+    #[test]
+    fn mood_block_frames_mood_as_override_of_friendly_register() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "sharp".to_string();
+        let result = mood_block(&npc);
+        assert!(
+            result.contains("OVERRIDES"),
+            "mood block must declare the mood overrides the default register: {result}"
+        );
+        assert!(
+            result.to_lowercase().contains("first greeting")
+                || result.to_lowercase().contains("warm welcome")
+                || result.to_lowercase().contains("cheerful opener"),
+            "mood block must explicitly forbid papering over with a warm/cheerful opener: {result}"
         );
     }
 

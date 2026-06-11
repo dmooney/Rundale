@@ -120,7 +120,11 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         pure dialogue, no narration or action descriptions.\n\
         \n\
         LENGTH: 2-3 sentences maximum. Be conversational, not a monologue. \
-        Ask AT MOST ONE question per reply — never stack multiple questions.\n\
+        Ask AT MOST ONE question per reply — never stack multiple questions. \
+        If several questions occur to you, pick the SINGLE most important one and \
+        drop the rest; a reply ending in two or more question marks is wrong. Do \
+        not chain offers either (\"shall I do X, or would ye rather Y, or...\") — \
+        one offer or one question, then stop.\n\
         \n\
         JSON fields:\n\
         - \"dialogue\": your spoken words (this is shown to the player)\n\
@@ -187,6 +191,24 @@ mod tests {
                 || prompt.contains("at most one question")
                 || prompt.contains("single question"),
             "system prompt must include single-question cap: missing in:\n{prompt}"
+        );
+    }
+
+    /// AC-10 (#1422): the single-question cap was being ignored — replies still
+    /// crammed multiple questions/offers. The directive must now explicitly tell
+    /// the model to pick ONE and drop the rest, and forbid chained offers.
+    #[test]
+    fn system_prompt_question_cap_forbids_stacking_and_chained_offers() {
+        let npc = make_named_npc(1, "Padraig", 1);
+        let lang = crate::LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        assert!(
+            prompt.contains("pick the SINGLE most important one and drop the rest"),
+            "question cap must instruct dropping all but one question:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Do not chain offers"),
+            "question cap must forbid chained offers:\n{prompt}"
         );
     }
 
