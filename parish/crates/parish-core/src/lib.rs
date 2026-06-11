@@ -8,8 +8,17 @@
 //! crates under `parish/crates/`.
 
 // Retained modules — IPC, orchestration glue, and mod loading
-pub mod character_log;
-pub mod chat_transcript;
+// The on-disk chronicle writers (per-character / per-location markdown logs
+// and the JSONL chat transcript) were extracted into their own crate
+// (`parish-chronicle`). These re-exports preserve the historical
+// `parish_core::{character_log, chat_transcript, location_log}::...` paths for
+// every consumer (server `session`/`state`, Tauri `setup`, engine `app`) so
+// the extraction stays behaviour-preserving with zero import changes. The
+// branch-switch subscriber-rebind call sites stay in their entry-point crates
+// and reach the managers through these re-exports.
+pub use parish_chronicle::character_log;
+pub use parish_chronicle::chat_transcript;
+pub use parish_chronicle::location_log;
 pub mod debug_snapshot;
 // The Parish Designer backend was extracted into its own crate
 // (`parish-editor`). This re-export preserves the historical
@@ -24,7 +33,6 @@ pub mod identity;
 pub mod inference_guard;
 pub mod ipc;
 pub mod loading;
-pub mod location_log;
 pub mod mod_source;
 pub mod prompts;
 pub mod secret_store;
