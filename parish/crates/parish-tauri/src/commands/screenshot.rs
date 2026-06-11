@@ -299,6 +299,134 @@ fn resolve_late_screenshot(
     }
 }
 
+/// Classification of the host display session, used to fail a capture fast when
+/// the OS cannot composite the app window at all (#1402).
+///
+/// `Active` — an on-console, unlocked session (capture can work). `Locked` — the
+/// screen is locked, so the window server isn't compositing app windows and both
+/// the native xcap path and the html-to-image fallback would hang. `LoggedOut` —
+/// no active console session (login window / fast-user-switched away).
+/// `Unknown` — the platform could not be queried; never block on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplaySession {
+    Active,
+    Locked,
+    LoggedOut,
+    Unknown,
+}
+
+/// Maps the two macOS session-dictionary signals to a [`DisplaySession`].
+///
+/// `on_console` is `kCGSSessionOnConsoleKey` (this session owns the console);
+/// `screen_locked` is `CGSSessionScreenIsLocked` (present + true when locked). A
+/// locked screen takes precedence; an off-console session is logged-out; an
+/// on-console unlocked session is active; absent signals are `Unknown` so an
+/// indeterminate probe never blocks a capture. Pure for unit testing.
+#[cfg(any(target_os = "macos", test))]
+fn classify_session(on_console: Option<bool>, screen_locked: Option<bool>) -> DisplaySession {
+    if screen_locked == Some(true) {
+        return DisplaySession::Locked;
+    }
+    match on_console {
+        Some(true) => DisplaySession::Active,
+        Some(false) => DisplaySession::LoggedOut,
+        None => DisplaySession::Unknown,
+    }
+}
+
+/// Returns `Err` with a clear, condition-specific message when a capture cannot
+/// possibly succeed because the display is not being composited; `Ok(())`
+/// otherwise. `Unknown` is treated as "proceed". Pure for unit testing.
+fn precheck_session(session: DisplaySession) -> Result<(), String> {
+    match session {
+        DisplaySession::Locked => Err("screen is locked — macOS is not compositing the app \
+             window, so it cannot be captured; unlock the screen and retry"
+            .into()),
+        DisplaySession::LoggedOut => Err("no active desktop session — the user is logged out or \
+             switched away (login window / fast user switching), so there is no compositor to \
+             capture; log back in and retry"
+            .into()),
+        DisplaySession::Active | DisplaySession::Unknown => Ok(()),
+    }
+}
+
+/// The caller-facing message for "the app window could not be enumerated for
+/// native capture". Named so it is unit-testable and consistent across paths.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn no_window_error() -> String {
+    "no Parish/Rundale window found to capture — the window may be minimized, on another Space \
+     or display, or the screen is asleep/locked"
+        .to_string()
+}
+
+/// Queries the current macOS login-session state via
+/// `CGSessionCopyCurrentDictionary`, mapping it through [`classify_session`].
+///
+/// Non-macOS hosts return `Unknown` so the precheck proceeds, preserving prior
+/// behavior (the capture timeout still bounds a stuck attempt there).
+#[cfg(target_os = "macos")]
+fn current_display_session() -> DisplaySession {
+    use std::ffi::{CString, c_void};
+    use std::os::raw::c_char;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGSessionCopyCurrentDictionary() -> *const c_void;
+    }
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFDictionaryGetValue(dict: *const c_void, key: *const c_void) -> *const c_void;
+        fn CFBooleanGetValue(boolean: *const c_void) -> u8;
+        fn CFStringCreateWithCString(
+            alloc: *const c_void,
+            c_str: *const c_char,
+            encoding: u32,
+        ) -> *const c_void;
+        fn CFRelease(cf: *const c_void);
+    }
+    const K_CF_STRING_ENCODING_UTF8: u32 = 0x0800_0100;
+
+    // SAFETY: every returned pointer is null-checked before use. The session
+    // dictionary (create-rule) and each key string (create-rule) are released
+    // exactly once; dictionary values are get-rule (borrowed) and never released.
+    unsafe {
+        let dict = CGSessionCopyCurrentDictionary();
+        if dict.is_null() {
+            // No session dictionary at all => no console session is attached.
+            return DisplaySession::LoggedOut;
+        }
+        let read_bool = |key: &str| -> Option<bool> {
+            let c_key = CString::new(key).ok()?;
+            let cf_key = CFStringCreateWithCString(
+                std::ptr::null(),
+                c_key.as_ptr(),
+                K_CF_STRING_ENCODING_UTF8,
+            );
+            if cf_key.is_null() {
+                return None;
+            }
+            let value = CFDictionaryGetValue(dict, cf_key);
+            CFRelease(cf_key);
+            if value.is_null() {
+                None
+            } else {
+                Some(CFBooleanGetValue(value) != 0)
+            }
+        };
+        let on_console = read_bool("kCGSSessionOnConsoleKey");
+        let screen_locked = read_bool("CGSSessionScreenIsLocked");
+        CFRelease(dict);
+        classify_session(on_console, screen_locked)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn current_display_session() -> DisplaySession {
+    // Lock / login-session detection is macOS-specific for now; other platforms
+    // proceed as before (the existing capture timeout still bounds a stuck call).
+    DisplaySession::Unknown
+}
+
 /// True when a captured OS window belongs to the Parish/Rundale desktop app.
 ///
 /// Matched on the owning application name: the dev binary reports
@@ -431,7 +559,7 @@ fn capture_app_window_png() -> Result<Vec<u8>, String> {
             best = Some((area, w));
         }
     }
-    let (_, win) = best.ok_or("no Parish/Rundale window found to capture")?;
+    let (_, win) = best.ok_or_else(no_window_error)?;
     let img = win
         .capture_image()
         .map_err(|e| format!("capture window: {e}"))?;
@@ -536,6 +664,12 @@ pub(crate) async fn do_take_screenshot(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
+    // Fail fast when the OS cannot composite the window at all (screen locked /
+    // logged out). Otherwise the native path errors quickly but the html-to-image
+    // fallback waits on a webview that can't render while locked, hanging for the
+    // full capture deadline before a vague timeout (#1402).
+    precheck_session(current_display_session())?;
+
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     match do_take_screenshot_native(state, app).await {
         Ok(info) => return Ok(info),
@@ -597,7 +731,8 @@ async fn do_take_screenshot_frontend(
             match resolve_late_screenshot(started_at, latest) {
                 Some(info) => Ok(info),
                 None => Err(format!(
-                    "screenshot capture timed out after {} s",
+                    "screenshot capture timed out after {} s — the app window may be occluded, \
+                     off-screen, or on an inactive display; bring it to the foreground and retry",
                     timeout.as_secs()
                 )),
             }
@@ -1053,5 +1188,70 @@ mod tests {
             world.clock.is_inference_paused(),
             "inference-pause must not be disturbed by player-pause restore"
         );
+    }
+
+    // ── #1402 display-session precheck (fail fast on locked / logged-out) ─────
+
+    #[test]
+    fn classify_session_maps_all_signal_combinations() {
+        // Locked takes precedence regardless of console state.
+        assert_eq!(
+            classify_session(Some(true), Some(true)),
+            DisplaySession::Locked,
+        );
+        assert_eq!(
+            classify_session(Some(false), Some(true)),
+            DisplaySession::Locked,
+        );
+        // On-console + unlocked => active.
+        assert_eq!(
+            classify_session(Some(true), Some(false)),
+            DisplaySession::Active,
+        );
+        assert_eq!(classify_session(Some(true), None), DisplaySession::Active);
+        // Off-console (and not locked) => logged out.
+        assert_eq!(
+            classify_session(Some(false), Some(false)),
+            DisplaySession::LoggedOut,
+        );
+        assert_eq!(
+            classify_session(Some(false), None),
+            DisplaySession::LoggedOut
+        );
+        // No signals at all => unknown (must not block a capture).
+        assert_eq!(classify_session(None, None), DisplaySession::Unknown);
+    }
+
+    #[test]
+    fn precheck_session_fails_fast_on_locked_and_logged_out() {
+        let locked = precheck_session(DisplaySession::Locked).unwrap_err();
+        assert!(
+            locked.contains("locked"),
+            "locked message should name the cause: {locked}"
+        );
+        let out = precheck_session(DisplaySession::LoggedOut).unwrap_err();
+        assert!(
+            out.contains("logged out") || out.contains("no active desktop session"),
+            "logged-out message should name the cause: {out}"
+        );
+    }
+
+    #[test]
+    fn precheck_session_proceeds_on_active_and_unknown() {
+        // An active session and an indeterminate probe both proceed — the latter
+        // so a query failure never blocks a legitimate capture.
+        precheck_session(DisplaySession::Active).expect("active session must proceed");
+        precheck_session(DisplaySession::Unknown).expect("unknown session must proceed");
+    }
+
+    #[test]
+    fn no_window_error_names_likely_causes() {
+        let msg = no_window_error();
+        assert!(msg.contains("minimized"), "got: {msg}");
+        assert!(
+            msg.contains("Space") || msg.contains("display"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("locked"), "got: {msg}");
     }
 }
