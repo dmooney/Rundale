@@ -1,6 +1,6 @@
 //! Granular mod loading for the editor.
 //!
-//! Mirrors [`crate::game_mod::GameMod::load`] but loads each file
+//! Mirrors [`parish_mod::GameMod::load`] but loads each file
 //! independently so a broken `festivals.json` does not hide a working
 //! `npcs.json` from the designer. Every parse error becomes a
 //! [`ValidationIssue`] rather than a hard stop.
@@ -17,7 +17,7 @@ use super::types::{
     ValidationReport, ValidationSeverity,
 };
 use super::validate;
-use crate::game_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use parish_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
 
 /// Scans `mods_root` for subdirectories containing a `mod.toml` manifest.
 ///
@@ -148,7 +148,7 @@ pub fn load_mod_snapshot(mod_dir: &Path) -> Result<EditorModSnapshot, ParishErro
 
     // Cross-reference validation (orphans, relationship targets, etc.) runs
     // on top of whatever parsed successfully. Its issues accumulate onto the
-    // existing report.
+    // report built above from per-file parse results.
     validate::validate_snapshot(&mut snapshot);
 
     Ok(snapshot)

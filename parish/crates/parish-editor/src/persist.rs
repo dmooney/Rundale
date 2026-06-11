@@ -16,7 +16,7 @@ use parish_world::graph::LocationData;
 use super::format::write_json_deterministic;
 use super::types::{EditorDoc, EditorModSnapshot, ValidationReport};
 use super::validate::validate_snapshot;
-use crate::game_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use parish_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
 
 /// Result of a save attempt.
 ///
@@ -149,8 +149,8 @@ fn load_manifest(mod_dir: &Path) -> Result<ModManifest, ParishError> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::mod_io::load_mod_snapshot;
     use super::*;
+    use crate::mod_io::load_mod_snapshot;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::TempDir;
