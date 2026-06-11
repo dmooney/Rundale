@@ -20,7 +20,9 @@ test.describe('Bug report modal — hotkey isolation', () => {
 		const devMenuButton = page.locator('[aria-label="Developer tools menu"]');
 		await expect(devMenuButton).toBeVisible();
 		await devMenuButton.click();
-		const bugButton = page.locator('[data-testid="dev-menu"] [aria-label="Report a bug"]');
+		const bugButton = page.locator(
+			'[data-testid="dev-menu"] [aria-label="Report a bug"]',
+		);
 		await expect(bugButton).toBeVisible();
 		await bugButton.click();
 		await expect(page.locator('[data-testid="bug-report-modal"]')).toBeVisible({
