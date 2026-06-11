@@ -375,8 +375,22 @@ mod tests {
     fn test_other_npcs_recent_lines_excludes_self_and_player() {
         let mut log = ConversationLog::new();
         // NPC 1 (self), NPC 2 (other), and player (id 0) all speak at loc 1.
-        log.add(make_exchange(8, 1, "Peig", "hi", "Ye've come to the right place.", 1));
-        log.add(make_exchange(9, 2, "Roisin", "hi", "Ye've come to the right place too.", 1));
+        log.add(make_exchange(
+            8,
+            1,
+            "Peig",
+            "hi",
+            "Ye've come to the right place.",
+            1,
+        ));
+        log.add(make_exchange(
+            9,
+            2,
+            "Roisin",
+            "hi",
+            "Ye've come to the right place too.",
+            1,
+        ));
         log.add(make_exchange(10, 0, "Player", "hi", "player line", 1));
         // Different location — must be excluded.
         log.add(make_exchange(11, 3, "Maire", "hi", "elsewhere line", 2));
