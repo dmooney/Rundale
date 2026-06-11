@@ -33,7 +33,7 @@ pub(crate) async fn build_app_debug_snapshot(state: &Arc<AppState>) -> DebugSnap
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled: config.improv_enabled,
         call_log,
-        categories: parish_core::debug_snapshot::build_inference_categories(&config),
+        categories: parish_core::debug_snapshot::build_inference_categories(&*config),
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
         tier2_parse_failures_total: parish_core::npc::ticks::tier2_parse_failures_total(),
     };

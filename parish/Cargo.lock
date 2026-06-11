@@ -3972,6 +3972,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "parish-config",
+ "parish-diagnostics",
  "parish-editor",
  "parish-inference",
  "parish-input",
@@ -3992,6 +3993,28 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml 1.1.2+spec-1.1.0",
+ "tracing",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "parish-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "parish-config",
+ "parish-inference",
+ "parish-npc",
+ "parish-types",
+ "parish-world",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "uuid",
  "wiremock",

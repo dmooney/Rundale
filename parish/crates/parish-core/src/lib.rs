@@ -10,7 +10,13 @@
 // Retained modules — IPC, orchestration glue, and mod loading
 pub mod character_log;
 pub mod chat_transcript;
-pub mod debug_snapshot;
+// The debug-snapshot builders and bug-report orchestration were extracted into
+// their own crate (`parish-diagnostics`). This re-export preserves the
+// historical `parish_core::debug_snapshot::...` path for every consumer
+// (`parish-tauri`, `parish-server`, `parish-engine`, tests) so the extraction
+// stays behaviour-preserving with zero import changes. The `bug_report` shim
+// lives in `crate::ipc` to preserve `parish_core::ipc::bug_report::...`.
+pub use parish_diagnostics::debug_snapshot;
 // The Parish Designer backend was extracted into its own crate
 // (`parish-editor`). This re-export preserves the historical
 // `parish_core::editor::...` path for every consumer (`parish-tauri`,
