@@ -44,6 +44,7 @@ const BACKEND_AGNOSTIC: &[&str] = &[
     "parish-mod",
     "parish-editor",
     "parish-providers",
+    "parish-setup",
     "parish-inference",
     "parish-persistence",
     "parish-core",

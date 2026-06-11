@@ -591,7 +591,7 @@ GPU[0]  : VRAM Total Used Memory (B): 2097152000
     #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn test_detect_apple_silicon_live() {
-        use crate::setup::model_select::select_model;
+        use crate::model_select::select_model;
 
         let info = detect_apple_silicon()
             .await
