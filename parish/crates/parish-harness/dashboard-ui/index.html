@@ -149,6 +149,16 @@
       .ab-form { flex-wrap: wrap; }
       .ab-form input { width: 100%; }
       .run-meta { word-break: break-word; }
+      /* A 9-column table can't fit a phone even with horizontal scroll, so make
+         it FIT: drop the min-width, let cells wrap, and hide the low-priority
+         Gate (4th), Branch (8th), and Started (9th) columns. Tap a run for the
+         full detail. */
+      #runs-container { overflow-x: visible; }
+      #runs-container table { min-width: 0; }
+      #runs-container th, #runs-container td { white-space: normal; padding: .5rem .45rem; }
+      #runs-container th:nth-child(4), #runs-container td:nth-child(4),
+      #runs-container th:nth-child(8), #runs-container td:nth-child(8),
+      #runs-container th:nth-child(9), #runs-container td:nth-child(9) { display: none; }
     }
   </style>
 </head>
