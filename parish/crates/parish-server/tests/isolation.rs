@@ -424,7 +424,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         let state = Arc::clone(&state);
         handles.push(tokio::spawn(async move {
             // Replicate the fixed lock acquisition sequence from get_debug_snapshot.
-            let has_inference_queue = state.inference_queue.lock().await.is_some();
+            let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
             let (provider_name, model_name, base_url, improv_enabled) = {
                 let config = state.config.lock().await;
                 (
