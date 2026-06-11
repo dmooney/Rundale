@@ -337,17 +337,22 @@ export function buildStyle(
 			],
 		},
 		paint: {
+			// Adjacent (walkable-now) labels share the accent so they match
+			// the Go To chips; the wider halo keeps labels readable over the
+			// historic raster tiles (1.4px washed out on parchment tones).
 			'text-color': [
 				'case',
 				['get', 'isPlayer'],
 				theme.fg,
 				['get', 'lit'],
 				theme.accent,
+				['get', 'adjacent'],
+				theme.accent,
 				theme.muted,
 			],
 			'text-halo-color': theme.bg,
-			'text-halo-width': 1.4,
-			'text-halo-blur': 0.2,
+			'text-halo-width': 2.2,
+			'text-halo-blur': 0.3,
 			'text-opacity': ['case', ['get', 'visited'], 1, 0.55],
 		},
 	});

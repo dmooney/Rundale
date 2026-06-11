@@ -1,5 +1,12 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { loadThemePreference, saveThemePreference } from './theme';
+import {
+	loadThemePreference,
+	saveThemePreference,
+	applyThemePalette,
+	DEFAULT_THEME_PALETTE,
+	SOLARIZED_LIGHT,
+	THEME_TRANSITION_MS,
+} from './theme';
 
 describe('loadThemePreference / saveThemePreference', () => {
 	beforeEach(() => {
@@ -38,5 +45,43 @@ describe('loadThemePreference / saveThemePreference', () => {
 			saveThemePreference({ name: 'solarized', mode: 'light' }),
 		).not.toThrow();
 		setItem.mockRestore();
+	});
+});
+
+describe('applyThemePalette theme-transition scoping', () => {
+	it('adds the theme-transition class during a palette swap and removes it after', async () => {
+		vi.useFakeTimers();
+		try {
+			applyThemePalette(DEFAULT_THEME_PALETTE);
+			expect(
+				document.documentElement.classList.contains('theme-transition'),
+			).toBe(true);
+			vi.advanceTimersByTime(THEME_TRANSITION_MS + 50);
+			expect(
+				document.documentElement.classList.contains('theme-transition'),
+			).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('debounces back-to-back swaps into one removal timer', () => {
+		vi.useFakeTimers();
+		try {
+			applyThemePalette(DEFAULT_THEME_PALETTE);
+			vi.advanceTimersByTime(THEME_TRANSITION_MS / 2);
+			applyThemePalette(SOLARIZED_LIGHT);
+			// The first timer would have fired by now without the reset.
+			vi.advanceTimersByTime(THEME_TRANSITION_MS / 2 + 50);
+			expect(
+				document.documentElement.classList.contains('theme-transition'),
+			).toBe(true);
+			vi.advanceTimersByTime(THEME_TRANSITION_MS);
+			expect(
+				document.documentElement.classList.contains('theme-transition'),
+			).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
