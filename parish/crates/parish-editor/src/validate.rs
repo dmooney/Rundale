@@ -257,7 +257,7 @@ fn validate_npc_ids_unique(snapshot: &EditorModSnapshot, report: &mut Validation
 
 #[cfg(test)]
 mod tests {
-    use super::super::mod_io::load_mod_snapshot;
+    use crate::mod_io::load_mod_snapshot;
     use std::path::PathBuf;
 
     #[test]

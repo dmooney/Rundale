@@ -15,7 +15,6 @@ pub mod hf_downloader;
 pub mod logs;
 pub mod queue;
 pub mod secret_scrub;
-pub mod setup;
 pub mod timeout;
 pub mod validate;
 pub mod worker;
@@ -31,6 +30,18 @@ pub mod worker;
 pub use parish_providers::{
     anthropic_client, any_client, mock_client, openai_client, rate_limit, simulator,
 };
+
+// ── Setup/bootstrap module: re-exported from parish-setup ─────────────────────
+//
+// The local-inference bootstrap (GPU detect, model select, Ollama/vllm
+// provider bootstrap, orchestration) was extracted into the `parish-setup`
+// crate. Downstream consumers reach it via `parish_inference::setup::*` (e.g.
+// `parish_core::inference::setup::setup_provider_client`,
+// `parish_engine::inference::setup::StdoutProgress`). Re-exporting the whole
+// crate as `setup` keeps every one of those paths valid without a single
+// import change. The dependency edge is one-directional: parish-setup depends
+// on parish-providers (not on this crate), so there is no cycle.
+pub use parish_setup as setup;
 
 // ── Re-exports: public API (unchanged paths for downstream crates) ────────────
 

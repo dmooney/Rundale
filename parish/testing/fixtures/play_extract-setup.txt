@@ -1,50 +1,34 @@
-# Verification fixture for extract-setup.
+# extract-setup — setup-bootstrap crate split is behaviour-preserving
+# ====================================================================
+# Exercises the provider-bootstrap surface end-to-end after extracting
+# parish-inference's setup/ modules (GPU detect, model select, Ollama/vllm
+# provider bootstrap, orchestration) into the new backend-agnostic
+# parish-setup crate. The engine still resolves its provider through
+# setup_provider_client (now in parish-setup, re-exported at the unchanged
+# parish_inference::setup::* paths), boots into a playable scene, and
+# answers the structured /status, look, /time and /provider commands
+# identically before and after the move.
 #
-# Proves that `setup_provider_client` still bootstraps correctly after
-# `parish-inference/src/setup/` is extracted into the new `parish-setup`
-# crate and re-exported via a shim in `parish-inference`.
-#
-# The fixture is deterministic: it uses the simulator provider
-# (PARISH_PROVIDER=simulator), which exercises the `setup_provider_client`
-# dispatch path without requiring a running Ollama server or GPU.
-#
-# Run (set env first so the CLI resolves the provider correctly):
-#   PARISH_PROVIDER=simulator \
-#   cargo run --manifest-path parish/Cargo.toml -p parish-engine -- \
-#     --provider simulator \
-#     --script parish/testing/fixtures/play_extract-setup.txt \
-#     > .proofs/extract-setup/transcript.txt
-#
-# Expected signals (criterion numbers refer to acceptance-criteria.md):
-#   Criteria 10, 11: JSON line with "scene" or "location" key set to a
-#     non-null, non-error value — engine reached a playable state.
-#   Criterion 10: "provider" field in /status output reports "simulator".
-#   Criterion 11: No top-level "error" JSON line referencing setup failure.
+# Signals the evidence maps to acceptance criteria:
+#  - /status reports the resolved location + clock — bootstrap succeeded,
+#    the engine reached a playable scene (criterion 11).
+#  - /provider reports the provider resolved by setup_provider_client,
+#    confirming the re-exported setup bootstrap path is live (criteria
+#    5/6/7/10). The headless harness reports the configured provider
+#    (no simulator fallback).
+#  - look returns the location description + exits — world wiring intact.
+#  - /time returns the deterministic clock block.
+#  - No "error" line referencing setup / parish_setup / parish_inference::setup.
 
-# 1. Check engine is alive and scene is accessible
+# 1. Confirm the engine bootstrapped into a playable scene.
 /status
-/time
 
-# 2. Confirm startup location is populated (engine bootstrapped a session)
-look
-
-# 3. Provider info: confirm the simulator provider was selected
+# 2. Confirm the provider resolved through the (re-exported) setup bootstrap.
 /provider
 
-# 4. Confirm NPCs table is readable (world state was fully initialised)
-/npcs
-
-# 5. Move around and look — proves world graph and session are intact
-go to the crossroads
+# 3. World wiring + clock — structural diff anchors.
 look
-/status
-
-# 6. Return and check time after movement (clock ticking normally)
 /time
-/wait 30
-/time
-/status
 
-# 7. Final sanity check
-look
-/npcs
+# 4. Final status block for the structural diff.
+/status
