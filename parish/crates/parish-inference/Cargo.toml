@@ -9,7 +9,13 @@ description = "LLM inference queue and provider clients (OpenAI/Anthropic/simula
 [dependencies]
 parish-types = { workspace = true }
 parish-config = { workspace = true }
-reqwest = { workspace = true, features = ["json", "stream"] }
+parish-providers = { workspace = true }
+# reqwest stays a direct dep: validate.rs (provider reachability/auth probes),
+# hf_downloader.rs (model download), and setup/ (Ollama/vllm reachability +
+# warmup) all make their own HTTP calls. Only the `json` feature is needed
+# here; the streaming clients (and the `stream` feature) live in
+# parish-providers.
+reqwest = { workspace = true, features = ["json"] }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 serde = { workspace = true }
@@ -18,7 +24,6 @@ hf-hub = { workspace = true }
 
 tracing = { workspace = true }
 chrono = { workspace = true }
-governor = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }
 

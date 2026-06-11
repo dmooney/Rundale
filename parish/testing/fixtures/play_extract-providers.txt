@@ -1,0 +1,37 @@
+# extract-providers — provider transport split is behaviour-preserving
+# ====================================================================
+# Exercises the NPC dialogue chokepoint end-to-end after splitting
+# parish-inference's provider-transport modules into the new
+# parish-providers crate. Every dialogue turn dispatches through the
+# AnyClient / simulator / mock types that now live in parish-providers
+# (reached via the re-exported parish_inference::* paths), so structural
+# output must be bit-for-bit identical before and after the refactor.
+#
+# Signals the evidence maps to acceptance criteria:
+#  - /provider reports the resolved provider via the re-exported
+#    build_client factory (criterion 9/12).
+#  - Reaching Darcy's Pub greets two co-located NPCs (Padraig + Niamh
+#    Darcy), confirming NpcManager + world wiring is intact.
+#  - A stubbed dialogue turn produces an `npc_response` result with a
+#    non-empty `dialogue` field — the dialogue chokepoint that routes
+#    through parish-providers' AnyClient is live, not bypassed
+#    (criterion 8/9/10). No inference-error log lines appear.
+
+# 1. Confirm the provider resolves through the re-exported factory.
+/provider
+
+# 2. Reach the two-NPC pub hub.
+go to the crossroads
+go to the pub
+look
+
+# 3. Stub deterministic dialogue, then converse — drives the dialogue
+#    path through the moved AnyClient/mock plumbing.
+/stub Padraig Darcy: A fair evening to ye, and what news of the harvest?
+talk to Padraig Darcy about the harvest this year
+
+/stub Niamh Darcy: Mind yourself on the road, the nights draw in early.
+talk to Niamh Darcy about the road home
+
+# 4. Final status block for the structural diff.
+/status

@@ -1,52 +1,36 @@
 //! LLM inference pipeline: queue, rate-limit, and dispatch to any provider
 //! (OpenAI-compatible / Anthropic Messages API / offline Simulator).
+//!
+//! The *transport* half — the concrete provider HTTP clients, the offline
+//! simulator/mock backends, the unified `AnyClient` dispatch enum, and the
+//! outbound rate limiter — lives in the [`parish_providers`] crate. This
+//! crate owns the *scheduling* half (queue, worker, priority lanes, timeout,
+//! validation, file logging) and re-exports every moved transport symbol at
+//! its former `parish_inference::*` path so downstream consumers need no
+//! import changes.
 
-pub mod anthropic_client;
-pub mod any_client;
 pub mod client;
-pub(crate) mod client_base;
 pub mod file_log;
 pub mod hf_downloader;
 pub mod logs;
-pub mod mock_client;
-pub mod openai_client;
 pub mod queue;
-pub mod rate_limit;
 pub mod secret_scrub;
 pub mod setup;
-pub mod simulator;
 pub mod timeout;
-pub(crate) mod utf8_stream;
 pub mod validate;
 pub mod worker;
 
-/// Result of processing a single SSE line.
-pub(crate) enum SseResult {
-    /// Continue reading more lines.
-    Continue,
-    /// Stream is complete.
-    Done,
-    /// An error event was received mid-stream.
-    Error(String),
-}
-
-/// Strips Markdown JSON code fences (`` ```json `` or `` ``` ``) from a string.
-pub(crate) fn strip_json_fence(raw: &str) -> &str {
-    let t = raw.trim();
-    if let Some(inner) = t.strip_prefix("```json") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    if let Some(inner) = t.strip_prefix("```") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    t
-}
+// ── Transport modules: re-exported from parish-providers ──────────────────────
+//
+// These module paths are load-bearing — downstream crates reference
+// `parish_inference::openai_client::OpenAiClient`,
+// `parish_inference::simulator::CORPUS`, `parish_inference::any_client::*`,
+// etc. Re-exporting the whole module keeps those paths valid without a single
+// import change, and lets the staying modules (queue/worker/timeout) keep
+// their internal `crate::any_client::…` / `crate::openai_client::…` references.
+pub use parish_providers::{
+    anthropic_client, any_client, mock_client, openai_client, rate_limit, simulator,
+};
 
 // ── Re-exports: public API (unchanged paths for downstream crates) ────────────
 

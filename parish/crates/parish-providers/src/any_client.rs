@@ -28,8 +28,11 @@ pub const TOKEN_CHANNEL_CAPACITY: usize = 1024;
 
 /// Per-call streaming statistics observed by the worker as tokens flow
 /// through the proxied channel.
+///
+/// `pub` so `parish_inference::worker` (which stays in the scheduling crate)
+/// can construct it; the type itself is transport-side state.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct StreamStats {
+pub struct StreamStats {
     pub ttft: Option<Duration>,
     pub tokens: u64,
 }

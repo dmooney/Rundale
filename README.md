@@ -21,7 +21,7 @@ Four binaries built from this workspace, each with a single job:
 
 ```mermaid
 flowchart LR
-    subgraph Engine["Parish engine (parish-core composes 9 leaf crates)"]
+    subgraph Engine["Parish engine (parish-core composes 10 leaf crates)"]
         Core[("game loop · world · NPCs · inference · save store")]
     end
 
@@ -280,7 +280,7 @@ through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ## Architecture
 
-One engine, three thin entry points, nine backend-agnostic leaf crates. The full
+One engine, three thin entry points, ten backend-agnostic leaf crates. The full
 crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture.md).
 
 ```mermaid
@@ -303,7 +303,8 @@ flowchart TB
         WORLD["parish-world<br/>graph, movement, weather, geo"]
         NPC["parish-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
         INPUT["parish-input<br/>parsing, intent (local + LLM)"]
-        INFER["parish-inference<br/>queue, rate limits, provider clients"]
+        INFER["parish-inference<br/>queue, priority lanes, worker, validation"]
+        PROVIDERS["parish-providers<br/>provider HTTP clients, simulator/mock,<br/>AnyClient dispatch, rate limits"]
         PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
         CONFIG["parish-config<br/>TOML + env + flags"]
         PALETTE["parish-palette<br/>day/night palette"]
@@ -336,7 +337,8 @@ flowchart TB
 
     MOD -- "mod.toml manifest + validation" --> MODS
     PERSIST --> DB
-    INFER --> LLM
+    INFER -- "dispatch via AnyClient" --> PROVIDERS
+    PROVIDERS --> LLM
 
     classDef clientNode fill:#d7e7f7,stroke:#4a7aab,color:#1f2328
     classDef entryNode fill:#fae3bd,stroke:#c08a2e,color:#1f2328
@@ -346,7 +348,7 @@ flowchart TB
     class UI,CLI,MCP clientNode
     class TAURI,SERVER,ENGINE entryNode
     class CORE coreNode
-    class WORLD,NPC,INPUT,INFER,PERSIST,CONFIG,PALETTE,MOD,TYPES leafNode
+    class WORLD,NPC,INPUT,INFER,PROVIDERS,PERSIST,CONFIG,PALETTE,MOD,TYPES leafNode
     class MODS,DB,LLM extNode
     style clients fill:#eef4fb,stroke:#9db8d4,color:#1f2328
     style entry fill:#fdf3e3,stroke:#d8b873,color:#1f2328
@@ -358,7 +360,7 @@ flowchart TB
 
 ```text
 parish/
-  crates/              18 workspace members (types, config, world, npc, mod, etc.)
+  crates/              19 workspace members (types, config, world, npc, mod, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
