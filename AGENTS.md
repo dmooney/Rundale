@@ -25,10 +25,10 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 
 ## Current project state (quick map)
 
-- Rust workspace: **18 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
+- Rust workspace: **19 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
   - Binaries: `parish-engine` (in-process engine — `--headless` / `--script FILE` / Tauri-launch), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
   - Composition: `parish-core` re-exports the leaf crates under stable namespaces.
-  - Leaf logic crates: `parish-config`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`.
+  - Leaf logic crates: `parish-config`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-providers`, `parish-types`, `parish-world`.
   - These crates make up the **Parish** game engine.
 - Frontend: `parish/apps/ui/` (Svelte 5 + TypeScript)
 - Rundale game content: `mods/rundale/`
@@ -40,7 +40,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 
 Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — see `parish/crates/parish-core/tests/architecture_fitness.rs`. The rest are still convention.
 
-1. **Module ownership (enforced):** Shared logic belongs in a leaf crate (`parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`). `parish-core` composes them. Do not duplicate leaf-crate logic in `parish/crates/parish-engine/src/`. Orphaned source files (present on disk but not declared as `mod`) are also rejected.
+1. **Module ownership (enforced):** Shared logic belongs in a leaf crate (`parish-config`, `parish-providers`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`). `parish-core` composes them. Do not duplicate leaf-crate logic in `parish/crates/parish-engine/src/`. Orphaned source files (present on disk but not declared as `mod`) are also rejected.
 2. **Mode parity (partially enforced):** Tauri, headless CLI, and web server must share behavior. The architecture-fitness test forbids backend-agnostic crates from depending on `tauri` / `axum` / `tower*` / `wry` / `tao`, so runtime-specific code can't leak into shared logic. Wiring parity (every IPC handler called from every entry point) is still convention.
 3. **Tests with behavior changes:** Add/adjust tests for every behavior change.
 4. **Gameplay proof:** For gameplay features, run `/parish-engine prove <feature>` (unit tests alone are not sufficient).

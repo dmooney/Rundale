@@ -4071,9 +4071,9 @@ name = "parish-inference"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "governor",
  "hf-hub",
  "parish-config",
+ "parish-providers",
  "parish-types",
  "regex",
  "reqwest 0.12.28",
@@ -4196,6 +4196,23 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "parish-providers"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "governor",
+ "parish-config",
+ "parish-types",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "wiremock",
 ]
 
 [[package]]
