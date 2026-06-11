@@ -328,13 +328,11 @@ pub fn cap_dialogue_for_display_with_trim(
     let raw_boundary = crate::npc::floor_char_boundary(dialogue, max_chars.saturating_sub(3));
     let raw_safe = raw_boundary.min(dialogue.len());
 
-    if sentence_boundary_trim {
-        if let Some(end) = last_sentence_boundary(&dialogue[..raw_safe]) {
-            // `end` is a byte index just past a terminator (and any trailing
-            // closing quote) — a clean clause end. Only use it if non-empty so
-            // we never collapse a long run-on to a bare "…".
-            return std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..end]));
-        }
+    if sentence_boundary_trim && let Some(end) = last_sentence_boundary(&dialogue[..raw_safe]) {
+        // `end` is a byte index just past a terminator (and any trailing
+        // closing quote) — a clean clause end. Only used when non-empty so
+        // we never collapse a long run-on to a bare "…".
+        return std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..end]));
     }
     std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..raw_safe]))
 }
@@ -1560,8 +1558,7 @@ mod tests {
             north past the low fields is as pleasant a walk as any in the parish";
         // Cap chosen so the raw clip lands inside the third, dangling clause.
         let cap = 95;
-        let result =
-            crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, true);
+        let result = crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, true);
         assert!(result.ends_with('…'), "must end with ellipsis: {result:?}");
         // Strip the trailing ellipsis and assert the preceding char is a clean
         // sentence terminator (or a quote closing one), never a comma/letter.
