@@ -290,6 +290,9 @@ fn scan_source(rel: &str, body: &str, known: &BTreeSet<&'static str>) -> Vec<Str
 fn explicit_drop_target(code: &str) -> Option<String> {
     let t = code.trim_start();
     let rest = t.strip_prefix("drop(")?;
+    // Tolerate inner whitespace: `drop( guard )` must still release the guard,
+    // or the sensor false-positives on a pair that was genuinely dropped.
+    let rest = rest.trim_start();
     let name: String = rest
         .chars()
         .take_while(|c| c.is_alphanumeric() || *c == '_')
