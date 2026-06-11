@@ -1,6 +1,6 @@
 # parish-inference — agent scope
 
-LLM inference **scheduling**: queue, priority lanes, worker, timeout, provider validation, file logging, and bootstrap/setup. The **transport** half — the provider HTTP clients (OpenAI-compat, Anthropic), simulator/mock backends, `AnyClient` dispatch, and outbound rate limiter — lives in the sibling [`parish-providers`](../parish-providers/) crate; this crate depends on it and re-exports every moved symbol at its former `parish_inference::*` path (so downstream consumers are unchanged). Backend-agnostic. See root [`AGENTS.md`](../../../AGENTS.md) and inference gotchas in [`docs/agent/gotchas.md`](../../../docs/agent/gotchas.md).
+LLM inference **scheduling**: queue, priority lanes, worker, timeout, provider validation, and file logging. Bootstrap/setup (GPU detect, model select, Ollama/vllm process management) lives in the sibling [`parish-setup`](../parish-setup/) crate, re-exported here as `parish_inference::setup`. The **transport** half — the provider HTTP clients (OpenAI-compat, Anthropic), simulator/mock backends, `AnyClient` dispatch, and outbound rate limiter — lives in the sibling [`parish-providers`](../parish-providers/) crate; this crate depends on it and re-exports every moved symbol at its former `parish_inference::*` path (so downstream consumers are unchanged). Backend-agnostic. See root [`AGENTS.md`](../../../AGENTS.md) and inference gotchas in [`docs/agent/gotchas.md`](../../../docs/agent/gotchas.md).
 
 ## Scoped commands
 
@@ -20,4 +20,4 @@ cargo test -p parish-inference --test '*'            # integration (may hit loca
 
 ## Module map
 
-`queue.rs` priority lanes + request/response, `worker.rs` dispatch loop, `timeout.rs` submit/await, `validate.rs` provider reachability/auth probes, `client.rs` Ollama REST + setup re-exports, `setup/` worker wiring + bootstrap, `hf_downloader.rs` model download, `file_log.rs`+`logs.rs` inference logging, `secret_scrub.rs` redaction. Transport (HTTP clients, `AnyClient`, `simulator`, `mock_client`, `rate_limit`, `client_base`, `utf8_stream`) now lives in [`parish-providers`](../parish-providers/) and is re-exported from `lib.rs`.
+`queue.rs` priority lanes + request/response, `worker.rs` dispatch loop, `timeout.rs` submit/await, `validate.rs` provider reachability/auth probes, `client.rs` Ollama REST + setup re-exports, `hf_downloader.rs` model download, `file_log.rs`+`logs.rs` inference logging, `secret_scrub.rs` redaction. Transport (HTTP clients, `AnyClient`, `simulator`, `mock_client`, `rate_limit`, `client_base`, `utf8_stream`) now lives in [`parish-providers`](../parish-providers/) and is re-exported from `lib.rs`.
