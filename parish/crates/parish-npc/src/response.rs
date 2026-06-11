@@ -81,7 +81,8 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     let stripped = strip_json_fence(trimmed);
 
     if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(stripped) {
-        let dialogue = strip_trailing_action_token(&json_resp.dialogue);
+        let dialogue =
+            strip_trailing_action_token(&strip_trailing_unmatched_quote(&json_resp.dialogue));
         let metadata = Some(NpcMetadata {
             action: json_resp.action,
             mood: json_resp.mood,
@@ -98,14 +99,112 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     // demo).
     if let Some(dlg) = extract_dialogue_field_heuristic(stripped) {
         return NpcStreamResponse {
-            dialogue: strip_trailing_action_token(&dlg),
+            dialogue: strip_trailing_action_token(&strip_trailing_unmatched_quote(&dlg)),
             metadata: None,
         };
     }
 
+    // Raw-text fallback: non-JSON provider or hopelessly malformed response.
+    // Skip quote-stripping here — the text may be a raw JSON stub (e.g. a
+    // truncated `{"dialogue": "`) where stripping the trailing `"` would
+    // produce an even more garbled result.
     NpcStreamResponse {
         dialogue: strip_trailing_action_token(trimmed),
         metadata: None,
+    }
+}
+
+/// Strips a trailing unmatched quote character from the end of a dialogue string.
+///
+/// Small models (notably Qwen2.5-14B) sometimes emit a stray closing-quote
+/// character — straight `"`, smart `"` / `"`, or single `'` / `'` — at the
+/// very end of the `dialogue` JSON field value. This is the JSON-field
+/// closing-quote leaking through when the model wraps its reply in quotation
+/// marks without balancing them, or when a truncated stream leaves a dangling
+/// closer (fixes #1405).
+///
+/// A quote is considered "unmatched" when the last non-whitespace character is
+/// a quote and no corresponding opening quote of the same kind appears earlier
+/// in the text (simple open-count check: if the count of openers ≠ closers, the
+/// trailing char is the orphan). Straight `"` uses a parity check; smart quotes
+/// use open/close matching.
+///
+/// This is called *before* `strip_trailing_action_token` so both artifacts can
+/// be removed in a single pass.
+pub(crate) fn strip_trailing_unmatched_quote(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    // Candidate trailing quote characters (all closing / ambiguous variants).
+    const TRAILING_QUOTES: &[char] = &[
+        '"',        // U+0022 straight double quote (ambiguous open/close)
+        '\u{201C}', // U+201C left double quotation mark "
+        '\u{201D}', // U+201D right double quotation mark "
+        '\'',       // U+0027 straight apostrophe / single quote
+        '\u{2018}', // U+2018 left single quotation mark '
+        '\u{2019}', // U+2019 right single quotation mark '
+    ];
+
+    let last_char = match text.chars().next_back() {
+        Some(c) if TRAILING_QUOTES.contains(&c) => c,
+        _ => return text.to_string(),
+    };
+
+    // Count openers vs. closers to decide if the trailing char is unmatched.
+    let is_unmatched = match last_char {
+        '"' => {
+            // Straight quote is ambiguous: count all occurrences. If odd, the
+            // last one is unmatched.
+            let count = text.chars().filter(|&c| c == '"').count();
+            count % 2 != 0
+        }
+        '\'' => {
+            // Straight single quote is used heavily in Irish dialogue as an
+            // apostrophe, so only strip when it appears after sentence-ending
+            // punctuation (preceded by `.`, `!`, or `?` and optional whitespace).
+            let before = text[..text.len() - '\''.len_utf8()].trim_end();
+            before
+                .chars()
+                .last()
+                .map(|c| matches!(c, '.' | '!' | '?'))
+                .unwrap_or(false)
+        }
+        '\u{201D}' => {
+            // Right double quotation mark is unambiguously a closer.
+            // Unmatched when open-count != close-count.
+            let opens = text.chars().filter(|&c| c == '\u{201C}').count();
+            let closes = text.chars().filter(|&c| c == '\u{201D}').count();
+            opens < closes
+        }
+        '\u{201C}' => {
+            // Left double quotation mark as trailing char is unusual — treat as
+            // unmatched only when it has no matching closer.
+            let opens = text.chars().filter(|&c| c == '\u{201C}').count();
+            let closes = text.chars().filter(|&c| c == '\u{201D}').count();
+            opens > closes
+        }
+        '\u{2019}' => {
+            // Right single quotation mark — same logic as right double.
+            let opens = text.chars().filter(|&c| c == '\u{2018}').count();
+            let closes = text.chars().filter(|&c| c == '\u{2019}').count();
+            opens < closes
+        }
+        '\u{2018}' => {
+            let opens = text.chars().filter(|&c| c == '\u{2018}').count();
+            let closes = text.chars().filter(|&c| c == '\u{2019}').count();
+            opens > closes
+        }
+        _ => false,
+    };
+
+    if is_unmatched {
+        // Remove the trailing quote and any whitespace that preceded it.
+        let without = &text[..text.len() - last_char.len_utf8()];
+        without.trim_end().to_string()
+    } else {
+        text.to_string()
     }
 }
 
@@ -334,5 +433,108 @@ mod tests {
         let json = r#"{"dialogue": "A fine morning to ye.", "action": "nods", "mood": "calm"}"#;
         let resp = parse_npc_stream_response(json);
         assert_eq!(resp.dialogue, "A fine morning to ye.");
+    }
+
+    // ── strip_trailing_unmatched_quote ────────────────────────────────────
+
+    #[test]
+    fn trailing_straight_double_quote_stripped() {
+        // AC-1: dangling straight closing-quote after sentence punctuation.
+        assert_eq!(
+            strip_trailing_unmatched_quote(
+                "Sure enough, a leather-man would be well sought after. \""
+            ),
+            "Sure enough, a leather-man would be well sought after."
+        );
+    }
+
+    #[test]
+    fn trailing_right_double_quote_stripped() {
+        // AC-2: U+201D dangling after text.
+        assert_eq!(
+            strip_trailing_unmatched_quote("What brings ye today? \u{201D}"),
+            "What brings ye today?"
+        );
+    }
+
+    #[test]
+    fn trailing_left_double_quote_stripped() {
+        // AC-3: U+201C appearing as trailing char with no matching closer.
+        // e.g. model emitted an opener but truncated before the closer.
+        assert_eq!(
+            strip_trailing_unmatched_quote("Something odd happened. \u{201C}"),
+            "Something odd happened."
+        );
+    }
+
+    #[test]
+    fn trailing_straight_single_quote_stripped_after_sentence_punct() {
+        // AC-4: dangling straight single-quote after `.`.
+        assert_eq!(
+            strip_trailing_unmatched_quote("Good day to ye. '"),
+            "Good day to ye."
+        );
+    }
+
+    #[test]
+    fn trailing_right_single_quote_stripped() {
+        // AC-5: U+2019 unmatched at end.
+        assert_eq!(
+            strip_trailing_unmatched_quote("Off ye go now. \u{2019}"),
+            "Off ye go now."
+        );
+    }
+
+    #[test]
+    fn balanced_smart_quotes_not_stripped() {
+        // AC-6: proper open/close pair — leave unchanged.
+        let input = "\u{201C}Tis a fine day.\u{201D}";
+        assert_eq!(strip_trailing_unmatched_quote(input), input);
+    }
+
+    #[test]
+    fn balanced_straight_quotes_not_stripped() {
+        // AC-6: even count of straight double-quotes — leave unchanged.
+        let input = "\"Tis a fine day.\"";
+        assert_eq!(strip_trailing_unmatched_quote(input), input);
+    }
+
+    #[test]
+    fn apostrophe_mid_word_not_stripped() {
+        // AC-6 variant: straight single-quote used as apostrophe — not
+        // preceded by sentence punctuation, so must not be stripped.
+        let input = "Ye're a fine one, aren't ye?";
+        assert_eq!(strip_trailing_unmatched_quote(input), input);
+    }
+
+    #[test]
+    fn empty_string_returns_empty() {
+        assert_eq!(strip_trailing_unmatched_quote(""), "");
+        assert_eq!(strip_trailing_unmatched_quote("   "), "");
+    }
+
+    #[test]
+    fn parse_response_strips_trailing_stray_quote() {
+        // AC-1 exercised through the full parse pipeline.
+        let json = r#"{"dialogue": "What brings ye to the forge today? ”", "action": "nods", "mood": "friendly"}"#;
+        let resp = parse_npc_stream_response(json);
+        assert_eq!(resp.dialogue, "What brings ye to the forge today?");
+    }
+
+    #[test]
+    fn parse_response_stray_quote_from_issue_1405() {
+        // Exact artifact from the bug report: trailing ` "` (U+201D).
+        let json = r#"{"dialogue": "Sure enough, a leather-man would be well sought after. Now, what brings ye to the forge today? ”", "action": "hammers", "mood": "busy"}"#;
+        let resp = parse_npc_stream_response(json);
+        assert!(
+            !resp.dialogue.ends_with('\u{201D}'),
+            "U+201D must be stripped: {:?}",
+            resp.dialogue
+        );
+        assert!(
+            !resp.dialogue.ends_with('"'),
+            "straight quote must be stripped: {:?}",
+            resp.dialogue
+        );
     }
 }
