@@ -71,10 +71,11 @@ const ISSUE_LABELS: &[&str] = &["bug", "agent-filed"];
 const LOG_TAIL: usize = 15;
 /// GitHub's hard limit for issue bodies (characters).
 const GITHUB_BODY_LIMIT: usize = 65_536;
-/// Safe ceiling we target: leaves ~5.5 KB of headroom below the GitHub limit.
+/// Safe ceiling we target: strictly ≤ 90% of the GitHub limit
+/// (65,536 × 0.90 = 58,982.4), per repo rule 15 on external API payloads.
 ///
 /// `pub` so tests can assert against the same constant.
-pub const BODY_BUDGET: usize = 60_000;
+pub const BODY_BUDGET: usize = 58_982;
 /// Byte budget allocated to the entire diagnostic payload section.
 ///
 /// Non-diagnostic sections (description + game state + recent logs) are
@@ -1509,6 +1510,9 @@ mod tests {
 
     #[test]
     fn body_len_capped_under_github_limit() {
+        // Literal pin: 90% of GitHub's 65,536-char issue-body limit. Keeps the
+        // budget from drifting above the rule-15 ceiling unnoticed.
+        assert_eq!(BODY_BUDGET, 58_982);
         let body = compose_issue_body(&request(), &oversized_state(), None);
         assert!(
             body.len() <= BODY_BUDGET,
