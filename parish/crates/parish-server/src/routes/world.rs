@@ -252,10 +252,11 @@ pub async fn get_debug_snapshot(
     // caused latency spikes on all concurrent game operations and created
     // a latent deadlock risk if lock ordering ever drifted.
     //
-    // Lock order respected throughout: world → npc_manager → inference_queue
-    // → config → debug_events → game_events → inference_log (#483).
+    // Lock order respected throughout — see `LOCK_ORDER` in `state.rs`
+    // (config precedes the inference group; #483).
 
-    // 1. Peek inference_queue presence first to honour canonical order (#483).
+    // 1. Peek inference_queue presence (released temporary — the guard does
+    //    not outlive this statement, so it holds no slot in the order check).
     let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
 
     // 2. Clone the fields we need from config — drop the lock immediately.
