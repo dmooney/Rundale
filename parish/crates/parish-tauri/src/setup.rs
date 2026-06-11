@@ -454,9 +454,16 @@ pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) 
 
                 if let Some(branch) = branch {
                     if let Ok(Some((_snap_id, snapshot))) = db.load_latest_snapshot(branch.id) {
+                        let grounding_enabled = {
+                            let cfg = state.config.lock().await;
+                            !cfg.flags.is_disabled("npc-dialogue-grounding")
+                        };
                         let mut world = state.world.lock().await;
                         let mut npc_mgr = state.npc_manager.lock().await;
                         snapshot.restore(&mut world, &mut npc_mgr);
+                        if grounding_enabled {
+                            npc_mgr.clear_introduced_for_session();
+                        }
                         npc_mgr.assign_tiers(&world, &[]);
                         drop(npc_mgr);
                         drop(world);
@@ -748,6 +755,12 @@ pub(crate) async fn spawn_event_bus_fanin(state: &Arc<AppState>) {
                                 buf.pop_front();
                             }
                             buf.push_back(evt);
+                            // Increment the monotonic lifetime counter AFTER
+                            // the push so `total_game_events` always equals
+                            // the total number of events ever enqueued (#1389).
+                            state_events
+                                .total_game_events
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -1023,6 +1036,10 @@ async fn dispatch_tier3(
                     return;
                 };
 
+                let grounding_enabled = {
+                    let cfg = state_t3.config.lock().await;
+                    !cfg.flags.is_disabled("npc-dialogue-grounding")
+                };
                 let ctx = parish_core::npc::ticks::Tier3Context {
                     snapshots: &snapshots,
                     client: &sim_client,
@@ -1034,6 +1051,7 @@ async fn dispatch_tier3(
                     batch_size: 0,
                     language: &state_t3.language_settings,
                     cancel: Some(cancel_t3),
+                    grounding_enabled,
                 };
 
                 let result = parish_core::npc::ticks::tick_tier3(&ctx).await;

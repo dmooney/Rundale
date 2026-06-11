@@ -9,11 +9,13 @@ members = [
     "crates/parish-geo-tool",
     "crates/parish-types",
     "crates/parish-config",
+    "crates/parish-providers",
     "crates/parish-inference",
     "crates/parish-world",
     "crates/parish-palette",
     "crates/parish-npc",
     "crates/parish-npc-tool",
+    "crates/parish-mod",
     "crates/parish-persistence",
     "crates/parish-input",
     "crates/parish-client",
@@ -39,10 +41,12 @@ default-members = ["crates/parish-engine", "crates/parish-mcp"]
 # Internal crates
 parish-types = { path = "crates/parish-types" }
 parish-config = { path = "crates/parish-config" }
+parish-providers = { path = "crates/parish-providers" }
 parish-inference = { path = "crates/parish-inference" }
 parish-world = { path = "crates/parish-world" }
 parish-palette = { path = "crates/parish-palette" }
 parish-npc = { path = "crates/parish-npc" }
+parish-mod = { path = "crates/parish-mod" }
 parish-persistence = { path = "crates/parish-persistence" }
 parish-input = { path = "crates/parish-input" }
 parish-core = { path = "crates/parish-core" }

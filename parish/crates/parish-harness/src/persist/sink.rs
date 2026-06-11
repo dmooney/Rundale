@@ -51,6 +51,9 @@ pub struct IngestRecord {
     pub turns: Vec<TurnRecord>,
     pub axes: Vec<AxisScore>,
     pub findings: Vec<Finding>,
+    /// Optional GitHub issue URL per finding, parallel to `findings`. `Some`
+    /// entries are written onto the finding row so the dashboard links out.
+    pub finding_issue_urls: Vec<Option<String>>,
     /// `Some` => gated (quality is forced NULL); `None` => scored.
     pub gate: Option<GateTrip>,
     pub quality_score: Option<f64>,
@@ -361,8 +364,11 @@ impl Db {
         for t in &rec.turns {
             self.record_turn(run_id, t)?;
         }
-        for f in &rec.findings {
-            self.insert_finding(run_id, f)?;
+        for (i, f) in rec.findings.iter().enumerate() {
+            let row_id = self.insert_finding(run_id, f)?;
+            if let Some(Some(url)) = rec.finding_issue_urls.get(i) {
+                self.set_finding_issue_url(row_id, url)?;
+            }
         }
         self.update_run_cost(run_id, rec.cost_usd, rec.player_tokens, rec.judge_tokens)?;
         match &rec.gate {

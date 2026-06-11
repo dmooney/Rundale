@@ -105,9 +105,18 @@ pub async fn do_load_branch(
         .map_err(|e| e.to_string())??;
 
     // Restore state
+    let grounding_enabled = {
+        let cfg = state.config.lock().await;
+        !cfg.flags.is_disabled("npc-dialogue-grounding")
+    };
     let mut world = state.world.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
     snapshot.restore(&mut world, &mut npc_manager);
+    // Gate: clear the in-memory introduced set so NPCs must be re-introduced
+    // this session (#1396, npc-dialogue-grounding flag, default-on).
+    if grounding_enabled {
+        npc_manager.clear_introduced_for_session();
+    }
     npc_manager.assign_tiers(&world, &[]);
 
     // Update save tracking
@@ -274,6 +283,7 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         pronunciations: &state.pronunciations,
         default_transport: state.transport.default_mode(),
         emitter: &emitter,
+        game_events: &state.game_events,
     })
     .await
 }

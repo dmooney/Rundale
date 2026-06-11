@@ -1,0 +1,44 @@
+# play_1394 -- NPC dialogue grounding + introduced flag + tier-3 gen params
+# ==========================================================================
+# Covers GitHub issues #1394, #1396, #1397.
+#
+# AC-1: tier-3 GenerateParams has temperature + frequency_penalty (unit test, not runtime)
+# AC-2: after load, NPC shows introduced:false until actually met this session
+# AC-3: after dialogue exchange, NPC shows introduced:true
+# AC-4/AC-5: system prompt contains PLACES IN THIS PARISH block + deflection guard (unit test)
+# AC-6/AC-7: NPC declines fabricated location/person (live MCP proof only; harness stubs)
+#
+# Harness path proves AC-2 and AC-3 deterministically:
+#   - Start fresh game. NPCs start with introduced:false (fresh set).
+#   - /npcs confirms Seamus Gallagher introduced:false before meeting him.
+#   - Talk to Seamus. After reply, /npcs confirms introduced:true.
+#
+# AC-4/AC-5: proven by unit tests in parish-npc (prompt builder tests).
+# AC-6/AC-7: proven by live MCP transcript with real model.
+
+# --- Start: check initial state at Kilteevan Village ---
+look
+/npcs
+/status
+
+# --- Navigate toward The Forge where Seamus Gallagher works ---
+go to The Forge
+
+# --- Confirm NPC state before any dialogue (introduced should be false) ---
+/npcs
+/debug here
+
+# --- Stub a reply so the harness doesn't need a live model ---
+/stub Seamus Gallagher: God's speed to ye, stranger. I'm Seamus, the blacksmith. What brings ye to the forge?
+
+# --- Talk to Seamus — this is the first meeting, so introduced flips to true ---
+hello
+
+# --- Confirm introduced:true after dialogue ---
+/npcs
+
+# --- Ask about a real location (should be fine) ---
+/stub Seamus Gallagher: Aye, Kilteevan Village is just up the lane, no more than a minute's walk.
+what do you know of Kilteevan Village?
+
+/status

@@ -165,6 +165,7 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         pronunciations: &state.pronunciations,
         default_transport: state.transport.default_mode(),
         emitter: &emitter,
+        game_events: &state.game_events,
     })
     .await
 }
@@ -307,9 +308,16 @@ pub async fn restore_snapshot_and_emit(
     path: &std::path::Path,
 ) {
     {
+        let grounding_enabled = {
+            let cfg = state.config.lock().await;
+            !cfg.flags.is_disabled("npc-dialogue-grounding")
+        };
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         snapshot.restore(&mut world, &mut npc_manager);
+        if grounding_enabled {
+            npc_manager.clear_introduced_for_session();
+        }
         npc_manager.assign_tiers(&world, &[]);
 
         let mut ws = parish_core::ipc::snapshot_from_world(&world);

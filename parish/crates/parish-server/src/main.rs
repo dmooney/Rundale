@@ -66,7 +66,13 @@ fn env_flag_truthy(name: &str) -> bool {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    setup_tracing_and_otel();
+    // The WorkerGuard returned here MUST be kept alive for the full process
+    // lifetime. Dropping it earlier shuts down the non-blocking writer thread,
+    // which silently discards all buffered log lines and leaves the log file at
+    // 0 bytes — even though the file is created and tracing macros appear to
+    // succeed. Bind it here (not inside setup_tracing_and_otel) so it is only
+    // dropped when main() returns.
+    let _log_guard = setup_tracing_and_otel();
     tracing::info!("Starting parish-server...");
     let cli = Cli::parse();
 
@@ -85,10 +91,16 @@ async fn main() -> Result<()> {
 }
 
 /// Sets up tracing and optional OpenTelemetry.
-fn setup_tracing_and_otel() {
+///
+/// Returns the [`tracing_appender::non_blocking::WorkerGuard`] for the file
+/// appender. The caller **must** hold this value alive for the entire process
+/// lifetime (bind it with `let _log_guard = setup_tracing_and_otel();` in
+/// `main`). Dropping it earlier terminates the background writer thread, which
+/// silently discards buffered log lines and produces a 0-byte log file.
+fn setup_tracing_and_otel() -> tracing_appender::non_blocking::WorkerGuard {
     std::fs::create_dir_all("logs").ok();
     let file_appender = tracing_appender::rolling::daily("logs", "parish-server.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     let otel_provider = parish_server::tracing_setup::try_build_otel_provider("parish-server");
     let otel_tracer = otel_provider.as_ref().map(|p| p.tracer("parish-server"));
@@ -108,6 +120,7 @@ fn setup_tracing_and_otel() {
             .with(Option::<OpenTelemetryLayer<_, opentelemetry::trace::noop::NoopTracer>>::None)
             .init();
     }
+    guard
 }
 
 /// Resolves the mod data directory when neither `--data-dir` nor

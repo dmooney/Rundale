@@ -1,0 +1,22 @@
+[package]
+name = "parish-mod"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Content-mod loader for the Parish engine: manifest parsing, discovery, runtime data, and the world bridge"
+
+[dependencies]
+parish-types = { workspace = true }
+parish-config = { workspace = true }
+parish-world = { workspace = true }
+parish-palette = { workspace = true }
+parish-npc = { workspace = true }
+parish-persistence = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

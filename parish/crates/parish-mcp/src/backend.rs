@@ -101,15 +101,36 @@ impl ParishHttpBackend {
         format!("/api/{kebab}")
     }
 
-    /// Heuristic: GET when `args` is JSON null, POST otherwise.
+    /// Test-visible re-export of [`Self::is_post`] for cross-module assertions.
+    #[cfg(test)]
+    pub fn is_post_pub(args: &Value) -> bool {
+        Self::is_post(args)
+    }
+
+    /// Heuristic: GET when `args` is JSON null OR a `_qs`-only object,
+    /// POST otherwise.
     ///
     /// Empty objects (`{}`) are POST: tool translators like
     /// `parish_new_game` and `parish_save_game` deliberately emit
     /// `json!({})` to signal a body-less mutation endpoint, and the
     /// matching `parish-server` route is registered with `.post(...)`.
     /// Treating `{}` as GET would silently route those calls to a 404.
+    ///
+    /// An object whose only key is `"_qs"` is a GET with query-string
+    /// parameters (#1389). The `_qs` value is extracted and appended to the
+    /// URL in [`Self::invoke`]; the object itself is never sent as a body.
     fn is_post(args: &Value) -> bool {
-        !args.is_null()
+        if args.is_null() {
+            return false;
+        }
+        // A `_qs`-only object is a GET with optional query params — not a POST.
+        if args
+            .as_object()
+            .is_some_and(|o| o.len() == 1 && o.contains_key("_qs"))
+        {
+            return false;
+        }
+        true
     }
 }
 
@@ -120,10 +141,40 @@ impl TauriBackend for ParishHttpBackend {
     }
 
     async fn invoke(&self, command: &str, args: Value) -> Result<Value, BackendError> {
-        let url = format!("{}{}", self.base_url, Self::command_to_path(command));
-        let use_post = Self::is_post(&args);
+        // For GET requests, the `args` object may carry a `"_qs"` key whose
+        // value is an object of query-string parameters to append to the URL.
+        // This lets callers like `translate_turn` forward optional parameters
+        // (e.g. `?since=N`) without changing the trait signature (#1389).
+        let (qs_params, body_args) = if !Self::is_post(&args) {
+            let qs = args
+                .as_object()
+                .and_then(|o| o.get("_qs"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            (qs, Value::Null)
+        } else {
+            (Value::Null, args)
+        };
+
+        let mut url = format!("{}{}", self.base_url, Self::command_to_path(command));
+        if let Some(qs_obj) = qs_params.as_object().filter(|o| !o.is_empty()) {
+            let pairs: Vec<String> = qs_obj
+                .iter()
+                .map(|(k, v)| {
+                    let encoded_v = match v {
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    format!("{k}={encoded_v}")
+                })
+                .collect();
+            url.push('?');
+            url.push_str(&pairs.join("&"));
+        }
+
+        let use_post = Self::is_post(&body_args);
         let mut req = if use_post {
-            self.client.post(&url).json(&args)
+            self.client.post(&url).json(&body_args)
         } else {
             self.client.get(&url)
         };
@@ -251,6 +302,42 @@ mod tests {
             &serde_json::json!({"text": "hi"})
         ));
         assert!(ParishHttpBackend::is_post(&serde_json::json!([1, 2, 3])));
+    }
+
+    /// A `_qs`-only args object must be treated as a GET, not POST (#1389).
+    #[test]
+    fn is_post_treats_qs_only_object_as_get() {
+        // The `since` cursor carrier used by `translate_turn`.
+        assert!(!ParishHttpBackend::is_post(
+            &serde_json::json!({"_qs": {"since": 42}})
+        ));
+        // Empty `_qs` also a GET.
+        assert!(!ParishHttpBackend::is_post(&serde_json::json!({"_qs": {}})));
+        // But an object with additional keys IS a POST.
+        assert!(ParishHttpBackend::is_post(
+            &serde_json::json!({"_qs": {"since": 1}, "text": "hi"})
+        ));
+    }
+
+    /// `GET /api/turn?since=42` — query string is appended when `_qs` present.
+    #[tokio::test]
+    async fn get_with_qs_appends_query_string() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/turn"))
+            .and(wiremock::matchers::query_param("since", "42"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"event_cursor": 42})),
+            )
+            .mount(&server)
+            .await;
+
+        let backend = ParishHttpBackend::new(server.uri());
+        let v = backend
+            .invoke("get_turn", serde_json::json!({"_qs": {"since": 42}}))
+            .await
+            .unwrap();
+        assert_eq!(v["event_cursor"], 42);
     }
 
     /// Regression: empty-object args (the shape `parish_new_game` / `parish_save_game`

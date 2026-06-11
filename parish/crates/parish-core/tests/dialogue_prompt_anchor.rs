@@ -72,6 +72,7 @@ fn build_dialogue_context_with_first_npc(
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("prepare_npc_conversation_turn returned None");
 
@@ -149,6 +150,7 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn 1 setup");
     assert!(
@@ -169,6 +171,7 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn 2 setup");
     assert!(
@@ -241,6 +244,7 @@ fn dialogue_context_alerts_on_player_modern_register_echo() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn setup");
     assert!(
@@ -281,6 +285,7 @@ fn dialogue_context_no_register_alert_on_clean_input() {
         &[],
         false,
         &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig::default(),
     )
     .expect("turn setup");
     assert!(
@@ -355,4 +360,123 @@ fn dialogue_context_includes_present_or_solo_anchor() {
             "solo anchor must forbid addressing absent NPCs as present:\n{context}"
         );
     }
+}
+
+/// AC-4 (#1394): when grounding is enabled, the system prompt must contain
+/// a `PLACES IN THIS PARISH` block listing real parish location names.
+#[test]
+fn dialogue_system_prompt_contains_location_grounding_block() {
+    use parish_core::npc::LanguageSettings;
+
+    let (mut world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+    world.player_name = Some("Aiden Carney".to_string());
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "hello there",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig {
+            grounding_enabled: true,
+            ..parish_core::config::NpcConfig::default()
+        },
+    )
+    .expect("setup must succeed");
+
+    // AC-4: PLACES IN THIS PARISH block is present
+    assert!(
+        setup.system_prompt.contains("PLACES IN THIS PARISH"),
+        "system prompt must contain PLACES IN THIS PARISH block:\n{}",
+        setup.system_prompt
+    );
+    // Rundale has Kilteevan Village as a canonical location — must be listed
+    assert!(
+        setup.system_prompt.contains("Kilteevan"),
+        "system prompt must list at least one real location name:\n{}",
+        setup.system_prompt
+    );
+}
+
+/// AC-5 (#1394): when grounding is enabled, the system prompt must contain
+/// an explicit instruction to deflect/refuse confirmation of unknown places
+/// or people.
+#[test]
+fn dialogue_system_prompt_contains_grounding_deflection_instruction() {
+    use parish_core::npc::LanguageSettings;
+
+    let (world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "hello",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig {
+            grounding_enabled: true,
+            ..parish_core::config::NpcConfig::default()
+        },
+    )
+    .expect("setup must succeed");
+
+    // AC-5: deflection instruction is present
+    assert!(
+        setup.system_prompt.contains("do not confirm"),
+        "system prompt must instruct NPC not to confirm unknown places/people:\n{}",
+        setup.system_prompt
+    );
+    assert!(
+        setup.system_prompt.contains("Politely correct or deflect"),
+        "system prompt must include deflection instruction:\n{}",
+        setup.system_prompt
+    );
+}
+
+/// Inverse: when grounding is disabled, the PLACES block must be absent.
+#[test]
+fn dialogue_system_prompt_omits_location_block_when_grounding_disabled() {
+    use parish_core::npc::LanguageSettings;
+
+    let (world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "hello",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig {
+            grounding_enabled: false,
+            ..parish_core::config::NpcConfig::default()
+        },
+    )
+    .expect("setup must succeed");
+
+    assert!(
+        !setup.system_prompt.contains("PLACES IN THIS PARISH"),
+        "PLACES block must be absent when grounding disabled:\n{}",
+        setup.system_prompt
+    );
 }

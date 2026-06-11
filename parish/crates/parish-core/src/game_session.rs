@@ -302,13 +302,70 @@ pub fn apply_movement(
 /// log, witness memories, tier-1 response memory) is already capped
 /// independently by `memory_truncation_dialogue` in `NpcConfig`.
 pub fn cap_dialogue_for_display(dialogue: &str, max_chars: usize) -> std::borrow::Cow<'_, str> {
+    cap_dialogue_for_display_with_trim(dialogue, max_chars, true)
+}
+
+/// Sentence-boundary terminators a clipped reply is allowed to end on (#1400).
+const SENTENCE_TERMINATORS: [char; 4] = ['.', '!', '?', '\u{2026}'];
+
+/// Length cap with an explicit sentence-boundary-trim toggle (#1400).
+///
+/// When `sentence_boundary_trim` is `true`, a reply that overruns the cap is
+/// rewound to the last sentence terminator (`.`, `!`, `?`, `…`, optionally
+/// followed by a closing quote) within the budget before the `…` marker is
+/// appended, so the player never sees a mid-word / mid-clause cut
+/// ("...out and about, and…"). When no terminator exists in the budget, or the
+/// toggle is `false`, it falls back to the legacy raw char-boundary clip.
+pub fn cap_dialogue_for_display_with_trim(
+    dialogue: &str,
+    max_chars: usize,
+    sentence_boundary_trim: bool,
+) -> std::borrow::Cow<'_, str> {
     if max_chars == 0 || dialogue.len() <= max_chars {
         return std::borrow::Cow::Borrowed(dialogue);
     }
     // Reserve 3 bytes for the `…` codepoint (U+2026, 3-byte UTF-8).
-    let boundary = crate::npc::floor_char_boundary(dialogue, max_chars.saturating_sub(3));
-    let safe = boundary.min(dialogue.len());
-    std::borrow::Cow::Owned(format!("{}…", &dialogue[..safe]))
+    let raw_boundary = crate::npc::floor_char_boundary(dialogue, max_chars.saturating_sub(3));
+    let raw_safe = raw_boundary.min(dialogue.len());
+
+    if sentence_boundary_trim && let Some(end) = last_sentence_boundary(&dialogue[..raw_safe]) {
+        // `end` is a byte index just past a terminator (and any trailing
+        // closing quote) — a clean clause end. Only used when non-empty so
+        // we never collapse a long run-on to a bare "…".
+        return std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..end]));
+    }
+    std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..raw_safe]))
+}
+
+/// Returns the byte index just past the last sentence boundary in `s`, or
+/// `None` if there is no usable boundary (so the caller falls back to the raw
+/// clip). A boundary is a sentence terminator optionally followed by a single
+/// closing quote (`"` / `'` / `\u{201D}` / `\u{2019}`); the index is advanced
+/// past that quote so the clause closes cleanly.
+fn last_sentence_boundary(s: &str) -> Option<usize> {
+    // Scan backward so we short-circuit at the first terminator we find
+    // (which is the last one in forward order) rather than walking the whole
+    // string to track a running `last` pointer.
+    for (idx, ch) in s.char_indices().rev() {
+        if SENTENCE_TERMINATORS.contains(&ch) {
+            let mut end = idx + ch.len_utf8();
+            // Absorb a single trailing closing quote so `"...home."` keeps the quote.
+            if let Some(next) = s[end..].chars().next()
+                && matches!(next, '"' | '\'' | '\u{201D}' | '\u{2019}')
+            {
+                end += next.len_utf8();
+            }
+            // Reject empty (would collapse to a bare ellipsis) or at the very
+            // start.
+            if end == 0 {
+                return None;
+            }
+            // A boundary at exactly `bytes_len` is still a clean clause end —
+            // keep it as long as it leaves real content.
+            return Some(end);
+        }
+    }
+    None
 }
 
 /// Outcome of [`apply_npc_dialogue_turn`].
@@ -441,7 +498,15 @@ pub fn apply_npc_dialogue_turn(
     // the same capped text. The in-memory representation (witness memories,
     // tier-1 memory entry) is capped separately via `memory_truncation_dialogue`.
     let display_cap = npc_cfg.dialogue_display_max_chars;
-    let capped_dialogue = cap_dialogue_for_display(&deduped_dialogue, display_cap);
+    // Sentence-boundary trim (#1400): clip back to a clause end so a capped
+    // reply never shows a mid-word/mid-clause "…". Default-on; kill-switched
+    // via the `dialogue_sentence_boundary_trim` config field (runtime flag
+    // `dialogue-sentence-boundary-trim`).
+    let capped_dialogue = cap_dialogue_for_display_with_trim(
+        &deduped_dialogue,
+        display_cap,
+        npc_cfg.dialogue_sentence_boundary_trim,
+    );
 
     // 3. Record the conversation exchange for scene awareness.
     world
@@ -1477,6 +1542,91 @@ mod tests {
         let long = "a".repeat(5000);
         let result = crate::game_session::cap_dialogue_for_display(&long, 0);
         assert_eq!(result.len(), 5000, "zero cap must not truncate");
+    }
+
+    // ── #1400 — sentence-boundary-aware display cap ──────────────────────────
+
+    /// AC-1 (#1400): a reply that overruns the cap is trimmed back to a sentence
+    /// boundary — the result ends on a terminator + `…`, never mid-word or on a
+    /// dangling conjunction/comma.
+    #[test]
+    fn cap_dialogue_sentence_trim_ends_on_clause_boundary() {
+        // Two clean sentences, then a long dangling clause that would overrun a
+        // small cap mid-word ("...out and about, and …").
+        let dialogue = "'Tis a grand morning indeed. The fields are bright with \
+            dew and birdsong. 'Tis a fine day to be out and about, and the road \
+            north past the low fields is as pleasant a walk as any in the parish";
+        // Cap chosen so the raw clip lands inside the third, dangling clause.
+        let cap = 95;
+        let result = crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, true);
+        assert!(result.ends_with('…'), "must end with ellipsis: {result:?}");
+        // Strip the trailing ellipsis and assert the preceding char is a clean
+        // sentence terminator (or a quote closing one), never a comma/letter.
+        let body = result.trim_end_matches('\u{2026}');
+        let last = body.chars().last().unwrap();
+        assert!(
+            matches!(last, '.' | '!' | '?' | '"' | '\'' | '\u{201D}' | '\u{2019}'),
+            "clipped reply must end on a clause boundary, got {last:?}: {result:?}"
+        );
+        assert!(
+            !body.trim_end().ends_with("and") && !body.trim_end().ends_with(','),
+            "must not end on a dangling conjunction/comma: {result:?}"
+        );
+        // It kept at least the first sentence.
+        assert!(result.contains("grand morning indeed."));
+    }
+
+    /// AC-2 (#1400): a reply already under the cap and ending on a sentence
+    /// boundary passes through unchanged (no spurious trimming).
+    #[test]
+    fn cap_dialogue_sentence_trim_under_cap_unchanged() {
+        let s = "Welcome. I run the pub here. What'll ye have?";
+        let result = crate::game_session::cap_dialogue_for_display_with_trim(s, 800, true);
+        assert_eq!(result.as_ref(), s, "under-cap dialogue must be unchanged");
+    }
+
+    /// AC-3 (#1400): a single giant run-on word with no boundary in the budget
+    /// falls back to the raw char-boundary clip — never panics, stays ≤ cap,
+    /// valid UTF-8.
+    #[test]
+    fn cap_dialogue_sentence_trim_no_boundary_falls_back() {
+        let run_on = "x".repeat(2000);
+        let result = crate::game_session::cap_dialogue_for_display_with_trim(&run_on, 800, true);
+        assert!(result.len() <= 800, "fallback clip must stay within cap");
+        assert!(result.ends_with('…'));
+        // Valid UTF-8 (no panic on char iteration).
+        let _ = result.chars().count();
+    }
+
+    /// AC-3 corollary: multibyte content with no sentence boundary still clips
+    /// safely on a char boundary.
+    #[test]
+    fn cap_dialogue_sentence_trim_multibyte_no_boundary() {
+        let irish = "Dia dhuit a chara cén chaoi a bhfuil tú ".repeat(40);
+        let result = crate::game_session::cap_dialogue_for_display_with_trim(&irish, 200, true);
+        assert!(result.len() <= 200);
+        assert!(result.ends_with('…'));
+        let _ = result.chars().count(); // must be valid UTF-8
+    }
+
+    /// AC-4 (#1400): kill-switch — with sentence-boundary trim disabled, the cap
+    /// reverts to the legacy raw char-boundary clip (byte-for-byte identical to
+    /// `cap_dialogue_for_display` before this fix).
+    #[test]
+    fn cap_dialogue_sentence_trim_killswitch_matches_legacy_clip() {
+        let dialogue = "'Tis a grand morning indeed. The fields are bright with \
+            dew and birdsong. 'Tis a fine day to be out and about, and the road";
+        let cap = 95;
+        let trimmed_off =
+            crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, false);
+        // Legacy raw clip: floor char boundary at cap-3, then "…".
+        let raw_boundary = crate::npc::floor_char_boundary(dialogue, cap - 3);
+        let expected = format!("{}\u{2026}", &dialogue[..raw_boundary]);
+        assert_eq!(
+            trimmed_off.as_ref(),
+            expected,
+            "kill-switched cap must match the legacy raw char-boundary clip"
+        );
     }
 
     /// `apply_npc_dialogue_turn` stores capped dialogue in the DialogueOccurred event.

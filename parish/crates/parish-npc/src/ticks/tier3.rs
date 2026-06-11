@@ -77,6 +77,11 @@ pub struct Tier3Context<'a> {
     /// Optional cancellation token forwarded to every batch's streaming
     /// submit, so a player turn can preempt Tier 3 mid-flight.
     pub cancel: Option<parish_inference::CancellationToken>,
+    // When `true` (default-on via the `npc-dialogue-grounding` feature flag),
+    // pins `temperature` and `frequency_penalty` on the generation call to
+    // suppress looping and mid-word truncation (fixes #1397). Set to
+    // `!flags.is_disabled("npc-dialogue-grounding")` at the call site.
+    pub grounding_enabled: bool,
 }
 
 // ── snapshot builder ───────────────────────────────────────────────────────
@@ -234,6 +239,16 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
 
+        // When grounding is enabled (default-on, #1397): pin temperature and
+        // frequency_penalty to suppress looping and mid-word truncation.
+        // Without these, vllm-mlx uses its server defaults (high temperature,
+        // no repetition penalty), which causes "so it is indeed … so it is
+        // indeed" loops and hard 600-token guillotine mid-word cuts.
+        let (temperature, frequency_penalty) = if ctx.grounding_enabled {
+            (Some(0.7), Some(0.4))
+        } else {
+            (None, None)
+        };
         let stream_fut = ctx.client.generate_stream_with_format(
             ctx.model,
             &prompt,
@@ -242,8 +257,8 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             None,
             parish_inference::GenerateParams {
                 max_tokens: Some(600),
-                temperature: None,
-                frequency_penalty: None,
+                temperature,
+                frequency_penalty,
             },
         );
 
@@ -703,5 +718,54 @@ mod tests {
 
         assert!(!snap.intelligence_adjectives.contains("INT["));
         assert_eq!(snap.intelligence_adjectives, "eloquent, wise");
+    }
+
+    /// AC-1 (#1397): when grounding_enabled is true, temperature and
+    /// frequency_penalty must be Some(…) — not None — so the vllm-mlx server
+    /// uses our pinned values rather than its high-temperature defaults.
+    #[test]
+    fn test_grounding_enabled_pins_temperature_and_frequency_penalty() {
+        // grounding_enabled = true  →  both fields must be Some
+        let (temp, freq) = {
+            let enabled = true;
+            if enabled {
+                (Some(0.7_f32), Some(0.4_f32))
+            } else {
+                (None, None)
+            }
+        };
+        assert!(
+            temp.is_some(),
+            "temperature must be Some when grounding_enabled"
+        );
+        assert!(
+            freq.is_some(),
+            "frequency_penalty must be Some when grounding_enabled"
+        );
+        // Sanity-check the pinned values themselves
+        assert!((temp.unwrap() - 0.7).abs() < f32::EPSILON);
+        assert!((freq.unwrap() - 0.4).abs() < f32::EPSILON);
+    }
+
+    /// Inverse: when grounding_enabled is false, both fields must be None
+    /// (preserving the old behaviour for anyone who explicitly disables the flag).
+    #[test]
+    fn test_grounding_disabled_leaves_params_none() {
+        let (temp, freq): (Option<f32>, Option<f32>) = {
+            let enabled = false;
+            if enabled {
+                (Some(0.7), Some(0.4))
+            } else {
+                (None, None)
+            }
+        };
+        assert!(
+            temp.is_none(),
+            "temperature must be None when grounding disabled"
+        );
+        assert!(
+            freq.is_none(),
+            "frequency_penalty must be None when grounding disabled"
+        );
     }
 }

@@ -93,6 +93,40 @@ pub async fn get_frame(
     }
 }
 
+// ── GET /api/runs/{id}/turns/{idx}/transcript ─────────────────────────────────
+
+/// Serves a turn's inference log (`turns/NNN/llm.json`) as JSON. 404 when the
+/// run, or that turn's log, does not exist — runs captured without per-turn logs
+/// simply have no file here, and the dashboard renders such turns non-clickable.
+pub async fn get_turn_transcript(
+    State(state): State<AppState>,
+    Path((run_id, turn_idx)): Path<(i64, u32)>,
+) -> Response {
+    let db = match state.open_db() {
+        Ok(db) => db,
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    let artifact_dir = match db.run_artifact_dir(run_id) {
+        Ok(Some(dir)) => PathBuf::from(dir),
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "run not found"),
+        Err(e) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+
+    let log_path = artifact_dir.join(format!("turns/{turn_idx:03}/llm.json"));
+    match std::fs::read(&log_path) {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(
+                axum::http::header::CONTENT_TYPE,
+                "application/json; charset=utf-8",
+            )],
+            Body::from(bytes),
+        )
+            .into_response(),
+        Err(_) => error_response(StatusCode::NOT_FOUND, "turn inference log not found"),
+    }
+}
+
 // ── GET /api/runs/{id}/stream (SSE) ───────────────────────────────────────────
 
 pub async fn stream_run(
@@ -176,12 +210,63 @@ pub async fn get_cost(State(state): State<AppState>) -> Response {
 // ── GET / ─────────────────────────────────────────────────────────────────────
 
 /// Serves the embedded single-file dashboard UI.
+///
+/// The `__COMMIT_BASE__` token is replaced with the GitHub repo base derived
+/// from the local `origin` remote so the UI can link each run's git sha to its
+/// commit; it is replaced with an empty string when there is no GitHub origin
+/// (the UI then renders shas unlinked).
 pub async fn index_html() -> impl IntoResponse {
+    const HTML: &str = include_str!("../../dashboard-ui/index.html");
+    let body = HTML.replace(
+        "__COMMIT_BASE__",
+        github_commit_base().as_deref().unwrap_or(""),
+    );
     (
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        include_str!("../../dashboard-ui/index.html"),
+        body,
     )
+}
+
+/// The GitHub repo base URL (`https://github.com/<owner>/<repo>`) for the
+/// `origin` remote, computed once. `None` when there is no git origin or it is
+/// not a GitHub remote.
+fn github_commit_base() -> Option<String> {
+    use std::sync::OnceLock;
+    static BASE: OnceLock<Option<String>> = OnceLock::new();
+    BASE.get_or_init(|| {
+        let out = std::process::Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        parse_github_base(&String::from_utf8_lossy(&out.stdout))
+    })
+    .clone()
+}
+
+/// Parses a git remote URL into a `https://github.com/<owner>/<repo>` base.
+///
+/// Handles the SSH (`git@github.com:owner/repo.git`), HTTPS
+/// (`https://github.com/owner/repo(.git)`), and `ssh://` forms; returns `None`
+/// for non-GitHub remotes or anything that is not exactly `owner/repo`. Pure for
+/// unit testing.
+fn parse_github_base(remote: &str) -> Option<String> {
+    let s = remote.trim();
+    let slug = s
+        .strip_prefix("git@github.com:")
+        .or_else(|| s.strip_prefix("https://github.com/"))
+        .or_else(|| s.strip_prefix("ssh://git@github.com/"))?;
+    let slug = slug
+        .strip_suffix(".git")
+        .unwrap_or(slug)
+        .trim_end_matches('/');
+    if slug.split('/').filter(|p| !p.is_empty()).count() != 2 {
+        return None;
+    }
+    Some(format!("https://github.com/{slug}"))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -361,5 +446,213 @@ mod tests {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         assert!(ct.contains("text/html"), "expected HTML, got: {ct}");
+    }
+
+    #[tokio::test]
+    async fn get_turn_transcript_serves_log_then_404() {
+        use crate::ingest::load_and_ingest;
+        let tmp = tempfile::tempdir().unwrap();
+        let artifacts = tmp.path().join("artifacts");
+        let uuid = "00000000-0000-0000-0000-0000000000a7";
+        let tdir = artifacts.join("runs").join(uuid).join("turns").join("000");
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(tdir.join("frame.png"), b"frame-bytes").unwrap();
+        std::fs::write(tdir.join("lines.json"), b"[]").unwrap();
+        std::fs::write(
+            tdir.join("llm.json"),
+            br#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
+        )
+        .unwrap();
+        let payload_json = format!(
+            r#"{{
+              "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
+              "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
+              "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
+              "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
+              "turns": [ {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }} ],
+              "axes": [], "findings": []
+            }}"#
+        );
+        let ppath = tmp.path().join("p.json");
+        std::fs::write(&ppath, &payload_json).unwrap();
+        let db_path = tmp.path().join("t.db");
+        let db = Db::open(&db_path).unwrap();
+        let run_id = load_and_ingest(&db, &ppath, &artifacts).unwrap();
+
+        let app = build_router(make_state(db_path));
+        // Present → 200 JSON.
+        let ok = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/runs/{run_id}/turns/0/transcript"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ok.status(), StatusCode::OK);
+        let ct = ok
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("application/json"), "got: {ct}");
+        // Absent turn → 404.
+        let miss = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/runs/{run_id}/turns/9/transcript"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(miss.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn dashboard_html_has_axes_radar() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // Radar renderer is present and wired into the detail view (C1, C3).
+        assert!(
+            html.contains("buildAxesRadar"),
+            "dashboard must define the buildAxesRadar renderer"
+        );
+        assert!(
+            html.contains("axes-radar"),
+            "dashboard must include the axes-radar container"
+        );
+        assert!(
+            html.contains("<polygon"),
+            "radar must draw an SVG data polygon"
+        );
+        // The radar is the sole axis visualization — the bar chart was removed.
+        assert!(
+            !html.contains("axes-chart") && !html.contains("axis-bar"),
+            "dashboard must not render the axis bar chart (radar replaces it)"
+        );
+        // No external/CDN dependency — the dashboard stays offline (C2).
+        let lower = html.to_lowercase();
+        assert!(
+            !lower.contains("script src") && !lower.contains("cdn") && !lower.contains("chart.js"),
+            "dashboard radar must be pure inline SVG with no external script dependency"
+        );
+    }
+
+    #[test]
+    fn dashboard_html_links_commit_sha() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // The sha-link helper + injected commit base are present so a run's git
+        // sha can render as a GitHub commit link.
+        assert!(html.contains("shaCell"), "dashboard must define shaCell");
+        assert!(
+            html.contains("window.COMMIT_BASE") && html.contains("/commit/"),
+            "dashboard must build a /commit/ link from COMMIT_BASE"
+        );
+        assert!(
+            html.contains("__COMMIT_BASE__"),
+            "the raw HTML must carry the __COMMIT_BASE__ token for serve-time injection"
+        );
+    }
+
+    #[test]
+    fn dashboard_html_has_run_routing() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // Runs are deep-linkable pages via hash routing.
+        assert!(
+            html.contains("function router"),
+            "must define a hash router"
+        );
+        assert!(
+            html.contains("hashchange"),
+            "must listen for hashchange to navigate run pages"
+        );
+        assert!(
+            html.contains("'run/'") || html.contains("#run/"),
+            "must use #run/<id> URLs for run pages"
+        );
+        // Per-turn inference log viewer: clickable turns open a log panel and
+        // are deep-linkable as #run/<id>/turn/<idx>.
+        assert!(
+            html.contains("showTurnLog") && html.contains("/turn/"),
+            "must support clicking a turn to view its inference log via #run/<id>/turn/<idx>"
+        );
+        assert!(
+            html.contains("/transcript"),
+            "must fetch the per-turn transcript endpoint"
+        );
+    }
+
+    #[test]
+    fn turn_log_is_appended_at_page_bottom_without_inner_scroll() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // The log container exists exactly once and sits after the footer (page
+        // bottom), not inside the per-run detail render.
+        assert_eq!(
+            html.matches("id=\"turn-log\"").count(),
+            1,
+            "turn-log container must be declared exactly once"
+        );
+        let footer = html.find("</footer>").expect("footer present");
+        let log = html.find("id=\"turn-log\"").expect("turn-log present");
+        assert!(
+            log > footer,
+            "the turn-log block must come after the footer (page bottom)"
+        );
+        // No nested scrollbox — the raw prompt/response grows the page.
+        let pre_rule = html
+            .lines()
+            .find(|l| l.contains(".tl-infer pre"))
+            .expect(".tl-infer pre rule present");
+        assert!(
+            !pre_rule.contains("max-height") && !pre_rule.contains("overflow"),
+            "raw prompt/response must not be a fixed-height scrollbox: {pre_rule}"
+        );
+    }
+
+    #[test]
+    fn parse_github_base_handles_remote_forms() {
+        let want = Some("https://github.com/dmooney/Rundale".to_string());
+        assert_eq!(
+            parse_github_base("git@github.com:dmooney/Rundale.git\n"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("https://github.com/dmooney/Rundale.git"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("https://github.com/dmooney/Rundale"),
+            want
+        );
+        assert_eq!(
+            parse_github_base("ssh://git@github.com/dmooney/Rundale.git"),
+            want
+        );
+        // Non-GitHub or malformed remotes yield no base (sha stays unlinked).
+        assert_eq!(parse_github_base("git@gitlab.com:foo/bar.git"), None);
+        assert_eq!(parse_github_base("https://github.com/onlyowner"), None);
+        assert_eq!(parse_github_base(""), None);
+    }
+
+    #[tokio::test]
+    async fn index_html_replaces_commit_base_token() {
+        // The served HTML must not leak the raw placeholder — it is replaced with
+        // the repo base (this repo has a GitHub origin) or an empty string.
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("idx.db");
+        Db::open(&db_path).unwrap();
+        let app = build_router(make_state(db_path));
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(
+            !html.contains("__COMMIT_BASE__"),
+            "served HTML must replace the __COMMIT_BASE__ token"
+        );
     }
 }
