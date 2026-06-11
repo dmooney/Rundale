@@ -20,7 +20,7 @@ bottom; don't lengthen items past 2-3 lines.
 - **Demo profiling must isolate `PARISH_USER_CONFIG_DIR`.** Tauri reapplies saved wizard/category overrides from the user config dir after base env resolution, which can bypass a proxy unless the profiling run points config/data/saves at a temp directory.
 - **Tauri demo reads per-category routing from user config, not category env vars.** `PARISH_INTENT_MODEL` works for the CLI config path, but Tauri startup hydrates category overrides from `PARISH_USER_CONFIG_DIR/parish.toml`.
 
-## Character logs (`parish-core/src/character_log.rs`)
+## Character logs (`parish-chronicle/src/character_log.rs`, re-exported as `parish_core::character_log`)
 
 - **Profile section is rewritten every session**, journal is append-only. HTML comment markers `<!-- PROFILE_START -->` / `<!-- PROFILE_END -->` bound the rewritable region.
 - **Dedup was removed in PR #1032 (89ab669d).** The bus now only publishes real physical movements (`schedule::tick_schedules`, `ticks::apply_tier3_updates`, `game_session::apply_movement`), so the writer is stateless beyond `log_dir`. Do not reintroduce `last_arrival` / `scan_existing_*` — they were obsoleted on purpose. (Issues #1013, #1014 closed because of this.)
