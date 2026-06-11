@@ -343,9 +343,10 @@ pub fn cap_dialogue_for_display_with_trim(
 /// closing quote (`"` / `'` / `\u{201D}` / `\u{2019}`); the index is advanced
 /// past that quote so the clause closes cleanly.
 fn last_sentence_boundary(s: &str) -> Option<usize> {
-    let bytes_len = s.len();
-    let mut last: Option<usize> = None;
-    for (idx, ch) in s.char_indices() {
+    // Scan backward so we short-circuit at the first terminator we find
+    // (which is the last one in forward order) rather than walking the whole
+    // string to track a running `last` pointer.
+    for (idx, ch) in s.char_indices().rev() {
         if SENTENCE_TERMINATORS.contains(&ch) {
             let mut end = idx + ch.len_utf8();
             // Absorb a single trailing closing quote so `"...home."` keeps the quote.
@@ -354,18 +355,17 @@ fn last_sentence_boundary(s: &str) -> Option<usize> {
             {
                 end += next.len_utf8();
             }
-            last = Some(end);
+            // Reject empty (would collapse to a bare ellipsis) or at the very
+            // start.
+            if end == 0 {
+                return None;
+            }
+            // A boundary at exactly `bytes_len` is still a clean clause end —
+            // keep it as long as it leaves real content.
+            return Some(end);
         }
     }
-    // Reject a boundary that is the whole string (nothing was actually clipped
-    // by sentence logic) or empty (would collapse to a bare ellipsis).
-    match last {
-        Some(end) if end > 0 && end < bytes_len => Some(end),
-        // If the only boundary is at the very end of the budget window, it is
-        // still a clean clause end — keep it as long as it leaves real content.
-        Some(end) if end == bytes_len && end > 0 => Some(end),
-        _ => None,
-    }
+    None
 }
 
 /// Outcome of [`apply_npc_dialogue_turn`].
