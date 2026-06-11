@@ -4,9 +4,9 @@
 //! save the host application may choose to refresh its in-memory world graph
 //! from disk so map/location edits are immediately visible in the running game.
 
-use crate::game_mod::{GameMod, world_state_from_mod};
-use crate::world::WorldState;
+use parish_mod::{GameMod, world_state_from_mod};
 use parish_types::ParishError;
+use parish_world::WorldState;
 
 /// Replaces the live world's graph/location data with a freshly-loaded copy
 /// while preserving runtime progress such as clock, weather, visited nodes,
@@ -46,7 +46,7 @@ fn apply_world_graph_refresh(world: &mut WorldState, fresh_world: WorldState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::LocationId;
+    use parish_world::LocationId;
     use std::fs;
     use tempfile::TempDir;
 
