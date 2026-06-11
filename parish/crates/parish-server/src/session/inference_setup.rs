@@ -80,7 +80,7 @@ pub(super) async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyC
         },
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
-    *app_state.inference_queue.lock().await = Some(queue);
+    *app_state.inference.inference_queue.lock().await = Some(queue);
     *app_state.worker_handle.lock().await = Some(worker);
 }
 
@@ -134,9 +134,9 @@ pub(super) async fn init_session_save(
         );
     }
     *app_state.save_lock.lock().await = locked;
-    *app_state.save_path.lock().await = Some(save_path);
-    *app_state.current_branch_id.lock().await = Some(branch_id);
-    *app_state.current_branch_name.lock().await = Some("main".to_string());
+    *app_state.save_identity.save_path.lock().await = Some(save_path);
+    *app_state.save_identity.current_branch_id.lock().await = Some(branch_id);
+    *app_state.save_identity.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
 }
@@ -161,16 +161,21 @@ mod tests {
             .expect("init_session_save must succeed on a fresh save (no UNIQUE-branch panic)");
 
         assert!(
-            state.save_path.lock().await.is_some(),
+            state.save_identity.save_path.lock().await.is_some(),
             "save_path must be set after init_session_save"
         );
         assert_eq!(
-            *state.current_branch_id.lock().await,
+            *state.save_identity.current_branch_id.lock().await,
             Some(1),
             "the auto-created main branch has id 1"
         );
         assert_eq!(
-            state.current_branch_name.lock().await.as_deref(),
+            state
+                .save_identity
+                .current_branch_name
+                .lock()
+                .await
+                .as_deref(),
             Some("main"),
             "branch name must be main"
         );
