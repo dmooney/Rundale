@@ -256,7 +256,7 @@ pub async fn get_debug_snapshot(
     // → config → debug_events → game_events → inference_log (#483).
 
     // 1. Peek inference_queue presence first to honour canonical order (#483).
-    let has_inference_queue = state.inference_queue.lock().await.is_some();
+    let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
 
     // 2. Clone the fields we need from config — drop the lock immediately.
     let (
@@ -351,7 +351,7 @@ pub async fn get_debug_snapshot(
 /// theirs to share. Uses [`AuthDebug::disabled`] since auth detail is not
 /// useful in a bug report.
 pub async fn build_full_debug_snapshot(state: &Arc<AppState>) -> debug_snapshot::DebugSnapshot {
-    let has_inference_queue = state.inference_queue.lock().await.is_some();
+    let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
     let (
         provider_name,
         model_name,
@@ -431,8 +431,8 @@ pub async fn submit_bug_report(
     };
     let debug = build_full_debug_snapshot(&state).await;
     let save_summary = {
-        let branch_id = *state.current_branch_id.lock().await;
-        let branch_name = state.current_branch_name.lock().await.clone();
+        let branch_id = *state.save_identity.current_branch_id.lock().await;
+        let branch_name = state.save_identity.current_branch_name.lock().await.clone();
         match (branch_id, branch_name) {
             (Some(id), Some(name)) => Some(format!("branch {id}: {name}")),
             (Some(id), None) => Some(format!("branch {id}")),

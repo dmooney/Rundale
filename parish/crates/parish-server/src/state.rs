@@ -30,6 +30,38 @@ pub use parish_core::event_bus::{
 /// Maximum number of debug/game events retained in the server's ring buffer.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
+/// Canonical acquisition order for the `AppState` coordination locks (#483, Rule 11).
+///
+/// **Single source of truth.** Any path that acquires more than one
+/// `AppState` lock at a time must take them in this order; taking two in the
+/// opposite order risks a deadlock against an existing path. The
+/// `lock_order_fitness` sensor in `tests/lock_order_fitness.rs` reads this
+/// array and rejects any out-of-order adjacent acquisition pair in the server
+/// handler/session/route bodies.
+///
+/// Entries are **group/field node names**, not the dissolved members: the
+/// inference-client trio (`client` / `cloud_client` / `inference_queue`) now
+/// lives behind the single `inference` node, and the save-identity trio
+/// (`save_path` / `current_branch_id` / `current_branch_name`) behind the
+/// single `save_identity` node. A reference to a dissolved member maps to its
+/// group node for ordering purposes (see the sensor's `group_of`).
+pub const LOCK_ORDER: &[&str] = &[
+    "world",
+    "npc_manager",
+    "conversation",
+    "config",
+    "inference",
+    "debug_events",
+    "game_events",
+    "inference_log",
+    "editor_sessions",
+    "active_ws",
+    "save_identity",
+    "worker_handle",
+    "save_lock",
+    "save_db",
+];
+
 // ── Shared state types (moved to parish-core::ipc::state as part of #696) ───
 
 /// Re-export from `parish_core` so all existing `crate::state::*` call sites
@@ -41,54 +73,39 @@ pub use parish_core::ipc::{ConversationRuntimeState, SaveState, UiConfigSnapshot
 /// Mirrors the Tauri `AppState` but uses a [`BroadcastEventBus`] for push
 /// events instead of a Tauri `AppHandle`.
 ///
-/// # Lock ordering invariant (#483)
+/// # Lock ordering invariant (#483, Rule 11)
 ///
 /// `AppState` holds many independent `Mutex` fields. Any path that acquires
-/// more than one at a time **must** follow the canonical order below. A
-/// future refactor that takes these in the opposite order would deadlock
-/// with any existing path that takes them in the documented order. The
-/// ordering is derived from the paths actually observed in the codebase
-/// today (`handle_system_command`, `handle_npc_conversation`,
-/// `run_idle_banter`, `rebuild_inference`, `get_debug_snapshot`, and the
-/// background tick tasks in `session.rs`).
+/// more than one at a time **must** follow the canonical order encoded in
+/// the [`LOCK_ORDER`] const (the single source of truth — see its docs for
+/// the full list). A future refactor that takes two in the opposite order
+/// would deadlock with any existing path that takes them in the documented
+/// order; the `lock_order_fitness` sensor enforces this mechanically.
 ///
-/// ```text
-/// world
-///   → npc_manager
-///     → inference_queue
-///       → conversation
-///         → config
-///           → client
-///             → cloud_client
-///               → debug_events
-///               → game_events
-///                 → inference_log
-///                   → editor_sessions
-///                     → active_ws
-///                       → save_path
-///                         → current_branch_id
-///                           → current_branch_name
-///                             → worker_handle
-///                               → save_lock
-///                                 → save_db
-/// ```
+/// As part of #1366 §2 the inference-client trio (`client` / `cloud_client`
+/// / `inference_queue`) was grouped behind the single [`InferenceClients`]
+/// node `inference`, and the save-identity trio (`save_path` /
+/// `current_branch_id` / `current_branch_name`) behind the single
+/// [`SaveIdentity`] node `save_identity`. This is a change of lock
+/// _granularity_, not of any *attested* pair's order. In the pre-grouping
+/// chain the three inference members straddled `config`: `inference_queue`
+/// sat early, while `client` / `cloud_client` sat just after `config`.
+/// Collapsing them into one node requires a single position, and the
+/// `inference` node is placed at the `client` / `cloud_client` slot (just
+/// after `config`) because that is the only position any *held* inference
+/// guard is ever acquired — `inference_queue` is only ever read as a released
+/// temporary (`.is_some()`), never held across another lock, so vacating its
+/// former early slot inverts no real acquisition. Every held pair observed in
+/// the code (e.g. `config` → `inference.client` in the tier-2 tick and
+/// reactions paths) is in canonical order under this placement.
 ///
-/// Pair-by-pair rationale — every pair above is attested by at least
-/// one current call site:
-///
-/// - `world → npc_manager` — every handler that touches both
-///   (`handle_npc_conversation`, `run_idle_banter`, `get_debug_snapshot`,
-///   the world-tick task).
-/// - `npc_manager → inference_queue → config` — `handle_npc_conversation`
-///   and `run_idle_banter` (`routes.rs`).
-/// - `conversation → config` — `tick_inactivity` (`routes.rs`), so
-///   `conversation` slots between `inference_queue` and `config`.
-/// - `config → client` — `handle_game_input` (`routes.rs`).
-/// - `cloud_client → debug_events → game_events → inference_log` —
-///   `get_debug_snapshot` (`routes.rs`). `inference_log` is itself an
-///   `Arc<Mutex<BoundedInferenceLog>>` (see
-///   `parish-inference/src/lib.rs`), so it is a real coordination point,
-///   not a lock-free buffer.
+/// The ordering is derived from the paths actually observed in the codebase
+/// (`handle_system_command`, `handle_npc_conversation`, `run_idle_banter`,
+/// `rebuild_inference`, `get_debug_snapshot`, and the background tick tasks
+/// in `session/ticks.rs`). Every adjacent pair in [`LOCK_ORDER`] is attested
+/// by at least one current call site; `inference_log` is itself an
+/// `Arc<Mutex<BoundedInferenceLog>>` (see `parish-inference/src/lib.rs`), so
+/// it is a real coordination point, not a lock-free buffer.
 ///
 /// The remaining non-`Mutex` fields (`event_bus`, `transport`,
 /// `ui_config`, `theme_palette`, `saves_dir`, `data_dir`, `game_mod`,
@@ -108,6 +125,51 @@ pub use parish_core::ipc::{ConversationRuntimeState, SaveState, UiConfigSnapshot
 /// install the result. Holding `config` or `client` across an HTTP
 /// refresh, or `world` across a save-to-disk, will serialise every
 /// concurrent session behind that one path.
+/// Inference-client coordination group (#1366 §2).
+///
+/// Bundles the three inference-client locks (`client`, `cloud_client`,
+/// `inference_queue`) that travel together in the lock chain into a single
+/// `inference` node. The members stay individually `Mutex`-wrapped so the
+/// server can hand out per-field `&Mutex<…>` borrows to the shared
+/// `parish_core::game_loop` API (`GameLoopContext`), which is constructed by
+/// all three entry points and must keep its per-field reference shape (C6 /
+/// CS-6). Grouping reduces this trio to one named node in [`LOCK_ORDER`]
+/// without changing the relative lock order or the shared struct signatures.
+///
+/// `config` is **deliberately not** folded in (CS-4): it is acquired far more
+/// often than any inference client and on paths with no client at all, so
+/// merging it would widen the critical section rather than shrink it.
+pub struct InferenceClients {
+    /// Local LLM client (None if no provider is configured).
+    pub client: Mutex<Option<AnyClient>>,
+    /// Cloud LLM client for dialogue (None if not configured).
+    pub cloud_client: Mutex<Option<AnyClient>>,
+    /// Inference request queue (None if no provider configured).
+    pub inference_queue: Mutex<Option<InferenceQueue>>,
+}
+
+/// Save-identity coordination group (#1366 §2).
+///
+/// Bundles the three save-identity scalars (`save_path`, `current_branch_id`,
+/// `current_branch_name`) that are acquired together in the save / fork / load
+/// hotspots into a single `save_identity` node. As with [`InferenceClients`]
+/// the members stay individually `Mutex`-wrapped so the server can pass
+/// per-field `&Mutex<…>` borrows to `parish_core::game_loop::NewGameParams`
+/// without changing the shared struct (C6 / CS-6).
+///
+/// `save_lock` and `save_db` are **not** in this group (CS-5): they have
+/// distinct lifetimes, sit at the tail of the chain, and are acquired
+/// independently of the identity triple (e.g. the autosave tick takes
+/// `save_db` without re-taking the identity).
+pub struct SaveIdentity {
+    /// Path to the currently active save file.
+    pub save_path: Mutex<Option<PathBuf>>,
+    /// Current branch database id.
+    pub current_branch_id: Mutex<Option<i64>>,
+    /// Current branch name.
+    pub current_branch_name: Mutex<Option<String>>,
+}
+
 pub struct AppState {
     /// Stable identifier for this session — the same UUID that appears in the
     /// `parish_sid` cookie.  Stored here so background tasks (tick loop, etc.)
@@ -118,14 +180,11 @@ pub struct AppState {
     pub world: Mutex<WorldState>,
     /// NPC manager (all NPCs, tier assignment, schedule ticking).
     pub npc_manager: Mutex<NpcManager>,
-    /// Inference request queue (None if no provider configured).
-    pub inference_queue: Mutex<Option<InferenceQueue>>,
+    /// Inference-client coordination group — `client` / `cloud_client` /
+    /// `inference_queue` behind the single `inference` node (#1366 §2).
+    pub inference: InferenceClients,
     /// Shared ring buffer of recent inference calls (for the debug panel).
     pub inference_log: InferenceLog,
-    /// Local LLM client (None if no provider is configured).
-    pub client: Mutex<Option<AnyClient>>,
-    /// Cloud LLM client for dialogue (None if not configured).
-    pub cloud_client: Mutex<Option<AnyClient>>,
     /// Mutable runtime configuration.
     pub config: Mutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
@@ -160,12 +219,9 @@ pub struct AppState {
     pub saves_dir: PathBuf,
     /// Directory containing game data files (world.json, npcs.json, etc.).
     pub data_dir: PathBuf,
-    /// Path to the currently active save file.
-    pub save_path: Mutex<Option<PathBuf>>,
-    /// Current branch database id.
-    pub current_branch_id: Mutex<Option<i64>>,
-    /// Current branch name.
-    pub current_branch_name: Mutex<Option<String>>,
+    /// Save-identity coordination group — `save_path` / `current_branch_id` /
+    /// `current_branch_name` behind the single `save_identity` node (#1366 §2).
+    pub save_identity: SaveIdentity,
     /// Loaded game mod data (for reaction templates, etc.).
     pub game_mod: Option<parish_core::game_mod::GameMod>,
     /// Name pronunciation entries from the game mod.
@@ -391,10 +447,12 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
         session_id,
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
-        inference_queue: Mutex::new(None),
+        inference: InferenceClients {
+            client: Mutex::new(client),
+            cloud_client: Mutex::new(cloud_client),
+            inference_queue: Mutex::new(None),
+        },
         inference_log: parish_core::inference::new_inference_log(),
-        client: Mutex::new(client),
-        cloud_client: Mutex::new(cloud_client),
         config: Mutex::new(config),
         conversation: Mutex::new(ConversationRuntimeState::new()),
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
@@ -413,9 +471,11 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
         idle_messages,
         saves_dir,
         data_dir,
-        save_path: Mutex::new(None),
-        current_branch_id: Mutex::new(None),
-        current_branch_name: Mutex::new(None),
+        save_identity: SaveIdentity {
+            save_path: Mutex::new(None),
+            current_branch_id: Mutex::new(None),
+            current_branch_name: Mutex::new(None),
+        },
         game_mod,
         pronunciations,
         flags_path,

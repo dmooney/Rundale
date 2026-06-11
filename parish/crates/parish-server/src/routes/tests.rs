@@ -225,7 +225,7 @@ async fn install_scripted_inference_queue(
         }
     });
 
-    *state.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
+    *state.inference.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
     (prompts, handle)
 }
 
@@ -465,7 +465,7 @@ async fn stream_tokens_carry_the_placeholder_message_id() {
                 });
         }
     });
-    *state.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
+    *state.inference.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
 
     input::handle_npc_conversation(
         "What news is there?".to_string(),
@@ -974,7 +974,7 @@ async fn rebuild_inference_installs_worker_when_none_stored() {
         "rebuild_inference must install a worker even if none was stored"
     );
     assert!(
-        state.inference_queue.lock().await.is_some(),
+        state.inference.inference_queue.lock().await.is_some(),
         "rebuild_inference must install an inference queue"
     );
 }

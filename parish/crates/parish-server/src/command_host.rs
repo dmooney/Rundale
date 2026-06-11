@@ -83,7 +83,7 @@ impl SystemCommandHost for AppStateCommandHost {
                     parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
                 });
             drop(config);
-            let mut cloud_guard = self.state.cloud_client.lock().await;
+            let mut cloud_guard = self.state.inference.cloud_client.lock().await;
             *cloud_guard = Some(parish_core::inference::build_client(
                 &provider_enum,
                 &base_url,
@@ -122,7 +122,12 @@ impl SystemCommandHost for AppStateCommandHost {
     fn fork_branch(&self, name: String) -> BoxFuture<'_, String> {
         let state = Arc::clone(&self.state);
         Box::pin(async move {
-            let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
+            let parent_id = state
+                .save_identity
+                .current_branch_id
+                .lock()
+                .await
+                .unwrap_or(1);
             match crate::routes::do_fork_branch_inner(&state, &name, parent_id).await {
                 Ok(msg) => msg,
                 Err(e) => format!("Fork failed: {}", e),

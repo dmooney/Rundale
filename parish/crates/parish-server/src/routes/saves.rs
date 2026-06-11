@@ -35,9 +35,9 @@ pub async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String>
     parish_core::game_loop::do_save_game(
         &state.world,
         &state.npc_manager,
-        &state.save_path,
-        &state.current_branch_id,
-        &state.current_branch_name,
+        &state.save_identity.save_path,
+        &state.save_identity.current_branch_id,
+        &state.save_identity.current_branch_name,
         &state.saves_dir,
     )
     .await
@@ -54,7 +54,7 @@ pub async fn do_fork_branch_inner(
     validate_branch_name(name)
         .map_err(|_| "Invalid branch name: must be 1–64 ASCII alphanumeric/underscore/hyphen/space characters.".to_string())?;
 
-    let save_path_guard = state.save_path.lock().await;
+    let save_path_guard = state.save_identity.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
         .ok_or_else(|| "No active save file. Use /save first.".to_string())?
@@ -90,22 +90,22 @@ pub async fn do_fork_branch_inner(
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
 
-    *state.current_branch_id.lock().await = Some(new_id);
-    *state.current_branch_name.lock().await = Some(name.to_string());
+    *state.save_identity.current_branch_id.lock().await = Some(new_id);
+    *state.save_identity.current_branch_name.lock().await = Some(name.to_string());
 
     Ok(format!("Created new branch '{}'.", name))
 }
 
 /// Lists all branches in the current save file.
 pub async fn do_list_branches_inner(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path_guard = state.save_path.lock().await;
+    let save_path_guard = state.save_identity.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
         .ok_or_else(|| "No active save file. Use /save first.".to_string())?
         .clone();
     drop(save_path_guard);
 
-    let current_branch_id = *state.current_branch_id.lock().await;
+    let current_branch_id = *state.save_identity.current_branch_id.lock().await;
 
     tokio::task::spawn_blocking(move || -> Result<String, String> {
         let db = Database::open(&db_path).map_err(|e| e.to_string())?;
@@ -121,7 +121,7 @@ pub async fn do_list_branches_inner(state: &Arc<AppState>) -> Result<String, Str
 
 /// Shows the save log for the current branch.
 pub async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path_guard = state.save_path.lock().await;
+    let save_path_guard = state.save_identity.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
         .ok_or_else(|| "No active save file. Use /save first.".to_string())?
@@ -129,12 +129,13 @@ pub async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String
     drop(save_path_guard);
 
     let branch_id = state
+        .save_identity
         .current_branch_id
         .lock()
         .await
         .ok_or_else(|| "No active branch.".to_string())?;
 
-    let branch_name = state.current_branch_name.lock().await.clone();
+    let branch_name = state.save_identity.current_branch_name.lock().await.clone();
     let name = branch_name.as_deref().unwrap_or("unknown").to_string();
 
     tokio::task::spawn_blocking(move || -> Result<String, String> {
@@ -156,9 +157,9 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         world: &state.world,
         npc_manager: &state.npc_manager,
         conversation: &state.conversation,
-        save_path: &state.save_path,
-        current_branch_id: &state.current_branch_id,
-        current_branch_name: &state.current_branch_name,
+        save_path: &state.save_identity.save_path,
+        current_branch_id: &state.save_identity.current_branch_id,
+        current_branch_name: &state.save_identity.current_branch_name,
         saves_dir: &state.saves_dir,
         game_mod: state.game_mod.as_ref(),
         data_dir: &state.data_dir,
@@ -261,7 +262,7 @@ pub async fn validate_and_acquire_lock(
     let path = canonical;
     let branch_id = body.branch_id;
 
-    let current_path = state.save_path.lock().await.clone();
+    let current_path = state.save_identity.save_path.lock().await.clone();
     let switching_files = current_path.as_ref() != Some(&path);
     if switching_files {
         let lock = SaveFileLock::try_acquire(&path).ok_or_else(|| {
@@ -344,9 +345,9 @@ pub async fn restore_snapshot_and_emit(
         ),
     );
 
-    *state.save_path.lock().await = Some(path.to_path_buf());
-    *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some(branch_name.to_string());
+    *state.save_identity.save_path.lock().await = Some(path.to_path_buf());
+    *state.save_identity.current_branch_id.lock().await = Some(branch_id);
+    *state.save_identity.current_branch_name.lock().await = Some(branch_name.to_string());
 }
 
 /// Request body for `POST /api/create-branch`.
@@ -411,9 +412,9 @@ pub async fn new_save_file(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some("main".to_string());
+    *state.save_identity.save_path.lock().await = Some(path);
+    *state.save_identity.current_branch_id.lock().await = Some(branch_id);
+    *state.save_identity.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(StatusCode::OK)
 }
@@ -438,14 +439,15 @@ pub async fn new_game(
 /// `GET /api/save-state` — returns the current save state for the StatusBar.
 pub async fn get_save_state(Extension(state): Extension<Arc<AppState>>) -> Json<SaveState> {
     let filename = state
+        .save_identity
         .save_path
         .lock()
         .await
         .as_ref()
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string());
-    let branch_id = *state.current_branch_id.lock().await;
-    let branch_name = state.current_branch_name.lock().await.clone();
+    let branch_id = *state.save_identity.current_branch_id.lock().await;
+    let branch_name = state.save_identity.current_branch_name.lock().await.clone();
 
     Json(SaveState {
         filename,

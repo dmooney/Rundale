@@ -358,9 +358,9 @@ async fn restore_session(
         );
     }
     *app_state.save_lock.lock().await = locked;
-    *app_state.save_path.lock().await = Some(db_path);
-    *app_state.current_branch_id.lock().await = Some(branch_id);
-    *app_state.current_branch_name.lock().await = Some(branch_name);
+    *app_state.save_identity.save_path.lock().await = Some(db_path);
+    *app_state.save_identity.current_branch_id.lock().await = Some(branch_id);
+    *app_state.save_identity.current_branch_name.lock().await = Some(branch_name);
 
     Ok(finalize_session_entry(app_state, client).await)
 }

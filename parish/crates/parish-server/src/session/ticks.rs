@@ -58,7 +58,7 @@ pub(super) fn spawn_session_ticks(
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
-            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut current_branch = s.save_identity.current_branch_id.lock().await.unwrap_or(1);
             let mut manager = CharacterLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
@@ -80,7 +80,7 @@ pub(super) fn spawn_session_ticks(
                             // (e.g. load_branch / create_branch). Without this the
                             // writer keeps appending to the original branch's
                             // log directory after a branch switch (#1011).
-                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            let bid = s.save_identity.current_branch_id.lock().await.unwrap_or(1);
                             if bid != current_branch {
                                 current_branch = bid;
                                 manager = CharacterLogManager::new(&app_name, bid, true);
@@ -133,7 +133,7 @@ pub(super) fn spawn_session_ticks(
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
-            let mut current_branch = s.current_branch_id.lock().await.unwrap_or(1);
+            let mut current_branch = s.save_identity.current_branch_id.lock().await.unwrap_or(1);
             let mut manager = LocationLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
@@ -154,7 +154,7 @@ pub(super) fn spawn_session_ticks(
                             // Rebind manager when the active branch has changed
                             // (e.g. load_branch / create_branch). Mirrors the
                             // character-log subscriber fix from #1011 (#1034).
-                            let bid = s.current_branch_id.lock().await.unwrap_or(1);
+                            let bid = s.save_identity.current_branch_id.lock().await.unwrap_or(1);
                             if bid != current_branch {
                                 current_branch = bid;
                                 manager = LocationLogManager::new(&app_name, bid, true);
@@ -396,8 +396,8 @@ pub(super) fn spawn_session_ticks(
                     _ = tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)) => {}
                 }
 
-                let save_path = s.save_path.lock().await.clone();
-                let branch_id = *s.current_branch_id.lock().await;
+                let save_path = s.save_identity.save_path.lock().await.clone();
+                let branch_id = *s.save_identity.current_branch_id.lock().await;
 
                 if let (Some(path), Some(bid)) = (save_path, branch_id) {
                     // Snapshot the world state before touching the DB lock.
@@ -566,7 +566,7 @@ pub(super) fn spawn_session_ticks(
                 let (client_opt, model) = {
                     use parish_core::config::InferenceCategory;
                     let cfg = s.config.lock().await;
-                    let base_client = s.client.lock().await;
+                    let base_client = s.inference.client.lock().await;
                     cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
                 };
 

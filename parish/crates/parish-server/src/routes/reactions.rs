@@ -116,7 +116,7 @@ pub fn emit_npc_reactions(
         };
         let (reaction_client, reaction_model, llm_enabled) = {
             let config = state_clone.config.lock().await;
-            let base_client = state_clone.client.lock().await;
+            let base_client = state_clone.inference.client.lock().await;
             let (client, model) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             let enabled = !config.flags.is_disabled("npc-llm-reactions");
