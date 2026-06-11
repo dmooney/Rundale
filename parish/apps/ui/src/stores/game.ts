@@ -130,6 +130,53 @@ export function pruneMessageHints(log: TextLogEntry[]): void {
 // orphaned hint keys. This is the single chokepoint for all trim sites.
 textLog.subscribe((log) => pruneMessageHints(log));
 
+/** Last seen `time_label|day_of_week` key for time-rule separators. */
+let lastTimeRuleKey: string | null = null;
+
+/** Resets time-rule tracking (new game / branch load / tests). */
+export function resetTimeRule(): void {
+	lastTimeRuleKey = null;
+}
+
+/**
+ * Appends a `time-rule` separator entry to the text log when the world
+ * clock crosses into a new time-of-day period (or a new day).
+ *
+ * The game clock runs at 36× real time, but the chronicle had no temporal
+ * anchors — this gives the log a quiet "Dusk — Monday" rule between
+ * periods. The first snapshot of a session only primes the tracker (no
+ * rule), and nothing is emitted while the log is still empty so a rule
+ * never precedes the splash.
+ */
+export function noteTimeRule(snap: WorldSnapshot | null): void {
+	// A cleared world state (new game / branch switch / teardown) resets
+	// tracking so a stale period key never leaks a spurious separator into
+	// the next session's log (PR #1419 review).
+	if (!snap) {
+		lastTimeRuleKey = null;
+		return;
+	}
+	if (!snap.time_label) return;
+	const key = `${snap.time_label}|${snap.day_of_week}`;
+	if (lastTimeRuleKey === key) return;
+	const isFirst = lastTimeRuleKey === null;
+	lastTimeRuleKey = key;
+	if (isFirst) return;
+	textLog.update((log) => {
+		if (log.length === 0) return log;
+		return trimTextLog([
+			...log,
+			{
+				source: 'system',
+				subtype: 'time-rule',
+				content: `${snap.time_label} — ${snap.day_of_week}`,
+			},
+		]);
+	});
+}
+
+worldState.subscribe((snap) => noteTimeRule(snap));
+
 /**
  * Appends a user-visible error entry to the text log.
  *

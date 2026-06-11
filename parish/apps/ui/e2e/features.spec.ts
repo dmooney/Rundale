@@ -175,7 +175,8 @@ test.describe('Sidebar toggle', () => {
 
 	test('sidebar details can be toggled open and closed', async ({ page }) => {
 		const sidebar = page.locator('[data-testid="sidebar"]');
-		const details = sidebar.locator('details');
+		// Two collapsible sections now (Present + language hints); exercise the first.
+		const details = sidebar.locator('details').first();
 
 		await expect(details).toHaveAttribute('open');
 

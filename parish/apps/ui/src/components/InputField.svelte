@@ -976,9 +976,14 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	/* ── Quick-travel chips ────────────────────────────────────────────────── */
 
+	/* Single-line, horizontally-scrollable rows: with one NPC and many
+	   destinations the wrapped chip rows stacked three lines tall and
+	   squeezed the chat. Bounded height regardless of chip count. */
 	.npc-chips {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: thin;
 		align-items: center;
 		gap: 0.45rem;
 		padding: 0.45rem 0.75rem;
@@ -1002,6 +1007,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		align-items: center;
 		gap: 0.45rem;
 		min-width: 0;
+		flex: 0 0 auto;
+		white-space: nowrap;
 		padding: 0.35rem 0.55rem;
 		border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
 		border-radius: 999px;
@@ -1050,7 +1057,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	.travel-chips {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: thin;
 		align-items: center;
 		gap: 0.4rem;
 		padding: 0.4rem 0.75rem;
@@ -1072,6 +1081,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
+		flex: 0 0 auto;
+		white-space: nowrap;
 		background: transparent;
 		color: var(--color-muted);
 		border: 1px solid var(--color-border);

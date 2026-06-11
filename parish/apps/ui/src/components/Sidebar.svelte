@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { languageHints, nameHints, uiConfig } from '../stores/game';
+	import { languageHints, nameHints, uiConfig, npcsHere } from '../stores/game';
+	import MoodIcon from './MoodIcon.svelte';
 
 	let { onclose }: { onclose?: () => void } = $props();
 </script>
@@ -43,6 +44,26 @@
 	</div>
 {:else}
 	<aside class="sidebar" data-testid="sidebar">
+		<details open>
+			<summary>Present</summary>
+			{#if $npcsHere.length > 0}
+				<ul class="npc-list" data-testid="npcs-present">
+					{#each $npcsHere as npc (npc.real_name)}
+						<li class="npc-item">
+							<span class="npc-mood"><MoodIcon mood={npc.mood} emoji={npc.mood_emoji} /></span>
+							<span class="npc-copy">
+								<span class="npc-name">{npc.name}</span>
+								{#if npc.introduced && npc.occupation}
+									<span class="npc-occupation">{npc.occupation}</span>
+								{/if}
+							</span>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="empty">No one is about.</p>
+			{/if}
+		</details>
 		<details open>
 			<summary>{$uiConfig.hints_label}</summary>
 			{@render hintList()}
@@ -156,6 +177,47 @@
 
 	details[open] summary::before {
 		content: '▾ ';
+	}
+
+	.npc-list {
+		list-style: none;
+		margin: 0;
+		padding: 0.25rem 0;
+	}
+
+	.npc-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.4rem 0.75rem;
+		border-bottom: 1px solid var(--color-border);
+		font-size: 0.8rem;
+	}
+
+	.npc-item:last-child {
+		border-bottom: none;
+	}
+
+	.npc-mood {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.npc-copy {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.npc-name {
+		color: var(--color-name);
+		font-weight: 600;
+	}
+
+	.npc-occupation {
+		color: var(--color-muted);
+		font-size: 0.72rem;
 	}
 
 	.hint-list {

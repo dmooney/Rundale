@@ -33,6 +33,15 @@
 *::before,
 *::after {
 	box-sizing: border-box;
+}
+
+/* Theme cross-fade — applied only while a palette swap is in flight
+   (applyThemePalette toggles the class on <html>). A bare `*` transition
+   here made every hover/focus colour change take 2s and cost style
+   recalc on the whole tree. */
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
 	transition:
 		background-color 2s ease,
 		background 2s ease,

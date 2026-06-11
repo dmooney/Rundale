@@ -170,7 +170,11 @@
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
 			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'} class:tabular={entry.subtype === 'tabular'}>
-				{#if entry.subtype === 'tabular'}
+				{#if entry.subtype === 'time-rule'}
+					<div class="time-rule" role="separator" aria-label={entry.content}>
+						<span class="time-rule-text">{entry.content}</span>
+					</div>
+				{:else if entry.subtype === 'tabular'}
 					{@const rows = parseTabularRows(entry.content)}
 					<div class="tabular-grid">
 						{#each rows as row, ri (ri)}
@@ -183,7 +187,10 @@
 						{/each}
 					</div>
 				{:else if isSplash}
-					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
+					<div class="splash-card">
+						<strong>{lines[0]}</strong>
+						<span class="splash-meta">{lines.slice(1).join('\n')}</span>
+					</div>
 				{:else}
 					<span class="content">{#each parseEmotes(entry.content) as seg, si (si)}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs, rsi (rsi)}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 				{/if}
@@ -292,9 +299,15 @@
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
-		justify-content: flex-end;
 		gap: 0.6rem;
 		background: var(--color-bg);
+	}
+
+	/* Pin sparse content to the bottom without `justify-content: flex-end`,
+	   which makes the overflowed top of a long log unreachable by scroll in
+	   a flex scroll container. */
+	.chat-panel > :global(:first-child) {
+		margin-top: auto;
 	}
 
 	/* System messages: narrative prose */
@@ -354,16 +367,56 @@
 		color: var(--color-bg);
 	}
 
-	/* Title card: splash message with <strong> title */
-	.entry.system :global(strong) {
+	/* Title card: centred frontispiece for the splash message. The title
+	   leads in the display face; copyright/branch metadata is demoted to
+	   small muted text so it no longer opens the narrative at body size. */
+	.splash-card {
+		display: block;
+		text-align: center;
+		padding: 1.25rem 1rem 0.75rem;
+	}
+
+	.splash-card strong {
 		font-family: var(--font-display);
-		font-size: 1.25rem;
-		letter-spacing: 0.06em;
+		font-size: 1.45rem;
+		letter-spacing: 0.1em;
 		display: block;
 		color: var(--color-accent);
 		font-weight: 600;
-		margin-bottom: 0.4rem;
-		text-align: center;
+		margin-bottom: 0.5rem;
+	}
+
+	.splash-meta {
+		display: block;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		color: var(--color-muted);
+		white-space: pre-wrap;
+	}
+
+	/* Time-of-day separator — small-caps label between hairline rules so
+	   the 36× clock's passage is visible in the chronicle. */
+	.time-rule {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.35rem 0;
+	}
+
+	.time-rule::before,
+	.time-rule::after {
+		content: '';
+		flex: 1;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.time-rule-text {
+		font-family: var(--font-display);
+		font-size: 0.64rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+		white-space: nowrap;
 	}
 
 	/* Bubble row: flex container controlling left/right alignment */
@@ -436,9 +489,12 @@
 		word-wrap: break-word;
 	}
 
-	/* Player message: italic, no rounded top-right */
+	/* Player message: italic, no rounded top-right. The bubble darkens the
+	   accent toward the foreground ink so the bg-coloured text passes WCAG
+	   AA (cream-on-raw-gold was ~2.3:1); fg/bg are the theme's guaranteed
+	   contrast pair, so mixing toward fg raises contrast in every palette. */
 	.player .bubble {
-		background: var(--color-accent);
+		background: color-mix(in srgb, var(--color-accent) 55%, var(--color-fg));
 		color: var(--color-bg);
 		border-radius: 0.85rem 0 0.15rem 0.85rem;
 		font-style: italic;

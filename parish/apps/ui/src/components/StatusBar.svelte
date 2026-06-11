@@ -19,14 +19,17 @@
 
 	let rafId: number;
 
+	/** Mirrors the backend `TimeOfDay` buckets (parish-types/src/time.rs) so
+	 *  the interpolated label never disagrees with snapshot-driven labels
+	 *  (e.g. the chat log's time-rule separators). */
 	function timeOfDayLabel(hour: number): string {
-		if (hour >= 5 && hour < 9) return 'Morning';
-		if (hour >= 9 && hour < 12) return 'Late Morning';
-		if (hour >= 12 && hour < 14) return 'Midday';
+		if (hour >= 5 && hour < 7) return 'Dawn';
+		if (hour >= 7 && hour < 10) return 'Morning';
+		if (hour >= 10 && hour < 14) return 'Midday';
 		if (hour >= 14 && hour < 17) return 'Afternoon';
-		if (hour >= 17 && hour < 20) return 'Dusk';
-		if (hour >= 20 && hour < 22) return 'Evening';
-		return 'Night';
+		if (hour >= 17 && hour < 19) return 'Dusk';
+		if (hour >= 19 && hour < 23) return 'Night';
+		return 'Midnight';
 	}
 
 	function tick() {
@@ -83,7 +86,27 @@
 	onDestroy(() => {
 		cancelAnimationFrame(rafId);
 	});
+
+	// Dev-tools menu (⋯): Designer / Dbg / bug-report / Mod live behind one
+	// button so player chrome (Ledger, clock) isn't visually level with
+	// developer chrome.
+	let devMenuOpen = $state(false);
+	let devMenuEl: HTMLDivElement | undefined = $state();
+
+	function handleWindowPointerDown(e: PointerEvent) {
+		if (devMenuOpen && devMenuEl && !devMenuEl.contains(e.target as Node)) {
+			devMenuOpen = false;
+		}
+	}
+
+	function handleDevMenuKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && devMenuOpen) {
+			devMenuOpen = false;
+		}
+	}
 </script>
+
+<svelte:window onpointerdown={handleWindowPointerDown} onkeydown={handleDevMenuKeydown} />
 
 <div class="status-bar" data-testid="status-bar">
 	{#if $worldState}
@@ -105,11 +128,38 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
-		<button type="button" class="mod-toggle" aria-label="Switch active mod" onclick={() => modSelectorVisible.set(true)} title="Switch mod">Mod</button>
 		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
-		<a class="designer-link" href={resolve('/editor')} title="Parish Designer — edit mod data">Designer</a>
-		<button type="button" class="debug-toggle" class:debug-active={$debugVisible} aria-pressed={$debugVisible} aria-label="Toggle debug panel" onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
-		<button type="button" class="bug-toggle" aria-label="Report a bug" onclick={() => void openBugReport()} title="Report a bug">🐛</button>
+		<div
+			class="dev-menu-wrap"
+			bind:this={devMenuEl}
+			onfocusout={(e) => {
+				// Close when keyboard focus leaves the toggle + menu subtree so
+				// tabbing away doesn't leave the menu hanging open.
+				const next = e.relatedTarget as Node | null;
+				if (devMenuOpen && devMenuEl && (!next || !devMenuEl.contains(next))) {
+					devMenuOpen = false;
+				}
+			}}
+		>
+			<button
+				type="button"
+				class="dev-toggle"
+				class:dev-active={devMenuOpen}
+				aria-haspopup="menu"
+				aria-expanded={devMenuOpen}
+				aria-label="Developer tools menu"
+				title="Developer tools"
+				onclick={() => (devMenuOpen = !devMenuOpen)}
+			>⋯</button>
+			{#if devMenuOpen}
+				<div class="dev-menu" role="menu" aria-label="Developer tools" data-testid="dev-menu">
+					<button type="button" role="menuitem" class="dev-item" aria-label="Switch active mod" onclick={() => { devMenuOpen = false; modSelectorVisible.set(true); }} title="Switch mod">Mod</button>
+					<a role="menuitem" class="dev-item" href={resolve('/editor')} title="Parish Designer — edit mod data">Designer</a>
+					<button type="button" role="menuitemcheckbox" class="dev-item" class:debug-active={$debugVisible} aria-checked={$debugVisible} aria-label="Toggle debug panel" onclick={() => { devMenuOpen = false; debugVisible.update(v => !v); }} title="Toggle debug panel (F12)">Dbg</button>
+					<button type="button" role="menuitem" class="dev-item" aria-label="Report a bug" onclick={() => { devMenuOpen = false; void openBugReport(); }} title="Report a bug">🐛 Bug</button>
+				</div>
+			{/if}
+		</div>
 		<AuthStatus />
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d, i (i)}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d, i (i)}<span class="digit">{d}</span>{/each}</span>
 	{:else}
@@ -123,7 +173,7 @@
 		border-bottom: 1px solid var(--color-border);
 		padding: 0.32rem 1rem;
 		font-family: var(--font-display);
-		font-size: 0.7rem;
+		font-size: 0.76rem;
 		letter-spacing: 0.07em;
 		display: flex;
 		align-items: center;
@@ -197,8 +247,8 @@
 		font-style: italic;
 	}
 
-	.mod-toggle,
-	.save-toggle {
+	.save-toggle,
+	.dev-toggle {
 		background: none;
 		border: 1px solid var(--color-border);
 		color: var(--color-muted);
@@ -210,49 +260,65 @@
 		transition: color 0.2s, border-color 0.2s;
 	}
 
-	.mod-toggle:hover,
-	.mod-toggle:focus-visible,
 	.save-toggle:hover,
-	.save-toggle:focus-visible {
+	.save-toggle:focus-visible,
+	.dev-toggle:hover,
+	.dev-toggle:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
 
-	.save-toggle.save-active {
+	.save-toggle.save-active,
+	.dev-toggle.dev-active {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
 
-	.debug-toggle,
-	.bug-toggle,
-	.designer-link {
-		background: none;
+	.dev-menu-wrap {
+		position: relative;
+		display: inline-flex;
+	}
+
+	.dev-menu {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		right: 0;
+		z-index: 60;
+		display: flex;
+		flex-direction: column;
+		min-width: 7rem;
+		background: var(--color-panel-bg);
 		border: 1px solid var(--color-border);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+	}
+
+	.dev-item {
+		background: none;
+		border: none;
+		border-bottom: 1px solid var(--color-border);
 		color: var(--color-muted);
-		font-size: 0.6rem;
-		padding: 0.1rem 0.45rem;
+		font-size: 0.62rem;
+		padding: 0.4rem 0.6rem;
 		cursor: pointer;
 		font-family: var(--font-display);
 		letter-spacing: 0.1em;
-		transition: color 0.2s, border-color 0.2s;
 		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
+		text-align: left;
+		transition: color 0.2s, background 0.2s;
 	}
 
-	.debug-toggle:hover,
-	.debug-toggle:focus-visible,
-	.bug-toggle:hover,
-	.bug-toggle:focus-visible,
-	.designer-link:hover,
-	.designer-link:focus-visible {
+	.dev-item:last-child {
+		border-bottom: none;
+	}
+
+	.dev-item:hover,
+	.dev-item:focus-visible {
 		color: var(--color-fg);
-		border-color: var(--color-accent);
+		background: var(--color-input-bg);
 	}
 
-	.debug-toggle.debug-active {
+	.dev-item.debug-active {
 		color: var(--color-accent);
-		border-color: var(--color-accent);
 	}
 
 	/* ── Mobile: compact status bar ── */
@@ -281,10 +347,8 @@
 			display: inline;
 		}
 
-		.mod-toggle,
 		.save-toggle,
-		.debug-toggle,
-		.designer-link {
+		.dev-toggle {
 			font-size: 0.55rem;
 			padding: 0.15rem 0.35rem;
 		}
