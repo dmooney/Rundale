@@ -16,6 +16,7 @@ parish-npc = { workspace = true }
 parish-mod = { workspace = true }
 parish-editor = { workspace = true }
 parish-chronicle = { workspace = true }
+parish-diagnostics = { workspace = true }
 parish-persistence = { workspace = true }
 parish-input = { workspace = true }
 tokio = { workspace = true }

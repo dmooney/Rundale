@@ -1,0 +1,29 @@
+[package]
+name = "parish-diagnostics"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Backend-agnostic diagnostics for Parish: debug-snapshot builders and bug-report orchestration"
+
+[dependencies]
+parish-types = { workspace = true }
+parish-config = { workspace = true }
+parish-inference = { workspace = true }
+parish-world = { workspace = true }
+parish-npc = { workspace = true }
+tokio = { workspace = true }
+# reqwest stays a direct dep: bug_report.rs makes its own GitHub REST calls
+# (issue create + screenshot upload). Only the `json` feature is needed.
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+wiremock = { workspace = true }

@@ -21,7 +21,7 @@ Four binaries built from this workspace, each with a single job:
 
 ```mermaid
 flowchart LR
-    subgraph Engine["Parish engine (parish-core composes 13 leaf crates)"]
+    subgraph Engine["Parish engine (parish-core composes 14 leaf crates)"]
         Core[("game loop · world · NPCs · inference · save store")]
     end
 
@@ -280,7 +280,7 @@ through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
 
 ## Architecture
 
-One engine, three thin entry points, thirteen backend-agnostic leaf crates. The full
+One engine, three thin entry points, fourteen backend-agnostic leaf crates. The full
 crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture.md).
 
 ```mermaid
@@ -297,7 +297,7 @@ flowchart TB
         ENGINE["parish-engine<br/>headless REPL / --script / Tauri launch"]
     end
 
-    CORE["parish-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>debug_snapshot/ • event_bus • prompts<br/>(re-exports parish-mod as game_mod,<br/>parish-editor as editor,<br/>parish-chronicle as character_log/location_log/chat_transcript)"]
+    CORE["parish-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>event_bus • prompts<br/>(re-exports parish-mod as game_mod,<br/>parish-editor as editor,<br/>parish-chronicle as character_log/location_log/chat_transcript,<br/>parish-diagnostics as debug_snapshot)"]
 
     subgraph leaf["Shared leaf crates (backend-agnostic, enforced)"]
         WORLD["parish-world<br/>graph, movement, weather, geo"]
@@ -312,6 +312,7 @@ flowchart TB
         MOD["parish-mod<br/>content-mod loader<br/>(manifest, discovery, world bridge)"]
         EDITOR["parish-editor<br/>Designer backend<br/>(mod I/O, validation, persistence, save inspect)"]
         CHRONICLE["parish-chronicle<br/>on-disk chronicle writers<br/>(character/location markdown logs, chat transcript)"]
+        DIAG["parish-diagnostics<br/>debug-snapshot builders +<br/>bug-report orchestration"]
         TYPES["parish-types<br/>ids, time, events, errors (zero internal deps)"]
     end
 
@@ -330,7 +331,7 @@ flowchart TB
     SERVER --> CORE
     ENGINE --> CORE
 
-    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE & MOD & EDITOR & CHRONICLE & TYPES
+    CORE --> WORLD & NPC & INPUT & INFER & PERSIST & CONFIG & PALETTE & MOD & EDITOR & CHRONICLE & DIAG & TYPES
     INPUT -. "intent LLM" .-> INFER
     NPC -. "T1 dialogue • T2 group sim + gossip • T3 batch sim" .-> INFER
     NPC -.-> WORLD
@@ -352,7 +353,7 @@ flowchart TB
     class UI,CLI,MCP clientNode
     class TAURI,SERVER,ENGINE entryNode
     class CORE coreNode
-    class WORLD,NPC,INPUT,INFER,PROVIDERS,SETUP,PERSIST,CONFIG,PALETTE,MOD,EDITOR,CHRONICLE,TYPES leafNode
+    class WORLD,NPC,INPUT,INFER,PROVIDERS,SETUP,PERSIST,CONFIG,PALETTE,MOD,EDITOR,CHRONICLE,DIAG,TYPES leafNode
     class MODS,DB,LLM extNode
     style clients fill:#eef4fb,stroke:#9db8d4,color:#1f2328
     style entry fill:#fdf3e3,stroke:#d8b873,color:#1f2328
@@ -364,7 +365,7 @@ flowchart TB
 
 ```text
 parish/
-  crates/              22 workspace members (types, config, world, npc, mod, editor, chronicle, etc.)
+  crates/              23 workspace members (types, config, world, npc, mod, editor, chronicle, diagnostics, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts

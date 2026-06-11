@@ -1,11 +1,11 @@
 use super::build::*;
 use super::*;
-use crate::npc::manager::NpcManager;
-use crate::npc::{Npc, NpcId};
-use crate::world::WorldState;
-use crate::world::events::GameEvent;
-use crate::world::graph::WorldGraph;
-use crate::world::time::{DayType, Season};
+use parish_npc::manager::NpcManager;
+use parish_npc::{Npc, NpcId};
+use parish_world::WorldState;
+use parish_world::events::GameEvent;
+use parish_world::graph::WorldGraph;
+use parish_world::time::{DayType, Season};
 use std::collections::VecDeque;
 
 /// Helper: build a minimal `InferenceDebug` for tests.
@@ -276,7 +276,7 @@ fn test_events_included_in_snapshot() {
 
 #[test]
 fn test_npc_debug_relationships_sorted() {
-    use crate::npc::types::{Relationship, RelationshipKind};
+    use parish_npc::types::{Relationship, RelationshipKind};
 
     let mut npc = Npc::new_test_npc();
     npc.relationships
@@ -369,8 +369,8 @@ fn test_gossip_debug_serializes_in_snapshot() {
 
 #[test]
 fn test_recent_tier4_events_in_tier_summary() {
-    use crate::npc::tier4::Tier4Event;
     use chrono::Utc;
+    use parish_npc::tier4::Tier4Event;
 
     let world = WorldState::new();
     let mut mgr = NpcManager::new();
