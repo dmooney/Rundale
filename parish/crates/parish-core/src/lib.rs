@@ -11,7 +11,12 @@
 pub mod character_log;
 pub mod chat_transcript;
 pub mod debug_snapshot;
-pub mod editor;
+// The Parish Designer backend was extracted into its own crate
+// (`parish-editor`). This re-export preserves the historical
+// `parish_core::editor::...` path for every consumer (`parish-tauri`,
+// `parish-server`, `crate::ipc::editor`) so the extraction stays
+// behaviour-preserving with zero import changes.
+pub use parish_editor as editor;
 pub mod event_bus;
 pub mod game_loop;
 pub mod game_session;

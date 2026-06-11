@@ -3972,6 +3972,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "parish-config",
+ "parish-editor",
  "parish-inference",
  "parish-input",
  "parish-mod",
@@ -3994,6 +3995,21 @@ dependencies = [
  "tracing",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "parish-editor"
+version = "0.1.0"
+dependencies = [
+ "parish-mod",
+ "parish-npc",
+ "parish-persistence",
+ "parish-types",
+ "parish-world",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 1.1.2+spec-1.1.0",
 ]
 
 [[package]]
@@ -4074,6 +4090,7 @@ dependencies = [
  "hf-hub",
  "parish-config",
  "parish-providers",
+ "parish-setup",
  "parish-types",
  "regex",
  "reqwest 0.12.28",
@@ -4258,6 +4275,21 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "parish-setup"
+version = "0.1.0"
+dependencies = [
+ "parish-config",
+ "parish-providers",
+ "parish-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
  "wiremock",
 ]
 

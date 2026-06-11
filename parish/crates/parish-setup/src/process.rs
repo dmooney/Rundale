@@ -4,7 +4,7 @@
 //! when dropped. The `ensure_running` / `ensure_slots` constructors probe the
 //! server endpoint first and only spawn a new process when necessary.
 
-use crate::openai_client::build_client_or_fallback;
+use parish_providers::openai_client::build_client_or_fallback;
 use parish_types::ParishError;
 use std::process::{Child, Command};
 use std::time::Duration;
@@ -265,7 +265,7 @@ impl VllmMlxInvocation {
 /// supplied via `extra_vllm_slots` for per-category routing
 /// (two-slot Apple Silicon loadout).
 ///
-/// [`setup_provider_client`]: crate::setup::orchestration::setup_provider_client
+/// [`setup_provider_client`]: crate::orchestration::setup_provider_client
 pub struct VllmMlxProcess {
     pub(super) child: Option<Child>,
 }

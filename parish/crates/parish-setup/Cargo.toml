@@ -1,0 +1,24 @@
+[package]
+name = "parish-setup"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Local-inference setup & bootstrap (GPU detect, model select, Ollama/vllm provider bootstrap) for Parish"
+
+[dependencies]
+parish-types = { workspace = true }
+parish-config = { workspace = true }
+parish-providers = { workspace = true }
+# reqwest stays a direct dep: orchestration.rs / process.rs make their own
+# Ollama/vllm reachability + warmup HTTP calls. Only the `json` feature is
+# needed here; the streaming clients live in parish-providers.
+reqwest = { workspace = true, features = ["json"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+tracing = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
