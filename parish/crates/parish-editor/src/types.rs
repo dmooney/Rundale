@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use parish_npc::NpcFile;
 use parish_world::graph::LocationData;
 
-use crate::game_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use parish_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
 
 /// Lightweight summary of a mod found on disk.
 ///
-/// Returned by [`crate::editor::list_mods`] for the mod browser UI.
+/// Returned by [`crate::list_mods`] for the mod browser UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModSummary {
     /// Machine-friendly identifier from `mod.toml`.
