@@ -186,17 +186,17 @@ Events are timestamped with game time and categorized for optional filtering.
 
 ## Implementation Files
 
-| File                                       | Purpose                                   |
-| ------------------------------------------ | ----------------------------------------- |
-| `crates/parish-core/src/debug_snapshot.rs` | `DebugSnapshot` + builder                 |
-| `src/debug.rs`                             | Updated `/debug` commands to use snapshot |
-| `crates/parish-tauri/src/commands.rs`      | `get_debug_snapshot` command              |
-| `crates/parish-tauri/src/events.rs`        | `EVENT_DEBUG_UPDATE` constant             |
-| `crates/parish-tauri/src/lib.rs`           | Debug tick task (2s interval)             |
-| `apps/ui/src/lib/types.ts`                 | TypeScript debug interfaces               |
-| `apps/ui/src/lib/ipc.ts`                   | `getDebugSnapshot()` + `onDebugUpdate()`  |
-| `apps/ui/src/stores/debug.ts`              | Debug state store                         |
-| `apps/ui/src/components/DebugPanel.svelte` | Main debug panel component                |
+| File                                            | Purpose                                   |
+| ----------------------------------------------- | ----------------------------------------- |
+| `crates/parish-diagnostics/src/debug_snapshot/` | `DebugSnapshot` + builder                 |
+| `src/debug.rs`                                  | Updated `/debug` commands to use snapshot |
+| `crates/parish-tauri/src/commands.rs`           | `get_debug_snapshot` command              |
+| `crates/parish-tauri/src/events.rs`             | `EVENT_DEBUG_UPDATE` constant             |
+| `crates/parish-tauri/src/lib.rs`                | Debug tick task (2s interval)             |
+| `apps/ui/src/lib/types.ts`                      | TypeScript debug interfaces               |
+| `apps/ui/src/lib/ipc.ts`                        | `getDebugSnapshot()` + `onDebugUpdate()`  |
+| `apps/ui/src/stores/debug.ts`                   | Debug state store                         |
+| `apps/ui/src/components/DebugPanel.svelte`      | Main debug panel component                |
 
 ## Related
 

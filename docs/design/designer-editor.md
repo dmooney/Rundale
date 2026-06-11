@@ -78,7 +78,7 @@ What a game designer working on Parish actually needs day-to-day:
 Reachable from the main UI via a menu entry; fully usable standalone (does not
 require a running game session).
 
-**Backend:** New module `crates/parish-core/src/editor/` owns all editor logic —
+**Backend:** The `parish-editor` crate (`crates/parish-editor/`, re-exported as `parish_core::editor`) owns all editor logic —
 loading a mod from disk, validating it, writing it back, inspecting save files.
 Exposed via new IPC types in `crates/parish-core/src/ipc/editor.rs`.
 
@@ -107,7 +107,7 @@ this separation is the single most important architectural rule of the feature.
 
 **Backend**
 
-- `crates/parish-core/src/game_mod.rs` — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
+- `crates/parish-mod/` (re-exported as `parish_core::game_mod`) — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
 - `crates/parish-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `ParishError::WorldGraph(String)`
 - `crates/parish-types/src/error.rs` — `ParishError` enum (use for all editor errors)
 - `crates/parish-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
