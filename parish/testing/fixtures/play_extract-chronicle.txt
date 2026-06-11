@@ -12,10 +12,10 @@
 # Run with PARISH_USER_DATA_DIR=/tmp/parish-chronicle-test so files
 # land in an inspectable temp directory. Check after the run:
 #
-#   ls /tmp/parish-chronicle-test/*/logs/branch-1/
-#   grep '<!-- PROFILE_START -->' /tmp/parish-chronicle-test/*/logs/branch-1/player.md
-#   grep '^### ' /tmp/parish-chronicle-test/*/logs/branch-1/player.md
-#   ls /tmp/parish-chronicle-test/*/logs/branch-1/loc-*.md
+#   ls /tmp/parish-chronicle-test/logs/branch-1/
+#   grep '<!-- PROFILE_START -->' /tmp/parish-chronicle-test/logs/branch-1/player.md
+#   grep '^### ' /tmp/parish-chronicle-test/logs/branch-1/player.md
+#   ls /tmp/parish-chronicle-test/logs/branch-1/loc-*.md
 #
 # C6/C7 signal: player.md contains a PROFILE_START marker (write_all_profiles
 # ran) AND at least one "### HH:MM" heading (process_event wrote a PlayerMoved
