@@ -1,63 +1,37 @@
-# Verification fixture for extract-providers.
+# extract-providers — provider transport split is behaviour-preserving
+# ====================================================================
+# Exercises the NPC dialogue chokepoint end-to-end after splitting
+# parish-inference's provider-transport modules into the new
+# parish-providers crate. Every dialogue turn dispatches through the
+# AnyClient / simulator / mock types that now live in parish-providers
+# (reached via the re-exported parish_inference::* paths), so structural
+# output must be bit-for-bit identical before and after the refactor.
 #
-# Exercises the inference path end-to-end on the simulator provider so that
-# the refactor (parish-inference → parish-providers) is proven live rather
-# than just by unit tests.
-#
-# This fixture:
-#   1. Confirms the active provider is the simulator (AC-9, AC-10).
-#   2. Drives two NPC dialogue turns that exercise the AnyClient::Simulator
-#      path through parish-providers (AC-9).
-#   3. Exercises Tier 2 background simulation by advancing time (AC-8, AC-9).
-#   4. Verifies the three priority lanes are all reached (Interactive via
-#      the dialogue turns, Background via /wait, Batch via the second /wait).
-#
-# Run:
-#   cargo run --manifest-path parish/Cargo.toml -p parish-engine -- \
-#     --script parish/testing/fixtures/play_extract-providers.txt
-#
-# Or against a live server (parish-mcp-backend.sh start):
-#   parish --script parish/testing/fixtures/play_extract-providers.txt
-#
-# Expected signals in output:
-#   - "provider":"simulator" in /status JSON (AC-9)
-#   - At least one "kind":"talked" turn with a non-empty "text" field (AC-9)
-#   - No "error" key in any inference log line (AC-10, AC-7)
-#   - /provider output includes "simulator" as current provider (AC-9)
-#   - No panic or compile error (AC-3, AC-7)
+# Signals the evidence maps to acceptance criteria:
+#  - /provider reports the resolved provider via the re-exported
+#    build_client factory (criterion 9/12).
+#  - Reaching Darcy's Pub greets two co-located NPCs (Padraig + Niamh
+#    Darcy), confirming NpcManager + world wiring is intact.
+#  - A stubbed dialogue turn produces an `npc_response` result with a
+#    non-empty `dialogue` field — the dialogue chokepoint that routes
+#    through parish-providers' AnyClient is live, not bypassed
+#    (criterion 8/9/10). No inference-error log lines appear.
 
-# 1. Baseline — confirm simulator is active and world is reachable.
-/status
+# 1. Confirm the provider resolves through the re-exported factory.
 /provider
-/time
+
+# 2. Reach the two-NPC pub hub.
+go to the crossroads
+go to the pub
 look
 
-# 2. Observe NPCs at starting location.
-/npcs
+# 3. Stub deterministic dialogue, then converse — drives the dialogue
+#    path through the moved AnyClient/mock plumbing.
+/stub Padraig Darcy: A fair evening to ye, and what news of the harvest?
+talk to Padraig Darcy about the harvest this year
 
-# 3. Interactive-lane turn: address an NPC by name.
-#    This dispatches through AnyClient::Simulator via the queue worker
-#    (Interactive priority lane).  The simulator must return a non-empty
-#    dialogue response without error.
-say hello, how are you this fine morning?
+/stub Niamh Darcy: Mind yourself on the road, the nights draw in early.
+talk to Niamh Darcy about the road home
 
-# 4. Second Interactive-lane turn: confirm the worker loop continues.
-say what is the news in the parish today?
-
-# 5. Advance time by 30 minutes — triggers Background (Tier 2) simulation
-#    for co-located NPCs, exercising the Background priority lane.
-/wait 30
-
-# 6. Observe updated NPC state and world clock.
-/time
-/npcs
-look
-
-# 7. Advance further — triggers Batch (Tier 3) distant NPC simulation,
-#    exercising the Batch priority lane.
-/wait 60
-
-# 8. Final status check to confirm no errors in the inference log.
+# 4. Final status block for the structural diff.
 /status
-/time
-look

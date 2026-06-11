@@ -38,7 +38,11 @@ use wire::{ChatCompletionRequest, ChatCompletionResponse, ChatMessage, extract_c
 /// initialize we log a warning and return a default client so the application
 /// degrades gracefully rather than crashing at startup. See
 /// `test_openai_client_new_does_not_panic` for the regression guard.
-pub(crate) fn build_client_or_fallback(timeout: Duration, label: &'static str) -> reqwest::Client {
+///
+/// `pub` so `parish_inference::setup` (reachability probes, warmup) and
+/// `parish_inference::validate` can reuse the same hardened builder rather
+/// than constructing bare `reqwest::Client`s with their own panic surface.
+pub fn build_client_or_fallback(timeout: Duration, label: &'static str) -> reqwest::Client {
     match reqwest::Client::builder().timeout(timeout).build() {
         Ok(client) => client,
         Err(err) => {

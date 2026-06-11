@@ -5,11 +5,11 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 649 crates
+- [MIT License](#MIT) — 636 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
-- [ISC License](#ISC) — 6 crates
+- [ISC License](#ISC) — 5 crates
 - [Mozilla Public License 2.0](#MPL-2.0) — 5 crates
 - [BSD 2-Clause &quot;Simplified&quot; License](#BSD-2-Clause) — 1 crate
 - [Community Data License Agreement Permissive 2.0](#CDLA-Permissive-2.0) — 1 crate
@@ -229,6 +229,7 @@ regenerate after dependency changes.
 
 ```
 
+
 **Used by:**
 
 - [hf-hub 0.5.0](https://github.com/huggingface/hf-hub)
@@ -439,6 +440,7 @@ regenerate after dependency changes.
 
 
 ```
+
 
 **Used by:**
 
@@ -668,6 +670,7 @@ Software.
 
 
 ```
+
 
 **Used by:**
 
@@ -1303,11 +1306,7 @@ Software.
 
 **Used by:**
 
-- [opentelemetry-http 0.29.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-http)
-- [opentelemetry-otlp 0.29.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-otlp)
-- [opentelemetry-proto 0.29.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-proto)
-- [opentelemetry 0.29.1](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry)
-- [opentelemetry_sdk 0.29.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-sdk)
+- [opentelemetry-proto 0.32.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-proto)
 
 ```
                                  Apache License
@@ -1514,10 +1513,11 @@ Software.
 
 ```
 
+
 **Used by:**
 
-- [prost-derive 0.13.5](https://github.com/tokio-rs/prost)
-- [prost 0.13.5](https://github.com/tokio-rs/prost)
+- [prost-derive 0.14.4](https://github.com/tokio-rs/prost)
+- [prost 0.14.4](https://github.com/tokio-rs/prost)
 - [ring 0.17.14](https://github.com/briansmith/ring)
 
 ```
@@ -1715,7 +1715,7 @@ Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
- http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
@@ -1724,6 +1724,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ```
+
 
 **Used by:**
 
@@ -1934,12 +1935,17 @@ Apache License
    limitations under the License.
 ```
 
+
 **Used by:**
 
 - [dunce 1.0.5](https://gitlab.com/kornelski/dunce)
 - [gl 0.14.0](https://github.com/brendanzab/gl-rs/)
 - [gl_generator 0.14.0](https://github.com/brendanzab/gl-rs/)
 - [khronos_api 3.1.0](https://github.com/brendanzab/gl-rs/)
+- [opentelemetry-http 0.32.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-http)
+- [opentelemetry-otlp 0.32.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-otlp)
+- [opentelemetry 0.32.0](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry)
+- [opentelemetry_sdk 0.32.1](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-sdk)
 - [ryu 1.0.23](https://github.com/dtolnay/ryu)
 - [sync_wrapper 1.0.2](https://github.com/Actyx/sync_wrapper)
 
@@ -2078,6 +2084,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
+
 **Used by:**
 
 - [bindgen 0.72.1](https://github.com/rust-lang/rust-bindgen)
@@ -2136,6 +2143,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&
 
 ```
 
+
 **Used by:**
 
 - [subtle 2.6.1](https://github.com/dalek-cryptography/subtle)
@@ -2173,6 +2181,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
+
 **Used by:**
 
 - [ed25519-dalek 2.2.0](https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek)
@@ -2209,6 +2218,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
+
 **Used by:**
 
 - [alloc-stdlib 0.2.2](https://github.com/dropbox/rust-alloc-no-stdlib)
@@ -2229,6 +2239,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
+
 
 **Used by:**
 
@@ -2358,6 +2369,7 @@ insights.
 
 ```
 
+
 **Used by:**
 
 - [simple_asn1 0.6.4](https://github.com/acw/simple_asn1)
@@ -2378,6 +2390,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2400,9 +2413,9 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [libloading 0.7.4](https://github.com/nagisa/rust_libloading/)
 - [libloading 0.8.9](https://github.com/nagisa/rust_libloading/)
 
 ```
@@ -2509,6 +2522,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+
 **Used by:**
 
 - [cexpr 0.6.0](https://github.com/jethrogb/rust-cexpr)
@@ -2570,6 +2584,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [sha1 0.10.6](https://github.com/RustCrypto/hashes)
@@ -2606,6 +2621,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [brotli 8.0.2](https://github.com/dropbox/rust-brotli)
@@ -2632,6 +2648,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2665,6 +2682,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2704,6 +2722,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2768,6 +2787,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [form_urlencoded 1.2.2](https://github.com/servo/rust-url)
@@ -2800,6 +2820,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2835,6 +2856,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2883,6 +2905,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [mio 1.2.0](https://github.com/tokio-rs/mio)
@@ -2909,6 +2932,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -2943,6 +2967,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [errno 0.3.14](https://github.com/lambda-fairy/rust-errno)
@@ -2976,6 +3001,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [mime 0.3.17](https://github.com/hyperium/mime)
@@ -3003,6 +3029,7 @@ THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -3038,6 +3065,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [base16ct 0.2.0](https://github.com/RustCrypto/formats/tree/master/base16ct)
@@ -3071,6 +3099,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3116,9 +3145,10 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [uuid 1.23.1](https://github.com/uuid-rs/uuid)
+- [uuid 1.23.2](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3149,6 +3179,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3185,6 +3216,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [dbus 0.9.11](https://github.com/diwic/dbus-rs)
@@ -3211,6 +3243,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -3270,6 +3303,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [flate2 1.1.9](https://github.com/rust-lang/flate2-rs)
@@ -3303,6 +3337,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [hyper 1.9.0](https://github.com/hyperium/hyper)
@@ -3329,6 +3364,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3358,11 +3394,11 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [either 1.15.0](https://github.com/rayon-rs/either)
 - [itertools 0.13.0](https://github.com/rust-itertools/itertools)
-- [itertools 0.14.0](https://github.com/rust-itertools/itertools)
 - [serde_with 3.20.0](https://github.com/jonasbb/serde_with/)
 - [serde_with_macros 3.20.0](https://github.com/jonasbb/serde_with/)
 
@@ -3395,6 +3431,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [plist 1.9.0](https://github.com/ebarnard/rust-plist/)
@@ -3420,6 +3457,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -3482,6 +3520,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [new_debug_unreachable 1.0.6](https://github.com/mbrubeck/rust-debug-unreachable)
@@ -3515,6 +3554,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tendril 0.5.0](https://github.com/servo/html5ever)
@@ -3547,6 +3587,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3618,6 +3659,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [jni-sys 0.3.1](https://github.com/jni-rs/jni-sys)
@@ -3646,6 +3688,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [fallible-iterator 0.3.0](https://github.com/sfackler/rust-fallible-iterator)
@@ -3672,6 +3715,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3734,6 +3778,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [winapi 0.3.9](https://github.com/retep998/winapi-rs)
@@ -3760,6 +3805,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3795,6 +3841,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [httparse 1.10.1](https://github.com/seanmonstar/httparse)
@@ -3823,6 +3870,7 @@ THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -3866,6 +3914,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [hashbrown 0.12.3](https://github.com/rust-lang/hashbrown)
@@ -3902,6 +3951,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [serde_urlencoded 0.7.1](https://github.com/nox/serde_urlencoded)
@@ -3935,6 +3985,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [webkit2gtk-sys 2.0.2](https://github.com/tauri-apps/webkit2gtk-rs)
@@ -3960,6 +4011,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -3988,6 +4040,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4021,6 +4074,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4056,6 +4110,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [httpdate 1.0.3](https://github.com/pyfisch/httpdate)
@@ -4082,6 +4137,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4120,6 +4176,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [fallible-streaming-iterator 0.1.9](https://github.com/sfackler/fallible-streaming-iterator)
@@ -4146,6 +4203,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4180,6 +4238,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [dbus-secret-service 4.1.0](https://github.com/brotskydotcom/dbus-secret-service.git)
@@ -4212,6 +4271,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4247,6 +4307,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [equivalent 1.0.2](https://github.com/indexmap-rs/equivalent)
@@ -4279,6 +4340,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4313,6 +4375,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [reqwest 0.12.28](https://github.com/seanmonstar/reqwest)
@@ -4341,6 +4404,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [reqwest 0.13.3](https://github.com/seanmonstar/reqwest)
@@ -4368,6 +4432,7 @@ THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -4405,6 +4470,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tungstenite 0.29.0](https://github.com/snapview/tungstenite-rs)
@@ -4432,6 +4498,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4468,6 +4535,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [fnv 1.0.7](https://github.com/servo/rust-fnv)
@@ -4501,6 +4569,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tokio-tungstenite 0.29.0](https://github.com/snapview/tokio-tungstenite)
@@ -4529,6 +4598,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [memoffset 0.9.1](https://github.com/Gilnaa/memoffset)
@@ -4554,6 +4624,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -4588,6 +4659,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -4649,6 +4721,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+
 **Used by:**
 
 - [redox_syscall 0.5.18](https://gitlab.redox-os.org/redox-os/syscall)
@@ -4678,6 +4751,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4710,6 +4784,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -4745,6 +4820,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [foreign-types-macros 0.2.3](https://github.com/sfackler/foreign-types)
@@ -4774,6 +4850,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [version-compare 0.2.1](https://gitlab.com/timvisee/version-compare)
@@ -4801,6 +4878,7 @@ SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -4835,6 +4913,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [http 1.4.0](https://github.com/hyperium/http)
@@ -4867,6 +4946,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -4901,6 +4981,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [signal-hook-registry 1.4.8](https://github.com/vorner/signal-hook)
@@ -4933,6 +5014,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5002,6 +5084,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [bytes 1.11.1](https://github.com/tokio-rs/bytes)
@@ -5034,6 +5117,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5068,6 +5152,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [smallvec 1.15.1](https://github.com/servo/rust-smallvec)
@@ -5100,6 +5185,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5134,6 +5220,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [want 0.3.1](https://github.com/seanmonstar/want)
@@ -5161,6 +5248,7 @@ THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -5195,11 +5283,10 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [dirs-sys 0.4.1](https://github.com/dirs-dev/dirs-sys-rs)
 - [dirs-sys 0.5.0](https://github.com/dirs-dev/dirs-sys-rs)
-- [dirs 5.0.1](https://github.com/soc/dirs-rs)
 - [dirs 6.0.0](https://github.com/soc/dirs-rs)
 
 ```
@@ -5224,6 +5311,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5259,6 +5347,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [ed25519 2.2.3](https://github.com/RustCrypto/signatures/tree/master/ed25519)
@@ -5293,6 +5382,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [try-lock 0.2.5](https://github.com/seanmonstar/try-lock)
@@ -5321,6 +5411,7 @@ THE SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -5356,6 +5447,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [block-buffer 0.12.0](https://github.com/RustCrypto/utils)
@@ -5388,6 +5480,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5423,6 +5516,41 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
+**Used by:**
+
+- [rand_core 0.10.1](https://github.com/rust-random/rand_core)
+
+```
+Copyright (c) 2018-2026 The Rand Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
 **Used by:**
 
 - [getrandom 0.4.2](https://github.com/rust-random/getrandom)
@@ -5457,6 +5585,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [slab 0.4.12](https://github.com/tokio-rs/slab)
@@ -5490,6 +5619,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [sharded-slab 0.1.7](https://github.com/hawkw/sharded-slab)
@@ -5517,6 +5647,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [matchers 0.2.0](https://github.com/hawkw/matchers)
@@ -5543,6 +5674,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5578,6 +5710,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [bumpalo 3.20.2](https://github.com/fitzgen/bumpalo)
@@ -5610,6 +5743,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5644,13 +5778,14 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tracing-appender 0.2.5](https://github.com/tokio-rs/tracing)
 - [tracing-attributes 0.1.31](https://github.com/tokio-rs/tracing)
 - [tracing-core 0.1.36](https://github.com/tokio-rs/tracing)
 - [tracing-log 0.2.0](https://github.com/tokio-rs/tracing)
-- [tracing-opentelemetry 0.30.0](https://github.com/tokio-rs/tracing-opentelemetry)
+- [tracing-opentelemetry 0.33.0](https://github.com/tokio-rs/tracing-opentelemetry)
 - [tracing-subscriber 0.3.23](https://github.com/tokio-rs/tracing)
 - [tracing 0.1.44](https://github.com/tokio-rs/tracing)
 
@@ -5682,6 +5817,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5718,6 +5854,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [axum 0.8.9](https://github.com/tokio-rs/axum)
@@ -5751,9 +5888,10 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [tower-http 0.6.10](https://github.com/tower-rs/tower-http)
+- [tower-http 0.6.11](https://github.com/tower-rs/tower-http)
 
 ```
 Copyright (c) 2019-2021 Tower Contributors
@@ -5783,6 +5921,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -5817,6 +5956,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [http-body-util 0.1.3](https://github.com/hyperium/http-body)
@@ -5849,6 +5989,41 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
+
+**Used by:**
+
+- [chacha20 0.10.0](https://github.com/RustCrypto/stream-ciphers)
+
+```
+Copyright (c) 2019-2026 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
 
 **Used by:**
 
@@ -5884,6 +6059,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [downcast-rs 1.2.1](https://github.com/marcianx/downcast-rs)
@@ -5917,33 +6093,6 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-
-**Used by:**
-
-- [tonic 0.12.3](https://github.com/hyperium/tonic)
-
-```
-Copyright (c) 2020 Lucio Franco
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the &quot;Software&quot;), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-```
 
 **Used by:**
 
@@ -6075,6 +6224,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [elliptic-curve 0.13.8](https://github.com/RustCrypto/traits/tree/master/elliptic-curve)
@@ -6108,6 +6258,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [const-oid 0.9.6](https://github.com/RustCrypto/formats/tree/master/const-oid)
@@ -6140,6 +6291,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6175,6 +6327,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [der 0.7.10](https://github.com/RustCrypto/formats/tree/master/der)
@@ -6208,6 +6361,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6243,6 +6397,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [const-oid 0.10.2](https://github.com/RustCrypto/formats)
@@ -6276,6 +6431,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [crypto-common 0.1.6](https://github.com/RustCrypto/traits)
@@ -6308,6 +6464,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6343,6 +6500,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [sec1 0.7.3](https://github.com/RustCrypto/formats/tree/master/sec1)
@@ -6375,6 +6533,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6410,6 +6569,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [crypto-common 0.2.1](https://github.com/RustCrypto/traits)
@@ -6442,6 +6602,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6477,6 +6638,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [rustls-pki-types 1.14.1](https://github.com/rustls/pki-types)
@@ -6510,6 +6672,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [powerfmt 0.2.0](https://github.com/jhpratt/powerfmt)
@@ -6536,6 +6699,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6571,6 +6735,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [swift-rs 1.0.7](https://github.com/Brendonovich/swift-rs)
@@ -6597,6 +6762,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6625,6 +6791,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [deranged 0.5.8](https://github.com/jhpratt/deranged)
@@ -6651,6 +6818,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6685,6 +6853,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6757,6 +6926,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [annotate-snippets 0.11.5](https://github.com/rust-lang/annotate-snippets-rs)
@@ -6808,6 +6978,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [num-conv 0.2.1](https://github.com/jhpratt/num-conv)
@@ -6834,6 +7005,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6863,6 +7035,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6897,6 +7070,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [idna_adapter 1.2.2](https://github.com/hsivonen/idna_adapter)
@@ -6930,6 +7104,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [synstructure 0.13.2](https://github.com/mystor/synstructure)
@@ -6944,6 +7119,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -6960,8 +7136,10 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 
 ```
 
+
 **Used by:**
 
+- [rand 0.10.1](https://github.com/rust-random/rand)
 - [rand 0.8.6](https://github.com/rust-random/rand)
 - [rand 0.9.4](https://github.com/rust-random/rand)
 - [rand_chacha 0.3.1](https://github.com/rust-random/rand)
@@ -6999,6 +7177,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [softbuffer 0.4.8](https://github.com/rust-windowing/softbuffer)
@@ -7026,6 +7205,7 @@ SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -7061,6 +7241,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [encoding_rs 0.8.35](https://github.com/hsivonen/encoding_rs)
@@ -7094,6 +7275,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7129,7 +7311,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [lru 0.16.4](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.18.0](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
@@ -7154,6 +7336,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -7214,6 +7397,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [cookie_store 0.22.1](https://github.com/pfernie/cookie_store)
@@ -7273,6 +7457,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [json-patch 3.0.1](https://github.com/idubrov/json-patch)
@@ -7302,6 +7487,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [cfb 0.7.3](https://github.com/mdsteele/rust-cfb)
@@ -7330,6 +7516,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7361,6 +7548,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7421,6 +7609,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [crc32fast 1.5.0](https://github.com/srijs/rust-crc32fast)
@@ -7449,6 +7638,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7479,9 +7669,10 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [dashmap 6.1.0](https://github.com/xacrimon/dashmap)
+- [dashmap 6.2.1](https://github.com/xacrimon/dashmap)
 
 ```
 MIT License
@@ -7507,6 +7698,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7537,6 +7729,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [bytemuck 1.25.0](https://github.com/Lokathor/bytemuck)
@@ -7554,6 +7747,7 @@ The above copyright notice and this permission notice (including the next paragr
 THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7585,6 +7779,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [raw-window-handle 0.6.2](https://github.com/rust-windowing/raw-window-handle)
@@ -7613,6 +7808,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7644,6 +7840,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [proc-macro-error-attr 1.0.4](https://gitlab.com/CreepySkeleton/proc-macro-error)
@@ -7674,6 +7871,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [zeroize_derive 1.4.3](https://github.com/RustCrypto/utils/tree/master/zeroize/derive)
@@ -7702,6 +7900,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7736,6 +7935,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -7784,6 +7984,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [spinning_top 0.3.0](https://github.com/rust-osdev/spinning_top)
@@ -7812,6 +8013,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7842,6 +8044,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [wry 0.55.1](https://github.com/tauri-apps/wry)
@@ -7870,6 +8073,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -7901,6 +8105,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tower-cookies 0.11.0](https://github.com/imbolc/tower-cookies)
@@ -7930,6 +8135,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [http-range-header 0.4.2](https://github.com/MarcusGrass/parse-range-headers)
@@ -7958,6 +8164,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8018,6 +8225,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [jsonptr 0.6.3](https://github.com/chanced/jsonptr)
@@ -8046,6 +8254,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8076,6 +8285,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [tower-sessions 0.15.0](https://github.com/maxcountryman/tower-sessions)
@@ -8104,6 +8314,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8134,6 +8345,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [libredox 0.1.16](https://gitlab.redox-os.org/redox-os/libredox.git)
@@ -8162,6 +8374,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8197,6 +8410,7 @@ derived from the &quot;nipper&quot; project (https://github.com/importcjj/nipper
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 ```
 
+
 **Used by:**
 
 - [web-time 1.1.0](https://github.com/daxpedda/web-time)
@@ -8226,6 +8440,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [unit-prefix 0.5.2](https://codeberg.org/commons-rs/unit-prefix)
@@ -8254,6 +8469,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8290,7 +8506,7 @@ SOFTWARE.
 - [brotli-decompressor 5.0.0](https://github.com/dropbox/rust-brotli-decompressor)
 - [cargo_toml 0.22.3](https://gitlab.com/lib.rs/cargo_toml)
 - [cesu8 1.1.0](https://github.com/emk/cesu8-rs)
-- [chrono 0.4.44](https://github.com/chronotope/chrono)
+- [chrono 0.4.45](https://github.com/chronotope/chrono)
 - [cookie-factory 0.3.3](https://github.com/rust-bakery/cookie-factory)
 - [dispatch2 0.3.1](https://github.com/madsmtm/objc2)
 - [dlopen2 0.8.2](https://github.com/OpenByteDev/dlopen2)
@@ -8333,13 +8549,13 @@ SOFTWARE.
 - [r-efi 6.0.0](https://github.com/r-efi/r-efi)
 - [siphasher 1.0.3](https://github.com/jedisct1/rust-siphash)
 - [tao-macros 0.1.3](https://github.com/tauri-apps/tao)
-- [tauri-build 2.6.1](https://github.com/tauri-apps/tauri)
-- [tauri-codegen 2.6.1](https://github.com/tauri-apps/tauri)
-- [tauri-macros 2.6.1](https://github.com/tauri-apps/tauri)
-- [tauri-runtime-wry 2.11.1](https://github.com/tauri-apps/tauri)
-- [tauri-runtime 2.11.1](https://github.com/tauri-apps/tauri)
-- [tauri-utils 2.9.1](https://github.com/tauri-apps/tauri)
-- [tauri 2.11.1](https://github.com/tauri-apps/tauri)
+- [tauri-build 2.6.2](https://github.com/tauri-apps/tauri)
+- [tauri-codegen 2.6.2](https://github.com/tauri-apps/tauri)
+- [tauri-macros 2.6.2](https://github.com/tauri-apps/tauri)
+- [tauri-runtime-wry 2.11.2](https://github.com/tauri-apps/tauri)
+- [tauri-runtime 2.11.2](https://github.com/tauri-apps/tauri)
+- [tauri-utils 2.9.2](https://github.com/tauri-apps/tauri)
+- [tauri 2.11.2](https://github.com/tauri-apps/tauri)
 - [tower-sessions-core 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [tower-sessions-memory-store 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [unic-char-property 0.9.0](https://github.com/open-i18n/rust-unic/)
@@ -8371,13 +8587,11 @@ SOFTWARE.
 - [windows-strings 0.4.2](https://github.com/microsoft/windows-rs)
 - [windows-strings 0.5.1](https://github.com/microsoft/windows-rs)
 - [windows-sys 0.45.0](https://github.com/microsoft/windows-rs)
-- [windows-sys 0.48.0](https://github.com/microsoft/windows-rs)
 - [windows-sys 0.52.0](https://github.com/microsoft/windows-rs)
 - [windows-sys 0.59.0](https://github.com/microsoft/windows-rs)
 - [windows-sys 0.60.2](https://github.com/microsoft/windows-rs)
 - [windows-sys 0.61.2](https://github.com/microsoft/windows-rs)
 - [windows-targets 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows-targets 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows-targets 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows-targets 0.53.5](https://github.com/microsoft/windows-rs)
 - [windows-threading 0.1.0](https://github.com/microsoft/windows-rs)
@@ -8386,33 +8600,26 @@ SOFTWARE.
 - [windows 0.61.3](https://github.com/microsoft/windows-rs)
 - [windows 0.62.2](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_gnullvm 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_aarch64_gnullvm 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_gnullvm 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_gnullvm 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_msvc 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_aarch64_msvc 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_msvc 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_aarch64_msvc 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_i686_gnu 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_i686_gnu 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_i686_gnu 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_i686_gnu 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_i686_gnullvm 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_i686_gnullvm 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_i686_msvc 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_i686_msvc 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_i686_msvc 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_i686_msvc 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnu 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_x86_64_gnu 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnu 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnu 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnullvm 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_x86_64_gnullvm 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnullvm 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_gnullvm 0.53.1](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_msvc 0.42.2](https://github.com/microsoft/windows-rs)
-- [windows_x86_64_msvc 0.48.5](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_msvc 0.52.6](https://github.com/microsoft/windows-rs)
 - [windows_x86_64_msvc 0.53.1](https://github.com/microsoft/windows-rs)
 
@@ -8437,6 +8644,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTI
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8469,6 +8677,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [simd-adler32 0.3.9](https://github.com/mcountryman/simd-adler32)
@@ -8497,6 +8706,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8529,6 +8739,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8564,6 +8775,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [ident_case 1.0.1](https://github.com/TedDriggs/ident_case)
@@ -8591,6 +8803,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8623,6 +8836,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -8668,9 +8882,7 @@ DEALINGS IN THE SOFTWARE.
 - [once_cell 1.21.4](https://github.com/matklad/once_cell)
 - [ordered-stream 0.2.0](https://github.com/danieldg/ordered-stream)
 - [parking 2.2.1](https://github.com/smol-rs/parking)
-- [pin-project-internal 1.1.13](https://github.com/taiki-e/pin-project)
 - [pin-project-lite 0.2.17](https://github.com/taiki-e/pin-project-lite)
-- [pin-project 1.1.13](https://github.com/taiki-e/pin-project)
 - [piper 0.2.5](https://github.com/smol-rs/piper)
 - [polling 3.11.0](https://github.com/smol-rs/polling)
 - [portable-atomic 1.13.1](https://github.com/taiki-e/portable-atomic)
@@ -8688,7 +8900,7 @@ DEALINGS IN THE SOFTWARE.
 - [serde_core 1.0.228](https://github.com/serde-rs/serde)
 - [serde_derive 1.0.228](https://github.com/serde-rs/serde)
 - [serde_derive_internals 0.29.1](https://github.com/serde-rs/serde)
-- [serde_json 1.0.149](https://github.com/serde-rs/json)
+- [serde_json 1.0.150](https://github.com/serde-rs/json)
 - [serde_path_to_error 0.1.20](https://github.com/dtolnay/path-to-error)
 - [serde_repr 0.1.20](https://github.com/dtolnay/serde-repr)
 - [serde_yaml 0.9.34+deprecated](https://github.com/dtolnay/serde-yaml)
@@ -8743,6 +8955,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [allocator-api2 0.2.21](https://github.com/zakarumych/allocator-api2)
@@ -8774,6 +8987,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [winnow 0.5.40](https://github.com/winnow-rs/winnow)
@@ -8802,6 +9016,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [encode_unicode 1.0.0](https://github.com/tormol/encode_unicode)
@@ -8826,6 +9041,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE
 
 ```
+
 
 **Used by:**
 
@@ -8879,6 +9095,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [ctor-proc-macro 0.0.7](https://github.com/mmastrac/rust-ctor)
@@ -8891,6 +9108,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -8919,6 +9137,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -8952,6 +9171,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [javascriptcore-rs 1.1.2](https://github.com/tauri-apps/javascriptcore-rs)
@@ -8983,6 +9203,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [spin 0.9.8](https://github.com/mvdnes/spin-rs.git)
@@ -9010,6 +9231,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -9039,6 +9261,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9102,6 +9325,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [base64 0.21.7](https://github.com/marshallpierce/rust-base64)
@@ -9131,6 +9355,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9164,6 +9389,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9226,6 +9452,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [raw-cpuid 11.6.0](https://github.com/gz/rust-cpuid)
@@ -9253,6 +9480,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -9284,6 +9512,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [shlex 1.3.0](https://github.com/comex/rust-shlex)
@@ -9312,6 +9541,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9342,6 +9572,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [jsonwebtoken 10.4.0](https://github.com/Keats/jsonwebtoken)
@@ -9370,6 +9601,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9401,6 +9633,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [fiat-crypto 0.2.9](https://github.com/mit-plv/fiat-crypto)
@@ -9429,6 +9662,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9460,6 +9694,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [pem 3.0.6](https://github.com/jcreekmore/pem-rs.git)
@@ -9488,6 +9723,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9518,6 +9754,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [same-file 1.0.6](https://github.com/BurntSushi/same-file)
@@ -9547,6 +9784,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9579,9 +9817,9 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
-- [redox_users 0.4.6](https://gitlab.redox-os.org/redox-os/users)
 - [redox_users 0.5.2](https://gitlab.redox-os.org/redox-os/users)
 
 ```
@@ -9609,6 +9847,7 @@ SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -9639,6 +9878,7 @@ THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [embed-resource 3.0.9](https://github.com/nabijaczleweli/rust-embed-resource)
@@ -9667,6 +9907,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9704,6 +9945,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [vswhom-sys 0.1.3](https://github.com/nabijaczleweli/vswhom-sys.rs)
@@ -9734,6 +9976,7 @@ SOFTWARE.
 
 
 ```
+
 
 **Used by:**
 
@@ -9801,6 +10044,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [version_check 0.9.5](https://github.com/SergioBenitez/version_check)
@@ -9827,6 +10071,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -9858,6 +10103,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [mime_guess 2.0.5](https://github.com/abonander/mime_guess)
@@ -9888,6 +10134,7 @@ SOFTWARE.
 
 ```
 
+
 **Used by:**
 
 - [generic-array 0.14.9](https://github.com/fizyk20/generic-array.git)
@@ -9915,6 +10162,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
 
 **Used by:**
 
@@ -9947,6 +10195,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
 
 **Used by:**
 
@@ -10364,6 +10613,7 @@ Exhibit B - &quot;Incompatible With Secondary Licenses&quot; Notice
 
 ```
 
+
 **Used by:**
 
 - [cssparser-macros 0.6.1](https://github.com/servo/rust-cssparser)
@@ -10745,6 +10995,7 @@ Exhibit B - &quot;Incompatible With Secondary Licenses&quot; Notice
   defined by the Mozilla Public License, v. 2.0.
 
 ```
+
 
 **Used by:**
 
@@ -11177,6 +11428,7 @@ authorization of the copyright holder.
 
 ```
 
+
 **Used by:**
 
 - [icu_collections 2.2.0](https://github.com/unicode-org/icu4x)
@@ -11275,3 +11527,4 @@ the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 ```
+

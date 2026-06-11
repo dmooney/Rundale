@@ -25,6 +25,7 @@
 //! It must not import `axum`, `tauri`, or any crate in
 //! `FORBIDDEN_FOR_BACKEND_AGNOSTIC`.
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 use tokio::sync::Mutex;
@@ -34,6 +35,7 @@ use crate::ipc::{ConversationRuntimeState, EventEmitter, compute_name_hints, sna
 use crate::npc::manager::NpcManager;
 use crate::persistence::picker::new_save_path;
 use crate::persistence::{Database, GameSnapshot};
+use crate::world::events::GameEvent;
 use crate::world::transport::TransportMode;
 use crate::world::{DEFAULT_START_LOCATION, WorldState};
 
@@ -122,6 +124,10 @@ pub struct NewGameParams<'a> {
     pub default_transport: &'a TransportMode,
     /// Backend-specific event emitter for the world-update event.
     pub emitter: &'a dyn EventEmitter,
+    /// World-event ring buffer (Mutex-wrapped, cleared on new-game so stale
+    /// events from the prior game do not bleed into `parish_turn` responses
+    /// on the next game (#1395)).
+    pub game_events: &'a Mutex<VecDeque<GameEvent>>,
 }
 
 /// Shared new-game implementation used by the Axum server and Tauri desktop.
@@ -165,6 +171,16 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     {
         let mut conv = p.conversation.lock().await;
         *conv = ConversationRuntimeState::new();
+    }
+
+    // Clear the world-event ring buffer so stale events from the prior game
+    // do not bleed into `parish_turn` / `GET /api/turn` responses in the new
+    // game (#1395).  Clearing the VecDeque also resets the `len()`-based cursor
+    // used by `read_events_since` to zero, so `?since=0` on the next call
+    // correctly starts from the beginning of game B.
+    {
+        let mut events = p.game_events.lock().await;
+        events.clear();
     }
 
     // Create a new save file and persist the initial snapshot.

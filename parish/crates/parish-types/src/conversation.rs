@@ -116,6 +116,37 @@ impl ConversationLog {
         lines.join("\n")
     }
 
+    /// Returns the last `n` dialogue lines spoken by `npc_id` at `location`.
+    ///
+    /// Oldest first. Used to build the anti-phrase-recycling prompt block
+    /// (#1387): feeds the NPC's own recent lines back as a "do not repeat"
+    /// list so the model cannot recycle verbatim phrases from earlier turns
+    /// that fall outside the short conversation-history window.
+    pub fn npc_prior_lines(&self, location: LocationId, npc_id: NpcId, n: usize) -> Vec<&str> {
+        self.exchanges
+            .iter()
+            .filter(|e| e.location == location && e.speaker_id == npc_id)
+            .rev()
+            .take(n)
+            .map(|e| e.npc_dialogue.as_str())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect()
+    }
+
+    /// Returns the number of exchanges involving `npc_id` at `location`.
+    ///
+    /// Used to determine NPC–player familiarity level for address vocabulary
+    /// selection (#1388): once sufficient prior turns exist, "stranger" is
+    /// no longer an appropriate form of address.
+    pub fn exchange_count_with(&self, location: LocationId, npc_id: NpcId) -> usize {
+        self.exchanges
+            .iter()
+            .filter(|e| e.location == location && e.speaker_id == npc_id)
+            .count()
+    }
+
     /// Returns the maximum number of exchanges the log retains.
     ///
     /// Useful as the `n` argument to [`recent_at`](Self::recent_at) when a

@@ -9,6 +9,7 @@ pub mod error;
 pub mod events;
 pub mod gossip;
 pub mod ids;
+pub mod theme;
 pub mod time;
 
 pub use conversation::{ConversationExchange, ConversationLog};
@@ -20,6 +21,7 @@ pub use ids::{
     DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, Weather,
     extract_dialogue_from_partial_json, floor_char_boundary,
 };
+pub use theme::ThemePalette;
 pub use time::{
     DayType, Festival, GameClock, GameSpeed, Season, SpeedConfig, TimeOfDay, minute_word,
 };

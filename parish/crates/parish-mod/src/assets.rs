@@ -2,7 +2,7 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use crate::error::ParishError;
+use parish_types::error::ParishError;
 
 pub(crate) fn validate_optional_asset_ref(
     mod_dir: &Path,
