@@ -2,7 +2,7 @@
 	import { tick } from 'svelte';
 	import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
 	import { discoverSaveFiles, loadBranch, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
-	import { worldState, mapData, npcsHere } from '../stores/game';
+	import { worldState, mapData, npcsHere, resetTimeRule } from '../stores/game';
 	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
 	import { layoutTree } from '$lib/save-picker/dag';
 	import LedgerList from '$lib/save-picker/LedgerList.svelte';
@@ -51,6 +51,10 @@
 
 	async function refreshGameState() {
 		try {
+			// New game / branch switch: re-prime time-rule tracking so the
+			// incoming snapshot never emits a separator carried over from the
+			// previous session's period (PR #1419 review).
+			resetTimeRule();
 			const [ws, md, npcs] = await Promise.all([
 				getWorldSnapshot(),
 				getMap(),

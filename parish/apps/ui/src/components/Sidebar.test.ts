@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
-import { languageHints, nameHints, uiConfig } from '../stores/game';
+import { languageHints, nameHints, uiConfig, npcsHere } from '../stores/game';
 import Sidebar from './Sidebar.svelte';
-import type { LanguageHint } from '$lib/types';
+import type { LanguageHint, NpcInfo } from '$lib/types';
 
 const IRISH_HINTS: LanguageHint[] = [
 	{ word: 'sláinte', pronunciation: 'SLAWN-cha', meaning: 'health / cheers' },
@@ -13,9 +13,29 @@ const NAME_HINTS: LanguageHint[] = [
 	{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' },
 ];
 
+const NPCS: NpcInfo[] = [
+	{
+		name: 'Bridget Kelly',
+		real_name: 'Bridget Kelly',
+		occupation: 'Weaver',
+		mood: 'cheerful',
+		introduced: true,
+		mood_emoji: '😊',
+	},
+	{
+		name: 'a stern priest',
+		real_name: 'Fr. Tiernan',
+		occupation: 'Priest',
+		mood: 'stern',
+		introduced: false,
+		mood_emoji: '😠',
+	},
+];
+
 function resetStores() {
 	languageHints.set([]);
 	nameHints.set([]);
+	npcsHere.set([]);
 	uiConfig.set({
 		hints_label: 'Focail (Irish Words)',
 		default_accent: '#b08531',
@@ -71,6 +91,28 @@ describe('Sidebar (desktop branch — no onclose prop)', () => {
 		uiConfig.update((c) => ({ ...c, hints_label: 'Leideanna Teanga' }));
 		const { getByText } = render(Sidebar);
 		expect(getByText('Leideanna Teanga')).toBeTruthy();
+	});
+
+	it('shows a quiet empty state in the Present section when no NPCs are here', () => {
+		const { getByText, queryByTestId } = render(Sidebar);
+		expect(getByText('Present')).toBeTruthy();
+		expect(getByText('No one is about.')).toBeTruthy();
+		expect(queryByTestId('npcs-present')).toBeNull();
+	});
+
+	it('lists NPCs at the player location with name and occupation', () => {
+		npcsHere.set(NPCS);
+		const { getByTestId, getByText } = render(Sidebar);
+		expect(getByTestId('npcs-present')).toBeTruthy();
+		expect(getByText('Bridget Kelly')).toBeTruthy();
+		expect(getByText('Weaver')).toBeTruthy();
+	});
+
+	it('hides the occupation for unintroduced NPCs', () => {
+		npcsHere.set(NPCS);
+		const { getByText, queryByText } = render(Sidebar);
+		expect(getByText('a stern priest')).toBeTruthy();
+		expect(queryByText('Priest')).toBeNull();
 	});
 });
 

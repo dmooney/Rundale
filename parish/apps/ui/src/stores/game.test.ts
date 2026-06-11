@@ -10,8 +10,10 @@ import {
 	messageHints,
 	pruneMessageHints,
 	trimTextLog,
+	noteTimeRule,
+	resetTimeRule,
 } from './game';
-import type { LanguageHint } from '$lib/types';
+import type { LanguageHint, WorldSnapshot } from '$lib/types';
 
 const hint: LanguageHint[] = [
 	{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' },
@@ -215,5 +217,72 @@ describe('trimTextLog (TD-049)', () => {
 		expect(out.length).toBe(500);
 		expect(out[0].id).toBe('e500');
 		expect(out[out.length - 1].id).toBe('e999');
+	});
+});
+
+describe('noteTimeRule (time-of-day separators)', () => {
+	function snap(time_label: string, day_of_week: string): WorldSnapshot {
+		return { time_label, day_of_week } as unknown as WorldSnapshot;
+	}
+
+	beforeEach(() => {
+		resetTimeRule();
+		textLog.set([{ source: 'system', content: 'You arrive.' }]);
+	});
+
+	it('primes on the first snapshot without emitting a rule', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('emits nothing while the period is unchanged', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('appends a time-rule entry when the period changes', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Midday', 'Monday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].subtype).toBe('time-rule');
+		expect(log[1].content).toBe('Midday — Monday');
+	});
+
+	it('appends a rule when the day changes even within the same period label', () => {
+		noteTimeRule(snap('Night', 'Monday'));
+		noteTimeRule(snap('Night', 'Tuesday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].content).toBe('Night — Tuesday');
+	});
+
+	it('never inserts a rule into an empty log (nothing precedes the splash)', () => {
+		textLog.set([]);
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Midday', 'Monday'));
+		expect(get(textLog).length).toBe(0);
+	});
+
+	it('ignores snapshots without a time label', () => {
+		noteTimeRule(snap('', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('a null snapshot resets tracking so the next snapshot primes silently', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		// World state cleared (new game / branch switch / teardown).
+		noteTimeRule(null);
+		// Without the reset this would emit a Midday rule from the stale key.
+		noteTimeRule(snap('Midday', 'Tuesday'));
+		expect(get(textLog).length).toBe(1);
+		// Subsequent change after re-priming emits normally.
+		noteTimeRule(snap('Dusk', 'Tuesday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].content).toBe('Dusk — Tuesday');
 	});
 });

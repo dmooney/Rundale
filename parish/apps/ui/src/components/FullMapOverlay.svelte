@@ -141,6 +141,12 @@
 	{#if $uiConfig.map_overlay === 'grid'}
 		<div class="blueprint-grid-overlay"></div>
 	{/if}
+	<div class="map-legend" data-testid="map-legend" aria-label="Map legend">
+		<span class="legend-item"><span class="swatch swatch-player"></span>You are here</span>
+		<span class="legend-item"><span class="swatch swatch-adjacent"></span>Walkable now (click to travel)</span>
+		<span class="legend-item"><span class="swatch swatch-visited"></span>Visited</span>
+		<span class="legend-item"><span class="swatch swatch-frontier"></span>Unexplored</span>
+	</div>
 	<MapTooltip info={tooltip} variant="full" />
 </div>
 
@@ -184,6 +190,60 @@
 		flex: 1;
 		min-height: 0;
 		width: 100%;
+	}
+
+	.map-legend {
+		position: absolute;
+		left: 0.75rem;
+		bottom: 0.75rem;
+		z-index: 2;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0.5rem 0.7rem;
+		background: color-mix(in srgb, var(--color-panel-bg) 88%, transparent);
+		border: 1px solid var(--color-border);
+		border-radius: 4px;
+		font-family: var(--font-display);
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+		pointer-events: none;
+	}
+
+	.legend-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+
+	.swatch {
+		width: 0.65rem;
+		height: 0.65rem;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.swatch-player {
+		background: var(--color-accent);
+		border: 2px solid var(--color-fg);
+	}
+
+	.swatch-adjacent {
+		background: transparent;
+		border: 2px solid var(--color-accent);
+	}
+
+	.swatch-visited {
+		background: var(--color-muted);
+		border: 2px solid transparent;
+	}
+
+	.swatch-frontier {
+		background: transparent;
+		border: 2px dashed var(--color-muted);
+		opacity: 0.6;
 	}
 
 	/* .travel-dot-marker and @keyframes travel-pulse are defined once in app.css */

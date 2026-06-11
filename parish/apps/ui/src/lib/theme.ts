@@ -64,10 +64,24 @@ export function saveThemePreference(pref: ThemePreference): void {
 	}
 }
 
+/** Duration of the theme cross-fade; must cover the 2s CSS transition in
+ *  app.css (`html.theme-transition *`). */
+export const THEME_TRANSITION_MS = 2100;
+
+let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function applyThemePalette(palette: ThemePalette): void {
 	if (typeof document === 'undefined') return;
 
 	const root = document.documentElement;
+	// Scope the slow colour cross-fade to the palette swap only — a
+	// permanent `*` transition made every hover state take 2s.
+	root.classList.add('theme-transition');
+	if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer);
+	themeTransitionTimer = setTimeout(() => {
+		root.classList.remove('theme-transition');
+		themeTransitionTimer = null;
+	}, THEME_TRANSITION_MS);
 	root.style.setProperty('--color-bg', palette.bg);
 	root.style.setProperty('--color-fg', palette.fg);
 	root.style.setProperty('--color-accent', palette.accent);

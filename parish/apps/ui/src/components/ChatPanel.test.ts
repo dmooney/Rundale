@@ -595,3 +595,58 @@ describe('ChatPanel', () => {
 		});
 	});
 });
+
+describe('ChatPanel — UI design pass (game-ui-design-ma9ls0)', () => {
+	beforeEach(() => {
+		textLog.set([]);
+		streamingActive.set(false);
+		worldState.set(null);
+	});
+
+	it('renders a time-rule entry as a separator with its label', () => {
+		textLog.set([
+			{ source: 'system', content: 'You arrive.' },
+			{ source: 'system', subtype: 'time-rule', content: 'Dusk — Monday' },
+		]);
+		const { container, getByText } = render(ChatPanel);
+		const rule = container.querySelector('.time-rule');
+		expect(rule).toBeTruthy();
+		expect(rule?.getAttribute('role')).toBe('separator');
+		expect(getByText('Dusk — Monday')).toBeTruthy();
+	});
+
+	it('renders the splash as a title card with demoted metadata', () => {
+		textLog.set([
+			{
+				source: 'system',
+				content: 'Rundale\nCopyright © 2026 David Mooney.\nmain — 2026',
+			},
+		]);
+		const { container } = render(ChatPanel);
+		const card = container.querySelector('.splash-card');
+		expect(card).toBeTruthy();
+		expect(card?.querySelector('strong')?.textContent).toBe('Rundale');
+		expect(card?.querySelector('.splash-meta')?.textContent).toContain(
+			'Copyright',
+		);
+	});
+
+	describe('scoped CSS regression guards (jsdom cannot apply scoped styles)', () => {
+		const normalized = COMPONENT_SRC;
+
+		it('does not pin the log with justify-content: flex-end (breaks top scroll)', () => {
+			expect(normalized).not.toMatch(
+				/\.chat-panel \{[^}]*justify-content: flex-end/,
+			);
+			expect(normalized).toMatch(
+				/\.chat-panel > :global\(:first-child\) \{ margin-top: auto;/,
+			);
+		});
+
+		it('darkens the player bubble toward the foreground ink for contrast', () => {
+			expect(normalized).toMatch(
+				/\.player \.bubble \{ background: color-mix\(in srgb, var\(--color-accent\) 55%, var\(--color-fg\)\);/,
+			);
+		});
+	});
+});
