@@ -41,9 +41,9 @@ use tokio::fs::{File, OpenOptions, create_dir_all};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 
-use crate::npc::manager::NpcManager;
-use crate::world::WorldState;
-use crate::world::events::GameEvent;
+use parish_npc::manager::NpcManager;
+use parish_types::events::GameEvent;
+use parish_world::WorldState;
 
 const CHANNEL_CAPACITY: usize = 256;
 const SCHEMA_VERSION: u32 = 1;
@@ -192,12 +192,12 @@ impl ChatTranscriptLog {
             return;
         }
 
-        let npc_name = |id: crate::npc::NpcId| -> Option<String> {
+        let npc_name = |id: parish_npc::NpcId| -> Option<String> {
             npc_manager
                 .get(id)
                 .map(|npc| npc_manager.display_name(npc).to_string())
         };
-        let loc_name = |id: crate::world::LocationId| -> String {
+        let loc_name = |id: parish_world::LocationId| -> String {
             world
                 .graph
                 .get(id)
@@ -522,8 +522,8 @@ mod tests {
 
     fn dialogue_event() -> GameEvent {
         GameEvent::DialogueOccurred {
-            npc_id: crate::npc::NpcId(1),
-            location: crate::world::LocationId(1),
+            npc_id: parish_npc::NpcId(1),
+            location: parish_world::LocationId(1),
             summary: "greeted the player".into(),
             player_said: Some("hello".into()),
             npc_said: Some("Well met.".into()),
@@ -558,9 +558,9 @@ mod tests {
         let npcs = NpcManager::new();
         log.process_event(
             &GameEvent::MoodChanged {
-                npc_id: crate::npc::NpcId(1),
+                npc_id: parish_npc::NpcId(1),
                 new_mood: "content".into(),
-                location: crate::world::LocationId(1),
+                location: parish_world::LocationId(1),
                 timestamp: chrono::Utc::now(),
             },
             &world,
@@ -573,7 +573,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_event_records_chat_relevant_variants() {
-        use crate::world::LocationId;
+        use parish_world::LocationId;
         let tmp = tempfile::tempdir().unwrap();
         let log = ChatTranscriptLog::spawn(tmp.path(), "sess".to_string(), true);
         let path = log.path().to_path_buf();
@@ -592,7 +592,7 @@ mod tests {
         );
         log.process_event(
             &GameEvent::NpcInteraction {
-                participants: vec![crate::npc::NpcId(1), crate::npc::NpcId(2)],
+                participants: vec![parish_npc::NpcId(1), parish_npc::NpcId(2)],
                 location: LocationId(3),
                 summary: "argued over a fence".into(),
                 timestamp: now,

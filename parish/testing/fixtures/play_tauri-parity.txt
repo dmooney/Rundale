@@ -1,0 +1,106 @@
+# tauri-parity play-test
+# =======================
+# Closes the two Tauri follow-ups from epic #1366 §2/§3 (already landed on the
+# server side). This fixture proves the SHARED code paths that the parity work
+# makes common to both backends:
+#
+#   * Bounded chronicle-log writer (#1415 / §3): a burst of movement + /stub
+#     dialogue produces more journal-writing GameEvents than the writer queue
+#     capacity (LOG_WRITER_QUEUE_CAPACITY = 32), driving the hoisted
+#     `run_chronicle_log_writer` helper that the Tauri subscribers now call.
+#     Pass signal = populated player.md / npc-*.md / loc-*.md with NO dropped
+#     writes (block-not-drop backpressure), checked on disk after the run.
+#
+#   * AppState lock grouping (#1416 / §2): /status, /time, movement (world +
+#     npc_manager group), /save + /fork + /load (save-identity group), and
+#     /stub dialogue (inference group) all complete with no deadlock / 409 /
+#     500 under the regrouped locks.
+#
+# IMPORTANT — Tauri has no display in this sandbox, so this fixture is driven
+# against a LIVE parish SERVER. The writer helper is hoisted to parish-chronicle
+# and shared, so the server path here is the SAME code the Tauri subscribers
+# execute. See .proofs/tauri-parity/acceptance-criteria.md C14 / CS-10.
+#
+# Run (live-proof tier, Rule 10) — export PARISH_USER_DATA_DIR on the SERVER:
+#   PARISH_USER_DATA_DIR=/tmp/parish-tauri-parity \
+#     bash parish/scripts/parish-mcp-backend.sh start
+#   parish --script parish/testing/fixtures/play_tauri-parity.txt
+# Or deterministic harness-level:
+#   just run-headless --script parish/testing/fixtures/play_tauri-parity.txt
+#
+# Post-run on-disk checks (FULL path, no app-name suffix — LEARNINGS.md):
+#   ls   /tmp/parish-tauri-parity/logs/branch-1/
+#   grep '<!-- PROFILE_START -->' /tmp/parish-tauri-parity/logs/branch-1/player.md
+#   grep '^### '                  /tmp/parish-tauri-parity/logs/branch-1/player.md
+#   ls   /tmp/parish-tauri-parity/logs/branch-1/loc-*.md
+#
+# Pass signal: every command returns without error / deadlock / 409 / 500;
+# /status shows a non-empty location; /save and /load both succeed; the /stub
+# dialogue echoes; the on-disk logs are populated with no holes. Exit 0, no panic.
+
+# 1. Baseline reads — world + npc_manager group up and consistent.
+/status
+/time
+/debug here
+/npcs
+
+# 2. Movement burst — each PlayerMoved is a journal event routed through the
+#    bounded writer. Walk a loop so the channel sees many events in a tight
+#    window (backpressure, not drop).
+go to The Crossroads
+/debug here
+go to Darcy's Pub
+/debug here
+go to The Crossroads
+go to The Chapel
+/debug here
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+
+# 3. Inference group via the command host: /stub seeds a canned reply, then a
+#    spoken line drives a dialogue turn through client / cloud_client / queue
+#    (now behind the `inference` node). DialogueOccurred is also a journal event.
+/npcs
+/stub Padraig Darcy: The morning's grand, thanks be to God.
+say Good morning, Padraig.
+/wait 1
+/stub Padraig Darcy: Aye, fair weather for the road.
+say And to you, Padraig.
+/wait 1
+
+# 4. Save-identity group: write the active save (save_path + current_branch_id +
+#    current_branch_name) and confirm it took.
+/save
+/status
+
+# 5. Save-identity group: fork + list — re-reads + writes the identity triple.
+/fork paritytest
+/branches
+
+# 6. More movement + dialogue after the fork so the writer rebinds the manager
+#    onto the new branch and keeps writing without loss (#1011/#1034 rebind).
+go to The Chapel
+/debug here
+/stub Padraig Darcy: A blessing on the house.
+say Amen to that.
+/wait 1
+/save
+
+# 7. Load back the original branch — save-identity group write on branch switch.
+#    Branches are addressed by name in the harness.
+/branches
+/load main
+/status
+/debug here
+
+# 8. Advance time so the tick task runs its world -> npc_manager autosave cycle
+#    under the regrouped locks without hanging.
+/speed fast
+/wait 60
+/status
+/npcs
+
+# 9. Final snapshot — world still live, engine has not crashed or deadlocked.
+/time
+/map

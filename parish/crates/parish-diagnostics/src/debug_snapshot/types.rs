@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 
-use crate::inference::InferenceLogEntry;
+use parish_inference::InferenceLogEntry;
 
 /// A complete debug snapshot of all game state.
 ///
@@ -481,7 +481,7 @@ pub struct DebugEvent {
 
 /// Per-role inference configuration shown in the debug panel.
 ///
-/// Mirrors one entry per [`crate::config::InferenceCategory`]. Provider
+/// Mirrors one entry per [`parish_config::InferenceCategory`]. Provider
 /// names display as `(inherits base)` in the UI when `provider` is `None`.
 #[derive(Debug, Clone, Serialize)]
 pub struct InferenceCategoryDebug {

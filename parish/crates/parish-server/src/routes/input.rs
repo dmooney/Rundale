@@ -128,9 +128,9 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>) {
         state.inference_log.clone(),
         state.inference_file_log.clone(),
         parish_core::game_loop::inference::InferenceSlots {
-            client: &state.client,
+            client: &state.inference.client,
             worker_handle: &state.worker_handle,
-            inference_queue: &state.inference_queue,
+            inference_queue: &state.inference.inference_queue,
         },
     )
     .await;
@@ -250,12 +250,12 @@ pub(crate) fn make_game_loop_ctx<'a>(
         npc_manager: &state.npc_manager,
         config: &state.config,
         conversation: &state.conversation,
-        inference_queue: &state.inference_queue,
+        inference_queue: &state.inference.inference_queue,
         emitter,
         inference_config: &state.inference_config,
         pronunciations: &state.pronunciations,
-        client: &state.client,
-        cloud_client: &state.cloud_client,
+        client: &state.inference.client,
+        cloud_client: &state.inference.cloud_client,
         language: state.language_settings.clone(),
         inference_failure_messages: &state.inference_failure_messages,
         idle_messages: &state.idle_messages,

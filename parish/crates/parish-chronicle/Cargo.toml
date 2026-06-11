@@ -1,0 +1,22 @@
+[package]
+name = "parish-chronicle"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "On-disk chronicle writers for Parish: per-character / per-location markdown logs and the JSONL chat transcript"
+
+[dependencies]
+parish-types = { workspace = true }
+parish-world = { workspace = true }
+parish-npc = { workspace = true }
+parish-persistence = { workspace = true }
+parish-inference = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

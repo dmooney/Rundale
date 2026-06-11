@@ -252,11 +252,12 @@ pub async fn get_debug_snapshot(
     // caused latency spikes on all concurrent game operations and created
     // a latent deadlock risk if lock ordering ever drifted.
     //
-    // Lock order respected throughout: world → npc_manager → inference_queue
-    // → config → debug_events → game_events → inference_log (#483).
+    // Lock order respected throughout — see `LOCK_ORDER` in `state.rs`
+    // (config precedes the inference group; #483).
 
-    // 1. Peek inference_queue presence first to honour canonical order (#483).
-    let has_inference_queue = state.inference_queue.lock().await.is_some();
+    // 1. Peek inference_queue presence (released temporary — the guard does
+    //    not outlive this statement, so it holds no slot in the order check).
+    let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
 
     // 2. Clone the fields we need from config — drop the lock immediately.
     let (
@@ -276,7 +277,7 @@ pub async fn get_debug_snapshot(
             config.cloud_provider_name.clone(),
             config.cloud_model_name.clone(),
             config.improv_enabled,
-            parish_core::debug_snapshot::build_inference_categories(&config),
+            parish_core::debug_snapshot::build_inference_categories(&*config),
         )
     };
 
@@ -351,7 +352,7 @@ pub async fn get_debug_snapshot(
 /// theirs to share. Uses [`AuthDebug::disabled`] since auth detail is not
 /// useful in a bug report.
 pub async fn build_full_debug_snapshot(state: &Arc<AppState>) -> debug_snapshot::DebugSnapshot {
-    let has_inference_queue = state.inference_queue.lock().await.is_some();
+    let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
     let (
         provider_name,
         model_name,
@@ -369,7 +370,7 @@ pub async fn build_full_debug_snapshot(state: &Arc<AppState>) -> debug_snapshot:
             config.cloud_provider_name.clone(),
             config.cloud_model_name.clone(),
             config.improv_enabled,
-            parish_core::debug_snapshot::build_inference_categories(&config),
+            parish_core::debug_snapshot::build_inference_categories(&*config),
         )
     };
     let events_snapshot: std::collections::VecDeque<parish_core::debug_snapshot::DebugEvent> =
@@ -431,8 +432,8 @@ pub async fn submit_bug_report(
     };
     let debug = build_full_debug_snapshot(&state).await;
     let save_summary = {
-        let branch_id = *state.current_branch_id.lock().await;
-        let branch_name = state.current_branch_name.lock().await.clone();
+        let branch_id = *state.save_identity.current_branch_id.lock().await;
+        let branch_name = state.save_identity.current_branch_name.lock().await.clone();
         match (branch_id, branch_name) {
             (Some(id), Some(name)) => Some(format!("branch {id}: {name}")),
             (Some(id), None) => Some(format!("branch {id}")),
