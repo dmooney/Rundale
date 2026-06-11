@@ -92,6 +92,21 @@ pub struct NpcConfig {
     /// (`flags.is_disabled("npc-dialogue-grounding")` → false).
     #[serde(default = "default_grounding_enabled")]
     pub grounding_enabled: bool,
+    /// Trim the display-length cap back to a sentence boundary (#1400).
+    ///
+    /// When `true` (the default), the post-generation display cap
+    /// (`dialogue_display_max_chars`) rewinds to the last sentence terminator
+    /// (`.`, `!`, `?`, `…`, or a closing quote following one) within the budget
+    /// before appending `…`, so a clipped reply never ends mid-word or
+    /// mid-clause ("...out and about, and…"). When no boundary exists in the
+    /// budget it falls back to the legacy raw char-boundary clip. Set to
+    /// `false` in `[npc]` config (`dialogue_sentence_boundary_trim = false`) to
+    /// kill-switch back to the raw clip. This shares the post-generation
+    /// display-cap seam (`apply_npc_dialogue_turn`), which reads `NpcConfig`
+    /// defaults, so the toggle lives on the config rather than the runtime
+    /// feature-flag layer (matching `dialogue_display_max_chars`).
+    #[serde(default = "default_dialogue_sentence_boundary_trim")]
+    pub dialogue_sentence_boundary_trim: bool,
 }
 
 impl Default for NpcConfig {
@@ -112,6 +127,7 @@ impl Default for NpcConfig {
             dialogue_repetition_threshold: default_dialogue_repetition_threshold(),
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
             grounding_enabled: default_grounding_enabled(),
+            dialogue_sentence_boundary_trim: default_dialogue_sentence_boundary_trim(),
         }
     }
 }
@@ -164,6 +180,10 @@ fn default_dialogue_quality_continuity() -> bool {
 }
 
 fn default_grounding_enabled() -> bool {
+    true
+}
+
+fn default_dialogue_sentence_boundary_trim() -> bool {
     true
 }
 

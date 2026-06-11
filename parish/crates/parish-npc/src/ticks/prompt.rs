@@ -177,6 +177,22 @@ pub fn build_enhanced_system_prompt_with_config(
             \u{2014} do not confirm, describe, or invent details about \
             anything not listed. Politely correct or deflect instead.\n",
         );
+        // #1401: the open-mention guard above is not enough — small models
+        // still play along when a fabricated person is embedded in the
+        // question as a *presupposition* ("is old Festus, the cooper, still at
+        // his shop by the bridge?"). Name the presupposition case explicitly
+        // and require honest non-recognition for any unknown named person.
+        prompt.push_str(
+            "Watch for a PRESUPPOSED name: if someone speaks of a specific \
+            person by name as though you both know them \u{2014} asking after \
+            their health, their trade, or their doings \u{2014} and that name \
+            is NOT in the people you know above, do not go along with it. Say \
+            plainly that you know no one by that name in these parts (\"I know \
+            no such person\", \"never heard of him\"). Never confirm they are \
+            still about, describe them, or invent their trade or whereabouts. \
+            An invented name asked of you as fact is still invented \u{2014} \
+            answer with honest non-recognition, not a friendly yarn.\n",
+        );
     }
 
     prompt
@@ -1027,6 +1043,65 @@ mod tests {
         let lang = LanguageSettings::english_only();
         let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(prompt.contains("very close") || prompt.contains("hostile"));
+    }
+
+    // ── #1401: presupposed fabricated-person non-recognition ─────────────────
+
+    /// AC-6 (#1401): when location grounding is on, the system prompt must
+    /// contain an explicit directive covering a *presupposed* unknown person,
+    /// instructing the NPC to express non-recognition rather than confirm.
+    #[test]
+    fn grounding_block_covers_presupposed_unknown_person() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+        let places = vec!["Darcy's Pub".to_string(), "The Mill".to_string()];
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &lang,
+            &config,
+            &names,
+            None,
+            Some(&places),
+        );
+        assert!(
+            prompt.contains("PRESUPPOSED name"),
+            "grounding block must name the presupposition case:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("know no such person") || prompt.contains("never heard of him"),
+            "grounding block must instruct honest non-recognition:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Never confirm they are still about"),
+            "grounding block must forbid confirming an invented person:\n{prompt}"
+        );
+    }
+
+    /// AC-7 (#1401): kill-switch — with grounding disabled (`location_names`
+    /// is `None`), neither the PLACES block nor the presupposition directive
+    /// is emitted.
+    #[test]
+    fn grounding_block_absent_when_location_names_none() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc, false, &lang, &config, &names, None, None,
+        );
+        assert!(
+            !prompt.contains("PLACES IN THIS PARISH"),
+            "no grounding block when location_names is None:\n{prompt}"
+        );
+        assert!(
+            !prompt.contains("PRESUPPOSED name"),
+            "no presupposition directive when grounding disabled:\n{prompt}"
+        );
     }
 
     #[test]
