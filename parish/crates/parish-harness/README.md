@@ -123,18 +123,18 @@ references (each frame must be non-empty — rule #14). The run's `artifact_dir`
 
 Payload schema (one JSON object):
 
-| Field           | Type    | Notes                                                                                                      |
-| --------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `config`        | object  | A `RunConfig`; its `label` is forced to `skill:quality-harness` so all skill runs share one `configs` row. |
-| `git`           | object  | `{sha, branch, dirty, pr_number}`.                                                                         |
-| `rubric_sha256` | string  | Pass the binary's pinned rubric sha so timeline / A-B treat skill and binary runs as comparable.           |
-| `uuid`          | string  | Run dir name under `runs/`.                                                                                |
-| `gate`          | object? | `{reason, turn, detail}` — present **iff** the run hard-failed; stores it gated with NULL quality.         |
-| `quality_score` | number? | Weighted mean; recomputed from `axes` when omitted on a non-gated run.                                     |
-| `cost`          | object  | `{cost_usd, player_tokens, judge_tokens}`.                                                                 |
-| `turns[]`       | array   | Mirror of a `TurnRecord`; `frame_path` / `lines_path` are relative (`turns/NNN/...`).                      |
-| `axes[]`        | array   | `{axis, score, rationale}` — the 7 quality-axis keys.                                                      |
-| `findings[]`    | array   | `{category, turn_index?, severity, description, evidence_quote, signature}`.                               |
+| Field           | Type    | Notes                                                                                                                                                                                                                                                                        |
+| --------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`        | object  | A `RunConfig`; its `label` is forced to `skill:quality-harness` so all skill runs share one `configs` row.                                                                                                                                                                   |
+| `git`           | object  | `{sha, branch, dirty, pr_number}`.                                                                                                                                                                                                                                           |
+| `rubric_sha256` | string  | Pass the binary's pinned rubric sha so timeline / A-B treat skill and binary runs as comparable.                                                                                                                                                                             |
+| `uuid`          | string  | Run dir name under `runs/`.                                                                                                                                                                                                                                                  |
+| `gate`          | object? | `{reason, turn, detail}` — present **iff** the run hard-failed; stores it gated with NULL quality.                                                                                                                                                                           |
+| `quality_score` | number? | Weighted mean; recomputed from `axes` when omitted on a non-gated run.                                                                                                                                                                                                       |
+| `cost`          | object  | `{cost_usd, player_tokens, judge_tokens}`.                                                                                                                                                                                                                                   |
+| `turns[]`       | array   | Mirror of a `TurnRecord`; `frame_path` / `lines_path` are relative (`turns/NNN/...`). Optional `llm_transcript_path` (e.g. `turns/NNN/llm.json`) points to that turn's inference log; when set the file must exist, and the dashboard makes the turn clickable to view it.   |
+| `axes[]`        | array   | `{axis, score, rationale}` — the 7 quality-axis keys.                                                                                                                                                                                                                        |
+| `findings[]`    | array   | `{category, turn_index?, severity, description, evidence_quote, signature, issue_url?}`. `issue_url` (optional) is the GitHub issue the skill filed for this finding; it is stored on the finding row so the dashboard renders an `[issue]` link, exactly like a binary run. |
 
 A worked sample lives at `parish/testing/fixtures/ingest_harness_skill/sample-payload.json`
 (with `verify.sh` exercising the full ingest → serve → API round-trip).

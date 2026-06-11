@@ -23,12 +23,7 @@
     tr.clickable { cursor: pointer; }
     #detail { margin-top: 1.5rem; display: none; }
     #detail.visible { display: block; }
-    .axes-chart { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
-    .axis-bar { display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: 70px; }
-    .axis-bar-label { font-size: .7rem; color: #888; text-align: center; }
-    .axis-bar-track { width: 40px; height: 80px; background: #1a1a1a; border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden; }
-    .axis-bar-fill { width: 100%; background: #5080c0; transition: height .3s; }
-    .axis-bar-score { font-size: .75rem; color: #9bb3e0; }
+    .axes-radar { display: block; margin: .25rem 0 .5rem; }
     .finding { background: #181820; border-left: 3px solid #5c4020; padding: .5rem .75rem; margin: .25rem 0; border-radius: 0 4px 4px 0; font-size: .82rem; }
     .finding.severity-critical { border-color: #c04040; }
     .finding.severity-high { border-color: #c07040; }
@@ -37,7 +32,19 @@
     .turn-gallery { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
     .turn-thumb { display: flex; flex-direction: column; align-items: center; gap: .2rem; }
     .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; }
+    .turn-thumb.clickable { cursor: pointer; }
+    .turn-thumb.clickable:hover img, .turn-thumb.active img { border-color: #5080c0; }
+    .turn-thumb.active img { box-shadow: 0 0 0 1px #5080c0; }
     .turn-thumb-label { font-size: .68rem; color: #666; }
+    .turn-log { margin: .5rem 0 1rem; background: #14141c; border: 1px solid #23232e; border-radius: 5px; padding: .6rem .8rem; font-size: .82rem; }
+    .turn-log h4 { font-size: .9rem; color: #a89880; margin: 0 0 .4rem; }
+    .tl-line { margin: .15rem 0; line-height: 1.45; }
+    .tl-speaker { color: #9bb3e0; font-weight: 600; margin-right: .35rem; }
+    .turn-log details { margin-top: .5rem; border-top: 1px solid #23232e; padding-top: .4rem; }
+    .turn-log summary { cursor: pointer; color: #8a8a96; font-size: .78rem; }
+    .tl-infer { margin: .5rem 0; }
+    .tl-infer-head { font-size: .72rem; color: #666; margin-bottom: .2rem; }
+    .tl-infer pre { white-space: pre-wrap; word-break: break-word; background: #0d0d13; border: 1px solid #20202a; border-radius: 4px; padding: .4rem .5rem; margin: .15rem 0; font-size: .75rem; color: #cfcfd6; max-height: 320px; overflow: auto; }
     .error-msg { color: #c06060; padding: .5rem; background: #1a0f0f; border-radius: 4px; margin: .5rem 0; font-size: .82rem; }
     .loading { color: #888; font-style: italic; }
     .back-btn { cursor: pointer; color: #9bb3e0; border: none; background: none; font-size: .9rem; padding: .25rem 0; margin-bottom: .5rem; }
@@ -109,9 +116,22 @@
   </footer>
 
   <script>
+    // Injected by the serve binary from `git remote get-url origin`; empty when
+    // the repo has no GitHub origin, in which case shas render unlinked.
+    window.COMMIT_BASE = "__COMMIT_BASE__";
+  </script>
+  <script>
     const $ = id => document.getElementById(id);
     let currentRunId = null;
     let sse = null;
+
+    // Render a git sha as a GitHub commit link when COMMIT_BASE is set, else
+    // plain code. Short-form (8 chars) display; GitHub resolves the short sha.
+    function shaCell(sha) {
+      const short = sha ? sha.substring(0, 8) : '—';
+      if (!sha || !window.COMMIT_BASE) return `<code>${short}</code>`;
+      return `<a href="${window.COMMIT_BASE}/commit/${sha}" target="_blank" rel="noopener"><code>${short}</code></a>`;
+    }
 
     async function loadRuns() {
       const c = $('runs-container');
@@ -129,14 +149,13 @@
         for (const r of runs) {
           const tr = document.createElement('tr');
           tr.className = 'clickable';
-          tr.addEventListener('click', () => showDetail(r.id));
+          tr.addEventListener('click', () => { location.hash = 'run/' + r.id; });
           const status_badge = `<span class="badge badge-${r.status}">${r.status}</span>`;
           const quality = r.quality_score != null ? r.quality_score.toFixed(1) : '—';
           const gate = r.gate_reason ? `${r.gate_reason} @t${r.gate_turn}` : '—';
-          const sha = r.git_sha ? r.git_sha.substring(0, 8) : '—';
           tr.innerHTML = `<td>${r.id}</td><td>${status_badge}</td><td>${quality}</td>
             <td>${gate}</td><td>${r.turn_count}</td><td>${r.finding_count}</td>
-            <td><code>${sha}</code></td><td>${r.git_branch||'—'}</td>
+            <td>${shaCell(r.git_sha)}</td><td>${r.git_branch||'—'}</td>
             <td>${(r.started_at||'').substring(0,16)}</td>`;
           tbody.appendChild(tr);
         }
@@ -146,7 +165,29 @@
       }
     }
 
-    async function showDetail(runId) {
+    // Hash router: `#run/<id>` is a deep-linkable run page (shareable URL,
+    // browser back/forward, survives refresh); any other hash shows the list.
+    function router() {
+      const m = location.hash.match(/^#run\/(\d+)(?:\/turn\/(\d+))?/);
+      if (m) {
+        if (activeTab !== 'runs') switchTab('runs');
+        const id = parseInt(m[1], 10);
+        const turn = m[2] != null ? parseInt(m[2], 10) : null;
+        // Already on this run? just open the turn log (no detail re-fetch).
+        if (currentRunId === id && $('detail').className === 'visible') {
+          if (turn != null) showTurnLog(id, turn);
+        } else {
+          showDetail(id, turn);
+        }
+      } else {
+        if (sse) { sse.close(); sse = null; }
+        currentRunId = null;
+        $('detail').className = '';
+        $('runs-view').style.display = '';
+      }
+    }
+
+    async function showDetail(runId, openTurn = null) {
       currentRunId = runId;
       $('runs-view').style.display = 'none';
       $('detail').className = 'visible';
@@ -159,9 +200,64 @@
         });
         renderDetail(d, c);
         subscribeSSE(runId);
+        // Deep-linked to a specific turn: open its log after the detail renders.
+        if (openTurn != null) showTurnLog(runId, openTurn);
       } catch (e) {
         c.innerHTML = `<div class="error-msg">Failed to load run ${runId}: ${e.message}</div>`;
       }
+    }
+
+    // Pure SVG 7-axis radar (spider) chart — the sole axis visualization. No
+    // external library; the dashboard is offline/zero-dependency. Returns '' when
+    // there is no axis data so the caller simply renders no chart.
+    const RADAR_LABELS = {
+      narrative_coherence: 'narrative', character_fidelity: 'character',
+      world_responsiveness: 'world resp.', intent_fidelity: 'intent',
+      immersion: 'immersion', progression: 'progression', common_sense: 'common sense',
+    };
+    function buildAxesRadar(axes) {
+      if (!axes || !axes.length) return '';
+      const W = 380, H = 280, cx = W / 2, cy = H / 2, maxR = 96;
+      const n = axes.length;
+      const ang = i => (-Math.PI / 2) + (i / n) * Math.PI * 2;
+      const at = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
+      // Concentric rings + scale labels at 20/40/60/80/100.
+      let rings = '';
+      for (let v = 20; v <= 100; v += 20) {
+        const rr = (v / 100) * maxR;
+        const poly = axes.map((_, i) => at(i, rr).map(c => c.toFixed(1)).join(',')).join(' ');
+        rings += `<polygon points="${poly}" fill="none" stroke="#23232e" stroke-width="1"/>`;
+        rings += `<text x="${cx + 3}" y="${(cy - rr + 3).toFixed(1)}" fill="#4a4a55" font-size="8">${v}</text>`;
+      }
+      // Spokes + axis labels.
+      let spokes = '', labels = '';
+      axes.forEach((ax, i) => {
+        const [ex, ey] = at(i, maxR);
+        spokes += `<line x1="${cx}" y1="${cy}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="#23232e" stroke-width="1"/>`;
+        const [lx, ly] = at(i, maxR + 14);
+        const cos = Math.cos(ang(i));
+        const anchor = cos > 0.3 ? 'start' : cos < -0.3 ? 'end' : 'middle';
+        const name = RADAR_LABELS[ax.axis] || ax.axis.replace(/_/g, ' ');
+        labels += `<text x="${lx.toFixed(1)}" y="${(ly + 3).toFixed(1)}" text-anchor="${anchor}" fill="#8a8a96" font-size="9">${escHtml(name)}</text>`;
+      });
+      // Data polygon (clamped 0-100) + vertices with scores.
+      const dataPts = axes.map((ax, i) => {
+        const score = Math.max(0, Math.min(100, ax.score));
+        return at(i, (score / 100) * maxR).map(c => c.toFixed(1)).join(',');
+      }).join(' ');
+      let verts = '';
+      axes.forEach((ax, i) => {
+        const score = Math.max(0, Math.min(100, ax.score));
+        const [px, py] = at(i, (score / 100) * maxR);
+        verts += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#5080c0"/>`;
+        const [tx, ty] = at(i, (score / 100) * maxR + 9);
+        verts += `<text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" fill="#9bb3e0" font-size="8">${Math.round(ax.score)}</text>`;
+      });
+      return `<svg class="axes-radar" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Radar chart of the ${n} quality axes">
+        ${rings}${spokes}
+        <polygon points="${dataPts}" fill="rgba(80,128,192,.18)" stroke="#5080c0" stroke-width="1.5"/>
+        ${verts}${labels}
+      </svg>`;
     }
 
     function renderDetail(d, container) {
@@ -173,25 +269,16 @@
       let html = `<h2>Run #${s.id} ${status_badge} <span class="sse-status" id="sse-status"></span></h2>
         <div class="run-meta">
           Quality: ${quality}${gate_info}<br>
-          Git: <code>${(s.git_sha||'').substring(0,8)}</code> on <em>${s.git_branch||'?'}</em>
+          Git: ${shaCell(s.git_sha)} on <em>${s.git_branch||'?'}</em>
           ${s.git_dirty ? '<strong style="color:#c09040"> (dirty)</strong>' : ''}<br>
           Turns: ${s.turn_count} &nbsp; Findings: ${s.finding_count}<br>
           Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
         </div>`;
 
-      // Axes bar chart.
+      // Axes radar — the per-vertex scores are drawn on the chart itself.
       if (d.axes.length > 0) {
-        html += `<h3>Quality Axes</h3><div class="axes-chart">`;
-        for (const ax of d.axes) {
-          const pct = Math.max(0, Math.min(100, ax.score));
-          const label = ax.axis.replace(/_/g,' ');
-          html += `<div class="axis-bar">
-            <div class="axis-bar-track"><div class="axis-bar-fill" style="height:${pct}%"></div></div>
-            <div class="axis-bar-score">${ax.score}</div>
-            <div class="axis-bar-label">${label}</div>
-          </div>`;
-        }
-        html += `</div>`;
+        html += `<h3>Quality Axes</h3>`;
+        html += buildAxesRadar(d.axes);
       }
 
       // Findings.
@@ -207,20 +294,71 @@
         }
       }
 
-      // Turn gallery.
+      // Turn gallery — a turn with a captured inference log is clickable.
       if (d.turns.length > 0) {
-        html += `<h3>Turns (${d.turns.length})</h3><div class="turn-gallery" id="turn-gallery">`;
+        const anyLog = d.turns.some(t => t.has_transcript);
+        const hint = anyLog ? ' <span style="font-size:.7rem;color:#666;font-weight:400">— click a turn to view its inference log</span>' : '';
+        html += `<h3>Turns (${d.turns.length})${hint}</h3><div class="turn-gallery" id="turn-gallery">`;
         for (const t of d.turns) {
           const imgSrc = `/api/runs/${s.id}/turns/${t.turn_index}/frame.png`;
-          html += `<div class="turn-thumb">
+          const clk = t.has_transcript ? ' clickable' : '';
+          html += `<div class="turn-thumb${clk}" data-turn="${t.turn_index}">
             <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="${escHtml(t.player_input)}">
             <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
           </div>`;
         }
-        html += `</div>`;
+        html += `</div><div id="turn-log"></div>`;
       }
 
       container.innerHTML = html;
+
+      // Wire turn clicks → deep-link to that turn's log.
+      container.querySelectorAll('.turn-thumb.clickable').forEach(el => {
+        el.addEventListener('click', () => {
+          location.hash = 'run/' + s.id + '/turn/' + el.dataset.turn;
+        });
+      });
+    }
+
+    // Fetch and render one turn's inference log into the #turn-log panel: the
+    // dialogue exchange by default, with a collapsible raw prompt/response.
+    async function showTurnLog(runId, turnIdx) {
+      const panel = $('turn-log');
+      if (!panel) return;
+      document.querySelectorAll('.turn-thumb').forEach(t =>
+        t.classList.toggle('active', t.dataset.turn === String(turnIdx)));
+      panel.innerHTML = '<span class="loading">Loading turn log…</span>';
+      let log;
+      try {
+        const r = await fetch(`/api/runs/${runId}/turns/${turnIdx}/transcript`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        log = await r.json();
+      } catch (e) {
+        panel.innerHTML = `<div class="error-msg">No inference log for turn ${turnIdx}: ${e.message}</div>`;
+        return;
+      }
+      let html = `<h4>Turn ${log.turn_index ?? turnIdx} — inference log</h4>`;
+      const exchanges = log.exchanges && log.exchanges.length
+        ? log.exchanges
+        : (log.player_input ? [{ speaker: 'You', text: log.player_input }] : []);
+      for (const ex of exchanges) {
+        html += `<div class="tl-line"><span class="tl-speaker">${escHtml(ex.speaker || '')}</span>${escHtml(ex.text || '')}</div>`;
+      }
+      const infers = log.inferences || [];
+      if (infers.length) {
+        html += `<details><summary>Raw prompt / response (${infers.length} call${infers.length === 1 ? '' : 's'})</summary>`;
+        for (const inf of infers) {
+          const meta = [inf.category, inf.model, inf.latency_ms != null ? inf.latency_ms + 'ms' : null]
+            .filter(Boolean).join(' · ');
+          html += `<div class="tl-infer"><div class="tl-infer-head">${escHtml(meta)}</div>`;
+          if (inf.prompt != null) html += `<pre>${escHtml(inf.prompt)}</pre>`;
+          if (inf.response != null) html += `<pre>${escHtml(inf.response)}</pre>`;
+          html += `</div>`;
+        }
+        html += `</details>`;
+      }
+      panel.innerHTML = html;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function subscribeSSE(runId) {
@@ -241,12 +379,7 @@
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    $('back-btn').addEventListener('click', () => {
-      if (sse) { sse.close(); sse = null; }
-      currentRunId = null;
-      $('detail').className = '';
-      $('runs-view').style.display = '';
-    });
+    $('back-btn').addEventListener('click', () => { location.hash = ''; });
     $('refresh-btn').addEventListener('click', loadRuns);
 
     // ── Tab navigation ─────────────────────────────────────────────────────
@@ -351,10 +484,7 @@
 
       // Wire up dot click to showDetail.
       container.querySelectorAll('.trend-point').forEach((el, i) => {
-        el.addEventListener('click', () => {
-          switchTab('runs');
-          showDetail(scored[i].run_id);
-        });
+        el.addEventListener('click', () => { location.hash = 'run/' + scored[i].run_id; });
       });
     }
 
@@ -430,7 +560,10 @@
       container.innerHTML = html;
     }
 
-    loadRuns();
+    // Load the list, then route — so a deep-linked `#run/<id>` opens that run's
+    // page on first load and on every back/forward navigation.
+    window.addEventListener('hashchange', router);
+    loadRuns().then(router);
 
     // ── Cost footer ───────────────────────────────────────────────────────
     async function loadCost() {
