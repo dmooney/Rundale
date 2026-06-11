@@ -72,7 +72,7 @@
     #detail { margin-top: 1.5rem; display: none; }
     #detail.visible { display: block; animation: rise .25s ease both; }
     @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
-    .axes-radar { display: block; margin: .25rem 0 .5rem; }
+    .axes-radar { display: block; margin: .25rem 0 .5rem; max-width: 100%; height: auto; }
     .radar-panel { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 10px; padding: .5rem 1rem; display: inline-block; }
     .finding {
       background: var(--panel-2); border: 1px solid var(--line-soft);
@@ -118,7 +118,7 @@
     .run-meta { font-size: .8rem; color: #666; margin: .25rem 0; }
     .sse-status { font-size: .75rem; color: #668; margin-left: .5rem; }
     /* trends view */
-    .trends-svg { display: block; overflow: visible; margin: .5rem 0; }
+    .trends-svg { display: block; overflow: visible; margin: .5rem 0; max-width: 100%; height: auto; }
     .trends-no-data { color: #666; font-style: italic; font-size: .85rem; }
     .trend-point { cursor: pointer; }
     .trend-point:hover circle { r: 6; }
@@ -137,6 +137,19 @@
     .nav-tabs { display: flex; gap: .25rem; margin-bottom: 1rem; }
     .nav-tab { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 4px 4px 0 0; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; color: #888; }
     .nav-tab.active { background: #1a2a3a; color: #9bb3e0; border-bottom-color: #1a2a3a; }
+    /* Wide table scrolls within its own container instead of overflowing the page. */
+    #runs-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #runs-container table { min-width: 560px; }
+    #runs-container td { white-space: nowrap; }
+    /* Mobile: tighten padding, let the A/B form and nav tabs wrap. */
+    @media (max-width: 640px) {
+      body { padding: 1.25rem 1rem 2.5rem; font-size: 14px; }
+      h1 { font-size: 1rem; }
+      .nav-tabs { flex-wrap: wrap; }
+      .ab-form { flex-wrap: wrap; }
+      .ab-form input { width: 100%; }
+      .run-meta { word-break: break-word; }
+    }
   </style>
 </head>
 <body>
