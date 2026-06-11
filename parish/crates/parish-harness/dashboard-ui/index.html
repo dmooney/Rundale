@@ -44,7 +44,8 @@
     .turn-log summary { cursor: pointer; color: #8a8a96; font-size: .78rem; }
     .tl-infer { margin: .5rem 0; }
     .tl-infer-head { font-size: .72rem; color: #666; margin-bottom: .2rem; }
-    .tl-infer pre { white-space: pre-wrap; word-break: break-word; background: #0d0d13; border: 1px solid #20202a; border-radius: 4px; padding: .4rem .5rem; margin: .15rem 0; font-size: .75rem; color: #cfcfd6; max-height: 320px; overflow: auto; }
+    .tl-infer pre { white-space: pre-wrap; word-break: break-word; background: #0d0d13; border: 1px solid #20202a; border-radius: 4px; padding: .4rem .5rem; margin: .15rem 0; font-size: .75rem; color: #cfcfd6; }
+    #turn-log:not(:empty) { margin-top: 1.5rem; }
     .error-msg { color: #c06060; padding: .5rem; background: #1a0f0f; border-radius: 4px; margin: .5rem 0; font-size: .82rem; }
     .loading { color: #888; font-style: italic; }
     .back-btn { cursor: pointer; color: #9bb3e0; border: none; background: none; font-size: .9rem; padding: .25rem 0; margin-bottom: .5rem; }
@@ -115,6 +116,9 @@
     <span id="cost-footer">Cost: loading…</span>
   </footer>
 
+  <!-- Per-turn inference log: appended at the end of the page, grows naturally. -->
+  <div id="turn-log"></div>
+
   <script>
     // Injected by the serve binary from `git remote get-url origin`; empty when
     // the repo has no GitHub origin, in which case shas render unlinked.
@@ -184,10 +188,18 @@
         currentRunId = null;
         $('detail').className = '';
         $('runs-view').style.display = '';
+        clearTurnLog();
       }
     }
 
+    // Clear the page-end inference-log block (on run switch / back to list).
+    function clearTurnLog() {
+      const tl = $('turn-log');
+      if (tl) tl.innerHTML = '';
+    }
+
     async function showDetail(runId, openTurn = null) {
+      clearTurnLog();
       currentRunId = runId;
       $('runs-view').style.display = 'none';
       $('detail').className = 'visible';
@@ -307,7 +319,7 @@
             <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
           </div>`;
         }
-        html += `</div><div id="turn-log"></div>`;
+        html += `</div>`;
       }
 
       container.innerHTML = html;

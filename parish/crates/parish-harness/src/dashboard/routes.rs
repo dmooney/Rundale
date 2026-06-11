@@ -585,6 +585,33 @@ mod tests {
     }
 
     #[test]
+    fn turn_log_is_appended_at_page_bottom_without_inner_scroll() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // The log container exists exactly once and sits after the footer (page
+        // bottom), not inside the per-run detail render.
+        assert_eq!(
+            html.matches("id=\"turn-log\"").count(),
+            1,
+            "turn-log container must be declared exactly once"
+        );
+        let footer = html.find("</footer>").expect("footer present");
+        let log = html.find("id=\"turn-log\"").expect("turn-log present");
+        assert!(
+            log > footer,
+            "the turn-log block must come after the footer (page bottom)"
+        );
+        // No nested scrollbox — the raw prompt/response grows the page.
+        let pre_rule = html
+            .lines()
+            .find(|l| l.contains(".tl-infer pre"))
+            .expect(".tl-infer pre rule present");
+        assert!(
+            !pre_rule.contains("max-height") && !pre_rule.contains("overflow"),
+            "raw prompt/response must not be a fixed-height scrollbox: {pre_rule}"
+        );
+    }
+
+    #[test]
     fn parse_github_base_handles_remote_forms() {
         let want = Some("https://github.com/dmooney/Rundale".to_string());
         assert_eq!(
