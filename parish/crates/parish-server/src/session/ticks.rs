@@ -26,6 +26,29 @@ use crate::state::AppState;
 use super::GOSSIP_BUDGET_PER_TICK;
 pub use parish_core::AUTOSAVE_INTERVAL_SECS;
 
+/// Bound on the per-subscriber chronicle-log writer channel.
+///
+/// Each character-/location-log subscriber feeds its blocking `process_event`
+/// work to a single long-lived writer task over a bounded
+/// [`tokio::sync::mpsc`] channel of this capacity (one channel per subscriber
+/// per session). This replaces the old per-event `spawn_blocking`, which put
+/// one short-lived task per `GameEvent` onto the shared blocking pool, with no
+/// explicit bound and unbounded churn multiplied across N concurrent sessions.
+///
+/// Saturation behavior is **block, not drop**: when the channel is full the
+/// subscriber loop awaits `tx.send(item)`, applying backpressure to its own
+/// `world.event_bus` recv loop rather than discarding the work item. Chronicle
+/// entries are an append-only historical record — silently dropping a
+/// `PlayerMoved`/`DialogueOccurred` write would leave a permanent hole in
+/// `player.md`/`loc-*.md` that no later event repairs. Backpressure instead
+/// lets the upstream broadcast channel (`BUS_CAPACITY = 256`) absorb the burst;
+/// only if *that* overflows does the pre-existing `RecvError::Lagged` arm skip
+/// (the documented, unchanged lossy backstop). The value is a small fixed bound
+/// (the loop was already de-facto serial — one in-flight write per subscriber —
+/// so a handful of slots is ample headroom to decouple recv from the blocking
+/// write without unbounded buffering).
+const LOG_WRITER_QUEUE_CAPACITY: usize = 32;
+
 /// Spawns the per-session background tasks and returns their handles.
 ///
 /// Each task observes `shutdown_token` via `tokio::select!` so it exits
@@ -45,16 +68,38 @@ pub(super) fn spawn_session_ticks(
     // rewrite so no events fired during/just after initial profile
     // generation are lost.
     {
+        use parish_core::character_log::CharacterLogManager;
+
+        // One long-lived writer task per subscriber, fed by a bounded channel
+        // (capacity LOG_WRITER_QUEUE_CAPACITY). The blocking context is entered
+        // ONCE per session here — not once-per-event in the recv loop — and the
+        // writer drains items serially (exactly one `process_event` in flight at
+        // a time). Saturation behavior is BLOCK, not drop (see the constant's
+        // doc comment). Per rule #11 (scaling): the channel and the writer-task
+        // handle are per-session, created here in `spawn_session_ticks`; the
+        // handle is collected into `handles` so the task is dropped on session
+        // eviction. No `static`/`broadcast::channel`/`Topic` is introduced.
+        let (tx, writer_rx) = tokio::sync::mpsc::channel::<(
+            CharacterLogManager,
+            parish_core::world::events::GameEvent,
+        )>(LOG_WRITER_QUEUE_CAPACITY);
+
+        let writer_state = Arc::clone(&state);
+        handles.push(tokio::spawn(async move {
+            run_character_log_writer(writer_state, writer_rx).await;
+        }));
+
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
-            use parish_core::character_log::{CharacterLogManager, FEATURE_FLAG};
+            use parish_core::character_log::FEATURE_FLAG;
 
             let enabled = {
                 let cfg = s.config.lock().await;
                 !cfg.flags.is_disabled(FEATURE_FLAG)
             };
             if !enabled {
+                // Dropping `tx` closes the channel so the writer task exits.
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
@@ -79,7 +124,9 @@ pub(super) fn spawn_session_ticks(
                             // Rebind manager when the active branch has changed
                             // (e.g. load_branch / create_branch). Without this the
                             // writer keeps appending to the original branch's
-                            // log directory after a branch switch (#1011).
+                            // log directory after a branch switch (#1011). The
+                            // POST-rebind manager clone is what gets enqueued, so
+                            // events after a /load land under the new branch dir.
                             let bid = s.current_branch_id.lock().await.unwrap_or(1);
                             if bid != current_branch {
                                 current_branch = bid;
@@ -90,21 +137,13 @@ pub(super) fn spawn_session_ticks(
                                     tracing::warn!(error = %e, "character-log profile write failed after branch switch");
                                 }
                             }
-                            // Clone the Arc<AppState> (cheap) and run the blocking
-                            // I/O task in a dedicated thread pool, avoiding lock
-                            // contention on the async side (#1012).
-                            let mgr_clone = manager.clone();
-                            let evt_clone = event.clone();
-                            let state_clone = Arc::clone(&s);
-                            let handle = tokio::task::spawn_blocking(move || {
-                                let world = state_clone.world.blocking_lock();
-                                let npc_mgr = state_clone.npc_manager.blocking_lock();
-                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
-                            });
-                            match handle.await {
-                                Ok(Ok(())) => {}
-                                Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
-                                Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
+                            // Enqueue (post-rebind manager clone, event) onto the
+                            // bounded channel. On a full channel this `await`
+                            // BLOCKS — applying backpressure to this recv loop —
+                            // rather than dropping the work item. A closed channel
+                            // means the writer task exited, so stop.
+                            if tx.send((manager.clone(), event)).await.is_err() {
+                                break;
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -120,16 +159,32 @@ pub(super) fn spawn_session_ticks(
     // Mirrors the character-log subscriber above; writes per-location
     // markdown logs. Gated by the `location-logs` flag (default on).
     {
+        use parish_core::location_log::LocationLogManager;
+
+        // Mirrors the character-log subscriber: one long-lived writer task fed
+        // by a bounded channel (capacity LOG_WRITER_QUEUE_CAPACITY), block-on-
+        // full saturation, handle collected into `handles` (rule #11).
+        let (tx, writer_rx) = tokio::sync::mpsc::channel::<(
+            LocationLogManager,
+            parish_core::world::events::GameEvent,
+        )>(LOG_WRITER_QUEUE_CAPACITY);
+
+        let writer_state = Arc::clone(&state);
+        handles.push(tokio::spawn(async move {
+            run_location_log_writer(writer_state, writer_rx).await;
+        }));
+
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
-            use parish_core::location_log::{FEATURE_FLAG, LocationLogManager};
+            use parish_core::location_log::FEATURE_FLAG;
 
             let enabled = {
                 let cfg = s.config.lock().await;
                 !cfg.flags.is_disabled(FEATURE_FLAG)
             };
             if !enabled {
+                // Dropping `tx` closes the channel so the writer task exits.
                 return;
             }
             let app_name = parish_core::game_mod::app_name_from_mod(&s.game_mod);
@@ -154,6 +209,7 @@ pub(super) fn spawn_session_ticks(
                             // Rebind manager when the active branch has changed
                             // (e.g. load_branch / create_branch). Mirrors the
                             // character-log subscriber fix from #1011 (#1034).
+                            // The POST-rebind manager clone is what gets enqueued.
                             let bid = s.current_branch_id.lock().await.unwrap_or(1);
                             if bid != current_branch {
                                 current_branch = bid;
@@ -164,24 +220,12 @@ pub(super) fn spawn_session_ticks(
                                     tracing::warn!(error = %e, "location-log profile write failed after branch switch");
                                 }
                             }
-                            // Snapshot world and npc_manager state needed for name
-                            // resolution, then drop the locks before doing sync file I/O
-                            // to avoid blocking other tasks (#1012).
-                            // Clone the Arc<AppState> (cheap) and run the blocking
-                            // I/O task in a dedicated thread pool, avoiding lock
-                            // contention on the async side (#1012).
-                            let mgr_clone = manager.clone();
-                            let evt_clone = event.clone();
-                            let state_clone = Arc::clone(&s);
-                            let handle = tokio::task::spawn_blocking(move || {
-                                let world = state_clone.world.blocking_lock();
-                                let npc_mgr = state_clone.npc_manager.blocking_lock();
-                                mgr_clone.process_event(&evt_clone, &world, &npc_mgr)
-                            });
-                            match handle.await {
-                                Ok(Ok(())) => {}
-                                Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
-                                Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
+                            // Enqueue (post-rebind manager clone, event) onto the
+                            // bounded channel. On a full channel this `await`
+                            // BLOCKS rather than dropping. A closed channel means
+                            // the writer task exited, so stop.
+                            if tx.send((manager.clone(), event)).await.is_err() {
+                                break;
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
@@ -637,9 +681,140 @@ pub(super) fn spawn_session_ticks(
     handles
 }
 
+/// Drains the character-log writer channel serially, running each
+/// `process_event` under the world/npc blocking locks inside one
+/// `spawn_blocking`. Runs until the channel is closed (the subscriber loop
+/// dropped its `tx`, e.g. on session eviction or cancellation). Exactly one
+/// write is in flight at a time. Factored out of `spawn_session_ticks` so the
+/// bound/no-loss behavior is unit-testable in isolation (see the `tests`
+/// module).
+async fn run_character_log_writer(
+    state: Arc<AppState>,
+    mut rx: tokio::sync::mpsc::Receiver<(
+        parish_core::character_log::CharacterLogManager,
+        parish_core::world::events::GameEvent,
+    )>,
+) {
+    while let Some((mgr, event)) = rx.recv().await {
+        let st = Arc::clone(&state);
+        let handle = tokio::task::spawn_blocking(move || {
+            let world = st.world.blocking_lock();
+            let npc_mgr = st.npc_manager.blocking_lock();
+            mgr.process_event(&event, &world, &npc_mgr)
+        });
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
+            Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
+        }
+    }
+}
+
+/// Mirror of [`run_character_log_writer`] for the location-log subscriber.
+async fn run_location_log_writer(
+    state: Arc<AppState>,
+    mut rx: tokio::sync::mpsc::Receiver<(
+        parish_core::location_log::LocationLogManager,
+        parish_core::world::events::GameEvent,
+    )>,
+) {
+    while let Some((mgr, event)) = rx.recv().await {
+        let st = Arc::clone(&state);
+        let handle = tokio::task::spawn_blocking(move || {
+            let world = st.world.blocking_lock();
+            let npc_mgr = st.npc_manager.blocking_lock();
+            mgr.process_event(&event, &world, &npc_mgr)
+        });
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
+            Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::AUTOSAVE_INTERVAL_SECS;
+    use super::{AUTOSAVE_INTERVAL_SECS, LOG_WRITER_QUEUE_CAPACITY};
+
+    /// C4: the per-subscriber writer channel is bounded to
+    /// `LOG_WRITER_QUEUE_CAPACITY` and its saturation behavior is **block, not
+    /// drop**. This exercises the exact `tokio::sync::mpsc` bound + serial
+    /// writer-task pairing that the two log subscribers use, in isolation (no
+    /// full `AppState`), and asserts:
+    ///
+    /// 1. When the channel is full and the writer is parked, an extra
+    ///    `tx.send()` does NOT drop — it pends (returns `Poll::Pending` /
+    ///    times out under `try_recv`-style polling) rather than erroring or
+    ///    silently discarding.
+    /// 2. After the writer drains, **every** enqueued item is processed — the
+    ///    processed count equals the number of items sent (no loss under an
+    ///    over-capacity flood).
+    #[tokio::test]
+    async fn log_writer_channel_blocks_when_full_and_loses_no_events() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        // Mirror the production pairing: a bounded channel of
+        // LOG_WRITER_QUEUE_CAPACITY feeding a single serial writer task. The
+        // writer counts each item it processes (standing in for
+        // `process_event`'s disk write). A gate keeps the writer parked so we
+        // can observe a genuinely full channel before any draining begins.
+        let cap = LOG_WRITER_QUEUE_CAPACITY;
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<usize>(cap);
+
+        let processed = Arc::new(AtomicUsize::new(0));
+        let processed_w = Arc::clone(&processed);
+        let release = Arc::new(tokio::sync::Notify::new());
+        let release_w = Arc::clone(&release);
+
+        let writer = tokio::spawn(async move {
+            // Park until released so the channel can genuinely fill.
+            release_w.notified().await;
+            while let Some(_item) = rx.recv().await {
+                processed_w.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+
+        // Fill the channel to capacity. With the writer parked, these all
+        // buffer and succeed immediately.
+        for i in 0..cap {
+            tx.send(i).await.expect("send within capacity must succeed");
+        }
+
+        // Channel is now full and the writer is parked. An extra send must
+        // BLOCK (pend), not drop and not error. Prove it pends by racing the
+        // send against a short timeout — the timeout must win.
+        let overflow_send = tx.send(cap);
+        let pended = tokio::time::timeout(std::time::Duration::from_millis(200), overflow_send)
+            .await
+            .is_err();
+        assert!(
+            pended,
+            "send on a full channel must block (apply backpressure), not drop or error"
+        );
+
+        // Release the writer; it drains everything including the previously
+        // blocked overflow item once a slot opens.
+        let total = cap + 1;
+        release.notify_one();
+        // Re-issue the overflow send now that draining can make room. (The
+        // future from the timed-out attempt was cancelled; nothing was
+        // dropped from the channel itself — backpressure, not loss.)
+        tx.send(cap)
+            .await
+            .expect("send must complete once draining frees a slot");
+
+        // Close the channel and wait for the writer to finish draining.
+        drop(tx);
+        writer.await.expect("writer task must not panic");
+
+        assert_eq!(
+            processed.load(Ordering::SeqCst),
+            total,
+            "every enqueued item must be processed under an over-capacity flood — no drops"
+        );
+    }
 
     #[test]
     fn autosave_interval_is_60_seconds() {
