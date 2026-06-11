@@ -149,7 +149,14 @@ export function resetTimeRule(): void {
  * never precedes the splash.
  */
 export function noteTimeRule(snap: WorldSnapshot | null): void {
-	if (!snap || !snap.time_label) return;
+	// A cleared world state (new game / branch switch / teardown) resets
+	// tracking so a stale period key never leaks a spurious separator into
+	// the next session's log (PR #1419 review).
+	if (!snap) {
+		lastTimeRuleKey = null;
+		return;
+	}
+	if (!snap.time_label) return;
 	const key = `${snap.time_label}|${snap.day_of_week}`;
 	if (lastTimeRuleKey === key) return;
 	const isFirst = lastTimeRuleKey === null;

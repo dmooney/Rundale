@@ -31,14 +31,14 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div
-	class="shortcuts-backdrop"
-	data-testid="shortcuts-overlay"
-	role="presentation"
-	onclick={(e) => {
-		if (e.target === e.currentTarget) onclose();
-	}}
->
+<div class="shortcuts-container" data-testid="shortcuts-overlay">
+	<button
+		type="button"
+		class="shortcuts-backdrop"
+		aria-label="Dismiss shortcuts overlay"
+		tabindex="-1"
+		onclick={onclose}
+	></button>
 	<div class="shortcuts-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
 		<div class="card-header">
 			<span class="card-title">Keyboard Shortcuts</span>
@@ -56,17 +56,31 @@
 </div>
 
 <style>
-	.shortcuts-backdrop {
+	.shortcuts-container {
 		position: fixed;
 		inset: 0;
 		z-index: 90;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+
+	/* The backdrop is a sibling button (not a clickable wrapper) so the
+	   dialog card is never nested inside an interactive control. */
+	.shortcuts-backdrop {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
 		background: rgba(0, 0, 0, 0.35);
+		border: none;
+		margin: 0;
+		padding: 0;
+		cursor: default;
 	}
 
 	.shortcuts-card {
+		position: relative;
 		background: var(--color-panel-bg);
 		border: 1px solid var(--color-border);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);

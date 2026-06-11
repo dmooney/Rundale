@@ -266,10 +266,23 @@ describe('noteTimeRule (time-of-day separators)', () => {
 		expect(get(textLog).length).toBe(0);
 	});
 
-	it('ignores null snapshots and snapshots without a time label', () => {
-		noteTimeRule(null);
+	it('ignores snapshots without a time label', () => {
 		noteTimeRule(snap('', 'Monday'));
 		noteTimeRule(snap('Morning', 'Monday'));
 		expect(get(textLog).length).toBe(1);
+	});
+
+	it('a null snapshot resets tracking so the next snapshot primes silently', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		// World state cleared (new game / branch switch / teardown).
+		noteTimeRule(null);
+		// Without the reset this would emit a Midday rule from the stale key.
+		noteTimeRule(snap('Midday', 'Tuesday'));
+		expect(get(textLog).length).toBe(1);
+		// Subsequent change after re-priming emits normally.
+		noteTimeRule(snap('Dusk', 'Tuesday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].content).toBe('Dusk — Tuesday');
 	});
 });

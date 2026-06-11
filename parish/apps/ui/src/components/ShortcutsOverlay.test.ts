@@ -28,6 +28,13 @@ describe('ShortcutsOverlay', () => {
 		expect(onclose).toHaveBeenCalledOnce();
 	});
 
+	it('calls onclose when the backdrop is clicked', async () => {
+		const onclose = vi.fn();
+		const { getByLabelText } = render(ShortcutsOverlay, { props: { onclose } });
+		await fireEvent.click(getByLabelText('Dismiss shortcuts overlay'));
+		expect(onclose).toHaveBeenCalledOnce();
+	});
+
 	it('calls onclose on a second ?', async () => {
 		const onclose = vi.fn();
 		render(ShortcutsOverlay, { props: { onclose } });

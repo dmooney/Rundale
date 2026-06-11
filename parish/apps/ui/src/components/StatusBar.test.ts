@@ -114,6 +114,16 @@ describe('StatusBar', () => {
 		expect(queryByTestId('dev-menu')).toBeNull();
 	});
 
+	it('closes the dev menu when focus leaves the menu subtree', async () => {
+		worldState.set(snapshot);
+		const { getByLabelText, queryByTestId, container } = render(StatusBar);
+		await fireEvent.click(getByLabelText('Developer tools menu'));
+		expect(queryByTestId('dev-menu')).toBeTruthy();
+		const wrap = container.querySelector('.dev-menu-wrap') as HTMLElement;
+		await fireEvent.focusOut(wrap, { relatedTarget: document.body });
+		expect(queryByTestId('dev-menu')).toBeNull();
+	});
+
 	it('does not schedule another rAF frame after clockFrozen becomes true', async () => {
 		// Capture the rAF callback so we can invoke it manually.
 		let capturedCb: FrameRequestCallback | null = null;

@@ -129,7 +129,18 @@
 		{/if}
 		<span class="spacer"></span>
 		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
-		<div class="dev-menu-wrap" bind:this={devMenuEl}>
+		<div
+			class="dev-menu-wrap"
+			bind:this={devMenuEl}
+			onfocusout={(e) => {
+				// Close when keyboard focus leaves the toggle + menu subtree so
+				// tabbing away doesn't leave the menu hanging open.
+				const next = e.relatedTarget as Node | null;
+				if (devMenuOpen && devMenuEl && (!next || !devMenuEl.contains(next))) {
+					devMenuOpen = false;
+				}
+			}}
+		>
 			<button
 				type="button"
 				class="dev-toggle"
