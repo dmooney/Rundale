@@ -260,7 +260,7 @@ model = "gemini-2.5-flash-lite"
 api_key = "$GOOGLE_API_KEY"
 ```
 
-**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the larger model stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction. The engine's built-in auto-selector picks a gemma4 tier based on VRAM / unified memory (see `select_model_for_vram` in `crates/parish-inference/src/setup.rs`); override here if you want something different:
+**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the larger model stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction. The engine's built-in auto-selector picks a gemma4 tier based on VRAM / unified memory (see `select_model_for_vram` in `crates/parish-setup/src/model_select.rs`); override here if you want something different:
 
 ```toml
 [provider]
@@ -279,7 +279,7 @@ base_url = "http://localhost:11435"
 model = "ministral3:3b"
 ```
 
-**Apple Silicon local (macOS, MLX engine)** — two vllm-mlx processes, one per slot. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-inference/src/setup.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
+**Apple Silicon local (macOS, MLX engine)** — two vllm-mlx processes, one per slot. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-setup/src/process.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
 
 ```toml
 [provider]
@@ -468,7 +468,7 @@ Both log `tracing::debug!` at startup. Serialisation errors inside either loop s
 ## Source Modules
 
 - [`crates/parish-core/src/inference/`](../../crates/parish-core/src/inference/) — OpenAI-compatible HTTP client, inference queue, worker, log
-- [`crates/parish-core/src/debug_snapshot.rs`](../../crates/parish-core/src/debug_snapshot.rs) — `InferenceLogEntry`, `InferenceDebug` structs
+- [`crates/parish-diagnostics/src/debug_snapshot/`](../../crates/parish-diagnostics/src/debug_snapshot/) — `InferenceLogEntry`, `InferenceDebug` structs (re-exported as `parish_core::debug_snapshot`)
 - [`src/inference/`](../../src/inference/) — Root crate inference (headless mode)
 - [`src/input/`](../../src/input/) — Player input parsing
 - [`src/npc/`](../../src/npc/) — NPC context construction

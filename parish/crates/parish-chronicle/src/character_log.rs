@@ -1150,7 +1150,7 @@ mod tests {
 
         let event = GameEvent::DialogueOccurred {
             npc_id: npc_path_marker,
-            location: crate::world::LocationId(1),
+            location: parish_world::LocationId(1),
             summary: "discussed weather".into(),
             player_said: Some("Good afternoon, Padraig.".into()),
             npc_said: Some("Ah, God bless ye.".into()),
@@ -1187,7 +1187,7 @@ mod tests {
 
         let event = GameEvent::NpcActivity {
             npc_id,
-            location: crate::world::LocationId(1),
+            location: parish_world::LocationId(1),
             activity: "tending bar".to_string(),
             timestamp: test_time(),
         };
@@ -1221,7 +1221,7 @@ mod tests {
 
         let event = GameEvent::NpcActivity {
             npc_id,
-            location: crate::world::LocationId(1),
+            location: parish_world::LocationId(1),
             activity: "   ".to_string(),
             timestamp: test_time(),
         };
@@ -1246,7 +1246,7 @@ mod tests {
 
         let event = GameEvent::GossipSpread {
             source: source_id,
-            location: crate::world::LocationId(1),
+            location: parish_world::LocationId(1),
             content: "the landlord raised the rent again".to_string(),
             timestamp: test_time(),
         };
@@ -1273,7 +1273,7 @@ mod tests {
 
         let event = GameEvent::AddressedAbsentNpc {
             name: "Mrs. Hannigan".to_string(),
-            location: crate::world::LocationId(1),
+            location: parish_world::LocationId(1),
             timestamp: test_time(),
         };
         mgr.process_event(&event, &world, &npcs).unwrap();

@@ -105,6 +105,22 @@ pub struct GameConfig {
     pub auto_setup_model: Option<String>,
 }
 
+/// Supplies the per-category override view that `parish-diagnostics` needs to
+/// build the inference-debug table, without that crate depending on
+/// `parish-core` (which would be a dependency cycle). See
+/// [`parish_diagnostics::debug_snapshot::InferenceCategoryConfig`].
+impl parish_diagnostics::debug_snapshot::InferenceCategoryConfig for GameConfig {
+    fn category_provider(&self, cat: InferenceCategory) -> Option<String> {
+        self.category_provider.get(&cat).cloned()
+    }
+    fn category_model(&self, cat: InferenceCategory) -> Option<String> {
+        self.category_model.get(&cat).cloned()
+    }
+    fn category_base_url(&self, cat: InferenceCategory) -> Option<String> {
+        self.category_base_url.get(&cat).cloned()
+    }
+}
+
 impl GameConfig {
     /// Resolves the client and model for a given inference category.
     ///

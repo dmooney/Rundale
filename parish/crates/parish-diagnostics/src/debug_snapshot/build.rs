@@ -4,12 +4,13 @@ use std::collections::VecDeque;
 
 use chrono::{Datelike, Timelike};
 
-use crate::npc::manager::NpcManager;
-use crate::npc::types::{CogTier, NpcState};
-use crate::world::WorldState;
-use crate::world::graph::WorldGraph;
-use crate::world::time::{DayType, Season};
+use parish_npc::manager::NpcManager;
+use parish_npc::types::{CogTier, NpcState};
+use parish_world::WorldState;
+use parish_world::graph::WorldGraph;
+use parish_world::time::{DayType, Season};
 
+use super::InferenceCategoryConfig;
 use super::types::*;
 
 /// Walking speed used to compute debug edge travel times (meters/second).
@@ -35,21 +36,21 @@ pub fn build_configured_providers() -> Vec<String> {
         .collect()
 }
 
-/// Builds the per-role debug entries from a [`crate::ipc::config::GameConfig`].
+/// Builds the per-role debug entries from an [`InferenceCategoryConfig`].
 ///
-/// Always returns 4 entries in [`crate::config::InferenceCategory::ALL`] order,
+/// Always returns 4 entries in [`parish_config::InferenceCategory::ALL`] order,
 /// so the UI can render a stable table without conditional rows.
 pub fn build_inference_categories(
-    config: &crate::ipc::config::GameConfig,
+    config: &impl InferenceCategoryConfig,
 ) -> Vec<InferenceCategoryDebug> {
-    use crate::config::InferenceCategory;
+    use parish_config::InferenceCategory;
     InferenceCategory::ALL
         .iter()
         .map(|cat| InferenceCategoryDebug {
             role: cat.name().to_string(),
-            provider: config.category_provider.get(cat).cloned(),
-            model: config.category_model.get(cat).cloned(),
-            base_url: config.category_base_url.get(cat).cloned(),
+            provider: config.category_provider(*cat),
+            model: config.category_model(*cat),
+            base_url: config.category_base_url(*cat),
         })
         .collect()
 }
@@ -65,7 +66,7 @@ pub fn build_debug_snapshot(
     world: &WorldState,
     npc_manager: &NpcManager,
     events: &VecDeque<DebugEvent>,
-    game_events: &VecDeque<crate::world::events::GameEvent>,
+    game_events: &VecDeque<parish_world::events::GameEvent>,
     inference: &InferenceDebug,
     auth: &AuthDebug,
 ) -> DebugSnapshot {
@@ -106,7 +107,7 @@ pub fn build_debug_snapshot(
 /// Builds clock debug info from world state.
 pub(crate) fn build_clock_debug(world: &WorldState) -> ClockDebug {
     let now = world.clock.now();
-    let day_of_week = crate::ipc::handlers::weekday_name(now.weekday()).to_string();
+    let day_of_week = parish_types::time::weekday_name(now.weekday()).to_string();
 
     ClockDebug {
         game_time: format!(
@@ -158,18 +159,18 @@ pub(crate) fn build_weather_debug(world: &WorldState) -> WeatherDebug {
 /// Builds event bus debug info from the captured game-event ring buffer.
 pub(crate) fn build_event_bus_debug(
     world: &WorldState,
-    game_events: &VecDeque<crate::world::events::GameEvent>,
+    game_events: &VecDeque<parish_world::events::GameEvent>,
     npc_manager: &NpcManager,
 ) -> EventBusDebug {
-    use crate::world::events::GameEvent;
+    use parish_world::events::GameEvent;
 
-    let name_of = |id: crate::npc::NpcId| -> String {
+    let name_of = |id: parish_npc::NpcId| -> String {
         npc_manager
             .get(id)
             .map(|n| n.name.clone())
             .unwrap_or_else(|| format!("NPC({})", id.0))
     };
-    let loc_of = |id: crate::world::LocationId| -> String { loc_name(id, &world.graph) };
+    let loc_of = |id: parish_world::LocationId| -> String { loc_name(id, &world.graph) };
 
     let recent_events: Vec<GameEventDebug> = game_events
         .iter()
@@ -257,7 +258,7 @@ pub(crate) fn build_event_bus_debug(
 
 /// Builds gossip network debug info.
 pub(crate) fn build_gossip_debug(world: &WorldState, npc_manager: &NpcManager) -> GossipDebug {
-    let name_of = |id: crate::npc::NpcId| -> String {
+    let name_of = |id: parish_npc::NpcId| -> String {
         npc_manager
             .get(id)
             .map(|n| n.name.clone())
@@ -400,7 +401,7 @@ pub(crate) fn build_world_debug(world: &WorldState, npc_manager: &NpcManager) ->
 }
 
 /// Resolves a location name from the world graph.
-pub(crate) fn loc_name(id: crate::world::LocationId, graph: &WorldGraph) -> String {
+pub(crate) fn loc_name(id: parish_world::LocationId, graph: &WorldGraph) -> String {
     graph
         .get(id)
         .map(|d| d.name.clone())
@@ -492,7 +493,7 @@ pub(crate) fn build_npc_debug_list(
 
 /// Builds schedule debug info for a single NPC.
 pub(crate) fn build_npc_schedule_debug(
-    npc: &crate::npc::Npc,
+    npc: &parish_npc::Npc,
     graph: &WorldGraph,
     current_hour: u8,
     current_season: Season,
@@ -537,7 +538,7 @@ pub(crate) fn build_npc_schedule_debug(
 
 /// Builds relationship debug info for a single NPC, sorted by strength descending.
 pub(crate) fn build_npc_relationship_debug(
-    npc: &crate::npc::Npc,
+    npc: &parish_npc::Npc,
     npc_manager: &NpcManager,
 ) -> Vec<RelationshipDebug> {
     let mut relationships: Vec<RelationshipDebug> = npc
@@ -578,7 +579,7 @@ pub(crate) fn build_npc_relationship_debug(
 
 /// Builds recent short-term memory debug entries for a single NPC.
 pub(crate) fn build_npc_memory_debug(
-    npc: &crate::npc::Npc,
+    npc: &parish_npc::Npc,
     graph: &WorldGraph,
 ) -> Vec<MemoryDebug> {
     npc.memory
@@ -593,7 +594,7 @@ pub(crate) fn build_npc_memory_debug(
 }
 
 /// Builds long-term memory debug entries for a single NPC.
-pub(crate) fn build_npc_long_term_memory_debug(npc: &crate::npc::Npc) -> Vec<LongTermMemoryDebug> {
+pub(crate) fn build_npc_long_term_memory_debug(npc: &parish_npc::Npc) -> Vec<LongTermMemoryDebug> {
     npc.long_term_memory
         .all_entries()
         .iter()
@@ -607,7 +608,7 @@ pub(crate) fn build_npc_long_term_memory_debug(npc: &crate::npc::Npc) -> Vec<Lon
 }
 
 /// Builds reaction log debug entries for a single NPC.
-pub(crate) fn build_npc_reaction_debug(npc: &crate::npc::Npc) -> Vec<ReactionDebug> {
+pub(crate) fn build_npc_reaction_debug(npc: &parish_npc::Npc) -> Vec<ReactionDebug> {
     npc.reaction_log
         .entries()
         .rev()
@@ -622,7 +623,7 @@ pub(crate) fn build_npc_reaction_debug(npc: &crate::npc::Npc) -> Vec<ReactionDeb
 
 /// Builds the deflated summary debug entry for a single NPC, if present.
 pub(crate) fn build_npc_deflated_summary_debug(
-    npc: &crate::npc::Npc,
+    npc: &parish_npc::Npc,
     graph: &WorldGraph,
 ) -> Option<DeflatedSummaryDebug> {
     npc.deflated_summary.as_ref().map(|s| DeflatedSummaryDebug {

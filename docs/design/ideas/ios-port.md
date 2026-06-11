@@ -235,7 +235,7 @@ right shape for this; nothing about the file layout needs to change.
 ### Cleanup
 
 `#[cfg(not(target_os = "ios"))]`-gate everything in
-`crates/parish-inference/src/setup.rs` (Ollama bootstrap, GPU probe, all
+`crates/parish-setup/src/` (Ollama bootstrap, GPU probe, all
 `Command::new` paths) and the `OllamaProcess` lifecycle wrapper in
 `crates/parish-inference/src/client.rs`. With the trait in place,
 `spawn_inference_worker` no longer cares which backend it's holding, so the
@@ -355,7 +355,7 @@ size impact.
 
 ## What Gets Dropped on iOS
 
-- The Ollama auto-installer and GPU probe in `crates/parish-inference/src/setup.rs`
+- The Ollama auto-installer and GPU probe in `crates/parish-setup/src/`
 - The `OllamaProcess` lifecycle wrapper in `crates/parish-inference/src/client.rs`
 - The `AnyClient` enum — replaced by the `InferenceBackend` trait for every mode
 - The Axum web-server mode (`crates/parish-server/`) — not built for iOS. The iOS build only touches `parish-tauri`, `parish-core`, `parish-inference`, `parish-persistence`, so `parish-server` and `parish-engine` are excluded naturally. No Cargo manifest surgery required.
@@ -800,10 +800,10 @@ Forward reference for whoever picks this up:
 | Path                                                                    | Change                                                                                                                                                                                  |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/parish-inference/src/lib.rs`                                    | Introduce `InferenceBackend` trait; delete `AnyClient`; `InferenceClients` + `spawn_inference_worker` move to `Box<dyn InferenceBackend>`                                               |
-| `crates/parish-inference/src/openai_client.rs`                          | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode)                                                                                            |
-| `crates/parish-inference/src/simulator.rs`                              | `impl InferenceBackend for SimulatorClient`                                                                                                                                             |
+| `crates/parish-providers/src/openai_client/`                            | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode)                                                                                            |
+| `crates/parish-providers/src/simulator.rs`                              | `impl InferenceBackend for SimulatorClient`                                                                                                                                             |
 | `crates/parish-inference/src/litert_lm_client.rs` _(new)_               | Embedded LiteRT-LM backend behind `ios-inference` feature                                                                                                                               |
-| `crates/parish-inference/src/setup.rs`                                  | `cfg`-gate Ollama bootstrap and GPU probe                                                                                                                                               |
+| `crates/parish-setup/src/`                                              | `cfg`-gate Ollama bootstrap and GPU probe                                                                                                                                               |
 | `crates/parish-inference/src/client.rs`                                 | `cfg`-gate `OllamaProcess`                                                                                                                                                              |
 | `crates/parish-inference/build.rs` _(new)_                              | `bindgen` + `cc` for the C shim, gated on `ios-inference`                                                                                                                               |
 | `crates/parish-inference/vendor/litert-lm/` _(new submodule)_           | Pinned upstream LiteRT-LM source                                                                                                                                                        |
@@ -873,7 +873,7 @@ account for these:
 1. **`AnyClient` has three variants, not two.** `crates/parish-inference/src/lib.rs:452-460`
    defines `OpenAi`, **`Anthropic`**, and `Simulator`. The design's trait section
    only names `OpenAi`/`Simulator`. → also `impl InferenceBackend for AnthropicClient`
-   (`crates/parish-inference/src/anthropic_client.rs`).
+   (`crates/parish-providers/src/anthropic_client/`).
 2. **A fourth method exists: `generate_stream_json`** (`lib.rs:534-557`), used for
    streaming Tier-1 NPC dialogue embedded in JSON. The design's trait lists only
    `generate` / `generate_stream` / `generate_json_raw`. → add `generate_stream_json`

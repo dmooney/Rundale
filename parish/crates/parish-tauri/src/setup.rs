@@ -1293,7 +1293,7 @@ pub(crate) fn spawn_debug_tick(handle: AppHandle, state: Arc<AppState>) {
                     config.cloud_provider_name.clone(),
                     config.cloud_model_name.clone(),
                     config.improv_enabled,
-                    parish_core::debug_snapshot::build_inference_categories(&config),
+                    parish_core::debug_snapshot::build_inference_categories(&*config),
                 )
             };
 
