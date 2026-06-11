@@ -276,7 +276,7 @@ pub async fn get_debug_snapshot(
             config.cloud_provider_name.clone(),
             config.cloud_model_name.clone(),
             config.improv_enabled,
-            parish_core::debug_snapshot::build_inference_categories(&config),
+            parish_core::debug_snapshot::build_inference_categories(&*config),
         )
     };
 
@@ -369,7 +369,7 @@ pub async fn build_full_debug_snapshot(state: &Arc<AppState>) -> debug_snapshot:
             config.cloud_provider_name.clone(),
             config.cloud_model_name.clone(),
             config.improv_enabled,
-            parish_core::debug_snapshot::build_inference_categories(&config),
+            parish_core::debug_snapshot::build_inference_categories(&*config),
         )
     };
     let events_snapshot: std::collections::VecDeque<parish_core::debug_snapshot::DebugEvent> =

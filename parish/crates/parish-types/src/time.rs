@@ -45,6 +45,23 @@ impl Default for SpeedConfig {
     }
 }
 
+/// Convert a chrono weekday to its English name.
+///
+/// Time-formatting utility shared by the IPC handlers (`parish-core`) and the
+/// diagnostics snapshot builders (`parish-diagnostics`). Lives in the lowest
+/// leaf crate so neither consumer reaches across crate boundaries for it.
+pub fn weekday_name(wd: chrono::Weekday) -> &'static str {
+    match wd {
+        chrono::Weekday::Mon => "Monday",
+        chrono::Weekday::Tue => "Tuesday",
+        chrono::Weekday::Wed => "Wednesday",
+        chrono::Weekday::Thu => "Thursday",
+        chrono::Weekday::Fri => "Friday",
+        chrono::Weekday::Sat => "Saturday",
+        chrono::Weekday::Sun => "Sunday",
+    }
+}
+
 fn default_slow() -> f64 {
     18.0
 }
@@ -1000,5 +1017,19 @@ mod tests {
         assert!(clock.is_paused());
         assert_eq!(clock.now(), frozen);
         assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
+    }
+
+    // ── weekday_name (shared with parish-diagnostics + ipc handlers) ────────
+
+    #[test]
+    fn test_weekday_name() {
+        use chrono::Weekday;
+        assert_eq!(weekday_name(Weekday::Mon), "Monday");
+        assert_eq!(weekday_name(Weekday::Tue), "Tuesday");
+        assert_eq!(weekday_name(Weekday::Wed), "Wednesday");
+        assert_eq!(weekday_name(Weekday::Thu), "Thursday");
+        assert_eq!(weekday_name(Weekday::Fri), "Friday");
+        assert_eq!(weekday_name(Weekday::Sat), "Saturday");
+        assert_eq!(weekday_name(Weekday::Sun), "Sunday");
     }
 }

@@ -21,17 +21,11 @@ use crate::world::{LocationId, WorldState};
 use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, WorldSnapshot};
 
 /// Convert a chrono weekday to its English name.
-pub(crate) fn weekday_name(wd: chrono::Weekday) -> &'static str {
-    match wd {
-        chrono::Weekday::Mon => "Monday",
-        chrono::Weekday::Tue => "Tuesday",
-        chrono::Weekday::Wed => "Wednesday",
-        chrono::Weekday::Thu => "Thursday",
-        chrono::Weekday::Fri => "Friday",
-        chrono::Weekday::Sat => "Saturday",
-        chrono::Weekday::Sun => "Sunday",
-    }
-}
+///
+/// Re-exported from [`parish_types::time::weekday_name`] so the IPC layer keeps
+/// its existing `crate::ipc::handlers::weekday_name` path; the implementation
+/// lives in the lowest leaf crate, shared with `parish-diagnostics`.
+pub(crate) use parish_types::time::weekday_name;
 
 /// Builds a [`WorldSnapshot`] from the current world state.
 pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
