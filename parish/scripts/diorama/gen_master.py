@@ -188,7 +188,17 @@ def narration():
     )
 
 
-def render_prompt():
+STYLE_TEXT = (
+    "STYLE: crisp hand-pixelled isometric pixel art, fine 32-bit-era detail "
+    "(Stardew-Valley-class fidelity at 1536x1024), rich texture work in "
+    "grass, stone and thatch; palette of lush summer greens, warm earth "
+    "browns, whitewashed limewash cottage walls, golden weathered oat-straw "
+    "thatch, grey limestone; bright clear sunny daylight, warm directional "
+    "light, soft crisp shadows. No outlines, no UI, painterly pixel clusters."
+)
+
+
+def render_prompt(with_style_ref=True):
     return (
         "The FIRST image is the rough colour block-in of the painting you "
         "must produce — it is not a diagram, it is the actual composition. "
@@ -208,15 +218,27 @@ def render_prompt():
         "width, same direction. Every lane connects the common to its frame "
         "edge without gaps. Walls run unbroken between their endpoints and "
         "never block a lane.\n\n"
-        "The SECOND image is a STYLE SWATCH SHEET: four isolated texture "
-        "samples (a cottage, the well on bare earth, a river bank with "
-        "water, grass with a stone wall) separated by dark borders. It is "
-        "NOT a scene and contains NO layout information — take ONLY the art "
-        "style from it: crisp hand-pixelled isometric rendering, palette, "
-        "grass and stone and thatch texture, whitewashed walls, lush "
-        "high-summer foliage, bright sunny daylight. The composition comes "
-        "exclusively from the first image.\n\n"
-        "MATERIAL NOTES (these override the swatches where they differ): "
+        + (
+            (
+                "The SECOND image is a STYLE REFERENCE (either a sheet of "
+                "isolated texture samples on dark borders, or a finished "
+                "plate). Take ONLY the art style from it — palette, pixel "
+                "technique, grass/stone/thatch texture; take NO layout from "
+                "it whatsoever. Fully paint EVERY surface of the output — "
+                "grass, soil, water, stone — in that style: no flat block-in "
+                "colour may remain anywhere; the flat green fields become "
+                "rich textured grass, the flat blue line becomes lively "
+                "water. KNOWN DEFECTS IN THE REFERENCE, do NOT reproduce "
+                "them: (1) a dark segmented rod or cable runs along below "
+                "the thatch ridges — real ridges have NOTHING on them; (2) "
+                "the wall stones look like uniform shaped blocks — follow "
+                "the MATERIAL NOTES below instead. The composition comes "
+                "exclusively from the first image.\n\n"
+            )
+            if with_style_ref
+            else STYLE_TEXT + "\n\n"
+        )
+        + "MATERIAL NOTES (these override the swatches where they differ): "
         "the dry-stone walls are built from irregular limestone fieldstones "
         "of mixed sizes and rounded shapes, cleared from the very fields "
         "they enclose and stacked WITHOUT mortar — uneven courses, a few "
@@ -291,20 +313,84 @@ def responses_call(body_dict, timeout=600):
             sys.exit(f"HTTP {e.code}: {msg}")
 
 
-def generate(schematic, style_ref, out_path):
+def google_call(model, parts, gen_config=None, timeout=600):
+    """generateContent against the Gemini API (GEMINI_API_KEY / GOOGLE_API_KEY)."""
+    key = os.environ.get("GEMINI_API_KEY") or os.environ["GOOGLE_API_KEY"]
+    body_dict = {"contents": [{"parts": parts}]}
+    if gen_config:
+        body_dict["generationConfig"] = gen_config
+    body = json.dumps(body_dict).encode()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+    )
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                url, data=body, headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            msg = e.read().decode()[:300]
+            if e.code in (429, 500, 503) and attempt < 2:
+                time.sleep(10 * (attempt + 1))
+                continue
+            sys.exit(f"HTTP {e.code}: {msg}")
+
+
+def g_image_part(b64_data):
+    return {"inline_data": {"mime_type": "image/png", "data": b64_data}}
+
+
+def file_b64(path):
+    return base64.b64encode(open(path, "rb").read()).decode()
+
+
+def google_parts_text_and_images(d):
+    """Flatten a generateContent response into (text, [b64 images])."""
+    text, images = "", []
+    for cand in d.get("candidates", []):
+        for p in cand.get("content", {}).get("parts", []):
+            if "text" in p:
+                text += p["text"]
+            blob = p.get("inlineData") or p.get("inline_data")
+            if blob and blob.get("data"):
+                images.append(blob["data"])
+    return text, images
+
+
+def generate(schematic, style_ref, out_path, provider="openai"):
+    prompt = render_prompt(with_style_ref=style_ref is not None)
+    if provider == "google":
+        # Nano Banana Pro (gemini-3-pro-image): native image gen/edit with
+        # input images. 3:2 @ 2K is the closest shape to 1536x1024.
+        parts = [{"text": prompt}, g_image_part(file_b64(schematic))]
+        if style_ref:
+            parts.append(g_image_part(file_b64(style_ref)))
+        d = google_call(
+            "gemini-3-pro-image",
+            parts,
+            {
+                "responseModalities": ["IMAGE"],
+                "imageConfig": {"aspectRatio": "3:2", "imageSize": "2K"},
+            },
+        )
+        _, images = google_parts_text_and_images(d)
+        if images:
+            open(out_path, "wb").write(base64.b64decode(images[0]))
+            print(f"master -> {out_path} ({os.path.getsize(out_path)} bytes)")
+            return
+        sys.exit(f"no image in response: {json.dumps(d)[:400]}")
+    content = [
+        {"type": "input_text", "text": prompt},
+        {"type": "input_image", "image_url": b64url(schematic)},
+    ]
+    if style_ref:
+        content.append({"type": "input_image", "image_url": b64url(style_ref)})
     d = responses_call(
         {
             "model": "gpt-5.5",
-            "input": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": render_prompt()},
-                        {"type": "input_image", "image_url": b64url(schematic)},
-                        {"type": "input_image", "image_url": b64url(style_ref)},
-                    ],
-                }
-            ],
+            "input": [{"role": "user", "content": content}],
             "tools": [{"type": "image_generation", "size": "1536x1024", "quality": "high"}],
         }
     )
@@ -358,7 +444,32 @@ CHECK_KEYS = (
 )
 
 
-def check(candidate):
+def edit_image(in_path, out_path, instruction):
+    """Targeted retouch via Nano Banana Pro (google only): keep everything,
+    change only what the instruction names."""
+    parts = [
+        {
+            "text": "Edit this image. "
+            + instruction
+            + " Change NOTHING else — every other pixel region keeps its exact "
+            "content, style and position. Same resolution and framing."
+        },
+        g_image_part(file_b64(in_path)),
+    ]
+    d = google_call(
+        "gemini-3-pro-image",
+        parts,
+        {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "3:2", "imageSize": "2K"}},
+    )
+    _, images = google_parts_text_and_images(d)
+    if images:
+        open(out_path, "wb").write(base64.b64decode(images[0]))
+        print(f"edited -> {out_path} ({os.path.getsize(out_path)} bytes)")
+        return
+    sys.exit(f"no image in response: {json.dumps(d)[:400]}")
+
+
+def check(candidate, provider="openai"):
     import io
 
     from PIL import Image
@@ -374,35 +485,45 @@ def check(candidate):
     left_strip = im.crop((0, 0, 160, h))
     right_strip = im.crop((w - 160, 0, w, h))
 
-    def to_url(image):
+    def to_b64(image):
         buf = io.BytesIO()
         image.save(buf, format="PNG")
-        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+        return base64.b64encode(buf.getvalue()).decode()
 
-    d = responses_call(
-        {
-            "model": "gpt-5.5",
-            "input": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": CHECK_PROMPT},
-                        {"type": "input_image", "image_url": to_url(full)},
-                        {"type": "input_image", "image_url": to_url(crop)},
-                        {"type": "input_image", "image_url": to_url(left_strip)},
-                        {"type": "input_image", "image_url": to_url(right_strip)},
-                    ],
-                }
-            ],
-        },
-        timeout=180,
-    )
-    text = ""
-    for o in d.get("output", []):
-        if o.get("type") == "message":
-            for c in o.get("content", []):
-                if c.get("type") == "output_text":
-                    text += c["text"]
+    shots = [full, crop, left_strip, right_strip]
+    if provider == "google":
+        d = google_call(
+            "gemini-3.5-flash",
+            [{"text": CHECK_PROMPT}] + [g_image_part(to_b64(s)) for s in shots],
+            timeout=180,
+        )
+        text, _ = google_parts_text_and_images(d)
+    else:
+        d = responses_call(
+            {
+                "model": "gpt-5.5",
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": CHECK_PROMPT}]
+                        + [
+                            {
+                                "type": "input_image",
+                                "image_url": "data:image/png;base64," + to_b64(s),
+                            }
+                            for s in shots
+                        ],
+                    }
+                ],
+            },
+            timeout=180,
+        )
+        text = ""
+        for o in d.get("output", []):
+            if o.get("type") == "message":
+                for c in o.get("content", []):
+                    if c.get("type") == "output_text":
+                        text += c["text"]
     try:
         verdict = json.loads(text[text.index("{") : text.rindex("}") + 1])
     except ValueError:
@@ -419,10 +540,14 @@ def main():
         print(narration())
     elif len(sys.argv) == 4 and sys.argv[1] == "swatches":
         make_swatches(sys.argv[2], sys.argv[3])
-    elif len(sys.argv) == 5 and sys.argv[1] == "generate":
-        generate(sys.argv[2], sys.argv[3], sys.argv[4])
-    elif len(sys.argv) == 3 and sys.argv[1] == "check":
-        check(sys.argv[2])
+    elif len(sys.argv) in (5, 6) and sys.argv[1] == "generate":
+        style = None if sys.argv[3] in ("none", "-") else sys.argv[3]
+        provider = sys.argv[5] if len(sys.argv) == 6 else "openai"
+        generate(sys.argv[2], style, sys.argv[4], provider)
+    elif len(sys.argv) in (3, 4) and sys.argv[1] == "check":
+        check(sys.argv[2], sys.argv[3] if len(sys.argv) == 4 else "openai")
+    elif len(sys.argv) == 5 and sys.argv[1] == "edit":
+        edit_image(sys.argv[2], sys.argv[3], sys.argv[4])
     else:
         sys.exit(__doc__)
 

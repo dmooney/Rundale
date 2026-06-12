@@ -24,43 +24,53 @@
   style SWATCHES (not the full old master, whose composition leaked) + an
   automated 8-check vision gate. Scripts live in `parish/scripts/diorama/`.
   Recommended survivor awaiting owner sign-off:
-  **`…/diorama-art/kilteevan-village/master-candidates/cand-16.png`** —
-  verified by cross-checked evidence (independent Claude vision judge +
-  deterministic pixel analysis + full-res edge strips): river continuous
-  with the water-component gap exactly the bridge width, arch over water,
-  ALL five lane exits reach their frame edges, clean ridges, anchored
-  walls. `cand-15` passed the gpt-5.5 gate 8/8 but the edge strips proved
-  its mill track never reaches the left edge (4/5 exits) — the gate's
-  lane-reach verdict from a downscaled full frame was unreliable, so
-  `check` now also sends full-res left/right edge strips.
-- **OPENAI CREDITS EXHAUSTED (2026-06-12, HTTP 429 insufficient_quota).**
-  ~16 renders + vision checks burned the remaining ~$10. ALL further
-  generation (other location masters, variant batches, swatch rebuilds)
-  is blocked until the owner tops up the key.
+  **`…/diorama-art/kilteevan-village/master-candidates/g-05-c16ref-fixed.png`**
+  — Nano Banana Pro render (schematic control + cand-16 as style ref +
+  defect warnings), 8/8 gate pass, orphan wall stub removed via a targeted
+  `gen_master.py edit`. Owner-flagged gpt-5.5 defects (ridge "pipe" rod,
+  blocky random walls) are GONE on the Google path. The best gpt-5.5
+  render (`cand-16`, 7/8) survives as the style reference.
+- **OPENAI CREDITS EXHAUSTED (2026-06-12, HTTP 429 insufficient_quota);
+  provider switched to Google** (see Locked decisions). The vision gate
+  runs on `gemini-3.5-flash` (`check <img> google`).
 - **Current scope (owner decision 2026-06-12): good MASTERS only.** No
   variant batches, nothing merged to main (work rides PR #1429's branch).
   Everything else is deferred — see "Deferred work" below.
 
 ## Locked decisions (do not re-litigate)
 
-- **Provider/model: OpenAI Responses API** (`POST /v1/responses`), model
-  **`gpt-5.5`**, with the **`image_generation` tool** (size `1536x1024` = "1024
-  lines", quality `high`). The underlying renderer is gpt-image-2-class.
-- **Why Responses API, not the Images API:** GPT-5.5 _art-directs_ — it writes
-  a far better prompt and can reason about the scene. That orchestration is the
-  quality gap. Raw `/v1/images/generations` hand-prompting (any model) was
-  visibly worse.
-- **Rejected models (don't revisit):** `gpt-image-1` (too many AI hallmarks),
-  NVIDIA NIM FLUX.1-dev and fal FLUX.1-dev (painterly, not clean pixel art;
-  NVIDIA also black-frames on mood words like "gritty"). All removed from the
-  art-tool. Google/Imagen is **free-tier-blocked** (`limit: 0` on image models,
-  Imagen needs a paid plan).
+- **Provider/model (switched 2026-06-12, owner decision): Google Gemini
+  API, model `gemini-3-pro-image` (Nano Banana Pro)** via
+  `generateContent` with input images, `imageConfig {aspectRatio: "3:2",
+imageSize: "2K"}` (≈2528×1696; downscale to 1536×1024 on promote). Why:
+  gpt-5.5 renders kept a "rod below the thatch ridge" artifact and blocky
+  random walls regardless of prompt overrides; Nano Banana Pro follows
+  defect-warning instructions (proven: rod gone, walls irregular even with
+  a defective style reference) and nails the schematic geometry. Imagen 4
+  was evaluated and rejected: pure text-to-image, no input images, so it
+  cannot take the control schematic or a style reference at all.
+- **Previous OpenAI path (gpt-5.5 Responses + image_generation) is kept
+  working in `gen_master.py` as provider `openai`** — its quota is
+  exhausted; do not pay to revive it unless Google regresses.
+- **Rejected models (don't revisit):** `gpt-image-1` (too many AI
+  hallmarks), NVIDIA NIM FLUX.1-dev and fal FLUX.1-dev (painterly, not
+  clean pixel art; NVIDIA also black-frames on mood words like "gritty").
+  All removed from the art-tool.
 - **Variant consistency via edit-off-master:** generate ONE master base, then
-  every variant is an **edit** of it — pass the master as `input_image` +
+  every variant is an **edit** of it — pass the master as an input image +
   "keep the exact same composition, change ONLY season+lighting". Composition
-  stays locked across all variants. Proven across 18 frames.
-- **Key:** `OPENAI_API_KEY` in `.env` (the art-tool loads `.env` via dotenvy
-  now). User has ~$10 credits; ~$0.20-0.40 per high render; 18 plates ≈ $6.
+  stays locked across all variants. Proven across 18 frames (OpenAI); the
+  same mechanism is `gen_master.py edit` on Nano Banana Pro (proven for
+  targeted retouches — used to remove an orphan wall stub).
+- **Style anchoring on Google:** text-only style gives flat cartoon
+  (g-02); swatch sheet causes half-painted block-in unless the prompt
+  orders "fully paint EVERY surface" (g-01 vs g-03, and g-03 wobbled the
+  composition). The winning recipe is **cand-16 (best gpt-5.5 render) as
+  the full-scene style reference + defect warnings** (g-04/g-05). Once a
+  Google master is accepted, IT becomes the style ref for the other
+  locations.
+- **Keys:** `GEMINI_API_KEY` / `GOOGLE_API_KEY` in `.env` (owner has paid
+  credit). `OPENAI_API_KEY` remains for the dormant openai path.
 
 ## Plate spec (per the user)
 
@@ -230,17 +240,21 @@ HashMap<String,String>`) + the selector
 ## Resume checklist (fresh session)
 
 1. Read this doc + `docs/design/ideas/parish-diorama.md`.
-2. `source .env`; confirm `curl https://api.openai.com/v1/models` lists
-   `gpt-image-2` and `gpt-5.5`.
+2. `source .env`; confirm the Gemini key works:
+   `curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"`
+   lists `gemini-3-pro-image` and `gemini-3.5-flash`.
 3. Confirm the owner accepted a survivor (recommended:
-   `…/diorama-art/kilteevan-village/master-candidates/cand-16.png`); if yes,
-   promote it to the new `0-master_summer-day-sunny.png` (keep the old one as
-   `0-master_v1_broken-river.png`) and rebuild the style swatch sheet off the
-   ACCEPTED master (`gen_master.py swatches`) for all future locations.
+   `…/diorama-art/kilteevan-village/master-candidates/g-05-c16ref-fixed.png`);
+   if yes, downscale 2528×1696 → 1536×1024 and promote it to the new
+   `0-master_summer-day-sunny.png` (keep the old one as
+   `0-master_v1_broken-river.png`). The accepted master then becomes the
+   style reference for all other locations (full scene + defect warnings —
+   NOT swatches; see Locked decisions).
 4. Continue with masters for the remaining 7 locations (per-location exit
-   classification + schematic constants in `gen_master.py` → generate N=4 →
-   `check` gate → owner eyeball), still NO variant batches until the owner
-   re-opens that scope.
+   classification + schematic constants in `gen_master.py` → `generate …
+google` N=2-4 → `check … google` gate + water-component pixel probe →
+   owner eyeball; `edit` for targeted retouches), still NO variant batches
+   until the owner re-opens that scope.
 5. Then work the "Deferred work" list above in order: variant batches →
    firelight overlay → port pipeline into `parish-art-tool` → extend the
    scene schema + `select_variant` to season×weather×time → sprites →
