@@ -47,6 +47,13 @@ unchanged.
   wraps it.
 - CI / tooling — a non-gating `harness-shadow` job (+ `just harness-shadow`)
   that runs the corpus with the env set and uploads the ledger.
+  **Update (#1366 §5):** the CI job was retired — a permanently non-gating
+  job trains reviewers to ignore it, the residual ledger (~1.2k records) is
+  dominated by shadow-environment artifacts (no mock inference, no
+  persistence in the replay) rather than real drift, and the gating
+  `mode_parity` golden test now pins the legacy-vs-real event-stream parity
+  for the supported surface. `just harness-shadow` remains for on-demand
+  measurement.
 
 ## Data model / seams
 
