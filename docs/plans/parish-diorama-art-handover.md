@@ -145,6 +145,11 @@ HashMap<String,String>`) + the selector
    packaged builds need a delivery path (deploy artifact, download-on-first-
    run, or mod data dir). Owner call required before flipping the `diorama`
    flag on.
+8. **Scene DSL pipeline (idea, owner-endorsed):** generalize the schematic
+   layer to an LLM-interpreted text description → SVG → lint → control-image
+   render pipeline — see
+   [scene-dsl-pipeline.md](../design/ideas/scene-dsl-pipeline.md). Subsumes
+   item 3's art-tool port if pursued.
 
 ## Repo state / where things are
 
