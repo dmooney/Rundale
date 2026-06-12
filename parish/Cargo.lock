@@ -3938,6 +3938,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-art-tool"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "image",
+ "parish-npc",
+ "parish-world",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "parish-chronicle"
 version = "0.1.0"
 dependencies = [
@@ -5084,6 +5101,7 @@ dependencies = [
  "cookie",
  "cookie_store",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -5096,6 +5114,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
