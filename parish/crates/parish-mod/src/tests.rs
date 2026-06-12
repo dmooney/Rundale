@@ -907,3 +907,103 @@ tier2_system = "prompts/tier2_system.txt"
     assert_eq!(gm.player_language(), "en-IE");
     assert_eq!(gm.native_language(), Some("ga-IE"));
 }
+
+// ── SceneIndex FS-based loader tests (AC-2) ──────────────────────────────────
+
+/// Write a minimal valid scenes.json (no asset refs so the caller can control paths)
+/// into the mod temp dir, also creating the referenced asset file.
+fn write_scenes_json_with_plate(tmp_path: &Path, plate_path: &str) {
+    let json = format!(
+        r#"{{
+            "scenes": [{{
+                "location_id": 1,
+                "slug": "test-scene",
+                "plate": "{plate_path}"
+            }}]
+        }}"#
+    );
+    fs::write(tmp_path.join("scenes.json"), json).unwrap();
+}
+
+#[test]
+fn scenes_load_valid_returns_ok() {
+    let tmp = TempDir::new().unwrap();
+    // Canonicalize so symlink-based temp dirs (macOS /var → /private/var) match.
+    let root = tmp.path().canonicalize().unwrap();
+
+    // Create the asset file.
+    fs::create_dir_all(root.join("assets/scenes")).unwrap();
+    fs::write(
+        root.join("assets/scenes/plate.png"),
+        b"\x89PNG\r\n\x1a\nminimal",
+    )
+    .unwrap();
+
+    write_scenes_json_with_plate(&root, "assets/scenes/plate.png");
+
+    let idx = crate::scenes::SceneIndex::load(&root, "scenes.json")
+        .expect("valid scenes.json should load OK");
+    assert_eq!(idx.scenes.len(), 1);
+    assert_eq!(idx.sprites.len(), 0);
+}
+
+#[test]
+fn scenes_load_rejects_traversal_plate() {
+    let outer = TempDir::new().unwrap();
+    let outer_root = outer.path().canonicalize().unwrap();
+    let inner = outer_root.join("mod");
+    fs::create_dir_all(&inner).unwrap();
+    // Create the escape target outside the mod dir.
+    fs::write(outer_root.join("escape.png"), b"secret").unwrap();
+
+    write_scenes_json_with_plate(&inner, "../escape.png");
+
+    let err = crate::scenes::SceneIndex::load(&inner, "scenes.json")
+        .expect_err("traversal plate path must be rejected");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("Config"), "expected Config error, got: {msg}");
+}
+
+#[test]
+fn scenes_load_rejects_absolute_plate() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().canonicalize().unwrap();
+
+    write_scenes_json_with_plate(&root, "/etc/passwd");
+
+    let err = crate::scenes::SceneIndex::load(&root, "scenes.json")
+        .expect_err("absolute plate path must be rejected");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("Config"), "expected Config error, got: {msg}");
+}
+
+#[test]
+fn scenes_load_rejects_nonexistent_asset() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().canonicalize().unwrap();
+
+    // Valid-looking path but the file does not exist on disk.
+    fs::create_dir_all(root.join("assets/scenes")).unwrap();
+    write_scenes_json_with_plate(&root, "assets/scenes/missing.png");
+
+    let err = crate::scenes::SceneIndex::load(&root, "scenes.json")
+        .expect_err("missing asset should fail");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("Config"), "expected Config error, got: {msg}");
+}
+
+#[test]
+fn scenes_load_rejects_path_outside_assets() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().canonicalize().unwrap();
+
+    // Path that does not start with assets/ (e.g. scenes/plate.png).
+    fs::create_dir_all(root.join("scenes")).unwrap();
+    fs::write(root.join("scenes/plate.png"), b"bytes").unwrap();
+    write_scenes_json_with_plate(&root, "scenes/plate.png");
+
+    let err = crate::scenes::SceneIndex::load(&root, "scenes.json")
+        .expect_err("path outside assets/ must be rejected");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("Config"), "expected Config error, got: {msg}");
+}

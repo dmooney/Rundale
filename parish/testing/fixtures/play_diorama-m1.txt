@@ -1,0 +1,14 @@
+# play_diorama-m1 -- Scene schema loader (diorama M1)
+# ====================================================
+# Proves the rundale mod loads its scenes.json on startup.
+#
+# AC-5: startup log emits `scenes.json loaded: 2 scenes, 1 sprites`
+#       (captured from RUST_LOG=info tracing output, not script stdout).
+# AC-6: rundale placeholder content loads with zero cross-validation warnings.
+#
+# The script body is intentionally minimal: M1 adds no runtime command. The
+# proof is the load-time log line, so a single `look` plus quit is enough to
+# drive a clean startup + shutdown.
+
+look
+/quit
