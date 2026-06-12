@@ -23,7 +23,7 @@
 //! ## Providers
 //!
 //! - `openai` (default): `gpt-image-1` via `OPENAI_API_KEY`
-//! - `google`: Imagen 3 via `GEMINI_API_KEY`
+//! - `google`: Imagen 3 via `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
 //! - `stability`: Stable Diffusion 3.5 via `STABILITY_API_KEY`
 //!
 //! `stability` is the cheaper option for the early provider-selection bake-off
@@ -686,7 +686,7 @@ fn model_for(provider: &str) -> String {
 
 fn no_api_key_for(provider: &str) -> bool {
     match provider {
-        "google" => std::env::var("GEMINI_API_KEY").is_err(),
+        "google" => providers::google::google_api_key().is_none(),
         "stability" => std::env::var("STABILITY_API_KEY").is_err(),
         _ => std::env::var("OPENAI_API_KEY").is_err(),
     }

@@ -95,6 +95,20 @@ pub struct GooglePrediction {
 // Provider
 // ---------------------------------------------------------------------------
 
+/// The Google/Gemini API key from the environment: `GEMINI_API_KEY` first, then
+/// `GOOGLE_API_KEY`. An empty value counts as unset. `None` when neither has a
+/// non-empty value.
+pub fn google_api_key() -> Option<String> {
+    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"] {
+        if let Ok(v) = std::env::var(var) {
+            if !v.trim().is_empty() {
+                return Some(v);
+            }
+        }
+    }
+    None
+}
+
 /// Google Imagen 3 provider.
 pub struct GoogleProvider {
     api_key: String,
@@ -103,10 +117,13 @@ pub struct GoogleProvider {
 }
 
 impl GoogleProvider {
-    /// Create a new provider, reading the key from `GEMINI_API_KEY`.
+    /// Create a new provider, reading the key from `GEMINI_API_KEY`, falling
+    /// back to `GOOGLE_API_KEY`. Both names are in common use — the Gemini API
+    /// docs favour `GEMINI_API_KEY` while the broader Google SDK convention is
+    /// `GOOGLE_API_KEY` — so either populated variable works.
     pub fn from_env() -> Result<Self> {
-        let api_key = std::env::var("GEMINI_API_KEY")
-            .map_err(|_| anyhow::anyhow!("GEMINI_API_KEY not set"))?;
+        let api_key = google_api_key()
+            .ok_or_else(|| anyhow::anyhow!("neither GEMINI_API_KEY nor GOOGLE_API_KEY is set"))?;
         Ok(Self {
             api_key,
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
