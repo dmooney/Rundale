@@ -19,4 +19,4 @@ cargo test -p parish-input --test '*'            # integration (llm fallback)
 
 ## Module map
 
-`parser.rs` token classification + system commands, `commands.rs` command defs + handlers, `intent_types.rs` intent enums, `intent_local.rs` rule-based intent, `intent_llm.rs` LLM fallback, `mention.rs` @name dialogue scoping.
+`parser/` token classification + system commands, `commands.rs` command defs + handlers, `intent_types.rs` intent enums, `intent_local.rs` rule-based intent, `intent_llm.rs` LLM fallback, `mention.rs` @name dialogue scoping.
