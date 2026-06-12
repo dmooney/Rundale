@@ -68,6 +68,7 @@ Speculative and forward-looking — not (yet) committed work.
 
 | Document                                                                                       | Status     |
 | ---------------------------------------------------------------------------------------------- | ---------- |
+| [Interactive Parish Diorama (scene-based graphics)](design/ideas/parish-diorama.md)            | Proposed   |
 | [RAG Lore Recall](design/ideas/rag-lore-recall.md)                                             | Proposed   |
 | [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md)               | Proposed   |
 | [Mythology Layer (Future Hooks)](design/ideas/mythology-hooks.md)                              | Proposed   |
@@ -76,7 +77,7 @@ Speculative and forward-looking — not (yet) committed work.
 | [iOS Port (on-device)](design/ideas/ios-port.md)                                               | Proposed   |
 | [Cloud Run Hosting](design/ideas/cloud-run-hosting.md)                                         | Proposed   |
 | [Emotion-Driven Dialogue & Simulation](design/ideas/emotion-driven-dialogue-and-simulation.md) | Brainstorm |
-| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                    | Brainstorm |
+| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                    | Superseded |
 | [Map Panel Evolution](design/ideas/map-evolution.md)                                           | Brainstorm |
 | [Input Line Enrichment Ideas](design/ideas/input-enrichment-ideas.md)                          | Brainstorm |
 | [NPC Prompt Immersion Ideas](design/ideas/npc-prompt-immersion-ideas.md)                       | Brainstorm |
