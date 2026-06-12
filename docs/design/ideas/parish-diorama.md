@@ -214,6 +214,16 @@ Runtime wiring:
 - **Headless CLI**: a `/scene` debug command prints scene id, variant, and
   slot assignments as text, so all three modes exercise the shared handler
   and the script harness can assert it (mode parity, rule 2).
+- **MCP exposure** (`parish-mcp`): a `parish_scene_state` tool bridging
+  `GET /api/scene-state` — a thin passthrough like the other bridge tools.
+  Rationale: the repo added `parish_engine_state` so auto-QA agents can
+  assert the UI against canonical engine state (#1331); the diorama
+  introduces a new class of drift — the _rendered scene_ vs the simulation
+  (an NPC seated in a slot who is not present, a stale night variant, a
+  hotspot pointing at a non-adjacent location) — and QA agents need to
+  assert plate/variant/hotspots/slot assignments structurally rather than
+  by reading pixels from screenshots. The demo-audit skills gain a scene
+  assertion step once the tool exists.
 
 ## Frontend design
 
