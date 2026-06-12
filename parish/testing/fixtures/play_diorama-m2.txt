@@ -1,0 +1,28 @@
+# play_diorama-m2 -- Backend scene-state + /scene CLI parity (diorama M2)
+# ========================================================================
+# Exercises the shared build_scene_state handler through the headless
+# script harness via the /scene debug command.
+#
+# AC-1: /scene with the flag OFF reports the flag is off (None from handler).
+# AC-2: /scene at a plated outdoor location (The Crossroads, id 1) prints the
+#       scene summary: location_id=1, variant=day, indoor=false, plate path.
+# AC-4: /scene at a plated INDOOR location (Darcy's Pub, id 2) prints
+#       indoor=true (weather suppression applies indoors).
+# AC-8: the same shared handler renders in the headless/script path (parity).
+#
+# Server routes, Tauri command, and the MCP tool are proven by their own unit
+# tests + the live curl/MCP transcript in evidence.md.
+
+# Flag off first: handler returns None.
+/scene
+
+# Enable the diorama feature, then walk to plated locations.
+/flag enable diorama
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+
+/quit

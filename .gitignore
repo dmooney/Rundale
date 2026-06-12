@@ -111,3 +111,7 @@ index.lock
 
 # cargo-tarpaulin coverage artifacts
 *.profraw
+
+# Runtime engine flag-state written by a running server/engine (per-user, not content)
+mods/*/parish-flags.json
+parish-flags.json

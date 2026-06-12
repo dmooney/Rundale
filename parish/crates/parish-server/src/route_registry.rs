@@ -19,6 +19,7 @@ pub const EXPECTED_HTTP_ROUTES: &[&str] = &[
     "/api/map",
     "/api/npcs-here",
     "/api/engine-state",
+    "/api/scene-state",
     "/api/theme",
     "/api/ui-config",
     "/api/debug-snapshot",

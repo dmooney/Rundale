@@ -124,6 +124,25 @@ async fn run_headless_repl_loop(
             continue;
         }
 
+        // /scene — scene debug command, intercepted before classify_input
+        // because the Command enum has no Scene variant (mode-parity rule #2).
+        // Renders the shared build_scene_state result as a human-readable
+        // summary, mirroring the test-harness interception in testing.rs.
+        if trimmed == "/scene" {
+            let msg = parish_core::ipc::render_scene_debug(
+                &app.world,
+                &app.npc_manager,
+                app.game_mod.as_ref().and_then(|gm| gm.scenes.as_ref()),
+                &app.flags,
+            );
+            app.world.log(msg.clone());
+            println!("{msg}");
+            println!();
+            print!("> ");
+            std::io::stdout().flush().ok();
+            continue;
+        }
+
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
                 let (quit, rebuild) = handle_headless_command(app, cmd).await;

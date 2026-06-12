@@ -83,6 +83,9 @@ fn build_router(bridge: BridgeState) -> Router {
         // `/api/engine-state` — canonical deterministic engine state for the
         // MCP QA loop (#1331). Backs the `parish_engine_state` tool.
         .route("/api/engine-state", get(engine_state))
+        // `/api/scene-state` — diorama scene state (M2). Backs the
+        // `parish_scene_state` MCP tool (rule #12 — one builder, both backends).
+        .route("/api/scene-state", get(scene_state))
         .route("/api/save-state", get(save_state))
         .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
@@ -225,6 +228,42 @@ async fn engine_state(
         &world,
         &npc_manager,
     )))
+}
+
+/// `GET /api/scene-state` — diorama scene state (M2).
+///
+/// Shares the `parish_core::ipc::build_scene_state` builder with the web
+/// server so the desktop and server snapshots can never drift (rule #12).
+/// Assets are embedded as `data:image/png;base64,...` data URLs so the MCP
+/// client receives self-contained image data without a second HTTP round-trip
+/// (unlike the web server which serves assets via `/api/scene-asset/*rel`).
+async fn scene_state(State(b): State<BridgeState>) -> Json<Option<parish_core::ipc::SceneState>> {
+    let Some(gm) = b.state.game_mod.as_ref() else {
+        return Json(None);
+    };
+    let Some(scenes) = gm.scenes.as_ref() else {
+        return Json(None);
+    };
+
+    let mod_dir = gm.mod_dir.clone();
+    let scenes = scenes.clone();
+
+    let world = b.state.world.lock().await;
+    let npc_manager = b.state.npc_manager.lock().await;
+    let config = b.state.config.lock().await;
+
+    let asset_url = |rel: &str| -> Option<String> {
+        let p = parish_core::game_mod::canonical_mod_asset_path(&mod_dir, rel).ok()?;
+        crate::mod_asset_data_url(Some(p))
+    };
+
+    Json(parish_core::ipc::build_scene_state(
+        &world,
+        &npc_manager,
+        &scenes,
+        &config.flags,
+        &asset_url,
+    ))
 }
 
 // ── Shared response types ────────────────────────────────────────────────────
@@ -1109,6 +1148,7 @@ mod tests {
             "/api/map",
             "/api/npcs-here",
             "/api/engine-state",
+            "/api/scene-state",
             "/api/save-state",
             "/api/setup-snapshot",
             "/api/debug-snapshot",

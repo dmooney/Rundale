@@ -15,6 +15,10 @@ use parish_world::transport::TransportConfig;
 
 mod assets;
 
+// Public so runtime asset-serving paths (diorama `scene-asset` route, Tauri
+// data-URL command) can re-validate a request path through the same guard.
+pub use assets::canonical_mod_asset_path;
+
 pub(crate) mod discovery;
 
 pub mod manifest;

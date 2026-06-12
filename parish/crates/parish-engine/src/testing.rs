@@ -363,6 +363,21 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
+        // /scene — scene debug command (harness + REPL, mode-parity rule #2).
+        // Renders the shared build_scene_state result as a human-readable
+        // summary so scripts and tests can assert on scene wiring without a
+        // running frontend.
+        if trimmed == "/scene" {
+            let msg = parish_core::ipc::render_scene_debug(
+                &self.app.world,
+                &self.app.npc_manager,
+                self.app.game_mod.as_ref().and_then(|gm| gm.scenes.as_ref()),
+                &self.app.flags,
+            );
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
+        }
+
         // Test-harness-only /doom command: /doom NpcName [hours_from_now]
         //
         // Marks the named NPC as fated to die `hours_from_now` game-hours out
@@ -2873,6 +2888,76 @@ mod tests {
         assert!(
             !warnings.is_empty(),
             "bad SceneIndex must produce at least one cross-validation warning"
+        );
+    }
+
+    /// AC-1: `/scene` before enabling the diorama flag returns a message
+    /// explaining the flag is off. The diorama feature flag is off-by-default
+    /// (guarded by `is_enabled`, not `is_disabled`), so a fresh harness
+    /// exercises the flag-off path.
+    #[test]
+    fn scene_command_flag_off_reports_flag_disabled() {
+        let mut h = GameTestHarness::new();
+        let result = h.execute("/scene");
+        let ActionResult::SystemCommand { response } = result else {
+            panic!("/scene should return SystemCommand; got {:?}", result);
+        };
+        assert!(
+            response.contains("diorama flag is off"),
+            "expected flag-off message, got: {response}"
+        );
+    }
+
+    /// AC-2 + AC-4: `/scene` after enabling the flag at The Crossroads (id 1,
+    /// outdoor) shows `location_id=1 variant=day indoor=false`, and at
+    /// Darcy's Pub (id 2, indoor) shows `location_id=2 … indoor=true`.
+    #[test]
+    fn scene_command_shows_location_and_indoor_flag() {
+        let mut h = GameTestHarness::new();
+
+        // Enable the diorama feature flag.
+        let flag_result = h.execute("/flag enable diorama");
+        assert!(
+            matches!(flag_result, ActionResult::SystemCommand { .. }),
+            "flag enable should succeed; got {:?}",
+            flag_result
+        );
+
+        // Move to The Crossroads (location id 1, outdoor).
+        h.execute("go to The Crossroads");
+        let r_crossroads = h.execute("/scene");
+        let ActionResult::SystemCommand {
+            response: crossroads_resp,
+        } = r_crossroads
+        else {
+            panic!("/scene at Crossroads should return SystemCommand");
+        };
+        assert!(
+            crossroads_resp.contains("location_id=1"),
+            "expected location_id=1, got: {crossroads_resp}"
+        );
+        assert!(
+            crossroads_resp.contains("variant=day"),
+            "expected variant=day, got: {crossroads_resp}"
+        );
+        assert!(
+            crossroads_resp.contains("indoor=false"),
+            "expected indoor=false, got: {crossroads_resp}"
+        );
+
+        // Move to Darcy's Pub (location id 2, indoor).
+        h.execute("go to Darcy's Pub");
+        let r_pub = h.execute("/scene");
+        let ActionResult::SystemCommand { response: pub_resp } = r_pub else {
+            panic!("/scene at Darcy's Pub should return SystemCommand");
+        };
+        assert!(
+            pub_resp.contains("location_id=2"),
+            "expected location_id=2, got: {pub_resp}"
+        );
+        assert!(
+            pub_resp.contains("indoor=true"),
+            "expected indoor=true, got: {pub_resp}"
         );
     }
 }

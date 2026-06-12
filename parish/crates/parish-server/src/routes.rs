@@ -19,6 +19,7 @@ pub mod input;
 pub mod mods;
 pub mod reactions;
 pub mod saves;
+pub mod scene;
 pub mod session_token;
 pub mod world;
 
@@ -64,6 +65,9 @@ pub use demo::{
 
 // mods
 pub use mods::{ModEntry, SwitchModBody, collect_base_mods, list_mods, switch_mod};
+
+// scene
+pub use scene::{get_scene_state, serve_scene_asset};
 
 // session_token
 pub use session_token::{SessionInitResponse, session_init};

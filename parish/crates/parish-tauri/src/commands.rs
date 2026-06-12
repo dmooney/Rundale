@@ -9,6 +9,7 @@
 //!
 //! Submodule layout:
 //! - `snapshot`  — read-only world/map/NPC/theme/debug snapshot commands
+//! - `scene`     — diorama scene-state command (M2)
 //! - `setup`     — BYOK onboarding and local inference setup commands
 //! - `input`     — player input submission, validation, and dispatch
 //! - `movement`  — handle_movement, handle_look
@@ -26,6 +27,7 @@ pub mod input;
 pub(crate) mod movement;
 pub mod reactions;
 pub mod saves;
+pub mod scene;
 pub mod screenshot;
 pub mod setup;
 pub mod snapshot;
@@ -35,6 +37,9 @@ pub use snapshot::{
     get_debug_snapshot, get_engine_state, get_map, get_npcs_here, get_setup_snapshot, get_theme,
     get_ui_config, get_world_snapshot, get_world_snapshot_inner, toggle_fullscreen,
 };
+
+// ── Re-exports: scene ─────────────────────────────────────────────────────────
+pub use scene::get_scene_state;
 
 // ── Re-exports: setup ─────────────────────────────────────────────────────────
 pub use setup::{

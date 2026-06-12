@@ -1776,3 +1776,204 @@ async fn audit_loop_detects_mismatch_and_files_full_payload() {
     // The mismatch description is recorded too.
     assert!(issue.contains("STALE UI"));
 }
+
+// ── Diorama M2 — scene-state + scene-asset routes ───────────────────────────
+
+/// Helper: builds an AppState with the real rundale GameMod loaded (including
+/// its `scenes` index), mirroring the pattern in `mods_root_derives_from_game_mod_not_cwd`.
+fn test_app_state_with_mod() -> Arc<crate::state::AppState> {
+    let data_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
+    let npc_manager = NpcManager::new();
+    let transport = TransportConfig::default();
+    let ui_config = crate::state::UiConfigSnapshot {
+        hints_label: "test".to_string(),
+        default_accent: "#000".to_string(),
+        splash_text: String::new(),
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
+        auto_pause_timeout_seconds: 300,
+        app_icon_url: None,
+        favicon_url: None,
+        map_overlay: None,
+        base_mod_required: false,
+    };
+    let theme_palette = parish_core::game_mod::default_theme_palette();
+    let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+    let session_store: Arc<dyn parish_core::session_store::SessionStore> = Arc::new(
+        crate::session_store_impl::DbSessionStore::new(saves_dir.clone()),
+    );
+    let gm = parish_core::game_mod::GameMod::load(&data_dir).unwrap();
+    crate::state::build_app_state(crate::state::AppStateParts {
+        session_id: "test-session-scene".to_string(),
+        world,
+        npc_manager,
+        client: None,
+        config: crate::state::GameConfig {
+            provider_name: String::new(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            flags: parish_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+        },
+        cloud_client: None,
+        transport,
+        ui_config,
+        theme_palette,
+        saves_dir,
+        data_dir: data_dir.clone(),
+        game_mod: Some(gm),
+        flags_path: data_dir.join("parish-flags.json"),
+        inference_config: parish_core::config::InferenceConfig::default(),
+        session_store,
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+    })
+}
+
+/// AC-1: `GET /api/scene-state` returns `Json(None)` (null body) when the
+/// `diorama` feature flag is disabled.
+#[tokio::test]
+async fn scene_state_flag_off_returns_null() {
+    let state = test_app_state_with_mod();
+    // Ensure the diorama flag is off (default is off for this flag).
+    {
+        let mut config = state.config.lock().await;
+        config.flags.disable(parish_core::ipc::DIORAMA_FLAG);
+    }
+    let Json(result) =
+        super::scene::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    assert!(
+        result.is_none(),
+        "scene-state must be None when the diorama flag is off"
+    );
+}
+
+/// With the diorama flag on and the player at a plated location (The
+/// Crossroads, id 1), `get_scene_state` returns a `SceneState` whose
+/// `plate_url` points at the `scene-asset` route.
+#[tokio::test]
+async fn scene_state_flag_on_plated_location_returns_scene() {
+    let state = test_app_state_with_mod();
+    {
+        let mut config = state.config.lock().await;
+        config.flags.enable(parish_core::ipc::DIORAMA_FLAG);
+    }
+    {
+        let mut world = state.world.lock().await;
+        world.player_location = LocationId(1); // The Crossroads (placeholder scene)
+    }
+    let Json(result) =
+        super::scene::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let scene = result.expect("scene-state must be Some at a plated location with the flag on");
+    assert_eq!(scene.location_id, 1);
+    assert_eq!(scene.variant, "day");
+    assert!(!scene.indoor);
+    assert!(
+        scene.plate_url.contains("/api/scene-asset/"),
+        "plate_url must route through scene-asset, got {}",
+        scene.plate_url
+    );
+    assert!(!scene.hotspots.is_empty());
+}
+
+/// `serve_scene_asset` rejects a traversal path with 4xx.
+#[tokio::test]
+async fn serve_scene_asset_traversal_rejected() {
+    let state = test_app_state_with_mod();
+
+    // Classic traversal: ../../mod.toml
+    let resp = super::scene::serve_scene_asset(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Path("../../mod.toml".to_string()),
+    )
+    .await
+    .into_response();
+    assert!(
+        resp.status().is_client_error(),
+        "traversal path ../../mod.toml must be rejected with 4xx, got {}",
+        resp.status()
+    );
+}
+
+/// `serve_scene_asset` rejects a path that escapes `assets/scenes/`
+/// (i.e. is a valid mod asset but outside the scenes sub-tree).
+#[tokio::test]
+async fn serve_scene_asset_outside_scenes_dir_rejected() {
+    let state = test_app_state_with_mod();
+
+    // assets/icon.png lives under assets/ (passes canonical_mod_asset_path)
+    // but is NOT under assets/scenes/ — must be 404.
+    let resp = super::scene::serve_scene_asset(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Path("assets/icon.png".to_string()),
+    )
+    .await
+    .into_response();
+    // 400 (invalid asset path from canonical guard) or 404 (not in scenes subtree)
+    // — either is acceptable; the important thing is it's not 200.
+    assert!(
+        resp.status().is_client_error(),
+        "asset outside assets/scenes/ must be rejected, got {}",
+        resp.status()
+    );
+}
+
+/// `serve_scene_asset` serves the rundale crossroads plate PNG with:
+/// - HTTP 200
+/// - `content-type: image/png`
+/// - `Cache-Control: public, max-age=31536000, immutable`
+#[tokio::test]
+async fn serve_scene_asset_crossroads_plate_png_200() {
+    let state = test_app_state_with_mod();
+
+    let resp = super::scene::serve_scene_asset(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Path("assets/scenes/the-crossroads/plate.png".to_string()),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(
+        resp.status(),
+        axum::http::StatusCode::OK,
+        "crossroads plate PNG must be served with 200"
+    );
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .unwrap(),
+        "image/png",
+        "content-type must be image/png"
+    );
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CACHE_CONTROL)
+            .unwrap(),
+        "public, max-age=31536000, immutable",
+        "Cache-Control must be immutable"
+    );
+    let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    assert!(!body.is_empty(), "response body must not be empty");
+}

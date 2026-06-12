@@ -58,6 +58,15 @@
       "name": "parish_engine_state"
     },
     {
+      "description": "Reads the rendered diorama scene for the player's current location (plate, variant, hotspots, seated NPCs). Lets QA agents assert the rendered scene against parish_engine_state instead of reading pixels (#1331 pattern). Returns null when the diorama flag is off or the location has no scene.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "parish_scene_state"
+    },
+    {
       "description": "Reads metadata about the active save file and current branch.",
       "inputSchema": {
         "additionalProperties": false,

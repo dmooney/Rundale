@@ -84,7 +84,7 @@ pub struct Hotspot {
 /// Hotspot geometry. Coordinates are percentages (0–100) of the plate.
 ///
 /// `polygon` is reserved for later authoring; the MVP authors rects only.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HotspotShape {
     /// Axis-aligned rectangle `[x, y, w, h]`.
