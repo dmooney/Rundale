@@ -68,6 +68,7 @@ Speculative and forward-looking — not (yet) committed work.
 
 | Document                                                                                       | Status     |
 | ---------------------------------------------------------------------------------------------- | ---------- |
+| [Interactive Parish Diorama (scene-based graphics)](design/ideas/parish-diorama.md)            | Proposed   |
 | [RAG Lore Recall](design/ideas/rag-lore-recall.md)                                             | Proposed   |
 | [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md)               | Proposed   |
 | [Mythology Layer (Future Hooks)](design/ideas/mythology-hooks.md)                              | Proposed   |
@@ -76,7 +77,7 @@ Speculative and forward-looking — not (yet) committed work.
 | [iOS Port (on-device)](design/ideas/ios-port.md)                                               | Proposed   |
 | [Cloud Run Hosting](design/ideas/cloud-run-hosting.md)                                         | Proposed   |
 | [Emotion-Driven Dialogue & Simulation](design/ideas/emotion-driven-dialogue-and-simulation.md) | Brainstorm |
-| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                    | Brainstorm |
+| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                    | Superseded |
 | [Map Panel Evolution](design/ideas/map-evolution.md)                                           | Brainstorm |
 | [Input Line Enrichment Ideas](design/ideas/input-enrichment-ideas.md)                          | Brainstorm |
 | [NPC Prompt Immersion Ideas](design/ideas/npc-prompt-immersion-ideas.md)                       | Brainstorm |
@@ -87,17 +88,18 @@ Speculative and forward-looking — not (yet) committed work.
 
 ## Plans — active
 
-| Plan                                                                      | Status      |
-| ------------------------------------------------------------------------- | ----------- |
-| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)     | Planned     |
-| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)   | Planned     |
-| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                | Partial     |
-| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                        | Planned     |
-| [Rundale-Bench](plans/rundale-bench.md)                                   | In progress |
-| [LLM Quality Evals](plans/llm-quality-evals.md)                           | Proposed    |
-| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                      | Proposed    |
-| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md) | Proposed    |
-| [Talkie Methodology Port](plans/talkie-methodology-port.md)               | Proposed    |
+| Plan                                                                                  | Status      |
+| ------------------------------------------------------------------------------------- | ----------- |
+| [Interactive Parish Diorama — Implementation](plans/parish-diorama-implementation.md) | Proposed    |
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                 | Planned     |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)               | Planned     |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                            | Partial     |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                    | Planned     |
+| [Rundale-Bench](plans/rundale-bench.md)                                               | In progress |
+| [LLM Quality Evals](plans/llm-quality-evals.md)                                       | Proposed    |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                  | Proposed    |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)             | Proposed    |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md)                           | Proposed    |
 
 ## Plans — archived (complete / historical)
 
