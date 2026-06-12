@@ -56,6 +56,13 @@ imageSize: "2K"}` (≈2528×1696; downscale to 1536×1024 on promote). Why:
   hallmarks), NVIDIA NIM FLUX.1-dev and fal FLUX.1-dev (painterly, not
   clean pixel art; NVIDIA also black-frames on mood words like "gritty").
   All removed from the art-tool.
+- **Fallback providers if Google regresses (owner, 2026-06-12):**
+  ByteDance **Seedream** (4.x — supports reference/edit input images via
+  fal/Replicate/BytePlus ARK, pipeline-compatible) and xAI **Grok
+  Imagine** (VERIFY input-image support first — earlier API versions were
+  text-to-image only, which would disqualify it like Imagen 4). The hard
+  requirement for any provider: accepts a control image + style reference
+  as inputs.
 - **Variant consistency via edit-off-master:** generate ONE master base, then
   every variant is an **edit** of it — pass the master as an input image +
   "keep the exact same composition, change ONLY season+lighting". Composition
