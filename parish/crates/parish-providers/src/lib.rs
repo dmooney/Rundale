@@ -19,6 +19,7 @@ pub(crate) mod client_base;
 pub mod mock_client;
 pub mod openai_client;
 pub mod rate_limit;
+pub(crate) mod retry;
 pub mod simulator;
 pub(crate) mod utf8_stream;
 
