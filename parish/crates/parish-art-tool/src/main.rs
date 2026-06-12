@@ -177,6 +177,10 @@ enum Command {
 // ---------------------------------------------------------------------------
 
 fn main() -> Result<()> {
+    // Load API keys from a local `.env` (e.g. OPENAI_API_KEY), matching the
+    // engine binary. Without this the tool would only see keys already exported
+    // into the process environment.
+    dotenvy::dotenv().ok();
     let cli = Cli::parse();
     let root = cli
         .root
