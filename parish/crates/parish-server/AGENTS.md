@@ -22,7 +22,7 @@ Ships both a library (`parish_server::run_server`) and a binary (`src/main.rs`);
 
 ## Module map
 
-`routes.rs`+`routes/` HTTP, `ws.rs` real-time channel, `sync_routes.rs`+`sync_types.rs`+`drain.rs` synchronous `POST /api/command` + `GET /api/state`, `editor_routes.rs` mod editor surface, `session.rs`+`session/` lifecycle, `state.rs` app state, `auth.rs`+`cf_auth.rs`+`middleware.rs` policy.
+`routes.rs`+`routes/` HTTP, `ws.rs` real-time channel, `sync_routes.rs`+`sync_types.rs`+`drain.rs` synchronous `POST /api/command` + `GET /api/state`, `editor_routes.rs` mod editor surface, `session.rs`+`session/` lifecycle, `state.rs` app state, `lock_metrics.rs` `MeteredMutex` contention counters for the `AppState` locks (#1366 §2 — `AppState::lock_metrics()` snapshots them), `auth.rs`+`cf_auth.rs`+`middleware.rs` policy.
 
 ## Thin-client surface (`sync_routes.rs`)
 

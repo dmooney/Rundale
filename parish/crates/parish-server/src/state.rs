@@ -4,10 +4,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-// `tokio::sync::Mutex` used for `active_ws` so the guard can be held across
-// await points without blocking Tokio workers.
 use tokio::task::JoinHandle;
+
+// All coordination fields use `MeteredMutex` — a `tokio::sync::Mutex` wrapper
+// that records wait-time/contention counters (#1366 §2) — so guards can be
+// held across await points without blocking Tokio workers.
+use crate::lock_metrics::{LockMetricsSnapshot, MeteredMutex};
 
 use parish_core::config::InferenceConfig;
 use parish_core::debug_snapshot::DebugEvent;
@@ -141,11 +143,11 @@ pub use parish_core::ipc::{ConversationRuntimeState, SaveState, UiConfigSnapshot
 /// merging it would widen the critical section rather than shrink it.
 pub struct InferenceClients {
     /// Local LLM client (None if no provider is configured).
-    pub client: Mutex<Option<AnyClient>>,
+    pub client: MeteredMutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
-    pub cloud_client: Mutex<Option<AnyClient>>,
+    pub cloud_client: MeteredMutex<Option<AnyClient>>,
     /// Inference request queue (None if no provider configured).
-    pub inference_queue: Mutex<Option<InferenceQueue>>,
+    pub inference_queue: MeteredMutex<Option<InferenceQueue>>,
 }
 
 /// Save-identity coordination group (#1366 §2).
@@ -163,11 +165,11 @@ pub struct InferenceClients {
 /// `save_db` without re-taking the identity).
 pub struct SaveIdentity {
     /// Path to the currently active save file.
-    pub save_path: Mutex<Option<PathBuf>>,
+    pub save_path: MeteredMutex<Option<PathBuf>>,
     /// Current branch database id.
-    pub current_branch_id: Mutex<Option<i64>>,
+    pub current_branch_id: MeteredMutex<Option<i64>>,
     /// Current branch name.
-    pub current_branch_name: Mutex<Option<String>>,
+    pub current_branch_name: MeteredMutex<Option<String>>,
 }
 
 pub struct AppState {
@@ -177,23 +179,23 @@ pub struct AppState {
     /// extensions (#621).
     pub session_id: String,
     /// The game world (clock, player position, graph, weather).
-    pub world: Mutex<WorldState>,
+    pub world: MeteredMutex<WorldState>,
     /// NPC manager (all NPCs, tier assignment, schedule ticking).
-    pub npc_manager: Mutex<NpcManager>,
+    pub npc_manager: MeteredMutex<NpcManager>,
     /// Inference-client coordination group — `client` / `cloud_client` /
     /// `inference_queue` behind the single `inference` node (#1366 §2).
     pub inference: InferenceClients,
     /// Shared ring buffer of recent inference calls (for the debug panel).
     pub inference_log: InferenceLog,
     /// Mutable runtime configuration.
-    pub config: Mutex<GameConfig>,
+    pub config: MeteredMutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
-    pub conversation: Mutex<ConversationRuntimeState>,
+    pub conversation: MeteredMutex<ConversationRuntimeState>,
     /// Rolling ring buffer of debug events (schedule ticks, tier transitions,
     /// inference errors) surfaced to the debug panel.
-    pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    pub debug_events: MeteredMutex<std::collections::VecDeque<DebugEvent>>,
     /// Rolling ring buffer of `GameEvent`s captured from the world event bus.
-    pub game_events: Mutex<std::collections::VecDeque<GameEvent>>,
+    pub game_events: MeteredMutex<std::collections::VecDeque<GameEvent>>,
     /// Broadcast channel for pushing events to WebSocket clients.
     pub event_bus: BroadcastEventBus,
     /// Transport mode configuration from the loaded game mod.
@@ -231,7 +233,7 @@ pub struct AppState {
     /// Handle for the active inference worker task; used to abort it on rebuild
     /// or shutdown so orphaned workers (each holding an HTTP client and channel)
     /// don't accumulate.  See bugs #224 and #231.
-    pub worker_handle: Mutex<Option<JoinHandle<()>>>,
+    pub worker_handle: MeteredMutex<Option<JoinHandle<()>>>,
     /// Per-account editor sessions — keyed by `(account_id, mod_id)`.
     ///
     /// Keyed by `account_id` (stable UUID) so that multiple browser tabs from
@@ -245,7 +247,7 @@ pub struct AppState {
     ///
     /// Uses a `tokio::sync::Mutex` so handlers can hold the guard across
     /// `.await` points without blocking Tokio workers.
-    pub editor_sessions: tokio::sync::Mutex<
+    pub editor_sessions: MeteredMutex<
         std::collections::HashMap<(uuid::Uuid, String), parish_core::ipc::editor::EditorSession>,
     >,
     /// Set of `account_id`s that currently have an active WebSocket connection.
@@ -253,9 +255,9 @@ pub struct AppState {
     /// Enforces single-WS-per-account (#334/#618): a second upgrade from the
     /// same account is rejected with 409 Conflict until the first socket closes.
     /// Uses a `tokio::sync::Mutex` so it can be held across await points.
-    pub active_ws: tokio::sync::Mutex<HashSet<uuid::Uuid>>,
+    pub active_ws: MeteredMutex<HashSet<uuid::Uuid>>,
     /// Advisory file lock for the currently active save file.
-    pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
+    pub save_lock: MeteredMutex<Option<parish_core::persistence::SaveFileLock>>,
     /// TOML-configured inference timeouts loaded from `parish.toml` at session
     /// creation.  Stored here so runtime rebuilds (e.g. after `/provider`) use
     /// the operator-configured values instead of the compiled-in defaults. (#417)
@@ -277,7 +279,7 @@ pub struct AppState {
     ///
     /// Lock ordering: acquired after `save_lock`.
     pub save_db:
-        tokio::sync::Mutex<Option<(std::path::PathBuf, parish_core::persistence::AsyncDatabase)>>,
+        MeteredMutex<Option<(std::path::PathBuf, parish_core::persistence::AsyncDatabase)>>,
     /// Trait-erased per-session persistence.
     ///
     /// Route handlers and the autosave tick should prefer this over direct
@@ -300,7 +302,7 @@ pub struct AppState {
     ///
     /// A second call while one is in flight gets HTTP 409 rather than racing
     /// on the event-bus drain.  `try_lock` is used so the handler never blocks.
-    pub command_lock: tokio::sync::Mutex<()>,
+    pub command_lock: MeteredMutex<()>,
 }
 
 /// Server-side counterpart of the Tauri `SetupStatusSnapshot`.
@@ -343,6 +345,31 @@ impl AppState {
     /// 1. Parent of the loaded `game_mod.mod_dir` (present on all real runs).
     /// 2. Parent of the path returned by `find_default_mod()` (dev fallback).
     /// 3. Relative `"mods"` with a warning (packaged builds should never reach here).
+    /// Returns the current contention counters for every metered `AppState`
+    /// lock (#1366 §2 — the evidence base for any future lock splitting).
+    pub fn lock_metrics(&self) -> Vec<LockMetricsSnapshot> {
+        vec![
+            self.world.metrics(),
+            self.npc_manager.metrics(),
+            self.conversation.metrics(),
+            self.config.metrics(),
+            self.inference.client.metrics(),
+            self.inference.cloud_client.metrics(),
+            self.inference.inference_queue.metrics(),
+            self.debug_events.metrics(),
+            self.game_events.metrics(),
+            self.editor_sessions.metrics(),
+            self.active_ws.metrics(),
+            self.save_identity.save_path.metrics(),
+            self.save_identity.current_branch_id.metrics(),
+            self.save_identity.current_branch_name.metrics(),
+            self.worker_handle.metrics(),
+            self.save_lock.metrics(),
+            self.save_db.metrics(),
+            self.command_lock.metrics(),
+        ]
+    }
+
     pub fn mods_root(&self) -> PathBuf {
         if let Some(ref gm) = self.game_mod
             && let Some(parent) = gm.mod_dir.parent()
@@ -445,22 +472,24 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
 
     Arc::new(AppState {
         session_id,
-        world: Mutex::new(world),
-        npc_manager: Mutex::new(npc_manager),
+        world: MeteredMutex::new("world", world),
+        npc_manager: MeteredMutex::new("npc_manager", npc_manager),
         inference: InferenceClients {
-            client: Mutex::new(client),
-            cloud_client: Mutex::new(cloud_client),
-            inference_queue: Mutex::new(None),
+            client: MeteredMutex::new("inference.client", client),
+            cloud_client: MeteredMutex::new("inference.cloud_client", cloud_client),
+            inference_queue: MeteredMutex::new("inference.inference_queue", None),
         },
         inference_log: parish_core::inference::new_inference_log(),
-        config: Mutex::new(config),
-        conversation: Mutex::new(ConversationRuntimeState::new()),
-        debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
-            DEBUG_EVENT_CAPACITY,
-        )),
-        game_events: Mutex::new(std::collections::VecDeque::with_capacity(
-            DEBUG_EVENT_CAPACITY,
-        )),
+        config: MeteredMutex::new("config", config),
+        conversation: MeteredMutex::new("conversation", ConversationRuntimeState::new()),
+        debug_events: MeteredMutex::new(
+            "debug_events",
+            std::collections::VecDeque::with_capacity(DEBUG_EVENT_CAPACITY),
+        ),
+        game_events: MeteredMutex::new(
+            "game_events",
+            std::collections::VecDeque::with_capacity(DEBUG_EVENT_CAPACITY),
+        ),
         event_bus: BroadcastEventBus::new(256),
         transport,
         ui_config,
@@ -472,23 +501,23 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
         saves_dir,
         data_dir,
         save_identity: SaveIdentity {
-            save_path: Mutex::new(None),
-            current_branch_id: Mutex::new(None),
-            current_branch_name: Mutex::new(None),
+            save_path: MeteredMutex::new("save_identity.save_path", None),
+            current_branch_id: MeteredMutex::new("save_identity.current_branch_id", None),
+            current_branch_name: MeteredMutex::new("save_identity.current_branch_name", None),
         },
         game_mod,
         pronunciations,
         flags_path,
-        worker_handle: Mutex::new(None),
-        editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
-        active_ws: tokio::sync::Mutex::new(HashSet::<uuid::Uuid>::new()),
-        save_lock: Mutex::new(None),
+        worker_handle: MeteredMutex::new("worker_handle", None),
+        editor_sessions: MeteredMutex::new("editor_sessions", std::collections::HashMap::new()),
+        active_ws: MeteredMutex::new("active_ws", HashSet::<uuid::Uuid>::new()),
+        save_lock: MeteredMutex::new("save_lock", None),
         inference_config,
-        save_db: tokio::sync::Mutex::new(None),
+        save_db: MeteredMutex::new("save_db", None),
         session_store,
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         language_settings,
-        command_lock: tokio::sync::Mutex::new(()),
+        command_lock: MeteredMutex::new("command_lock", ()),
         inference_file_log,
         chat_transcript_log,
     })
@@ -602,5 +631,68 @@ mod tests {
         assert_eq!(state.saves_dir, saves_dir);
         assert_eq!(state.data_dir, data_dir);
         assert_eq!(state.flags_path, flags_path);
+    }
+
+    /// #1366 §2 — every metered coordination lock reports a snapshot, and
+    /// the snapshot names cover every node in `LOCK_ORDER` (group nodes via
+    /// their dotted member names).
+    #[tokio::test]
+    async fn lock_metrics_cover_the_lock_order_chain() {
+        let saves_dir = PathBuf::from("/tmp/parish-lock-metrics-saves");
+        let session_store: Arc<dyn SessionStore> = Arc::new(
+            crate::session_store_impl::DbSessionStore::new(saves_dir.clone()),
+        );
+        let state = build_app_state(AppStateParts {
+            session_id: "lock-metrics".to_string(),
+            world: WorldState::new(),
+            npc_manager: NpcManager::new(),
+            client: None,
+            config: test_game_config(),
+            cloud_client: None,
+            transport: TransportConfig::default(),
+            ui_config: UiConfigSnapshot {
+                hints_label: String::new(),
+                default_accent: "#000".to_string(),
+                splash_text: String::new(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                auto_pause_timeout_seconds: 300,
+                app_icon_url: None,
+                favicon_url: None,
+                map_overlay: None,
+                base_mod_required: false,
+            },
+            theme_palette: parish_core::game_mod::default_theme_palette(),
+            saves_dir: saves_dir.clone(),
+            data_dir: PathBuf::from("/tmp/parish-lock-metrics-data"),
+            game_mod: None,
+            flags_path: PathBuf::from("/tmp/parish-lock-metrics-flags.json"),
+            inference_config: InferenceConfig::default(),
+            session_store,
+            inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+            chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
+        });
+
+        let _ = state.world.lock().await;
+        let metrics = state.lock_metrics();
+
+        // Every LOCK_ORDER node is represented by at least one snapshot whose
+        // name is the node itself or a dotted member of it.
+        for node in LOCK_ORDER {
+            // `inference_log` is a shared parish-inference type, not a
+            // MeteredMutex — it cannot be metered without changing the
+            // shared alias.
+            if *node == "inference_log" {
+                continue;
+            }
+            assert!(
+                metrics
+                    .iter()
+                    .any(|m| m.name == *node || m.name.starts_with(&format!("{node}."))),
+                "LOCK_ORDER node '{node}' has no metrics snapshot"
+            );
+        }
+        let world = metrics.iter().find(|m| m.name == "world").unwrap();
+        assert_eq!(world.acquisitions, 1);
     }
 }

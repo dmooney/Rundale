@@ -13,6 +13,7 @@ pub mod command_host;
 pub mod drain;
 pub mod editor_routes;
 pub mod emitter;
+pub mod lock_metrics;
 pub mod middleware;
 pub mod route_registry;
 pub mod routes;
