@@ -3,8 +3,11 @@
 //! Providers are only invoked when the corresponding API key is available.
 //! Tests construct request bodies offline without making network calls.
 
+pub mod fal;
 pub mod google;
+pub mod nvidia;
 pub mod openai;
+pub mod stability;
 
 use anyhow::Result;
 use std::path::Path;
@@ -52,6 +55,24 @@ impl ImageSize {
         match self {
             ImageSize::Landscape1536x1024 => "1536x1024",
             ImageSize::Square1024x1024 => "1024x1024",
+        }
+    }
+
+    /// Pixel dimensions `(width, height)` — for providers whose API takes
+    /// explicit width/height (NVIDIA NIM, fal) rather than a size string.
+    pub fn dimensions(self) -> (u32, u32) {
+        match self {
+            ImageSize::Landscape1536x1024 => (1536, 1024),
+            ImageSize::Square1024x1024 => (1024, 1024),
+        }
+    }
+
+    /// Aspect-ratio label — for providers whose API takes an aspect-ratio
+    /// string (Stability, Google). The final plate is 16:9 (480x270).
+    pub fn aspect_ratio(self) -> &'static str {
+        match self {
+            ImageSize::Landscape1536x1024 => "16:9",
+            ImageSize::Square1024x1024 => "1:1",
         }
     }
 }

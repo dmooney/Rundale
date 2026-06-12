@@ -24,6 +24,13 @@
 //!
 //! - `openai` (default): `gpt-image-1` via `OPENAI_API_KEY`
 //! - `google`: Imagen 3 via `GEMINI_API_KEY`
+//! - `nvidia`: FLUX.1-dev (NVIDIA NIM) via `NVIDIA_API_KEY`
+//! - `stability`: Stable Diffusion 3.5 via `STABILITY_API_KEY`
+//! - `fal`: FLUX.1 [dev]/[schnell] (fal.ai) via `FAL_KEY`
+//!
+//! The three cheaper providers exist for the early provider-selection bake-off
+//! (plan T5.1): generate the anchor assets across providers and pick on cost +
+//! style before committing to one.
 
 mod export;
 mod manifest;
@@ -63,7 +70,7 @@ enum Command {
     GenPlate {
         /// Location id from world.json.
         location_id: u32,
-        /// Image provider ("openai" or "google").
+        /// Image provider: openai | google | nvidia | stability | fal.
         #[arg(long, default_value = "openai")]
         provider: String,
         /// Reference image paths (anchors) to pass to the provider.
@@ -667,14 +674,21 @@ fn slug_from_dest(dest_rel: &str) -> String {
 
 fn model_for(provider: &str) -> String {
     match provider {
-        "google" => "imagen-3.0-generate-002".to_string(),
-        _ => "gpt-image-1".to_string(),
+        "google" => "imagen-3.0-generate-002",
+        "nvidia" => "black-forest-labs/flux.1-dev",
+        "stability" => "sd3.5-large",
+        "fal" => "fal-ai/flux/dev",
+        _ => "gpt-image-1",
     }
+    .to_string()
 }
 
 fn no_api_key_for(provider: &str) -> bool {
     match provider {
         "google" => std::env::var("GEMINI_API_KEY").is_err(),
+        "nvidia" => std::env::var("NVIDIA_API_KEY").is_err(),
+        "stability" => std::env::var("STABILITY_API_KEY").is_err(),
+        "fal" => std::env::var("FAL_KEY").is_err(),
         _ => std::env::var("OPENAI_API_KEY").is_err(),
     }
 }
