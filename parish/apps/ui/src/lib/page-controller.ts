@@ -39,6 +39,7 @@ import { savePickerVisible, modSelectorVisible } from '../stores/save';
 import { palette } from '../stores/theme';
 import { tiles } from '../stores/tiles';
 import { startTravel } from '../stores/travel';
+import { sceneState, travelDimming, cacheScene } from '../stores/scene';
 import {
 	getWorldSnapshot,
 	getMap,
@@ -47,6 +48,7 @@ import {
 	getTheme,
 	getDebugSnapshot,
 	getDemoConfig,
+	getSceneState,
 	onWorldUpdate,
 	onStreamToken,
 	onStreamTurnEnd,
@@ -147,12 +149,14 @@ export async function createPageController(): Promise<() => void> {
 	// rest of the UI from loading. Any failure is surfaced via
 	// pushErrorLog so the user sees feedback instead of an indefinite
 	// "Loading..." state — see #113.
-	const [snapRes, mapRes, npcsRes, themeRes] = await Promise.allSettled([
-		getWorldSnapshot(),
-		getMap(),
-		getNpcsHere(),
-		getTheme(),
-	]);
+	const [snapRes, mapRes, npcsRes, themeRes, sceneRes] =
+		await Promise.allSettled([
+			getWorldSnapshot(),
+			getMap(),
+			getNpcsHere(),
+			getTheme(),
+			getSceneState(),
+		]);
 	if (snapRes.status === 'fulfilled') {
 		const snap = snapRes.value;
 		worldState.set(snap);
@@ -172,6 +176,11 @@ export async function createPageController(): Promise<() => void> {
 	if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
 	if (themeRes.status === 'fulfilled')
 		palette.applyServerPalette(themeRes.value);
+	if (sceneRes.status === 'fulfilled') {
+		const scene = sceneRes.value;
+		sceneState.set(scene);
+		if (scene) cacheScene(scene);
+	}
 
 	const failed: string[] = [];
 	if (snapRes.status === 'rejected')
@@ -245,11 +254,19 @@ export async function createPageController(): Promise<() => void> {
 					]);
 				}
 				try {
-					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
+					const [map, npcs, scene] = await Promise.all([
+						getMap(),
+						getNpcsHere(),
+						getSceneState(),
+					]);
 					mapData.set(map);
 					npcsHere.set(npcs);
+					sceneState.set(scene);
+					if (scene) cacheScene(scene);
+					// Clear travel dimming now that the arrival world-update has landed.
+					travelDimming.set(false);
 				} catch (_) {
-					// ignore: best-effort map/NPC refresh; stale data is acceptable
+					// ignore: best-effort map/NPC/scene refresh; stale data is acceptable
 				}
 			}),
 		);
@@ -413,6 +430,8 @@ export async function createPageController(): Promise<() => void> {
 		listeners.push(
 			await onTravelStart((payload) => {
 				startTravel(payload);
+				// Dim the departing plate while in transit; cleared on arrival world-update.
+				travelDimming.set(true);
 			}),
 		);
 

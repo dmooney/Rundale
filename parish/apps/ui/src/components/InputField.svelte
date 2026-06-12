@@ -111,6 +111,21 @@ import ModelDropdown from './ModelDropdown.svelte';
 		}
 	});
 
+	// ── Diorama sprite / hotspot → mention wiring ────────────────────────────
+	// Scene-action handlers dispatch `parish:mention-npc` on `document` when a
+	// sprite or talk_to hotspot is clicked. We listen here and insert the chip
+	// into the live contenteditable surface — the same path as the NPC chip row.
+	$effect(() => {
+		function onMentionNpc(e: Event) {
+			const detail = (e as CustomEvent<{ npcName: string }>).detail;
+			if (detail?.npcName) {
+				insertNpcMention(detail.npcName);
+			}
+		}
+		document.addEventListener('parish:mention-npc', onMentionNpc);
+		return () => document.removeEventListener('parish:mention-npc', onMentionNpc);
+	});
+
 	// ── #1379: flush in-flight stream on first interaction ───────────────────
 	// The intended UX (owner-confirmed): blocking the player idle until a long
 	// stream finishes is annoying. Instead, the moment the player starts typing
