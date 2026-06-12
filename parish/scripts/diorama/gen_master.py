@@ -319,7 +319,10 @@ def generate(schematic, style_ref, out_path):
 CHECK_PROMPT = (
     "You are checking a generated isometric pixel-art village plate for "
     "geometric coherence. Image 1 is the full frame (downscaled); image 2 is "
-    "a full-resolution crop of the bridge area. Intended layout: ONE river "
+    "a full-resolution crop of the bridge area; images 3 and 4 are full-"
+    "resolution strips of the LEFT and RIGHT frame edges — use these two to "
+    "verify which lanes actually REACH those edges (a lane fading into grass "
+    "before the edge does NOT count). Intended layout: ONE river "
     "entering at the right edge about two-thirds down, flowing continuously "
     "west-southwest, passing under a single stone footbridge that carries a "
     "north-south road at a right angle, exiting at the left edge; the road "
@@ -364,6 +367,12 @@ def check(candidate):
     w, h = im.size
     full = im.resize((768, 512))
     crop = im.crop((int(w * 0.36), int(h * 0.56), int(w * 0.80), int(h * 0.98)))
+    # Full-res edge strips: lane-reach verdicts from the downscaled full
+    # frame alone proved unreliable in BOTH directions (gpt-5.5 passed a
+    # missing left exit on cand-15; a pixel probe missed real lanes at the
+    # border) — the edge strips were what settled it.
+    left_strip = im.crop((0, 0, 160, h))
+    right_strip = im.crop((w - 160, 0, w, h))
 
     def to_url(image):
         buf = io.BytesIO()
@@ -380,6 +389,8 @@ def check(candidate):
                         {"type": "input_text", "text": CHECK_PROMPT},
                         {"type": "input_image", "image_url": to_url(full)},
                         {"type": "input_image", "image_url": to_url(crop)},
+                        {"type": "input_image", "image_url": to_url(left_strip)},
+                        {"type": "input_image", "image_url": to_url(right_strip)},
                     ],
                 }
             ],
