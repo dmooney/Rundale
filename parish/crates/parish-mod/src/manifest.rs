@@ -132,6 +132,9 @@ pub struct FileRefs {
     /// NPC arrival reaction templates JSON file (optional; defaults to hardcoded bank).
     #[serde(default)]
     pub reactions: Option<String>,
+    /// Diorama scene index JSON file (optional; mods without it have no scenes).
+    #[serde(default)]
+    pub scenes: Option<String>,
 }
 
 /// Relative paths to prompt template text files.

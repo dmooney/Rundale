@@ -1,0 +1,80 @@
+{
+  "_comment": "Diorama M1 placeholder scenes. Flat-colour plates and a single generic sprite stand in until curated art lands in M5. Coordinates are percentages (0-100) of the 480x270 plate.",
+  "scenes": [
+    {
+      "location_id": 1,
+      "slug": "the-crossroads",
+      "plate": "assets/scenes/the-crossroads/plate.png",
+      "hotspots": [
+        {
+          "id": "lane-to-pub",
+          "shape": { "rect": [70.0, 40.0, 16.0, 45.0] },
+          "label": "The lane to Darcy's Pub",
+          "action": { "travel_to": 2 }
+        },
+        {
+          "id": "road-to-kilteevan",
+          "shape": { "rect": [12.0, 55.0, 20.0, 35.0] },
+          "label": "The Kilteevan road",
+          "action": { "travel_to": 15 }
+        },
+        {
+          "id": "stone-wall",
+          "shape": { "rect": [40.0, 20.0, 22.0, 18.0] },
+          "label": "A weathered stone wall",
+          "action": {
+            "inspect": "A low stone wall, half-hidden by brambles, lines the eastern side of the crossroads."
+          }
+        }
+      ],
+      "slots": [
+        { "id": "by-the-wall", "x": 50.0, "y": 70.0, "scale": 1.0 },
+        { "id": "near-the-sign", "x": 28.0, "y": 76.0, "scale": 1.05 }
+      ]
+    },
+    {
+      "location_id": 2,
+      "slug": "darcys-pub",
+      "plate": "assets/scenes/darcys-pub/plate.png",
+      "hotspots": [
+        {
+          "id": "door-out",
+          "shape": { "rect": [82.0, 38.0, 14.0, 50.0] },
+          "label": "Out to the Crossroads",
+          "action": { "travel_to": 1 }
+        },
+        {
+          "id": "publican",
+          "shape": { "rect": [44.0, 46.0, 12.0, 34.0] },
+          "label": "The publican",
+          "action": { "talk_to": 1 }
+        },
+        {
+          "id": "hearth",
+          "shape": { "rect": [5.0, 30.0, 18.0, 40.0] },
+          "label": "The hearth",
+          "action": {
+            "inspect": "A turf fire smoulders in the wide hearth; the smoke hangs sweet in the air."
+          }
+        }
+      ],
+      "slots": [
+        {
+          "id": "behind-bar",
+          "x": 48.0,
+          "y": 55.0,
+          "scale": 1.0,
+          "prefer_npc": 1
+        },
+        { "id": "bench-left", "x": 22.0, "y": 68.0, "scale": 1.1 },
+        { "id": "bench-right", "x": 72.0, "y": 70.0, "scale": 1.1 }
+      ]
+    }
+  ],
+  "sprites": [
+    { "npc_id": 1, "image": "assets/scenes/sprites/generic-villager.png" }
+  ],
+  "fallback_sprites": {
+    "default": "assets/scenes/sprites/generic-villager.png"
+  }
+}

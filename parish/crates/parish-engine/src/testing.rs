@@ -214,6 +214,20 @@ impl GameTestHarness {
         // Initial tier assignment
         app.npc_manager.assign_tiers(&app.world, &[]);
 
+        // Cross-validate scenes against the live world + NPC roster (non-fatal).
+        if let Some(ref gm) = app.game_mod
+            && let Some(ref scenes) = gm.scenes
+        {
+            let warnings = parish_core::game_mod::scenes::validate_scenes(
+                scenes,
+                &app.world.graph,
+                &app.npc_manager,
+            );
+            for w in warnings {
+                tracing::warn!("scene validation: {}", w);
+            }
+        }
+
         // Initialize in-memory persistence for test harness
         let db_sync = crate::persistence::Database::open_memory().ok();
         let mut active_branch_id = 1;
@@ -1588,6 +1602,25 @@ fn strip_dialogue_verb(raw: &str) -> String {
     trimmed.to_string()
 }
 
+/// Installs a stderr tracing subscriber for script mode.
+///
+/// Uses `.try_init()` so that tests calling `run_script_captured` (which
+/// share the same process) do not panic on a double-init. Stdout is
+/// untouched — the JSON line output on stdout stays byte-stable.
+fn init_script_tracing() {
+    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    let _ = tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_ansi(false),
+        )
+        .try_init();
+}
+
 /// Runs the game in script mode, reading commands from a file.
 ///
 /// Each command is executed through [`GameTestHarness`] and produces
@@ -1597,6 +1630,7 @@ pub fn run_script_mode(
     script_path: &Path,
     game_mod: Option<parish_core::game_mod::GameMod>,
 ) -> anyhow::Result<()> {
+    init_script_tracing();
     let harness = GameTestHarness::build_with_mod(game_mod);
     run_script_mode_with(script_path, harness)
 }
@@ -2768,6 +2802,77 @@ mod tests {
         assert!(
             h2.app.character_log.as_ref().is_some_and(|m| !m.enabled()),
             "new_from_active_mod() must keep the character-log writer disabled"
+        );
+    }
+
+    // ── Diorama M1 integration tests (AC-3, AC-6) ────────────────────────────
+
+    /// AC-6: Rundale mod loads with its scenes.json, yielding 2 scenes and
+    /// 1 sprite, and cross-validation produces zero warnings (clean placeholder
+    /// content).
+    #[test]
+    fn diorama_rundale_scenes_load_and_validate_clean() {
+        let h = GameTestHarness::new();
+        let gm = h.app.game_mod.as_ref().expect("rundale mod must be loaded");
+        let scenes = gm.scenes.as_ref().expect("rundale mod must have scenes");
+        assert_eq!(
+            scenes.scenes.len(),
+            2,
+            "expected 2 scenes in rundale scenes.json"
+        );
+        assert_eq!(
+            scenes.sprites.len(),
+            1,
+            "expected 1 sprite in rundale scenes.json"
+        );
+
+        let warnings = parish_core::game_mod::scenes::validate_scenes(
+            scenes,
+            &h.app.world.graph,
+            &h.app.npc_manager,
+        );
+        assert!(
+            warnings.is_empty(),
+            "rundale placeholder scenes must produce zero cross-validation warnings; got: {warnings:?}"
+        );
+    }
+
+    /// AC-3: A synthetic SceneIndex with unknown location/NPC ids and out-of-range
+    /// coordinates triggers warnings but never panics or fails the load.
+    #[test]
+    fn diorama_validate_scenes_warns_for_bad_ids_and_coords() {
+        let h = GameTestHarness::new();
+
+        let bad_json = r#"{
+            "scenes": [{
+                "location_id": 9999,
+                "slug": "bad-scene",
+                "plate": "assets/scenes/bad.png",
+                "hotspots": [
+                    { "id": "bad-travel", "shape": { "rect": [150.0, 50.0, 10.0, 10.0] },
+                      "label": "Nowhere", "action": { "travel_to": 9998 } },
+                    { "id": "bad-talk", "shape": { "rect": [5.0, 5.0, 10.0, 10.0] },
+                      "label": "Nobody", "action": { "talk_to": 9997 } }
+                ],
+                "slots": [
+                    { "id": "bad-slot", "x": 50.0, "y": 50.0, "prefer_npc": 9996 }
+                ]
+            }],
+            "sprites": [{ "npc_id": 9995, "image": "assets/scenes/bad-sprite.png" }]
+        }"#;
+
+        let bad: parish_core::game_mod::scenes::SceneIndex =
+            serde_json::from_str(bad_json).expect("bad SceneIndex should parse (schema is valid)");
+
+        let warnings = parish_core::game_mod::scenes::validate_scenes(
+            &bad,
+            &h.app.world.graph,
+            &h.app.npc_manager,
+        );
+
+        assert!(
+            !warnings.is_empty(),
+            "bad SceneIndex must produce at least one cross-validation warning"
         );
     }
 }

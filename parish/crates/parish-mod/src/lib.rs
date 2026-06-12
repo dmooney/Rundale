@@ -19,6 +19,8 @@ pub(crate) mod discovery;
 
 pub mod manifest;
 
+pub mod scenes;
+
 #[cfg(test)]
 mod tests;
 
@@ -76,6 +78,9 @@ pub struct GameMod {
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
     pub reactions: parish_npc::reactions::ReactionTemplates,
+    /// Diorama scene index, if the mod declares a `scenes` file. `None` for
+    /// mods without one — the diorama presentation layer falls back to text.
+    pub scenes: Option<scenes::SceneIndex>,
 }
 
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
@@ -248,6 +253,17 @@ impl GameMod {
             parish_npc::reactions::ReactionTemplates::default()
         };
 
+        // -- scenes (optional) --------------------------------------------------
+        // Validates every referenced asset path against the mod dir at load.
+        // Cross-validation against the world graph / NPC roster is done by the
+        // parish-core mod-load site (it needs the loaded WorldGraph + NpcManager)
+        // via `scenes::validate_scenes`, which only logs warnings.
+        let scenes = if let Some(ref scenes_file) = manifest.files.scenes {
+            Some(scenes::SceneIndex::load(&mod_dir, scenes_file)?)
+        } else {
+            None
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -260,6 +276,7 @@ impl GameMod {
             pronunciations,
             transport,
             reactions,
+            scenes,
         })
     }
 
