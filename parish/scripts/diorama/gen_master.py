@@ -91,15 +91,20 @@ COTTAGES = [  # (cx%, cy%, w%, h%, tag)
     (12, 49, 12, 11, "SW"),
     (78, 57, 12, 10, "SE"),
 ]
-PLOTS = [(31, 28, 8, 7), (24, 64, 9, 7)]  # empty tilled soil
+PLOTS = [(31, 25.5, 8, 7), (24, 64, 9, 7)]  # empty tilled soil
+# Walls exist out of necessity (field clearance + demarcation), so every
+# polyline is ANCHORED at both ends — to a lane band, a cottage corner, the
+# river bank, or out of the frame. No isolated fragments: an unanchored wall
+# stub is exactly the kind of randomness the model then multiplies.
 WALLS = [
-    [(8, 33), (30, 31)],  # below NW cottage
-    [(18, 11), (36, 13)],  # top field, west of the north road
-    [(60, 30), (78, 29)],  # below NE cottage
-    [(84, 48), (98, 52)],  # E field, between forge lane and river
-    [(3, 40), (20, 41)],  # W field, above SW cottage
-    [(30, 68), (42, 72)],  # SW field, north of the river
-    [(64, 63), (78, 65)],  # SE field, between cottage and river
+    [(41, 10), (20, 12), (0, 14)],  # field wall: north road -> left frame edge
+    [(25.5, 18.5), (37, 20), (37, 31), (25.5, 29)],  # NW yard bracket: cottage->plot->cottage
+    [(75, 14), (86, 16), (86, 27), (75, 24.5)],  # NE yard bracket (the weaver's paddock)
+    [(89, 38), (91, 18), (92, 0)],  # field wall: forge lane -> top frame edge
+    [(100, 44), (90, 50), (87, 55), (87, 58.8)],  # field wall: right frame edge -> T-junction
+    [(18, 52), (26, 50), (33, 48)],  # yard wall: SW cottage -> mill track head
+    [(59, 64), (66, 63), (72, 61.5)],  # field wall: south road -> SE cottage
+    [(84, 59.5), (92, 58.5), (100, 57.5)],  # field wall: SE cottage -> right frame edge
 ]
 
 
@@ -170,9 +175,16 @@ def narration():
         "south, crosses the river at the stone footbridge at a right angle, "
         "and beyond the bridge FORKS: the road itself bends southeast to the "
         "BOTTOM edge, while a narrower mossy footpath peels off southwest to "
-        "the BOTTOM edge. The bridge is the ONLY crossing. Low dry-stone "
-        "walls line the fields between the lanes; two plots of bare tilled "
-        "soil sit beside the north-west and south-west cottages."
+        "the BOTTOM edge. The bridge is the ONLY crossing, and the river "
+        "flows THROUGH its arch — the arch opening faces the water, the road "
+        "runs over the bridge deck. EXACTLY five lanes touch the frame "
+        "edges: one at the top, one at the right, one at the left, two at "
+        "the bottom — there are NO other lanes or paths anywhere in the "
+        "scene. Low dry-stone field walls divide the land: every wall runs "
+        "from anchor to anchor — a lane, a cottage, the river bank, or out "
+        "of the frame — and walled yards sit behind the north-west and "
+        "north-east cottages; no wall stands isolated. Two plots of bare "
+        "tilled soil sit beside the north-west and south-west cottages."
     )
 
 
@@ -204,12 +216,23 @@ def render_prompt():
         "grass and stone and thatch texture, whitewashed walls, lush "
         "high-summer foliage, bright sunny daylight. The composition comes "
         "exclusively from the first image.\n\n"
+        "MATERIAL NOTES (these override the swatches where they differ): "
+        "the dry-stone walls are built from irregular limestone fieldstones "
+        "of mixed sizes and rounded shapes, cleared from the very fields "
+        "they enclose and stacked WITHOUT mortar — uneven courses, a few "
+        "bigger boulders low in the wall, occasional daylight gaps between "
+        "stones; NOT uniform blocks, NOT brick-like coursing. The thatched "
+        "roofs are plain weathered oat-straw thatch; each ridge is finished "
+        "as a simple rolled straw cap in the same material, slightly darker "
+        "— NOTHING protrudes from or sits on any roof: no pipes, no vents, "
+        "no poles, no chimney pots. Most cottages have NO chimney; at most "
+        "one simple stone chimney in the whole scene, and NO smoke "
+        "anywhere.\n\n"
         "Hard rules: this is an empty stage, 1820 rural Ireland. NO people, "
         "NO animals, NO crops, NO signs, NO carts, NO new objects. All "
-        "windows dark and unlit. Most cottages have NO chimney (faint smoke "
-        "seeps through the thatch ridge); at most one simple chimney in the "
-        "whole scene. Lanes open and empty. No UI, no text, no labels, no "
-        "block-in colours leaking through — fully painted scenery."
+        "windows dark and unlit. Lanes open and empty. No UI, no text, no "
+        "labels, no block-in colours leaking through — fully painted "
+        "scenery."
     )
 
 
@@ -300,13 +323,35 @@ CHECK_PROMPT = (
     "entering at the right edge about two-thirds down, flowing continuously "
     "west-southwest, passing under a single stone footbridge that carries a "
     "north-south road at a right angle, exiting at the left edge; the road "
-    "forks beyond the bridge; lanes also leave the top, right and left edges. "
-    "Answer STRICTLY as JSON, no other text: "
+    "forks beyond the bridge into two bottom-edge exits; one lane each "
+    "leaves the top, right and left edges — five frame-edge lanes total and "
+    "no others. Answer STRICTLY as JSON, no other text: "
     '{"river_continuous": bool,  // one unbroken watercourse, no gaps, no '
     "extra segments\n"
     ' "banks_aligned_at_bridge": bool,  // same width and direction on both '
     "sides of the arch, banks line up\n"
-    ' "single_bridge": bool, "lanes_reach_edges": bool, "notes": "short"}'
+    ' "single_bridge": bool,\n'
+    ' "bridge_arch_over_water": bool,  // the river flows THROUGH the arch '
+    "opening; the road runs over the deck — not rotated toward the road\n"
+    ' "lanes_reach_edges": bool,\n'
+    ' "no_extra_lanes": bool,  // exactly 5 lane terminations: 1 top, 1 '
+    "right, 1 left, 2 bottom; no extra paths (e.g. toward a corner)\n"
+    ' "no_roof_protrusions": bool,  // no pipe/vent/pole-like objects on '
+    "any thatch ridge (one simple chimney is allowed)\n"
+    ' "walls_anchored": bool,  // every wall connects to a lane, building, '
+    "river bank or frame edge; no short isolated fragments\n"
+    ' "notes": "short"}'
+)
+
+CHECK_KEYS = (
+    "river_continuous",
+    "banks_aligned_at_bridge",
+    "single_bridge",
+    "bridge_arch_over_water",
+    "lanes_reach_edges",
+    "no_extra_lanes",
+    "no_roof_protrusions",
+    "walls_anchored",
 )
 
 
@@ -351,15 +396,7 @@ def check(candidate):
         verdict = json.loads(text[text.index("{") : text.rindex("}") + 1])
     except ValueError:
         sys.exit(f"unparseable check response: {text[:300]}")
-    ok = all(
-        verdict.get(k) is True
-        for k in (
-            "river_continuous",
-            "banks_aligned_at_bridge",
-            "single_bridge",
-            "lanes_reach_edges",
-        )
-    )
+    ok = all(verdict.get(k) is True for k in CHECK_KEYS)
     print(json.dumps({"candidate": os.path.basename(candidate), "pass": ok, **verdict}))
     sys.exit(0 if ok else 1)
 
