@@ -5,7 +5,7 @@
 //! that does not resolve under that tree is rejected (AGENTS rule, path
 //! traversal guard).
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Result, bail};
 
@@ -16,21 +16,34 @@ use anyhow::{Result, bail};
 /// The allowed export root, relative to the project root.
 const ALLOWED_EXPORT_ROOT: &str = "mods/rundale/assets/scenes";
 
-/// Validate that `dest` resolves under `allowed_root`.
+/// Validate that `dest` resolves under `allowed_root`, **without creating any
+/// directories**.
 ///
-/// Both paths must be canonicalisable (i.e. all intermediate directories must
-/// exist or be created before this is called for the `dest` itself to
-/// canonicalise; we canonicalise the parent directory instead).
+/// Order matters: `canonicalize` requires a path to exist, so the previous
+/// implementation created `dest`'s parent before checking it was inside the
+/// root — which let a traversal target (`../../evil/x.png`) `mkdir -p` outside
+/// the root before the check failed. This validates first and never mutates the
+/// filesystem:
+///
+/// 1. Reject any `..` (parent-dir) component lexically — no fs access.
+/// 2. Canonicalise the **nearest existing ancestor** of the destination parent
+///    (the root tree exists even when the per-slug sub-directory does not) and
+///    require it to live under the canonical root. A symlinked or absolute
+///    destination is caught here because its nearest existing ancestor
+///    canonicalises outside the root.
+///
+/// The caller creates `dest`'s parent only after this returns `Ok`.
 fn guard_export_path(allowed_root: &Path, dest: &Path) -> Result<()> {
-    // The destination file may not exist yet (we're about to create it), so
-    // canonicalise its *parent* directory instead.
+    if dest.components().any(|c| matches!(c, Component::ParentDir)) {
+        bail!(
+            "export destination {} contains a parent-dir (..) component",
+            dest.display()
+        );
+    }
+
     let dest_parent = dest
         .parent()
         .ok_or_else(|| anyhow::anyhow!("export destination has no parent directory"))?;
-
-    if !dest_parent.exists() {
-        std::fs::create_dir_all(dest_parent)?;
-    }
 
     let canonical_root = allowed_root.canonicalize().map_err(|e| {
         anyhow::anyhow!(
@@ -38,14 +51,26 @@ fn guard_export_path(allowed_root: &Path, dest: &Path) -> Result<()> {
             allowed_root.display()
         )
     })?;
-    let canonical_parent = dest_parent.canonicalize().map_err(|e| {
-        anyhow::anyhow!(
-            "cannot canonicalize destination parent {}: {e}",
-            dest_parent.display()
-        )
-    })?;
 
-    if !canonical_parent.starts_with(&canonical_root) {
+    // Walk up to the nearest ancestor that already exists and canonicalise it.
+    // We never create anything here.
+    let mut probe = dest_parent;
+    let canonical_existing = loop {
+        if probe.exists() {
+            break probe
+                .canonicalize()
+                .map_err(|e| anyhow::anyhow!("cannot canonicalize {}: {e}", probe.display()))?;
+        }
+        match probe.parent() {
+            Some(p) => probe = p,
+            None => bail!(
+                "export destination {} has no existing ancestor to validate",
+                dest.display()
+            ),
+        }
+    };
+
+    if !canonical_existing.starts_with(&canonical_root) {
         bail!(
             "export destination {} is outside the allowed export root {}",
             dest.display(),
@@ -71,8 +96,13 @@ pub fn export_asset(project_root: &Path, src_path: &Path, dest_rel: &str) -> Res
     let allowed_root = project_root.join(ALLOWED_EXPORT_ROOT);
     let dest = project_root.join(dest_rel);
 
-    // Enforce path guard before writing anything.
+    // Enforce path guard before creating any directory or writing anything.
     guard_export_path(&allowed_root, &dest)?;
+
+    // Validation passed — now it is safe to create the (in-root) parent.
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
     std::fs::copy(src_path, &dest)?;
     Ok(dest)
@@ -282,6 +312,33 @@ mod tests {
         let dest_rel = "../../etc/malicious.png";
         let result = export_asset(project_root, &src, dest_rel);
         assert!(result.is_err(), "traversal export must be rejected");
+    }
+
+    /// Regression for the path-traversal-creates-dirs finding: a rejected
+    /// destination must leave the filesystem untouched — the guard validates
+    /// BEFORE any `create_dir_all`, so no out-of-root directory is created.
+    #[test]
+    fn rejected_export_creates_no_directories() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path();
+        let allowed_root = project_root.join("mods/rundale/assets/scenes");
+        fs::create_dir_all(&allowed_root).unwrap();
+
+        let src = project_root.join("art/plate.png");
+        fs::create_dir_all(src.parent().unwrap()).unwrap();
+        write_dummy_png(&src);
+
+        // A traversal target whose parent does not yet exist. Pre-fix, the guard
+        // would `create_dir_all` this parent before failing the check.
+        let escape_parent = project_root.join("mods/rundale/assets/sprites");
+        assert!(!escape_parent.exists(), "precondition: escape dir absent");
+
+        let result = export_asset(project_root, &src, "mods/rundale/assets/sprites/x.png");
+        assert!(result.is_err(), "out-of-root export must be rejected");
+        assert!(
+            !escape_parent.exists(),
+            "guard must not create directories for a rejected destination"
+        );
     }
 
     #[test]
