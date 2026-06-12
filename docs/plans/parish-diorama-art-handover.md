@@ -20,11 +20,12 @@
   `~/Library/Mobile Documents/com~apple~CloudDocs/Rundale/diorama-art/kilteevan-village/`
   (`0-master_summer-day-sunny.png` is the master).
 - **River/layout blocker: FIXED (2026-06-12)** via structure-guided
-  generation — a programmatic layout schematic fed as a control image. First
-  candidate master rendered the river as one continuous stream with the
-  bridge logically over it. Scripts live in `parish/scripts/diorama/`.
-  Candidate awaiting owner sign-off:
-  `…/diorama-art/kilteevan-village/master-candidates/cand-01.png`.
+  generation — layout schematic as control image + layout narration +
+  style SWATCHES (not the full old master, whose composition leaked) + an
+  automated vision gate. Scripts live in `parish/scripts/diorama/`.
+  Survivors awaiting owner sign-off:
+  `…/diorama-art/kilteevan-village/master-candidates/cand-11.png`
+  (stone arch, recommended) and `cand-09.png` (wooden bridge).
 - **Current scope (owner decision 2026-06-12): good MASTERS only.** No
   variant batches, nothing merged to main (work rides PR #1429's branch).
   Everything else is deferred — see "Deferred work" below.
@@ -97,10 +98,32 @@ generation** via `parish/scripts/diorama/gen_master.py`:
    Responses call, gpt-5.5 + image_generation, 1536×1024 high) with a legend
    prompt ("river follows the blue line, never breaks, bridge only at the
    grey marker…").
-3. Result: `master-candidates/cand-01.png` — river continuous, bridge
-   logical, style matched. Schematic-drawing gotchas: keep the well ring
-   inside the plaza blob (not on a lane band) and walls clear of
-   lanes/river/cottages, or the model paints those mistakes faithfully.
+3. **v3 pipeline (current, after 12-render iteration):** block-in reframe
+   ("this is the rough colour block-in, refine without moving anything") +
+   a layout NARRATION generated from the same constants (`narrate`
+   subcommand) + explicit continuity rules + a **style swatch sheet**
+   instead of the full old master (`swatches` subcommand — the full-scene
+   style ref leaked its broken-river composition into every render; swatch
+   crops carry texture but cannot carry layout; 0/4 → 4/4 river continuity)
+   - an automated **vision gate** (`check` subcommand: downscaled full
+     frame + full-res bridge crop → gpt-5.5 strict-JSON verdict, exit code
+     gateable). Render N=4, gate, human-pick survivors.
+4. Exit model: connections classify as painted edge exits (5 for
+   Kilteevan: north road, forge lane, mill track ∥ river on the left edge,
+   south road over the bridge, holy-well mossy path forking off it past
+   the bridge), in-scene doors (NE cottage = the weaver's), and generic
+   links sharing a painted exit's hotspot. Narrative path_descriptions
+   override world.json bearings when they conflict (they do — see the
+   policy note atop `gen_master.py`).
+5. Surviving candidates: `master-candidates/cand-09.png` (wooden plank
+   bridge) and **`cand-11.png` (stone arch — matches spec, recommended)**.
+   Awaiting owner sign-off. cand-01..08 kept as the failure record.
+
+Schematic-drawing gotchas: keep the well ring inside the plaza blob (not on
+a lane band), walls clear of lanes/river/cottages, the river locally
+straight and PERPENDICULAR through the bridge crossing, and the mill track
+clearly separated from the river at the frame edge — the model paints every
+schematic mistake faithfully.
 
 Escalation levers if a future location resists (NOT needed for Kilteevan):
 gpt-5.5-pro plans the layout → emits SVG → rasterize → control image →
@@ -172,13 +195,15 @@ HashMap<String,String>`) + the selector
 1. Read this doc + `docs/design/ideas/parish-diorama.md`.
 2. `source .env`; confirm `curl https://api.openai.com/v1/models` lists
    `gpt-image-2` and `gpt-5.5`.
-3. Confirm the owner accepted
-   `…/diorama-art/kilteevan-village/master-candidates/cand-01.png`; if yes,
+3. Confirm the owner accepted a survivor (recommended:
+   `…/diorama-art/kilteevan-village/master-candidates/cand-11.png`); if yes,
    promote it to the new `0-master_summer-day-sunny.png` (keep the old one as
-   `0-master_v1_broken-river.png`).
-4. Continue with masters for the remaining 7 locations (per-location
-   schematic in `gen_master.py` → generate → owner eyeball), still NO variant
-   batches until the owner re-opens that scope.
+   `0-master_v1_broken-river.png`) and rebuild the style swatch sheet off the
+   ACCEPTED master (`gen_master.py swatches`) for all future locations.
+4. Continue with masters for the remaining 7 locations (per-location exit
+   classification + schematic constants in `gen_master.py` → generate N=4 →
+   `check` gate → owner eyeball), still NO variant batches until the owner
+   re-opens that scope.
 5. Then work the "Deferred work" list above in order: variant batches →
    firelight overlay → port pipeline into `parish-art-tool` → extend the
    scene schema + `select_variant` to season×weather×time → sprites →

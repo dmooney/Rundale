@@ -1,26 +1,45 @@
 #!/usr/bin/env python3
 """Structure-guided master plate generation for the Parish diorama (M5).
 
-Fixes the river/layout coherence blocker (see
-docs/plans/parish-diorama-art-handover.md): the image model on its own renders
-the river as disconnected segments. We hand it a programmatic layout schematic
-as a control image so it paints within a coherent plan it didn't invent.
+The image model breaks spatial continuity when it has to invent the layout
+(rivers render as disconnected segments, bridges sit illogically). We hand it
+a programmatic flat-colour block-in as a control image, narrate the same
+geometry in words, and demand continuity of every linear feature — then gate
+each render through a vision check before a human ever looks at it.
 
-Two subcommands:
+Subcommands:
 
   schematic <out.png>
-      Render the Kilteevan Village layout schematic (1536x1024 PNG): ONE
-      continuous river polyline (right edge -> left edge, crossing only the
-      south lane), bridge marker at that single crossing, 4 cottages, central
-      well, N/S/E/W lanes, dry-stone walls, empty tilled plots.
+      Render the Kilteevan Village layout block-in (1536x1024 PNG).
       Needs Pillow:  uv run --with pillow gen_master.py schematic /tmp/s.png
 
+  narrate
+      Print the layout narration generated from the same constants the
+      schematic is drawn from (it is embedded in the render prompt).
+
   generate <schematic.png> <style_ref.png> <out.png>
-      Call the OpenAI Responses API (gpt-5.5 + image_generation, 1536x1024
-      high) with the schematic as control image and the previous master as
-      style reference. Stdlib only. OPENAI_API_KEY required.
-      Write output to the iCloud art dir (never a git-tracked path):
-      ~/Library/Mobile Documents/com~apple~CloudDocs/Rundale/diorama-art/<slug>/
+      One render via the OpenAI Responses API (gpt-5.5 + image_generation,
+      1536x1024 high): schematic as control image + old master as style
+      reference. Stdlib only. OPENAI_API_KEY required. Write output to the
+      iCloud art dir, never a git-tracked path.
+
+  check <candidate.png>
+      Vision gate: sends a downscaled full frame + a full-res bridge crop to
+      gpt-5.5 and asks for a JSON verdict on river continuity, bank
+      alignment at the bridge, and lanes reaching their frame edges.
+      Needs Pillow (crops):  uv run --with pillow gen_master.py check c.png
+      Exit code 0 = pass, 1 = fail (machine-gateable).
+
+Exit-direction policy (Kilteevan): world.json lat/lon bearings CONTRADICT the
+player-facing path_descriptions (crossroads "road north" sits at bearing 295,
+holy well "path south" at 342, mill "track west" at 25 — geo pins follow the
+historical OS map, the descriptions are hand-written narrative). The
+NARRATIVE wins for art, because it is what players read; bearings only fill
+gaps where the description names no direction (weaver, bearing 56 + indoor →
+the NE cottage is the weaver's, its door is the in-scene exit). Connections
+described only as "an old lane between settlements" (targets 3, 9, 14, 4) get
+no painted lane of their own — their hotspots will share the nearest painted
+exit, keeping painted-lane count at 5 while graph degree is 10.
 """
 
 import base64
@@ -38,39 +57,49 @@ def pt(xpct, ypct):
     return (xpct / 100 * W, ypct / 100 * H)
 
 
-# Kilteevan Village layout (screen-space %, matches the locked master
-# composition): 4 cottages one per quadrant, well left-of-center, lane cross,
-# river along the lower third crossed by the south lane at the bridge.
-# Long straight segment (70,74)->(45,83) through the bridge point so the
-# watercourse is locally straight at the crossing — a bend next to the bridge
-# makes the model misalign the two banks (cand-01 defect).
-RIVER = [(100, 66), (88, 70), (70, 74), (45, 83), (30, 86), (22, 88), (8, 90), (0, 91)]
-BRIDGE_AT = (57.5, 78.5)  # on the river, where the south lane crosses
-LANES = [
-    [(50, 47), (44, 25), (40, 0)],  # north lane (to the crossroads)
-    [(50, 47), (25, 46), (0, 45)],  # west lane (track toward the mill)
-    [(50, 47), (75, 44), (100, 42)],  # east lane
-    [(50, 47), (54, 62), (57.5, 78.5), (60, 88), (62, 100)],  # south lane over the bridge
+# ---------------------------------------------------------------------------
+# Kilteevan Village layout (screen-space %, derived from the locked master's
+# composition + world.json connections). The narration below is generated
+# from these same constants — edit them and both schematic and prompt follow.
+# ---------------------------------------------------------------------------
+
+# ONE river: enters the RIGHT edge about two-thirds down, flows west-southwest,
+# runs straight through the bridge point, exits the LEFT edge three-quarters
+# down. The long straight segment (72,72)->(44,79) passes through the bridge
+# so the watercourse is locally straight at the crossing (a bend next to the
+# bridge makes the model misalign the banks).
+RIVER = [(100, 64), (88, 68), (72, 72), (44, 79), (28, 77), (14, 75), (0, 73)]
+BRIDGE_AT = (57, 75.7)  # on the straight river segment, where the south road crosses
+
+# Painted exits. The south road crosses the bridge PERPENDICULAR to the river
+# (locally vertical road over a locally horizontal river), then forks beyond
+# it: the road proper bends southeast to the bottom edge, the mossy holy-well
+# path peels off southwest — two bottom-edge exits, ONE river crossing.
+LANES = {
+    "north-road": [(47, 32), (44, 14), (42, 0)],
+    "forge-lane": [(62, 42), (82, 40), (100, 38)],
+    "mill-track": [(33, 48), (20, 57), (8, 62), (0, 64)],
+    "south-road": [(53, 58), (57, 68), (57, 84), (64, 92), (68, 100)],
+    "holywell-path": [(57, 84), (50, 90), (44, 100)],  # forks off the south road
+}
+LANE_WIDTH = {"holywell-path": 24}  # mossy path is narrower; default 46
+PLAZA = (48, 44, 245, 154)  # cx%, cy%, rx px, ry px — the open common
+WELL = (47, 35)  # inside the common, off every lane band
+COTTAGES = [  # (cx%, cy%, w%, h%, tag)
+    (19, 23, 13, 11, "NW"),
+    (68, 19, 14, 11, "NE (the weaver's — door faces the common)"),
+    (12, 49, 12, 11, "SW"),
+    (78, 57, 12, 10, "SE"),
 ]
-COTTAGES = [  # (cx%, cy%, w%, h%)
-    (19, 23, 13, 11),  # NW
-    (68, 19, 14, 11),  # NE
-    (12, 58, 12, 11),  # SW
-    (78, 59, 12, 10),  # SE
-]
-# Well sits inside the open common (as in the locked master), not on a lane:
-# the plaza ellipse below is drawn over the lane lines, so the well ring lands
-# on open brown ground.
-WELL = (47, 35)
-PLOTS = [(31, 28, 8, 7), (17, 71, 9, 7)]  # empty tilled soil
+PLOTS = [(31, 28, 8, 7), (24, 64, 9, 7)]  # empty tilled soil
 WALLS = [
     [(8, 33), (30, 31)],  # below NW cottage
-    [(18, 11), (36, 13)],  # top field, west of the north lane
+    [(18, 11), (36, 13)],  # top field, west of the north road
     [(60, 30), (78, 29)],  # below NE cottage
-    [(82, 47), (98, 50)],  # E field, below the east lane
-    [(4, 50), (22, 51)],  # W field, between west lane and SW cottage
-    [(28, 62), (42, 66)],  # SW field
-    [(62, 67), (78, 70)],  # SE field, clear of river and cottage
+    [(84, 48), (98, 52)],  # E field, between forge lane and river
+    [(3, 40), (20, 41)],  # W field, above SW cottage
+    [(30, 68), (42, 72)],  # SW field, north of the river
+    [(64, 63), (78, 65)],  # SE field, between cottage and river
 ]
 
 
@@ -80,36 +109,30 @@ def draw_schematic(out_path):
     img = Image.new("RGB", (W, H), "#dcecc4")  # light green fields
     d = ImageDraw.Draw(img)
 
-    # lanes + central plaza (brown). The plaza is the broad open common of
-    # the master plate — drawn AFTER the lanes so lane bands don't cut
-    # through it; lanes visually stop at its edge.
-    for lane in LANES:
-        d.line([pt(*p) for p in lane], fill="#a07444", width=46)
-    cx, cy = pt(48, 44)
-    d.ellipse([cx - 245, cy - 154, cx + 245, cy + 154], fill="#a07444")
+    # lanes, then the plaza over them so lane bands stop at the common's edge
+    for name, lane in LANES.items():
+        d.line([pt(*p) for p in lane], fill="#a07444", width=LANE_WIDTH.get(name, 46))
+    cx, cy = pt(PLAZA[0], PLAZA[1])
+    d.ellipse([cx - PLAZA[2], cy - PLAZA[3], cx + PLAZA[2], cy + PLAZA[3]], fill="#a07444")
 
-    # the ONE river (blue), drawn over the lanes so the crossing is visible
+    # the ONE river, over the lanes so the single crossing is visible
     d.line([pt(*p) for p in RIVER], fill="#2e6fd0", width=30)
 
-    # bridge marker (grey) at the single crossing
+    # bridge marker at the single crossing
     bx, by = pt(*BRIDGE_AT)
-    d.rectangle([bx - 38, by - 26, bx + 38, by + 26], fill="#7a7a7a", outline="#3c3c3c", width=4)
+    d.rectangle([bx - 30, by - 34, bx + 30, by + 34], fill="#7a7a7a", outline="#3c3c3c", width=4)
 
-    # cottages (red)
-    for cxp, cyp, wp, hp in COTTAGES:
+    for cxp, cyp, wp, hp, _tag in COTTAGES:
         x0, y0 = pt(cxp - wp / 2, cyp - hp / 2)
         x1, y1 = pt(cxp + wp / 2, cyp + hp / 2)
         d.rectangle([x0, y0, x1, y1], fill="#c0392b", outline="#7a1f14", width=4)
 
-    # well (black ring)
     wx, wy = pt(*WELL)
     d.ellipse([wx - 26, wy - 26, wx + 26, wy + 26], outline="#111111", width=10)
 
-    # dry-stone walls (dark grey thin lines)
     for wall in WALLS:
         d.line([pt(*p) for p in wall], fill="#4a4a4a", width=8)
 
-    # empty tilled plots (dark brown, hatched)
     for cxp, cyp, wp, hp in PLOTS:
         x0, y0 = pt(cxp - wp / 2, cyp - hp / 2)
         x1, y1 = pt(cxp + wp / 2, cyp + hp / 2)
@@ -123,57 +146,111 @@ def draw_schematic(out_path):
     print(f"schematic -> {out_path}")
 
 
-INSTRUCTION = (
-    "Create a 1536x1024 isometric pixel-art village background plate of a small "
-    "Irish village, 1820: whitewashed thatched cottages around a stone well, a "
-    "shallow stream and an old stone footbridge.\n\n"
-    "The FIRST image is a LAYOUT SCHEMATIC you must follow exactly. Legend: "
-    "BLUE line = the river. It is ONE single continuous stream flowing from the "
-    "right edge to the left edge of the frame, exactly along the blue line. It "
-    "must never break, fork, or appear anywhere else in the image — no other "
-    "water. GREY block = the ONLY stone footbridge, carrying the south lane "
-    "over the river at exactly that point. The river passes STRAIGHT under "
-    "the bridge arch: the watercourse on both sides of the bridge has the "
-    "same width and continues at the same angle, perfectly aligned through "
-    "the arch — the two banks line up. BROWN = the dirt lanes and the "
-    "central open space. RED rectangles = the four cottages. BLACK circle = "
-    "the stone well. DARK THIN lines = low dry-stone field walls. DARK HATCHED "
-    "rectangles = empty tilled-soil garden plots (bare soil, nothing planted).\n\n"
-    "The SECOND image is a STYLE REFERENCE: reproduce its exact art style — "
-    "crisp hand-pixelled isometric rendering, palette, grass/stone/thatch "
-    "texture, whitewashed walls, summer foliage, bright sunny daylight — but "
-    "with the corrected layout from the schematic.\n\n"
-    "Hard rules: NO people, NO animals, NO crops, NO signs, NO carts, NO new "
-    "objects. All windows dark and unlit. Poor 1820 Irish cottages: most have "
-    "NO chimney (faint smoke seeps through the thatch ridge), at most one "
-    "simple chimney in the whole scene. Keep the lanes open and empty. "
-    "No UI, no text, no labels, no schematic colors leaking through — fully "
-    "painted scenery."
-)
+def narration():
+    """Layout narrated in words, from the same constants the schematic uses.
+
+    Text constraints bind the model harder than spatial structure in images;
+    saying the geometry twice (image + words) is the point.
+    """
+    return (
+        "THE LAYOUT, in words: a village common of open bare earth fills the "
+        "center, with the stone well standing in it, north-west of the middle "
+        "of the common. Four whitewashed thatched cottages surround the "
+        "common, one per corner of the scene: north-west, north-east (this is "
+        "the weaver's cottage, its door facing the common), south-west and "
+        "south-east. The single river enters the frame at the RIGHT edge "
+        "about two-thirds of the way down, flows west-southwest in a gentle "
+        "line, passes UNDER the stone footbridge, and exits at the LEFT edge "
+        "about three-quarters of the way down. It is the only water in the "
+        "scene. Five lanes leave the common: a road leaves the TOP edge "
+        "slightly left of center (the north road); a lane leaves the RIGHT "
+        "edge above the river (toward the forge); a cart track leaves the "
+        "LEFT edge, running beside and above the river on its north bank "
+        "(toward the mill); and the south road runs from the common straight "
+        "south, crosses the river at the stone footbridge at a right angle, "
+        "and beyond the bridge FORKS: the road itself bends southeast to the "
+        "BOTTOM edge, while a narrower mossy footpath peels off southwest to "
+        "the BOTTOM edge. The bridge is the ONLY crossing. Low dry-stone "
+        "walls line the fields between the lanes; two plots of bare tilled "
+        "soil sit beside the north-west and south-west cottages."
+    )
+
+
+def render_prompt():
+    return (
+        "The FIRST image is the rough colour block-in of the painting you "
+        "must produce — it is not a diagram, it is the actual composition. "
+        "Refine it into a finished 1536x1024 isometric pixel-art plate "
+        "WITHOUT MOVING ANYTHING: every shape stays exactly where it is. "
+        "Block-in colour code: blue = the river, brown = dirt lanes and the "
+        "open common, grey block = the stone footbridge, red rectangles = "
+        "whitewashed thatched cottages, black circle = the stone well, dark "
+        "thin lines = low dry-stone walls, dark hatched rectangles = empty "
+        "tilled-soil plots.\n\n"
+        + narration()
+        + "\n\nCONTINUITY RULES (these matter most): every linear feature — "
+        "river, lane, wall — is CONTINUOUS and traceable end to end. The "
+        "river never begins or ends inside the frame, never splits, and is "
+        "never interrupted; where it passes under the bridge, the watercourse "
+        "and both banks line up perfectly on the two sides of the arch, same "
+        "width, same direction. Every lane connects the common to its frame "
+        "edge without gaps. Walls run unbroken between their endpoints and "
+        "never block a lane.\n\n"
+        "The SECOND image is a STYLE SWATCH SHEET: four isolated texture "
+        "samples (a cottage, the well on bare earth, a river bank with "
+        "water, grass with a stone wall) separated by dark borders. It is "
+        "NOT a scene and contains NO layout information — take ONLY the art "
+        "style from it: crisp hand-pixelled isometric rendering, palette, "
+        "grass and stone and thatch texture, whitewashed walls, lush "
+        "high-summer foliage, bright sunny daylight. The composition comes "
+        "exclusively from the first image.\n\n"
+        "Hard rules: this is an empty stage, 1820 rural Ireland. NO people, "
+        "NO animals, NO crops, NO signs, NO carts, NO new objects. All "
+        "windows dark and unlit. Most cottages have NO chimney (faint smoke "
+        "seeps through the thatch ridge); at most one simple chimney in the "
+        "whole scene. Lanes open and empty. No UI, no text, no labels, no "
+        "block-in colours leaking through — fully painted scenery."
+    )
+
+
+def make_swatches(master_path, out_path):
+    """Build a style swatch sheet from a master plate.
+
+    Every render that took the full old master as style reference leaked its
+    (broken-river) COMPOSITION into the output — the style image fights the
+    control image. Swatch crops carry palette/texture/technique but
+    physically cannot carry layout. Crops are taken from the v1 master's
+    known regions (cottage, well, bridge+river bank, grass/wall/tree).
+    """
+    from PIL import Image
+
+    im = Image.open(master_path)
+    w, h = im.size
+    boxes = [  # (x0,y0,x1,y1) in %
+        (58, 6, 84, 32),  # NE cottage
+        (36, 22, 60, 46),  # well on the common
+        (42, 62, 72, 92),  # bridge + river bank
+        (0, 0, 26, 30),  # grass, wall, tree
+    ]
+    tile_w, tile_h, gap = 760, 504, 8
+    sheet = Image.new("RGB", (tile_w * 2 + gap * 3, tile_h * 2 + gap * 3), "#222222")
+    for i, (x0, y0, x1, y1) in enumerate(boxes):
+        crop = im.crop((int(x0 / 100 * w), int(y0 / 100 * h), int(x1 / 100 * w), int(y1 / 100 * h)))
+        crop = crop.resize((tile_w, tile_h))
+        px = gap + (i % 2) * (tile_w + gap)
+        py = gap + (i // 2) * (tile_h + gap)
+        sheet.paste(crop, (px, py))
+    sheet.save(out_path)
+    print(f"swatches -> {out_path}")
 
 
 def b64url(path):
     return "data:image/png;base64," + base64.b64encode(open(path, "rb").read()).decode()
 
 
-def generate(schematic, style_ref, out_path):
+def responses_call(body_dict, timeout=600):
     key = os.environ["OPENAI_API_KEY"]
-    body = json.dumps(
-        {
-            "model": "gpt-5.5",
-            "input": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": INSTRUCTION},
-                        {"type": "input_image", "image_url": b64url(schematic)},
-                        {"type": "input_image", "image_url": b64url(style_ref)},
-                    ],
-                }
-            ],
-            "tools": [{"type": "image_generation", "size": "1536x1024", "quality": "high"}],
-        }
-    ).encode()
+    body = json.dumps(body_dict).encode()
     for attempt in range(3):
         try:
             req = urllib.request.Request(
@@ -181,14 +258,8 @@ def generate(schematic, style_ref, out_path):
                 data=body,
                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=600) as r:
-                d = json.load(r)
-            for o in d.get("output", []):
-                if o.get("type") == "image_generation_call" and o.get("result"):
-                    open(out_path, "wb").write(base64.b64decode(o["result"]))
-                    print(f"master -> {out_path} ({os.path.getsize(out_path)} bytes)")
-                    return
-            sys.exit(f"no image in response: {json.dumps(d)[:400]}")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.load(r)
         except urllib.error.HTTPError as e:
             msg = e.read().decode()[:300]
             if e.code in (429, 500, 503) and attempt < 2:
@@ -197,11 +268,113 @@ def generate(schematic, style_ref, out_path):
             sys.exit(f"HTTP {e.code}: {msg}")
 
 
+def generate(schematic, style_ref, out_path):
+    d = responses_call(
+        {
+            "model": "gpt-5.5",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": render_prompt()},
+                        {"type": "input_image", "image_url": b64url(schematic)},
+                        {"type": "input_image", "image_url": b64url(style_ref)},
+                    ],
+                }
+            ],
+            "tools": [{"type": "image_generation", "size": "1536x1024", "quality": "high"}],
+        }
+    )
+    for o in d.get("output", []):
+        if o.get("type") == "image_generation_call" and o.get("result"):
+            open(out_path, "wb").write(base64.b64decode(o["result"]))
+            print(f"master -> {out_path} ({os.path.getsize(out_path)} bytes)")
+            return
+    sys.exit(f"no image in response: {json.dumps(d)[:400]}")
+
+
+CHECK_PROMPT = (
+    "You are checking a generated isometric pixel-art village plate for "
+    "geometric coherence. Image 1 is the full frame (downscaled); image 2 is "
+    "a full-resolution crop of the bridge area. Intended layout: ONE river "
+    "entering at the right edge about two-thirds down, flowing continuously "
+    "west-southwest, passing under a single stone footbridge that carries a "
+    "north-south road at a right angle, exiting at the left edge; the road "
+    "forks beyond the bridge; lanes also leave the top, right and left edges. "
+    "Answer STRICTLY as JSON, no other text: "
+    '{"river_continuous": bool,  // one unbroken watercourse, no gaps, no '
+    "extra segments\n"
+    ' "banks_aligned_at_bridge": bool,  // same width and direction on both '
+    "sides of the arch, banks line up\n"
+    ' "single_bridge": bool, "lanes_reach_edges": bool, "notes": "short"}'
+)
+
+
+def check(candidate):
+    import io
+
+    from PIL import Image
+
+    im = Image.open(candidate)
+    w, h = im.size
+    full = im.resize((768, 512))
+    crop = im.crop((int(w * 0.36), int(h * 0.56), int(w * 0.80), int(h * 0.98)))
+
+    def to_url(image):
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    d = responses_call(
+        {
+            "model": "gpt-5.5",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": CHECK_PROMPT},
+                        {"type": "input_image", "image_url": to_url(full)},
+                        {"type": "input_image", "image_url": to_url(crop)},
+                    ],
+                }
+            ],
+        },
+        timeout=180,
+    )
+    text = ""
+    for o in d.get("output", []):
+        if o.get("type") == "message":
+            for c in o.get("content", []):
+                if c.get("type") == "output_text":
+                    text += c["text"]
+    try:
+        verdict = json.loads(text[text.index("{") : text.rindex("}") + 1])
+    except ValueError:
+        sys.exit(f"unparseable check response: {text[:300]}")
+    ok = all(
+        verdict.get(k) is True
+        for k in (
+            "river_continuous",
+            "banks_aligned_at_bridge",
+            "single_bridge",
+            "lanes_reach_edges",
+        )
+    )
+    print(json.dumps({"candidate": os.path.basename(candidate), "pass": ok, **verdict}))
+    sys.exit(0 if ok else 1)
+
+
 def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "schematic":
         draw_schematic(sys.argv[2])
+    elif len(sys.argv) == 2 and sys.argv[1] == "narrate":
+        print(narration())
+    elif len(sys.argv) == 4 and sys.argv[1] == "swatches":
+        make_swatches(sys.argv[2], sys.argv[3])
     elif len(sys.argv) == 5 and sys.argv[1] == "generate":
         generate(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif len(sys.argv) == 3 and sys.argv[1] == "check":
+        check(sys.argv[2])
     else:
         sys.exit(__doc__)
 

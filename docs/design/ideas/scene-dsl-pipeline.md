@@ -60,10 +60,37 @@ misalignment at the bridge). Lint failure feeds the error text back to the
 LLM for a retry — a cheap text loop replacing an expensive
 render-plus-eyeball loop.
 
-**Render-side motivation:** even with a clean schematic, only ~2 of 4
-gpt-5.5 renders kept the river coherent (cand-02 clean; cand-03/04 broke the
-stream at the lane). A post-render coherence check (or N-sample + pick) is
-worth pairing with the pre-render lint.
+**Render-side motivation:** even with a clean schematic, renders break
+geometry often enough that an automated post-render gate (N samples →
+vision check → human pick) is mandatory, not optional. See the empirical
+findings below.
+
+## Empirical findings (Kilteevan, 12 renders, 2026-06-12)
+
+1. **A full-scene style reference leaks its COMPOSITION into the output.**
+   Every batch that passed the old (broken-river) master as style ref
+   produced rivers broken the same way — 0/4 continuity in the worst batch,
+   even with refine-mode framing, layout narration and continuity rules in
+   the prompt. Replacing the full master with a **style swatch sheet**
+   (isolated texture crops — cottage, well, river bank, grass/wall — tiled
+   on a dark ground, built by `gen_master.py swatches`) took river
+   continuity from 0/4 to 4/4 in one step. Swatches carry palette and
+   technique but physically cannot carry layout.
+2. **Text narration + continuity rules are necessary but not sufficient.**
+   They did not save the full-master-ref batch; combined with swatches they
+   produced 2/4 full passes (the other 2 failed only on bank alignment at
+   the bridge — the hardest registration detail).
+3. **The vision gate works and human/agent eyeballs don't.** A full-frame
+   glance misjudged a broken candidate as good (cand-02); the gpt-5.5
+   check (downscaled full frame + full-res bridge crop, strict-JSON
+   verdict) correctly failed all 8 bad renders and passed the 2 that
+   survived zoomed manual verification.
+4. **Exit semantics need a classifier, not a list of lanes.** Connections
+   split into edge exits (painted lanes), in-scene doors (the weaver's
+   cottage IS one of the four depicted), and generic links that share a
+   painted exit's hotspot. And world.json **bearings can contradict the
+   narrative** (Kilteevan's "road north" sits at bearing 295): the
+   player-facing path_description wins for art; bearings only fill gaps.
 
 ## Bonus: hotspots from the same source
 
