@@ -1,0 +1,34 @@
+[package]
+name = "parish-art-tool"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Developer-side asset pipeline for generating and curating diorama art (M4)"
+
+[[bin]]
+name = "parish-art-tool"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+parish-world = { workspace = true }
+parish-npc = { workspace = true }
+
+# Image processing — Lanczos downscale for plates (480x270) and sprites (48x72).
+# Not in the workspace because no other crate uses it.
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# HTTP client for provider API calls.  Adds json + blocking on top of the
+# workspace base (rustls-tls).  No live calls happen in tests.
+reqwest = { workspace = true, features = ["json", "blocking", "multipart"] }
+
+# Base64 encoding for reference-image upload to provider APIs.
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = { workspace = true }

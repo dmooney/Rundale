@@ -115,3 +115,10 @@ index.lock
 # Runtime engine flag-state written by a running server/engine (per-user, not content)
 mods/*/parish-flags.json
 parish-flags.json
+
+# parish-art-tool candidate images — manifest.json + style-bible.md are committed,
+# raw generated/candidate images are not
+art/*.png
+art/*.jpg
+art/*.jpeg
+art/*.webp
