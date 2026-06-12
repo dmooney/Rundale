@@ -1,0 +1,15 @@
+# Epic #1366 tail — runtime smoke after schema_version + metered-lock changes
+# ===========================================================================
+# Proves: the Rundale mod (now declaring `schema_version = 1` in mod.toml)
+# still loads, and basic engine round-trips are unaffected by the
+# architecture-review tail changes (provider retry, lock metrics).
+
+# 1. Baseline — mod loaded, world rendered
+look
+/status
+/time
+
+# 2. Engine round-trips still work
+/wait 10
+/time
+look
