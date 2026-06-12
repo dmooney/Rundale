@@ -16,6 +16,7 @@ clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
+dotenvy = { workspace = true }
 parish-world = { workspace = true }
 parish-npc = { workspace = true }
 
