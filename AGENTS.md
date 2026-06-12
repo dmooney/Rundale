@@ -26,7 +26,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 ## Current project state (quick map)
 
 - Rust workspace: **23 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
-  - Binaries: `parish-engine` (in-process engine — `--headless` / `--script FILE` / Tauri-launch), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
+  - Binaries: `parish-engine` (headless entry point — `--headless` / `--script FILE` / Tauri-launch; despite the name it is a thin binary, the engine is `parish-core` + leaf crates), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
   - Composition: `parish-core` re-exports the leaf crates under stable namespaces.
   - Leaf logic crates: `parish-chronicle`, `parish-config`, `parish-diagnostics`, `parish-editor`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-providers`, `parish-setup`, `parish-types`, `parish-world`.
   - These crates make up the **Parish** game engine.
@@ -115,7 +115,12 @@ cargo run -p parish-tauri -- --mcp-port 3030
 If a tool call returns an MCP `isError: true` with `transport error: ...`,
 the backend isn't running — call `parish-mcp-backend.sh start` first.
 
-For deeper context on the bridge implementation see
+Two distinct things get called "MCP bridge" (#1366 §6) — be precise:
+the `parish-mcp` **crate** is the stdio MCP server that exposes the
+`mcp__parish__*` tools and forwards them over HTTP, while
+`parish-tauri/src/mcp_bridge.rs` is the **embedded HTTP listener** inside the
+desktop app that answers those forwarded calls when Tauri is the backend
+(the web server answers them natively). For deeper context on both see
 [parish/crates/parish-mcp/README.md](parish/crates/parish-mcp/README.md)
 and [parish/crates/parish-tauri/src/mcp_bridge.rs](parish/crates/parish-tauri/src/mcp_bridge.rs).
 
