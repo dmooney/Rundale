@@ -30,10 +30,18 @@ parish-art-tool --root . export plate-2-001 \
 
 ## Providers
 
-| Flag                          | Provider          | Key env var      | Model                     |
-| ----------------------------- | ----------------- | ---------------- | ------------------------- |
-| `--provider openai` (default) | OpenAI Images API | `OPENAI_API_KEY` | `gpt-image-1`             |
-| `--provider google`           | Gemini/Imagen 3   | `GEMINI_API_KEY` | `imagen-3.0-generate-002` |
+| Flag                          | Provider           | Key env var         | Model                          |
+| ----------------------------- | ------------------ | ------------------- | ------------------------------ |
+| `--provider openai` (default) | OpenAI Images API  | `OPENAI_API_KEY`    | `gpt-image-1`                  |
+| `--provider google`           | Gemini/Imagen 3    | `GEMINI_API_KEY`    | `imagen-3.0-generate-002`      |
+| `--provider nvidia`           | NVIDIA NIM (FLUX)  | `NVIDIA_API_KEY`    | `black-forest-labs/flux.1-dev` |
+| `--provider stability`        | Stability (SD 3.5) | `STABILITY_API_KEY` | `sd3.5-large`                  |
+| `--provider fal`              | fal.ai (FLUX)      | `FAL_KEY`           | `fal-ai/flux/dev`              |
+
+The three lower bullets are the cheaper options for the early **provider
+bake-off** (plan T5.1): generate the two anchor assets across providers, then
+pick on cost + style before committing. The tool reads the key from the process
+environment — `export <KEY>=...` (or `source .env`) before a live run.
 
 ## Style anchors
 
