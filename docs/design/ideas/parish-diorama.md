@@ -323,6 +323,9 @@ unplated location simply falls back to the text view.
 
 ## Implementation roadmap
 
+> Detailed task breakdown (subagent assignments, model/effort flags, automated
+> test plan): [Implementation Plan](../../plans/parish-diorama-implementation.md).
+
 ```text
 M1 ──► M2 ──► M3 ──► M5 ──► M6
   └──► M4 ─────────────┘        (M4 parallel with M2/M3; M5a plates ∥ M5b sprites)
