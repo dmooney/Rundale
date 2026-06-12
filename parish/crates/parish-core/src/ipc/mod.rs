@@ -13,6 +13,7 @@ pub mod editor;
 pub mod engine_state;
 pub mod event_emitter;
 pub mod handlers;
+pub mod scene;
 pub mod state;
 pub mod streaming;
 pub mod types;
@@ -28,6 +29,10 @@ pub use config::GameConfig;
 pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_state};
 pub use event_emitter::{CapturingEmitter, EventEmitter};
 pub use handlers::*;
+pub use scene::{
+    DIORAMA_FLAG, SCENE_STATE_SCHEMA_VERSION, SceneHotspotView, SceneNpcView, SceneState,
+    build_scene_state, render_scene_debug, select_variant,
+};
 pub use state::{ConversationRuntimeState, SaveState, UiConfigSnapshot};
 pub use streaming::{TOKEN_CHANNEL_CAPACITY, stream_npc_tokens};
 pub use types::*;

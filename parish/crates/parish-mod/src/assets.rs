@@ -17,7 +17,12 @@ pub(crate) fn validate_optional_asset_ref(
     }
 }
 
-pub(crate) fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
+/// Resolves a mod-relative asset path to a canonical absolute path, rejecting
+/// absolute paths, anything outside `assets/`, traversal components, and paths
+/// that escape the mod directory. Public so runtime asset-serving paths (the
+/// diorama `scene-asset` route and the Tauri data-URL command) can re-validate
+/// a request path through the same guard before reading bytes.
+pub fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
     let rel_path = Path::new(rel);
     if rel_path.is_absolute() {
         return Err(format!("asset path {rel} must be relative"));
