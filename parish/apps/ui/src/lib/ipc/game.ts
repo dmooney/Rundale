@@ -23,6 +23,7 @@ import type {
 	DemoContextSnapshot,
 	DemoConfigPayload,
 	AuthStatus,
+	SceneState,
 } from '../types';
 import { command, onEvent, IS_TAURI, COMMAND_TIMEOUT_MS } from './transport';
 
@@ -32,6 +33,9 @@ export const getWorldSnapshot = () =>
 export const getMap = () => command<MapData>('get_map');
 
 export const getNpcsHere = () => command<NpcInfo[]>('get_npcs_here');
+
+export const getSceneState = () =>
+	command<SceneState | null>('get_scene_state');
 
 export const getTheme = () => command<ThemePalette>('get_theme');
 

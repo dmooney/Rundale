@@ -19,6 +19,8 @@
 	import { uiConfig, fullMapOpen, focailOpen, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
 	import { stopDemo } from '../lib/demo-player';
+	import { sceneState } from '../stores/scene';
+	import DioramaView from '../components/diorama/DioramaView.svelte';
 
 	/** True on narrow viewports (<=768px). Desktop ignores focailOpen; on
 	 * mobile the chat column becomes the Focail panel when that store
@@ -248,11 +250,14 @@
 		>Language Hints</button>
 	</div>
 
-	<div class="main-area">
+	<div class="main-area" class:scene-first={$sceneState !== null}>
 		<div class="chat-col">
 			{#if $focailOpen && isMobile}
 				<Sidebar onclose={() => focailOpen.set(false)} />
 			{:else}
+				{#if $sceneState !== null}
+					<DioramaView sceneState={$sceneState} />
+				{/if}
 				<ChatPanel />
 				<InputField />
 			{/if}
@@ -325,6 +330,12 @@
 		min-height: 0;
 		overflow: hidden;
 		position: relative;
+	}
+
+	/* Scene-first layout: DioramaView fills available width in the chat column;
+	   the chat + input sit below it. Right column is unchanged. */
+	.main-area.scene-first .chat-col {
+		overflow-y: auto;
 	}
 
 	.right-col {

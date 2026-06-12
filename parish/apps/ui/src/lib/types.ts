@@ -569,6 +569,80 @@ export interface DemoConfigPayload {
 	max_turns: number | null;
 }
 
+// ── Diorama / scene-state types ──────────────────────────────────────────────
+
+/** A rect hotspot shape: [x, y, w, h] in percentage coordinates (0–100). */
+export type SceneShapeRect = { rect: [number, number, number, number] };
+/** A polygon hotspot shape: array of [x, y] percentage-coordinate vertices. */
+export type SceneShapePolygon = { polygon: [number, number][] };
+export type SceneShape = SceneShapeRect | SceneShapePolygon;
+
+/** Clicking a travel_to hotspot navigates to the target location_id. */
+export type SceneActionTravelTo = { travel_to: number };
+/** Clicking a talk_to hotspot focuses the input addressed to that NPC id. */
+export type SceneActionTalkTo = { talk_to: number };
+/** Clicking an inspect hotspot appends a local system entry to the text log. */
+export type SceneActionInspect = { inspect: string };
+export type SceneAction =
+	| SceneActionTravelTo
+	| SceneActionTalkTo
+	| SceneActionInspect;
+
+/** A clickable region within a scene plate. Coordinates are 0–100 percentages. */
+export interface SceneHotspotView {
+	id: string;
+	shape: SceneShape;
+	label: string;
+	action: SceneAction;
+}
+
+/** An NPC sprite placed dynamically by the live schedule simulation. */
+export interface SceneNpcView {
+	/** NPC numeric id. */
+	id: number;
+	/** Display name: brief description until introduced, real name after. */
+	display_name: string;
+	/** Real name — only present after introduction; `null` otherwise. */
+	real_name: string | null;
+	/** Whether the player has been formally introduced to this NPC. */
+	introduced: boolean;
+	/** Mood emoji character. */
+	mood_emoji: string;
+	/** Sprite image URL (data URL in Tauri mode, HTTP URL in web mode). */
+	sprite_url: string;
+	/** Foot-anchor X position as 0–100 percentage of plate width. */
+	x: number;
+	/** Foot-anchor Y position as 0–100 percentage of plate height. */
+	y: number;
+	/** Scaling factor applied to the sprite (1.0 = native). */
+	scale: number;
+	/** Whether to horizontally mirror the sprite. */
+	flip: boolean;
+}
+
+/**
+ * Full scene-state payload sent by the backend when the `diorama` flag is on
+ * and the current location has a scene defined.
+ *
+ * Returns `null` (via `getSceneState`) when the flag is off OR the current
+ * location has no associated scene — in both cases the frontend falls back
+ * to the existing text+map layout.
+ */
+export interface SceneState {
+	schema_version: number;
+	location_id: number;
+	/** Plate image URL (data URL in Tauri mode, HTTP URL in web mode). */
+	plate_url: string;
+	/** Variant key: "day" | "night" | ... */
+	variant: string;
+	/** Whether this is an indoor scene (suppresses weather overlays). */
+	indoor: boolean;
+	hotspots: SceneHotspotView[];
+	npcs: SceneNpcView[];
+	/** Display names of NPCs present but beyond available slot capacity. */
+	overflow_npcs: string[];
+}
+
 // ── Bug reporting ─────────────────────────────────────────────────────────────
 
 /** A specific debug-panel record attached to a bug report for extra context. */
