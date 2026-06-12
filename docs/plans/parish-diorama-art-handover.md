@@ -21,15 +21,17 @@
   (`0-master_summer-day-sunny.png` is the master).
 - **River/layout blocker: FIXED (2026-06-12)** via structure-guided
   generation — layout schematic as control image + layout narration +
-  style SWATCHES (not the full old master, whose composition leaked) + an
-  automated 8-check vision gate. Scripts live in `parish/scripts/diorama/`.
-  Recommended survivor awaiting owner sign-off:
-  **`…/diorama-art/kilteevan-village/master-candidates/g-05-c16ref-fixed.png`**
-  — Nano Banana Pro render (schematic control + cand-16 as style ref +
-  defect warnings), 8/8 gate pass, orphan wall stub removed via a targeted
-  `gen_master.py edit`. Owner-flagged gpt-5.5 defects (ridge "pipe" rod,
-  blocky random walls) are GONE on the Google path. The best gpt-5.5
-  render (`cand-16`, 7/8) survives as the style reference.
+  style SWATCHES + an automated 9-check vision gate. Scripts live in
+  `parish/scripts/diorama/`.
+- **NO MASTER ACCEPTED YET — iteration PAUSED (owner, 2026-06-12):** the
+  per-defect edit loop on the owner's preferred candidate (g-07) was not
+  converging ("this isn't working to my satisfaction"). Full session
+  record in "Iteration record" below. Strongest candidates on disk:
+  `g-08-swatchv2.png` (9/9 gate, rod-free, but multi-chimney + oversized
+  SW plot nits), `g-06-swatchv2.png` (9/9, busier), `g-07-swatchv2.png`
+  (owner's preferred look, but the mill track never reaches the left
+  edge; two edit attempts g-09/g-10 fixed lanes and then could not get
+  walls_anchored back to true).
 - **OPENAI CREDITS EXHAUSTED (2026-06-12, HTTP 429 insufficient_quota);
   provider switched to Google** (see Locked decisions). The vision gate
   runs on `gemini-3.5-flash` (`check <img> google`).
@@ -183,6 +185,77 @@ Escalation levers if a future location resists (NOT needed for Kilteevan):
 gpt-5.5-pro plans the layout → emits SVG → rasterize → control image →
 render.
 
+## Iteration record (2026-06-12 session) — 26 renders, what worked, what didn't
+
+All candidates in `…/diorama-art/kilteevan-village/master-candidates/`.
+Costs: the OpenAI key's ~$10 went on cand-01..16 + checks (quota now
+exhausted); the Google path cost roughly $2-3 of the owner's paid credit
+for g-01..10 + gemini-3.5-flash checks.
+
+### OpenAI gpt-5.5 (Responses + image_generation) — cand-01..16
+
+| Batch       | Recipe                                               | Result                                                                                                                                                                                                                                                             |
+| ----------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| cand-01     | schematic control + full v1 master as style ref      | River continuous but banks misaligned right of the bridge ("oh so close")                                                                                                                                                                                          |
+| cand-02..04 | + straightened crossing, bank-alignment rule         | All three displaced the river east of the bridge, drifting south. Agent misread 02 as good — origin of the vision gate                                                                                                                                             |
+| cand-05..08 | + block-in reframe, narration, continuity rules      | 0/4: regressed to the v1 broken composition. Root cause found: a full-scene style ref leaks its COMPOSITION                                                                                                                                                        |
+| cand-09..12 | + style swatch sheet v1                              | River continuity 0/4 → 4/4. But: cand-10 bridge arch rotated toward the road, cand-11/12 hallucinated a NW path. Owner: walls random/blocky, a "rod/pipe" below every thatch ridge                                                                                 |
+| cand-13..16 | + anchored walls, Irish material notes, 8-check gate | cand-15 8/8 but its mill track never reaches the left edge (caught later by edge strips — gate now sends full-res edge strips); cand-16 best (7/8). Rod and blocky walls persisted regardless of prompt overrides → provider switch. Quota died at cand-16's check |
+
+### Google Nano Banana Pro (gemini-3-pro-image) — g-01..10
+
+| Cand     | Recipe                                                                 | Result                                                                                                                                                                                                                                      |
+| -------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| g-01     | swatches v1                                                            | Half-painted: ground/river left as flat block-in. Rod present (via swatch cottage tile)                                                                                                                                                     |
+| g-02     | text-only style (no image ref)                                         | PERFECT geometry (8/8) and the only fully rod-free ridges of the whole session — but flat-cartoon style, not the locked pixel art                                                                                                           |
+| g-03     | swatches v1 + "fully paint EVERY surface"                              | Locked style back; owner's favourite look of the session. But rod back, SW cottage migrated to bottom-center, chimneys+smoke crept back                                                                                                     |
+| g-04     | cand-16 full scene as style ref                                        | Near-copy of cand-16 — a full-scene ref whose composition matches the schematic is a COPY CHANNEL, not a style anchor. Rod back, "too clean", weird foreground path. 7/8                                                                    |
+| g-05     | g-04 + `edit` (remove orphan wall stub)                                | 8/8 gate, but inherits all g-04 flaws; owner rejected with g-04                                                                                                                                                                             |
+| g-06..08 | swatches v2 (ridge-free crops) + off-frame corner walls + 9-check gate | Rod GONE at full zoom (channel closed). g-06 9/9 but busy (extra plots, patchy lanes, 4 gable chimneys); g-08 9/9, cleaner, chimneys + oversized SW plot remain; g-07 failed (mill track ends at the SW cottage) but owner prefers its look |
+| g-09     | g-07 + `edit` (add mill track, drop stray stub)                        | Lanes fixed; the new track severed walls → isolated fragments                                                                                                                                                                               |
+| g-10     | g-09 + `edit` (reconnect/remove fragments)                             | walls_anchored still false. Owner stopped the loop here                                                                                                                                                                                     |
+
+### Established findings (full detail in
+
+[scene-dsl-pipeline.md](../design/ideas/scene-dsl-pipeline.md))
+
+1. **Image references dominate text instructions.** Composition leaks from
+   full-scene refs; defects (the ridge rod) leak from ANY ref that shows
+   the defective region, and defect warnings do not reliably suppress
+   them. The only clean-ridge renders either had no image ref (g-02) or a
+   ref with the ridges physically cropped out (g-06..08).
+2. **A full-scene style ref matching the target layout = near-copy** (g-04
+   /g-05 vs cand-16). Style refs must be layout-free (swatches).
+3. **Swatches need the "fully paint EVERY surface" order** or Nano Banana
+   leaves the block-in unpainted (g-01 vs g-03).
+4. **The vision gate works but needs the right inputs:** downscaled full
+   frame + full-res bridge crop + full-res left/right edge strips; checks
+   river continuity, bank alignment, arch orientation, exit inventory
+   (5 lanes: 1 top / 1 right / 1 left / 2 bottom), roof protrusions,
+   cottages-in-quadrants, wall anchoring. Agent full-frame eyeballs
+   misjudged twice (cand-02, cand-15); never trust an unzoomed look.
+5. **`edit` retouching is whack-a-mole on structural features:** each fix
+   (add a lane) perturbs neighbours (severs walls), and the follow-up fix
+   doesn't converge (g-09→g-10). Edits are fine for isolated-object
+   removal (g-05's wall stub); structural changes should be re-renders
+   with an improved prompt/schematic instead.
+
+### Open problems when work resumes
+
+- Multiple gable chimneys on most Google renders (model prior, not ref
+  leak) — likely fix: change "at most one simple stone chimney" to "NO
+  chimneys at all" in the MATERIAL NOTES (matches the plate spec's
+  mostly-chimney-less brief anyway).
+- SW tilled plot renders oversized/odd (g-06/g-08 wedge) — shrink it in
+  the schematic constants or name its size in the narration.
+- Owner taste vs gate: g-07 (gate-fail) reads better to the owner than
+  g-08 (gate-pass). The gate checks geometry, not aesthetics — keep using
+  it as a floor, not a verdict.
+- Candidate paths forward, owner's pick: (a) one more RENDER round (not
+  edits) with the chimney/plot prompt fixes on the g-08 recipe, N=4;
+  (b) accept g-08 as-is and fix nits in the variant pass; (c) try the
+  Seedream fallback (see Locked decisions).
+
 ## Deferred work (owner decision 2026-06-12 — do NOT lose this)
 
 Scope was deliberately cut to "good masters only, on the PR branch". All of
@@ -250,18 +323,21 @@ HashMap<String,String>`) + the selector
 2. `source .env`; confirm the Gemini key works:
    `curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"`
    lists `gemini-3-pro-image` and `gemini-3.5-flash`.
-3. Confirm the owner accepted a survivor (recommended:
-   `…/diorama-art/kilteevan-village/master-candidates/g-05-c16ref-fixed.png`);
-   if yes, downscale 2528×1696 → 1536×1024 and promote it to the new
-   `0-master_summer-day-sunny.png` (keep the old one as
-   `0-master_v1_broken-river.png`). The accepted master then becomes the
-   style reference for all other locations (full scene + defect warnings —
-   NOT swatches; see Locked decisions).
-4. Continue with masters for the remaining 7 locations (per-location exit
+3. Read the "Iteration record" above — NO master is accepted yet; the
+   owner paused the loop. Ask the owner to pick a path from "Open
+   problems → candidate paths forward" (new render round with chimney/
+   plot fixes vs accept g-08 vs Seedream fallback) before burning any
+   credit.
+4. Once a Kilteevan master is accepted: downscale 2528×1696 → 1536×1024,
+   promote to `0-master_summer-day-sunny.png` (keep the old one as
+   `0-master_v1_broken-river.png`), rebuild the RIDGE-FREE swatch sheet
+   off it (`gen_master.py swatches` — keep ridges out of the crops), then
+   masters for the remaining 7 locations (per-location exit
    classification + schematic constants in `gen_master.py` → `generate …
 google` N=2-4 → `check … google` gate + water-component pixel probe →
-   owner eyeball; `edit` for targeted retouches), still NO variant batches
-   until the owner re-opens that scope.
+   owner eyeball). `edit` ONLY for isolated-object removal, never
+   structural fixes (finding 5). Still NO variant batches until the owner
+   re-opens that scope.
 5. Then work the "Deferred work" list above in order: variant batches →
    firelight overlay → port pipeline into `parish-art-tool` → extend the
    scene schema + `select_variant` to season×weather×time → sprites →
