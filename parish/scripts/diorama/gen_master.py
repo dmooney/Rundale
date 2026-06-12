@@ -41,7 +41,10 @@ def pt(xpct, ypct):
 # Kilteevan Village layout (screen-space %, matches the locked master
 # composition): 4 cottages one per quadrant, well left-of-center, lane cross,
 # river along the lower third crossed by the south lane at the bridge.
-RIVER = [(100, 66), (88, 70), (74, 74), (63, 77), (52, 81), (38, 85), (22, 88), (8, 90), (0, 91)]
+# Long straight segment (70,74)->(45,83) through the bridge point so the
+# watercourse is locally straight at the crossing — a bend next to the bridge
+# makes the model misalign the two banks (cand-01 defect).
+RIVER = [(100, 66), (88, 70), (70, 74), (45, 83), (30, 86), (22, 88), (8, 90), (0, 91)]
 BRIDGE_AT = (57.5, 78.5)  # on the river, where the south lane crosses
 LANES = [
     [(50, 47), (44, 25), (40, 0)],  # north lane (to the crossroads)
@@ -129,7 +132,10 @@ INSTRUCTION = (
     "right edge to the left edge of the frame, exactly along the blue line. It "
     "must never break, fork, or appear anywhere else in the image — no other "
     "water. GREY block = the ONLY stone footbridge, carrying the south lane "
-    "over the river at exactly that point. BROWN = the dirt lanes and the "
+    "over the river at exactly that point. The river passes STRAIGHT under "
+    "the bridge arch: the watercourse on both sides of the bridge has the "
+    "same width and continues at the same angle, perfectly aligned through "
+    "the arch — the two banks line up. BROWN = the dirt lanes and the "
     "central open space. RED rectangles = the four cottages. BLACK circle = "
     "the stone well. DARK THIN lines = low dry-stone field walls. DARK HATCHED "
     "rectangles = empty tilled-soil garden plots (bare soil, nothing planted).\n\n"
