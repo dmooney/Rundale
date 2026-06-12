@@ -83,6 +83,12 @@ world-graph, schedule, or save-format changes anywhere in this design.
    picks interior vs exterior composition. Interior/exterior node splits
    (Pub Exterior vs Pub Interior) are a possible later content change, not
    part of the MVP.
+5. **No player avatar — the player is the camera.** The original pitch listed
+   a player-character sprite; this design deliberately drops it for the MVP.
+   Navigation is click-to-travel (Myst-style first person), so an avatar
+   standing in the scene adds nothing mechanically and costs a sprite, slot
+   logic, and ambiguity about who "you" are in every plate. Revisit only if
+   a later phase adds positional mechanics.
 
 ## Scene data model
 
@@ -182,10 +188,19 @@ pub struct SceneState {
     pub plate_url: String,
     pub variant: String,                 // "day" | "night" | ...
     pub hotspots: Vec<SceneHotspotView>,
-    pub npcs: Vec<SceneNpcView>,         // name, real_name, mood_emoji, sprite_url, x, y, scale, flip
+    pub npcs: Vec<SceneNpcView>,         // display_name, real_name?, introduced, mood_emoji, sprite_url, x, y, scale, flip
     pub overflow_npcs: Vec<String>,      // present beyond slot capacity
 }
 ```
+
+**Introduction semantics (gameplay correctness):** NPCs are anonymous until
+introduced — the dialogue system shows `brief_description` ("an older man
+behind the bar") until the player has met them, and `NpcInfo.introduced`
+already gates this in the chat UI. `SceneNpcView` mirrors those semantics
+exactly: `display_name` is the brief description until introduced,
+`real_name` is populated only after introduction, and sprite tooltips and
+click-to-address follow the same rule. The diorama must never name an NPC
+the dialogue system would still keep anonymous.
 
 - Returns `None` when the flag is off or the location has no scene — the
   frontend falls back to the existing text+map layout. The flag is checked
@@ -195,7 +210,10 @@ pub struct SceneState {
   declaration order; leftovers are listed in `overflow_npcs`. Pure function,
   directly unit-testable.
 - Variant selection by clock hour (Dusk/Night/Midnight → `night` if the
-  variant exists); weather variants reserved.
+  variant exists); weather variants reserved. **Weather mood respects
+  `LocationData.indoor`:** weather-driven overlays and the rain effect are
+  suppressed for indoor scenes (it does not rain inside Darcy's Pub) — only
+  the time-of-day tint applies indoors.
 
 Runtime wiring:
 
@@ -254,7 +272,19 @@ Wiring:
 - `src/lib/scene-actions.ts` maps clicks onto existing input paths:
   `travel_to` → `submitInput("go to <name>")` (the map-click path);
   `talk_to` / sprite click → focus the input with `addressed_to` set (the
-  existing mention mechanism); `inspect` → local system entry in the text log.
+  existing mention mechanism, respecting introduction state); `inspect` →
+  local system entry in the text log.
+- **During travel:** on the existing `travel-start` event the departing plate
+  dims (CSS, no new backend state) while the right-column map plays its
+  animated travel marker as today; the new plate cross-fades in on the
+  arrival `world-update`. No mid-transit scene is rendered in the MVP.
+- **Hotspot accessibility + authoring overlay:** hotspots are
+  keyboard-focusable (`tabindex`, Enter activates) with `aria-label` from the
+  hotspot's `label` field, so the diorama never regresses what the text
+  interface gives for free. When the existing debug panel is open,
+  `HotspotLayer` renders its rects and labels visibly — the feedback loop for
+  hand-authoring percentage coordinates against finished plates (used heavily
+  in M5).
 
 ## The core loop this enables
 
@@ -373,3 +403,25 @@ under the palette tint.
   flip.
 - **Save compatibility** — none at risk; no save-schema or world-graph
   changes anywhere in the design.
+
+## Future work (recorded, not implied)
+
+Explicitly out of the MVP; listed so they are decisions deferred rather than
+gaps discovered later:
+
+- **Scene merging for `Override` / `Content` mods.** The MVP reads only the
+  base mod's `scenes.json`. The mod system's `Override` kind (mutate base
+  entries — e.g. a re-skin mod swapping plates) and `Content` kind (add
+  scenes for new locations) need a merge strategy in `SceneIndex` loading.
+- **Festival / encounter overlays.** Mods already declare `festivals.json`
+  and `encounters.json`, and the world snapshot carries the active festival;
+  scenes could swap crowd variants or add overlay props on festival days.
+- **Localizable hotspot labels.** Hotspot `label` strings are English in the
+  MVP; the `Localization` mod kind is the natural home for translated labels
+  and should get a key-based lookup when localization lands.
+- **Visual hotspot/slot editor in the Parish Designer.** M3's debug overlay
+  makes hand-authoring tolerable; a drag-to-draw editor in `parish-editor`'s
+  GUI is the real fix if scene count grows past the MVP's eight.
+- **Interior/exterior node splits, player avatar, sprite animation,
+  weather-variant plates** — each noted in its own section above as
+  deliberately deferred.
