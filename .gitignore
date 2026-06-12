@@ -118,7 +118,7 @@ parish-flags.json
 
 # parish-art-tool candidate images — manifest.json + style-bible.md are committed,
 # raw generated/candidate images are not
-art/*.png
-art/*.jpg
-art/*.jpeg
-art/*.webp
+art/**/*.png
+art/**/*.jpg
+art/**/*.jpeg
+art/**/*.webp
