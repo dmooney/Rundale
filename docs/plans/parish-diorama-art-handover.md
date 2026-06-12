@@ -22,10 +22,15 @@
 - **River/layout blocker: FIXED (2026-06-12)** via structure-guided
   generation — layout schematic as control image + layout narration +
   style SWATCHES (not the full old master, whose composition leaked) + an
-  automated vision gate. Scripts live in `parish/scripts/diorama/`.
+  automated 8-check vision gate. Scripts live in `parish/scripts/diorama/`.
   Survivors awaiting owner sign-off:
-  `…/diorama-art/kilteevan-village/master-candidates/cand-11.png`
-  (stone arch, recommended) and `cand-09.png` (wooden bridge).
+  `…/diorama-art/kilteevan-village/master-candidates/cand-15.png`
+  (8/8 gate pass) and `cand-16.png` (manual verify only — quota died
+  mid-check; arguably the nicest bridge/walls of the 16).
+- **OPENAI CREDITS EXHAUSTED (2026-06-12, HTTP 429 insufficient_quota).**
+  ~16 renders + vision checks burned the remaining ~$10. ALL further
+  generation (other location masters, variant batches, swatch rebuilds)
+  is blocked until the owner tops up the key.
 - **Current scope (owner decision 2026-06-12): good MASTERS only.** No
   variant batches, nothing merged to main (work rides PR #1429's branch).
   Everything else is deferred — see "Deferred work" below.
@@ -115,15 +120,32 @@ generation** via `parish/scripts/diorama/gen_master.py`:
    links sharing a painted exit's hotspot. Narrative path_descriptions
    override world.json bearings when they conflict (they do — see the
    policy note atop `gen_master.py`).
-5. Surviving candidates: `master-candidates/cand-09.png` (wooden plank
-   bridge) and **`cand-11.png` (stone arch — matches spec, recommended)**.
-   Awaiting owner sign-off. cand-01..08 kept as the failure record.
+5. **v4 additions (owner art review of cand-09..12):** ANCHORED walls —
+   every schematic wall polyline runs anchor-to-anchor (lane band, cottage
+   corner, river bank, another wall as a T-junction, or out of frame), with
+   yard brackets enclosing the cottage plots, because real Irish walls exist
+   from field-clearance necessity and the model multiplies any random stub
+   it sees. MATERIAL NOTES in the prompt override the swatches: dry-stacked
+   irregular limestone fieldstone (mixed sizes, daylight gaps, no mortar, no
+   block coursing — see feidín/single/double wall types), and plain
+   oat-straw thatch with a rolled ridge cap, NOTHING protruding from any
+   roof. The roof-pipe artifact in cand-01..12 was the model literalizing
+   the old "smoke seeps through the thatch ridge" prompt line — smoke is
+   gone from masters entirely (variant/overlay material later). Gate
+   expanded to 8 checks: + bridge_arch_over_water (cand-10 had the arch
+   rotated toward the road), no_extra_lanes (cand-11/12 hallucinated a NW
+   path), no_roof_protrusions, walls_anchored.
+6. Surviving candidates: **`master-candidates/cand-15.png` (8/8 gate
+   pass, recommended)** and `cand-16.png` (manual verification only —
+   quota exhausted mid-check; stone arch and walls arguably the best of
+   all 16). cand-01..14 kept as the failure/iteration record.
 
 Schematic-drawing gotchas: keep the well ring inside the plaza blob (not on
 a lane band), walls clear of lanes/river/cottages, the river locally
-straight and PERPENDICULAR through the bridge crossing, and the mill track
-clearly separated from the river at the frame edge — the model paints every
-schematic mistake faithfully.
+straight and PERPENDICULAR through the bridge crossing, the mill track
+clearly separated from the river at the frame edge, and wall polylines
+anchored at BOTH ends with no X-crossings (use T-junctions) — the model
+paints every schematic mistake faithfully.
 
 Escalation levers if a future location resists (NOT needed for Kilteevan):
 gpt-5.5-pro plans the layout → emits SVG → rasterize → control image →
@@ -196,7 +218,7 @@ HashMap<String,String>`) + the selector
 2. `source .env`; confirm `curl https://api.openai.com/v1/models` lists
    `gpt-image-2` and `gpt-5.5`.
 3. Confirm the owner accepted a survivor (recommended:
-   `…/diorama-art/kilteevan-village/master-candidates/cand-11.png`); if yes,
+   `…/diorama-art/kilteevan-village/master-candidates/cand-15.png`); if yes,
    promote it to the new `0-master_summer-day-sunny.png` (keep the old one as
    `0-master_v1_broken-river.png`) and rebuild the style swatch sheet off the
    ACCEPTED master (`gen_master.py swatches`) for all future locations.
