@@ -1,6 +1,6 @@
 # parish-client — agent scope
 
-Synchronous CLI client for the Parish game server. Binary name: `parish`. Thin HTTP client speaking to a running `parish-server` via `POST /api/command` and `GET /api/state`. Three modes: single-shot, script batch (`--script`), and interactive REPL. See root [`AGENTS.md`](../../../AGENTS.md) for non-negotiable rules.
+Synchronous CLI client (`parish` binary) for a running `parish-server`. Speaks `POST /api/command` + `GET /api/state`. Three modes: single-shot, `--script` batch, interactive REPL. See root [`AGENTS.md`](../../../AGENTS.md).
 
 ## Scoped commands
 
@@ -16,11 +16,11 @@ Set `PARISH_SERVER=http://localhost:3030` to target a different backend (default
 
 ## Local gotchas
 
-- **Wire types must stay in sync with `parish-server`.** The `CommandResponse` shape in `src/client.rs` must match `parish-server`'s `sync_types::CommandResponse` exactly. Change both in the same PR or the client deserializes silently into partial/missing fields (#771).
-- **Binary-only crate (no lib).** This crate ships no library surface — only the `parish` binary at `src/main.rs`. Embedders should talk to `parish-server`'s library or use `parish-client` as a subprocess.
-- **Synchronous per-call, not streaming.** Uses `reqwest` with JSON + cookies per request. No WebSocket, no event stream. For real-time pushes, use `parish-server`'s WS endpoints or Tauri IPC.
-- **REPL builds history in memory only.** Session history is not persisted between invocations. Use `--script` for repeatable batch workflows.
-- **`PARISH_SERVER` env var is the only configuration surface.** No config file, no CLI flag for the URL beyond `--server`. The env-var default matches `parish-server`'s default port.
+- **Wire types must stay in sync with `parish-server` (#771).** `CommandResponse` in `src/client.rs` must match `parish-server`'s `sync_types::CommandResponse` exactly — change both in the same PR or deserialization silently drops fields.
+- **Binary-only — no lib surface.** Only `src/main.rs`. Embedders should use `parish-server`'s library directly, not subprocess this binary.
+- **Synchronous per-call, not streaming.** `reqwest` JSON + cookies; no WebSocket. For real-time pushes use `parish-server`'s WS endpoints or Tauri IPC.
+- **REPL history is in-memory only.** Not persisted between invocations — use `--script` for repeatable workflows.
+- **`PARISH_SERVER` env var is the only URL config** (default matches `parish-server`'s default port); `--server` is the CLI override.
 
 ## Module map
 

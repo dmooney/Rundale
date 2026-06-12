@@ -60,9 +60,17 @@ Acceptance criteria: met
 
 ## What Counts As Proof-Relevant
 
-The gate requires proof for engine, UI, gameplay content, runtime scripts, CI, agent instructions, and harness changes. Pure docs outside the agent harness do not require proof.
+The gate requires proof for engine, UI, gameplay content, runtime scripts, CI, agent instructions, and harness changes. PRs that touch no source/runtime paths are exempt: pure documentation (any `*.md` / `*.txt`, e.g. AGENTS.md, README.md, `docs/**`), CI-only (`.github/**`), agent-instruction-only (`.agents/**`, `.claude/**`), check-tooling-only (`parish/scripts/**`), and build-config-only (`justfile`) edits all skip the gate when no code change accompanies them. Dependabot PRs are also exempt at the CI layer — automated dependency bumps have no useful signal to prove.
 
 The two long-lived archives under `docs/proofs/local-perf/` and `docs/proofs/rundale-bench/` are bench artifacts (written by the eval-dialogue skill and ELO benchmarks). They are not per-task proof bundles and are not validated by this gate.
+
+## Live-proof Tier
+
+When the diff touches a runtime-shipping path — `parish-tauri/**`, `parish-server/**`, `parish-engine/**`, `parish-core/src/{game_loop,game_session,ipc}/**`, `parish-inference/src/{setup,client}.rs`, `parish-npc/src/{ticks,manager,reactions,autonomous}/**`, `parish-world/**`, `parish-input/**`, `parish/apps/ui/src/**`, `mods/**` — unit tests alone are not sufficient. The change must be exercised in a real process (Tauri, server, CLI, or browser) and the bundle's `evidence.md` header must declare `Evidence type: live gameplay transcript`, **or** the bundle must include a screenshot (`.png` / `.jpg` / `.jpeg`) or gif (`.gif`). The word "live" is the author affirmation that the run actually happened; analysis-only writeups failing this header are rejected by `just agent-check`.
+
+Accepted live signals: `mcp__parish__*`, `mcp__claude-in-chrome__*`, the `/parish-engine` skill (its `prove` / `play` / `demo` / `browser` modes), or a Bash invocation of `just demo` / `just play` / `just run` / `just run-headless` / `just web` / `cargo tauri dev` / `cargo run -p parish-{engine,tauri,server,client}`.
+
+The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with the same matrix.
 
 ## Belt-and-suspenders Lints
 
