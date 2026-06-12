@@ -105,6 +105,11 @@ WALLS = [
     [(18, 52), (26, 50), (33, 48)],  # yard wall: SW cottage -> mill track head
     [(59, 64), (66, 63), (72, 61.5)],  # field wall: south road -> SE cottage
     [(84, 59.5), (92, 58.5), (100, 57.5)],  # field wall: SE cottage -> right frame edge
+    # Corner fields below the river, both wall ends running OFF the frame —
+    # walls that stop short of the scene edge read as random fragments;
+    # off-frame continuation reads as a field system bigger than the view.
+    [(0, 84), (10, 88), (18, 100)],  # left frame -> bottom frame, below the river
+    [(100, 78), (90, 84), (84, 100)],  # right frame -> bottom frame, below the river
 ]
 
 
@@ -181,10 +186,13 @@ def narration():
         "edges: one at the top, one at the right, one at the left, two at "
         "the bottom — there are NO other lanes or paths anywhere in the "
         "scene. Low dry-stone field walls divide the land: every wall runs "
-        "from anchor to anchor — a lane, a cottage, the river bank, or out "
-        "of the frame — and walled yards sit behind the north-west and "
-        "north-east cottages; no wall stands isolated. Two plots of bare "
-        "tilled soil sit beside the north-west and south-west cottages."
+        "from anchor to anchor — a lane, a cottage, the river bank, or it "
+        "runs OFF the edge of the frame. A wall near the scene edge always "
+        "continues out of frame; no wall ever just stops in open grass. "
+        "Walled yards sit behind the north-west and north-east cottages, "
+        "and the two corner fields below the river are walled toward the "
+        "bottom frame corners. Two plots of bare tilled soil sit beside the "
+        "north-west and south-west cottages."
     )
 
 
@@ -228,12 +236,12 @@ def render_prompt(with_style_ref=True):
                 "grass, soil, water, stone — in that style: no flat block-in "
                 "colour may remain anywhere; the flat green fields become "
                 "rich textured grass, the flat blue line becomes lively "
-                "water. KNOWN DEFECTS IN THE REFERENCE, do NOT reproduce "
-                "them: (1) a dark segmented rod or cable runs along below "
-                "the thatch ridges — real ridges have NOTHING on them; (2) "
-                "the wall stones look like uniform shaped blocks — follow "
-                "the MATERIAL NOTES below instead. The composition comes "
-                "exclusively from the first image.\n\n"
+                "water. The samples deliberately show NO thatch ridge: "
+                "paint every ridge from the MATERIAL NOTES below (a plain "
+                "rolled straw cap, nothing on it — no rod, no cable, no "
+                "pipe). If the reference walls look like uniform shaped "
+                "blocks, follow the MATERIAL NOTES instead. The composition "
+                "comes exclusively from the first image.\n\n"
             )
             if with_style_ref
             else STYLE_TEXT + "\n\n"
@@ -272,10 +280,18 @@ def make_swatches(master_path, out_path):
     im = Image.open(master_path)
     w, h = im.size
     boxes = [  # (x0,y0,x1,y1) in %
-        (58, 6, 84, 32),  # NE cottage
+        # Cottage cropped BELOW the ridge line: walls, door, windows, eave
+        # thatch — the ridge is excluded because every reference that showed
+        # a ridge re-imported the v1 "rod below the ridge" defect (g-01/03
+        # via this tile, g-04/05 via cand-16). What the model can't see, it
+        # can't copy; the ridge itself is specified in the MATERIAL NOTES.
+        (58, 17, 84, 35),
         (36, 22, 60, 46),  # well on the common
         (42, 62, 72, 92),  # bridge + river bank
-        (0, 0, 26, 30),  # grass, wall, tree
+        # Grass/wall/tree/plot sample from the SW field — the old top-left
+        # corner crop caught the NW cottage's roof (ridge + smoke), which
+        # re-opened the defect channel the cottage re-crop had just closed.
+        (0, 58, 26, 96),
     ]
     tile_w, tile_h, gap = 760, 504, 8
     sheet = Image.new("RGB", (tile_w * 2 + gap * 3, tile_h * 2 + gap * 3), "#222222")
@@ -425,8 +441,10 @@ CHECK_PROMPT = (
     ' "lanes_reach_edges": bool,\n'
     ' "no_extra_lanes": bool,  // exactly 5 lane terminations: 1 top, 1 '
     "right, 1 left, 2 bottom; no extra paths (e.g. toward a corner)\n"
-    ' "no_roof_protrusions": bool,  // no pipe/vent/pole-like objects on '
-    "any thatch ridge (one simple chimney is allowed)\n"
+    ' "no_roof_protrusions": bool,  // no pipe/vent/pole/rod/cable-like '
+    "objects on or along any thatch ridge (one simple chimney is allowed)\n"
+    ' "cottages_in_quadrants": bool,  // exactly four cottages, one per '
+    "quadrant (NW, NE, SW, SE); none migrated toward the center or bottom\n"
     ' "walls_anchored": bool,  // every wall connects to a lane, building, '
     "river bank or frame edge; no short isolated fragments\n"
     ' "notes": "short"}'
@@ -440,6 +458,7 @@ CHECK_KEYS = (
     "lanes_reach_edges",
     "no_extra_lanes",
     "no_roof_protrusions",
+    "cottages_in_quadrants",
     "walls_anchored",
 )
 
