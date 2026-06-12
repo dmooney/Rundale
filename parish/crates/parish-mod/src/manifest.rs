@@ -2,9 +2,24 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Highest `mod.toml` schema version this engine understands.
+///
+/// Bump when the manifest schema changes incompatibly; loaders reject
+/// manifests declaring a higher version so an old engine fails fast with a
+/// clear message instead of misreading a future-format mod (#1366).
+pub const SUPPORTED_MOD_SCHEMA_VERSION: u32 = 1;
+
+fn default_schema_version() -> u32 {
+    1
+}
+
 /// Top-level manifest parsed from `mod.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModManifest {
+    /// Manifest schema version. Defaults to 1 when absent so every
+    /// pre-versioning mod keeps loading unchanged.
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
     /// Mod identity metadata.
     #[serde(rename = "mod")]
     pub meta: ModMeta,
@@ -143,6 +158,26 @@ pub struct PromptRefs {
     pub tier1_context: String,
     /// Tier-2 (deliberative) system prompt.
     pub tier2_system: String,
+}
+
+impl ModManifest {
+    /// Parses a `mod.toml` body and validates its `schema_version`.
+    ///
+    /// All manifest loaders go through this instead of a bare
+    /// `toml::from_str` so a mod authored against a future schema is
+    /// rejected with an actionable message rather than half-parsed.
+    /// Callers add file-path context to the returned message.
+    pub fn from_toml_str(text: &str) -> Result<Self, String> {
+        let manifest: ModManifest = toml::from_str(text).map_err(|e| e.to_string())?;
+        if manifest.schema_version > SUPPORTED_MOD_SCHEMA_VERSION {
+            return Err(format!(
+                "mod declares schema_version = {} but this engine supports up to {}; \
+                 upgrade the engine or use an older release of the mod",
+                manifest.schema_version, SUPPORTED_MOD_SCHEMA_VERSION
+            ));
+        }
+        Ok(manifest)
+    }
 }
 
 impl ModMeta {

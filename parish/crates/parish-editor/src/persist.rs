@@ -143,7 +143,7 @@ fn load_manifest(mod_dir: &Path) -> Result<ModManifest, ParishError> {
     let path: PathBuf = mod_dir.join("mod.toml");
     let text = std::fs::read_to_string(&path)
         .map_err(|e| ParishError::Config(format!("failed to read {}: {}", path.display(), e)))?;
-    toml::from_str(&text)
+    ModManifest::from_toml_str(&text)
         .map_err(|e| ParishError::Config(format!("failed to parse mod.toml: {}", e)))
 }
 
