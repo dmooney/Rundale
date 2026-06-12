@@ -19,10 +19,15 @@
   iterated too often). Path:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Rundale/diorama-art/kilteevan-village/`
   (`0-master_summer-day-sunny.png` is the master).
-- **OPEN BLOCKER:** the image model cannot keep **river/layout geometry
-  coherent** — it renders the single stream as 2-3 disconnected segments and
-  places the bridge illogically. Fix it with structural guidance (below) before
-  generating the other locations.
+- **River/layout blocker: FIXED (2026-06-12)** via structure-guided
+  generation — a programmatic layout schematic fed as a control image. First
+  candidate master rendered the river as one continuous stream with the
+  bridge logically over it. Scripts live in `parish/scripts/diorama/`.
+  Candidate awaiting owner sign-off:
+  `…/diorama-art/kilteevan-village/master-candidates/cand-01.png`.
+- **Current scope (owner decision 2026-06-12): good MASTERS only.** No
+  variant batches, nothing merged to main (work rides PR #1429's branch).
+  Everything else is deferred — see "Deferred work" below.
 
 ## Locked decisions (do not re-litigate)
 
@@ -61,68 +66,85 @@
     `late-spring`, `summer` ×1, `early-fall`, `late-fall` (spring + fall get 2
     each for finer seasonal change).
   - Lighting: `day-sunny`, `day-overcast`, `night-moonlit`.
-- **Generation script (ad-hoc, in `/tmp` — port into the repo next session):**
-  `/tmp/gen_variants.py` — base64s the master, fans out 18 edits 4-at-a-time
-  with retries via the Responses API. The locked instruction text is in there.
+- **Generation scripts (now in the repo, `parish/scripts/diorama/`):**
+  - `gen_variants.py` — salvaged from `/tmp`; base64s the master, fans out 18
+    edits 4-at-a-time with retries via the Responses API. The locked variant
+    instruction text is in there, byte-identical to the proven batch. Usage:
+    `gen_variants.py <master.png> <out-dir>`.
+  - `gen_master.py` — structure-guided master generation (the river fix).
+    `schematic` subcommand renders the layout control image (needs Pillow:
+    `uv run --with pillow …`); `generate` subcommand calls gpt-5.5 +
+    image_generation with schematic as control + old master as style ref
+    (stdlib only).
 
-## THE OPEN PROBLEM — river/layout coherence
+## River/layout coherence — RESOLVED (2026-06-12)
 
-The model can't reason about spatial continuity. In the Kilteevan plates the
-single river is split into disconnected sections and the bridge doesn't sit
-logically over it. The style is otherwise perfect.
+The model can't reason about spatial continuity on its own: in the first
+Kilteevan batch the single river split into disconnected sections and the
+bridge sat illogically. **Fix that worked (first try): structure-guided
+generation** via `parish/scripts/diorama/gen_master.py`:
 
-**Recommended fix — structure-guided generation (try first):**
+1. `gen_master.py schematic` renders a programmatic layout schematic
+   (1536×1024 PNG, flat colors): ONE continuous blue river polyline entering
+   the right edge and exiting the left, crossing exactly one lane; a grey
+   bridge marker at that single crossing; red cottage rectangles; black well
+   ring inside a brown plaza/common; lane network; dark wall lines; hatched
+   empty tilled plots. Layout constants live at the top of the script —
+   geometry was derived from the locked master's composition +
+   `mods/rundale/world.json` connections.
+2. `gen_master.py generate` feeds that schematic as a **control image** plus
+   the old master as a **style reference** (two `input_image` entries, one
+   Responses call, gpt-5.5 + image_generation, 1536×1024 high) with a legend
+   prompt ("river follows the blue line, never breaks, bridge only at the
+   grey marker…").
+3. Result: `master-candidates/cand-01.png` — river continuous, bridge
+   logical, style matched. Schematic-drawing gotchas: keep the well ring
+   inside the plaza blob (not on a lane band) and walls clear of
+   lanes/river/cottages, or the model paints those mistakes faithfully.
 
-1. Programmatically generate a **logically-consistent layout schematic** of the
-   scene — an SVG / block diagram with: ONE continuous river polyline, a bridge
-   crossing it at exactly one point, cottage rectangles, dry-stone-wall lines,
-   the path/lane network, the well. Rasterize it to PNG.
-2. Feed that schematic to the generator as a **control / reference image**
-   (`input_image` in the Responses `image_generation` call — the same mechanism
-   the variant edits already use) alongside the art prompt: "paint this layout
-   as a pixel-art plate, river follows the blue line, bridge where marked".
-3. The generator then paints within a coherent plan it didn't have to invent.
+Escalation levers if a future location resists (NOT needed for Kilteevan):
+gpt-5.5-pro plans the layout → emits SVG → rasterize → control image →
+render.
 
-**Secondary levers:**
+## Deferred work (owner decision 2026-06-12 — do NOT lose this)
 
-- **Higher reasoning:** `gpt-5.5-pro` (reasoning model, available on the key)
-  with higher reasoning effort to _plan_ the layout; or have `gpt-5.5` VISION-
-  analyze the current master, identify the river breaks, and emit a corrected
-  layout before rendering.
-- **Combine:** gpt-5.5-pro reasons → emits the SVG layout → rasterize → control
-  image → render. This is likely the strongest pipeline.
+Scope was deliberately cut to "good masters only, on the PR branch". All of
+the below is parked, none of it is done:
 
-**Feasibility:** confirmed — the `image_generation` tool accepts input images
-(we use it for variants), so a layout control-image is viable today.
-
-The scene already has a real spatial source of truth: `mods/rundale/world.json`
-(location connections) and the diorama `hotspots`/`slots` percentage coords —
-the layout schematic can be derived from / aligned to those so the art matches
-the clickable hotspots.
-
-## Remaining M5 work (after the river fix)
-
-1. **River/layout fix** (above) — regenerate the Kilteevan master with a
-   coherent river, re-run the 18-variant batch.
-2. **Firelight overlay** — per-cottage warm window glow as a separate layer,
-   toggled by NPC sleep state.
-3. **Wire the pipeline into `parish-art-tool`** — today the providers are
-   offline request-builders with a **stubbed live `generate()`**; the real
-   Responses/gpt-5.5 + edit-off-master flow lives only in `/tmp/gen_variants.py`.
-   Add an `openai-responses` path (gpt-5.5 + image_generation, input-image
-   variants + control image).
+1. **18-variant batch regen per location** — the edit-off-master variant
+   pipeline (`gen_variants.py`) is proven and untouched; re-run it off each
+   accepted master (~$6/location). Kilteevan's existing 18 plates were made
+   from the broken-river master and need regenerating off the accepted
+   candidate.
+2. **Firelight overlay** — per-cottage warm window glow as a separate
+   transparent layer, toggled by NPC sleep state. Art (edit-off-master) +
+   engine (layer toggle in scene state + Svelte).
+3. **Port the pipeline into `parish-art-tool`** — providers are still offline
+   request-builders with a stubbed live `generate()`; the real flow lives in
+   `parish/scripts/diorama/`. Add an `openai-responses` path (gpt-5.5 +
+   image_generation, input-image variants + control image).
 4. **Extend the engine for the variant matrix.** Today the schema
    (`parish/crates/parish-mod/src/scenes.rs`, `SceneDef.variants:
 HashMap<String,String>`) + the selector
    (`parish/crates/parish-core/src/ipc/scene.rs::select_variant`) only do
    night-by-hour + reserved weather. Extend to **season × weather × time-of-day**
-   so the 18 variants are actually served. Keep the rule-12 shared-handler shape.
-5. **Other 7 MVP locations + ~12 sprites.** Plates: Crossroads (1), Darcy's Pub
-   (2 — **indoor**), St. Brigid's (3), Murphy's Farm (9), Bog Road (12), Forge
-   (16), Holy Well (17). Sprites are generated **separately** with transparent
+   so the 18 variants are actually served. Keep the rule-12 shared-handler
+   shape. Pure Rust — can proceed independently of art.
+5. **Other 7 MVP location masters + ~12 sprites.** Plates: Crossroads (1),
+   Darcy's Pub (2 — **indoor**, no river schematic), St. Brigid's (3),
+   Murphy's Farm (9), Bog Road (12), Forge (16), Holy Well (17). Each needs
+   its own layout schematic (new constants or a per-location table in
+   `gen_master.py`). Sprites are generated **separately** with transparent
    backgrounds (characters are NOT in plates).
    - Sprite scale: derive from the plate (a ~1.7 m person ≈ a fixed % of plate
      height). Reference: Stardew ≈ 16 px tile (~16 px/m native, 4× on screen).
+6. **Budget gap:** ~$0.2-0.4/render; 7 locations × 18 variants ≈ $40-50 +
+   sprites. Key had ~$10 credits at handover time — owner must top up before
+   the variant batches / remaining locations.
+7. **Art distribution decision (pre-M6):** art lives in iCloud, not git —
+   packaged builds need a delivery path (deploy artifact, download-on-first-
+   run, or mod data dir). Owner call required before flipping the `diorama`
+   flag on.
 
 ## Repo state / where things are
 
@@ -145,9 +167,14 @@ HashMap<String,String>`) + the selector
 1. Read this doc + `docs/design/ideas/parish-diorama.md`.
 2. `source .env`; confirm `curl https://api.openai.com/v1/models` lists
    `gpt-image-2` and `gpt-5.5`.
-3. Prototype the river fix: build a layout schematic for Kilteevan (derive from
-   `world.json` + intended hotspots), rasterize, use as a control image with the
-   Responses API, regenerate the master, re-run the 18-variant batch.
-4. Then: firelight overlay → port pipeline into `parish-art-tool` → extend the
-   scene schema + `select_variant` to season×weather×time → remaining locations
-   - sprites → post-process/accept → wire into `scenes.json` → flip the flag (M6).
+3. Confirm the owner accepted
+   `…/diorama-art/kilteevan-village/master-candidates/cand-01.png`; if yes,
+   promote it to the new `0-master_summer-day-sunny.png` (keep the old one as
+   `0-master_v1_broken-river.png`).
+4. Continue with masters for the remaining 7 locations (per-location
+   schematic in `gen_master.py` → generate → owner eyeball), still NO variant
+   batches until the owner re-opens that scope.
+5. Then work the "Deferred work" list above in order: variant batches →
+   firelight overlay → port pipeline into `parish-art-tool` → extend the
+   scene schema + `select_variant` to season×weather×time → sprites →
+   post-process/accept → wire into `scenes.json` → flip the flag (M6).
