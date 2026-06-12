@@ -62,6 +62,10 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 
 16. **Cap external API payloads to the provider's hard limit before sending.** Any code that builds a payload for an API with a documented size limit (e.g. GitHub issue body ≤ 65536 chars, commit message limits) must validate the payload size client-side before the HTTP call and truncate or move overflow to an attachment, never relying on the provider to reject it with a 4xx. The pattern: compute the payload string, truncate to a safe budget (≤ 90% of the limit), prefix any dropped content with a `[truncated N chars]` marker, then send. A test asserting `payload.len() <= budget` is required for every such code path (#1375).
 
+17. **Survey existing tooling before building any.** Before writing a new dashboard, harness, script, or one-off tool, check whether the repo already provides it: the `parish-harness` binary (which has a built-in web server/dashboard), `justfile` recipes, `parish/scripts/**`, and `.claude/skills/`. Run the existing tool; never hand-roll a throwaway duplicate. If the existing tool falls short, extend it in place rather than forking a parallel implementation.
+
+18. **Report only verification you actually ran.** Any claim that a test passed, a process ran, or proof was captured must be backed by literal command output produced in the current session. If a verification step was not run, failed, or was skipped, say so explicitly — never estimate, extrapolate, or fabricate a result. This is the honesty layer beneath the mechanical proof gates in rules 10 and 13.
+
 ## Standard commands
 
 ```sh
