@@ -23,10 +23,16 @@
   generation — layout schematic as control image + layout narration +
   style SWATCHES (not the full old master, whose composition leaked) + an
   automated 8-check vision gate. Scripts live in `parish/scripts/diorama/`.
-  Survivors awaiting owner sign-off:
-  `…/diorama-art/kilteevan-village/master-candidates/cand-15.png`
-  (8/8 gate pass) and `cand-16.png` (manual verify only — quota died
-  mid-check; arguably the nicest bridge/walls of the 16).
+  Recommended survivor awaiting owner sign-off:
+  **`…/diorama-art/kilteevan-village/master-candidates/cand-16.png`** —
+  verified by cross-checked evidence (independent Claude vision judge +
+  deterministic pixel analysis + full-res edge strips): river continuous
+  with the water-component gap exactly the bridge width, arch over water,
+  ALL five lane exits reach their frame edges, clean ridges, anchored
+  walls. `cand-15` passed the gpt-5.5 gate 8/8 but the edge strips proved
+  its mill track never reaches the left edge (4/5 exits) — the gate's
+  lane-reach verdict from a downscaled full frame was unreliable, so
+  `check` now also sends full-res left/right edge strips.
 - **OPENAI CREDITS EXHAUSTED (2026-06-12, HTTP 429 insufficient_quota).**
   ~16 renders + vision checks burned the remaining ~$10. ALL further
   generation (other location masters, variant batches, swatch rebuilds)
@@ -135,10 +141,19 @@ generation** via `parish/scripts/diorama/gen_master.py`:
    expanded to 8 checks: + bridge_arch_over_water (cand-10 had the arch
    rotated toward the road), no_extra_lanes (cand-11/12 hallucinated a NW
    path), no_roof_protrusions, walls_anchored.
-6. Surviving candidates: **`master-candidates/cand-15.png` (8/8 gate
-   pass, recommended)** and `cand-16.png` (manual verification only —
-   quota exhausted mid-check; stone arch and walls arguably the best of
-   all 16). cand-01..14 kept as the failure/iteration record.
+6. **Cross-verification (quota died before cand-16's gpt-5.5 check, so the
+   gate ran as: independent Claude vision judge + deterministic pixel
+   analysis + full-res edge strips).** Findings: cand-16 passes everything
+   — its two water components are separated by exactly the bridge width
+   with overlapping y-ranges (continuity-with-bridge proven mechanically),
+   and all five exits reach their edges. cand-15's gpt-5.5 8/8 was WRONG
+   on lane reach: the edge strips show its mill track fades before the
+   left edge (4/5 exits). Single-judge full-frame verdicts are not
+   trustworthy for edge details; `check` now sends full-res left/right
+   edge strips, and a water-component gap-vs-bridge-width pixel probe is
+   the durable mechanical test for river continuity.
+   **Recommended: cand-16.** cand-01..15 kept as the failure/iteration
+   record.
 
 Schematic-drawing gotchas: keep the well ring inside the plaza blob (not on
 a lane band), walls clear of lanes/river/cottages, the river locally
@@ -218,7 +233,7 @@ HashMap<String,String>`) + the selector
 2. `source .env`; confirm `curl https://api.openai.com/v1/models` lists
    `gpt-image-2` and `gpt-5.5`.
 3. Confirm the owner accepted a survivor (recommended:
-   `…/diorama-art/kilteevan-village/master-candidates/cand-15.png`); if yes,
+   `…/diorama-art/kilteevan-village/master-candidates/cand-16.png`); if yes,
    promote it to the new `0-master_summer-day-sunny.png` (keep the old one as
    `0-master_v1_broken-river.png`) and rebuild the style swatch sheet off the
    ACCEPTED master (`gen_master.py swatches`) for all future locations.
