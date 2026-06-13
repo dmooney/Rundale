@@ -1136,6 +1136,7 @@ impl GameTestHarness {
             &reaction_templates,
             target,
             &transport,
+            &self.app.flags,
         );
 
         // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.

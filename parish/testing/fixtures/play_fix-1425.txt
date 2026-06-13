@@ -1,0 +1,8 @@
+look
+/debug gossip
+go to the crossroads
+/debug gossip
+go to the pub
+/debug gossip
+go to the church
+/debug gossip
