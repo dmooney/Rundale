@@ -40,12 +40,16 @@ pub fn build_reaction_prompt(
 
     let intro_context = if !is_introduced && at_workplace {
         format!(
-            "You have not met this person before. You are working here as the {}. \
-             Introduce yourself briefly.",
+            "A stranger has just walked in. You are working here as the {}. \
+             Greet them — address the newcomer directly. You may give your name \
+             as part of the welcome, but speak TO them, not about yourself.",
             npc.occupation
         )
     } else if !is_introduced {
-        "You have not met this person before. You may introduce yourself or simply acknowledge them."
+        "A stranger has just arrived. Greet them directly — address the newcomer, \
+         welcome them, or acknowledge their presence. Speak TO the newcomer. \
+         You may give your name if it feels natural, but the greeting must be \
+         directed outward at the person who just arrived."
             .to_string()
     } else if at_workplace {
         format!(
@@ -68,15 +72,16 @@ pub fn build_reaction_prompt(
          \"How may I assist\", \"How can I help\", \"Is there anything I can \
          do for you\", \"How may I be of service\", \"What brings you here \
          today\". \
-         Greet the way an 1820 villager would: \"Aye, {name_first}\", \
-         \"Bedad,\", \"Faith,\", \"Begob,\", \"God save ye,\", or by simply \
-         calling out their name. Cap the reply at ~20 words.",
+         Address the newcomer directly — speak TO them. \
+         Greet the way an 1820 villager would welcome a stranger: \
+         \"God save ye,\", \"Bedad,\", \"Faith,\", \"Begob,\", \
+         \"You're welcome,\", \"And who might you be?\". \
+         Cap the reply at ~20 words.",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
         personality = personality_snippet,
         mood = npc.mood,
-        name_first = npc.name.split_whitespace().next().unwrap_or(&npc.name),
     );
 
     system.push_str("\n\n");
