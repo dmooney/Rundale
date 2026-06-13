@@ -126,7 +126,7 @@ async fn run_headless_repl_loop(
 
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
-                let (quit, rebuild) = handle_headless_command(app, cmd).await;
+                let (quit, rebuild) = handle_headless_command(app, cmd, &trimmed).await;
                 if rebuild {
                     let any = if app.provider_name == "simulator" {
                         Some(AnyClient::simulator())
@@ -659,7 +659,7 @@ fn drain_chat_transcript_events(app: &mut App) {
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
 /// [`CliCommandHost`] adapter (#696 slice 7).  The `App` is temporarily moved
 /// into an `Arc<Mutex<App>>` for the duration of the call, then moved back.
-async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
+async fn handle_headless_command(app: &mut App, cmd: Command, raw_text: &str) -> (bool, bool) {
     use crate::command_host::CliCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
     use std::sync::Arc;
@@ -669,7 +669,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
     let app_arc = Arc::new(tokio::sync::Mutex::new(app_val));
     let (should_quit, rebuild) = {
         let host = CliCommandHost::new(Arc::clone(&app_arc));
-        shared_handle(&host, cmd).await;
+        shared_handle(&host, cmd, raw_text).await;
         let q = host.did_quit();
         let r = host.did_rebuild_inference();
         // `host` is dropped here, releasing its Arc clone so app_arc has exactly 1 ref.
@@ -1651,7 +1651,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_quit() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit).await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit, "").await;
         assert!(quit);
         assert!(app.should_quit);
     }
@@ -1696,7 +1696,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_pause() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause).await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause, "").await;
         assert!(!quit);
         assert!(app.world.clock.is_paused());
     }
@@ -1705,7 +1705,7 @@ mod tests {
     async fn test_handle_headless_command_resume() {
         let mut app = App::new();
         app.world.clock.pause();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume).await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume, "").await;
         assert!(!quit);
         assert!(!app.world.clock.is_paused());
     }
@@ -1713,21 +1713,21 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_help() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help).await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help, "").await;
         assert!(!quit);
     }
 
     #[tokio::test]
     async fn test_handle_headless_command_status() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status).await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status, "").await;
         assert!(!quit);
     }
 
     #[tokio::test]
     async fn test_handle_headless_command_save_no_db() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1744,7 +1744,7 @@ mod tests {
         app.active_branch_id = branch.id;
         app.latest_snapshot_id = snap_id;
 
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "").await;
         assert!(!quit);
         assert!(!rebuild);
         assert!(app.latest_snapshot_id > snap_id);
@@ -1763,7 +1763,8 @@ mod tests {
         app.latest_snapshot_id = snap_id;
 
         // Fork
-        let (quit, _) = handle_headless_command(&mut app, Command::Fork("test".to_string())).await;
+        let (quit, _) =
+            handle_headless_command(&mut app, Command::Fork("test".to_string()), "").await;
         assert!(!quit);
         assert_ne!(app.active_branch_id, branch.id);
 
@@ -1785,7 +1786,8 @@ mod tests {
         app.latest_snapshot_id = snap_id;
 
         // Load main
-        let (quit, _) = handle_headless_command(&mut app, Command::Load("main".to_string())).await;
+        let (quit, _) =
+            handle_headless_command(&mut app, Command::Load("main".to_string()), "").await;
         assert!(!quit);
     }
 
@@ -1795,7 +1797,8 @@ mod tests {
         let db = crate::persistence::Database::open_memory().unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
         app.db = Some(async_db);
-        let (quit, _) = handle_headless_command(&mut app, Command::Load("bogus".to_string())).await;
+        let (quit, _) =
+            handle_headless_command(&mut app, Command::Load("bogus".to_string()), "").await;
         assert!(!quit);
     }
 
@@ -1803,7 +1806,7 @@ mod tests {
     async fn test_handle_headless_command_show_provider() {
         let mut app = App::new();
         app.provider_name = "openrouter".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1812,7 +1815,8 @@ mod tests {
     async fn test_handle_headless_command_set_provider() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string())).await;
+            handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string()), "")
+                .await;
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.provider_name, "openrouter");
@@ -1823,7 +1827,7 @@ mod tests {
     async fn test_handle_headless_command_set_provider_invalid() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string())).await;
+            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string()), "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1832,7 +1836,7 @@ mod tests {
     async fn test_handle_headless_command_show_model() {
         let mut app = App::new();
         app.model_name = "test-model".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1841,7 +1845,7 @@ mod tests {
     async fn test_handle_headless_command_set_model() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetModel("new-model".to_string())).await;
+            handle_headless_command(&mut app, Command::SetModel("new-model".to_string()), "").await;
         assert!(!quit);
         // A base model change now rebinds the worker (#1365) — a model change
         // is a routing change, so it must rebuild for parity with the
@@ -1853,7 +1857,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_key_none() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1862,7 +1866,7 @@ mod tests {
     async fn test_handle_headless_command_show_key_masked() {
         let mut app = App::new();
         app.api_key = Some("sk-or-v1-abcdef1234".to_string());
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1871,9 +1875,12 @@ mod tests {
     async fn test_handle_headless_command_set_key() {
         let mut app = App::new();
         app.base_url = "https://openrouter.ai/api".to_string();
-        let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetKey("sk-new-key-12345678".to_string()))
-                .await;
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetKey("sk-new-key-12345678".to_string()),
+            "",
+        )
+        .await;
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
@@ -1883,7 +1890,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_speed() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1892,7 +1899,7 @@ mod tests {
     async fn test_handle_headless_command_set_speed() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast)).await;
+            handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast), "").await;
         assert!(!quit);
         assert!(!rebuild);
         assert!(
@@ -1907,6 +1914,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Dialogue, "gpt-4".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -1922,6 +1930,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Intent, "qwen3:1.5b".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -1936,6 +1945,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Simulation, "qwen3:8b".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -1951,6 +1961,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryProvider(InferenceCategory::Intent, "openrouter".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2033,7 +2044,7 @@ mod tests {
         // Bare /load without a DB should not crash
         let mut app = App::new();
         let (quit, _rebuild) =
-            handle_headless_command(&mut app, Command::Load(String::new())).await;
+            handle_headless_command(&mut app, Command::Load(String::new()), "").await;
         assert!(!quit);
     }
 
@@ -2044,7 +2055,7 @@ mod tests {
         let mut app = App::new();
         app.world.clock.pause(); // freeze for determinism
         let hour_before = app.world.clock.now().hour();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Wait(60)).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Wait(60), "").await;
         assert!(!quit);
         assert!(!rebuild);
         // Time should have advanced by 60 minutes
@@ -2055,7 +2066,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_debug_none() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Debug(None)).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Debug(None), "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2064,7 +2075,7 @@ mod tests {
     async fn test_handle_headless_command_debug_with_subcommand() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::Debug(Some("clock".to_string()))).await;
+            handle_headless_command(&mut app, Command::Debug(Some("clock".to_string())), "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2073,7 +2084,7 @@ mod tests {
     async fn test_handle_headless_command_toggle_sidebar() {
         // In headless mode, ToggleSidebar just prints a message (not available)
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleSidebar).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleSidebar, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2082,7 +2093,7 @@ mod tests {
     async fn test_handle_headless_command_toggle_improv() {
         let mut app = App::new();
         let was_improv = app.improv_enabled;
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleImprov).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleImprov, "").await;
         assert!(!quit);
         assert!(!rebuild);
         assert_ne!(app.improv_enabled, was_improv);
@@ -2091,7 +2102,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_about() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::About).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::About, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2099,7 +2110,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_map() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map(None)).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map(None), "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2107,7 +2118,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_npcs_here() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::NpcsHere).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::NpcsHere, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2115,7 +2126,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_time() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Time).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Time, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2124,7 +2135,7 @@ mod tests {
     async fn test_handle_headless_command_invalid_speed() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::InvalidSpeed("bogus".to_string())).await;
+            handle_headless_command(&mut app, Command::InvalidSpeed("bogus".to_string()), "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2144,7 +2155,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_log() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Log).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Log, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2152,7 +2163,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_branches_no_db() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Branches).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Branches, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2160,7 +2171,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_tick() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Tick).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Tick, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2168,7 +2179,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloud).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloud, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2176,7 +2187,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud_model() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudModel).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudModel, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2184,7 +2195,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud_key() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudKey).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudKey, "").await;
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2205,9 +2216,12 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_set_cloud_key() {
         let mut app = App::new();
-        let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetCloudKey("sk-cloud-123".to_string()))
-                .await;
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCloudKey("sk-cloud-123".to_string()),
+            "",
+        )
+        .await;
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.cloud_api_key.as_deref(), Some("sk-cloud-123"));

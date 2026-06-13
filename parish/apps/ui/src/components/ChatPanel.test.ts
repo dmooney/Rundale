@@ -596,6 +596,84 @@ describe('ChatPanel', () => {
 	});
 });
 
+// ── #1423 slash-command echo rendering ────────────────────────────────────────
+describe('ChatPanel — slash command echo (#1423)', () => {
+	beforeEach(() => {
+		textLog.set([]);
+		streamingActive.set(false);
+		worldState.set(null);
+	});
+
+	// AC-6: command subtype renders as .entry.command, NOT .bubble-row.player
+	it('renders {source:"player", subtype:"command"} as .entry.command', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('[data-testid="command-entry"]');
+		expect(entry).toBeTruthy();
+		expect(entry?.classList.contains('command')).toBe(true);
+	});
+
+	it('command entry contains the typed command text', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('[data-testid="command-entry"]');
+		expect(entry?.textContent).toContain('/pause');
+	});
+
+	it('does NOT render a .bubble-row.player for a command entry (AC-6)', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.player')).toBeFalsy();
+	});
+
+	it('normal player dialogue still renders as .bubble-row.player', () => {
+		textLog.set([{ id: 'p-1', source: 'player', content: 'Good morning!' }]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.player')).toBeTruthy();
+		expect(
+			container.querySelector('[data-testid="command-entry"]'),
+		).toBeFalsy();
+	});
+
+	it('command entry is distinct from system narration', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+			{
+				id: 'sys-1',
+				source: 'system',
+				content: 'The clocks of the parish stand still.',
+			},
+		]);
+		const { container } = render(ChatPanel);
+		expect(
+			container.querySelector('[data-testid="command-entry"]'),
+		).toBeTruthy();
+		expect(container.querySelector('.entry.system')).toBeTruthy();
+		// Command entry is not a system entry
+		expect(
+			container
+				.querySelector('[data-testid="command-entry"]')
+				?.classList.contains('system'),
+		).toBe(false);
+	});
+
+	it('renders command-prompt and command-text spans inside .entry.command', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/resume' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('.entry.command');
+		expect(entry?.querySelector('.command-prompt')).toBeTruthy();
+		expect(entry?.querySelector('.command-text')?.textContent).toBe('/resume');
+	});
+});
+
 describe('ChatPanel — UI design pass (game-ui-design-ma9ls0)', () => {
 	beforeEach(() => {
 		textLog.set([]);

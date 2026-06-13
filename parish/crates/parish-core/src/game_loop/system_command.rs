@@ -133,6 +133,24 @@ pub trait SystemCommandHost: Send + Sync {
 
     /// Emit an updated world snapshot.
     fn emit_world_update(&self) -> BoxFuture<'_, ()>;
+
+    /// Emit the player's slash command as a distinct command-echo entry in the
+    /// transcript (`source:"player"`, `subtype:"command"`).
+    ///
+    /// Called by [`handle_system_command`] before processing effects when
+    /// `is_echo_commands_disabled` returns `false`.  GUI backends (Tauri,
+    /// server) override this to emit the payload; the headless CLI keeps the
+    /// default no-op because the REPL already prints the raw input.
+    fn emit_command_echo(&self, _raw_text: &str) {}
+
+    /// Returns `true` only when the `echo-commands` flag has been explicitly
+    /// disabled via `/flag disable echo-commands`.
+    ///
+    /// Unknown flag = `false` (not disabled) = echo fires.  Default
+    /// implementation returns `false` so every host echoes by default.
+    fn is_echo_commands_disabled(&self) -> bool {
+        false
+    }
 }
 
 /// Translates a parser-level `InferenceLogSub` to the inference-crate's
@@ -161,11 +179,21 @@ pub fn apply_inference_log_sub(
 /// each returned [`CommandEffect`] to the backend-specific `host`.  Finally,
 /// emits the command's text response and an updated world snapshot.
 ///
+/// `raw_text` is the original player-typed string (e.g. `"/pause"`).  When the
+/// `echo-commands` feature flag is not disabled, it is echoed into the
+/// transcript via [`SystemCommandHost::emit_command_echo`] before effects run,
+/// so the player can see what was typed alongside the narration it produced.
+///
 /// This replaces the ~150-line `handle_system_command` that was triplicated in
 /// `parish-server`, `parish-tauri`, and `parish-engine` (with only the effect
 /// dispatch body differing).  Each backend now provides a ~20-line
 /// [`SystemCommandHost`] implementation delegating to this function.
-pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command) {
+pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, raw_text: &str) {
+    // Echo the typed command into the transcript (feature-flagged, default-ON).
+    if !host.is_echo_commands_disabled() {
+        host.emit_command_echo(raw_text);
+    }
+
     let result = host.run_command(cmd).await;
 
     for effect in result.effects.clone() {
@@ -277,6 +305,10 @@ mod tests {
         text_log: std::sync::Mutex<Vec<(String, TextPresentation)>>,
         calls: std::sync::Mutex<Vec<String>>,
         scripted_result: std::sync::Mutex<Option<CommandResult>>,
+        /// Captured raw_text values passed to `emit_command_echo`.
+        echo_calls: std::sync::Mutex<Vec<String>>,
+        /// When `true`, `is_echo_commands_disabled` returns `true`.
+        echo_disabled: bool,
     }
 
     impl MockHost {
@@ -288,6 +320,8 @@ mod tests {
                 text_log: std::sync::Mutex::new(Vec::new()),
                 calls: std::sync::Mutex::new(Vec::new()),
                 scripted_result: std::sync::Mutex::new(None),
+                echo_calls: std::sync::Mutex::new(Vec::new()),
+                echo_disabled: false,
             }
         }
 
@@ -320,6 +354,10 @@ mod tests {
         fn assert_text_emitted(&self, expected: &str) {
             let log = self.text_log.lock().unwrap();
             assert!(log.iter().any(|(msg, _)| msg == expected));
+        }
+
+        fn echo_calls(&self) -> Vec<String> {
+            self.echo_calls.lock().unwrap().clone()
         }
     }
 
@@ -433,12 +471,21 @@ mod tests {
             self.record("reset_byok");
             Box::pin(async {})
         }
+
+        fn emit_command_echo(&self, raw_text: &str) {
+            self.record(format!("echo:{raw_text}"));
+            self.echo_calls.lock().unwrap().push(raw_text.to_string());
+        }
+
+        fn is_echo_commands_disabled(&self) -> bool {
+            self.echo_disabled
+        }
     }
 
     #[tokio::test]
     async fn dispatches_save_effect_and_emits_world_update() {
         let host = MockHost::new();
-        handle_system_command(&host, Command::Save).await;
+        handle_system_command(&host, Command::Save, "/save").await;
         host.assert_save_called();
         host.assert_text_emitted("Game saved.");
         host.assert_world_update_called();
@@ -447,7 +494,7 @@ mod tests {
     #[tokio::test]
     async fn quit_effect_returns_early() {
         let host = MockHost::new();
-        handle_system_command(&host, Command::Quit).await;
+        handle_system_command(&host, Command::Quit, "/quit").await;
         host.assert_quit_called();
         // world update should NOT be called after quit (early return)
         assert!(!host.world_update_called.load(Ordering::SeqCst));
@@ -468,11 +515,12 @@ mod tests {
             presentation: TextPresentation::Tabular,
         });
 
-        handle_system_command(&host, Command::Help).await;
+        handle_system_command(&host, Command::Help, "/help").await;
 
         assert_eq!(
             host.calls(),
             vec![
+                "echo:/help",
                 "rebuild_inference",
                 "save_flags",
                 "apply_theme:solarized:dark",
@@ -494,8 +542,31 @@ mod tests {
             presentation: TextPresentation::Prose,
         });
 
-        handle_system_command(&host, Command::Help).await;
+        handle_system_command(&host, Command::Help, "/map").await;
 
-        assert_eq!(host.calls(), vec!["toggle_map"]);
+        assert_eq!(host.calls(), vec!["echo:/map", "toggle_map"]);
+    }
+
+    /// AC-5: `handle_system_command` emits a command echo for `Command::Pause`
+    /// with the original typed text before dispatching any effects.
+    #[tokio::test]
+    async fn system_command_emits_player_command_echo() {
+        let host = MockHost::new();
+        handle_system_command(&host, Command::Pause, "/pause").await;
+        let echoes = host.echo_calls();
+        assert_eq!(echoes, vec!["/pause"]);
+    }
+
+    /// When the host reports `is_echo_commands_disabled() == true`, no echo is
+    /// emitted (feature flag kill-switch).
+    #[tokio::test]
+    async fn system_command_echo_suppressed_when_flag_disabled() {
+        let mut host = MockHost::new();
+        host.echo_disabled = true;
+        handle_system_command(&host, Command::Pause, "/pause").await;
+        assert!(
+            host.echo_calls().is_empty(),
+            "echo must not fire when echo-commands flag is disabled"
+        );
     }
 }
