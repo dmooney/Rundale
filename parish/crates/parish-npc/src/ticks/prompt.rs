@@ -1208,6 +1208,77 @@ mod tests {
         );
     }
 
+    /// AC-1 (#1421): the assembled context returned by the integrated builder
+    /// must contain both the mood label and the curt tone directive for a
+    /// "sharp" NPC — proving `mood_block()` output reaches the final context.
+    #[test]
+    fn assembled_context_sharp_mood_contains_curt_directive() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "sharp".to_string();
+        let world = WorldState::new();
+        let npc_names: HashMap<NpcId, String> = HashMap::new();
+        let config = NpcConfig::default();
+
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "good morning",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &npc_names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+
+        assert!(
+            context.contains("Your current mood: sharp"),
+            "assembled context must contain mood label for sharp NPC:\n{context}"
+        );
+        assert!(
+            context.to_lowercase().contains("curt")
+                || context.to_lowercase().contains("pleasantries")
+                || context.to_lowercase().contains("direct"),
+            "assembled context must contain curt/direct directive for sharp NPC:\n{context}"
+        );
+    }
+
+    /// AC-2 (#1421): the assembled context returned by the integrated builder
+    /// must contain both the mood label and the watchful tone directive for an
+    /// "alert" NPC — proving `mood_block()` output reaches the final context.
+    #[test]
+    fn assembled_context_alert_mood_contains_watchful_directive() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "alert".to_string();
+        let world = WorldState::new();
+        let npc_names: HashMap<NpcId, String> = HashMap::new();
+        let config = NpcConfig::default();
+
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "good morning",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &npc_names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+
+        assert!(
+            context.contains("Your current mood: alert"),
+            "assembled context must contain mood label for alert NPC:\n{context}"
+        );
+        assert!(
+            context.to_lowercase().contains("on edge")
+                || context.to_lowercase().contains("attentive")
+                || context.to_lowercase().contains("scanning")
+                || context.to_lowercase().contains("careful"),
+            "assembled context must contain watchful directive for alert NPC:\n{context}"
+        );
+    }
+
     /// Regression guard: the system prompt must be byte-stable when only the
     /// NPC mood changes (mood lives in the dynamic context, not the system
     /// prompt, so a mood change must not alter the system block).
