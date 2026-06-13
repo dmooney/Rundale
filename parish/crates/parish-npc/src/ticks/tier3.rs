@@ -174,10 +174,13 @@ pub fn build_tier3_prompt(
         })
         .collect();
 
+    // #1451: "the season is X" was underweighted — LLM generated summer activities
+    // in Spring. Make it a named directive with an explicit prohibition.
     let mut prompt = format!(
         "You are simulating background NPC activity in a rural Irish parish in 1820. \
         Simulate {hours} hours of activity for the people below. \
-        The weather is {weather}, the season is {season}, the time is {time}.\n\n\
+        The weather is {weather}. CURRENT SEASON: {season} — do not reference any \
+        other season in the activity summaries. The time is {time}.\n\n\
         NPCs (id in brackets — reuse these in your JSON):\n\
         {npcs}\n\n\
         For each NPC, return one update describing their mood, what they did, \
@@ -718,6 +721,43 @@ mod tests {
 
         assert!(!snap.intelligence_adjectives.contains("INT["));
         assert_eq!(snap.intelligence_adjectives, "eloquent, wise");
+    }
+
+    // ── #1451: season directive in tier3 prompt ──────────────────────────────
+
+    /// AC (#1451): the Tier 3 batch prompt must carry a "CURRENT SEASON" directive
+    /// with an explicit no-other-season prohibition so activity summaries stay
+    /// season-correct even for distant NPCs.
+    #[test]
+    fn tier3_prompt_carries_season_directive() {
+        let snapshots: Vec<Tier3Snapshot> = vec![Tier3Snapshot {
+            id: NpcId(1),
+            name: "Padraig".to_string(),
+            occupation: "Publican".to_string(),
+            age: 58,
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            mood: "content".to_string(),
+            context: String::new(),
+            intelligence_adjectives: String::new(),
+            relationship_summary: String::new(),
+        }];
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Clear", "Spring", 4, &lang);
+
+        assert!(
+            prompt.contains("CURRENT SEASON:") || prompt.contains("CURRENT SEASON"),
+            "tier3 prompt must carry a CURRENT SEASON directive (#1451):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Spring"),
+            "tier3 prompt must name the actual season (#1451):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("do not reference any other season")
+                || prompt.contains("Do not reference any other season"),
+            "tier3 prompt must prohibit referencing other seasons (#1451):\n{prompt}"
+        );
     }
 
     /// AC-1 (#1397): when grounding_enabled is true, temperature and
