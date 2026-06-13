@@ -1,0 +1,23 @@
+# Fixture: mood_emoji map completeness (issue #1452)
+# Exercises the headless engine so NPCs with moods that were previously
+# falling through to the 🙂 fallback now show the corrected emoji.
+#
+# NPCs with relevant moods (from npcs.json):
+#   Maire Gallagher (busy → 😤)  at The Forge (loc 16)
+#   Colm Gallagher  (eager → 🤩) at The Forge (loc 16)
+#   Cormac Duffy    (calculating → 🧐) at The Mill (loc 18)
+#   Liam Murphy     (quiet → 😐) at Murphy's Farm (loc 9)
+#
+# /debug npcs emits "Mood: <emoji> <mood>" for every loaded NPC,
+# exercising mood_emoji() directly from the engine runtime.
+
+look
+/debug npcs
+go to the forge
+look
+/npcs
+/debug here
+go to the mill
+/debug here
+go to Murphy's Farm
+/debug here
