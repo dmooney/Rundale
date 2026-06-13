@@ -1129,6 +1129,32 @@ fn build_tier1_context_includes_forbidden_morning_greeting_at_dusk() {
     );
 }
 
+// ── #1451: season grounding directive ────────────────────────────────────
+
+/// AC (#1451): build_tier1_context must emit a CURRENT SEASON directive with
+/// an explicit prohibition on referencing other seasons, so small models cannot
+/// substitute summer in spring (or any other season mismatch).
+#[test]
+fn build_tier1_context_carries_season_directive() {
+    // WorldState::new() defaults to a fixed date — check what season it produces.
+    let world = WorldState::new();
+    let season_str = world.clock.season().to_string();
+    let context = build_tier1_context(&world);
+
+    assert!(
+        context.contains("CURRENT SEASON:"),
+        "context must carry a CURRENT SEASON directive (#1451):\n{context}"
+    );
+    assert!(
+        context.contains(&season_str),
+        "CURRENT SEASON directive must name the actual season ({season_str}) (#1451):\n{context}"
+    );
+    assert!(
+        context.contains("Do not reference any other season"),
+        "CURRENT SEASON directive must prohibit referencing other seasons (#1451):\n{context}"
+    );
+}
+
 /// Corollary to AC-3: at Morning the forbidden-greeting directive must NOT
 /// appear (a morning greeting is appropriate and the directive would confuse
 /// the model into avoiding a correct response).
