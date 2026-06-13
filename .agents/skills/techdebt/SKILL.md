@@ -3,9 +3,6 @@ name: techdebt
 description: 'Technical-debt reduction in two modes: (1) a continuous TODO.md sweeper that consumes/discovers debt and dispatches focused fix agents until none remains, and (2) a crate-layout audit that produces a behaviour-preserving refactor PR (renames → manifests → splits → extractions → README) for the Rust workspace. Use for ongoing debt cleanup or when auditing crate structure.'
 disable-model-invocation: false
 argument-hint: '[path] | crate-audit [phase]'
-paths:
-  - parish/crates/**
-  - parish/Cargo.toml
 ---
 
 Two modes. The default **debt-sweeper loop** (below) consumes a `TODO.md` list for any scope. For a
