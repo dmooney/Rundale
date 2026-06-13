@@ -418,6 +418,10 @@ fn other_npcs_block(npc: &Npc, other_npcs: &[&Npc], config: &NpcConfig) -> Optio
 }
 
 /// Recent conversation history at this location.
+///
+/// Frames the history as BACKGROUND AWARENESS rather than a script to quote —
+/// small models otherwise recite another NPC's exact prior line or narrate
+/// the previous exchange (#1447).
 fn conversation_block(
     world: &WorldState,
     npc: &Npc,
@@ -430,7 +434,11 @@ fn conversation_block(
     if ctx.is_empty() {
         return None;
     }
-    Some(format!("\n\nWhat's been said here:\n{ctx}"))
+    Some(format!(
+        "\n\nBACKGROUND AWARENESS — what has recently been said nearby \
+         (use only as context; do NOT quote it word-for-word, do NOT narrate \
+         who said what, and do NOT repeat any line verbatim in your reply):\n{ctx}"
+    ))
 }
 
 /// Continuity cue when the NPC is already in conversation.
@@ -474,6 +482,19 @@ fn reactions_block(npc: &Npc, config: &NpcConfig) -> Option<String> {
         return None;
     }
     Some(format!("\n\n{ctx}"))
+}
+
+/// NPC's own current activity — injected with an explicit ownership label
+/// so models cannot attribute the NPC's errand or task to the player (#1448).
+fn last_activity_block(npc: &Npc) -> Option<String> {
+    let activity = npc.last_activity.as_deref()?;
+    if activity.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "\n\nYOUR current activity (this is what YOU have been doing — \
+         it is NOT something the player did or asked you about): {activity}"
+    ))
 }
 
 /// Recent short-term memories.
@@ -736,6 +757,12 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
     }
 
     if let Some(block) = reactions_block(npc, config) {
+        context.push_str(&block);
+    }
+
+    // NPC's own current activity — labeled explicitly to prevent models from
+    // attributing the NPC's errand to the player (#1448).
+    if let Some(block) = last_activity_block(npc) {
         context.push_str(&block);
     }
 
@@ -1873,6 +1900,106 @@ mod tests {
         assert!(
             cfg.dialogue_quality_continuity,
             "dialogue_quality_continuity must default to true"
+        );
+    }
+
+    // ── #1447: conversation-history paraphrase framing ───────────────────────
+
+    /// AC (#1447): conversation_block must carry the paraphrase directive —
+    /// "BACKGROUND AWARENESS" header plus explicit no-verbatim-quote instruction.
+    #[test]
+    fn conversation_block_carries_paraphrase_directive() {
+        use parish_types::conversation::ConversationExchange;
+
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Padraig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Fine day, so it is.".to_string(),
+            location: loc,
+        });
+
+        let block = conversation_block(&world, &npc, None)
+            .expect("block must render when an exchange exists");
+        assert!(
+            block.contains("BACKGROUND AWARENESS"),
+            "conversation block must use BACKGROUND AWARENESS framing (#1447):\n{block}"
+        );
+        assert!(
+            block.contains("do NOT quote it word-for-word") || block.contains("do not quote"),
+            "conversation block must forbid verbatim quoting (#1447):\n{block}"
+        );
+        assert!(
+            block.contains("do NOT narrate") || block.contains("do not narrate"),
+            "conversation block must forbid narrating who said what (#1447):\n{block}"
+        );
+    }
+
+    // ── #1448: NPC own-activity label ───────────────────────────────────────
+
+    /// AC (#1448): last_activity_block must label the activity as the NPC's OWN
+    /// and must NOT suggest the player did or asked about it.
+    #[test]
+    fn last_activity_block_labels_activity_as_npcs_own() {
+        let mut npc = make_test_npc(1, "Peig", 1);
+        npc.last_activity = Some("Walked to Connolly's shop for thread.".to_string());
+
+        let block = last_activity_block(&npc).expect("block must render when last_activity is set");
+        assert!(
+            block.contains("YOUR current activity") || block.contains("YOUR own"),
+            "block must label the activity as the NPC's own (#1448):\n{block}"
+        );
+        assert!(
+            block.contains("NOT something the player did") || block.contains("this is what YOU"),
+            "block must clarify the activity is not the player's (#1448):\n{block}"
+        );
+        assert!(
+            block.contains("Connolly's shop"),
+            "block must include the actual activity text:\n{block}"
+        );
+    }
+
+    /// AC (#1448): last_activity_block must return None when last_activity is not set.
+    #[test]
+    fn last_activity_block_absent_when_no_activity() {
+        let npc = make_test_npc(1, "Peig", 1);
+        assert!(
+            last_activity_block(&npc).is_none(),
+            "last_activity_block must be None when last_activity is not set"
+        );
+    }
+
+    /// AC (#1448): the labeled activity block must appear in the assembled context.
+    #[test]
+    fn context_includes_own_activity_label_when_last_activity_set() {
+        let mut npc = make_test_npc(1, "Peig", 1);
+        npc.last_activity = Some("Tending the cow in the byre.".to_string());
+        let world = WorldState::new();
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+        assert!(
+            context.contains("YOUR current activity"),
+            "assembled context must label the NPC's own activity (#1448):\n{context}"
+        );
+        assert!(
+            context.contains("Tending the cow"),
+            "assembled context must include the activity text (#1448):\n{context}"
         );
     }
 }
