@@ -447,6 +447,97 @@ fn dialogue_system_prompt_contains_grounding_deflection_instruction() {
     );
 }
 
+/// AC-1/AC-2/AC-3 (#1420): when grounding is enabled, the system prompt must
+/// contain the presupposition-guard block that names the presupposition case
+/// and instructs the NPC to express honest non-recognition for any fabricated
+/// person, not just open-mention unknowns. The repro from #1420 was an NPC
+/// confirming "Father Pendleton" who does not exist in the parish.
+#[test]
+fn dialogue_system_prompt_contains_presupposition_guard() {
+    use parish_core::npc::LanguageSettings;
+
+    let (mut world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+    world.player_name = Some("Aiden Carney".to_string());
+
+    // Mirror the #1420 repro: player names a fabricated person as a presupposition.
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "Is Father Pendleton still hearing confessions at the abbey?",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig {
+            grounding_enabled: true,
+            ..parish_core::config::NpcConfig::default()
+        },
+    )
+    .expect("setup must succeed");
+
+    // AC-1: the presupposition case must be named explicitly
+    assert!(
+        setup.system_prompt.contains("PRESUPPOSED name"),
+        "system prompt must name the presupposition case:\n{}",
+        setup.system_prompt
+    );
+    // AC-2a: honest non-recognition instruction must be present
+    assert!(
+        setup.system_prompt.contains("know no such person")
+            || setup.system_prompt.contains("never heard of him"),
+        "system prompt must instruct honest non-recognition for presupposed names:\n{}",
+        setup.system_prompt
+    );
+    // AC-2b: forbid confirming an invented person's existence or trade
+    assert!(
+        setup
+            .system_prompt
+            .contains("Never confirm they are still about"),
+        "system prompt must forbid confirming an invented person:\n{}",
+        setup.system_prompt
+    );
+}
+
+/// AC-4 (#1420): inverse — when grounding is disabled, the presupposition guard
+/// must be absent from the system prompt along with the PLACES block.
+#[test]
+fn dialogue_system_prompt_omits_presupposition_guard_when_grounding_disabled() {
+    use parish_core::npc::LanguageSettings;
+
+    let (world, mut npc_manager) = fresh_rundale_world_and_npcs();
+    let speaker_id: NpcId = npc_manager
+        .npcs_at(world.player_location)
+        .first()
+        .map(|n| n.id)
+        .expect("Rundale fresh save should co-locate at least one NPC");
+
+    let setup = prepare_npc_conversation_turn(
+        &world,
+        &mut npc_manager,
+        "Is Father Pendleton still hearing confessions at the abbey?",
+        speaker_id,
+        &[],
+        false,
+        &LanguageSettings::english_only(),
+        &parish_core::config::NpcConfig {
+            grounding_enabled: false,
+            ..parish_core::config::NpcConfig::default()
+        },
+    )
+    .expect("setup must succeed");
+
+    assert!(
+        !setup.system_prompt.contains("PRESUPPOSED name"),
+        "presupposition guard must be absent when grounding disabled:\n{}",
+        setup.system_prompt
+    );
+}
+
 /// Inverse: when grounding is disabled, the PLACES block must be absent.
 #[test]
 fn dialogue_system_prompt_omits_location_block_when_grounding_disabled() {
