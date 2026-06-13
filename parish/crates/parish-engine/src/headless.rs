@@ -1978,6 +1978,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryKey(InferenceCategory::Dialogue, "sk-test-key".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -1993,6 +1994,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCloudProvider("openrouter".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2146,6 +2148,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::InvalidBranchName("Bad name!".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2206,6 +2209,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCloudModel("claude-sonnet".to_string()),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2233,6 +2237,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::ShowCategoryProvider(InferenceCategory::Dialogue),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2245,6 +2250,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::ShowCategoryModel(InferenceCategory::Intent),
+            "",
         )
         .await;
         assert!(!quit);
@@ -2257,6 +2263,7 @@ mod tests {
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::ShowCategoryKey(InferenceCategory::Simulation),
+            "",
         )
         .await;
         assert!(!quit);
