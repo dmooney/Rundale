@@ -16,19 +16,37 @@
 	// pre-existing submissions at component mount don't trigger a spurious
 	// force-scroll (#1431 item 4).
 	let lastSubmittedCount = $playerSubmittedCount;
+	// Track the last textLog length so we can detect when the player's echo
+	// has actually landed in the log after a submit.
+	let lastLogLength = $textLog.length;
+	// Set when the player submits; cleared once we force-scroll after the
+	// player's echo entry arrives (log grows while this flag is set). This
+	// handles the case where the count increments BEFORE the echo text-log
+	// event fires — without the flag the delta between the two effect runs
+	// can exceed the near-bottom threshold and the panel stops short (#1431).
+	let scrollOnNextLogGrowth = false;
 
 	$effect(() => {
-		const _ = $textLog;
+		const entries = $textLog;
 		// Re-read the counter inside the effect so Svelte tracks it as a
 		// reactive dependency and re-runs on every increment.
 		const currentCount = $playerSubmittedCount;
-		// Force-scroll only when the player just sent a new message (the count
-		// incremented since we last ran). For passive NPC/world updates the count
-		// stays the same, so we fall back to the near-bottom guard and leave the
-		// user's scroll position alone (#1431 item 4).
-		const playerJustSubmitted = currentCount > lastSubmittedCount;
+		const countIncremented = currentCount > lastSubmittedCount;
+		const logGrew = entries.length > lastLogLength;
+
 		lastSubmittedCount = currentCount;
-		const nearBottom = playerJustSubmitted || (logEl
+		lastLogLength = entries.length;
+
+		// Arm the one-shot flag on every player submit.
+		if (countIncremented) scrollOnNextLogGrowth = true;
+
+		// Force-scroll when: (a) the count just incremented, OR (b) the log
+		// grew while the one-shot flag was armed (the player's echo arrived in
+		// a separate effect run after the count increment).  Disarm once used.
+		const forceScroll = countIncremented || (scrollOnNextLogGrowth && logGrew);
+		if (logGrew && scrollOnNextLogGrowth) scrollOnNextLogGrowth = false;
+
+		const nearBottom = forceScroll || (logEl
 			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
 			: true);
 		tick().then(() => {
