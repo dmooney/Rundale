@@ -17,6 +17,7 @@ import {
 	loadingPhrase,
 	loadingColor,
 	worldState,
+	playerSubmittedCount,
 } from '../stores/game';
 import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
@@ -33,6 +34,7 @@ describe('ChatPanel', () => {
 		loadingPhrase.set('');
 		loadingColor.set([72, 199, 142]);
 		worldState.set(null);
+		playerSubmittedCount.set(0);
 	});
 
 	/** Builds a minimal WorldSnapshot; only location_name drives richify(). */
@@ -261,6 +263,175 @@ describe('ChatPanel', () => {
 			await Promise.resolve();
 
 			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+
+		// #1431 item 4: playerSubmittedCount increments force-scroll regardless
+		// of the near-bottom guard. jsdom cannot measure scrollHeight/clientHeight
+		// (both are 0), so we assert that the component at least reads the store
+		// without throwing — the live scroll behaviour is proven by Playwright.
+		it('reads playerSubmittedCount without error when player submits', async () => {
+			textLog.set([{ source: 'player', content: 'go north' }]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+
+			playerSubmittedCount.set(1);
+			await Promise.resolve();
+
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+
+		// #1431 item 4 regression: the original fix used `$playerSubmittedCount > 0`
+		// which is ALWAYS true after the first send, so every passive NPC/world
+		// update force-scrolled the user back to the bottom even when they had
+		// scrolled up. The fix must track the LAST handled count and only
+		// force-scroll when it INCREMENTS.
+		//
+		// Strategy: we monkey-patch scrollHeight/clientHeight on the container
+		// BEFORE rendering so Svelte's initial $effect run already sees the
+		// "scrolled up" geometry (300px of headroom). The spy is then installed
+		// before the reactive update, guaranteeing it only captures calls that
+		// arise from the store change under test.
+		describe('#1431 item 4 — force-scroll only on submit increment', () => {
+			it('does NOT force-scroll on a passive textLog update when scrolled up', async () => {
+				// Start with count already at 1 (simulates a previous submit).
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Flush all pending microtasks from the initial mount effect
+				// (tick() inside $effect is async — must drain before installing spy).
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate the user having scrolled up AFTER the initial render
+				// settles: scrollHeight=500, clientHeight=200, scrollTop=0 →
+				// distance from bottom = 300 > 50 → NOT near bottom.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop stays 0 (user scrolled to top).
+
+				// Now install the spy — any call from here on is attributable to
+				// the store change below.
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Passive update: only textLog changes, playerSubmittedCount stays at 1.
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good day to ye.' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop must NOT have been set — the user's scroll position
+				// should be preserved when no submit occurred.
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('DOES force-scroll when playerSubmittedCount increments', async () => {
+				// Start with count at 1.
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect's async tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate scrolled up.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop = 0 (user is at top of history).
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Player sends a new message: count increments to 2 and log gets the echo.
+				playerSubmittedCount.set(2);
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'go north' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop MUST have been set to scrollHeight (500) because the
+				// count incremented — force-scroll on player submit.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
+	});
+
+	// #1431 item 2: NPC gesture/action reactions carry subtype "action" and must
+	// render as system-style narration (no speech bubble), not NPC dialogue.
+	describe('action subtype rendering (#1431 item 2)', () => {
+		it('renders an entry with subtype "action" as a system entry, not a bubble', () => {
+			textLog.set([
+				{
+					source: 'Brigid',
+					content: 'looks up briefly',
+					subtype: 'action',
+					stream_turn_id: 1,
+				},
+			]);
+			const { container } = render(ChatPanel);
+			// Must NOT render a speech bubble
+			expect(container.querySelector('.bubble-row')).toBeFalsy();
+			// Must render as a system entry
+			expect(container.querySelector('.entry.system')).toBeTruthy();
+		});
+
+		it('renders an NPC entry WITHOUT subtype "action" as a speech bubble', () => {
+			textLog.set([
+				{ source: 'Brigid', content: 'Good morning to ye.', id: 'msg-1' },
+			]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.bubble-row.npc')).toBeTruthy();
+			expect(container.querySelector('.entry.system')).toBeFalsy();
+		});
+
+		it('action subtype text is shown in the system entry content', () => {
+			textLog.set([
+				{
+					source: 'Ciarán',
+					content: 'nods quietly',
+					subtype: 'action',
+				},
+			]);
+			const { getByText } = render(ChatPanel);
+			expect(getByText('nods quietly')).toBeTruthy();
+		});
+
+		// Source CSS regression guard: the component must not have any CSS rule
+		// that would prevent entries with subtype "action" from reaching the
+		// system-entry branch.
+		it('entryType "action" subtype CSS guard: no bubble-row for action entries', () => {
+			const normalized = COMPONENT_SRC;
+			// The entryType function in the source must contain the action guard.
+			expect(normalized).toContain("subtype === 'action'");
+			expect(normalized).toContain("return 'system'");
 		});
 	});
 

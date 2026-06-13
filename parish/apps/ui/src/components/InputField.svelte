@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream, playerSubmittedCount } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
@@ -485,6 +485,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
 		try {
+			// Signal to ChatPanel that the player submitted so it scrolls to the
+			// bottom unconditionally, showing the echoed bubble (#1431 item 4).
+			playerSubmittedCount.update((n) => n + 1);
 			await submitInput(trimmed, addressedTo);
 		} catch (err) {
 			pushErrorLog(`Could not send input: ${formatIpcError(err)}`);

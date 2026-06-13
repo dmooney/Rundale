@@ -132,7 +132,7 @@ async fn stream_arrival_reactions(
     app: &tauri::AppHandle,
 ) {
     use parish_core::game_session::stream_reaction_texts;
-    use parish_core::ipc::text_log_for_stream_turn;
+    use parish_core::ipc::{text_log_for_stream_turn, text_log_for_stream_turn_typed};
 
     let (
         all_npcs,
@@ -177,17 +177,23 @@ async fn stream_arrival_reactions(
         &reaction_model,
         Some(&state.inference_log),
         &state.language_settings,
-        |turn_id, npc_name| {
+        |turn_id, npc_name, subtype| {
             // Use `text_log_for_stream_turn` so the UI's streaming-
             // placeholder guard recognises this entry and can finalise
             // (remove) it when the per-turn `stream-turn-end` fires with
             // no tokens — otherwise an empty bubble lingers in the chat
             // (#984 follow-up: "blank NPC reply" reported on the
             // `just demo 2 10` run).
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                text_log_for_stream_turn(npc_name.to_string(), String::new(), turn_id),
-            );
+            // When subtype is Some("action") (non-verbal Gesture reactions),
+            // carry the subtype so the frontend renders the reaction as
+            // italicised narration rather than a speech bubble (#1431 item 2).
+            let payload = match subtype {
+                Some(st) => {
+                    text_log_for_stream_turn_typed(npc_name.to_string(), String::new(), turn_id, st)
+                }
+                None => text_log_for_stream_turn(npc_name.to_string(), String::new(), turn_id),
+            };
+            let _ = app.emit(EVENT_TEXT_LOG, payload);
         },
         |turn_id, source, batch| {
             let _ = app.emit(
