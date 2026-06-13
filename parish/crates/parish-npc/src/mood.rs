@@ -42,6 +42,9 @@ pub fn mood_emoji(mood: &str) -> &'static str {
     {
         return "😰";
     }
+    if m.contains("concerned") || m.contains("apprehensive") || m.contains("troubled") {
+        return "😟";
+    }
     if m.contains("sad") || m.contains("grief") || m.contains("mournful") || m.contains("sorrowful")
     {
         return "😢";
@@ -76,12 +79,16 @@ pub fn mood_emoji(mood: &str) -> &'static str {
     }
 
     // Positive emotions
-    if m.contains("joy")
+    if m.contains("happy")
+        || m.contains("joy")
         || m.contains("elated")
         || m.contains("ecstatic")
         || m.contains("delighted")
     {
         return "😄";
+    }
+    if m.contains("excited") || m.contains("eager") || m.contains("enthus") {
+        return "🤩";
     }
     if m.contains("cheerful") || m.contains("jovial") || m.contains("merry") || m.contains("jolly")
     {
@@ -104,6 +111,9 @@ pub fn mood_emoji(mood: &str) -> &'static str {
         || m.contains("ponder")
     {
         return "🤔";
+    }
+    if m.contains("calculating") {
+        return "🧐";
     }
     if m.contains("determined") || m.contains("resolute") || m.contains("steadfast") {
         return "💪";
@@ -132,10 +142,18 @@ pub fn mood_emoji(mood: &str) -> &'static str {
     {
         return "😴";
     }
+    if m.contains("busy")
+        || m.contains("preoccupied")
+        || m.contains("distracted")
+        || m.contains("pressed")
+    {
+        return "😤";
+    }
     if m.contains("stoic")
         || m.contains("guarded")
         || m.contains("reserved")
         || m.contains("neutral")
+        || m.contains("quiet")
     {
         return "😐";
     }
@@ -184,6 +202,8 @@ mod tests {
         assert_eq!(mood_emoji("joyful"), "😄");
         assert_eq!(mood_emoji("amused"), "😆");
         assert_eq!(mood_emoji("warm"), "🤗");
+        assert_eq!(mood_emoji("excited"), "🤩");
+        assert_eq!(mood_emoji("eager"), "🤩");
     }
 
     #[test]
@@ -204,6 +224,10 @@ mod tests {
         assert_eq!(mood_emoji("sharp"), "😤");
         assert_eq!(mood_emoji("caustic"), "😤");
         assert_eq!(mood_emoji("curt"), "😤");
+        // Regression (#1452): `concerned` previously fell through to the 🙂 fallback.
+        assert_eq!(mood_emoji("concerned"), "😟");
+        assert_eq!(mood_emoji("apprehensive"), "😟");
+        assert_eq!(mood_emoji("troubled"), "😟");
     }
 
     #[test]
@@ -216,6 +240,23 @@ mod tests {
         assert_eq!(mood_emoji("shy"), "😳");
         assert_eq!(mood_emoji("proud"), "😏");
         assert_eq!(mood_emoji("suspicious"), "🤨");
+        // Regression (#1452): `calculating` previously fell through to the 🙂 fallback.
+        // mood_tone_directive handles "calculating" — the emoji map must too.
+        assert_eq!(mood_emoji("calculating"), "🧐");
+        // Other moods that previously returned 🙂 incorrectly.
+        assert_eq!(mood_emoji("quiet"), "😐");
+        assert_eq!(mood_emoji("busy"), "😤");
+        assert_eq!(mood_emoji("preoccupied"), "😤");
+    }
+
+    #[test]
+    fn test_positive_emotions_coverage() {
+        // Regression (#1452): `happy` and `excited`/`eager` previously fell through to
+        // the 🙂 fallback despite being unambiguously positive.
+        assert_eq!(mood_emoji("happy"), "😄");
+        assert_eq!(mood_emoji("excited"), "🤩");
+        assert_eq!(mood_emoji("eager"), "🤩");
+        assert_eq!(mood_emoji("enthusiastic"), "🤩");
     }
 
     #[test]
@@ -257,24 +298,30 @@ mod tests {
             ("angry", "😡"),
             ("afraid", "😨"),
             ("anxious", "😰"),
+            ("concerned", "😟"), // #1452: was 🙂
             ("sad", "😢"),
             ("melancholy", "😔"),
             ("irritated", "😤"),
             ("bitter", "😒"),
             ("suspicious", "🤨"),
+            ("happy", "😄"),   // #1452: was 🙂
+            ("excited", "🤩"), // #1452: was 🙂
             ("joyful", "😄"),
             ("cheerful", "😊"),
             ("friendly", "🤗"),
             ("amused", "😆"),
             ("passionate", "🔥"),
             ("contemplative", "🤔"),
+            ("calculating", "🧐"), // #1452: was 🙂
             ("determined", "💪"),
             ("alert", "👀"),
             ("calm", "😌"),
             ("content", "🙂"),
             ("restless", "😟"),
             ("tired", "😴"),
+            ("busy", "😤"), // #1452: was 🙂
             ("stoic", "😐"),
+            ("quiet", "😐"), // #1452: was 🙂
             ("curious", "🧐"),
             ("shy", "😳"),
             ("proud", "😏"),
