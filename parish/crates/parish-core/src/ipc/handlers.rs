@@ -314,6 +314,24 @@ pub fn text_log_for_stream_turn(
     }
 }
 
+/// Creates a [`TextLogPayload`] tied to a specific NPC stream turn with a
+/// semantic subtype for frontend styling (e.g. `"action"` for non-verbal
+/// reactions such as gestures).
+pub fn text_log_for_stream_turn_typed(
+    source: impl Into<String>,
+    content: impl Into<String>,
+    stream_turn_id: u64,
+    subtype: impl Into<String>,
+) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: Some(stream_turn_id),
+        source: source.into(),
+        content: content.into(),
+        subtype: Some(subtype.into()),
+    }
+}
+
 /// Creates a [`TextLogPayload`] with a semantic subtype for frontend styling.
 pub fn text_log_typed(
     source: impl Into<String>,

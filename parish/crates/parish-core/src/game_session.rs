@@ -813,12 +813,15 @@ fn build_look_text(
 /// - `client` — LLM client, or `None` to always use canned text
 /// - `model` — model name passed to the LLM
 /// - `inference_log` — optional log to record each call for the debug panel
-/// - `emit_text_log(turn_id, npc_name)` — called once per reaction to create
-///   an empty placeholder in the frontend chat log before streaming begins.
-///   The implementation MUST tie the placeholder to `turn_id` via
-///   `text_log_for_stream_turn` so the UI's streaming-placeholder guard
-///   recognises it and `finalizeStreamingEntry` can remove it when the turn
-///   ends with no tokens (otherwise an empty bubble lingers in the chat).
+/// - `emit_text_log(turn_id, npc_name, subtype)` — called once per reaction
+///   to create an empty placeholder in the frontend chat log before streaming
+///   begins. `subtype` is `Some("action")` for non-verbal reactions (e.g.
+///   `ReactionKind::Gesture`) and `None` for verbal ones. The implementation
+///   MUST tie the placeholder to `turn_id` via `text_log_for_stream_turn` (or
+///   `text_log_for_stream_turn_typed` when subtype is `Some`) so the UI's
+///   streaming-placeholder guard recognises it and `finalizeStreamingEntry` can
+///   remove it when the turn ends with no tokens (otherwise an empty bubble
+///   lingers in the chat).
 /// - `emit_stream_token(turn_id, source, batch)` — called with each batched
 ///   token chunk to be appended to the current streaming entry
 /// - `emit_stream_turn_end(turn_id)` — called exactly once after the per-NPC
@@ -840,7 +843,7 @@ pub async fn stream_reaction_texts(
     model: &str,
     inference_log: Option<&InferenceLog>,
     language: &LanguageSettings,
-    mut emit_text_log: impl FnMut(u64, &str),
+    mut emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
     mut emit_stream_turn_end: impl FnMut(u64),
 ) {
@@ -854,9 +857,19 @@ pub async fn stream_reaction_texts(
         let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
         let turn_id = REACTION_REQ_ID.fetch_add(1, Ordering::Relaxed);
 
+        // Derive the frontend subtype from the reaction kind: non-verbal reactions
+        // (Gesture and any future non-verbal kind) carry `subtype: "action"` so
+        // the UI renders them as italicised narration rather than a speech bubble.
+        let reaction_subtype: Option<&'static str> =
+            if reaction.kind == crate::npc::reactions::ReactionKind::Gesture {
+                Some("action")
+            } else {
+                None
+            };
+
         // Emit an empty placeholder so the frontend shows the NPC name immediately
         // and the stream-pump knows which entry to fill.
-        emit_text_log(turn_id, &reaction.npc_display_name);
+        emit_text_log(turn_id, &reaction.npc_display_name, reaction_subtype);
 
         let (tx, rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
 
@@ -1090,7 +1103,7 @@ mod tests {
             "",
             None,
             &lang,
-            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, name, _subtype| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |turn_id| turn_ends.push(turn_id),
         )
@@ -1155,7 +1168,7 @@ mod tests {
             "sim",
             None,
             &lang,
-            |_, _| {},
+            |_, _, _| {},
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |_turn_id| {},
         )
@@ -1498,7 +1511,7 @@ mod tests {
             "",
             None,
             &lang,
-            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, name, _subtype| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |turn_id| turn_ends.push(turn_id),
         )
@@ -1507,6 +1520,63 @@ mod tests {
         assert!(log_sources.is_empty());
         assert!(token_chunks.is_empty());
         assert!(turn_ends.is_empty());
+    }
+
+    /// Item 2 (#1431): a `Gesture` reaction must emit `subtype: Some("action")` so
+    /// the frontend can render it as italicised narration rather than a speech bubble.
+    /// A `Greeting` reaction must emit `subtype: None` (verbal — rendered as a bubble).
+    #[tokio::test]
+    async fn stream_reaction_texts_gesture_emits_action_subtype() {
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+
+        let gesture = NpcReaction {
+            npc_id: NpcId(1),
+            npc_display_name: "Siobhan".to_string(),
+            kind: ReactionKind::Gesture,
+            canned_text: "looks up briefly".to_string(),
+            introduces: false,
+            use_llm: false,
+        };
+        let greeting = NpcReaction {
+            npc_id: NpcId(2),
+            npc_display_name: "Cormac".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Good day to ye".to_string(),
+            introduces: false,
+            use_llm: false,
+        };
+
+        let mut subtypes: Vec<Option<&'static str>> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &[gesture, greeting],
+            &[],
+            LocationId(0),
+            "Kilteevan",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            &lang,
+            |_turn_id, _name, subtype| subtypes.push(subtype),
+            |_turn_id, _source, _tok| {},
+            |_turn_id| {},
+        )
+        .await;
+
+        assert_eq!(subtypes.len(), 2, "one subtype call per reaction");
+        assert_eq!(
+            subtypes[0],
+            Some("action"),
+            "Gesture reaction must carry subtype 'action'"
+        );
+        assert_eq!(
+            subtypes[1], None,
+            "Greeting reaction must carry no subtype (verbal)"
+        );
     }
 
     /// Regression for the "blank NPC reply" bug: every per-NPC reaction MUST
@@ -1555,7 +1625,7 @@ mod tests {
             "",
             None,
             &lang,
-            |turn_id, _name| placeholder_turn_ids.push(turn_id),
+            |turn_id, _name, _subtype| placeholder_turn_ids.push(turn_id),
             |_turn_id, _source, _tok| { /* no tokens emitted for empty canned */ },
             |turn_id| turn_end_ids.push(turn_id),
         )

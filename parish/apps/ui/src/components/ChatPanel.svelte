@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
 	import { reactToMessage } from '$lib/ipc';
@@ -13,9 +13,14 @@
 
 	$effect(() => {
 		const _ = $textLog;
-		const nearBottom = logEl
+		// When the player has just submitted a message, scroll unconditionally so
+		// the echoed bubble is always visible regardless of scroll position
+		// (#1431 item 4). For passive NPC/world updates, keep the near-bottom guard
+		// so a user who has scrolled up to read history is not interrupted.
+		const playerJustSubmitted = $playerSubmittedCount > 0;
+		const nearBottom = playerJustSubmitted || (logEl
 			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
-			: true;
+			: true);
 		tick().then(() => {
 			if (logEl && nearBottom) {
 				logEl.scrollTop = logEl.scrollHeight;
@@ -26,6 +31,9 @@
 	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' {
 		if (entry.source === 'player') return 'player';
 		if (entry.source === 'system') return 'system';
+		// Non-verbal NPC reactions (subtype "action") are rendered as italicised
+		// narration in the system-message style, not as speech bubbles (#1431 item 2).
+		if (entry.subtype === 'action') return 'system';
 		return 'npc';
 	}
 

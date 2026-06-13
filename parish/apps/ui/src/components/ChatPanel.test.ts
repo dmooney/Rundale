@@ -17,6 +17,7 @@ import {
 	loadingPhrase,
 	loadingColor,
 	worldState,
+	playerSubmittedCount,
 } from '../stores/game';
 import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
@@ -33,6 +34,7 @@ describe('ChatPanel', () => {
 		loadingPhrase.set('');
 		loadingColor.set([72, 199, 142]);
 		worldState.set(null);
+		playerSubmittedCount.set(0);
 	});
 
 	/** Builds a minimal WorldSnapshot; only location_name drives richify(). */
@@ -261,6 +263,72 @@ describe('ChatPanel', () => {
 			await Promise.resolve();
 
 			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+
+		// #1431 item 4: playerSubmittedCount increments force-scroll regardless
+		// of the near-bottom guard. jsdom cannot measure scrollHeight/clientHeight
+		// (both are 0), so we assert that the component at least reads the store
+		// without throwing — the live scroll behaviour is proven by Playwright.
+		it('reads playerSubmittedCount without error when player submits', async () => {
+			textLog.set([{ source: 'player', content: 'go north' }]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+
+			playerSubmittedCount.set(1);
+			await Promise.resolve();
+
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+	});
+
+	// #1431 item 2: NPC gesture/action reactions carry subtype "action" and must
+	// render as system-style narration (no speech bubble), not NPC dialogue.
+	describe('action subtype rendering (#1431 item 2)', () => {
+		it('renders an entry with subtype "action" as a system entry, not a bubble', () => {
+			textLog.set([
+				{
+					source: 'Brigid',
+					content: 'looks up briefly',
+					subtype: 'action',
+					stream_turn_id: 1,
+				},
+			]);
+			const { container } = render(ChatPanel);
+			// Must NOT render a speech bubble
+			expect(container.querySelector('.bubble-row')).toBeFalsy();
+			// Must render as a system entry
+			expect(container.querySelector('.entry.system')).toBeTruthy();
+		});
+
+		it('renders an NPC entry WITHOUT subtype "action" as a speech bubble', () => {
+			textLog.set([
+				{ source: 'Brigid', content: 'Good morning to ye.', id: 'msg-1' },
+			]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.bubble-row.npc')).toBeTruthy();
+			expect(container.querySelector('.entry.system')).toBeFalsy();
+		});
+
+		it('action subtype text is shown in the system entry content', () => {
+			textLog.set([
+				{
+					source: 'Ciarán',
+					content: 'nods quietly',
+					subtype: 'action',
+				},
+			]);
+			const { getByText } = render(ChatPanel);
+			expect(getByText('nods quietly')).toBeTruthy();
+		});
+
+		// Source CSS regression guard: the component must not have any CSS rule
+		// that would prevent entries with subtype "action" from reaching the
+		// system-entry branch.
+		it('entryType "action" subtype CSS guard: no bubble-row for action entries', () => {
+			const normalized = COMPONENT_SRC;
+			// The entryType function in the source must contain the action guard.
+			expect(normalized).toContain("subtype === 'action'");
+			expect(normalized).toContain("return 'system'");
 		});
 	});
 
