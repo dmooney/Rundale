@@ -989,6 +989,24 @@ async fn handle_headless_game_input(
         crate::input::IntentKind::Look => {
             print_location_description(app);
         }
+        crate::input::IntentKind::Examine => {
+            // Feature-flagged: default-ON via is_disabled (#1424).
+            // Collapse: flag must be on AND a target must be present; otherwise room description.
+            match (
+                !app.flags.is_disabled("examine-intent"),
+                intent.target.as_deref(),
+            ) {
+                (true, Some(name)) => {
+                    println!(
+                        "You look more closely at {name}. There is nothing more noteworthy about it than what you have already observed."
+                    );
+                }
+                _ => {
+                    // Flag disabled or bare examine (no target) → room description.
+                    print_location_description(app);
+                }
+            }
+        }
         _ => {
             // Extract @mention for NPC targeting, if present
             let (target_name, dialogue) = match extract_mention(text) {
