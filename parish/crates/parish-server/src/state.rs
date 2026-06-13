@@ -338,13 +338,6 @@ impl Default for SetupStatusSnapshot {
 pub use parish_core::ipc::GameConfig;
 
 impl AppState {
-    /// Returns the canonical absolute path of the project's `mods/` directory.
-    ///
-    /// Resolves from startup state per Rule 9 — never calls `current_dir()`.
-    /// Resolution order:
-    /// 1. Parent of the loaded `game_mod.mod_dir` (present on all real runs).
-    /// 2. Parent of the path returned by `find_default_mod()` (dev fallback).
-    /// 3. Relative `"mods"` with a warning (packaged builds should never reach here).
     /// Returns the current contention counters for every metered `AppState`
     /// lock (#1366 §2 — the evidence base for any future lock splitting).
     pub fn lock_metrics(&self) -> Vec<LockMetricsSnapshot> {
@@ -370,6 +363,13 @@ impl AppState {
         ]
     }
 
+    /// Returns the canonical absolute path of the project's `mods/` directory.
+    ///
+    /// Resolves from startup state per Rule 9 — never calls `current_dir()`.
+    /// Resolution order:
+    /// 1. Parent of the loaded `game_mod.mod_dir` (present on all real runs).
+    /// 2. Parent of the path returned by `find_default_mod()` (dev fallback).
+    /// 3. Relative `"mods"` with a warning (packaged builds should never reach here).
     pub fn mods_root(&self) -> PathBuf {
         if let Some(ref gm) = self.game_mod
             && let Some(parent) = gm.mod_dir.parent()
