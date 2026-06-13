@@ -116,7 +116,11 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         {intel_guidance}\
         \n\
         Respond in character as {name}. You MUST respond with a JSON object. \
-        Put the \"dialogue\" field FIRST. The dialogue should contain only what you say aloud — \
+        IMPORTANT — emit the fields in EXACTLY this order: \
+        \"dialogue\" FIRST, then \"action\", then \"mood\", then \"internal_thought\" LAST, \
+        then \"language_hints\". Never put \"internal_thought\" or any other field before \
+        \"dialogue\" — the dialogue field must be the very first key in the JSON object. \
+        The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions.\n\
         \n\
         LENGTH: 2-3 sentences maximum. Be conversational, not a monologue. \
@@ -126,11 +130,11 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         not chain offers either (\"shall I do X, or would ye rather Y, or...\") — \
         one offer or one question, then stop.\n\
         \n\
-        JSON fields:\n\
-        - \"dialogue\": your spoken words (this is shown to the player)\n\
+        JSON fields (in required order):\n\
+        - \"dialogue\": your spoken words (this is shown to the player) — MUST BE FIRST\n\
         - \"action\": what you physically do (e.g. \"speaks warmly\", \"nods\", \"sighs\")\n\
         - \"mood\": your mood after this interaction\n\
-        - \"internal_thought\": what you're thinking but not saying (optional)\n\
+        - \"internal_thought\": what you're thinking but not saying (optional) — MUST BE LAST\n\
         - \"language_hints\": array of any secondary-language words you used, each with:\n\
           - \"word\": the word as written\n\
           - \"pronunciation\": phonetic guide in English\n\
@@ -220,6 +224,34 @@ mod tests {
         assert!(
             prompt.contains("2-3 sentences") || prompt.contains("2–3 sentences"),
             "system prompt must include 2-3 sentence length cap"
+        );
+    }
+
+    /// AC-3 (#1431 item 3): the JSON field list must instruct the model to emit
+    /// "dialogue" first and "internal_thought" last so the dialogue value completes
+    /// before the token budget is consumed by metadata fields.
+    #[test]
+    fn system_prompt_dialogue_field_ordered_first() {
+        let npc = make_named_npc(1, "Padraig", 1);
+        let lang = crate::LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+
+        // The directive must explicitly order dialogue first.
+        assert!(
+            prompt.contains("\"dialogue\" FIRST") || prompt.contains("dialogue\" FIRST"),
+            "system prompt must instruct model to emit dialogue field first:\n{prompt}"
+        );
+
+        // internal_thought must appear after dialogue in the fields section.
+        let dialogue_pos = prompt
+            .find("\"dialogue\"")
+            .expect("dialogue field must appear in prompt");
+        let internal_thought_pos = prompt
+            .find("\"internal_thought\"")
+            .expect("internal_thought field must appear in prompt");
+        assert!(
+            dialogue_pos < internal_thought_pos,
+            "\"dialogue\" field must appear before \"internal_thought\" in the prompt JSON field list"
         );
     }
 }
