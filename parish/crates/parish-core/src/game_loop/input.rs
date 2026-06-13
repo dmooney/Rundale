@@ -1092,6 +1092,78 @@ mod tests {
         );
     }
 
+    /// AC-5 / AC-6 (#1449) end-to-end via local parser: the local parser now
+    /// classifies physical-action imperative verbs as `Interact` directly
+    /// (no LLM required), so `handle_game_input` with flag enabled must
+    /// emit a narrated `text-log` and NOT route to NPC conversation.
+    #[tokio::test]
+    async fn handle_game_input_interact_narrates_via_local_parser() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None); // no LLM — local parser only
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // "tie a strip of cloth to the thorn bush" — primary #1449 repro.
+        // The local parser classifies this as Interact; with flag enabled (default)
+        // handle_game_input must emit a narrated action text-log.
+        super::handle_game_input(
+            &ctx,
+            "tie a strip of cloth to the thorn bush".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert!(
+            !logs.is_empty(),
+            "#1449: interact must emit a text-log; got none"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("tie a strip of cloth to the thorn bush")),
+            "#1449: narration must reference the original input; got: {logs:?}"
+        );
+    }
+
     /// AC-7 (#1449): with `interact-narration` flag disabled, interact falls
     /// through to NPC conversation (legacy behaviour preserved as kill-switch).
     #[tokio::test]
@@ -1127,14 +1199,11 @@ mod tests {
         let transport = make_transport();
         let templates = ReactionTemplates::default();
 
-        // Craft an intent that the dispatch code sees as Interact with flag off.
-        // We can't inject an Interact intent directly from the local parser, so
-        // we call handle_game_input with an action phrase and observe that —
-        // because the local parser returns None (not Interact) — the input routes
-        // to NPC conversation as before (no action narration emitted).
-        //
-        // This test primarily guards that disabling the flag does not panic and
-        // that the fallthrough path produces a text-log (idle message).
+        // "pick up the bellows" — the local parser now classifies this as
+        // `Interact` (#1449 fix). With the `interact-narration` flag disabled,
+        // the `is_interact` dispatch branch falls through to NPC conversation
+        // (legacy kill-switch). No action narration should be emitted; an idle
+        // text-log (no NPC present) is produced instead.
         super::handle_game_input(
             &ctx,
             "pick up the bellows".to_string(),
@@ -1145,8 +1214,8 @@ mod tests {
         )
         .await;
 
-        // With flag disabled and no LLM (local parser returns None for "pick up"),
-        // the dispatch falls through to NPC conversation → idle message text-log.
+        // With flag disabled, dispatch falls through to NPC conversation →
+        // idle message text-log (no NPC present).
         let event_names = emitter.event_names();
         assert!(
             event_names.iter().any(|n| n == "text-log"),
