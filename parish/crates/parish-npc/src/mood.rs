@@ -23,6 +23,18 @@
 pub fn mood_emoji(mood: &str) -> &'static str {
     let m = mood.to_lowercase();
 
+    // Negated-mood guards — must run BEFORE any positive arm whose substring
+    // would otherwise match (e.g. "unhappy" contains "happy").
+    if m.contains("unconcerned") || m.contains("uninterested") {
+        return "😐";
+    }
+    if m.contains("unhappy") || m.contains("dissatisfied") || m.contains("displeased") {
+        return "😢";
+    }
+    if m.contains("discontent") {
+        return "😔";
+    }
+
     // Negative/intense emotions (checked first for priority)
     if m.contains("angry") || m.contains("furious") || m.contains("enraged") || m.contains("irate")
     {
@@ -147,7 +159,7 @@ pub fn mood_emoji(mood: &str) -> &'static str {
         || m.contains("distracted")
         || m.contains("pressed")
     {
-        return "😤";
+        return "⏳";
     }
     if m.contains("stoic")
         || m.contains("guarded")
@@ -245,8 +257,27 @@ mod tests {
         assert_eq!(mood_emoji("calculating"), "🧐");
         // Other moods that previously returned 🙂 incorrectly.
         assert_eq!(mood_emoji("quiet"), "😐");
-        assert_eq!(mood_emoji("busy"), "😤");
-        assert_eq!(mood_emoji("preoccupied"), "😤");
+        // busy/preoccupied/distracted/pressed → ⏳ (neutral, time-pressed; not angry 😤)
+        assert_eq!(mood_emoji("busy"), "⏳");
+        assert_eq!(mood_emoji("preoccupied"), "⏳");
+        assert_eq!(mood_emoji("distracted"), "⏳");
+        assert_eq!(mood_emoji("pressed"), "⏳");
+    }
+
+    #[test]
+    fn test_negated_mood_guards() {
+        // Negated moods must NOT be captured by the positive arm of their root word.
+        // "unhappy" contains "happy" — must not map to 😄.
+        assert_eq!(mood_emoji("unhappy"), "😢");
+        assert_eq!(mood_emoji("dissatisfied"), "😢");
+        assert_eq!(mood_emoji("displeased"), "😢");
+        // "unconcerned" contains "concerned" — must not map to 😟.
+        assert_eq!(mood_emoji("unconcerned"), "😐");
+        // "uninterested" contains "interested" — must not map to 🧐.
+        assert_eq!(mood_emoji("uninterested"), "😐");
+        // "discontent" contains "content" — must not map to 🙂.
+        assert_eq!(mood_emoji("discontent"), "😔");
+        assert_eq!(mood_emoji("discontented"), "😔");
     }
 
     #[test]
@@ -319,7 +350,7 @@ mod tests {
             ("content", "🙂"),
             ("restless", "😟"),
             ("tired", "😴"),
-            ("busy", "😤"), // #1452: was 🙂
+            ("busy", "⏳"), // gemini review: neutral time-pressed, not angry
             ("stoic", "😐"),
             ("quiet", "😐"), // #1452: was 🙂
             ("curious", "🧐"),
