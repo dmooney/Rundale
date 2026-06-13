@@ -47,8 +47,16 @@ Input: \"look around\" → {\"intent\": \"look\", \"target\": null, \"dialogue\"
 Input: \"Might I look about the village a while?\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"Might I look about the village a while?\"}\n\
 Input: \"I'll have a look at the cattle later\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I'll have a look at the cattle later\"}\n\
 Input: \"pick up the stone\" → {\"intent\": \"interact\", \"target\": \"the stone\", \"dialogue\": null}\n\
+Input: \"tie a strip of cloth to the thorn bush\" → {\"intent\": \"interact\", \"target\": \"the thorn bush\", \"dialogue\": null}\n\
+Input: \"light the candle on the altar\" → {\"intent\": \"interact\", \"target\": \"the candle\", \"dialogue\": null}\n\
+Input: \"pour water into the basin\" → {\"intent\": \"interact\", \"target\": \"the basin\", \"dialogue\": null}\n\
+Input: \"kneel before the cross\" → {\"intent\": \"interact\", \"target\": \"the cross\", \"dialogue\": null}\n\
 Input: \"I came from the coast\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I came from the coast\"}\n\
 Input: \"I was at the shore yesterday\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I was at the shore yesterday\"}\n\
+\n\
+IMPORTANT: \"interact\" is for any imperative physical-action command — picking up, \
+putting down, tying, lighting, pouring, filling, lifting, pumping, digging, placing, \
+or touching/using an object. Do NOT classify physical-action imperatives as \"talk\".\n\
 \n\
 Respond ONLY with valid JSON. No explanation.";
 
@@ -238,6 +246,28 @@ mod tests {
         assert!(
             INTENT_SYSTEM_PROMPT.contains("\"look around\" → {\"intent\": \"look\""),
             "intent system prompt lost the imperative-look exemplar"
+        );
+    }
+
+    /// Guard: intent system prompt must carry enough interact examples and
+    /// instructions that small quantised models classify physical-action
+    /// imperatives as "interact", not "talk" (#1449).
+    #[test]
+    fn intent_system_prompt_includes_interact_examples() {
+        // Core interact instruction.
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("\"interact\" is for any imperative physical-action"),
+            "intent system prompt lost the interact instruction (#1449)"
+        );
+        // Original example retained.
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("\"pick up the stone\""),
+            "intent system prompt lost the pick-up example"
+        );
+        // Repro examples from #1449.
+        assert!(
+            INTENT_SYSTEM_PROMPT.contains("tie a strip of cloth"),
+            "intent system prompt lost the tie-cloth example (#1449 repro)"
         );
     }
 }

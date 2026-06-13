@@ -206,6 +206,84 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         });
     }
 
+    // Interact guard — unambiguous imperative physical-action verb prefixes.
+    //
+    // These verb forms are never greetings, questions, movement commands, or
+    // first-person narratives.  Classifying them deterministically avoids
+    // relying on the LLM intent classifier, which small quantised models
+    // sometimes misclassify as Talk (the repro for #1449 was
+    // "tie a strip of cloth to the thorn bush" → kind:"talked").
+    //
+    // Rules:
+    //  • Prefixes must be followed by at least one non-whitespace character.
+    //  • Only verbs that are unambiguously physical-action imperatives are
+    //    listed.  Verbs with plausible movement or dialogue interpretations
+    //    (e.g. "push", "pull", "take") are intentionally omitted and left to
+    //    the LLM so they can be resolved by context.
+    //  • Multi-word prefixes are listed first for longest-match semantics.
+    let interact_prefixes: &[&str] = &[
+        // Multi-word (longest first)
+        "pick up ",
+        "put down ",
+        "set down ",
+        "tie a ",
+        "tie the ",
+        "tie your ",
+        "light the ",
+        "light a ",
+        "pour the ",
+        "pour a ",
+        "fill the ",
+        "fill a ",
+        "lift the ",
+        "lift a ",
+        "carry the ",
+        "carry a ",
+        "pump the ",
+        "pump a ",
+        "dig a ",
+        "dig the ",
+        "kneel ",
+        "kneel at ",
+        "kneel before ",
+        "wash the ",
+        "wash your ",
+        "hang the ",
+        "hang a ",
+        "place the ",
+        "place a ",
+        "drop the ",
+        "drop a ",
+        // Single-word (these do not appear in move_verbs or move_phrases)
+        "pump ",
+        "kneel",
+    ];
+    for prefix in interact_prefixes {
+        if lower.starts_with(prefix) {
+            // Ensure something follows the prefix (not a bare verb stub).
+            let byte_offset: usize = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(i, _)| i)
+                .unwrap_or(trimmed.len());
+            let rest = trimmed[byte_offset..].trim();
+            // For multi-word prefixes the target is everything after;
+            // for bare imperatives like "kneel" with no args rest is empty —
+            // that is still a valid Interact (kneeling in place).
+            let target = if rest.is_empty() {
+                None
+            } else {
+                Some(rest.to_string())
+            };
+            return Some(PlayerIntent {
+                intent: IntentKind::Interact,
+                target,
+                dialogue: None,
+                raw: raw_input.to_string(),
+            });
+        }
+    }
+
     None
 }
 
@@ -333,8 +411,79 @@ mod tests {
     #[test]
     fn test_local_parse_no_match() {
         assert!(parse_intent_local("tell Mary hello").is_none());
-        assert!(parse_intent_local("pick up the stone").is_none());
         assert!(parse_intent_local("hello there").is_none());
+    }
+
+    // ── Interact patterns (#1449) ─────────────────────────────────────────────
+
+    /// Deterministic Interact classification for unambiguous physical-action verbs.
+    /// These must not route to the LLM (which small models misclassify as Talk).
+    #[test]
+    fn test_local_parse_interact_physical_actions() {
+        // "pick up" — the original repro verb from #1449.
+        let intent = parse_intent_local("pick up the stone").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert_eq!(intent.target, Some("the stone".to_string()));
+        assert!(intent.dialogue.is_none());
+
+        // "tie a" — the other repro from the issue ("tie a strip of cloth to the thorn bush").
+        let intent = parse_intent_local("tie a strip of cloth to the thorn bush").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert_eq!(
+            intent.target,
+            Some("strip of cloth to the thorn bush".to_string())
+        );
+
+        // "pump" — "pick up the bellows and pump them".
+        let intent = parse_intent_local("pick up the bellows and pump them").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Other action verbs.
+        let intent = parse_intent_local("light the candle").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert_eq!(intent.target, Some("candle".to_string()));
+
+        let intent = parse_intent_local("pour the water into the basin").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        let intent = parse_intent_local("fill the bucket at the well").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        let intent = parse_intent_local("kneel before the altar").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        let intent = parse_intent_local("wash your hands in the stream").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+    }
+
+    /// Interact verbs are case-insensitive.
+    #[test]
+    fn test_local_parse_interact_case_insensitive() {
+        let intent = parse_intent_local("PICK UP THE STONE").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        let intent = parse_intent_local("Tie a cloth around the post").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+    }
+
+    /// Regression guard: greetings, questions, and dialogue must NOT match Interact.
+    #[test]
+    fn test_local_parse_interact_does_not_trigger_on_dialogue() {
+        assert!(parse_intent_local("tell Mary hello").is_none());
+        assert!(parse_intent_local("hello there").is_none());
+        // First-person stays Talk, not Interact.
+        let intent = parse_intent_local("I picked up the stone").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+    }
+
+    /// Regression guard: movement verbs still route as Move, not Interact.
+    #[test]
+    fn test_local_parse_interact_does_not_trigger_on_movement() {
+        let intent = parse_intent_local("go to the forge").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+
+        let intent = parse_intent_local("walk to the well").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
     }
     #[test]
     fn test_local_parse_first_person_narrative_is_talk() {
@@ -827,5 +976,18 @@ mod tests {
         assert!(is_player_dialogue("hello there"));
         assert!(is_player_dialogue("tell Mary the rent is too high"));
         assert!(is_player_dialogue("good morning, Father"));
+    }
+
+    /// Interact-classified inputs are NOT player dialogue — NPCs must not
+    /// react to "tie a strip of cloth to the thorn bush" as speech (#1449).
+    #[test]
+    fn interact_is_not_dialogue() {
+        assert!(!is_player_dialogue(
+            "tie a strip of cloth to the thorn bush"
+        ));
+        assert!(!is_player_dialogue("pick up the bellows and pump them"));
+        assert!(!is_player_dialogue("pick up the stone"));
+        assert!(!is_player_dialogue("light the candle"));
+        assert!(!is_player_dialogue("kneel before the altar"));
     }
 }

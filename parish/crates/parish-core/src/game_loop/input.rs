@@ -130,6 +130,36 @@ async fn try_handle_move(
     MoveDispatch::Handled
 }
 
+// ── Interact ──────────────────────────────────────────────────────────────────
+
+/// Handles an `Interact` intent by emitting a narrated action `text-log`.
+///
+/// Gated by the `interact-narration` flag (default-ON via `is_disabled`).
+/// When the flag is explicitly disabled the caller falls through to
+/// `handle_npc_conversation`, preserving pre-fix behaviour (#1449).
+///
+/// Extracted so tests can drive the narration branch directly without
+/// requiring an LLM-classified `Interact` intent.
+pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) {
+    // Normalize: trim whitespace, strip trailing period, lowercase first character.
+    // This prevents awkward output like "You Tie a strip of cloth.." when the player
+    // types a capitalized sentence with trailing punctuation.
+    let mut chars = raw.trim().trim_end_matches('.').chars();
+    let normalized = match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_lowercase().collect::<String>() + chars.as_str(),
+    };
+    // Don't emit anything for blank/empty input after normalization.
+    if normalized.is_empty() {
+        return;
+    }
+    let msg = format!("You {normalized}.");
+    ctx.emitter.emit_event(
+        "text-log",
+        serde_json::to_value(text_log("action", msg)).unwrap_or(serde_json::Value::Null),
+    );
+}
+
 // ── Game input dispatch ───────────────────────────────────────────────────────
 
 /// Handles free-form player input: parses intent (with LLM fallback) then
@@ -220,6 +250,10 @@ pub async fn handle_game_input(
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Talk))
         .unwrap_or(false);
+    let is_interact = intent
+        .as_ref()
+        .map(|i| matches!(i.intent, crate::input::IntentKind::Interact))
+        .unwrap_or(false);
     let move_target = intent
         .as_ref()
         .filter(|_i| is_move)
@@ -233,7 +267,10 @@ pub async fn handle_game_input(
         .filter(|_i| is_talk)
         .and_then(|i| i.target.clone());
 
-    if is_move {
+    // #1450: when `addressed_to` is non-empty the player is explicitly directing
+    // speech at a named NPC — movement classification must NOT win. Skip the move
+    // branch so the input routes to `handle_npc_conversation` instead.
+    if is_move && addressed_to.is_empty() {
         match try_handle_move(ctx, move_target, transport, reaction_templates).await {
             MoveDispatch::Handled => return,
             // TODO #40/#56: Move-no-target at a populated location falls through
@@ -252,6 +289,25 @@ pub async fn handle_game_input(
     if is_examine {
         handle_examine(ctx, examine_target, transport).await;
         return;
+    }
+
+    // #1449: physical player actions classified as `Interact` get a narrated
+    // acknowledgement rather than routing to NPC conversation.  Gated by the
+    // `interact-narration` flag (default-ON, kill-switch pattern: gate fires
+    // unless the flag has been explicitly disabled).
+    // Additionally, mirror the #1450 pattern: if the player explicitly addresses
+    // an NPC while performing an action, route to NPC conversation so the NPC
+    // can witness/react rather than the generic narration handler intercepting.
+    if is_interact && addressed_to.is_empty() {
+        let flag_enabled = {
+            let config = ctx.config.lock().await;
+            !config.flags.is_disabled("interact-narration")
+        };
+        if flag_enabled {
+            handle_interact(ctx, &raw).await;
+            return;
+        }
+        // Flag disabled: fall through to NPC conversation (legacy behaviour).
     }
 
     // Resolve ordered NPC recipients from visible local names.
@@ -848,6 +904,480 @@ mod tests {
         assert!(
             !logs.iter().any(|l| l.contains("is not here.")),
             "object mention must not emit 'X is not here.'; got {logs:?}"
+        );
+    }
+
+    // ── #1450: addressed_to pins dialogue intent over movement ────────────────
+
+    /// AC-1 / AC-2 (#1450): a move-classified input with non-empty `addressed_to`
+    /// must NOT trigger movement — it must fall through to NPC conversation routing.
+    ///
+    /// In no-LLM mode the local parser classifies "go to the pub" as `Move`.
+    /// But when `addressed_to = ["Peig Hannigan"]`, the `is_move` guard must be
+    /// skipped so the dialogue is routed to NPC conversation.  We assert that no
+    /// movement system message is emitted (movement emits "And where would ye be
+    /// off to?" or a travel log, neither of which would appear here since there
+    /// is no connected location "the pub" in the default world; what we can assert
+    /// is that the input does NOT emit a movement attempt and falls through
+    /// to NPC conversation — in the empty-NPC case this produces an idle text-log,
+    /// not a movement message).
+    #[tokio::test]
+    async fn addressed_to_non_empty_skips_move_branch() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // "go to the pub" → local parser classifies as Move.
+        // addressed_to = ["Peig Hannigan"] → must NOT route to movement.
+        super::handle_game_input(
+            &ctx,
+            "go to the pub".to_string(),
+            vec!["Peig Hannigan".to_string()],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        // The movement "where would ye be off to?" hint must NOT appear —
+        // that would indicate the is_move branch fired despite addressed_to.
+        assert!(
+            !logs.iter().any(|l| l.contains("where would ye be off to")),
+            "#1450: addressed_to must suppress move branch; got logs: {logs:?}"
+        );
+    }
+
+    /// AC-3 (#1450): with empty `addressed_to`, movement classification still
+    /// wins as before (regression guard).
+    #[tokio::test]
+    async fn empty_addressed_to_preserves_move_routing() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // Bare "go to the pub" with no NPC present and no addressed_to:
+        // the move branch fires, no NPC present, no matching location →
+        // the movement handler emits a "not found" system message (not the
+        // idle message). We assert something was emitted (the move path ran).
+        super::handle_game_input(
+            &ctx,
+            "go to the pub".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let event_names = emitter.event_names();
+        // The move path always emits at least one event (travel or error).
+        assert!(
+            !event_names.is_empty(),
+            "empty addressed_to with Move input must produce output; got none"
+        );
+    }
+
+    // ── #1449: Interact intent produces narrated action ───────────────────────
+
+    /// AC-5 / AC-6 (#1449): an `Interact`-classified input must NOT route to
+    /// `handle_npc_conversation`; it must emit a narrated `text-log`.
+    ///
+    /// The local parser does not emit `Interact`; that intent comes from the LLM.
+    /// In tests (no LLM configured), `parse_intent_local` returns `None` for
+    /// physical action phrases, and the dispatch falls through to NPC conversation
+    /// which emits an idle-message `text-log`.  To test the `is_interact` branch
+    /// directly we call `handle_interact` (the extracted helper).
+    ///
+    /// We test the branch via `handle_interact` directly to avoid LLM dependency.
+    #[tokio::test]
+    async fn interact_intent_emits_narrated_action_not_npc_dialogue() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        // Call handle_interact directly (the interact-narration branch).
+        super::handle_interact(&ctx, "tie a strip of cloth to the thorn bush").await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert!(
+            !logs.is_empty(),
+            "#1449: interact must emit a text-log narration; got none"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("tie a strip of cloth to the thorn bush")),
+            "#1449: narration must reference the original input; got: {logs:?}"
+        );
+    }
+
+    /// AC-5 / AC-6 (#1449) end-to-end via local parser: the local parser now
+    /// classifies physical-action imperative verbs as `Interact` directly
+    /// (no LLM required), so `handle_game_input` with flag enabled must
+    /// emit a narrated `text-log` and NOT route to NPC conversation.
+    #[tokio::test]
+    async fn handle_game_input_interact_narrates_via_local_parser() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None); // no LLM — local parser only
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // "tie a strip of cloth to the thorn bush" — primary #1449 repro.
+        // The local parser classifies this as Interact; with flag enabled (default)
+        // handle_game_input must emit a narrated action text-log.
+        super::handle_game_input(
+            &ctx,
+            "tie a strip of cloth to the thorn bush".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert!(
+            !logs.is_empty(),
+            "#1449: interact must emit a text-log; got none"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("tie a strip of cloth to the thorn bush")),
+            "#1449: narration must reference the original input; got: {logs:?}"
+        );
+    }
+
+    /// AC-7 (#1449): with `interact-narration` flag disabled, interact falls
+    /// through to NPC conversation (legacy behaviour preserved as kill-switch).
+    #[tokio::test]
+    async fn interact_with_flag_disabled_falls_through() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let mut cfg = GameConfig::default();
+        cfg.flags.disable("interact-narration");
+        let config = tokio::sync::Mutex::new(cfg);
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // "pick up the bellows" — the local parser now classifies this as
+        // `Interact` (#1449 fix). With the `interact-narration` flag disabled,
+        // the `is_interact` dispatch branch falls through to NPC conversation
+        // (legacy kill-switch). No action narration should be emitted; an idle
+        // text-log (no NPC present) is produced instead.
+        super::handle_game_input(
+            &ctx,
+            "pick up the bellows".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        // With flag disabled, dispatch falls through to NPC conversation →
+        // idle message text-log (no NPC present).
+        let event_names = emitter.event_names();
+        assert!(
+            event_names.iter().any(|n| n == "text-log"),
+            "interact fallthrough must still emit a text-log; got {event_names:?}"
+        );
+    }
+
+    // ── Gemini review thread fixes ────────────────────────────────────────────
+
+    /// Thread 1: capitalized input with trailing period must be normalized to
+    /// lowercase-first, no trailing double-period.
+    ///
+    /// "Tie a strip of cloth." → "You tie a strip of cloth."
+    #[tokio::test]
+    async fn handle_interact_normalizes_capitalized_trailing_period() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        // Capitalized input with trailing period — the Gemini repro case.
+        super::handle_interact(&ctx, "Tie a strip of cloth.").await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert!(
+            !logs.is_empty(),
+            "handle_interact must emit a text-log for capitalized input"
+        );
+        // Must normalize to lowercase first char, single trailing period.
+        assert!(
+            logs.iter().any(|l| l == "You tie a strip of cloth."),
+            "expected 'You tie a strip of cloth.' (normalized); got: {logs:?}"
+        );
+        // Must NOT produce a double-period.
+        assert!(
+            !logs.iter().any(|l| l.contains("..")),
+            "narration must not contain '..'; got: {logs:?}"
+        );
+    }
+
+    /// Thread 2: an Interact-classified input WITH addressed_to non-empty must
+    /// route to NPC conversation, NOT emit the generic narration.
+    ///
+    /// In no-LLM mode, "tie a strip of cloth to the thorn bush" is classified as
+    /// Interact by the local parser.  With `addressed_to = ["Brigid"]`, the
+    /// `is_interact && addressed_to.is_empty()` guard must be false, so the input
+    /// falls through to handle_npc_conversation (here: idle text-log, no NPC).
+    /// We assert that NO "You tie" narration is emitted.
+    #[tokio::test]
+    async fn interact_with_addressed_to_routes_to_npc_conversation_not_narration() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // Interact-classified input but with addressed_to set — must NOT narrate.
+        super::handle_game_input(
+            &ctx,
+            "tie a strip of cloth to the thorn bush".to_string(),
+            vec!["Brigid".to_string()],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        // Must NOT emit the interact narration "You tie ..." — it must fall
+        // through to NPC conversation routing instead.
+        assert!(
+            !logs.iter().any(|l| l.starts_with("You tie")),
+            "interact with addressed_to must NOT produce action narration; got: {logs:?}"
+        );
+        // Must still emit something (idle message from NPC conversation path,
+        // no NPC present in test world).
+        assert!(
+            !logs.is_empty(),
+            "interact with addressed_to must still produce a text-log (NPC path); got none"
         );
     }
 }
