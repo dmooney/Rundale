@@ -67,7 +67,7 @@ async fn mount_sse_response(server: &MockServer, content: &str) {
 
 type SharedLog = Arc<Mutex<Vec<String>>>;
 type SharedTurnIds = Arc<Mutex<Vec<u64>>>;
-type EmitLogFn = Box<dyn FnMut(u64, &str)>;
+type EmitLogFn = Box<dyn FnMut(u64, &str, Option<&'static str>)>;
 type EmitTokenFn = Box<dyn FnMut(u64, &str, &str)>;
 type EmitTurnEndFn = Box<dyn FnMut(u64)>;
 
@@ -86,9 +86,11 @@ fn make_collectors() -> (
     let ln = log_names.clone();
     let tk = tokens.clone();
     let te = turn_ends.clone();
-    let emit_log: EmitLogFn = Box::new(move |_turn_id: u64, name: &str| {
-        ln.lock().unwrap().push(name.to_string());
-    });
+    let emit_log: EmitLogFn = Box::new(
+        move |_turn_id: u64, name: &str, _subtype: Option<&'static str>| {
+            ln.lock().unwrap().push(name.to_string());
+        },
+    );
     let emit_token: EmitTokenFn = Box::new(move |_turn_id: u64, _source: &str, batch: &str| {
         tk.lock().unwrap().push(batch.to_string());
     });

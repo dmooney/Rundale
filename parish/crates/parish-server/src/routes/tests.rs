@@ -1776,3 +1776,123 @@ async fn audit_loop_detects_mismatch_and_files_full_payload() {
     // The mismatch description is recorded too.
     assert!(issue.contains("STALE UI"));
 }
+
+// ── #1431 item 2: Gesture reaction subtype threading through AppStateEmitter ──
+
+/// Verifies that a `ReactionKind::Gesture` reaction emitted via the full
+/// server-side event path (AppStateEmitter → event_bus) carries
+/// `subtype: "action"` in the `text-log` placeholder payload.
+///
+/// This exercises the production code path:
+///   stream_reaction_texts → emit_text_log closure (game_loop/movement.rs)
+///   → text_log_for_stream_turn_typed → AppStateEmitter::emit_event
+///   → event_bus broadcast
+///
+/// AC-2-1 (backend): Gesture → subtype Some("action"), Greeting → None.
+/// AC-2-2 (backend): The placeholder payload carries subtype on the wire.
+#[tokio::test]
+async fn gesture_reaction_emits_action_subtype_through_event_bus() {
+    use std::collections::HashSet;
+
+    use parish_core::event_bus::EventBus as EventBusTrait;
+    use parish_core::npc::LanguageSettings;
+    use parish_core::npc::NpcId;
+    use parish_core::npc::reactions::{NpcReaction, ReactionKind};
+    use parish_core::world::LocationId;
+    use parish_core::world::time::TimeOfDay;
+
+    let state = test_app_state();
+
+    // Subscribe before calling stream_reaction_texts so no events are missed.
+    let mut rx = state
+        .event_bus
+        .subscribe(&[parish_core::event_bus::Topic::TextLog]);
+
+    // Build one Gesture and one Greeting reaction (no NPC lookup needed for
+    // the emit_text_log closure; supply empty slice for `all_npcs`).
+    let gesture = NpcReaction {
+        npc_id: NpcId(1),
+        npc_display_name: "a tall stranger".to_string(),
+        kind: ReactionKind::Gesture,
+        canned_text: "tips their hat".to_string(),
+        introduces: false,
+        use_llm: false,
+    };
+    let greeting = NpcReaction {
+        npc_id: NpcId(2),
+        npc_display_name: "Brigid Flanagan".to_string(),
+        kind: ReactionKind::Greeting,
+        canned_text: "Good morning to ye.".to_string(),
+        introduces: false,
+        use_llm: false,
+    };
+
+    let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> = std::sync::Arc::new(
+        crate::emitter::AppStateEmitter::new(std::sync::Arc::clone(&state)),
+    );
+
+    // Replicate the game_loop/movement.rs emit_text_log closure directly —
+    // stream_reaction_texts calls it once per reaction to emit the placeholder.
+    parish_core::game_session::stream_reaction_texts(
+        &[gesture, greeting],
+        &[],
+        LocationId(0),
+        "Kilteevan",
+        TimeOfDay::Morning,
+        "clear",
+        &HashSet::new(),
+        None,
+        "",
+        None,
+        &LanguageSettings::english_only(),
+        {
+            let emitter = std::sync::Arc::clone(&emitter);
+            move |turn_id, npc_name, subtype| {
+                use parish_core::ipc::{text_log_for_stream_turn, text_log_for_stream_turn_typed};
+                let payload = match subtype {
+                    Some(st) => text_log_for_stream_turn_typed(
+                        npc_name.to_string(),
+                        String::new(),
+                        turn_id,
+                        st,
+                    ),
+                    None => text_log_for_stream_turn(npc_name.to_string(), String::new(), turn_id),
+                };
+                emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(payload).unwrap_or(serde_json::Value::Null),
+                );
+            }
+        },
+        |_turn_id, _source, _batch| {},
+        |_turn_id| {},
+    )
+    .await;
+
+    // Drain the event bus and collect text-log placeholder entries.
+    let logs = drain_text_logs(&mut rx);
+
+    // Two text-log placeholder entries: one per reaction.
+    assert_eq!(logs.len(), 2, "expected two text-log placeholders");
+
+    // First is the Gesture — must carry subtype "action".
+    assert_eq!(
+        logs[0].subtype.as_deref(),
+        Some("action"),
+        "Gesture placeholder must carry subtype 'action' on the wire (AC-2-2)"
+    );
+    assert_eq!(
+        logs[0].source, "a tall stranger",
+        "Gesture source must be the NPC display name"
+    );
+
+    // Second is the Greeting — must carry no subtype.
+    assert_eq!(
+        logs[1].subtype, None,
+        "Greeting placeholder must carry no subtype (verbal reaction)"
+    );
+    assert_eq!(
+        logs[1].source, "Brigid Flanagan",
+        "Greeting source must be the NPC display name"
+    );
+}
