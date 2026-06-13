@@ -991,19 +991,20 @@ async fn handle_headless_game_input(
         }
         crate::input::IntentKind::Examine => {
             // Feature-flagged: default-ON via is_disabled (#1424).
-            let flag_enabled = !app.flags.is_disabled("examine-intent");
-            if flag_enabled {
-                if let Some(ref name) = intent.target {
+            // Collapse: flag must be on AND a target must be present; otherwise room description.
+            match (
+                !app.flags.is_disabled("examine-intent"),
+                intent.target.as_deref(),
+            ) {
+                (true, Some(name)) => {
                     println!(
                         "You look more closely at {name}. There is nothing more noteworthy about it than what you have already observed."
                     );
-                } else {
-                    // Bare examine (no target) → fall through to room description.
+                }
+                _ => {
+                    // Flag disabled or bare examine (no target) → room description.
                     print_location_description(app);
                 }
-            } else {
-                // Flag disabled → fall through to room description (pre-fix behaviour).
-                print_location_description(app);
             }
         }
         _ => {

@@ -1099,16 +1099,20 @@ impl GameTestHarness {
                 }
                 IntentKind::Examine => {
                     // Feature-flagged: default-ON via is_disabled (#1424).
-                    let flag_enabled = !self.app.flags.is_disabled("examine-intent");
-                    if flag_enabled {
-                        if let Some(ref name) = pi.target {
+                    // Collapse: flag must be on AND a target must be present; otherwise room description.
+                    match (
+                        !self.app.flags.is_disabled("examine-intent"),
+                        pi.target.as_deref(),
+                    ) {
+                        (true, Some(name)) => {
                             let msg = format!(
                                 "You look more closely at {name}. There is nothing more noteworthy about it than what you have already observed."
                             );
                             self.app.world.log(msg.clone());
                             ActionResult::SystemCommand { response: msg }
-                        } else {
-                            // Bare examine (no target) → room description.
+                        }
+                        _ => {
+                            // Flag disabled or bare examine (no target) → room description.
                             let desc = self.render_current_location();
                             let transport = self.default_transport();
                             let exits = format_exits(
@@ -1121,19 +1125,6 @@ impl GameTestHarness {
                             self.app.world.log(exits);
                             ActionResult::Looked { description: desc }
                         }
-                    } else {
-                        // Flag disabled → fall through to room description (pre-fix behaviour).
-                        let desc = self.render_current_location();
-                        let transport = self.default_transport();
-                        let exits = format_exits(
-                            self.app.world.player_location,
-                            &self.app.world.graph,
-                            transport.speed_m_per_s,
-                            &transport.label,
-                        );
-                        self.app.world.log(desc.clone());
-                        self.app.world.log(exits);
-                        ActionResult::Looked { description: desc }
                     }
                 }
                 // Locally parsed intent that is neither Move/Look/Examine — NPC interaction
