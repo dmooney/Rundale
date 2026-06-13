@@ -2,10 +2,6 @@
 name: quality-harness
 description: Run a game quality-control playtest — YOU drive the LIVE Rundale game via the parish MCP against real models, play in-character for N turns, observe the world, then judge it CRITICALLY (anchored rubric, discrete findings) and file bugs. Trigger when the user says "run the quality harness", "do a harness run", "playtest the game", "QA the game", "drive a playtest", or similar. NOT for model benchmarking (that is /rundale-bench) and NOT for scripted bug-probing (that is /demo-audit-mcp).
 argument-hint: '[turns N] [persona "..."] [goal "..."]'
-paths:
-  - parish/crates/parish-tauri/**
-  - parish/crates/parish-mcp/**
-  - docs/agent/driving-the-game-via-mcp.md
 ---
 
 # quality-harness — agent-driven critical playtest
