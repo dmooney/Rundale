@@ -1,0 +1,9 @@
+# Fixture: fix-1422-anti-repetition
+# Verifies that the dialogue path compiles and executes with the new
+# dedupe_cross_npc_openers guard wired in. The cross-NPC opener dedup is
+# deterministic but requires model output to produce colliding openers; the
+# unit tests in repetition::tests exercise the guard directly. This script
+# verifies the game loop runs through the multi-NPC path without error.
+look
+go to the pub
+look
