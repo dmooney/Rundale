@@ -193,33 +193,31 @@ pub fn dedup_farewell_tokens(dialogue: &str) -> String {
     result
 }
 
-/// Extracts the first sentence (opener) from a dialogue string, normalized for
-/// cross-NPC duplicate detection.
+/// Splits `dialogue` into its opener (first sentence) and the remainder in a
+/// single pass, avoiding the double [`split_sentences`] call that `extract_opener`
+/// and `remainder_after_opener` previously incurred when called together on the
+/// hot dialogue path.
 ///
-/// The opener is everything up to and including the first terminal punctuation
-/// character (`.`, `!`, `?`, `…`). If no terminal punctuation exists the whole
-/// string is the opener. The result is normalized (lowercased, whitespace
-/// collapsed, trailing punctuation stripped) for comparison purposes.
-fn extract_opener(dialogue: &str) -> String {
-    let raw_opener = split_sentences(dialogue)
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| dialogue.to_string());
-    normalize_for_repetition(&raw_opener)
-}
-
-/// Extracts the content AFTER the first sentence of `dialogue`.
-///
-/// Returns an empty string when there is no second sentence. Leading whitespace
-/// of the remainder is trimmed.
-fn remainder_after_opener(dialogue: &str) -> &str {
+/// Returns `(normalized_opener, remainder)` where:
+/// - `normalized_opener` is the first sentence lowercased, whitespace-collapsed,
+///   and trailing-punctuation-stripped (identical to what [`extract_opener`] used
+///   to return independently).
+/// - `remainder` is everything after the first sentence, leading whitespace
+///   trimmed (empty `&str` when there is no second sentence).
+fn split_opener_remainder(dialogue: &str) -> (String, &str) {
     let sentences = split_sentences(dialogue);
-    if sentences.len() < 2 {
-        return "";
-    }
-    // Find the byte offset of the second sentence's start in the original string.
-    let first_len = sentences[0].len();
-    dialogue[first_len..].trim_start()
+    let normalized = match sentences.first() {
+        Some(first) => normalize_for_repetition(first),
+        None => normalize_for_repetition(dialogue),
+    };
+    let remainder = if sentences.len() < 2 {
+        ""
+    } else {
+        // The first sentence spans [0, sentences[0].len()) bytes in `dialogue`;
+        // everything after it (leading whitespace trimmed) is the remainder.
+        dialogue[sentences[0].len()..].trim_start()
+    };
+    (normalized, remainder)
 }
 
 /// Cross-NPC opener de-duplication guard (#1422).
@@ -255,17 +253,22 @@ pub fn dedupe_cross_npc_openers(prior_openers: &[String], reply: &str) -> String
     if prior_openers.is_empty() || reply.trim().is_empty() {
         return reply.to_string();
     }
-    let my_opener = extract_opener(reply);
+    // Single split: derive both the normalized opener and the remainder in one
+    // pass instead of calling split_sentences twice (#1422 review).
+    let (my_opener, rest) = split_opener_remainder(reply);
     if my_opener.is_empty() {
         return reply.to_string();
     }
-    let is_duplicate = prior_openers.iter().any(|prev| {
-        normalize_for_repetition(prev) == my_opener || dialogue_similarity(&my_opener, prev) >= 0.75
-    });
+    // `prior_openers` entries are already normalized at insertion
+    // (via `extract_normalized_opener` → `normalize_for_repetition`), so
+    // comparing `prev` directly against `my_opener` is correct and avoids a
+    // redundant normalize call (#1422 review).
+    let is_duplicate = prior_openers
+        .iter()
+        .any(|prev| prev.as_str() == my_opener || dialogue_similarity(&my_opener, prev) >= 0.75);
     if !is_duplicate {
         return reply.to_string();
     }
-    let rest = remainder_after_opener(reply);
     if rest.is_empty() {
         // The entire reply is the duplicated opener — returning blank would be
         // worse, so keep the original.
@@ -280,7 +283,7 @@ pub fn dedupe_cross_npc_openers(prior_openers: &[String], reply: &str) -> String
 /// Call this **after** any other post-processing guards so the stored opener
 /// reflects what was actually shown to the player.
 pub fn extract_normalized_opener(reply: &str) -> String {
-    extract_opener(reply)
+    split_opener_remainder(reply).0
 }
 
 /// Applies the full anti-repetition guard to a freshly generated NPC line
