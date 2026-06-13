@@ -11,13 +11,23 @@
 	let hoveredMessageId: string | null = $state(null);
 	const pendingReactions = new SvelteSet<string>();
 
+	// Track the last playerSubmittedCount value we handled so we can detect a
+	// fresh increment. Initialised to the store's current value so that
+	// pre-existing submissions at component mount don't trigger a spurious
+	// force-scroll (#1431 item 4).
+	let lastSubmittedCount = $playerSubmittedCount;
+
 	$effect(() => {
 		const _ = $textLog;
-		// When the player has just submitted a message, scroll unconditionally so
-		// the echoed bubble is always visible regardless of scroll position
-		// (#1431 item 4). For passive NPC/world updates, keep the near-bottom guard
-		// so a user who has scrolled up to read history is not interrupted.
-		const playerJustSubmitted = $playerSubmittedCount > 0;
+		// Re-read the counter inside the effect so Svelte tracks it as a
+		// reactive dependency and re-runs on every increment.
+		const currentCount = $playerSubmittedCount;
+		// Force-scroll only when the player just sent a new message (the count
+		// incremented since we last ran). For passive NPC/world updates the count
+		// stays the same, so we fall back to the near-bottom guard and leave the
+		// user's scroll position alone (#1431 item 4).
+		const playerJustSubmitted = currentCount > lastSubmittedCount;
+		lastSubmittedCount = currentCount;
 		const nearBottom = playerJustSubmitted || (logEl
 			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
 			: true);

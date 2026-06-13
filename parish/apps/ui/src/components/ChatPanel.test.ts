@@ -279,6 +279,109 @@ describe('ChatPanel', () => {
 
 			expect(container.querySelector('.chat-panel')).toBeTruthy();
 		});
+
+		// #1431 item 4 regression: the original fix used `$playerSubmittedCount > 0`
+		// which is ALWAYS true after the first send, so every passive NPC/world
+		// update force-scrolled the user back to the bottom even when they had
+		// scrolled up. The fix must track the LAST handled count and only
+		// force-scroll when it INCREMENTS.
+		//
+		// Strategy: we monkey-patch scrollHeight/clientHeight on the container
+		// BEFORE rendering so Svelte's initial $effect run already sees the
+		// "scrolled up" geometry (300px of headroom). The spy is then installed
+		// before the reactive update, guaranteeing it only captures calls that
+		// arise from the store change under test.
+		describe('#1431 item 4 — force-scroll only on submit increment', () => {
+			it('does NOT force-scroll on a passive textLog update when scrolled up', async () => {
+				// Start with count already at 1 (simulates a previous submit).
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Flush all pending microtasks from the initial mount effect
+				// (tick() inside $effect is async — must drain before installing spy).
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate the user having scrolled up AFTER the initial render
+				// settles: scrollHeight=500, clientHeight=200, scrollTop=0 →
+				// distance from bottom = 300 > 50 → NOT near bottom.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop stays 0 (user scrolled to top).
+
+				// Now install the spy — any call from here on is attributable to
+				// the store change below.
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Passive update: only textLog changes, playerSubmittedCount stays at 1.
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good day to ye.' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop must NOT have been set — the user's scroll position
+				// should be preserved when no submit occurred.
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('DOES force-scroll when playerSubmittedCount increments', async () => {
+				// Start with count at 1.
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect's async tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate scrolled up.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop = 0 (user is at top of history).
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Player sends a new message: count increments to 2 and log gets the echo.
+				playerSubmittedCount.set(2);
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'go north' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop MUST have been set to scrollHeight (500) because the
+				// count incremented — force-scroll on player submit.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
 	});
 
 	// #1431 item 2: NPC gesture/action reactions carry subtype "action" and must
