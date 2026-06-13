@@ -62,7 +62,7 @@ pub mod world_pump;
 
 pub use context::GameLoopContext;
 pub use inference::{InferenceSlots, rebuild_inference_worker};
-pub use input::{handle_game_input, handle_look};
+pub use input::{handle_examine, handle_game_input, handle_look};
 pub use movement::handle_movement;
 pub use npc_turn::{
     AUTONOMOUS_NPC_CHAIN_FLAG, TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn,

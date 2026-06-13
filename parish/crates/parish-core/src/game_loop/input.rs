@@ -40,6 +40,53 @@ pub async fn handle_look(ctx: &GameLoopContext<'_>, transport: &TransportMode) {
     );
 }
 
+// ── Examine ───────────────────────────────────────────────────────────────────
+
+/// Handles an `Examine` intent.
+///
+/// When `target` is `None` (bare "examine room") this falls through to
+/// [`handle_look`] — the player just wants a room description.
+///
+/// When `target` is `Some(name)` this emits a target-specific detail message
+/// instead of the generic room blurb, so the player receives an acknowledgement
+/// about the named subject rather than a silent reprint of the location
+/// description (#1424).  The world model does not yet carry per-object examine
+/// prose, so for now the response is a brief "nothing more noteworthy" message
+/// that at minimum references the target name and is **distinct** from the room
+/// blurb.  Future iterations can replace this with world-model-driven detail.
+///
+/// Gated by the `examine-intent` feature flag (default-ON via `is_disabled`).
+/// When the flag is explicitly disabled the call falls through to `handle_look`,
+/// preserving the pre-fix behaviour.
+pub async fn handle_examine(
+    ctx: &GameLoopContext<'_>,
+    target: Option<String>,
+    transport: &TransportMode,
+) {
+    // Flag gate: if examine-intent is explicitly disabled, fall through to look.
+    let flag_enabled = {
+        let config = ctx.config.lock().await;
+        !config.flags.is_disabled("examine-intent")
+    };
+
+    match (flag_enabled, target) {
+        (true, Some(name)) => {
+            // Emit a target-specific acknowledgement that is never the room blurb.
+            let msg = format!(
+                "You look more closely at {name}. There is nothing more noteworthy about it than what you have already observed."
+            );
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log("system", msg)).unwrap_or(serde_json::Value::Null),
+            );
+        }
+        // Bare examine (no target) or flag disabled → fall through to room look.
+        _ => {
+            handle_look(ctx, transport).await;
+        }
+    }
+}
+
 /// Result of `try_handle_move`.
 enum MoveDispatch {
     /// Movement intent was fully handled (either travel succeeded or a system
@@ -165,6 +212,10 @@ pub async fn handle_game_input(
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Look))
         .unwrap_or(false);
+    let is_examine = intent
+        .as_ref()
+        .map(|i| matches!(i.intent, crate::input::IntentKind::Examine))
+        .unwrap_or(false);
     let is_talk = intent
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Talk))
@@ -172,6 +223,10 @@ pub async fn handle_game_input(
     let move_target = intent
         .as_ref()
         .filter(|_i| is_move)
+        .and_then(|i| i.target.clone());
+    let examine_target = intent
+        .as_ref()
+        .filter(|_i| is_examine)
         .and_then(|i| i.target.clone());
     let talk_target = intent
         .as_ref()
@@ -191,6 +246,11 @@ pub async fn handle_game_input(
 
     if is_look {
         handle_look(ctx, transport).await;
+        return;
+    }
+
+    if is_examine {
+        handle_examine(ctx, examine_target, transport).await;
         return;
     }
 
@@ -299,6 +359,186 @@ mod tests {
         assert!(
             names.iter().any(|n| n == "text-log"),
             "expected text-log from handle_look; got {names:?}"
+        );
+    }
+
+    // ── Examine routing (#1424) ───────────────────────────────────────────────
+
+    /// AC-6 / AC-3: Examine with a target must NOT emit the room blurb.
+    ///
+    /// In no-LLM mode `parse_intent_local("examine the old well")` classifies as
+    /// `Examine` with `target = Some("the old well")`.  `handle_game_input` must
+    /// route this to `handle_examine`, which emits a target-specific message
+    /// that is distinct from the room description.
+    ///
+    /// This test fails against pre-fix code (Examine falls through to
+    /// `handle_npc_conversation` which emits an idle message, not the room
+    /// blurb — but the intent is still wrong; the fix ensures `handle_examine`
+    /// is called and its output contains the target name).
+    #[tokio::test]
+    async fn examine_with_target_routes_to_handle_examine_not_look() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // First run a bare `look` to capture the room blurb.
+        super::handle_look(&ctx, &transport).await;
+        let look_logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+        let room_blurb = look_logs.first().cloned().unwrap_or_default();
+
+        // Clear events.
+        emitter.events.lock().unwrap().clear();
+
+        // Now run handle_game_input with "examine the old well".
+        // No LLM configured — parse_intent_local classifies as Examine.
+        super::handle_game_input(
+            &ctx,
+            "examine the old well".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let examine_logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        // Must have emitted something.
+        assert!(
+            !examine_logs.is_empty(),
+            "examine must emit a text-log; got none"
+        );
+
+        // The output must NOT be the verbatim room blurb (#1424).
+        assert!(
+            !examine_logs.iter().any(|l| l == &room_blurb),
+            "examine must NOT reprint the room blurb; got: {examine_logs:?}"
+        );
+
+        // The output must reference the target name.
+        assert!(
+            examine_logs.iter().any(|l| l.contains("old well")),
+            "examine response must reference the target 'old well'; got: {examine_logs:?}"
+        );
+    }
+
+    /// AC-5: When the examine-intent flag is disabled, examine falls through to handle_look.
+    #[tokio::test]
+    async fn examine_with_flag_disabled_falls_through_to_look() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let mut cfg = GameConfig::default();
+        cfg.flags.disable("examine-intent");
+        let config = tokio::sync::Mutex::new(cfg);
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+
+        // Capture the room blurb from a normal look.
+        super::handle_look(&ctx, &transport).await;
+        let look_logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+        let room_blurb = look_logs.first().cloned().unwrap_or_default();
+
+        emitter.events.lock().unwrap().clear();
+
+        // With flag disabled, examine should fall through to look.
+        super::handle_examine(&ctx, Some("the old well".to_string()), &transport).await;
+
+        let examine_logs: Vec<String> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                p.get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert!(
+            examine_logs.iter().any(|l| l == &room_blurb),
+            "with flag disabled, handle_examine must emit the room blurb (falls through to look)"
         );
     }
 

@@ -186,6 +186,10 @@ pub(crate) async fn handle_game_input(
         .as_ref()
         .map(|i| matches!(i.intent, parish_core::input::IntentKind::Look))
         .unwrap_or(false);
+    let is_examine = intent
+        .as_ref()
+        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Examine))
+        .unwrap_or(false);
     let is_talk = intent
         .as_ref()
         .map(|i| matches!(i.intent, parish_core::input::IntentKind::Talk))
@@ -193,6 +197,10 @@ pub(crate) async fn handle_game_input(
     let move_target = intent
         .as_ref()
         .filter(|_i| is_move)
+        .and_then(|i| i.target.clone());
+    let examine_target = intent
+        .as_ref()
+        .filter(|_i| is_examine)
         .and_then(|i| i.target.clone());
     let talk_target = intent
         .as_ref()
@@ -219,6 +227,11 @@ pub(crate) async fn handle_game_input(
 
     if is_look {
         super::movement::handle_look(state, &app).await;
+        return;
+    }
+
+    if is_examine {
+        handle_examine_tauri(examine_target, state, &app).await;
         return;
     }
 
@@ -391,6 +404,41 @@ async fn handle_npc_conversation(
     super::snapshot::emit_world_update(state, &app).await;
     parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
     super::snapshot::emit_world_update(state, &app).await;
+}
+
+/// Handles an `Examine` intent in the Tauri backend.
+///
+/// Delegates to [`parish_core::game_loop::handle_examine`] via a thin
+/// [`GameLoopContext`] shim so mode parity is maintained with the server and
+/// headless paths (rule #2/#12).  Emits a world-update snapshot after the
+/// examine response so the frontend stays consistent.
+///
+/// Gated by the `examine-intent` feature flag (default-ON).
+async fn handle_examine_tauri(
+    examine_target: Option<String>,
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) {
+    let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
+        std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
+    let ctx = parish_core::game_loop::GameLoopContext {
+        world: &state.world,
+        npc_manager: &state.npc_manager,
+        config: &state.config,
+        conversation: &state.conversation,
+        inference_queue: &state.inference_queue,
+        emitter: std::sync::Arc::clone(&emitter),
+        inference_config: &state.inference_config,
+        pronunciations: &state.pronunciations,
+        client: &state.client,
+        cloud_client: &state.cloud_client,
+        language: state.language_settings.clone(),
+        inference_failure_messages: &state.inference_failure_messages,
+        idle_messages: &state.idle_messages,
+    };
+    let transport = state.transport.default_mode().clone();
+    parish_core::game_loop::handle_examine(&ctx, examine_target, &transport).await;
+    super::snapshot::emit_world_update(state, app).await;
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
