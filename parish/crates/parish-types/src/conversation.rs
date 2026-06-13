@@ -150,7 +150,8 @@ impl ConversationLog {
         npc_id: NpcId,
         n: usize,
     ) -> Vec<&str> {
-        self.exchanges
+        let mut lines: Vec<&str> = self
+            .exchanges
             .iter()
             .filter(|e| {
                 e.location == location && e.speaker_id != npc_id && e.speaker_id != NpcId(0)
@@ -158,10 +159,9 @@ impl ConversationLog {
             .rev()
             .take(n)
             .map(|e| e.npc_dialogue.as_str())
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect()
+            .collect();
+        lines.reverse();
+        lines
     }
 
     /// Returns the number of exchanges involving `npc_id` at `location`.

@@ -331,7 +331,9 @@ fn prior_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
         } else {
             line
         };
-        block.push_str(&format!("- \"{excerpt}\"\n"));
+        block.push_str("- \"");
+        block.push_str(excerpt);
+        block.push_str("\"\n");
     }
     Some(block)
 }
@@ -365,7 +367,9 @@ fn cross_npc_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
         } else {
             line
         };
-        block.push_str(&format!("- \"{excerpt}\"\n"));
+        block.push_str("- \"");
+        block.push_str(excerpt);
+        block.push_str("\"\n");
     }
     block.push_str(
         "In particular, never greet with \"ye've come to the right place\" or any \
