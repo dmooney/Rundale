@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use crate::config::FeatureFlags;
 use crate::config::InferenceCategory;
 use crate::game_loop::GameLoopContext;
 use crate::game_session::{
@@ -53,6 +54,14 @@ pub async fn handle_movement(
     transport: &TransportMode,
     reaction_templates: &ReactionTemplates,
 ) -> GameEffects {
+    // Snapshot flags before acquiring world/npc_manager locks to keep the
+    // critical section minimal and honour the documented lock order
+    // (world → npc_manager → … → config).  FeatureFlags is cheap to clone.
+    let flags: FeatureFlags = {
+        let cfg = ctx.config.lock().await;
+        cfg.flags.clone()
+    };
+
     // Apply movement within a single lock scope to prevent TOCTOU races.
     // `apply_movement` itself publishes `PlayerMoved` on successful arrival
     // so this handler doesn't need to — see `game_session::apply_movement`.
@@ -65,12 +74,10 @@ pub async fn handle_movement(
             reaction_templates,
             target,
             transport,
+            &flags,
         );
         // Travel encounter — default-on, kill-switchable via `travel-encounters` flag.
-        let encounters_enabled = {
-            let cfg = ctx.config.lock().await;
-            !cfg.flags.is_disabled("travel-encounters")
-        };
+        let encounters_enabled = !flags.is_disabled("travel-encounters");
         let rolled = if effects.world_changed && encounters_enabled {
             roll_travel_encounter(&world, &effects)
         } else {

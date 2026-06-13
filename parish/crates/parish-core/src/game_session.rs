@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::config::ReactionConfig;
+use crate::config::{FeatureFlags, ReactionConfig};
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
 use crate::inference::InferenceLog;
@@ -115,6 +115,7 @@ pub fn apply_movement(
     reaction_templates: &ReactionTemplates,
     target: &str,
     transport: &TransportMode,
+    flags: &FeatureFlags,
 ) -> GameEffects {
     let result = resolve_movement_with_weather(
         target,
@@ -166,6 +167,39 @@ pub fn apply_movement(
                         public: data.public,
                         lat: data.lat,
                         lon: data.lon,
+                    });
+            }
+
+            // Seed a player-arrival rumour into the gossip network so NPCs can
+            // later learn and spread word of the stranger's movements.
+            //
+            // Gated behind `player-action-gossip` (default-on via `is_disabled`).
+            // The player's synthetic NpcId is NpcId(0); see the guard comment in
+            // `create_gossip_from_tier2_event` which explicitly avoids that id as
+            // a default for NPC-sourced gossip.
+            if !flags.is_disabled("player-action-gossip") {
+                let loc_name = world
+                    .graph
+                    .get(destination)
+                    .map(|d| d.name.as_str())
+                    .unwrap_or("somewhere");
+                let content = format!("A stranger arrived at {loc_name}");
+                let gossip_id =
+                    world
+                        .gossip_network
+                        .create(content.clone(), NpcId(0), world.clock.now());
+                tracing::debug!(
+                    gossip_id,
+                    location = %loc_name,
+                    "[gossip] player arrival seeded: {content}"
+                );
+                world
+                    .event_bus
+                    .publish(parish_types::events::GameEvent::GossipSpread {
+                        source: NpcId(0),
+                        location: destination,
+                        content,
+                        timestamp: world.clock.now(),
                     });
             }
 
@@ -953,7 +987,14 @@ mod tests {
             return;
         };
         let loc = world.current_location().name.clone();
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &loc, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &loc,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(!effects.messages.is_empty());
     }
 
@@ -968,6 +1009,7 @@ mod tests {
             &templates,
             "xyzzy-no-such-place",
             &transport,
+            &FeatureFlags::default(),
         );
         assert!(!effects.world_changed);
         assert!(effects.travel_start.is_none());
@@ -991,7 +1033,14 @@ mod tests {
             .get(neighbor_id)
             .map(|d| d.name.clone())
             .unwrap_or_default();
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(effects.world_changed);
         assert!(effects.travel_start.is_some());
         assert_eq!(world.player_location, neighbor_id);
@@ -1244,7 +1293,14 @@ mod tests {
             .expect("npcs_at target should not be empty");
 
         // Move there.
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &target_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &target_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(effects.world_changed);
         assert_eq!(world.player_location, target);
 
@@ -1280,6 +1336,7 @@ mod tests {
             &templates,
             "definitely-not-a-place-0xdeadbeef",
             &transport,
+            &FeatureFlags::default(),
         );
         // The not-found message should also have been logged to world.log.
         assert!(
@@ -1317,7 +1374,14 @@ mod tests {
             .map(|d| d.name.clone())
             .unwrap_or_default();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         assert!(effects.world_changed);
         assert!(
@@ -1352,7 +1416,14 @@ mod tests {
         assert!(!world.visited_locations.contains(&neighbor_id));
         let clock_before = world.clock.now();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         // World mutations: visited, clock advanced, edge traversal recorded.
         assert!(effects.world_changed);
@@ -1377,7 +1448,14 @@ mod tests {
         let start = world.player_location;
         let text_log_before = world.text_log.len();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &exact_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &exact_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         // Player location should not change, but the harness currently resolves the
         // *same* name via fuzzy match to the same location — accept either the

@@ -25,6 +25,14 @@ pub(super) async fn handle_movement(target: &str, state: &Arc<AppState>, app: &t
 
     let transport = state.transport.default_mode().clone();
 
+    // Snapshot flags before acquiring world/npc_manager locks to keep the
+    // critical section minimal and honour the documented lock order
+    // (world → npc_manager → … → config).  FeatureFlags is cheap to clone.
+    let flags = {
+        let config = state.config.lock().await;
+        config.flags.clone()
+    };
+
     // Apply all movement state changes within a single lock scope to prevent
     // TOCTOU races.
     let (effects, rolled_encounter) = {
@@ -36,10 +44,10 @@ pub(super) async fn handle_movement(target: &str, state: &Arc<AppState>, app: &t
             &state.reaction_templates,
             target,
             &transport,
+            &flags,
         );
         let rolled = if effects.world_changed {
-            let config = state.config.lock().await;
-            if !config.flags.is_disabled("travel-encounters") {
+            if !flags.is_disabled("travel-encounters") {
                 roll_travel_encounter(&world, &effects)
             } else {
                 None
