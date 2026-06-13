@@ -3,12 +3,6 @@ name: parish-engine
 description: Drive the Rundale engine to see gameplay actually working — the script harness, feature proofs, autonomous play-tests, eval rubrics/baselines, the live LLM auto-player, browser UI sessions, and GUI screenshots. Use after changing world, movement, NPC, input, inference, UI, or mod code, and whenever you need to prove a gameplay change is live rather than that tests pass.
 disable-model-invocation: false
 argument-hint: '[harness|prove|play|rubric|demo|browser|screenshot] [scenario or feature]'
-paths:
-  - parish/crates/**
-  - parish/testing/**
-  - mods/rundale/**
-  - parish/apps/ui/**
-  - parish/crates/parish-server/**
 ---
 
 One skill for every way of running the engine to observe behaviour. Pick the section that matches the
