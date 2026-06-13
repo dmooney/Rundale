@@ -64,10 +64,18 @@ pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
 /// `mood`, `internal_thought`, `language_hints`) fits without hitting the
-/// provider default and truncating mid-sentence (#982). vllm-mlx and most
+/// provider default and truncating mid-sentence (#982, #1431). vllm-mlx and most
 /// OpenAI-compat servers default to a value too low for the structured-output
 /// schema once the dialogue runs more than a sentence or two.
-pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 512;
+///
+/// Raised from 512 → 768 (#1431 item 3): at 512 tokens the budget was
+/// consumed by `internal_thought` / `action` / `mood` before `dialogue`
+/// finished, producing mid-sentence cutoffs. Budget breakdown:
+///   - `internal_thought` (~15-20 words): ~25 tokens
+///   - `action` + `mood` + JSON envelope overhead: ~35 tokens
+///   - 2-3 sentence Hiberno-English dialogue (~70-110 tokens)
+///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
+pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 768;
 
 /// Output of a single NPC turn.
 #[derive(Debug)]
@@ -1517,5 +1525,24 @@ pub mod tests {
         );
         conv.end_turn();
         assert!(conv.try_begin_turn(), "after release, a new turn may claim");
+    }
+
+    /// AC-4 (#1431 item 3): the Tier 1 token budget must be large enough to
+    /// fit a complete 2-3 sentence dialogue reply plus the full JSON envelope
+    /// (`dialogue`, `action`, `mood`, `internal_thought`, `language_hints`).
+    /// At 512 the budget was consumed by metadata fields before `dialogue`
+    /// finished, causing mid-sentence cutoffs.
+    #[test]
+    fn tier1_dialogue_max_tokens_is_adequate() {
+        // 768 tokens: ~25 for internal_thought, ~35 for envelope overhead,
+        // ~110 for 2-3 sentence dialogue at ~4 chars/token — leaves headroom.
+        // Read through a local variable so clippy does not flag a const comparison.
+        let budget: u32 = super::TIER1_DIALOGUE_MAX_TOKENS;
+        assert!(
+            budget >= 768,
+            "TIER1_DIALOGUE_MAX_TOKENS must be >= 768 to prevent mid-sentence \
+             truncation when metadata fields precede dialogue in the JSON output \
+             (fix #1431 item 3); current value: {budget}"
+        );
     }
 }
