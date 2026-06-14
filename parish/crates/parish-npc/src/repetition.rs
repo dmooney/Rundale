@@ -267,6 +267,26 @@ fn non_recognition_decline(seed: u64) -> &'static str {
     DECLINES[(seed as usize) % DECLINES.len()]
 }
 
+/// Denial markers used by both the affirmation check and the pronoun-referent
+/// check. If any of these appear in the dialogue the NPC is already declining —
+/// the guard must not fire.
+const DENIAL_MARKERS: &[&str] = &[
+    "know no",
+    "no such",
+    "never heard",
+    "don't know",
+    "do not know",
+    "no one by that name",
+    "not known to me",
+    "cannot say i've",
+    "never met",
+    "no knowledge of",
+    "not familiar",
+    "not acquainted",
+    "stranger to me",
+    "wrong parish",
+];
+
 /// Returns `true` when `dialogue` contains an affirmation of the given `name`
 /// but no denial. The check is intentionally conservative — it only fires when
 /// there is a clear locating or confirming phrase near the name.
@@ -280,22 +300,6 @@ fn dialogue_affirms_name(dialogue: &str, name: &str) -> bool {
     }
 
     // Denial markers: if any are present, the NPC is already declining.
-    const DENIAL_MARKERS: &[&str] = &[
-        "know no",
-        "no such",
-        "never heard",
-        "don't know",
-        "do not know",
-        "no one by that name",
-        "not known to me",
-        "cannot say i've",
-        "never met",
-        "no knowledge of",
-        "not familiar",
-        "not acquainted",
-        "stranger to me",
-        "wrong parish",
-    ];
     for marker in DENIAL_MARKERS {
         if lower.contains(marker) {
             return false;
@@ -374,6 +378,137 @@ fn dialogue_affirms_name(dialogue: &str, name: &str) -> bool {
     }
 
     false
+}
+
+/// Returns `true` when `dialogue` contains a pronoun-based affirmation of an
+/// absent referent (e.g. "he's off to the mill", "she's at the church") but no
+/// denial. Used by the pronoun follow-up guard (#1470) to catch turns where the
+/// player's input had no name — only a pronoun or continuation — but the NPC
+/// confirms a previously-established fabricated referent via pronoun.
+///
+/// This is intentionally broader than [`dialogue_affirms_name`]: it does not
+/// require the name to appear in the dialogue at all. It fires purely on the
+/// presence of pronoun-locative / pronoun-confirmatory phrases in the absence of
+/// denial markers.
+fn dialogue_affirms_via_pronoun(dialogue: &str) -> bool {
+    let lower = dialogue.to_lowercase();
+
+    // If the NPC is already declining, don't suppress.
+    for marker in DENIAL_MARKERS {
+        if lower.contains(marker) {
+            return false;
+        }
+    }
+
+    // Pronoun affirmation markers — these indicate the NPC is confirming or
+    // locating a person referenced only by pronoun or appositive ("the lad",
+    // "the man"). Broader than [`dialogue_affirms_name`] affirmation markers.
+    const PRONOUN_AFFIRMATION_MARKERS: &[&str] = &[
+        "he's off to",
+        "she's off to",
+        "he is off to",
+        "she is off to",
+        "he's out",
+        "she's out",
+        "he is out",
+        "she is out",
+        "he's at ",
+        "she's at ",
+        "he is at ",
+        "she is at ",
+        "he's in ",
+        "she's in ",
+        "he is in ",
+        "she is in ",
+        "he's over",
+        "she's over",
+        "he is over",
+        "she is over",
+        "he'll be",
+        "she'll be",
+        "he will be",
+        "she will be",
+        "he's away",
+        "she's away",
+        "he is away",
+        "she is away",
+        "he's gone",
+        "she's gone",
+        "he is gone",
+        "she is gone",
+        "he went",
+        "she went",
+        "he headed",
+        "she headed",
+        "he's working",
+        "she's working",
+        "aye, he",
+        "aye, she",
+        "aye, he's",
+        "aye, she's",
+    ];
+    for marker in PRONOUN_AFFIRMATION_MARKERS {
+        if lower.contains(marker) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Returns `true` when `name` appears as a standalone word (not as a substring
+/// of a larger word) in `text`. Matching is case-insensitive. Each word in
+/// `text` is stripped of surrounding non-alphabetic characters before comparison
+/// so that punctuation-attached occurrences ("Al," "Al's") are still found, but
+/// accidental substring matches ("Al" inside "shall" or "talk") are not.
+///
+/// Example: `name="Al"` matches "Aye, Al's at the mill" but NOT "Ye shall talk".
+fn text_contains_name_as_word(text: &str, name: &str) -> bool {
+    let name_lower = name.to_lowercase();
+    for token in text.split_whitespace() {
+        // Strip leading/trailing non-alphabetic chars (punctuation, quotes, etc.)
+        let stripped = token.trim_matches(|c: char| !c.is_alphabetic());
+        if stripped.to_lowercase() == name_lower {
+            return true;
+        }
+    }
+    false
+}
+
+/// Returns `true` when the dialogue contains the given first name as a whole word
+/// (not a substring of another word) in combination with a pronoun-affirmation
+/// marker, with no denial marker present. Used for the indirect / appositive
+/// first-name check (#1470 gap 1): catches "he's out, the lad Cormac" where
+/// "Cormac" appears in appositive position after a pronoun affirmation ("he's
+/// out"), so the standard affirmation-marker-collocated check misses it.
+///
+/// Fires only when BOTH conditions hold:
+///   1. The first name appears as a whole word in the dialogue (word-boundary
+///      match — prevents short names like "Al" from falsely matching "shall").
+///   2. The dialogue contains a pronoun-affirmation marker (from
+///      `dialogue_affirms_via_pronoun`), confirming the referent is a person
+///      being located/confirmed rather than merely questioned.
+///
+/// Only used when the caller already established that the first name belongs to a
+/// player-named fabricated full name — do not call for arbitrary first names.
+fn dialogue_contains_name_with_pronoun_affirmation(dialogue: &str, name: &str) -> bool {
+    // Word-boundary check: name must appear as a standalone token, not as a
+    // substring of another word (e.g. "Al" must not match "shall" or "talk").
+    if !text_contains_name_as_word(dialogue, name) {
+        return false;
+    }
+
+    let lower = dialogue.to_lowercase();
+    for marker in DENIAL_MARKERS {
+        if lower.contains(marker) {
+            return false;
+        }
+    }
+
+    // Require a pronoun-affirmation marker to be present — this distinguishes
+    // "he's out, the lad Cormac" (pronoun affirms, name in appositive) from
+    // "Cormac Sweeney, you say? I cannot recall" (name in question, no pronoun).
+    dialogue_affirms_via_pronoun(dialogue)
 }
 
 /// Extracts candidate person-name tokens (consecutive Title-cased bigrams and
@@ -472,7 +607,7 @@ fn name_in_roster(
     false
 }
 
-/// Post-generation guard for fabricated-person confirmation (#1459, #1466).
+/// Post-generation guard for fabricated-person confirmation (#1459, #1466, #1470).
 ///
 /// After dialogue completion is produced, scans the text for affirmative
 /// confirmation of a named person extracted from `player_input` whose full
@@ -484,6 +619,11 @@ fn name_in_roster(
 ///   extracted from here as Title-cased bigrams/trigrams).
 /// - `known_person_names`: the names from the NPC's "PEOPLE YOU KNOW" roster,
 ///   as plain name strings (e.g. `["Cormac Duffy", "Brigid Connolly"]`).
+/// - `prior_player_inputs`: recent preceding player utterances from the
+///   conversation transcript, oldest-first. Used to detect fabricated referents
+///   established in earlier turns so that pronoun follow-up replies ("he's off
+///   to the mill") are also declined (#1470 gap 2). Pass `&[]` when no prior
+///   player text is available (e.g. the headless scripted path).
 /// - `player_name`: the player's own name if known, to avoid false-positives.
 /// - `seed`: deterministic seed for decline pool selection.
 ///
@@ -503,10 +643,32 @@ fn name_in_roster(
 /// fabricated full name — casual first-name queries about real roster members
 /// ("do you know Cormac?" where "Cormac Duffy" is in the roster) still pass
 /// through unchanged, because the player did not supply a fabricated full name.
+///
+/// ## Indirect / appositive first-name affirmation (#1470 gap 1)
+///
+/// The #1466 check used `dialogue_affirms_name` (which requires an affirmation
+/// marker near the name). This misses appositive forms like "he's out, the lad
+/// Cormac" where "Cormac" appears after a comma as an appositive, not near any
+/// affirmation keyword. The guard now broadens the first-name conflation check:
+/// if the fabricated first name appears ANYWHERE in the dialogue (not just near
+/// an affirmation marker) and no denial is present, it fires.
+///
+/// ## Pronoun follow-up (#1470 gap 2)
+///
+/// After the fabricated referent is established in one turn, the player may ask
+/// a follow-up with no name at all ("Out where?"). The current player input has
+/// no extractable candidate name so the guard would never fire. By scanning
+/// `prior_player_inputs` for fabricated full names, the guard accumulates a set
+/// of "established fabricated referents". When the current player input yields
+/// no fabricated candidates (pronoun-only turn), if the NPC dialogue contains
+/// pronoun-affirmation markers ("he's off to", "she's at", …) the guard fires.
+/// This is conservative: it only fires when no real-roster full name appears in
+/// the immediately preceding player inputs.
 pub fn guard_fabricated_person_confirmation(
     dialogue: &str,
     player_input: &str,
     known_person_names: &[String],
+    prior_player_inputs: &[&str],
     player_name: Option<&str>,
     seed: u64,
 ) -> String {
@@ -586,17 +748,28 @@ pub fn guard_fabricated_person_confirmation(
         }
     }
 
-    // First-name conflation check (#1466): if the player named a fabricated
-    // full name AND the NPC affirms by that first name alone, also decline.
-    // Only runs when there are fabricated full names in this exchange.
+    // First-name conflation check (#1466 + #1470 gap 1): if the player named a
+    // fabricated full name AND the NPC's reply confirms the referent by that
+    // first name, also decline.
     //
-    // Real-roster escape hatch: if the dialogue affirms the first name but the
-    // affirmation is accompanied by a real roster full name that begins with
-    // that first name (e.g. dialogue contains "Cormac Duffy" and roster has
-    // "Cormac Duffy"), the NPC is talking about a real person — do NOT decline.
+    // Two sub-cases handled:
+    //   (a) #1466 original: `dialogue_affirms_name` — strict affirmation marker
+    //       collocates with the first name (e.g. "Cormac is at the mill").
+    //   (b) #1470 gap 1: `dialogue_contains_name_with_pronoun_affirmation` —
+    //       the dialogue contains BOTH a pronoun-affirmation marker ("he's out")
+    //       AND the first name in appositive/trailing position (e.g. "he's out,
+    //       the lad Cormac"). The pronoun marker confirms a person is being
+    //       located; the appositive names the fabricated first name.
+    //
+    // Real-roster escape hatch: if the dialogue contains the first name but also
+    // contains a real roster full name that begins with that first name (e.g.
+    // "Cormac Duffy" is in the dialogue and in the roster), the NPC is talking
+    // about a real person — do NOT decline.
     let dialogue_lower = dialogue.to_lowercase();
     for first_name in &fabricated_full_name_first_names {
-        if dialogue_affirms_name(dialogue, first_name) {
+        let affirms = dialogue_affirms_name(dialogue, first_name)
+            || dialogue_contains_name_with_pronoun_affirmation(dialogue, first_name);
+        if affirms {
             // Check if the dialogue resolves the first name to a real roster entry.
             let first_lower = first_name.to_lowercase();
             let resolves_to_real = known_person_names.iter().any(|roster_name| {
@@ -617,7 +790,84 @@ pub fn guard_fabricated_person_confirmation(
             }
             tracing::warn!(
                 fabricated_first_name = %first_name,
-                "person-confirmation guard fired: NPC affirmed by first name only for player-named fabricated full name (#1466)"
+                "person-confirmation guard fired: NPC affirmed by first name (direct or appositive) for player-named fabricated full name (#1466/#1470)"
+            );
+            return non_recognition_decline(seed).to_string();
+        }
+    }
+
+    // Pronoun follow-up guard (#1470 gap 2): when the current player turn has no
+    // extractable fabricated full name (pronoun-only turn, e.g. "Out where?"),
+    // scan `prior_player_inputs` for fabricated full names established earlier in
+    // the same conversation. If any are found AND the NPC dialogue contains a
+    // pronoun-affirmation marker ("he's off to", "she's out", …) without a denial,
+    // the NPC is confirming the previously-established fabricated referent via
+    // pronoun — decline.
+    //
+    // Conservative conditions that must ALL hold:
+    //   1. The current turn has no fabricated full name candidates (pronoun turn).
+    //   2. At least one prior player turn named a fabricated full name.
+    //   3. No prior player turn also named a real roster full name with the SAME
+    //      first name in the same utterance (ambiguous referent → don't suppress).
+    //   4. The NPC reply contains a pronoun affirmation marker.
+    //   5. The NPC reply contains no denial marker.
+    let current_turn_has_fabricated_candidate = candidates.iter().any(|c| {
+        c.split_whitespace().count() >= 2 && !name_in_roster(c, known_person_names, player_name)
+    });
+
+    if !current_turn_has_fabricated_candidate && !prior_player_inputs.is_empty() {
+        // Pre-extract candidate names from each prior input exactly once to avoid
+        // O(N²) re-parsing inside the ambiguity filter below.
+        let prior_candidates_per_input: Vec<Vec<String>> = prior_player_inputs
+            .iter()
+            .map(|prior| extract_candidate_names(prior))
+            .collect();
+
+        // Collect fabricated full names established in prior player turns.
+        let prior_established_fabricated: Vec<String> = prior_candidates_per_input
+            .iter()
+            .flat_map(|names| names.iter().cloned())
+            .filter(|c| {
+                c.split_whitespace().count() >= 2
+                    && !name_in_roster(c, known_person_names, player_name)
+            })
+            // Ambiguous-but-real: exclude if the same prior input also named a real
+            // roster full name sharing the first name (too ambiguous to suppress).
+            .filter(|fabricated| {
+                let fab_first = fabricated
+                    .split_whitespace()
+                    .next()
+                    .map(|w| w.to_lowercase())
+                    .unwrap_or_default();
+                // Find which prior input(s) mentioned this fabricated name (using
+                // the pre-extracted sets — no re-parsing).
+                let prior_that_named_it: Vec<&Vec<String>> = prior_candidates_per_input
+                    .iter()
+                    .filter(|names| {
+                        names
+                            .iter()
+                            .any(|c| c.to_lowercase() == fabricated.to_lowercase())
+                    })
+                    .collect();
+                // For each such prior input, check whether it ALSO named a real
+                // roster full name that shares this first name.
+                !prior_that_named_it.iter().any(|names| {
+                    names.iter().any(|c| {
+                        c.split_whitespace().count() >= 2
+                            && name_in_roster(c, known_person_names, player_name)
+                            && c.split_whitespace()
+                                .next()
+                                .map(|w| w.to_lowercase() == fab_first)
+                                .unwrap_or(false)
+                    })
+                })
+            })
+            .collect();
+
+        if !prior_established_fabricated.is_empty() && dialogue_affirms_via_pronoun(dialogue) {
+            tracing::warn!(
+                established_fabricated = ?prior_established_fabricated,
+                "person-confirmation guard fired: pronoun follow-up affirms established fabricated referent (#1470)"
             );
             return non_recognition_decline(seed).to_string();
         }
@@ -1066,7 +1316,8 @@ mod tests {
         let dialogue = "Aye, I know Cormac Sweeney well. He is a fine man who works in the mill.";
         let player_input = "Do you know Cormac Sweeney?";
         let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         // Must not contain affirmation of fabricated name.
         assert!(
             !result.to_lowercase().contains("aye, i know cormac"),
@@ -1088,7 +1339,8 @@ mod tests {
         let dialogue = "Aye, I know Brigid Connolly well. She is a fine woman.";
         let player_input = "Do you know Brigid Connolly?";
         let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "known-roster person should not be altered: {result:?}"
@@ -1101,7 +1353,8 @@ mod tests {
         let dialogue = "I know no one by that name in these parts. You may have the wrong parish.";
         let player_input = "Do you know Cormac Sweeney?";
         let known: Vec<String> = vec![];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "already-declining dialogue should pass through unchanged: {result:?}"
@@ -1114,7 +1367,8 @@ mod tests {
         let dialogue = "Cormac Sweeney, you say? I cannot recall that name.";
         let player_input = "Do you know Cormac Sweeney?";
         let known: Vec<String> = vec![];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "neutral mention should not trigger guard: {result:?}"
@@ -1131,6 +1385,7 @@ mod tests {
             dialogue,
             player_input,
             &known,
+            &[],
             Some("Cormac Sweeney"),
             0,
         );
@@ -1149,7 +1404,8 @@ mod tests {
         let dialogue = "Aye, I know Cormac Sweeney well. He is a fine man.";
         let player_input = "Do you know Cormac Sweeney?";
         let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert!(
             !result.to_lowercase().contains("aye, i know cormac sweeney"),
             "guard should have fired and replaced fabricated-person confirmation: {result:?}"
@@ -1170,7 +1426,8 @@ mod tests {
         let dialogue = "Aye, Cormac is a good man indeed. I see him at the mill most days.";
         let player_input = "Do you know Cormac?";
         let known: Vec<String> = vec!["Cormac Duffy".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "first-name-only reference to a roster member should not trigger guard: {result:?}"
@@ -1189,7 +1446,8 @@ mod tests {
         let dialogue = "Cormac is at the mill, about his affairs. Mayhap he's there now.";
         let player_input = "find my cousin Cormac Sweeney";
         let known: Vec<String> = vec!["Cormac Duffy".into(), "Roisin Connolly".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert!(
             !result.to_lowercase().contains("cormac is at the mill"),
             "guard should have fired and replaced first-name affirmation of fabricated full name: {result:?}"
@@ -1213,7 +1471,8 @@ mod tests {
         let dialogue = "Aye, Cormac Duffy works the mill. He's a reliable sort.";
         let player_input = "do you know Cormac?";
         let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "casual first-name query about a real roster member should not trigger guard: {result:?}"
@@ -1230,11 +1489,138 @@ mod tests {
         let dialogue = "Aye, Cormac Duffy works the mill, right enough. A reliable man.";
         let player_input = "I'm looking for Cormac Sweeney but have you seen Cormac Duffy today?";
         let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
-        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
         assert_eq!(
             result, dialogue,
             "NPC affirming real roster member 'Cormac Duffy' in full should not be suppressed \
              even when fabricated 'Cormac Sweeney' shares the first name: {result:?}"
+        );
+    }
+
+    // ── #1470 — indirect/appositive and pronoun follow-up bypass ────────────
+
+    #[test]
+    fn indirect_appositive_affirmation_of_fabricated_firstname_is_declined() {
+        // AC-1 (#1470 gap 1): player asks about fabricated "Cormac Sweeney" (roster
+        // has "Cormac Duffy"). NPC replies with an appositive form: "Ye've come at a
+        // time when he's out, the lad Cormac." — "Cormac" is in appositive position,
+        // NOT near a standard affirmation marker, so the old #1466 guard missed it.
+        // The broadened check (dialogue_contains_name_without_denial) must catch it.
+        let dialogue = "Ye've come at a time when he's out, the lad Cormac.";
+        let player_input = "is my cousin Cormac Sweeney about?";
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Roisin Brennan".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert!(
+            !result.to_lowercase().contains("the lad cormac"),
+            "guard should have fired on appositive first-name affirmation of fabricated full name: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    #[test]
+    fn pronoun_followup_affirmation_of_established_fabricated_referent_is_declined() {
+        // AC-2 (#1470 gap 2): prior player turn established fabricated "Cormac
+        // Sweeney". Current turn is a pronoun-only follow-up "Out where?" — no name
+        // in current player_input. NPC replies "Aye, he's off to the mill with some
+        // of the flour." The pronoun affirmation guard must fire because the
+        // previously-established referent is fabricated.
+        let dialogue = "Aye, he's off to the mill with some of the flour.";
+        let player_input = "Out where?"; // no name — pronoun-only continuation
+        let prior_inputs: Vec<&str> = vec!["is my cousin Cormac Sweeney about?"];
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Roisin Brennan".into()];
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &prior_inputs,
+            None,
+            0,
+        );
+        assert!(
+            !result.to_lowercase().contains("he's off to the mill"),
+            "guard should have fired on pronoun follow-up affirming established fabricated referent: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    #[test]
+    fn pronoun_followup_about_real_person_passes_through() {
+        // AC-4 (#1470 conservative): prior player turn named a REAL roster person
+        // "Cormac Duffy". Follow-up "Where is he?" + NPC "He's at the mill." must
+        // NOT be suppressed — the established referent is real, not fabricated.
+        let dialogue = "He's at the mill, working the grain as usual.";
+        let player_input = "Where is he?"; // pronoun-only follow-up
+        let prior_inputs: Vec<&str> = vec!["Have you seen Cormac Duffy today?"];
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Roisin Brennan".into()];
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &prior_inputs,
+            None,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "pronoun follow-up about a real roster member should not trigger guard: {result:?}"
+        );
+    }
+
+    // ── word-boundary false-positive guard (gemini review thread 1) ─────────
+
+    #[test]
+    fn short_firstname_substring_does_not_trigger_guard() {
+        // Regression: a short first name like "Al" (player "Al Sweeney") must NOT
+        // match when the name appears only as a substring inside other words.
+        // "Ye shall talk to the priest" contains "al" (in "shall") and "al" (in
+        // "talk") as substrings, but NOT the standalone word "Al". The guard must
+        // not fire — no false positive.
+        let dialogue = "Ye shall talk to the priest about it, I reckon.";
+        let player_input = "Where is Al Sweeney?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Roisin Brennan".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must not fire when first name 'Al' appears only as substring of other words \
+             ('shall', 'talk') — no word-boundary match: {result:?}"
+        );
+    }
+
+    #[test]
+    fn short_firstname_as_word_still_triggers_guard() {
+        // Positive case: "Al" appears as a standalone word in appositive position
+        // with a pronoun affirmation marker. Guard must fire.
+        // "Aye, he's out, that Al" — pronoun marker "he's out" + standalone "Al".
+        let dialogue = "Aye, he's out, that Al, gone to the mill I think.";
+        let player_input = "Where is Al Sweeney?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Roisin Brennan".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert!(
+            !result.to_lowercase().contains("he's out, that al"),
+            "guard should have fired on standalone first name 'Al' with pronoun affirmation: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
         );
     }
 

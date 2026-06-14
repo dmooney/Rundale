@@ -808,9 +808,12 @@ fn apply_npc_response(
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
 
-    // Post-generation person-confirmation guard (#1459): headless parity with
-    // the live-loop path in `run_npc_turn`. Both guards default-on; no
-    // runtime-flag access here so we use the NpcConfig default (true).
+    // Post-generation person-confirmation guard (#1459, #1466, #1470): headless
+    // parity with the live-loop path in `run_npc_turn`. Both guards default-on;
+    // no runtime-flag access here so we use the NpcConfig default (true).
+    // Prior player inputs are not available in this single-turn helper scope,
+    // so we pass &[] — the pronoun follow-up guard is conservative and will
+    // only fire when prior_player_inputs is non-empty.
     let cfg = parish_core::config::NpcConfig::default();
     if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
@@ -818,6 +821,7 @@ fn apply_npc_response(
             &parsed.dialogue,
             player_input,
             known_person_names,
+            &[],
             None,
             seed,
         );
