@@ -20,6 +20,8 @@ set -euo pipefail
 PORT="${1:-3030}"
 VITE_PORT="${PARISH_VITE_PORT:-5173}"
 PARISH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" # .../parish
+VITE_LOG="/tmp/parish-vite-${USER:-shared}.log"
+TAURI_LOG="/tmp/parish-tauri-${USER:-shared}.log"
 
 # 1) Ensure the frontend is being served (otherwise the window is blank white).
 if curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null; then
@@ -31,7 +33,7 @@ else
         # Node via fnm (the repo pins Node 22); fall back to whatever node is on PATH.
         eval "$(fnm env 2>/dev/null)" 2>/dev/null || true
         fnm use 22 2>/dev/null || true
-        nohup npm run dev -- --port "${VITE_PORT}" >/tmp/parish-vite.log 2>&1 &
+        nohup npm run dev -- --port "${VITE_PORT}" >"${VITE_LOG}" 2>&1 &
     )
     for _ in $(seq 1 40); do
         curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null && break
@@ -39,7 +41,7 @@ else
     done
     curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null ||
         {
-            echo "ERROR: vite did not come up on :${VITE_PORT} (see /tmp/parish-vite.log)"
+            echo "ERROR: vite did not come up on :${VITE_PORT} (see ${VITE_LOG})"
             exit 1
         }
     echo "vite up on :${VITE_PORT}"
@@ -49,7 +51,7 @@ fi
 echo "launching parish-tauri on --mcp-port ${PORT} ..."
 (
     cd "${PARISH_DIR}"
-    nohup cargo run -p parish-tauri -- --mcp-port "${PORT}" >/tmp/parish-tauri.log 2>&1 &
+    nohup cargo run -p parish-tauri -- --mcp-port "${PORT}" >"${TAURI_LOG}" 2>&1 &
 )
 
 # 3) Wait for the MCP bridge / HTTP health.
@@ -59,7 +61,7 @@ for _ in $(seq 1 120); do
 done
 curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 ||
     {
-        echo "ERROR: parish-tauri health never came up on :${PORT} (see /tmp/parish-tauri.log)"
+        echo "ERROR: parish-tauri health never came up on :${PORT} (see ${TAURI_LOG})"
         exit 1
     }
 

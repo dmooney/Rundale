@@ -446,7 +446,7 @@ fn wake_display() {
     // re-sleeps before the capture completes, yielding a blank/timed-out frame.
     // `-t 90` bounds the assertion past the capture deadline (default 45 s); the
     // process releases it afterward so the screen is free to sleep again.
-    let _ = std::process::Command::new("caffeinate")
+    let _ = tokio::process::Command::new("caffeinate")
         .args(["-u", "-d", "-t", "90"])
         .spawn();
 }
