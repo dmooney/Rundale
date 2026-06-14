@@ -472,7 +472,7 @@ fn name_in_roster(
     false
 }
 
-/// Post-generation guard for fabricated-person confirmation (#1459).
+/// Post-generation guard for fabricated-person confirmation (#1459, #1466).
 ///
 /// After dialogue completion is produced, scans the text for affirmative
 /// confirmation of a named person extracted from `player_input` whose full
@@ -489,6 +489,20 @@ fn name_in_roster(
 ///
 /// Conservative: fires only when an affirmation phrase co-occurs with the
 /// unknown name and no denial is present. Does not fire on neutral mentions.
+///
+/// ## First-name conflation (#1466)
+///
+/// When the player names a fabricated full name (e.g. "Cormac Sweeney"), the
+/// NPC may affirm only by first name ("Cormac is at the mill"). The full-name
+/// check does not catch this because the dialogue doesn't contain "Cormac
+/// Sweeney". This guard therefore also checks whether the dialogue affirms by
+/// the first name of a player-named fabricated full name, since that first name
+/// is claimed by the fabricated person in this exchange.
+///
+/// This additional first-name check fires ONLY when the player named a
+/// fabricated full name — casual first-name queries about real roster members
+/// ("do you know Cormac?" where "Cormac Duffy" is in the roster) still pass
+/// through unchanged, because the player did not supply a fabricated full name.
 pub fn guard_fabricated_person_confirmation(
     dialogue: &str,
     player_input: &str,
@@ -501,10 +515,39 @@ pub fn guard_fabricated_person_confirmation(
     }
 
     let candidates = extract_candidate_names(player_input);
+
+    // Collect the first names of fabricated full names named by the player in
+    // this exchange. Used for the first-name conflation check (#1466).
+    //
+    // A "fabricated full name first-name" is the first token of a multi-token
+    // candidate (e.g. "Cormac" from "Cormac Sweeney") that is NOT in the
+    // roster. We record these so that if the NPC affirms "Cormac" alone we can
+    // still decline, because the player explicitly tied "Cormac" to a
+    // fabricated surname in this very exchange.
+    let fabricated_full_name_first_names: Vec<String> = candidates
+        .iter()
+        .filter(|candidate| {
+            // Only multi-token candidates (full names, not single first names).
+            let token_count = candidate.split_whitespace().count();
+            if token_count < 2 {
+                return false;
+            }
+            // Only fabricated ones (not in roster, not the player's own name).
+            !name_in_roster(candidate, known_person_names, player_name)
+        })
+        .filter_map(|candidate| {
+            candidate
+                .split_whitespace()
+                .next()
+                .map(|first| first.to_string())
+        })
+        .collect();
+
     for candidate in &candidates {
         if name_in_roster(candidate, known_person_names, player_name) {
             continue;
         }
+        // Primary check: dialogue affirms the full fabricated name.
         if dialogue_affirms_name(dialogue, candidate) {
             tracing::warn!(
                 fabricated_person = %candidate,
@@ -513,6 +556,20 @@ pub fn guard_fabricated_person_confirmation(
             return non_recognition_decline(seed).to_string();
         }
     }
+
+    // First-name conflation check (#1466): if the player named a fabricated
+    // full name AND the NPC affirms by that first name alone, also decline.
+    // Only runs when there are fabricated full names in this exchange.
+    for first_name in &fabricated_full_name_first_names {
+        if dialogue_affirms_name(dialogue, first_name) {
+            tracing::warn!(
+                fabricated_first_name = %first_name,
+                "person-confirmation guard fired: NPC affirmed by first name only for player-named fabricated full name (#1466)"
+            );
+            return non_recognition_decline(seed).to_string();
+        }
+    }
+
     dialogue.to_string()
 }
 
@@ -1064,6 +1121,49 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "first-name-only reference to a roster member should not trigger guard: {result:?}"
+        );
+    }
+
+    // ── #1466 — first-name conflation guard ──────────────────────────────────
+
+    #[test]
+    fn firstname_affirmation_of_player_fabricated_fullname_is_declined() {
+        // KEY REGRESSION (#1466): player asks about "Cormac Sweeney" (fabricated —
+        // roster has "Cormac Duffy"). NPC replies with first-name-only affirmation:
+        // "Cormac is at the mill, about his affairs". The guard must fire because
+        // "Cormac" is the first name of the player-named fabricated full name
+        // "Cormac Sweeney", so the NPC is implicitly confirming the fabricated person.
+        let dialogue = "Cormac is at the mill, about his affairs. Mayhap he's there now.";
+        let player_input = "find my cousin Cormac Sweeney";
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Roisin Connolly".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert!(
+            !result.to_lowercase().contains("cormac is at the mill"),
+            "guard should have fired and replaced first-name affirmation of fabricated full name: {result:?}"
+        );
+        // Must be a decline phrase.
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    #[test]
+    fn casual_firstname_real_person_still_passes() {
+        // Conservative non-regression (#1466): player uses only a first name to
+        // refer to a real roster member. No fabricated full name was named in this
+        // exchange, so the first-name conflation check must NOT fire. Casual queries
+        // about real people by first name continue to pass through unchanged.
+        let dialogue = "Aye, Cormac Duffy works the mill. He's a reliable sort.";
+        let player_input = "do you know Cormac?";
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "casual first-name query about a real roster member should not trigger guard: {result:?}"
         );
     }
 
