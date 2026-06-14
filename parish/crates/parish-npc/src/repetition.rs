@@ -1,5 +1,5 @@
 //! Deterministic anti-repetition guard (#1228) and post-generation dialogue
-//! guards (#1459, #1460) for degenerate model output.
+//! guards (#1459, #1460, #1472) for degenerate model output.
 
 // ── #1228 — anti-repetition guard ──────────────────────────────────────────────
 //
@@ -1134,6 +1134,129 @@ pub fn trim_mid_sentence_truncation(dialogue: &str) -> String {
     without_ellipsis.trim().to_string()
 }
 
+/// Strips a trailing ellipsis artifact ("…", ".…", or "….") that appears
+/// immediately after an otherwise-complete sentence (#1472).
+///
+/// This is a different artifact from the mid-sentence truncation ellipsis
+/// handled by [`trim_mid_sentence_truncation`]: that function handles a `…`
+/// that replaces a trailing incomplete clause. This function handles the case
+/// where a model emits a grammatically complete sentence and then appends a
+/// stray `…` or period+ellipsis combination as decoration or a run-on marker,
+/// producing endings like "...warm ye up.…" or "...warm ye up….".
+///
+/// Specifically, this strips a trailing:
+///
+/// - `….` — ellipsis followed by period (uncommon artifact)
+/// - `.…` — period followed by ellipsis (e.g. "...warm ye up.…")
+/// - `…` — bare ellipsis that immediately follows sentence punctuation
+///   (`.`, `!`, `?`) with no intervening content
+///
+/// The strip only fires when the character before the ellipsis (after stripping
+/// any trailing period-before-ellipsis) is sentence-ending punctuation, so
+/// this does not interfere with mid-sentence or introductory ellipses.
+pub fn strip_trailing_ellipsis_artifact(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    // Pattern: ends with "….": ellipsis + trailing period.
+    if let Some(stripped) = text.strip_suffix("….") {
+        let without = stripped.trim_end();
+        // Keep if what remains ends with sentence punctuation.
+        if without
+            .chars()
+            .last()
+            .map(|c| matches!(c, '.' | '!' | '?'))
+            .unwrap_or(false)
+        {
+            return without.to_string();
+        }
+        // Otherwise just strip the combined suffix and return with a period.
+        return format!("{}.", without);
+    }
+
+    // Pattern: ends with ".…": period + ellipsis.
+    if text.ends_with(".…") {
+        let without_ellipsis = text[..text.len() - '…'.len_utf8()].trim_end();
+        // without_ellipsis now ends with "."; that's a complete sentence terminator.
+        return without_ellipsis.to_string();
+    }
+
+    // Pattern: ends with bare "…" immediately after sentence punctuation
+    // (i.e. no intervening text between the punctuation and the ellipsis —
+    // the char before the ellipsis is `.`, `!`, or `?`).
+    if text.ends_with('…') {
+        let without = text[..text.len() - '…'.len_utf8()].trim_end();
+        if without
+            .chars()
+            .last()
+            .map(|c| matches!(c, '.' | '!' | '?'))
+            .unwrap_or(false)
+        {
+            return without.to_string();
+        }
+    }
+
+    text.to_string()
+}
+
+/// Trims a multi-sentence NPC reply to at most `MAX_SENTENCE_COUNT` sentences
+/// (#1472 — hard length cap).
+///
+/// This is the blunt backstop for run-on replies that the surgical dedup guards
+/// cannot catch: a model may produce 6-8 distinct non-duplicate sentences that
+/// are each individually legitimate but collectively too long. No phrasing
+/// heuristic catches this; only a hard count cap does.
+///
+/// Behavior:
+/// - Splits on terminal punctuation (`.`, `!`, `?`, `…`) using [`split_sentences`].
+/// - Keeps the first `MAX_SENTENCE_COUNT` sentence units.
+/// - If the ORIGINAL final sentence is a question (ends with `?`) and would be
+///   cut by the cap, it is preserved as the last sentence of the result — keeping
+///   first (N-1) sentences plus the trailing question — so the NPC remains
+///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
+/// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
+///
+/// The cap is intentionally conservative (4 sentences) — a natural NPC
+/// turn should deliver one thought in 2-3 sentences and optionally ask one
+/// question; 4 gives generous headroom without admitting multi-beat rambles.
+pub fn cap_sentence_count(dialogue: &str) -> String {
+    /// Maximum number of sentences kept from an NPC reply. Replies longer than
+    /// this are trimmed at the nearest sentence boundary after the Nth sentence.
+    /// Default 4 — enough for a natural period-appropriate response (greeting +
+    /// substance + optional qualifier + one question).
+    const MAX_SENTENCE_COUNT: usize = 4;
+
+    let sentences = split_sentences(dialogue);
+    // Filter out empty fragments produced by split_sentences.
+    let sentences: Vec<&str> = sentences
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if sentences.len() <= MAX_SENTENCE_COUNT {
+        return dialogue.trim().to_string();
+    }
+
+    // Keep the first N sentences.
+    let mut kept: Vec<&str> = sentences[..MAX_SENTENCE_COUNT].to_vec();
+
+    // If the original reply ends with a question that would be cut, preserve it.
+    // Only do this when the last sentence is genuinely interrogative (ends with '?')
+    // and the already-kept slice does not already end with a question.
+    let original_last = *sentences.last().expect("non-empty checked above");
+    let kept_last = *kept.last().expect("MAX_SENTENCE_COUNT >= 1");
+    if original_last.ends_with('?') && !kept_last.ends_with('?') {
+        // Swap out the Nth sentence for the trailing question so the reply
+        // stays at exactly MAX_SENTENCE_COUNT sentences and ends interactively.
+        *kept.last_mut().expect("non-empty") = original_last;
+    }
+
+    kept.join(" ")
+}
+
 /// Known mood adjectives that the Qwen2.5-14B model leaks as bare words at the
 /// end of the `dialogue` field (#1460 — mood-word leak guard).
 ///
@@ -1245,30 +1368,39 @@ pub fn strip_leaked_mood_word(dialogue: &str) -> String {
     text.to_string()
 }
 
-/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460).
+/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460, #1472).
 ///
 /// Steps, in order:
 /// 1. Strip bare leaked mood-adjective from tail ([`strip_leaked_mood_word`]).
 /// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
-/// 3. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 4. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 5. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 3. Strip trailing ellipsis artifact after otherwise-complete text
+///    ([`strip_trailing_ellipsis_artifact`], #1472).
+/// 4. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 5. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 6. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 7. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
+///    guards (steps 4-6) cannot catch.
 ///
-/// Steps 3 and 4 are the #1460 core fix for distributed / interleaved repetition
+/// Steps 4 and 5 are the #1460 core fix for distributed / interleaved repetition
 /// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
-/// called upstream by `guard_against_repetition`) does not catch. Step 5 keeps
-/// the earlier trailing-question guard in place as a final cleanup.
+/// called upstream by `guard_against_repetition`) does not catch. Step 6 keeps
+/// the earlier trailing-question guard in place as a final cleanup. Step 7 runs
+/// LAST so it operates on already-cleaned text, giving the surgical guards their
+/// best shot before the blunt cap applies.
 ///
-/// Conservative — does not alter legitimate prose.
+/// Conservative — does not alter legitimate prose within 4 sentences.
 pub fn guard_verbosity_runons(dialogue: &str) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
     let after_mood = strip_leaked_mood_word(dialogue);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_trunc);
+    let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_ellipsis);
     let after_total_q = cap_total_questions(&after_distributed);
-    cap_trailing_questions(&after_total_q)
+    let after_trailing_q = cap_trailing_questions(&after_total_q);
+    cap_sentence_count(&after_trailing_q)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -1929,6 +2061,232 @@ mod tests {
         assert!(
             result.contains("Good day to ye"),
             "preamble should survive: {result:?}"
+        );
+    }
+
+    // ── #1472 — hard sentence-length cap + trailing ellipsis strip ────────────
+
+    #[test]
+    fn long_multibeat_reply_capped_to_n_sentences() {
+        // Adversarial (#1472): 8-sentence rambling reply with a paraphrased repeated
+        // instruction — "Brendan, bring yer friend a cup of the hot spiced tea" and
+        // "Brendan, go fetch the tea, as I bid ye" are semantically the same
+        // instruction in different words. The surgical distributed-dedup guard cannot
+        // catch paraphrases (different word sets). The hard sentence cap must trim to
+        // <=4 sentences regardless of phrasing variation.
+        let dialogue = "Sit yerself down, friend, and rest yer weary bones. \
+            Brendan, bring yer friend a cup of the hot spiced tea. \
+            The fire is warm enough and ye look as though the road has tired ye. \
+            We've plenty here, no need to rush. \
+            Brendan, go fetch the tea, as I bid ye. \
+            The evening is coming on fast and ye'd do well to warm yerself. \
+            There's much to speak of once ye've had yer rest. \
+            Brendan, are ye not hearing me? Go on now.";
+        let result = cap_sentence_count(dialogue);
+        // Count sentence units in the result (sentences end with . ! ?)
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "reply should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        // The paraphrased second repeat ("Brendan, go fetch the tea") must be gone.
+        assert!(
+            !result.contains("go fetch the tea"),
+            "paraphrased second instruction should be dropped by sentence cap: {result:?}"
+        );
+        // The first sentence must survive (cap keeps the head, not the tail).
+        assert!(
+            result.contains("Sit yerself down"),
+            "first sentence should survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn short_reply_unchanged_by_length_cap() {
+        // Conservative: a 1-2 sentence reply must not be over-trimmed.
+        let dialogue = "Aye, that's the way of it. Come back tomorrow.";
+        let result = cap_sentence_count(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "short 2-sentence reply should be unchanged by the length cap: {result:?}"
+        );
+    }
+
+    #[test]
+    fn four_sentence_reply_unchanged_by_length_cap() {
+        // Boundary: exactly 4 sentences — at the cap limit, must pass through.
+        let dialogue = "Good day to ye. The harvest has been fine this year. \
+            Brigid was asking after the grain prices. Have ye heard the news from Roscommon?";
+        let result = cap_sentence_count(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "4-sentence reply at the cap limit should be unchanged: {result:?}"
+        );
+    }
+
+    #[test]
+    fn cap_preserves_trailing_question() {
+        // An 8-sentence reply whose LAST sentence is a question must be capped to
+        // <=4 sentences AND the trailing question must appear at the end of the
+        // result so the NPC remains interactive (#1472 — trailing-question preserve).
+        let dialogue = "Good mornin' to ye, friend. \
+            The roads have been muddy these past few days. \
+            Old Séamus from across the hill was asking after the grain prices. \
+            There's much talk about the rent collectors coming round again. \
+            Mary Brien says the miller raised his prices last Tuesday. \
+            The bishop passed through Strokestown not a fortnight ago. \
+            Sure, the weather has been unkind to us all this season. \
+            Now, what brings ye here?";
+        let result = cap_sentence_count(dialogue);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "capped reply should be <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        assert!(
+            result.trim_end().ends_with("what brings ye here?"),
+            "trailing question should be preserved at end of capped reply: {result:?}"
+        );
+    }
+
+    #[test]
+    fn cap_no_trailing_question_unchanged_behavior() {
+        // An 8-sentence reply with NO trailing question must produce the same
+        // result as before: keep the first 4 sentences (head, not tail).
+        let dialogue = "The morning is fine enough today. \
+            I was just heading to the market in town. \
+            Brigid asked me to pick up some wool thread for her. \
+            The last market was rained out entirely. \
+            They say the cattle prices have dropped again. \
+            Old Fionnuala was complaining about the cold. \
+            The priest gave a long sermon on Sunday. \
+            No doubt things will look better by Easter.";
+        let result = cap_sentence_count(dialogue);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "capped reply without trailing question should be <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        // First sentence must survive (head-keep behavior unchanged).
+        assert!(
+            result.contains("The morning is fine enough today"),
+            "first sentence should survive when no trailing question: {result:?}"
+        );
+        // Tail sentences beyond 4 must be dropped.
+        assert!(
+            !result.contains("No doubt things will look better by Easter"),
+            "tail sentence should be dropped when no trailing question: {result:?}"
+        );
+    }
+
+    #[test]
+    fn trailing_ellipsis_after_sentence_is_stripped() {
+        // #1472: trailing ".…" artifact after an otherwise-complete sentence is stripped.
+        // The Cormac Duffy harness repro: "That'll warm ye up.…"
+        let dialogue = "Here, have a cup of the spiced tea. That'll warm ye up.\u{2026}";
+        let result = strip_trailing_ellipsis_artifact(dialogue);
+        assert!(
+            !result.ends_with('\u{2026}'),
+            "trailing ellipsis artifact should be stripped: {result:?}"
+        );
+        assert!(
+            result.ends_with('.'),
+            "result should end with a period after stripping: {result:?}"
+        );
+        assert!(
+            result.contains("That'll warm ye up"),
+            "sentence content must be preserved: {result:?}"
+        );
+    }
+
+    #[test]
+    fn trailing_ellipsis_dot_ellipsis_stripped() {
+        // Pattern ".…" — period followed by ellipsis (the harness-observed form).
+        let dialogue = "Sit ye down and rest.…";
+        let result = strip_trailing_ellipsis_artifact(dialogue);
+        assert_eq!(
+            result, "Sit ye down and rest.",
+            "'.…' suffix should be stripped leaving just the period: {result:?}"
+        );
+    }
+
+    #[test]
+    fn trailing_ellipsis_bare_after_punct_stripped() {
+        // Bare "…" immediately after sentence punctuation — decoration artifact.
+        let dialogue = "Mind yer step on the path.…";
+        let result = strip_trailing_ellipsis_artifact(dialogue);
+        assert!(
+            !result.ends_with('\u{2026}'),
+            "bare trailing ellipsis after punct should be stripped: {result:?}"
+        );
+    }
+
+    #[test]
+    fn mid_sentence_ellipsis_not_stripped_by_artifact_guard() {
+        // A genuine mid-sentence ellipsis (not after sentence punctuation) must NOT
+        // be stripped by the artifact guard — that is the domain of trim_mid_sentence_truncation.
+        let dialogue = "I was heading to the mill to collect the grain…";
+        let result = strip_trailing_ellipsis_artifact(dialogue);
+        // The artifact guard only strips when the char before "…" is sentence punct.
+        // Here "n" precedes "…", so this is a genuine truncation — leave it alone.
+        assert_eq!(
+            result, dialogue,
+            "mid-sentence ellipsis should not be altered by the artifact guard: {result:?}"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_strips_trailing_ellipsis_artifact_end_to_end() {
+        // Integration (#1472): guard_verbosity_runons strips the ".…" artifact in
+        // the full pipeline so that replies like "That'll warm ye up.…" end cleanly.
+        let dialogue = "Sit ye down, friend. That'll warm ye up.\u{2026}";
+        let result = guard_verbosity_runons(dialogue);
+        assert!(
+            !result.ends_with('\u{2026}'),
+            "guard_verbosity_runons should strip trailing ellipsis artifact: {result:?}"
+        );
+        assert!(
+            result.contains("warm ye up"),
+            "sentence content must survive the full pipeline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_caps_8_sentence_ramble_end_to_end() {
+        // Integration (#1472): guard_verbosity_runons caps a long distinct-sentence
+        // ramble that the surgical guards cannot reduce (no duplicates, no question
+        // stack). The sentence cap must kick in as the final backstop.
+        let dialogue = "Good day to ye. \
+            Come in out of the cold and rest yer bones. \
+            We have tea on the fire and bread on the table. \
+            The weather has been fierce hard on everyone this past week. \
+            They say the river rose three feet at Strokestown. \
+            Brigid had a fine time of it at the fair last Tuesday. \
+            The priest called in only yesterday about the collection. \
+            Mind ye don't leave yer coat on the wet step.";
+        let result = guard_verbosity_runons(dialogue);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "8-sentence ramble should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        assert!(
+            result.contains("Good day to ye"),
+            "first sentence must survive: {result:?}"
         );
     }
 }
