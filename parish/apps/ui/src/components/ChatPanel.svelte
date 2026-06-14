@@ -56,7 +56,8 @@
 		});
 	});
 
-	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' {
+	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' | 'command' {
+		if (entry.source === 'player' && entry.subtype === 'command') return 'command';
 		if (entry.source === 'player') return 'player';
 		if (entry.source === 'system') return 'system';
 		// Non-verbal NPC reactions (subtype "action") are rendered as italicised
@@ -202,7 +203,12 @@
 
 <div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
 	{#each $textLog as entry, index (entry.id || entry.stream_turn_id || `${entry.source}:${index}`)}
-		{#if entryType(entry) === 'system'}
+		{#if entryType(entry) === 'command'}
+			<div class="entry command" data-testid="command-entry" role="log">
+				<span class="command-prompt" aria-hidden="true">&gt;</span>
+				<span class="command-text">{entry.content}</span>
+			</div>
+		{:else if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
 			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'} class:tabular={entry.subtype === 'tabular'}>
@@ -347,6 +353,30 @@
 	}
 
 	/* System messages: narrative prose */
+	/* Command echo — player-typed slash commands shown as a distinct input line,
+	   not a dialogue bubble. Monospace prompt + command text, muted so the
+	   narration that follows draws the eye. */
+	.entry.command {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		padding: 0.25rem 0;
+		font-family: var(--font-mono, monospace);
+		font-size: 0.9rem;
+		color: var(--color-muted);
+		opacity: 0.8;
+	}
+
+	.command-prompt {
+		color: var(--color-accent);
+		font-weight: 600;
+		user-select: none;
+	}
+
+	.command-text {
+		letter-spacing: 0.01em;
+	}
+
 	.entry.system {
 		line-height: 1.75;
 		font-size: 1.05rem;
