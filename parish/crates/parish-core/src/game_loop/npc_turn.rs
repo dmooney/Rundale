@@ -114,7 +114,7 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let setup = {
+    let (setup, person_guard_enabled, verbosity_guard_enabled) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -126,12 +126,18 @@ pub async fn run_npc_turn(
             prompt_input,
             speaker_id,
         );
+        let person_guard = !config
+            .flags
+            .is_disabled("dialogue-person-confirmation-guard");
+        let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
+            person_confirmation_guard_enabled: person_guard,
+            verbosity_guard_enabled: verbosity_guard,
             ..crate::config::NpcConfig::default()
         };
-        crate::ipc::prepare_npc_conversation_turn(
+        let setup = crate::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
             prompt_input,
@@ -140,8 +146,10 @@ pub async fn run_npc_turn(
             config.improv_enabled,
             &ctx.language,
             &npc_cfg,
-        )
-    }?;
+        );
+        (setup, person_guard, verbosity_guard)
+    };
+    let setup = setup?;
 
     let loading_cancel = spawn_loading();
 
@@ -320,12 +328,45 @@ pub async fn run_npc_turn(
         cancel.cancel();
     }
 
-    let parsed = parse_npc_stream_response(&response.text);
+    let mut parsed = parse_npc_stream_response(&response.text);
     let hints = parsed
         .metadata
         .as_ref()
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
+
+    // Post-generation person-confirmation guard (#1459): detect when the NPC's
+    // reply affirmatively confirms a fabricated person from the player's input
+    // who is not in the known-roster, and replace with a stock decline.
+    // Runs before the logging/quality-check block so the guarded text is what
+    // gets logged and forwarded to the shared pipeline.
+    if person_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_fabricated_person_confirmation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            None,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation verbosity / run-on guard (#1460): strip bare leaked
+    // mood-adjective, trim mid-sentence truncation ellipsis to the last
+    // complete sentence, and cap trailing question stacks to at most one.
+    // Applied here (before the shared pipeline) so the guarded text is what
+    // gets stored in the conversation log and event bus — same effect for
+    // every runtime (Tauri, server, headless) via the shared npc_turn path.
+    if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
 
     if !parsed.dialogue.trim().is_empty() {
         tracing::info!(

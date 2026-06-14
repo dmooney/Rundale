@@ -801,11 +801,37 @@ fn apply_npc_response(
     location: parish_core::world::LocationId,
     npc_display_name: &str,
     npc_actual_name: &str,
+    known_person_names: &[String],
 ) {
-    let parsed = parse_npc_stream_response(response_text);
+    let mut parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
     }
+
+    // Post-generation person-confirmation guard (#1459): headless parity with
+    // the live-loop path in `run_npc_turn`. Both guards default-on; no
+    // runtime-flag access here so we use the NpcConfig default (true).
+    let cfg = parish_core::config::NpcConfig::default();
+    if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let guarded = crate::npc::guard_fabricated_person_confirmation(
+            &parsed.dialogue,
+            player_input,
+            known_person_names,
+            None,
+            seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+    if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
     // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1 apply,
     // conversation-log record, witness memories, and the `DialogueOccurred`
     // publish (headless previously skipped this last step). Forward the returned
@@ -841,6 +867,7 @@ async fn stream_headless_npc_dialogue(
     let npc_id = setup.npc_id;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
+    let known_person_names = setup.known_person_names.clone();
 
     if let Some(queue) = &app.inference_queue {
         app.world.clock.inference_pause();
@@ -930,6 +957,7 @@ async fn stream_headless_npc_dialogue(
                                 location,
                                 &npc_display_name,
                                 &npc_actual_name,
+                                &known_person_names,
                             );
                         }
                     }

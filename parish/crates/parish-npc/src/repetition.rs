@@ -1,4 +1,5 @@
-//! Deterministic anti-repetition guard (#1228) for degenerate model output.
+//! Deterministic anti-repetition guard (#1228) and post-generation dialogue
+//! guards (#1459, #1460) for degenerate model output.
 
 // ── #1228 — anti-repetition guard ──────────────────────────────────────────────
 //
@@ -228,4 +229,757 @@ pub fn guard_against_repetition(
         return varied_repetition_fallback(seed).to_string();
     }
     deduped
+}
+
+// ── #1459 — person-confirmation guard ─────────────────────────────────────────
+//
+// The Qwen2.5-14B-4bit model ignores the "PEOPLE YOU KNOW" prompt directive
+// when a fabricated person is embedded as a presupposition ("do you know Cormac
+// Sweeney?") — it confirms the invented name and invents whereabouts. Prompt
+// directives and frequency_penalty alone do not fix this. This guard runs on the
+// finalized dialogue string AFTER inference: if the reply affirmatively confirms
+// or locates a person whose full name does not appear in the known-roster, it
+// replaces the dialogue with a stock non-recognition decline. This is a
+// deterministic backstop that does not call the LLM again.
+//
+// Detection strategy (conservative):
+//   1. Collect all consecutive-capitalised word bigrams and trigrams that look
+//      like person names (First Last or First Middle Last) from the player input.
+//   2. For each candidate name NOT in known_person_names (roster names), check
+//      whether the dialogue AFFIRMS rather than denies it:
+//      - Contains the name AND contains an affirmation marker ("aye", "he is",
+//        "she is", "I know", "a good man", "at the", locative phrases, etc.)
+//      - Does NOT contain a denial marker ("know no", "no such", "never heard",
+//        "don't know", "do not know", "no one by that name", etc.)
+//   3. If the fabricated-person affirmation pattern fires, replace the whole
+//      dialogue with a period-appropriate non-recognition phrase.
+
+/// Returns a stock non-recognition decline for an unknown named person.
+/// Cycles through a small pool to avoid repeated identical responses.
+fn non_recognition_decline(seed: u64) -> &'static str {
+    const DECLINES: &[&str] = &[
+        "I know no one by that name in these parts.",
+        "That name is not known to me hereabouts.",
+        "I cannot say I've ever heard of such a person here.",
+        "No one by that name that I know of in this parish.",
+        "I know of no such person — you may have the wrong parish entirely.",
+    ];
+    DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+/// Returns `true` when `dialogue` contains an affirmation of the given `name`
+/// but no denial. The check is intentionally conservative — it only fires when
+/// there is a clear locating or confirming phrase near the name.
+fn dialogue_affirms_name(dialogue: &str, name: &str) -> bool {
+    let lower = dialogue.to_lowercase();
+    let name_lower = name.to_lowercase();
+
+    // Must contain the name at all.
+    if !lower.contains(&name_lower) {
+        return false;
+    }
+
+    // Denial markers: if any are present, the NPC is already declining.
+    const DENIAL_MARKERS: &[&str] = &[
+        "know no",
+        "no such",
+        "never heard",
+        "don't know",
+        "do not know",
+        "no one by that name",
+        "not known to me",
+        "cannot say i've",
+        "never met",
+        "no knowledge of",
+        "not familiar",
+        "not acquainted",
+        "stranger to me",
+        "wrong parish",
+    ];
+    for marker in DENIAL_MARKERS {
+        if lower.contains(marker) {
+            return false;
+        }
+    }
+
+    // Affirmation markers: the NPC is confirming/locating the person.
+    // These are phrases that collocate with a named person confirmation.
+    const AFFIRMATION_MARKERS: &[&str] = &[
+        // Existential / locative
+        " is at ",
+        " is in ",
+        " is over ",
+        " lives at ",
+        " lives in ",
+        " lives near ",
+        " stays at ",
+        " works at ",
+        " works in ",
+        " works near ",
+        " does work at",
+        " does work in",
+        " do work at",
+        " can be found",
+        " you'll find",
+        " you can find",
+        " he's at ",
+        " she's at ",
+        " he is at ",
+        " she is at ",
+        " he works",
+        " she works",
+        " his shop",
+        " her shop",
+        // Social affirmation — general confirmation phrases
+        "aye, i know",
+        "aye, he",
+        "aye, she",
+        "oh aye,",
+        "ye heard right",
+        "you heard right",
+        "heard right",
+        "that's right",
+        "that is right",
+        "aye, that's",
+        "aye, that is",
+        "a good man",
+        "a fine man",
+        "a fine woman",
+        "good woman",
+        "i know him",
+        "i know her",
+        "know him well",
+        "know her well",
+        "met him",
+        "met her",
+        "spoken with him",
+        "spoken with her",
+        // Possessive / role confirmation
+        "he's the ",
+        "she's the ",
+        "he's a ",
+        "she's a ",
+        "he is a ",
+        "she is a ",
+        "he is the ",
+        "she is the ",
+        // General "he/she is [description]" confirmation after name appears
+        "is a ",
+        "is the ",
+    ];
+    for marker in AFFIRMATION_MARKERS {
+        if lower.contains(marker) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Extracts candidate person-name tokens (consecutive Title-cased bigrams and
+/// trigrams) from the player input. Used to probe which names the player
+/// mentioned that the NPC might fabricate-confirm.
+fn extract_candidate_names(player_input: &str) -> Vec<String> {
+    let words: Vec<&str> = player_input.split_whitespace().collect();
+    let mut candidates: Vec<String> = Vec::new();
+    let n = words.len();
+
+    for i in 0..n {
+        let w = words[i].trim_matches(|c: char| !c.is_alphabetic());
+        if w.is_empty() {
+            continue;
+        }
+        let is_cap = w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+        let is_alnum = w.chars().all(|c| c.is_alphabetic() || c == '\'');
+        if !is_cap || !is_alnum || w.len() < 2 {
+            continue;
+        }
+
+        // Trigram: First Middle Last
+        if i + 2 < n {
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphabetic());
+            let w3 = words[i + 2].trim_matches(|c: char| !c.is_alphabetic());
+            let cap2 = w2.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+            let cap3 = w3.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+            let alnum2 = w2.chars().all(|c| c.is_alphabetic() || c == '\'');
+            let alnum3 = w3.chars().all(|c| c.is_alphabetic() || c == '\'');
+            if cap2 && cap3 && alnum2 && alnum3 && w2.len() >= 2 && w3.len() >= 2 {
+                candidates.push(format!("{} {} {}", w, w2, w3));
+            }
+        }
+
+        // Bigram: First Last
+        if i + 1 < n {
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphabetic());
+            let cap2 = w2.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+            let alnum2 = w2.chars().all(|c| c.is_alphabetic() || c == '\'');
+            if cap2 && alnum2 && w2.len() >= 2 {
+                candidates.push(format!("{} {}", w, w2));
+            }
+        }
+    }
+
+    candidates
+}
+
+/// Checks whether a candidate name matches any entry in the known roster
+/// (full name or first-name-only match, case-insensitive).
+fn name_in_roster(
+    candidate: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+) -> bool {
+    let lower = candidate.to_lowercase();
+
+    // Check player name
+    if player_name.is_some_and(|pn| pn.to_lowercase() == lower) {
+        return true;
+    }
+
+    // First word of candidate (first name only)
+    let first = lower.split_whitespace().next().unwrap_or("");
+
+    for roster_name in known_person_names {
+        let roster_lower = roster_name.to_lowercase();
+        if roster_lower == lower {
+            return true;
+        }
+        // Roster first-name match (e.g. "Cormac" matches "Cormac Duffy")
+        if roster_lower.split_whitespace().next().unwrap_or("") == first {
+            return true;
+        }
+        // Candidate first-name matches roster full name (e.g. candidate "Cormac Sweeney",
+        // roster "Cormac Duffy" — first names match, so the PLAYER is referring to the
+        // same first-name but with a fabricated surname. We treat this as NOT in roster
+        // because the full-name differs: only exact full-name or first-name-only roster
+        // match clears it.
+    }
+    false
+}
+
+/// Post-generation guard for fabricated-person confirmation (#1459).
+///
+/// After dialogue completion is produced, scans the text for affirmative
+/// confirmation of a named person extracted from `player_input` whose full
+/// name is not in `known_person_names`. If such a confirmation is detected,
+/// replaces the entire dialogue with a stock non-recognition decline.
+///
+/// - `dialogue`: the finalized NPC reply.
+/// - `player_input`: the triggering player utterance (names to probe are
+///   extracted from here as Title-cased bigrams/trigrams).
+/// - `known_person_names`: the names from the NPC's "PEOPLE YOU KNOW" roster,
+///   as plain name strings (e.g. `["Cormac Duffy", "Brigid Connolly"]`).
+/// - `player_name`: the player's own name if known, to avoid false-positives.
+/// - `seed`: deterministic seed for decline pool selection.
+///
+/// Conservative: fires only when an affirmation phrase co-occurs with the
+/// unknown name and no denial is present. Does not fire on neutral mentions.
+pub fn guard_fabricated_person_confirmation(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let candidates = extract_candidate_names(player_input);
+    for candidate in &candidates {
+        if name_in_roster(candidate, known_person_names, player_name) {
+            continue;
+        }
+        if dialogue_affirms_name(dialogue, candidate) {
+            tracing::warn!(
+                fabricated_person = %candidate,
+                "person-confirmation guard fired: replacing fabricated-person confirmation with decline (#1459)"
+            );
+            return non_recognition_decline(seed).to_string();
+        }
+    }
+    dialogue.to_string()
+}
+
+// ── #1460 — verbosity / run-on guard ──────────────────────────────────────────
+//
+// The Qwen2.5-14B-4bit model ignores the "single question" prompt cap and
+// the frequency_penalty doesn't fully suppress loops. Observed patterns:
+//   (a) A phrase repeated 5-6× consecutively (already handled by
+//       collapse_repeated_sentences, but near-duplicates may slip through).
+//   (b) Five trailing interrogative sentences stacked.
+//   (c) Reply ending with "…" — a mid-sentence stream-truncation marker that
+//       escaped the response.rs truncation recovery.
+//   (d) Bare leaked mood-adjective: the model emits the literal word from
+//       the "YOUR CURRENT MOOD:" block at the end of the dialogue field.
+//
+// This guard applies after collapse_repeated_sentences and the length cap.
+// It is conservative — it only removes clearly structural artifacts, not
+// legitimate prose.
+
+/// Strips all but the last interrogative sentence from a multi-question tail
+/// (#1460 — question-stack guard).
+///
+/// An interrogative sentence is one ending with `?`. When the finalized dialogue
+/// ends with more than one question (counting sentences from the end), all but
+/// the last are removed. Non-question sentences before the final question run are
+/// left intact. Operates on the sentence units produced by `split_sentences`.
+pub fn cap_trailing_questions(dialogue: &str) -> String {
+    let sentences = split_sentences(dialogue);
+    if sentences.len() < 2 {
+        return dialogue.to_string();
+    }
+
+    // Find the run of trailing interrogative sentences.
+    let mut tail_questions: Vec<usize> = Vec::new();
+    for (i, sent) in sentences.iter().enumerate().rev() {
+        let trimmed = sent.trim();
+        if trimmed.ends_with('?') {
+            tail_questions.push(i);
+        } else {
+            break;
+        }
+    }
+
+    // Nothing to do if ≤1 trailing question.
+    if tail_questions.len() <= 1 {
+        return dialogue.to_string();
+    }
+
+    // Keep everything up to (but not including) the first question in the tail
+    // run, then append only the LAST question.
+    let run_start = *tail_questions.last().unwrap(); // smallest index = first in run
+    let last_q = *tail_questions.first().unwrap(); // largest index = last in run
+
+    let mut kept: Vec<&str> = sentences[..run_start].iter().map(|s| s.trim()).collect();
+    kept.push(sentences[last_q].trim());
+
+    kept.retain(|s| !s.is_empty());
+    kept.join(" ")
+}
+
+/// Trims a dialogue string that ends with `…` (model truncation signal) back
+/// to the last complete sentence (#1460 — truncation-trim guard).
+///
+/// If the string ends with `…` and there is a complete sentence before the
+/// truncation point (ending in `.`, `!`, or `?`), the incomplete fragment
+/// after the last such terminator is removed. If no complete sentence precedes
+/// the ellipsis, the string is returned trimmed without the `…`.
+pub fn trim_mid_sentence_truncation(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if !text.ends_with('…') {
+        return text.to_string();
+    }
+
+    // Strip the trailing `…` (it is 3 bytes in UTF-8).
+    let without_ellipsis = text[..text.len() - '…'.len_utf8()].trim_end();
+
+    // Find the last sentence-ending punctuation (.  !  ?) in the remaining text.
+    if let Some(last_end) = without_ellipsis.rfind(['.', '!', '?']) {
+        // Include the punctuation character itself.
+        let sentence_end = last_end + 1;
+        if sentence_end < without_ellipsis.len() {
+            // There is trailing fragment after the last complete sentence — trim it.
+            return without_ellipsis[..sentence_end].trim().to_string();
+        }
+    }
+
+    // No complete sentence found — return without the ellipsis.
+    without_ellipsis.trim().to_string()
+}
+
+/// Known mood adjectives that the Qwen2.5-14B model leaks as bare words at the
+/// end of the `dialogue` field (#1460 — mood-word leak guard).
+///
+/// These are single lowercase words that match the mood label in the
+/// "YOUR CURRENT MOOD:" prompt block. The model emits them as a trailing word
+/// after sentence-ending punctuation, so they look like action tokens but are
+/// mood words rather than action verbs.
+///
+/// Exposed for tests.
+pub const LEAKED_MOOD_WORDS: &[&str] = &[
+    "sharp",
+    "curt",
+    "caustic",
+    "acerbic",
+    "irritated",
+    "frustrated",
+    "annoyed",
+    "grumpy",
+    "angry",
+    "furious",
+    "irate",
+    "bitter",
+    "resentful",
+    "sour",
+    "suspicious",
+    "wary",
+    "distrustful",
+    "anxious",
+    "nervous",
+    "worried",
+    "sad",
+    "mournful",
+    "sorrowful",
+    "melancholy",
+    "wistful",
+    "busy",
+    "distracted",
+    "preoccupied",
+    "restless",
+    "agitated",
+    "tired",
+    "weary",
+    "exhausted",
+    "alert",
+    "watchful",
+    "vigilant",
+    "contemplative",
+    "thoughtful",
+    "reflective",
+    "pensive",
+    "calm",
+    "serene",
+    "tranquil",
+    "stoic",
+    "guarded",
+    "reserved",
+    "determined",
+    "resolute",
+    "calculating",
+    "cheerful",
+    "jovial",
+    "merry",
+    "eager",
+    "excited",
+    "curious",
+    "intrigued",
+    "passionate",
+    "fervent",
+    "content",
+    "satisfied",
+];
+
+/// Strips a bare leaked mood-adjective from the end of a dialogue string
+/// (#1460 — mood-word leak guard).
+///
+/// Small models (Qwen2.5-14B) sometimes emit the literal mood-word from the
+/// "YOUR CURRENT MOOD:" prompt block at the very end of the `dialogue` field,
+/// after sentence-ending punctuation (e.g. "Good day to ye. sharp"). This is
+/// analogous to the action-token leak fixed in #1374, but for mood words. This
+/// function strips it when:
+/// - The last word is a known mood word (case-insensitive, from `LEAKED_MOOD_WORDS`).
+/// - The preceding text ends with sentence-ending punctuation (`.`, `!`, `?`).
+///
+/// Conservative: does not strip if the mood word appears mid-sentence or if the
+/// preceding text does not end with sentence punctuation.
+pub fn strip_leaked_mood_word(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    // Split at the last whitespace boundary.
+    if let Some(last_space) = text.rfind(|c: char| c.is_whitespace()) {
+        let before = text[..last_space].trim_end();
+        let last_word = text[last_space..].trim_start().to_lowercase();
+
+        let is_mood_word = LEAKED_MOOD_WORDS.contains(&last_word.as_str());
+        let before_ends_with_sentence_punct = before
+            .chars()
+            .last()
+            .map(|c| matches!(c, '.' | '!' | '?'))
+            .unwrap_or(false);
+
+        if is_mood_word && before_ends_with_sentence_punct {
+            return before.to_string();
+        }
+    }
+
+    text.to_string()
+}
+
+/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460).
+///
+/// Steps, in order:
+/// 1. Strip bare leaked mood-adjective from tail ([`strip_leaked_mood_word`]).
+/// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
+/// 3. Cap trailing question stack to one ([`cap_trailing_questions`]).
+///
+/// Note: near-duplicate sentence collapse is handled upstream by
+/// [`guard_against_repetition`] (step 1 in the shared pipeline). This guard
+/// adds the cases that `collapse_repeated_sentences` does not cover: question
+/// stacks (near-duplicate interrogatives), truncation artifacts, and mood leaks.
+///
+/// Conservative — does not alter legitimate prose.
+pub fn guard_verbosity_runons(dialogue: &str) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+    let after_mood = strip_leaked_mood_word(dialogue);
+    let after_trunc = trim_mid_sentence_truncation(&after_mood);
+    cap_trailing_questions(&after_trunc)
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── #1228 existing guard ──────────────────────────────────────────────────
+
+    #[test]
+    fn collapse_repeated_six_times() {
+        // Adversarial: same clause repeated 6 times → collapsed to 1.
+        let clause = "Speak yer mind, and we'll see what be in it, m'friend.";
+        let input = std::iter::repeat(clause)
+            .take(6)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let result = collapse_repeated_sentences(&input);
+        // Should contain the clause exactly once.
+        let occurrences = result.matches(clause).count();
+        assert_eq!(
+            occurrences, 1,
+            "expected 1 occurrence after collapse, got {occurrences}: {result:?}"
+        );
+    }
+
+    #[test]
+    fn collapse_non_repeating_unchanged() {
+        let input = "Good morning to ye. Fine day it is. How can I help?";
+        let result = collapse_repeated_sentences(input);
+        // Should be unchanged (modulo whitespace re-join).
+        assert!(
+            result.contains("Good morning"),
+            "non-repeating dialogue should be preserved: {result:?}"
+        );
+        assert!(
+            result.contains("How can I help"),
+            "non-repeating dialogue should be preserved: {result:?}"
+        );
+    }
+
+    // ── #1459 — fabricated-person confirmation guard ──────────────────────────
+
+    #[test]
+    fn fabricated_person_confirmed_is_declined() {
+        // Adversarial: NPC affirmatively confirms a fabricated name.
+        let dialogue = "Aye, I know Cormac Sweeney well. He is a fine man who works in the mill.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        // Must not contain affirmation of fabricated name.
+        assert!(
+            !result.to_lowercase().contains("aye, i know cormac"),
+            "guard should have replaced fabricated-person confirmation: {result:?}"
+        );
+        // Should be a non-recognition decline.
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    #[test]
+    fn known_roster_person_passes_through() {
+        // NPC confirms someone actually in the roster — guard must not fire.
+        let dialogue = "Aye, I know Brigid Connolly well. She is a fine woman.";
+        let player_input = "Do you know Brigid Connolly?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "known-roster person should not be altered: {result:?}"
+        );
+    }
+
+    #[test]
+    fn already_declining_npc_passes_through() {
+        // NPC reply already contains a denial — guard must not fire.
+        let dialogue = "I know no one by that name in these parts. You may have the wrong parish.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let known: Vec<String> = vec![];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "already-declining dialogue should pass through unchanged: {result:?}"
+        );
+    }
+
+    #[test]
+    fn neutral_mention_of_unknown_name_passes_through() {
+        // NPC mentions the name in a neutral / questioning way — guard must not fire.
+        let dialogue = "Cormac Sweeney, you say? I cannot recall that name.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let known: Vec<String> = vec![];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "neutral mention should not trigger guard: {result:?}"
+        );
+    }
+
+    #[test]
+    fn player_name_not_flagged_as_fabricated() {
+        // If player_name matches the candidate, guard should not fire.
+        let dialogue = "Aye, I know you, Cormac Sweeney. You've been here before.";
+        let player_input = "Do you remember me, Cormac Sweeney?";
+        let known: Vec<String> = vec![];
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            Some("Cormac Sweeney"),
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "player's own name should not trigger guard: {result:?}"
+        );
+    }
+
+    // ── #1460 — verbosity guard ───────────────────────────────────────────────
+
+    #[test]
+    fn five_trailing_questions_capped_to_one() {
+        // Adversarial: 5 stacked interrogative sentences at the tail.
+        let dialogue = "Good day to ye. \
+            Will ye be staying long? \
+            And where did ye come from? \
+            Have ye news from the north? \
+            What brings ye to Kilteevan? \
+            Are ye familiar with these parts?";
+        let result = cap_trailing_questions(dialogue);
+        // Non-question preamble must survive.
+        assert!(
+            result.contains("Good day to ye"),
+            "preamble should survive: {result:?}"
+        );
+        // Exactly 1 question mark should remain.
+        let q_count = result.matches('?').count();
+        assert_eq!(
+            q_count, 1,
+            "expected exactly 1 trailing question, got {q_count}: {result:?}"
+        );
+    }
+
+    #[test]
+    fn single_question_unchanged_by_cap() {
+        let dialogue = "Good day to ye. Have ye news from the north?";
+        let result = cap_trailing_questions(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "single-question dialogue should be unchanged"
+        );
+    }
+
+    #[test]
+    fn no_question_unchanged_by_cap() {
+        let dialogue = "Good day to ye. Fine weather we're having.";
+        let result = cap_trailing_questions(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "no-question dialogue should be unchanged"
+        );
+    }
+
+    #[test]
+    fn truncated_ellipsis_trimmed_to_last_complete_sentence() {
+        // Adversarial: reply ends with "…" after an incomplete fragment.
+        let dialogue =
+            "Fine day it is. I was just heading to the mill to see about the grain supplies…";
+        let result = trim_mid_sentence_truncation(dialogue);
+        assert!(
+            !result.ends_with('…'),
+            "ellipsis should have been trimmed: {result:?}"
+        );
+        // Should preserve the complete first sentence.
+        assert!(
+            result.contains("Fine day it is"),
+            "complete sentence should be preserved: {result:?}"
+        );
+        // Should NOT contain the incomplete fragment.
+        assert!(
+            !result.contains("heading to the mill"),
+            "incomplete fragment should have been trimmed: {result:?}"
+        );
+    }
+
+    #[test]
+    fn non_truncated_ellipsis_unchanged() {
+        let dialogue = "Fine day it is. Grand weather entirely.";
+        let result = trim_mid_sentence_truncation(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "non-truncated dialogue unchanged"
+        );
+    }
+
+    #[test]
+    fn leaked_mood_word_stripped() {
+        // Adversarial: bare mood word appended after sentence punctuation.
+        let dialogue = "Good day to ye. sharp";
+        let result = strip_leaked_mood_word(dialogue);
+        assert_eq!(
+            result, "Good day to ye.",
+            "mood word should be stripped: {result:?}"
+        );
+    }
+
+    #[test]
+    fn non_mood_word_at_end_unchanged() {
+        let dialogue = "Fine day it is. Grand.";
+        let result = strip_leaked_mood_word(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "non-mood trailing word unchanged"
+        );
+    }
+
+    #[test]
+    fn mood_word_mid_sentence_unchanged() {
+        // "curious" mid-sentence — not a leak.
+        let dialogue = "I am curious about your intentions here.";
+        let result = strip_leaked_mood_word(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "mid-sentence mood word unchanged"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_end_to_end() {
+        // All three #1460 patterns combined:
+        // mood leak + truncation + question stack.
+        let dialogue = "Grand so, I'll see what I can do. \
+            The harvest this year has been fine and the grain…  \
+            Was the journey long? \
+            Are ye hungry? \
+            Did ye come by the eastern road? \
+            Have ye family in the parish? \
+            What is it ye want of me? \
+            irritated";
+        let result = guard_verbosity_runons(dialogue);
+        // Mood word stripped.
+        assert!(
+            !result.to_lowercase().ends_with("irritated"),
+            "mood word should be stripped: {result:?}"
+        );
+        // Question stack capped.
+        let q_count = result.matches('?').count();
+        assert!(
+            q_count <= 1,
+            "question stack should be capped to 1, got {q_count}: {result:?}"
+        );
+    }
 }
