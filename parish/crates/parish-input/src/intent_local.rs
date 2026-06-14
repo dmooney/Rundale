@@ -451,11 +451,32 @@ pub fn is_physical_action_shaped(raw_input: &str) -> bool {
         return false;
     }
 
+    // Exclude inputs whose first word is a modal/auxiliary verb or a speech
+    // verb — these are conversational openers, not physical actions.
+    //
+    // Examples: "could you help me", "would ye know", "have you seen Mary",
+    // "can you see this", "whisper to him", "shout at the crowd".
+    //
+    // Without this guard such inputs pass the checks above (≥3-char first
+    // word, space present, no "?") and are incorrectly narrated as actions,
+    // producing "You could you help me." etc.
+    let first_word = lower.split_whitespace().next().unwrap_or("");
+    let modal_and_speech_verbs: &[&str] = &[
+        // Modal / auxiliary verbs
+        "could", "can", "would", "will", "shall", "should", "may", "might", "do", "does", "did",
+        "have", "has", "had", "is", "are", "was", "were", "am",
+        // Speech verbs (imperative form that implies directing speech)
+        "whisper", "shout", "call", "reply", "answer",
+    ];
+    if modal_and_speech_verbs.contains(&first_word) {
+        return false;
+    }
+
     // Require that the input starts with what looks like an action verb:
     // a single word followed by a space (imperative) or ending at the string.
     // The first word must be reasonably long (≥3 chars) to filter bare
     // one/two-letter commands or filler words.
-    let first_word = lower.split_whitespace().next().unwrap_or("");
+    // (`first_word` is already computed above for the modal/speech-verb check.)
     if first_word.len() < 3 {
         return false;
     }
@@ -1193,6 +1214,35 @@ mod tests {
         assert!(!is_physical_action_shaped("I'm not from around here"));
         // Bare single-word (no space — must be handled by parse_intent_local, not here).
         assert!(!is_physical_action_shaped("look"));
+    }
+
+    /// is_physical_action_shaped must reject conversational inputs that start
+    /// with modal/auxiliary verbs or speech verbs (#1463 Thread 2 regression).
+    ///
+    /// Without this guard they would pass the ≥3-char / space / no-"?" checks
+    /// and be narrated as "You could you help me." etc.
+    #[test]
+    fn physical_action_shaped_rejects_modal_and_speech_verb_openers() {
+        // Modal / auxiliary verb openers.
+        assert!(!is_physical_action_shaped("could you help me"));
+        assert!(!is_physical_action_shaped("would ye know the way"));
+        assert!(!is_physical_action_shaped("can you see this"));
+        assert!(!is_physical_action_shaped("should I go now"));
+        assert!(!is_physical_action_shaped("will you come with me"));
+        assert!(!is_physical_action_shaped("have you seen Mary"));
+        assert!(!is_physical_action_shaped("has she gone already"));
+        assert!(!is_physical_action_shaped("did ye hear the news"));
+        assert!(!is_physical_action_shaped("do you know the priest"));
+        assert!(!is_physical_action_shaped("are you from hereabouts"));
+        assert!(!is_physical_action_shaped("is there any work today"));
+        assert!(!is_physical_action_shaped("was it a hard winter"));
+        // Speech verb openers.
+        assert!(!is_physical_action_shaped("whisper to him quietly"));
+        assert!(!is_physical_action_shaped("shout at the crowd"));
+        // Existing positive cases must still pass (regression guard).
+        assert!(is_physical_action_shaped("draw a bucket of water"));
+        assert!(is_physical_action_shaped("stack the peat against the wall"));
+        assert!(is_physical_action_shaped("splash water on your face"));
     }
 
     // ── Examine patterns ──────────────────────────────────────────────────────

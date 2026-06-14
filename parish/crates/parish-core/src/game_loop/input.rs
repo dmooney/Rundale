@@ -325,10 +325,13 @@ pub async fn handle_game_input(
     // `addressed_to` is empty, mirroring the primary `is_interact` guard
     // above.  When the flag is disabled or the player is addressing an NPC
     // the input falls through to NPC conversation (legacy behaviour).
+    // `unwrap_or(true)` — when `intent` is `None` the LLM call failed
+    // entirely; that is semantically equivalent to `Unknown` and the
+    // no-silent-drop fallback must fire (if the input is action-shaped).
     let is_unknown = intent
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Unknown))
-        .unwrap_or(false);
+        .unwrap_or(true);
     if is_unknown && addressed_to.is_empty() && is_physical_action_shaped(&raw) {
         let flag_enabled = {
             let config = ctx.config.lock().await;
@@ -1653,6 +1656,106 @@ mod tests {
         assert!(
             logs.iter().all(|(k, _)| k != "action"),
             "greeting must NOT produce kind=action narration; got: {logs:?}"
+        );
+    }
+
+    // ── #1461 / #1463 Thread 1: None-intent fallback ─────────────────────────
+
+    /// Thread 1 (#1463): when `intent` is `None` (LLM call failed entirely) and
+    /// the input is shaped like a physical action, the no-silent-drop fallback
+    /// must still fire.
+    ///
+    /// Previously `unwrap_or(false)` meant a `None` intent → `is_unknown = false`
+    /// → fallback skipped → action silently dropped.  After the fix (`unwrap_or(true)`)
+    /// a `None` intent is treated as semantically equivalent to `Unknown`.
+    ///
+    /// In no-LLM mode, `parse_intent_local("push the door")` returns `None`
+    /// (the verb "push" is intentionally excluded from `interact_prefixes` so
+    /// the LLM would normally resolve it).  With the fix the fallback fires and
+    /// emits a narrated action text-log.
+    #[tokio::test]
+    async fn none_intent_physical_action_narrates_not_dropped() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(crate::world::WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(crate::npc::manager::NpcManager::new());
+        let config = tokio::sync::Mutex::new(crate::ipc::GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(crate::ipc::ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None); // no LLM → parse_intent_local → None
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn crate::ipc::EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+
+        // "push the door open" — "push" is NOT in interact_prefixes (intentionally
+        // left to the LLM for ambiguity resolution, per the comment above those
+        // prefixes).  With no LLM client, parse_intent_local returns None.
+        // The no-silent-drop fallback (is_unknown with unwrap_or(true)) must catch
+        // this and emit a narrated action text-log.
+        super::handle_game_input(
+            &ctx,
+            "push the door open".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let logs: Vec<(String, String)> = emitter
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == "text-log")
+            .filter_map(|(_, p)| {
+                let kind = p
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)?;
+                let content = p
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)?;
+                Some((kind, content))
+            })
+            .collect();
+
+        // Must produce at least one text-log.
+        assert!(
+            !logs.is_empty(),
+            "#1461/#1463 Thread 1: None-intent action must emit a text-log; got none"
+        );
+
+        // Must emit kind="action" (the interact-narration path), not "system"
+        // (idle message) — which would indicate the input was silently dropped
+        // to NPC conversation.
+        let action_logs: Vec<&str> = logs
+            .iter()
+            .filter(|(k, _)| k == "action")
+            .map(|(_, c)| c.as_str())
+            .collect();
+        assert!(
+            !action_logs.is_empty(),
+            "#1461/#1463 Thread 1: None-intent action must produce kind=action narration; \
+             got: {logs:?}"
         );
     }
 
