@@ -118,6 +118,11 @@ pub struct GameTestHarness {
     /// which feed the legacy path; the mock pins the inference seam for the
     /// real `game_loop` so the two engines can be compared (#1159).
     pub(crate) mock: Arc<crate::inference::MockClient>,
+    /// Persistent conversation runtime state shared across all
+    /// [`Self::execute_via_real_loop`] calls, so session-level state such as
+    /// `seen_openers_this_location` accumulates across turns (#1492).
+    pub(crate) real_loop_conversation:
+        std::sync::Arc<tokio::sync::Mutex<parish_core::ipc::ConversationRuntimeState>>,
     /// When true, [`Self::execute`] also runs the real `game_loop` on a
     /// rolled-back copy of the pre-state and records divergences to
     /// `shadow_ledger`. Seeded from the `PARISH_HARNESS_SHADOW` env var at
@@ -284,6 +289,9 @@ impl GameTestHarness {
             simulator: None,
             rng: StdRng::seed_from_u64(0),
             mock: Arc::new(crate::inference::MockClient::new()),
+            real_loop_conversation: std::sync::Arc::new(tokio::sync::Mutex::new(
+                parish_core::ipc::ConversationRuntimeState::new(),
+            )),
             shadow_enabled: crate::shadow::is_enabled(),
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: crate::shadow::case_label(),
@@ -2613,6 +2621,9 @@ mod tests {
             simulator: None,
             rng: rand::rngs::StdRng::seed_from_u64(0),
             mock: Arc::new(crate::inference::MockClient::new()),
+            real_loop_conversation: std::sync::Arc::new(tokio::sync::Mutex::new(
+                parish_core::ipc::ConversationRuntimeState::new(),
+            )),
             shadow_enabled: false,
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: "test".to_string(),
