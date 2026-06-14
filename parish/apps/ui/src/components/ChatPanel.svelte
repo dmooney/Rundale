@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
 	import { reactToMessage } from '$lib/ipc';
@@ -11,11 +11,44 @@
 	let hoveredMessageId: string | null = $state(null);
 	const pendingReactions = new SvelteSet<string>();
 
+	// Track the last playerSubmittedCount value we handled so we can detect a
+	// fresh increment. Initialised to the store's current value so that
+	// pre-existing submissions at component mount don't trigger a spurious
+	// force-scroll (#1431 item 4).
+	let lastSubmittedCount = $playerSubmittedCount;
+	// Track the last textLog length so we can detect when the player's echo
+	// has actually landed in the log after a submit.
+	let lastLogLength = $textLog.length;
+	// Set when the player submits; cleared once we force-scroll after the
+	// player's echo entry arrives (log grows while this flag is set). This
+	// handles the case where the count increments BEFORE the echo text-log
+	// event fires — without the flag the delta between the two effect runs
+	// can exceed the near-bottom threshold and the panel stops short (#1431).
+	let scrollOnNextLogGrowth = false;
+
 	$effect(() => {
-		const _ = $textLog;
-		const nearBottom = logEl
+		const entries = $textLog;
+		// Re-read the counter inside the effect so Svelte tracks it as a
+		// reactive dependency and re-runs on every increment.
+		const currentCount = $playerSubmittedCount;
+		const countIncremented = currentCount > lastSubmittedCount;
+		const logGrew = entries.length > lastLogLength;
+
+		lastSubmittedCount = currentCount;
+		lastLogLength = entries.length;
+
+		// Arm the one-shot flag on every player submit.
+		if (countIncremented) scrollOnNextLogGrowth = true;
+
+		// Force-scroll when: (a) the count just incremented, OR (b) the log
+		// grew while the one-shot flag was armed (the player's echo arrived in
+		// a separate effect run after the count increment).  Disarm once used.
+		const forceScroll = countIncremented || (scrollOnNextLogGrowth && logGrew);
+		if (logGrew && scrollOnNextLogGrowth) scrollOnNextLogGrowth = false;
+
+		const nearBottom = forceScroll || (logEl
 			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
-			: true;
+			: true);
 		tick().then(() => {
 			if (logEl && nearBottom) {
 				logEl.scrollTop = logEl.scrollHeight;
@@ -23,9 +56,13 @@
 		});
 	});
 
-	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' {
+	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' | 'command' {
+		if (entry.source === 'player' && entry.subtype === 'command') return 'command';
 		if (entry.source === 'player') return 'player';
 		if (entry.source === 'system') return 'system';
+		// Non-verbal NPC reactions (subtype "action") are rendered as italicised
+		// narration in the system-message style, not as speech bubbles (#1431 item 2).
+		if (entry.subtype === 'action') return 'system';
 		return 'npc';
 	}
 
@@ -166,7 +203,12 @@
 
 <div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
 	{#each $textLog as entry, index (entry.id || entry.stream_turn_id || `${entry.source}:${index}`)}
-		{#if entryType(entry) === 'system'}
+		{#if entryType(entry) === 'command'}
+			<div class="entry command" data-testid="command-entry" role="log">
+				<span class="command-prompt" aria-hidden="true">&gt;</span>
+				<span class="command-text">{entry.content}</span>
+			</div>
+		{:else if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
 			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'} class:tabular={entry.subtype === 'tabular'}>
@@ -311,6 +353,30 @@
 	}
 
 	/* System messages: narrative prose */
+	/* Command echo — player-typed slash commands shown as a distinct input line,
+	   not a dialogue bubble. Monospace prompt + command text, muted so the
+	   narration that follows draws the eye. */
+	.entry.command {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		padding: 0.25rem 0;
+		font-family: var(--font-mono, monospace);
+		font-size: 0.9rem;
+		color: var(--color-muted);
+		opacity: 0.8;
+	}
+
+	.command-prompt {
+		color: var(--color-accent);
+		font-weight: 600;
+		user-select: none;
+	}
+
+	.command-text {
+		letter-spacing: 0.01em;
+	}
+
 	.entry.system {
 		line-height: 1.75;
 		font-size: 1.05rem;

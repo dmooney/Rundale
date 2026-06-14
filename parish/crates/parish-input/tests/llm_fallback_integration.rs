@@ -174,21 +174,49 @@ async fn llm_fallback_missing_intent_field_defaults_to_unknown() {
     assert_eq!(intent.target.as_deref(), Some("Mary"));
 }
 
+/// Since #1424 added deterministic local parsing for "inspect <target>",
+/// "inspect the stone cross closely" is now classified locally as Examine
+/// (target = "the stone cross closely") without an LLM call.
+///
+/// This test verifies the local-parse path produces `Examine`.  A separate
+/// test exercises the LLM fallback path for examine by using an input that
+/// does not match any local examine prefix.
 #[tokio::test]
-async fn llm_fallback_examine_intent() {
-    let server = MockServer::start().await;
-    mount_intent_response(
-        &server,
-        r#"{"intent":"examine","target":"the stone cross","dialogue":null}"#,
-    )
-    .await;
-
-    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+async fn local_parse_inspect_produces_examine_intent() {
+    // Point at a bogus address to prove no network call is made.
+    let client = AnyClient::open_ai(OpenAiClient::new("http://127.0.0.1:1", None));
     let intent = parse_intent(&client, "inspect the stone cross closely", "test-model")
         .await
         .unwrap();
 
     assert_eq!(intent.intent, IntentKind::Examine);
-    assert_eq!(intent.target.as_deref(), Some("the stone cross"));
+    // Local parser captures the full suffix after the "inspect " prefix.
+    assert_eq!(intent.target.as_deref(), Some("the stone cross closely"));
+    assert!(intent.dialogue.is_none());
+}
+
+/// LLM fallback for examine: "look at X" is not locally classified as Examine
+/// (intentionally, to preserve the existing HTTP contract test), so it falls
+/// through to the LLM.  The LLM may return "examine"; `is_genuine_look_input`
+/// accepts "look at ..." so the result is not downgraded.
+#[tokio::test]
+async fn llm_fallback_examine_intent() {
+    let server = MockServer::start().await;
+    mount_intent_response(
+        &server,
+        r#"{"intent":"examine","target":"the old well","dialogue":null}"#,
+    )
+    .await;
+
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+    // "look at the old well" — not locally classified as Examine (we removed
+    // "look at " from the local examine prefix list); falls through to LLM.
+    // is_genuine_look_input("look at the old well") is true → Examine not downgraded.
+    let intent = parse_intent(&client, "look at the old well", "test-model")
+        .await
+        .unwrap();
+
+    assert_eq!(intent.intent, IntentKind::Examine);
+    assert_eq!(intent.target.as_deref(), Some("the old well"));
     assert!(intent.dialogue.is_none());
 }

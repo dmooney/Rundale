@@ -314,6 +314,24 @@ pub fn text_log_for_stream_turn(
     }
 }
 
+/// Creates a [`TextLogPayload`] tied to a specific NPC stream turn with a
+/// semantic subtype for frontend styling (e.g. `"action"` for non-verbal
+/// reactions such as gestures).
+pub fn text_log_for_stream_turn_typed(
+    source: impl Into<String>,
+    content: impl Into<String>,
+    stream_turn_id: u64,
+    subtype: impl Into<String>,
+) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: Some(stream_turn_id),
+        source: source.into(),
+        content: content.into(),
+        subtype: Some(subtype.into()),
+    }
+}
+
 /// Creates a [`TextLogPayload`] with a semantic subtype for frontend styling.
 pub fn text_log_typed(
     source: impl Into<String>,
@@ -779,6 +797,10 @@ pub struct NpcConversationSetup {
     pub system_prompt: String,
     /// The assembled context string for the LLM.
     pub context: String,
+    /// Names from the NPC's known-people roster (PEOPLE YOU KNOW list).
+    /// Used by the post-generation person-confirmation guard (#1459) to detect
+    /// when the NPC's reply affirms a fabricated person not on this list.
+    pub known_person_names: Vec<String>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -911,12 +933,19 @@ pub fn prepare_npc_conversation_turn(
          one tone, one beat.\n",
     );
 
+    // Extract plain name strings from the roster for the person-confirmation
+    // guard (#1459). The roster entries are (NpcId, name, occupation); we just
+    // need the names. Player entry (NpcId(0)) is included so the guard correctly
+    // allows the player's own name when it appears in a question.
+    let known_person_names: Vec<String> = roster.iter().map(|(_, name, _)| name.clone()).collect();
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
         npc_id: speaker_id,
         system_prompt,
         context,
+        known_person_names,
     })
 }
 

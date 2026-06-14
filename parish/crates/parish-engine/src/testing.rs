@@ -1097,7 +1097,37 @@ impl GameTestHarness {
                     self.app.world.log(exits);
                     ActionResult::Looked { description: desc }
                 }
-                // Locally parsed as move/look but fell through — treat as NPC interaction
+                IntentKind::Examine => {
+                    // Feature-flagged: default-ON via is_disabled (#1424).
+                    // Collapse: flag must be on AND a target must be present; otherwise room description.
+                    match (
+                        !self.app.flags.is_disabled("examine-intent"),
+                        pi.target.as_deref(),
+                    ) {
+                        (true, Some(name)) => {
+                            let msg = format!(
+                                "You look more closely at {name}. There is nothing more noteworthy about it than what you have already observed."
+                            );
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        _ => {
+                            // Flag disabled or bare examine (no target) → room description.
+                            let desc = self.render_current_location();
+                            let transport = self.default_transport();
+                            let exits = format_exits(
+                                self.app.world.player_location,
+                                &self.app.world.graph,
+                                transport.speed_m_per_s,
+                                &transport.label,
+                            );
+                            self.app.world.log(desc.clone());
+                            self.app.world.log(exits);
+                            ActionResult::Looked { description: desc }
+                        }
+                    }
+                }
+                // Locally parsed intent that is neither Move/Look/Examine — NPC interaction
                 _ => {
                     let r = self.handle_npc_interaction(text);
                     // Apply rule-based reactions to prove mode parity (#402, #403, #404).
@@ -1136,6 +1166,7 @@ impl GameTestHarness {
             &reaction_templates,
             target,
             &transport,
+            &self.app.flags,
         );
 
         // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.
@@ -1915,6 +1946,12 @@ mod tests {
     #[test]
     fn test_canned_multi_npc_response_from_free_text_names() {
         let mut h = GameTestHarness::new();
+        // Free-text name addressing ("Padraig", "Niamh") resolves against
+        // *introduced* NPCs, and arrival greetings are what introduce them on
+        // entry. Those greetings are gated off by default (npc-arrival-greetings),
+        // so enable the flag here to exercise the historical arrival-introduction
+        // path this test depends on.
+        h.execute("/flag enable npc-arrival-greetings");
         h.advance_time(120); // 10am — Padraig and Niamh are scheduled at the pub.
         h.execute("go to crossroads");
         h.execute("go to pub");

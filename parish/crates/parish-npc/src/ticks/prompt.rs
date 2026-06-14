@@ -193,6 +193,26 @@ pub fn build_enhanced_system_prompt_with_config(
             An invented name asked of you as fact is still invented \u{2014} \
             answer with honest non-recognition, not a friendly yarn.\n",
         );
+        // #1420: the SAME presupposition trap applies to PLACES. A player asks
+        // after "the abbey in town" or "Father Pendleton's chapel" as settled
+        // fact; the small model confirms it exists and even gives directions
+        // ("right in the heart of Kilteevan"). A named building or settlement
+        // stated as fact is just as invented as a named person. Cover it
+        // explicitly and forbid confirming existence OR giving a location.
+        prompt.push_str(
+            "Watch equally for a PRESUPPOSED place: if someone speaks of a \
+            specific building or settlement by name (an abbey, a chapel, a mill, \
+            a named inn, a named townland) as though it plainly exists \u{2014} \
+            asking where it is or how to reach it \u{2014} and it is NOT in the \
+            PLACES IN THIS PARISH list above, do not go along with it. Say \
+            plainly there is no such place hereabouts (\"there's no abbey in \
+            these parts\", \"I know of no such place\"). NEVER confirm it exists, \
+            NEVER say it is in or near any real place, and NEVER give directions \
+            to it. A place named to you as fact is still invented unless it is on \
+            the list. When in doubt, declare non-recognition rather than invent a \
+            location \u{2014} a wrong yarn is worse than an honest \"I don't know \
+            it.\"\n",
+        );
     }
 
     prompt
@@ -311,8 +331,51 @@ fn prior_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
         } else {
             line
         };
-        block.push_str(&format!("- \"{excerpt}\"\n"));
+        block.push_str("- \"");
+        block.push_str(excerpt);
+        block.push_str("\"\n");
     }
+    Some(block)
+}
+
+/// Cross-NPC crutch-phrase suppression block (#1422).
+///
+/// The per-NPC [`prior_phrases_block`] only catches an NPC recycling *its own*
+/// lines. Small models (Qwen 14B) instead reach for an identical opener *frame*
+/// across consecutive *different* NPCs in a session ("ye've come to the right
+/// place" from three NPCs in a row). This injects recent lines from OTHER
+/// speakers at the location so the model is told to vary the frame rather than
+/// echo a neighbour. Only renders when another NPC has spoken here recently.
+fn cross_npc_phrases_block(world: &WorldState, npc: &Npc) -> Option<String> {
+    let lines = world
+        .conversation_log
+        .other_npcs_recent_lines(world.player_location, npc.id, 4);
+    if lines.is_empty() {
+        return None;
+    }
+    let mut block = String::from(
+        "\n\nOTHER FOLK HERE JUST SAID THESE \u{2014} do NOT echo their opener \
+         or frame; reach for plainly different wording of your own:\n",
+    );
+    for line in &lines {
+        let excerpt: &str = if line.len() > 120 {
+            let mut end = 120;
+            while end > 0 && !line.is_char_boundary(end) {
+                end -= 1;
+            }
+            &line[..end]
+        } else {
+            line
+        };
+        block.push_str("- \"");
+        block.push_str(excerpt);
+        block.push_str("\"\n");
+    }
+    block.push_str(
+        "In particular, never greet with \"ye've come to the right place\" or any \
+         near-copy of a frame already used above \u{2014} a parish where everyone \
+         says the same line rings false.",
+    );
     Some(block)
 }
 
@@ -355,6 +418,10 @@ fn other_npcs_block(npc: &Npc, other_npcs: &[&Npc], config: &NpcConfig) -> Optio
 }
 
 /// Recent conversation history at this location.
+///
+/// Frames the history as BACKGROUND AWARENESS rather than a script to quote —
+/// small models otherwise recite another NPC's exact prior line or narrate
+/// the previous exchange (#1447).
 fn conversation_block(
     world: &WorldState,
     npc: &Npc,
@@ -367,7 +434,11 @@ fn conversation_block(
     if ctx.is_empty() {
         return None;
     }
-    Some(format!("\n\nWhat's been said here:\n{ctx}"))
+    Some(format!(
+        "\n\nBACKGROUND AWARENESS — what has recently been said nearby \
+         (use only as context; do NOT quote it word-for-word, do NOT narrate \
+         who said what, and do NOT repeat any line verbatim in your reply):\n{ctx}"
+    ))
 }
 
 /// Continuity cue when the NPC is already in conversation.
@@ -413,6 +484,19 @@ fn reactions_block(npc: &Npc, config: &NpcConfig) -> Option<String> {
     Some(format!("\n\n{ctx}"))
 }
 
+/// NPC's own current activity — injected with an explicit ownership label
+/// so models cannot attribute the NPC's errand or task to the player (#1448).
+fn last_activity_block(npc: &Npc) -> Option<String> {
+    let activity = npc.last_activity.as_deref()?;
+    if activity.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "\n\nYOUR current activity (this is what YOU have been doing — \
+         it is NOT something the player did or asked you about): {activity}"
+    ))
+}
+
 /// Recent short-term memories.
 fn stm_block(npc: &Npc, now: DateTime<Utc>) -> Option<String> {
     let ctx = npc.memory.context_string_with_now(5, now);
@@ -455,7 +539,18 @@ fn mood_block(npc: &Npc) -> String {
         return String::new();
     }
     let tone_directive = mood_tone_directive(mood);
-    format!("\n\nYour current mood: {mood}. {tone_directive}")
+    // #1421: a bare "Your current mood: X" label was inconsistently honoured —
+    // the small model would invert it (a `sharp` widow giving "a warm welcome",
+    // an `alert` shopkeeper reading cheerful) because the cultural-warmth
+    // guideline in the system prompt out-pulls a soft label. Frame the mood as
+    // an OVERRIDE the model must obey even on a first greeting, so the
+    // formulaic-warm register cannot wash it out.
+    format!(
+        "\n\nYOUR CURRENT MOOD: {mood}. This mood OVERRIDES any default-friendly \
+         or welcoming register \u{2014} let it shape THIS reply, including your \
+         very first greeting. {tone_directive} Do not paper over this mood with a \
+         warm welcome or cheerful opener if the mood does not call for one."
+    )
 }
 
 /// Returns a tone directive sentence for the given mood word.
@@ -655,7 +750,19 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
         context.push_str(&block);
     }
 
+    // Cross-NPC crutch-phrase suppression (#1422): catch a frame shared across
+    // *different* NPCs in a session, which the per-NPC guard above cannot see.
+    if quality_continuity && let Some(block) = cross_npc_phrases_block(world, npc) {
+        context.push_str(&block);
+    }
+
     if let Some(block) = reactions_block(npc, config) {
+        context.push_str(&block);
+    }
+
+    // NPC's own current activity — labeled explicitly to prevent models from
+    // attributing the NPC's errand to the player (#1448).
+    if let Some(block) = last_activity_block(npc) {
         context.push_str(&block);
     }
 
@@ -741,6 +848,62 @@ mod tests {
         let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(!prompt.contains("PEOPLE IN YOUR LIFE:"));
         assert!(!prompt.contains("WHAT'S ON YOUR MIND:"));
+    }
+
+    /// AC-8 (#1422): the cross-NPC crutch block must list a recent line from a
+    /// DIFFERENT NPC at the location and tell the model not to echo the frame.
+    #[test]
+    fn cross_npc_phrases_block_suppresses_shared_frame() {
+        use parish_types::conversation::ConversationExchange;
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        // A different NPC (id 2) already used the crutch frame here.
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(2),
+            speaker_name: "Peig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Ye've come to the right place for a spot of gossip.".to_string(),
+            location: loc,
+        });
+
+        let block = cross_npc_phrases_block(&world, &npc)
+            .expect("block must render when another NPC spoke here");
+        assert!(
+            block.contains("OTHER FOLK HERE JUST SAID"),
+            "block must head the other-folk list:\n{block}"
+        );
+        assert!(
+            block.contains("Ye've come to the right place"),
+            "block must surface the neighbour's recent line:\n{block}"
+        );
+        assert!(
+            block.contains("ye've come to the right place") && block.contains("near-copy"),
+            "block must forbid echoing the shared frame:\n{block}"
+        );
+    }
+
+    /// AC-8 negative: the NPC's own lines (id matches) must NOT appear in the
+    /// cross-NPC block — that is the per-NPC guard's job, not this one's.
+    #[test]
+    fn cross_npc_phrases_block_excludes_self() {
+        use parish_types::conversation::ConversationExchange;
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Padraig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Only my own line here.".to_string(),
+            location: loc,
+        });
+        assert!(
+            cross_npc_phrases_block(&world, &npc).is_none(),
+            "block must not render when only the NPC's own lines exist"
+        );
     }
 
     #[test]
@@ -1081,6 +1244,40 @@ mod tests {
         );
     }
 
+    /// AC-1/AC-2 (#1420): the grounding block must ALSO cover a *presupposed*
+    /// unknown place — an abbey/chapel/townland asserted as fact — and forbid
+    /// confirming it exists or giving directions to it.
+    #[test]
+    fn grounding_block_covers_presupposed_unknown_place() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+        let places = vec!["Darcy's Pub".to_string(), "The Mill".to_string()];
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &lang,
+            &config,
+            &names,
+            None,
+            Some(&places),
+        );
+        assert!(
+            prompt.contains("PRESUPPOSED place"),
+            "grounding block must name the presupposed-place case:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("no such place"),
+            "grounding block must instruct non-recognition of an unknown place:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("NEVER give directions"),
+            "grounding block must forbid giving directions to an invented place:\n{prompt}"
+        );
+    }
+
     /// AC-7 (#1401): kill-switch — with grounding disabled (`location_names`
     /// is `None`), neither the PLACES block nor the presupposition directive
     /// is emitted.
@@ -1101,6 +1298,10 @@ mod tests {
         assert!(
             !prompt.contains("PRESUPPOSED name"),
             "no presupposition directive when grounding disabled:\n{prompt}"
+        );
+        assert!(
+            !prompt.contains("PRESUPPOSED place"),
+            "no place-presupposition directive when grounding disabled:\n{prompt}"
         );
     }
 
@@ -1156,13 +1357,33 @@ mod tests {
         npc.mood = "calm".to_string();
         let result = mood_block(&npc);
         assert!(
-            result.starts_with("\n\nYour current mood: calm."),
+            result.starts_with("\n\nYOUR CURRENT MOOD: calm."),
             "mood block must start with label: {result}"
         );
         // Directive sentence follows the label.
         assert!(
-            result.len() > "\n\nYour current mood: calm.".len(),
+            result.len() > "\n\nYOUR CURRENT MOOD: calm.".len(),
             "mood block must include tone directive after label: {result}"
+        );
+    }
+
+    /// AC-6 (#1421): the mood block must frame the mood as an OVERRIDE of the
+    /// default-friendly register so the small model stops washing it out with a
+    /// formulaic warm greeting.
+    #[test]
+    fn mood_block_frames_mood_as_override_of_friendly_register() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "sharp".to_string();
+        let result = mood_block(&npc);
+        assert!(
+            result.contains("OVERRIDES"),
+            "mood block must declare the mood overrides the default register: {result}"
+        );
+        assert!(
+            result.to_lowercase().contains("first greeting")
+                || result.to_lowercase().contains("warm welcome")
+                || result.to_lowercase().contains("cheerful opener"),
+            "mood block must explicitly forbid papering over with a warm/cheerful opener: {result}"
         );
     }
 
@@ -1679,6 +1900,140 @@ mod tests {
         assert!(
             cfg.dialogue_quality_continuity,
             "dialogue_quality_continuity must default to true"
+        );
+    }
+
+    // ── Part-B (#1422): enhanced system prompt carries single-question cap ────
+
+    /// The enhanced system prompt (built on top of the Tier 1 base prompt) must
+    /// carry the "AT MOST ONE question per reply" brevity instruction (#1422
+    /// Part B). `build_enhanced_system_prompt_with_config` delegates to
+    /// `build_tier1_system_prompt` for its base, so the cap is inherited;
+    /// this test is the explicit regression guard.
+    #[test]
+    fn enhanced_system_prompt_carries_single_question_cap() {
+        let npc = make_test_npc(1, "Padraig", 1);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc, false, &lang, &config, &names, None, None,
+        );
+        assert!(
+            prompt.contains("AT MOST ONE question") || prompt.contains("at most one question"),
+            "enhanced system prompt must carry the single-question brevity cap (#1422 Part B):\n{prompt}"
+        );
+    }
+
+    /// Companion: the `dialogue_anti_repetition` config field defaults to true
+    /// so the cross-NPC opener dedup ships enabled by default (#1422).
+    #[test]
+    fn npc_config_dialogue_anti_repetition_defaults_true() {
+        let cfg = NpcConfig::default();
+        assert!(
+            cfg.dialogue_anti_repetition,
+            "dialogue_anti_repetition must default to true (#1422)"
+        );
+    }
+
+    // ── #1447: conversation-history paraphrase framing ───────────────────────
+
+    /// AC (#1447): conversation_block must carry the paraphrase directive —
+    /// "BACKGROUND AWARENESS" header plus explicit no-verbatim-quote instruction.
+    #[test]
+    fn conversation_block_carries_paraphrase_directive() {
+        use parish_types::conversation::ConversationExchange;
+
+        let npc = make_test_npc(1, "Padraig", 1);
+        let mut world = WorldState::new();
+        let loc = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Padraig".to_string(),
+            player_input: "hello".to_string(),
+            npc_dialogue: "Fine day, so it is.".to_string(),
+            location: loc,
+        });
+
+        let block = conversation_block(&world, &npc, None)
+            .expect("block must render when an exchange exists");
+        assert!(
+            block.contains("BACKGROUND AWARENESS"),
+            "conversation block must use BACKGROUND AWARENESS framing (#1447):\n{block}"
+        );
+        assert!(
+            block.contains("do NOT quote it word-for-word") || block.contains("do not quote"),
+            "conversation block must forbid verbatim quoting (#1447):\n{block}"
+        );
+        assert!(
+            block.contains("do NOT narrate") || block.contains("do not narrate"),
+            "conversation block must forbid narrating who said what (#1447):\n{block}"
+        );
+    }
+
+    // ── #1448: NPC own-activity label ───────────────────────────────────────
+
+    /// AC (#1448): last_activity_block must label the activity as the NPC's OWN
+    /// and must NOT suggest the player did or asked about it.
+    #[test]
+    fn last_activity_block_labels_activity_as_npcs_own() {
+        let mut npc = make_test_npc(1, "Peig", 1);
+        npc.last_activity = Some("Walked to Connolly's shop for thread.".to_string());
+
+        let block = last_activity_block(&npc).expect("block must render when last_activity is set");
+        assert!(
+            block.contains("YOUR current activity") || block.contains("YOUR own"),
+            "block must label the activity as the NPC's own (#1448):\n{block}"
+        );
+        assert!(
+            block.contains("NOT something the player did") || block.contains("this is what YOU"),
+            "block must clarify the activity is not the player's (#1448):\n{block}"
+        );
+        assert!(
+            block.contains("Connolly's shop"),
+            "block must include the actual activity text:\n{block}"
+        );
+    }
+
+    /// AC (#1448): last_activity_block must return None when last_activity is not set.
+    #[test]
+    fn last_activity_block_absent_when_no_activity() {
+        let npc = make_test_npc(1, "Peig", 1);
+        assert!(
+            last_activity_block(&npc).is_none(),
+            "last_activity_block must be None when last_activity is not set"
+        );
+    }
+
+    /// AC (#1448): the labeled activity block must appear in the assembled context.
+    #[test]
+    fn context_includes_own_activity_label_when_last_activity_set() {
+        let mut npc = make_test_npc(1, "Peig", 1);
+        npc.last_activity = Some("Tending the cow in the byre.".to_string());
+        let world = WorldState::new();
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "hello",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &names,
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+        assert!(
+            context.contains("YOUR current activity"),
+            "assembled context must label the NPC's own activity (#1448):\n{context}"
+        );
+        assert!(
+            context.contains("Tending the cow"),
+            "assembled context must include the activity text (#1448):\n{context}"
         );
     }
 }

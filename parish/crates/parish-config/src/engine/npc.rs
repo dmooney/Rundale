@@ -107,6 +107,40 @@ pub struct NpcConfig {
     /// feature-flag layer (matching `dialogue_display_max_chars`).
     #[serde(default = "default_dialogue_sentence_boundary_trim")]
     pub dialogue_sentence_boundary_trim: bool,
+    /// Enable cross-NPC opener de-duplication within a single multi-NPC turn (#1422).
+    ///
+    /// When `true` (the default), the shared orchestration layer strips the
+    /// duplicated stock opener sentence from a co-located NPC's reply when it
+    /// near-exactly matches an opener already used by an earlier NPC in the same
+    /// turn. This prevents the "Ye've come to the right place …" tic from
+    /// appearing across three different NPCs in one run. Deterministic and
+    /// provider-agnostic. Controlled at runtime by the `dialogue-anti-repetition`
+    /// feature flag (`flags.is_disabled("dialogue-anti-repetition")` → false).
+    #[serde(default = "default_dialogue_anti_repetition")]
+    pub dialogue_anti_repetition: bool,
+    /// Enable the post-generation fabricated-person confirmation guard (#1459).
+    ///
+    /// When `true` (the default), a post-generation scan checks the finalized
+    /// dialogue for affirmative confirmation of a named person from the player
+    /// input who is NOT in the NPC's known-roster. If the guard fires it
+    /// replaces the entire dialogue with a stock non-recognition decline. The
+    /// 14B model ignores the PEOPLE-YOU-KNOW prompt directive for presupposed
+    /// names; this is the deterministic backstop. Controlled at runtime by the
+    /// `dialogue-person-confirmation-guard` feature flag (default-on).
+    #[serde(default = "default_person_confirmation_guard_enabled")]
+    pub person_confirmation_guard_enabled: bool,
+    /// Enable the post-generation verbosity / run-on guard (#1460).
+    ///
+    /// When `true` (the default), the finalized dialogue passes through three
+    /// structural fixes: (a) strip bare leaked mood-adjective, (b) trim
+    /// mid-sentence truncation ellipsis to the last complete sentence, (c) cap
+    /// trailing question stack to at most one question. These target degenerate
+    /// Qwen2.5-14B outputs where the model emits 5-6 identical questions,
+    /// truncates mid-sentence with "…", or leaks the literal mood word.
+    /// Controlled at runtime by the `dialogue-verbosity-guard` feature flag
+    /// (default-on).
+    #[serde(default = "default_verbosity_guard_enabled")]
+    pub verbosity_guard_enabled: bool,
 }
 
 impl Default for NpcConfig {
@@ -128,6 +162,9 @@ impl Default for NpcConfig {
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
             grounding_enabled: default_grounding_enabled(),
             dialogue_sentence_boundary_trim: default_dialogue_sentence_boundary_trim(),
+            dialogue_anti_repetition: default_dialogue_anti_repetition(),
+            person_confirmation_guard_enabled: default_person_confirmation_guard_enabled(),
+            verbosity_guard_enabled: default_verbosity_guard_enabled(),
         }
     }
 }
@@ -187,6 +224,14 @@ fn default_dialogue_sentence_boundary_trim() -> bool {
     true
 }
 
+fn default_person_confirmation_guard_enabled() -> bool {
+    true
+}
+
+fn default_verbosity_guard_enabled() -> bool {
+    true
+}
+
 fn default_dialogue_repetition_threshold() -> f32 {
     // 0.92 word-level Jaccard: two lines must share ~92% of their word set to
     // count as a near-identical repeat. Exact normalized equality always
@@ -195,6 +240,10 @@ fn default_dialogue_repetition_threshold() -> f32 {
     // variation — which reuses common function words but introduces new content
     // words — comfortably below the bar. Enabled by default.
     0.92
+}
+
+fn default_dialogue_anti_repetition() -> bool {
+    true
 }
 
 /// Cognitive tier assignment based on distance from player.

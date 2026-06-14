@@ -180,7 +180,11 @@
 		gap: 0.55rem;
 		color: var(--color-muted);
 		white-space: nowrap;
-		overflow: hidden;
+		/* Allow the absolutely-positioned dev-menu dropdown to overflow vertically
+		 * while still clipping horizontal overflow (location text ellipsis, etc.).
+		 * overflow: hidden would clip the dropdown behind the bar (#1431 item 5). */
+		overflow-x: clip;
+		overflow-y: visible;
 	}
 
 	.spacer {

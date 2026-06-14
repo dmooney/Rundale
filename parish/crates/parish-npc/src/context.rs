@@ -45,10 +45,14 @@ pub fn build_tier1_context(world: &WorldState) -> String {
     let forbidden = forbidden_greeting_directive(time_of_day)
         .map(|d| format!(" {d}"))
         .unwrap_or_default();
+    // #1451: season is present in the date string but underweighted, so NPCs
+    // reference wrong seasons. Inject a dedicated directive so models cannot
+    // treat season as an inert label.
     format!(
         "Your Location: {loc_name} — {loc_desc}{loc_details}\n\
         Date and time: {date_time}\n\
-        Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.{forbidden}",
+        Time of day: {tod} ({hour:02}:{minute:02}) — greet and refer to the time of day accordingly.{forbidden}\n\
+        CURRENT SEASON: {season}. Do not reference any other season as if it were now.",
         loc_name = world.current_location().name,
         loc_desc = rendered_desc,
         loc_details = loc_details,
@@ -57,6 +61,7 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         hour = now.hour(),
         minute = now.minute(),
         forbidden = forbidden,
+        season = season,
     )
 }
 
