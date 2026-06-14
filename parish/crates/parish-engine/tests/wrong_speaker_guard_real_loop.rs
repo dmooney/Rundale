@@ -128,10 +128,9 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
             if let GameEvent::DialogueOccurred {
                 npc_id, npc_said, ..
             } = e
+                && *npc_id == nora_id
             {
-                if *npc_id == nora_id {
-                    return Some(npc_said.clone());
-                }
+                return Some(npc_said.clone());
             }
             None
         })
@@ -220,10 +219,9 @@ fn wrong_speaker_guard_passes_legitimate_dialogue_through_real_loop() {
             if let GameEvent::DialogueOccurred {
                 npc_id, npc_said, ..
             } = e
+                && *npc_id == nora_id
             {
-                if *npc_id == nora_id {
-                    return Some(npc_said.clone());
-                }
+                return Some(npc_said.clone());
             }
             None
         })
