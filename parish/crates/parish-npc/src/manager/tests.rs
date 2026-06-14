@@ -362,6 +362,39 @@ fn test_known_roster_unions_home_and_work_matches() {
 }
 
 #[test]
+fn known_roster_descriptor_carries_pronouns_and_age() {
+    // #1506: the roster descriptor must ground the model in pronouns + age so
+    // it never guesses gender from a name.
+    let mut mgr = NpcManager::new();
+    let mut subject = make_test_npc(1, 10);
+    subject.home = Some(LocationId(10));
+    mgr.add_npc(subject.clone());
+
+    let mut mate = make_test_npc(2, 10); // age 30, pronouns "they/them", occupation "Test"
+    mate.home = Some(LocationId(10));
+    mgr.add_npc(mate);
+
+    let roster = mgr.known_roster(&subject);
+    let entry = roster
+        .iter()
+        .find(|(id, _, _)| *id == NpcId(2))
+        .expect("home-mate must be in the roster");
+    let descriptor = &entry.2;
+    assert!(
+        descriptor.contains("they/them"),
+        "descriptor must carry pronouns: {descriptor:?}"
+    );
+    assert!(
+        descriptor.contains("30"),
+        "descriptor must carry age: {descriptor:?}"
+    );
+    assert!(
+        descriptor.contains("Test"),
+        "descriptor must keep occupation: {descriptor:?}"
+    );
+}
+
+#[test]
 fn test_load_from_file() {
     let path = std::path::Path::new("data/npcs.json");
     if !path.exists() {

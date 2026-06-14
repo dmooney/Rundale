@@ -210,7 +210,10 @@ impl NpcManager {
     /// Returns the NPCs that a given NPC "knows" — relationships, memory
     /// participants, and co-residents at home/workplace.
     ///
-    /// Returns `(NpcId, name, occupation)` tuples, deduplicated.
+    /// Returns `(NpcId, name, descriptor)` tuples, deduplicated. The descriptor
+    /// is `"<pronouns>, <age>, <occupation>"` (pronouns omitted when unknown) so
+    /// the dialogue prompt grounds the model in each person's gender and age and
+    /// it never has to guess from a name (#1506).
     pub fn known_roster(&self, npc: &Npc) -> Vec<(NpcId, String, String)> {
         let mut known_ids: HashSet<NpcId> = HashSet::new();
         for target_id in npc.relationships.keys() {
@@ -245,7 +248,14 @@ impl NpcManager {
             .into_iter()
             .filter_map(|id| {
                 let other = self.npcs.get(&id)?;
-                Some((id, other.name.clone(), other.occupation.clone()))
+                // Descriptor grounds the model in pronouns + age so it never
+                // guesses gender from a name (#1506).
+                let descriptor = if other.pronouns.trim().is_empty() {
+                    format!("{}, {}", other.age, other.occupation)
+                } else {
+                    format!("{}, {}, {}", other.pronouns, other.age, other.occupation)
+                };
+                Some((id, other.name.clone(), descriptor))
             })
             .collect()
     }
