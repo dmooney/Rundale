@@ -49,7 +49,7 @@ pub fn list_mods(mods_root: &Path) -> Result<Vec<ModSummary>, ParishError> {
         let Ok(text) = fs::read_to_string(&manifest_path) else {
             continue;
         };
-        let Ok(manifest) = toml::from_str::<ModManifest>(&text) else {
+        let Ok(manifest) = ModManifest::from_toml_str(&text) else {
             continue;
         };
         summaries.push(ModSummary {
@@ -86,7 +86,7 @@ pub fn load_mod_snapshot(mod_dir: &Path) -> Result<EditorModSnapshot, ParishErro
     let manifest_text = fs::read_to_string(&manifest_path).map_err(|e| {
         ParishError::Config(format!("failed to read {}: {}", manifest_path.display(), e))
     })?;
-    let manifest: ModManifest = toml::from_str(&manifest_text)
+    let manifest = ModManifest::from_toml_str(&manifest_text)
         .map_err(|e| ParishError::Config(format!("failed to parse mod.toml: {}", e)))?;
 
     let mut report = ValidationReport::default();

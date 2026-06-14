@@ -166,11 +166,11 @@ impl AnthropicClient {
         body: &MessagesRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
         let url = format!("{}/v1/messages", self.base.base_url);
-        let req = self.apply_headers(self.base.client.post(&url).json(body));
-        let response = req
-            .send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?;
+        let response = crate::retry::send_with_retry("anthropic", || {
+            let req = self.apply_headers(self.base.client.post(&url).json(body));
+            req.send()
+        })
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -326,11 +326,14 @@ impl AnthropicClient {
         let body = self.build_request(model, prompt, system, true, max_tokens, temperature);
 
         let url = format!("{}/v1/messages", self.base.base_url);
-        let req = self.apply_headers(self.base.streaming_client.post(&url).json(&body));
-        let response = req
-            .send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?;
+        // Retry covers only this initial request/response-status phase —
+        // once the SSE loop below has consumed bytes the request is not
+        // retryable (#1366 §3.4).
+        let response = crate::retry::send_with_retry("anthropic", || {
+            let req = self.apply_headers(self.base.streaming_client.post(&url).json(&body));
+            req.send()
+        })
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -1125,6 +1128,37 @@ mod tests {
             engine_directive > caller_close,
             "engine JSON directive must appear after </caller_system> in stream path"
         );
+    }
+
+    /// #1366 §3.4 — Anthropic's 529 "overloaded" is retried like any other
+    /// transient status; the second attempt's body is returned to the caller.
+    #[tokio::test]
+    async fn test_generate_retries_529_then_succeeds() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(529).insert_header("Retry-After", "0"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/messages"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "content": [{"type": "text", "text": "Hello!"}]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let client = AnthropicClient::new(&server.uri(), Some("test-key"));
+        let result = client
+            .generate("claude-sonnet-4-6", "hi", None, Some(64), None)
+            .await;
+
+        assert_eq!(result.expect("retried request should succeed"), "Hello!");
+        let requests = server.received_requests().await.expect("recording on");
+        assert_eq!(requests.len(), 2, "expected exactly one retry");
     }
 
     #[tokio::test]
