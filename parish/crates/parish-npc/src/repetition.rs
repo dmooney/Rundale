@@ -2199,19 +2199,13 @@ fn is_acquaintance_question(player_input: &str) -> bool {
         "are you acquainted with ",
         "are ye acquainted with ",
     ];
+    // Use `contains` so that embedded/trailing acquaintance phrases are caught
+    // regardless of word order or presence of a trailing "?" — e.g.
+    // "Seamus, do you know Father Declan" (no "?") and
+    // "do you know Father Declan Tierney?" (leading) both match.
     for prefix in ACQUAINTANCE_PREFIXES {
-        if lower.starts_with(prefix) {
+        if lower.contains(prefix) {
             return true;
-        }
-    }
-    // Also catch "do you know" / "do ye know" when trailing — the question
-    // ends with "?" and the prefix appears anywhere (for inverted word order
-    // e.g. "Seamus, do you know Father Declan?").
-    if lower.ends_with('?') {
-        for prefix in ACQUAINTANCE_PREFIXES {
-            if lower.contains(prefix) {
-                return true;
-            }
         }
     }
     false
@@ -2257,11 +2251,16 @@ fn dialogue_is_only_self_identity(dialogue: &str, speaker_name: &str) -> bool {
     // Guard: the speaker's own name must appear (it's about self-identification).
     if !lower.contains(&speaker_lower) {
         // Also check first-name only.
+        // Strip trailing non-alphabetic chars (e.g. "fr." → "fr") so that
+        // `text_contains_name_as_word` — which also strips punctuation from
+        // dialogue tokens before comparing — does not fail on honorific
+        // abbreviations like "Fr." stored as the roster's first token.
         let speaker_first = speaker_lower
             .split_whitespace()
             .next()
             .unwrap_or("")
-            .to_lowercase();
+            .trim_matches(|c: char| !c.is_alphabetic())
+            .to_string();
         if speaker_first.len() < 2 || !text_contains_name_as_word(dialogue, &speaker_first) {
             return false;
         }
