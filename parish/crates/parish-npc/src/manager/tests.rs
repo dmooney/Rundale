@@ -370,8 +370,12 @@ fn known_roster_descriptor_carries_pronouns_and_age() {
     subject.home = Some(LocationId(10));
     mgr.add_npc(subject.clone());
 
-    let mut mate = make_test_npc(2, 10); // age 30, pronouns "they/them", occupation "Test"
+    let mut mate = make_test_npc(2, 10);
     mate.home = Some(LocationId(10));
+    // Explicit, not relying on make_test_npc defaults (gemini review #1516).
+    mate.pronouns = "she/her".to_string();
+    mate.age = 42;
+    mate.occupation = "Weaver".to_string();
     mgr.add_npc(mate);
 
     let roster = mgr.known_roster(&subject);
@@ -381,15 +385,15 @@ fn known_roster_descriptor_carries_pronouns_and_age() {
         .expect("home-mate must be in the roster");
     let descriptor = &entry.2;
     assert!(
-        descriptor.contains("they/them"),
+        descriptor.contains("she/her"),
         "descriptor must carry pronouns: {descriptor:?}"
     );
     assert!(
-        descriptor.contains("30"),
+        descriptor.contains("42"),
         "descriptor must carry age: {descriptor:?}"
     );
     assert!(
-        descriptor.contains("Test"),
+        descriptor.contains("Weaver"),
         "descriptor must keep occupation: {descriptor:?}"
     );
 }
