@@ -41,6 +41,7 @@ use crate::inference::{
 use crate::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID, StreamEndPayload,
     StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log, text_log_for_stream_turn,
+    text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
@@ -67,6 +68,18 @@ pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
 /// subsequent NPC's reply. Kill-switch: disable by setting this flag explicitly
 /// (`flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG)` → true).
 pub const DIALOGUE_ANTI_REPETITION_FLAG: &str = "dialogue-anti-repetition";
+
+/// Feature-flag name (default **on**) that surfaces the NPC's `action` field
+/// as a player-visible stage-direction line alongside the spoken dialogue (#1490).
+///
+/// When a Tier-1 JSON response carries a non-empty `action` field (e.g.
+/// `"nods curtly"`, `"sighs"`) and this flag is enabled, a `text-log` event
+/// with `subtype: "action"` is emitted immediately after the dialogue bubble,
+/// formatted as `*{NPC name} {action}.*` so the frontend renders it as
+/// italicised narration. The action text is ignored when the flag is disabled
+/// or when the field is absent/empty. Kill-switch: disable via
+/// `flags.is_disabled(NPC_ACTION_NARRATION_FLAG)`.
+pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
 
 /// Token cap for Tier 1 dialogue generation.
 ///
@@ -122,7 +135,13 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let (setup, person_guard_enabled, verbosity_guard_enabled, wrong_speaker_guard_enabled) = {
+    let (
+        setup,
+        person_guard_enabled,
+        verbosity_guard_enabled,
+        wrong_speaker_guard_enabled,
+        action_narration_enabled,
+    ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -140,6 +159,8 @@ pub async fn run_npc_turn(
         let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
         // Wrong-speaker-identity guard (#1475): default-on, kill-switch only.
         let wrong_speaker_guard = !config.flags.is_disabled("npc-wrong-speaker-guard");
+        // NPC action narration (#1490): default-on, kill-switch only.
+        let action_narration = !config.flags.is_disabled(NPC_ACTION_NARRATION_FLAG);
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
@@ -157,7 +178,13 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
-        (setup, person_guard, verbosity_guard, wrong_speaker_guard)
+        (
+            setup,
+            person_guard,
+            verbosity_guard,
+            wrong_speaker_guard,
+            action_narration,
+        )
     };
     let setup = setup?;
 
@@ -458,6 +485,44 @@ pub async fn run_npc_turn(
             Some(req_id),
         );
         captured_display_text = outcome.display_text;
+    }
+
+    // NPC action narration (#1490): if the model supplied a non-empty `action`
+    // field (e.g. "nods curtly", "sighs"), emit it as a player-visible
+    // stage-direction alongside the dialogue. The `subtype: "action"` tag
+    // matches the existing pattern used by arrival-reaction Gesture events
+    // (see `stream_reaction_texts` in `game_session.rs` and movement.rs), so
+    // the frontend renders it as italicised narration in the system style.
+    //
+    // Format: `*{NPC name} {action}.*` — the asterisks trigger the frontend's
+    // `parseEmotes` path (italic span) and the trailing period normalises
+    // sentences that omit it. Emitted only when the flag is on (default) and
+    // the action field is non-empty after trimming.
+    if action_narration_enabled {
+        let action_text = parsed
+            .metadata
+            .as_ref()
+            .map(|m| m.action.trim())
+            .unwrap_or("");
+        if !action_text.is_empty() {
+            // Normalise to a period if the action text doesn't already end with
+            // sentence-ending punctuation, so the line reads as a complete clause.
+            let punct = if action_text
+                .chars()
+                .last()
+                .is_some_and(|c| matches!(c, '.' | '!' | '?'))
+            {
+                ""
+            } else {
+                "."
+            };
+            let narration = format!("*{display_label} {action_text}{punct}*");
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log_typed(&display_label, narration, "action"))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
     }
 
     // Note: the on-disk chat transcript is fed from the `GameEvent` bus
