@@ -34,8 +34,8 @@ const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 /// Upper bound on any computed backoff delay.
 const MAX_BACKOFF: Duration = Duration::from_secs(8);
 /// Upper bound on a server-supplied `Retry-After` value. Anything larger is
-/// treated as insane and ignored in favour of the computed backoff, so a
-/// misbehaving server cannot park the game loop for minutes.
+/// capped at this value, so a misbehaving server cannot park the game loop
+/// for minutes while still honouring the intent to back off.
 const MAX_RETRY_AFTER: Duration = Duration::from_secs(30);
 
 /// Sends a request via `send`, retrying rate-limited / transient-error
@@ -114,8 +114,10 @@ fn jittered(base: Duration) -> Duration {
 
 /// Extracts a usable `Retry-After` delay from response headers, if any.
 ///
-/// Returns `None` when the header is absent, unparseable, or larger than
-/// [`MAX_RETRY_AFTER`] — callers then fall back to the computed backoff.
+/// Returns `None` when the header is absent or unparseable — callers then
+/// fall back to the computed backoff. Values exceeding [`MAX_RETRY_AFTER`]
+/// are capped rather than rejected, so the caller still honours the intent
+/// to back off without being parked for an arbitrarily long time.
 fn retry_after_delay(headers: &HeaderMap, now: SystemTime) -> Option<Duration> {
     let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
     parse_retry_after(value, now)
@@ -126,7 +128,9 @@ fn retry_after_delay(headers: &HeaderMap, now: SystemTime) -> Option<Duration> {
 /// Accepts both wire forms: delta-seconds (`"120"`) and HTTP-date
 /// (`"Wed, 21 Oct 2015 07:28:00 GMT"`, parsed via RFC 2822 rules which
 /// cover the IMF-fixdate format). A date in the past yields a zero delay;
-/// a value beyond [`MAX_RETRY_AFTER`] yields `None` (treated as insane).
+/// a value beyond [`MAX_RETRY_AFTER`] is capped at [`MAX_RETRY_AFTER`] so
+/// the caller still backs off without being parked for an arbitrary duration.
+/// Returns `None` only when the value cannot be parsed at all.
 fn parse_retry_after(value: &str, now: SystemTime) -> Option<Duration> {
     let trimmed = value.trim();
     let duration = match trimmed.parse::<u64>() {
@@ -139,7 +143,7 @@ fn parse_retry_after(value: &str, now: SystemTime) -> Option<Duration> {
                 .unwrap_or(Duration::ZERO)
         }
     };
-    (duration <= MAX_RETRY_AFTER).then_some(duration)
+    Some(duration.min(MAX_RETRY_AFTER))
 }
 
 #[cfg(test)]
@@ -227,9 +231,15 @@ mod tests {
     }
 
     #[test]
-    fn parse_retry_after_delta_beyond_cap_is_ignored() {
-        assert_eq!(parse_retry_after("31", fixed_now()), None);
-        assert_eq!(parse_retry_after("86400", fixed_now()), None);
+    fn parse_retry_after_delta_beyond_cap_is_capped() {
+        assert_eq!(
+            parse_retry_after("31", fixed_now()),
+            Some(Duration::from_secs(30))
+        );
+        assert_eq!(
+            parse_retry_after("86400", fixed_now()),
+            Some(Duration::from_secs(30))
+        );
     }
 
     #[test]
@@ -261,10 +271,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_retry_after_http_date_beyond_cap_is_ignored() {
+    fn parse_retry_after_http_date_beyond_cap_is_capped() {
         let now = fixed_now();
         let target: chrono::DateTime<chrono::Utc> = (now + Duration::from_secs(3600)).into();
-        assert_eq!(parse_retry_after(&target.to_rfc2822(), now), None);
+        assert_eq!(
+            parse_retry_after(&target.to_rfc2822(), now),
+            Some(Duration::from_secs(30))
+        );
     }
 
     #[test]
