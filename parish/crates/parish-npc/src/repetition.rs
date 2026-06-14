@@ -1418,6 +1418,124 @@ pub fn strip_trailing_ellipsis_artifact(dialogue: &str) -> String {
     text.to_string()
 }
 
+/// Strips immediately-consecutive short-phrase repeats from NPC dialogue
+/// (#1505 — near-repetition guard for "tell me, tell me" patterns).
+///
+/// A small model will sometimes end a run-on clause with the same 2–4 word
+/// phrase repeated twice in a row with only a comma or space between the
+/// occurrences — e.g. "tell me, tell me" or "aye or nay, aye or nay". This
+/// is not caught by [`collapse_repeated_sentences`] (operates at sentence
+/// level), [`collapse_distributed_repeated_sentences`] (requires ≥ 5 content
+/// tokens), or [`collapse_degenerate_phrase_loop`] (requires ≥ 4 repetitions
+/// at 3+ words). This guard specifically handles the 2-occurrence consecutive
+/// case.
+///
+/// # Behaviour
+///
+/// 1. Tokenises the dialogue into whitespace-delimited words (punctuation
+///    stripped for comparison but not removed from the output).
+/// 2. For each n-gram of length 2–4, checks whether two adjacent (or
+///    comma-separated) occurrences exist.
+/// 3. On detection, removes the SECOND occurrence including any leading
+///    comma/space before it.
+/// 4. Scans from left to right; only the first detected pair per n-gram width
+///    is removed to stay conservative.
+///
+/// Conservative: only fires on IMMEDIATE adjacency (the two occurrences are
+/// consecutive with nothing but punctuation/whitespace between them), so a
+/// phrase appearing twice in different parts of a reply is not suppressed.
+pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    const MAX_WIDTH: usize = 4;
+    const MIN_WIDTH: usize = 2;
+
+    let words: Vec<&str> = dialogue.split_whitespace().collect();
+    let n = words.len();
+    if n < MIN_WIDTH * 2 {
+        return dialogue.to_string();
+    }
+
+    // Build a normalized word list for comparison.
+    let normed: Vec<String> = words.iter().map(|w| normalize_for_repetition(w)).collect();
+
+    // Pre-compute byte offsets of each whitespace-separated token in the
+    // original string once, so we don't redo the scan inside the inner loop.
+    // token_starts[k] / token_ends[k] correspond to words[k].
+    let mut token_starts: Vec<usize> = Vec::with_capacity(n);
+    let mut token_ends: Vec<usize> = Vec::with_capacity(n);
+    {
+        let mut in_word = false;
+        for (byte_idx, ch) in dialogue.char_indices() {
+            if ch.is_whitespace() {
+                if in_word {
+                    token_ends.push(byte_idx);
+                    in_word = false;
+                }
+            } else if !in_word {
+                token_starts.push(byte_idx);
+                in_word = true;
+            }
+        }
+        if in_word {
+            token_ends.push(dialogue.len());
+        }
+    }
+
+    // If the scan produced a different token count than split_whitespace (e.g.
+    // due to unusual Unicode whitespace), fall back to returning unchanged.
+    if token_starts.len() != n || token_ends.len() != n {
+        return dialogue.to_string();
+    }
+
+    // Strategy: for each n-gram width (largest first for richest context),
+    // scan for a position `i` such that words[i..i+width] == words[i+width..i+2*width]
+    // after normalization. When found, calculate the byte span of the second
+    // occurrence in the original string and remove it.
+    //
+    // Since we split on whitespace and kept punctuation attached to words,
+    // "tell me, tell me" tokenises as ["tell", "me,", "tell", "me"] — positions
+    // 0..2 and 2..4 are directly adjacent, which is exactly the consecutive case.
+    'width: for width in (MIN_WIDTH..=MAX_WIDTH).rev() {
+        if width * 2 > n {
+            continue;
+        }
+        for i in 0..=(n - width * 2) {
+            if normed[i..i + width] == normed[i + width..i + 2 * width] {
+                // Byte range of the second occurrence: from the start of
+                // word[i+width] back to include any leading comma/space, to
+                // the end of word[i+2*width-1].
+                let second_word_start = token_starts[i + width];
+                let second_word_end = token_ends[i + 2 * width - 1];
+
+                // Walk backwards from second_word_start to eat a preceding
+                // comma, space, or semicolon so "tell me, tell me" becomes
+                // "tell me" not "tell me,".
+                let eat_from = {
+                    let bytes = dialogue.as_bytes();
+                    let mut pos = second_word_start;
+                    while pos > 0 && matches!(bytes[pos - 1], b' ' | b',' | b';' | b'\t' | b'\n') {
+                        pos -= 1;
+                    }
+                    pos
+                };
+
+                let result = format!("{}{}", &dialogue[..eat_from], &dialogue[second_word_end..]);
+                tracing::debug!(
+                    phrase = %words[i..i+width].join(" "),
+                    "stripped consecutive short-phrase repeat (#1505)"
+                );
+                return result;
+            }
+        }
+        continue 'width;
+    }
+
+    dialogue.to_string()
+}
+
 /// Trims a multi-sentence NPC reply to at most `MAX_SENTENCE_COUNT` sentences
 /// (#1472 — hard length cap).
 ///
@@ -1797,7 +1915,7 @@ pub fn cap_word_count(dialogue: &str) -> String {
     format!("{}.", prefix.trim_end())
 }
 
-/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460, #1472, #1487, #1489).
+/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460, #1472, #1487, #1489, #1505).
 ///
 /// Steps, in order:
 /// 1. Strip bare leaked mood-adjective from tail ([`strip_leaked_mood_word`]).
@@ -1805,22 +1923,25 @@ pub fn cap_word_count(dialogue: &str) -> String {
 /// 3. Strip trailing ellipsis artifact after otherwise-complete text
 ///    ([`strip_trailing_ellipsis_artifact`], #1472).
 /// 4. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
-///    Detects when a short phrase (3–8 words) repeats ≥ 4× and truncates at the
+///    Detects when a phrase (3–8 words) repeats ≥ 4× and truncates at the
 ///    first clean sentence boundary before the loop.
-/// 5. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 6. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 7. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 8. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+/// 5. **Strip consecutive short-phrase repeat** ([`strip_consecutive_short_phrase_repeat`], #1505).
+///    Catches "tell me, tell me" and similar 2–4 word phrases repeated exactly
+///    twice in a row with only punctuation between occurrences.
+/// 6. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 7. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 8. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 9. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
 ///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///    guards (steps 5-7) cannot catch.
-/// 9. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
-///    ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
+///    guards (steps 6-8) cannot catch.
+/// 10. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
+///     ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
-/// Steps 5 and 6 are the #1460 core fix for distributed / interleaved repetition
+/// Steps 6 and 7 are the #1460 core fix for distributed / interleaved repetition
 /// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
-/// called upstream by `guard_against_repetition`) does not catch. Step 7 keeps
-/// the earlier trailing-question guard in place as a final cleanup. Step 8 runs
-/// before step 9 so it operates on already-cleaned text, giving the surgical
+/// called upstream by `guard_against_repetition`) does not catch. Step 8 keeps
+/// the earlier trailing-question guard in place as a final cleanup. Step 9 runs
+/// before step 10 so it operates on already-cleaned text, giving the surgical
 /// guards their best shot before the blunt caps apply.
 ///
 /// Conservative — does not alter legitimate prose within 4 sentences and 80 words.
@@ -1832,7 +1953,8 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
     let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_phrase_loop);
+    let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count(&after_trailing_q);
@@ -3180,17 +3302,19 @@ mod tests {
         );
     }
 
-    /// AC-3 (#1487): a short phrase repeated exactly 3× (below the 4× threshold)
-    /// must not trigger the guard — natural repetition must be allowed.
+    /// AC-3 (#1487): a phrase repeated exactly 3× (below the 4× threshold)
+    /// must not trigger `collapse_degenerate_phrase_loop` — natural repetition
+    /// must be allowed.
     #[test]
     fn degenerate_phrase_loop_below_threshold_passes_through() {
-        // "come back soon" appears 3× — below the 4× threshold.
+        // "come back soon" appears 3× — below the 4× threshold for 3-word
+        // phrases, so this must pass through unchanged.
         let dialogue = "Come back soon, come back soon, come back soon, friend.";
         let result = collapse_degenerate_phrase_loop(dialogue);
-        // The guard must not have fired (3× < 4× threshold).
+        // The guard must not have fired (3× < 4× threshold for 3-word n-grams).
         assert!(
-            result.contains("come back soon"),
-            "3× repetition should pass through (below threshold): {result:?}"
+            result.to_lowercase().contains("come back soon"),
+            "3× repetition of a 3-word phrase should pass through (3 < 4 threshold): {result:?}"
         );
     }
 
@@ -3426,6 +3550,114 @@ mod tests {
                 || result.to_lowercase().contains("never heard")
                 || result.to_lowercase().contains("no one"),
             "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    // ── #1505 — consecutive short-phrase near-repetition ("tell me, tell me") ──
+
+    /// AC-1 (#1505): a run-on reply containing "tell me, tell me" (a 2-word
+    /// phrase repeated twice consecutively) must be stripped by
+    /// `strip_consecutive_short_phrase_repeat`. The second "tell me" is removed.
+    #[test]
+    fn two_word_consecutive_repeat_is_stripped() {
+        // Adversarial: "tell me, tell me" — the exact pattern from #1505.
+        let dialogue = "Does the journey yet weigh heavy on yer heart, I wonder, tell me, tell me?";
+        let result = strip_consecutive_short_phrase_repeat(dialogue);
+        let tell_me_count = result.to_lowercase().matches("tell me").count();
+        assert!(
+            tell_me_count <= 1,
+            "consecutive \"tell me, tell me\" must be collapsed to one; \
+             got {tell_me_count}: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1505): the full `guard_verbosity_runons` pipeline trims the
+    /// observed #1505 run-on. This exercises the real wiring path.
+    #[test]
+    fn verbosity_guard_trims_tell_me_runon() {
+        // Exact style of the #1505 evidence string: a run-on with embedded
+        // "tell me, tell me" near-repetition.
+        let dialogue = "Aye, the journey is a long one from the south. \
+             Does the journey yet weigh heavy on yer heart, I wonder indeed, \
+             aye or nay, tell me, tell me?";
+        let result = guard_verbosity_runons(dialogue);
+        // At most one "tell me" in the output.
+        let tell_me_count = result.to_lowercase().matches("tell me").count();
+        assert!(
+            tell_me_count <= 1,
+            "guard pipeline must remove repeated \"tell me\"; got {tell_me_count}: {result:?}"
+        );
+        // The reply must not be empty.
+        assert!(
+            !result.trim().is_empty(),
+            "guard must not produce empty output for a reply with a good first sentence"
+        );
+    }
+
+    /// AC-3 (#1505): a legitimate reply with no repeated short phrase passes
+    /// through `strip_consecutive_short_phrase_repeat` unchanged. The guard must
+    /// be conservative enough not to alter clean prose.
+    #[test]
+    fn consecutive_repeat_guard_noop_on_clean_reply() {
+        let dialogue = "Good day to ye. The harvest has been fair enough this year, God willing. \
+             Have ye news from the town?";
+        let result = strip_consecutive_short_phrase_repeat(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "clean reply without short-phrase repetition must be unchanged: {result:?}"
+        );
+    }
+
+    // ── #1492 — cross-NPC stock opener across separate turns ─────────────────
+    //
+    // The `dedupe_cross_npc_openers` unit tests already cover the within-turn
+    // dedup logic. The session-level fix (#1492) is exercised by the integration
+    // test in `parish-engine/tests/npc_verbosity_multiquestion_real_loop.rs`.
+    // The unit-level test below verifies the `ConversationRuntimeState` plumbing
+    // independently (without a full game-loop round-trip).
+
+    /// AC-4 (#1492): `dedupe_cross_npc_openers` produces no dedup on the first
+    /// NPC (empty prior openers), and strips a repeated opener from the second
+    /// NPC when the first NPC's opener is added to the prior list between calls —
+    /// simulating the session-level accumulation added for #1492.
+    ///
+    /// Uses a pair of openers with Jaccard similarity ≥ 0.75 (the dedup
+    /// threshold) to reliably trigger the guard across turns.
+    #[test]
+    fn cross_npc_opener_accumulation_across_sequential_calls() {
+        // First NPC's reply — no priors yet.
+        let priors: Vec<String> = vec![];
+        let npc_a_reply = "Ye've come to the right place for news. The crossroads is just ahead.";
+        let result_a = dedupe_cross_npc_openers(&priors, npc_a_reply);
+        assert_eq!(
+            result_a, npc_a_reply,
+            "first NPC reply with no priors must pass through unchanged"
+        );
+
+        // Extract the opener from NPC A and add to the accumulator (simulates
+        // session-level record_opener).
+        let opener_a = extract_normalized_opener(&result_a);
+        let priors_after_a = vec![opener_a];
+
+        // Second NPC (next turn) opens with a near-identical stock phrase.
+        // "Ye've come to the right place for information" shares {ye've, come, to,
+        // the, right, place, for} = 7 words with the prior; union = 9; Jaccard
+        // = 7/9 ≈ 0.78 ≥ 0.75 — above the dedup threshold.
+        let npc_b_reply =
+            "Ye've come to the right place for information. The church is just ahead.";
+        let result_b = dedupe_cross_npc_openers(&priors_after_a, npc_b_reply);
+        // The duplicate opener must be stripped.
+        assert!(
+            !result_b
+                .to_lowercase()
+                .starts_with("ye've come to the right place"),
+            "second NPC's duplicate opener (across turns) must be stripped: {result_b:?}"
+        );
+        // The substantive remainder must survive.
+        assert!(
+            result_b.contains("church is just ahead"),
+            "substantive content after stripped opener must survive: {result_b:?}"
         );
     }
 }
