@@ -2020,6 +2020,232 @@ pub fn guard_wrong_speaker_identity(
     dialogue.to_string()
 }
 
+// ── #1504 — acquaintance-question / identity-drift guard ──────────────────────
+//
+// Quality-harness run 16, turn 14: the player asked Seamus Gallagher
+// "Do you know Father Declan Tierney?" and the NPC replied
+// "Ye must be mistaken... I'm but Seamus Gallagher" — answering as if
+// asked "Are you Father Declan Tierney?" (identity challenge) rather than
+// "Do you know him?" (acquaintance question).
+//
+// Root cause: the grounding block's "do not go along with a presupposed name"
+// instruction is broad enough that the 14B model reads "do you know X?" as
+// an identity challenge and produces a self-identification response ("I'm but
+// Seamus") that never addresses whether the NPC knows the person.
+//
+// Detection strategy (conservative):
+//   1. Detect whether the player's input is an ACQUAINTANCE question:
+//      patterns like "do you know …", "have you met …", "do you know of …",
+//      "are you acquainted with …", "have you heard of …".
+//   2. Detect whether the NPC's dialogue is purely a SELF-IDENTITY assertion:
+//      contains an identity-claim prefix ("i'm but", "i am but", "i'm only",
+//      etc.) with the SPEAKER'S OWN name and NO acquaintance content.
+//   3. If both fire: the NPC answered the wrong question. Replace with
+//      - "Yes, I know them" stock text if the named person IS in the roster.
+//      - "I know no one by that name" stock text if NOT in the roster.
+//
+// Gated by default-on flag `npc-acquaintance-intent-guard` (kill-switch only).
+
+/// Returns `true` when `player_input` reads as an acquaintance question —
+/// a question about whether the NPC knows or has met someone.
+///
+/// Patterns matched (case-insensitive):
+/// - "do you know …"
+/// - "do ye know …"
+/// - "do you know of …"
+/// - "do ye know of …"
+/// - "have you met …"
+/// - "have ye met …"
+/// - "have you heard of …"
+/// - "have ye heard of …"
+/// - "are you acquainted with …"
+/// - "are ye acquainted with …"
+/// - "do you know who …"
+fn is_acquaintance_question(player_input: &str) -> bool {
+    let lower = player_input.trim().to_lowercase();
+    const ACQUAINTANCE_PREFIXES: &[&str] = &[
+        "do you know of ",
+        "do ye know of ",
+        "do you know who ",
+        "do ye know who ",
+        "do you know ",
+        "do ye know ",
+        "have you met ",
+        "have ye met ",
+        "have you heard of ",
+        "have ye heard of ",
+        "are you acquainted with ",
+        "are ye acquainted with ",
+    ];
+    for prefix in ACQUAINTANCE_PREFIXES {
+        if lower.starts_with(prefix) {
+            return true;
+        }
+    }
+    // Also catch "do you know" / "do ye know" when trailing — the question
+    // ends with "?" and the prefix appears anywhere (for inverted word order
+    // e.g. "Seamus, do you know Father Declan?").
+    if lower.ends_with('?') {
+        for prefix in ACQUAINTANCE_PREFIXES {
+            if lower.contains(prefix) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Returns `true` when `dialogue` is purely a self-identity assertion with no
+/// acquaintance content — the NPC only said who THEY are, never addressed
+/// whether they know the person the player asked about.
+///
+/// Detects dismissive / clarifying self-identity patterns:
+/// - "i'm but <name>", "i am but <name>" (Hiberno-English dismissive)
+/// - "i'm only <name>", "i am only <name>"
+/// - "i'm just <name>", "i am just <name>"
+/// - "my name is <name>", "the name's <name>" — without any acquaintance info
+///
+/// Only fires when the dialogue ALSO does NOT contain acquaintance content
+/// words ("know", "met", "heard", "acquainted", "familiar").
+fn dialogue_is_only_self_identity(dialogue: &str, speaker_name: &str) -> bool {
+    if dialogue.trim().is_empty() {
+        return false;
+    }
+    let lower = dialogue.to_lowercase().replace('\u{2019}', "'");
+    let speaker_lower = speaker_name.to_lowercase();
+
+    // Guard: if the dialogue contains acquaintance-response words, the NPC
+    // DID address the question — don't fire.
+    const ACQUAINTANCE_CONTENT_WORDS: &[&str] = &[
+        "know",
+        "met",
+        "heard",
+        "acquainted",
+        "familiar",
+        "never seen",
+        "no one by",
+        "no such",
+    ];
+    for word in ACQUAINTANCE_CONTENT_WORDS {
+        if lower.contains(word) {
+            return false;
+        }
+    }
+
+    // Guard: the speaker's own name must appear (it's about self-identification).
+    if !lower.contains(&speaker_lower) {
+        // Also check first-name only.
+        let speaker_first = speaker_lower
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
+        if speaker_first.len() < 2 || !text_contains_name_as_word(dialogue, &speaker_first) {
+            return false;
+        }
+    }
+
+    // Identity-claim patterns that indicate the NPC answered with self-identification.
+    const SELF_IDENTITY_MARKERS: &[&str] = &[
+        "i'm but ",
+        "i am but ",
+        "i'm only ",
+        "i am only ",
+        "i'm just ",
+        "i am just ",
+        "i'm merely ",
+        "i am merely ",
+        "'tis only ",
+        "'tis but ",
+        "ye must be mistaken",
+        "you must be mistaken",
+        "ye have the wrong",
+        "you have the wrong",
+    ];
+    for marker in SELF_IDENTITY_MARKERS {
+        if lower.contains(marker) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Stock acquaintance-affirmation responses — used when the NPC DOES know the
+/// named person (name is in their roster) but answered the wrong question.
+fn acquaintance_affirm(seed: u64) -> &'static str {
+    const POOL: &[&str] = &[
+        "Aye, I know them well enough.",
+        "Aye, I've met them in the parish.",
+        "I do know who ye mean.",
+        "Aye, the name is known to me.",
+        "Sure, I know them from hereabouts.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+/// Post-generation guard for acquaintance-question / identity-drift (#1504).
+///
+/// Fires when the player asked an acquaintance question ("do you know X?")
+/// and the NPC responded with a pure self-identity assertion ("I'm but Seamus
+/// Gallagher") — answering the wrong question entirely.
+///
+/// # Parameters
+///
+/// - `dialogue`: the finalized NPC reply.
+/// - `player_input`: the triggering player utterance.
+/// - `speaker_name`: the actual NPC's real name (e.g. "Seamus Gallagher").
+/// - `known_person_names`: all parish NPC names the guard may affirm about.
+///   If the name from the player's question is in this list, the replacement
+///   is an acquaintance-affirmation; otherwise it is a non-recognition decline.
+/// - `seed`: deterministic seed for response pool selection.
+///
+/// Conservative: only fires when BOTH the acquaintance-question signal AND the
+/// self-identity signal are present. Never fires on normal dialogue.
+pub fn guard_acquaintance_question_intent_drift(
+    dialogue: &str,
+    player_input: &str,
+    speaker_name: &str,
+    known_person_names: &[String],
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    // Only fire when the player asked an acquaintance question.
+    if !is_acquaintance_question(player_input) {
+        return dialogue.to_string();
+    }
+
+    // Only fire when the NPC's reply is purely a self-identity assertion.
+    if !dialogue_is_only_self_identity(dialogue, speaker_name) {
+        return dialogue.to_string();
+    }
+
+    // Determine whether the named person is in the roster to choose the
+    // right replacement. We extract candidate names from the player input
+    // and check each against the roster.
+    let candidates = extract_candidate_names(player_input);
+    let named_person_is_known = candidates
+        .iter()
+        .any(|c| name_in_roster(c, known_person_names, None));
+
+    tracing::warn!(
+        speaker = %speaker_name,
+        player_input = %player_input,
+        named_person_is_known,
+        "acquaintance-question intent-drift guard fired: NPC answered identity \
+         question instead of acquaintance question (#1504)"
+    );
+
+    if named_person_is_known {
+        acquaintance_affirm(seed).to_string()
+    } else {
+        non_recognition_decline(seed).to_string()
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -3426,6 +3652,151 @@ mod tests {
                 || result.to_lowercase().contains("never heard")
                 || result.to_lowercase().contains("no one"),
             "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    // ── #1504 — acquaintance-question / identity-drift guard ──────────────────
+
+    /// AC-1 (#1504): the exact run-16 repro — Seamus asked "Do you know Father
+    /// Declan Tierney?" responds with a pure self-identity denial. The guard
+    /// must detect the question-type mismatch and replace.
+    ///
+    /// "Fr. Declan Tierney" IS in the roster, so the replacement must be an
+    /// acquaintance-affirmation response, not a non-recognition decline.
+    #[test]
+    fn acquaintance_intent_drift_guard_fires_on_run16_repro() {
+        let dialogue = "Ye must be mistaken... I'm but Seamus Gallagher.";
+        let player_input = "Do you know Father Declan Tierney?";
+        let speaker = "Seamus Gallagher";
+        let known: Vec<String> = vec![
+            "Fr. Declan Tierney".into(),
+            "Brigid Connolly".into(),
+            "Seamus Gallagher".into(),
+        ];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 0);
+        // The self-identity drift must not survive.
+        assert!(
+            !result.to_lowercase().contains("i'm but seamus"),
+            "guard must have fired: original drift still present in: {result:?}"
+        );
+        // Replacement must be an acquaintance-affirmation (person IS in roster).
+        let affirm_pool = [
+            "know them",
+            "know who ye mean",
+            "known to me",
+            "know them well",
+            "know them from",
+        ];
+        assert!(
+            affirm_pool
+                .iter()
+                .any(|p| result.to_lowercase().contains(p)),
+            "replacement must be an acquaintance-affirmation when named person is in roster; \
+             got: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1504): when the named person is NOT in the roster, the replacement
+    /// must be a non-recognition decline, not an affirmation.
+    #[test]
+    fn acquaintance_intent_drift_guard_declines_for_unknown_person() {
+        let dialogue = "Ye must be mistaken — I'm but Brigid Connolly.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let speaker = "Brigid Connolly";
+        let known: Vec<String> = vec!["Fr. Declan Tierney".into(), "Brigid Connolly".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 0);
+        assert!(
+            !result.to_lowercase().contains("brigid connolly"),
+            "guard must have replaced drift when unknown name asked: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "replacement must be a non-recognition decline for unknown person: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1504): when the NPC's reply actually addresses the acquaintance
+    /// question (contains "know", "met", etc.), the guard must NOT fire.
+    #[test]
+    fn acquaintance_intent_drift_guard_does_not_fire_on_correct_response() {
+        let dialogue = "Aye, I know Fr. Declan Tierney well — he's the parish priest.";
+        let player_input = "Do you know Father Declan Tierney?";
+        let speaker = "Seamus Gallagher";
+        let known: Vec<String> = vec!["Fr. Declan Tierney".into(), "Seamus Gallagher".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must NOT fire when NPC correctly addressed the acquaintance question: {result:?}"
+        );
+    }
+
+    /// AC-4 (#1504): when the player asked a non-acquaintance question, the
+    /// guard must not fire even if the NPC's reply is a self-identification.
+    #[test]
+    fn acquaintance_intent_drift_guard_does_not_fire_on_non_acquaintance_question() {
+        let dialogue = "Aye, I'm Seamus Gallagher, at yer service.";
+        let player_input = "What is your name?";
+        let speaker = "Seamus Gallagher";
+        let known: Vec<String> = vec!["Seamus Gallagher".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must NOT fire on identity question (not an acquaintance question): {result:?}"
+        );
+    }
+
+    /// AC-5 (#1504): "have you met X?" pattern triggers the acquaintance guard.
+    #[test]
+    fn acquaintance_intent_drift_guard_fires_on_have_you_met_pattern() {
+        let dialogue = "Ye must be mistaken — I'm only Brigid Connolly, the midwife.";
+        let player_input = "Have you met Cormac Duffy?";
+        let speaker = "Brigid Connolly";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Cormac Duffy".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 2);
+        assert!(
+            !result.to_lowercase().contains("only brigid connolly"),
+            "guard must have fired on 'have you met' pattern: {result:?}"
+        );
+    }
+
+    /// AC-6 (#1504): normal dialogue that happens to use first-person pronouns
+    /// but addresses the acquaintance question must NOT be suppressed.
+    #[test]
+    fn acquaintance_intent_drift_guard_does_not_fire_on_normal_first_person() {
+        let dialogue = "I've not heard of any Cormac Sweeney in these parts.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let speaker = "Seamus Gallagher";
+        let known: Vec<String> = vec!["Seamus Gallagher".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must NOT fire: NPC's reply addresses the acquaintance question \
+             (contains 'heard'): {result:?}"
+        );
+    }
+
+    /// AC-7 (#1504): "do ye know" (Hiberno-English variant) also triggers detection.
+    #[test]
+    fn acquaintance_intent_drift_guard_fires_on_hiberno_english_variant() {
+        let dialogue = "Ye have the wrong man — I'm just Padraig O'Brien.";
+        let player_input = "Do ye know Father Declan?";
+        let speaker = "Padraig O'Brien";
+        // Father Declan is a first-name-only reference — not roster-matchable by full name.
+        let known: Vec<String> = vec!["Padraig O'Brien".into()];
+        let result =
+            guard_acquaintance_question_intent_drift(dialogue, player_input, speaker, &known, 1);
+        assert!(
+            !result.to_lowercase().contains("just padraig"),
+            "guard must have fired on 'do ye know' variant: {result:?}"
         );
     }
 }

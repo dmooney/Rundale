@@ -68,6 +68,13 @@ pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
 /// (`flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG)` → true).
 pub const DIALOGUE_ANTI_REPETITION_FLAG: &str = "dialogue-anti-repetition";
 
+/// Feature-flag name (default **on**) that enables the acquaintance-question /
+/// identity-drift guard (#1504). When the player asks "do you know X?" and the
+/// NPC responds with a pure self-identification ("I'm but Seamus Gallagher")
+/// instead of answering whether they know the named person, this guard replaces
+/// the response with the correct acquaintance answer. Kill-switch only.
+pub const ACQUAINTANCE_INTENT_GUARD_FLAG: &str = "npc-acquaintance-intent-guard";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
@@ -122,7 +129,13 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let (setup, person_guard_enabled, verbosity_guard_enabled, wrong_speaker_guard_enabled) = {
+    let (
+        setup,
+        person_guard_enabled,
+        verbosity_guard_enabled,
+        wrong_speaker_guard_enabled,
+        acquaintance_guard_enabled,
+    ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -140,6 +153,8 @@ pub async fn run_npc_turn(
         let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
         // Wrong-speaker-identity guard (#1475): default-on, kill-switch only.
         let wrong_speaker_guard = !config.flags.is_disabled("npc-wrong-speaker-guard");
+        // Acquaintance-question intent-drift guard (#1504): default-on, kill-switch only.
+        let acquaintance_guard = !config.flags.is_disabled(ACQUAINTANCE_INTENT_GUARD_FLAG);
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
@@ -157,7 +172,13 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
-        (setup, person_guard, verbosity_guard, wrong_speaker_guard)
+        (
+            setup,
+            person_guard,
+            verbosity_guard,
+            wrong_speaker_guard,
+            acquaintance_guard,
+        )
     };
     let setup = setup?;
 
@@ -399,6 +420,27 @@ pub async fn run_npc_turn(
             &parsed.dialogue,
             &setup.npc_name,
             &setup.roster_names_occupations,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation acquaintance-question intent-drift guard (#1504): detect
+    // when the player asked "do you know X?" and the NPC responded only with a
+    // self-identification ("I'm but Seamus Gallagher") instead of answering
+    // whether they know the named person. Replaces with the correct acquaintance
+    // answer (affirmation if known, non-recognition decline if not).
+    // Default-on; kill-switch via `npc-acquaintance-intent-guard` flag.
+    if acquaintance_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_acquaintance_question_intent_drift(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.npc_name,
+            &setup.known_person_names,
             guard_seed,
         );
         if guarded != parsed.dialogue {
