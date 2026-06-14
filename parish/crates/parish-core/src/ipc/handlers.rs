@@ -805,6 +805,10 @@ pub struct NpcConversationSetup {
     /// Used by the wrong-speaker-identity guard (#1475) to detect when this
     /// NPC's reply claims to be a different roster member.
     pub roster_names_occupations: Vec<(String, String)>,
+    /// Current player location name.
+    /// Used by the wrong-location-reference guard (#1477) to detect when an NPC
+    /// names a different settlement in "here in X" / "village of X" collocations.
+    pub location_name: String,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -968,6 +972,12 @@ pub fn prepare_npc_conversation_turn(
         .map(|(_, name, occ)| (name.clone(), occ.clone()))
         .collect();
 
+    let location_name = world
+        .graph
+        .get(world.player_location)
+        .map(|d| d.name.clone())
+        .unwrap_or_default();
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
@@ -976,6 +986,7 @@ pub fn prepare_npc_conversation_turn(
         context,
         known_person_names,
         roster_names_occupations,
+        location_name,
     })
 }
 
