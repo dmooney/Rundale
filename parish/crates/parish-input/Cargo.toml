@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 publish = false
-description = "Player input parsing and command interpretation for the Parish engine"
+description = "Player input parsing and command interpretation for the Parish engine — local parsers first, with LLM-backed intent inference as the fallback for unrecognised input"
 
 [dependencies]
 parish-types = { workspace = true }

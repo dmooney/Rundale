@@ -44,6 +44,25 @@ unchanged.
 The LRU evicts the least-recently-used entry when capacity is reached. Both
 eviction and TTL expiry cause re-execution on the next request with the same key.
 
+### Accepted risk: the cache does not survive restart (#1366 §3)
+
+The cache is in-memory only — a server restart (deploy, crash) empties it, so
+a client replaying a mutating request within the 24 h TTL across a restart
+executes the handler twice. This is **deliberately accepted** rather than
+persisted alongside `sessions.db`:
+
+- Every supported route is a save/branch mutation whose double execution is
+  benign (an extra save or branch row, not a charge or a send).
+- The window requires a client to crash mid-retry **and** the server to
+  restart inside that retry loop — vanishingly rare for a single-process
+  deployment (ADR-014).
+- Persisting bodies (≤ 1 MiB each) to SQLite would add write amplification
+  on every mutating request to shave that corner.
+
+Revisit if a route ever gains a non-idempotent external side effect
+(payment, email, GitHub issue creation) — those must either persist the
+cache or de-duplicate at the effect site.
+
 ## Cache key
 
 `(session_id, idempotency_key)` — the `session_id` is the `parish_sid` UUID

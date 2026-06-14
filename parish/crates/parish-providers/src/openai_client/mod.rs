@@ -366,15 +366,17 @@ impl OpenAiClient {
         token_tx: mpsc::Sender<String>,
     ) -> Result<String, ParishError> {
         let url = format!("{}{}", self.base.base_url, self.completions_path);
-        let mut req = self.base.streaming_client.post(&url).json(&body);
-        req = self.apply_auth_headers(req);
 
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| ParishError::Network(e.to_string()))?;
+        // Retry covers only this initial request/response-status phase —
+        // once `read_sse_stream` has consumed bytes the request is not
+        // retryable (#1366 §3.4).
+        let resp = crate::retry::send_with_retry("openai", || {
+            let req = self.base.streaming_client.post(&url).json(&body);
+            self.apply_auth_headers(req).send()
+        })
+        .await?
+        .error_for_status()
+        .map_err(|e| ParishError::Network(e.to_string()))?;
 
         read_sse_stream(resp, &token_tx).await
     }
@@ -385,14 +387,14 @@ impl OpenAiClient {
         body: &ChatCompletionRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
         let url = format!("{}{}", self.base.base_url, self.completions_path);
-        let mut req = self.base.client.post(&url).json(body);
-        req = self.apply_auth_headers(req);
 
-        req.send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| ParishError::Network(e.to_string()))
+        crate::retry::send_with_retry("openai", || {
+            let req = self.base.client.post(&url).json(body);
+            self.apply_auth_headers(req).send()
+        })
+        .await?
+        .error_for_status()
+        .map_err(|e| ParishError::Network(e.to_string()))
     }
 
     /// Applies authorization and provider-specific headers to a request.
@@ -920,5 +922,77 @@ mod tests {
             "second call waited {:?}, expected at least 50ms refill wait",
             elapsed_second,
         );
+    }
+
+    /// #1366 §3.4 — a 429 with `Retry-After: 0` is retried and the second
+    /// attempt's body is returned; the caller never sees the rate-limit error.
+    #[tokio::test]
+    async fn test_generate_retries_429_then_succeeds() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/chat/completions"))
+            .respond_with(wiremock::ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/chat/completions"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "choices": [{"message": {"content": "Hello!"}}]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let client = OpenAiClient::new(&server.uri(), None);
+        let result = client
+            .generate("test-model", "hi", None, GenerateParams::default())
+            .await;
+
+        assert_eq!(result.expect("retried request should succeed"), "Hello!");
+        let requests = server.received_requests().await.expect("recording on");
+        assert_eq!(requests.len(), 2, "expected exactly one retry");
+    }
+
+    /// Non-transient 4xx must NOT be retried — a caller bug is not load.
+    #[tokio::test]
+    async fn test_generate_does_not_retry_400() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/chat/completions"))
+            .respond_with(wiremock::ResponseTemplate::new(400))
+            .mount(&server)
+            .await;
+
+        let client = OpenAiClient::new(&server.uri(), None);
+        let result = client
+            .generate("test-model", "hi", None, GenerateParams::default())
+            .await;
+
+        assert!(result.is_err());
+        let requests = server.received_requests().await.expect("recording on");
+        assert_eq!(requests.len(), 1, "400 must not be retried");
+    }
+
+    /// A provider that never recovers exhausts the retry budget (initial
+    /// request + 3 retries) and the final 429 surfaces as an error.
+    #[tokio::test]
+    async fn test_generate_gives_up_after_max_retries() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/chat/completions"))
+            .respond_with(wiremock::ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .mount(&server)
+            .await;
+
+        let client = OpenAiClient::new(&server.uri(), None);
+        let result = client
+            .generate("test-model", "hi", None, GenerateParams::default())
+            .await;
+
+        assert!(result.is_err());
+        let requests = server.received_requests().await.expect("recording on");
+        assert_eq!(requests.len(), 4, "initial request + MAX_RETRIES attempts");
     }
 }

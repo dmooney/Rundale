@@ -32,6 +32,11 @@
 #                             bundle to disk instead of filing on GitHub.
 set -euo pipefail
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is required (sudo apt-get install jq)" >&2
+    exit 1
+fi
+
 REPO="$(git rev-parse --show-toplevel)"
 PORT="${PARISH_MCP_BACKEND_PORT:-3030}"
 BASE="http://127.0.0.1:${PORT}"
@@ -92,15 +97,10 @@ json_str() {
 }
 
 # Extract the active-scene location name from an engine-state JSON blob.
+# jq is a hard requirement (#1366 §7) — the old grep/sed fallback silently
+# mis-parsed nested/escaped JSON, which is worse than failing fast.
 scene_name() {
-    # Prefer jq when present; fall back to a portable grep/sed extraction.
-    if command -v jq >/dev/null 2>&1; then
-        printf '%s' "$1" | jq -r '.active_scene.location_name // empty'
-    else
-        printf '%s' "$1" \
-            | tr -d '\n' \
-            | sed -n 's/.*"active_scene"[^}]*"location_name":"\([^"]*\)".*/\1/p'
-    fi
+    printf '%s' "$1" | jq -r '.active_scene.location_name // empty'
 }
 
 # ── Init ──────────────────────────────────────────────────────────────────────

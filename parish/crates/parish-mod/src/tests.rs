@@ -310,6 +310,47 @@ fn test_check_festival() {
     assert!(gm.check_festival(12, 25).is_none());
 }
 
+/// #1366 §7 — a manifest without `schema_version` defaults to 1 so every
+/// pre-versioning mod keeps loading unchanged.
+#[test]
+fn test_schema_version_defaults_to_one_when_absent() {
+    let tmp = create_test_mod();
+    let gm = GameMod::load(tmp.path()).unwrap();
+    assert_eq!(gm.manifest.schema_version, 1);
+}
+
+/// #1366 §7 — an explicit, supported `schema_version` parses and loads.
+#[test]
+fn test_schema_version_explicit_supported_value_loads() {
+    let tmp = create_test_mod();
+    let manifest = fs::read_to_string(tmp.path().join("mod.toml")).unwrap();
+    fs::write(
+        tmp.path().join("mod.toml"),
+        format!("schema_version = 1\n{manifest}"),
+    )
+    .unwrap();
+    let gm = GameMod::load(tmp.path()).unwrap();
+    assert_eq!(gm.manifest.schema_version, 1);
+}
+
+/// #1366 §7 — a mod authored against a future schema is rejected with an
+/// actionable message, not half-parsed.
+#[test]
+fn test_schema_version_future_value_is_rejected() {
+    let tmp = create_test_mod();
+    let manifest = fs::read_to_string(tmp.path().join("mod.toml")).unwrap();
+    fs::write(
+        tmp.path().join("mod.toml"),
+        format!("schema_version = 2\n{manifest}"),
+    )
+    .unwrap();
+    let err = GameMod::load(tmp.path()).unwrap_err().to_string();
+    assert!(
+        err.contains("schema_version = 2") && err.contains("supports up to 1"),
+        "got: {err}"
+    );
+}
+
 #[test]
 fn test_load_nonexistent_dir() {
     let result = GameMod::load(Path::new("/tmp/nonexistent_parish_mod_dir_12345"));

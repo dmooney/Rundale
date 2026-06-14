@@ -137,7 +137,7 @@ impl GameMod {
         let manifest_text = std::fs::read_to_string(&manifest_path).map_err(|e| {
             ParishError::Config(format!("failed to read {}: {e}", manifest_path.display()))
         })?;
-        let manifest: ModManifest = toml::from_str(&manifest_text).map_err(|e| {
+        let manifest = ModManifest::from_toml_str(&manifest_text).map_err(|e| {
             ParishError::Config(format!("failed to parse {}: {e}", manifest_path.display()))
         })?;
 
