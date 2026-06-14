@@ -38,6 +38,19 @@ pub struct ConversationRuntimeState {
     /// (#1331). `None` until the player submits their first input. Runtime-only
     /// — never persisted to save state.
     pub last_player_input: Option<String>,
+    /// Normalized first-sentence openers already shown to the player at the
+    /// current location, across all turns (#1492 — cross-NPC opener de-dup).
+    ///
+    /// Populated by [`handle_npc_conversation`] from every NPC reply emitted
+    /// at the current location. Cleared when the player moves (via
+    /// [`Self::sync_location`]). Used to extend the same opener dedup that
+    /// previously only worked within a single multi-NPC turn to also cover
+    /// sequential single-NPC turns — catching "What brings ye to these parts?"
+    /// repeated across 4+ separate conversations at the same location.
+    ///
+    /// Capped at 32 entries so it cannot grow unboundedly during a long stay at
+    /// one location.
+    pub seen_openers_this_location: Vec<String>,
 }
 
 impl Default for ConversationRuntimeState {
@@ -57,6 +70,7 @@ impl ConversationRuntimeState {
             last_spoken_at: now,
             conversation_in_progress: false,
             last_player_input: None,
+            seen_openers_this_location: Vec::new(),
         }
     }
 
@@ -97,12 +111,29 @@ impl ConversationRuntimeState {
         }
     }
 
-    /// Clears the transcript when the player moves to a new location.
+    /// Clears the transcript and seen-opener set when the player moves to a new
+    /// location (#1492).
     pub fn sync_location(&mut self, location: LocationId) {
         if self.location != Some(location) {
             self.location = Some(location);
             self.transcript.clear();
+            self.seen_openers_this_location.clear();
         }
+    }
+
+    /// Records a normalized NPC opener shown to the player at the current
+    /// location, for cross-turn cross-NPC opener de-duplication (#1492).
+    ///
+    /// Ignores empty strings. Caps the set at 32 entries (oldest evicted) so
+    /// long stays at one location do not grow it unboundedly.
+    pub fn record_opener(&mut self, opener: String) {
+        if opener.is_empty() {
+            return;
+        }
+        if self.seen_openers_this_location.len() >= 32 {
+            self.seen_openers_this_location.remove(0);
+        }
+        self.seen_openers_this_location.push(opener);
     }
 
     /// Appends a line to the local transcript, trimming blank lines and
