@@ -221,6 +221,9 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     //    (e.g. "push", "pull", "take") are intentionally omitted and left to
     //    the LLM so they can be resolved by context.
     //  • Multi-word prefixes are listed first for longest-match semantics.
+    //  • Compound actions ("kneel … and say a prayer") are caught by the bare
+    //    verb prefix — the "and say/pray" clause becomes part of the target.
+    //    (#1461)
     let interact_prefixes: &[&str] = &[
         // Multi-word (longest first)
         "pick up ",
@@ -243,7 +246,6 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "pump a ",
         "dig a ",
         "dig the ",
-        "kneel ",
         "kneel at ",
         "kneel before ",
         "wash the ",
@@ -254,8 +256,74 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "place a ",
         "drop the ",
         "drop a ",
+        // Broader action verbs (#1461) — real-world rural tasks that the
+        // LLM or a player may type.  These are unambiguously physical-action
+        // imperatives in the Rundale context; none overlap with move_verbs.
+        "draw a ",
+        "draw the ",
+        "draw your ",
+        "fetch a ",
+        "fetch the ",
+        "gather a ",
+        "gather the ",
+        "gather some ",
+        "gather up ",
+        "cut a ",
+        "cut the ",
+        "cut some ",
+        "sweep the ",
+        "sweep a ",
+        "scrub the ",
+        "scrub a ",
+        "stack the ",
+        "stack a ",
+        "mend the ",
+        "mend a ",
+        "mend your ",
+        "feed the ",
+        "feed a ",
+        "milk the ",
+        "milk a ",
+        "knead the ",
+        "knead a ",
+        "bless the ",
+        "bless a ",
+        "bless this ",
+        "splash the ",
+        "splash a ",
+        "splash some ",
+        "drink from ",
+        "drink the ",
+        "drink a ",
+        "open the ",
+        "open a ",
+        "close the ",
+        "close a ",
+        "lower the ",
+        "lower a ",
+        "raise the ",
+        "raise a ",
+        "stoke the ",
+        "stoke a ",
+        "tend the ",
+        "tend to ",
+        "tend a ",
+        "rake the ",
+        "rake a ",
+        "sow the ",
+        "sow a ",
+        "plant a ",
+        "plant the ",
+        "tie up ",
+        "tie off ",
+        "loop the ",
+        "loop a ",
+        "kneel and ",
         // Single-word (these do not appear in move_verbs or move_phrases)
         "pump ",
+        "draw ",
+        "fetch ",
+        "gather ",
         "kneel",
     ];
     for prefix in interact_prefixes {
@@ -313,6 +381,110 @@ pub fn is_player_dialogue(raw_input: &str) -> bool {
         // dialogue (speech bubble + reactions), as the pre-#1351 path did.
         None => true,
     }
+}
+
+/// Returns `true` when `raw_input` is shaped like an imperative physical action
+/// that the local parser (and possibly the LLM) may have missed, but which
+/// should never silently vanish from the player's perspective.
+///
+/// Used as a last-resort dispatch guard (#1461): when the LLM returns
+/// `IntentKind::Unknown` for input that is *not* conversational (no first-person
+/// pronoun, no greeting, no question mark), the caller falls through to this
+/// predicate and, if `true`, narrates the action rather than routing silently to
+/// NPC conversation or dropping the turn entirely.
+///
+/// This is deliberately conservative: it only fires when the input starts with an
+/// obvious action verb and is not already classified by [`parse_intent_local`]
+/// (which handles the deterministic fast path).  Greetings, questions, and
+/// first-person narratives are excluded by the checks below.
+pub fn is_physical_action_shaped(raw_input: &str) -> bool {
+    let lower = raw_input.trim().to_lowercase();
+    if lower.is_empty() {
+        return false;
+    }
+
+    // Exclude first-person narratives — these are dialogue, not actions.
+    let first_person = ["i ", "i'm ", "i've ", "i'd ", "i'll ", "i was ", "i am "];
+    if first_person.iter().any(|p| lower.starts_with(p)) || lower == "i" {
+        return false;
+    }
+
+    // Exclude questions and exclamations.
+    if lower.ends_with('?') || lower.ends_with('!') {
+        return false;
+    }
+
+    // Exclude common greeting/dialogue openers that are definitely speech.
+    let dialogue_openers = [
+        "hello",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "good night",
+        "good day",
+        "how ",
+        "what ",
+        "why ",
+        "when ",
+        "where ",
+        "who ",
+        "which ",
+        "tell ",
+        "ask ",
+        "say ",
+        "speak ",
+        "talk ",
+        "greet ",
+        "thank ",
+        "please ",
+        "yes",
+        "no ",
+        "aye",
+        "nay",
+        "right",
+        "indeed",
+    ];
+    if dialogue_openers
+        .iter()
+        .any(|p| lower.starts_with(p) || lower == p.trim())
+    {
+        return false;
+    }
+
+    // Exclude inputs whose first word is a modal/auxiliary verb or a speech
+    // verb — these are conversational openers, not physical actions.
+    //
+    // Examples: "could you help me", "would ye know", "have you seen Mary",
+    // "can you see this", "whisper to him", "shout at the crowd".
+    //
+    // Without this guard such inputs pass the checks above (≥3-char first
+    // word, space present, no "?") and are incorrectly narrated as actions,
+    // producing "You could you help me." etc.
+    let first_word = lower.split_whitespace().next().unwrap_or("");
+    let modal_and_speech_verbs: &[&str] = &[
+        // Modal / auxiliary verbs
+        "could", "can", "would", "will", "shall", "should", "may", "might", "do", "does", "did",
+        "have", "has", "had", "is", "are", "was", "were", "am",
+        // Speech verbs (imperative form that implies directing speech)
+        "whisper", "shout", "call", "reply", "answer",
+    ];
+    if modal_and_speech_verbs.contains(&first_word) {
+        return false;
+    }
+
+    // Require that the input starts with what looks like an action verb:
+    // a single word followed by a space (imperative) or ending at the string.
+    // The first word must be reasonably long (≥3 chars) to filter bare
+    // one/two-letter commands or filler words.
+    // (`first_word` is already computed above for the modal/speech-verb check.)
+    if first_word.len() < 3 {
+        return false;
+    }
+
+    // Input must contain a space (i.e. verb + object), OR be a known bare
+    // action verb, to qualify.  Bare single-word inputs like "look" or "l"
+    // are handled by parse_intent_local; we don't want to catch them here.
+    lower.contains(' ')
 }
 
 /// Shared helper: checks if `lower` starts with any prefix in `prefixes`,
@@ -861,6 +1033,216 @@ mod tests {
         assert_eq!(intent.intent, IntentKind::Talk);
         let intent = parse_intent_local("I shall think on that").unwrap();
         assert_eq!(intent.intent, IntentKind::Talk);
+    }
+
+    // ── Broader interact verbs (#1461) ───────────────────────────────────────
+
+    /// AC-1 / AC-8 (#1461): newly added action verbs all parse as Interact.
+    ///
+    /// "draw a bucket of water" was the primary repro in #1461 — it produced
+    /// no narration because "draw" was not in `interact_prefixes`.
+    #[test]
+    fn test_local_parse_interact_broader_verbs() {
+        // Primary #1461 repro.
+        let intent =
+            parse_intent_local("draw a bucket of water from the well and take a long drink")
+                .unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Other draw forms.
+        let intent = parse_intent_local("draw the water from the well").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Fetch.
+        let intent = parse_intent_local("fetch a bucket of water").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        let intent = parse_intent_local("fetch the milk pail").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Gather.
+        let intent = parse_intent_local("gather some turf from the stack").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        let intent = parse_intent_local("gather the kindling").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Cut.
+        let intent = parse_intent_local("cut the turf into blocks").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Sweep.
+        let intent = parse_intent_local("sweep the hearth clear of ash").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Scrub.
+        let intent = parse_intent_local("scrub the pot with sand").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Mend.
+        let intent = parse_intent_local("mend the fence post").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Feed.
+        let intent = parse_intent_local("feed the chickens").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Milk.
+        let intent = parse_intent_local("milk the cow").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Knead.
+        let intent = parse_intent_local("knead the bread dough").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Bless.
+        let intent = parse_intent_local("bless the water in the font").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Drink.
+        let intent = parse_intent_local("drink from the well").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        let intent = parse_intent_local("drink the water").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Open / close.
+        let intent = parse_intent_local("open the gate").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        let intent = parse_intent_local("close the door").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Stoke.
+        let intent = parse_intent_local("stoke the fire").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Tend.
+        let intent = parse_intent_local("tend the fire").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        let intent = parse_intent_local("tend to the garden").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+    }
+
+    /// AC-2 (#1461): compound "physical verb + and say/pray" actions classify
+    /// as Interact, not dialogue.
+    ///
+    /// "kneel by the well and say a quiet prayer" was reported as routing to
+    /// DIALOGUE because the trailing "say a prayer" clause tipped the LLM.
+    /// The local parser must catch this via the "kneel " prefix before the
+    /// LLM is invoked.
+    #[test]
+    fn test_local_parse_interact_compound_physical_and_pray() {
+        // Primary #1461 repro.
+        let intent = parse_intent_local("kneel by the well and say a quiet prayer").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert!(
+            intent.dialogue.is_none(),
+            "compound action must not set dialogue field"
+        );
+
+        // Other compound forms.
+        let intent = parse_intent_local("kneel and pray").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        let intent = parse_intent_local("kneel before the cross and bow your head").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // "draw a bucket... and take a long drink" — the second repro.
+        let intent =
+            parse_intent_local("draw a bucket of water from the well and take a long drink")
+                .unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+    }
+
+    /// AC-4 / AC-5 (#1461) — regressions must not fire.
+    #[test]
+    fn test_local_parse_interact_1461_regressions() {
+        // Greeting stays None (not Interact).
+        assert!(
+            parse_intent_local("hello there").is_none(),
+            "greeting must not classify as Interact"
+        );
+        assert!(
+            parse_intent_local("good morning, Father").is_none(),
+            "greeting must not classify as Interact"
+        );
+
+        // Movement stays Move.
+        let intent = parse_intent_local("go to the forge").unwrap();
+        assert_eq!(
+            intent.intent,
+            IntentKind::Move,
+            "'go to the forge' must be Move, not Interact"
+        );
+
+        // First-person narrative stays Talk.
+        let intent = parse_intent_local("I drew some water earlier").unwrap();
+        assert_eq!(
+            intent.intent,
+            IntentKind::Talk,
+            "first-person narrative must be Talk, not Interact"
+        );
+    }
+
+    // ── is_physical_action_shaped (#1461) ────────────────────────────────────
+
+    /// is_physical_action_shaped must accept imperative physical actions.
+    #[test]
+    fn physical_action_shaped_accepts_imperatives() {
+        // The #1461 repros.
+        assert!(is_physical_action_shaped(
+            "draw a bucket of water from the well and take a long drink"
+        ));
+        assert!(is_physical_action_shaped(
+            "kneel by the well and say a quiet prayer"
+        ));
+        // Other action-shaped inputs.
+        assert!(is_physical_action_shaped("splash water on your face"));
+        assert!(is_physical_action_shaped("stack the peat against the wall"));
+        assert!(is_physical_action_shaped("rake the embers in the hearth"));
+    }
+
+    /// is_physical_action_shaped must reject greetings, questions, and
+    /// first-person narratives.
+    #[test]
+    fn physical_action_shaped_rejects_dialogue_and_questions() {
+        // Greetings.
+        assert!(!is_physical_action_shaped("hello there"));
+        assert!(!is_physical_action_shaped("good morning, Father"));
+        // Questions.
+        assert!(!is_physical_action_shaped("how is the harvest going?"));
+        assert!(!is_physical_action_shaped("where is the mill?"));
+        // First-person narratives.
+        assert!(!is_physical_action_shaped("I drew some water earlier"));
+        assert!(!is_physical_action_shaped("I'm not from around here"));
+        // Bare single-word (no space — must be handled by parse_intent_local, not here).
+        assert!(!is_physical_action_shaped("look"));
+    }
+
+    /// is_physical_action_shaped must reject conversational inputs that start
+    /// with modal/auxiliary verbs or speech verbs (#1463 Thread 2 regression).
+    ///
+    /// Without this guard they would pass the ≥3-char / space / no-"?" checks
+    /// and be narrated as "You could you help me." etc.
+    #[test]
+    fn physical_action_shaped_rejects_modal_and_speech_verb_openers() {
+        // Modal / auxiliary verb openers.
+        assert!(!is_physical_action_shaped("could you help me"));
+        assert!(!is_physical_action_shaped("would ye know the way"));
+        assert!(!is_physical_action_shaped("can you see this"));
+        assert!(!is_physical_action_shaped("should I go now"));
+        assert!(!is_physical_action_shaped("will you come with me"));
+        assert!(!is_physical_action_shaped("have you seen Mary"));
+        assert!(!is_physical_action_shaped("has she gone already"));
+        assert!(!is_physical_action_shaped("did ye hear the news"));
+        assert!(!is_physical_action_shaped("do you know the priest"));
+        assert!(!is_physical_action_shaped("are you from hereabouts"));
+        assert!(!is_physical_action_shaped("is there any work today"));
+        assert!(!is_physical_action_shaped("was it a hard winter"));
+        // Speech verb openers.
+        assert!(!is_physical_action_shaped("whisper to him quietly"));
+        assert!(!is_physical_action_shaped("shout at the crowd"));
+        // Existing positive cases must still pass (regression guard).
+        assert!(is_physical_action_shaped("draw a bucket of water"));
+        assert!(is_physical_action_shaped("stack the peat against the wall"));
+        assert!(is_physical_action_shaped("splash water on your face"));
     }
 
     // ── Examine patterns ──────────────────────────────────────────────────────
