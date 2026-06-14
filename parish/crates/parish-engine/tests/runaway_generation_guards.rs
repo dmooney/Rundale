@@ -281,11 +281,11 @@ fn real_loop_real_npc_description_not_denied() {
     );
 
     // The good reply should have reached the player (or a truncated version of it).
-    // At minimum the NPC's name must appear (the guard didn't suppress it).
-    // We allow for the cap to have trimmed the reply, so check the name appears.
-    let other_first = other_name.split_whitespace().next().unwrap_or(&other_name);
+    // The mock reply opens with the full name, so it survives any word-cap; assert
+    // on the FULL name (not just the first name, which could be a common word like
+    // "Father" or "Mary") to avoid a false positive (gemini review #1500).
     assert!(
-        joined.contains(other_first),
+        joined.contains(&other_name),
         "the real NPC's name must survive in the player-visible output (#1488); \
          got: {joined:?}"
     );
