@@ -443,13 +443,11 @@ pub async fn run_npc_turn(
     // Run BEFORE `apply_npc_dialogue_turn` so the `DialogueOccurred` event
     // and conversation log carry the deduped text, not the raw opener.
     if anti_repetition_enabled && !parsed.dialogue.trim().is_empty() {
-        let seen_openers: Vec<String> = ctx
-            .conversation
-            .lock()
-            .await
-            .seen_openers_this_location
-            .clone();
-        let deduped = crate::npc::dedupe_cross_npc_openers(&seen_openers, &parsed.dialogue);
+        let mut conversation = ctx.conversation.lock().await;
+        let deduped = crate::npc::dedupe_cross_npc_openers(
+            &conversation.seen_openers_this_location,
+            &parsed.dialogue,
+        );
         if deduped != parsed.dialogue {
             tracing::debug!(
                 npc = %display_label,
@@ -459,7 +457,7 @@ pub async fn run_npc_turn(
         // Record the opener actually shown to the player.
         let shown_opener = crate::npc::extract_normalized_opener(&deduped);
         if !shown_opener.is_empty() {
-            ctx.conversation.lock().await.record_opener(shown_opener);
+            conversation.record_opener(shown_opener);
         }
         parsed.dialogue = deduped;
     }

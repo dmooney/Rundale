@@ -1461,63 +1461,49 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
     // Build a normalized word list for comparison.
     let normed: Vec<String> = words.iter().map(|w| normalize_for_repetition(w)).collect();
 
-    // Work on the dialogue as bytes so we can perform precise in-place surgery.
-    // We find the byte range of the second occurrence and remove it (plus
-    // any immediately preceding comma/space).
-    //
+    // Pre-compute byte offsets of each whitespace-separated token in the
+    // original string once, so we don't redo the scan inside the inner loop.
+    // token_starts[k] / token_ends[k] correspond to words[k].
+    let mut token_starts: Vec<usize> = Vec::with_capacity(n);
+    let mut token_ends: Vec<usize> = Vec::with_capacity(n);
+    {
+        let mut in_word = false;
+        for (byte_idx, ch) in dialogue.char_indices() {
+            if ch.is_whitespace() {
+                if in_word {
+                    token_ends.push(byte_idx);
+                    in_word = false;
+                }
+            } else if !in_word {
+                token_starts.push(byte_idx);
+                in_word = true;
+            }
+        }
+        if in_word {
+            token_ends.push(dialogue.len());
+        }
+    }
+
+    // If the scan produced a different token count than split_whitespace (e.g.
+    // due to unusual Unicode whitespace), fall back to returning unchanged.
+    if token_starts.len() != n || token_ends.len() != n {
+        return dialogue.to_string();
+    }
+
     // Strategy: for each n-gram width (largest first for richest context),
     // scan for a position `i` such that words[i..i+width] == words[i+width..i+2*width]
     // after normalization. When found, calculate the byte span of the second
     // occurrence in the original string and remove it.
+    //
+    // Since we split on whitespace and kept punctuation attached to words,
+    // "tell me, tell me" tokenises as ["tell", "me,", "tell", "me"] — positions
+    // 0..2 and 2..4 are directly adjacent, which is exactly the consecutive case.
     'width: for width in (MIN_WIDTH..=MAX_WIDTH).rev() {
         if width * 2 > n {
             continue;
         }
         for i in 0..=(n - width * 2) {
-            // Check that words[i..i+width] == words[i+width..i+2*width].
             if normed[i..i + width] == normed[i + width..i + 2 * width] {
-                // The two occurrences are adjacent in the word sequence, but there
-                // may be punctuation/whitespace between the last word of the first
-                // occurrence and the first word of the second. We verify this by
-                // checking that no OTHER word tokens exist between them (i.e. the
-                // gap contains only non-word content).
-                //
-                // Since we split on whitespace and kept punctuation attached to
-                // words, "tell me, tell me" tokenises as ["tell", "me,", "tell",
-                // "me"] — positions 0..2 and 2..4 are directly adjacent in the
-                // word list, which is exactly the consecutive case.
-                //
-                // Locate the byte range of the SECOND occurrence in the original
-                // dialogue string by finding the start of word[i+width] and the
-                // end of word[i+width*2-1].
-                //
-                // We use a character-scanning approach: walk through the original
-                // string, count whitespace-separated tokens, and record byte offsets.
-                let mut token_starts: Vec<usize> = Vec::with_capacity(n);
-                let mut token_ends: Vec<usize> = Vec::with_capacity(n);
-                {
-                    let mut in_word = false;
-                    for (byte_idx, ch) in dialogue.char_indices() {
-                        if ch.is_whitespace() {
-                            if in_word {
-                                token_ends.push(byte_idx);
-                                in_word = false;
-                            }
-                        } else if !in_word {
-                            token_starts.push(byte_idx);
-                            in_word = true;
-                        }
-                    }
-                    if in_word {
-                        token_ends.push(dialogue.len());
-                    }
-                }
-
-                // Safety: token_starts/token_ends must cover all word positions.
-                if token_starts.len() != n || token_ends.len() != n {
-                    continue;
-                }
-
                 // Byte range of the second occurrence: from the start of
                 // word[i+width] back to include any leading comma/space, to
                 // the end of word[i+2*width-1].

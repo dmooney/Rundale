@@ -130,7 +130,15 @@ impl ConversationRuntimeState {
         if opener.is_empty() {
             return;
         }
-        if self.seen_openers_this_location.len() >= 32 {
+        if let Some(pos) = self
+            .seen_openers_this_location
+            .iter()
+            .position(|x| x == &opener)
+        {
+            // Already present — move to back (LRU refresh) so the eviction order
+            // reflects recency rather than first-seen, and no duplicate is added.
+            self.seen_openers_this_location.remove(pos);
+        } else if self.seen_openers_this_location.len() >= 32 {
             self.seen_openers_this_location.remove(0);
         }
         self.seen_openers_this_location.push(opener);
