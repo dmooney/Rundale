@@ -335,18 +335,28 @@ pub async fn run_npc_turn(
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
 
-    // Post-generation person-confirmation guard (#1459): detect when the NPC's
-    // reply affirmatively confirms a fabricated person from the player's input
-    // who is not in the known-roster, and replace with a stock decline.
+    // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
+    // when the NPC's reply affirmatively confirms a fabricated person from the
+    // player's input (or an earlier turn) who is not in the known-roster, and
+    // replace with a stock decline.
     // Runs before the logging/quality-check block so the guarded text is what
     // gets logged and forwarded to the shared pipeline.
     if person_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let guard_seed =
             speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        // Extract prior player-speaker lines from the conversation transcript so
+        // the pronoun follow-up guard (#1470 gap 2) can detect fabricated
+        // referents established in earlier turns.
+        let prior_player_inputs: Vec<&str> = transcript
+            .iter()
+            .filter(|line| line.speaker == "You")
+            .map(|line| line.text.as_str())
+            .collect();
         let guarded = crate::npc::guard_fabricated_person_confirmation(
             &parsed.dialogue,
             prompt_input,
             &setup.known_person_names,
+            &prior_player_inputs,
             None,
             guard_seed,
         );
