@@ -524,6 +524,21 @@ pub fn guard_fabricated_person_confirmation(
     // roster. We record these so that if the NPC affirms "Cormac" alone we can
     // still decline, because the player explicitly tied "Cormac" to a
     // fabricated surname in this very exchange.
+    //
+    // Ambiguous-but-real exclusion: if the player mentioned BOTH a fabricated
+    // full name ("Cormac Sweeney") AND a real roster full name that shares the
+    // same first name ("Cormac Duffy"), the first name is ambiguous in this
+    // exchange — do NOT add it to the set. An NPC affirming "Cormac Duffy" in
+    // that context is a legitimate real-person reference (#1466 T1).
+    //
+    // First, collect the real roster full names that the player mentioned.
+    let player_mentioned_real_full_names: Vec<String> = candidates
+        .iter()
+        .filter(|candidate| name_in_roster(candidate, known_person_names, player_name))
+        .filter(|candidate| candidate.split_whitespace().count() >= 2)
+        .cloned()
+        .collect();
+
     let fabricated_full_name_first_names: Vec<String> = candidates
         .iter()
         .filter(|candidate| {
@@ -540,6 +555,20 @@ pub fn guard_fabricated_person_confirmation(
                 .split_whitespace()
                 .next()
                 .map(|first| first.to_string())
+        })
+        // Ambiguous-but-real: exclude first names shared with a real roster
+        // full name that the player ALSO mentioned in this exchange. If the
+        // player only mentioned the fabricated name, the first name is
+        // unambiguous and is kept in the set (guard fires normally).
+        .filter(|first| {
+            let first_lower = first.to_lowercase();
+            !player_mentioned_real_full_names.iter().any(|real_name| {
+                real_name
+                    .split_whitespace()
+                    .next()
+                    .map(|r| r.to_lowercase() == first_lower)
+                    .unwrap_or(false)
+            })
         })
         .collect();
 
@@ -560,8 +589,32 @@ pub fn guard_fabricated_person_confirmation(
     // First-name conflation check (#1466): if the player named a fabricated
     // full name AND the NPC affirms by that first name alone, also decline.
     // Only runs when there are fabricated full names in this exchange.
+    //
+    // Real-roster escape hatch: if the dialogue affirms the first name but the
+    // affirmation is accompanied by a real roster full name that begins with
+    // that first name (e.g. dialogue contains "Cormac Duffy" and roster has
+    // "Cormac Duffy"), the NPC is talking about a real person — do NOT decline.
+    let dialogue_lower = dialogue.to_lowercase();
     for first_name in &fabricated_full_name_first_names {
         if dialogue_affirms_name(dialogue, first_name) {
+            // Check if the dialogue resolves the first name to a real roster entry.
+            let first_lower = first_name.to_lowercase();
+            let resolves_to_real = known_person_names.iter().any(|roster_name| {
+                let roster_lower = roster_name.to_lowercase();
+                // Roster entry starts with this first name.
+                roster_lower
+                    .split_whitespace()
+                    .next()
+                    .map(|r| r == first_lower.as_str())
+                    .unwrap_or(false)
+                    // And the full real roster name appears in the dialogue.
+                    && dialogue_lower.contains(roster_lower.as_str())
+            });
+            if resolves_to_real {
+                // The NPC is affirming a real roster member that shares this first
+                // name — legitimate reference, do not suppress.
+                continue;
+            }
             tracing::warn!(
                 fabricated_first_name = %first_name,
                 "person-confirmation guard fired: NPC affirmed by first name only for player-named fabricated full name (#1466)"
@@ -1164,6 +1217,24 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "casual first-name query about a real roster member should not trigger guard: {result:?}"
+        );
+    }
+
+    #[test]
+    fn firstname_affirmation_of_real_person_with_fabricated_same_first_name_passes() {
+        // Thread 1 false-positive fix (#1466 T1): player input mentions BOTH a
+        // fabricated full name ("Cormac Sweeney") AND a real roster member
+        // ("Cormac Duffy"). NPC dialogue affirms the REAL roster name in full:
+        // "Cormac Duffy works the mill". The guard must NOT fire — the NPC is
+        // talking about a real person, not confirming the fabricated one.
+        let dialogue = "Aye, Cormac Duffy works the mill, right enough. A reliable man.";
+        let player_input = "I'm looking for Cormac Sweeney but have you seen Cormac Duffy today?";
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "NPC affirming real roster member 'Cormac Duffy' in full should not be suppressed \
+             even when fabricated 'Cormac Sweeney' shares the first name: {result:?}"
         );
     }
 
