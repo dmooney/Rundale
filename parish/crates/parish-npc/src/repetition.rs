@@ -423,7 +423,18 @@ fn extract_candidate_names(player_input: &str) -> Vec<String> {
 }
 
 /// Checks whether a candidate name matches any entry in the known roster
-/// (full name or first-name-only match, case-insensitive).
+/// (case-insensitive).
+///
+/// Matching rules:
+/// - **Full-name candidate** (2+ tokens, e.g. "Cormac Sweeney"): requires an
+///   exact full-name match against a roster entry ("Cormac Sweeney" must appear
+///   verbatim in the roster). A shared first name with a *different* surname
+///   (e.g. roster has "Cormac Duffy") does NOT constitute a match — the
+///   candidate is treated as fabricated and the guard fires.
+/// - **First-name-only candidate** (single token, e.g. "Cormac"): a first-name
+///   match against any roster entry is legitimate — the player is referring to a
+///   known person by first name only. Match is allowed.
+/// - Player's own name always passes through (not flagged as fabricated).
 fn name_in_roster(
     candidate: &str,
     known_person_names: &[String],
@@ -436,23 +447,27 @@ fn name_in_roster(
         return true;
     }
 
-    // First word of candidate (first name only)
-    let first = lower.split_whitespace().next().unwrap_or("");
+    let tokens: Vec<&str> = lower.split_whitespace().collect();
+    let candidate_is_full_name = tokens.len() >= 2;
 
     for roster_name in known_person_names {
         let roster_lower = roster_name.to_lowercase();
+
+        // Exact full-name match always passes through.
         if roster_lower == lower {
             return true;
         }
-        // Roster first-name match (e.g. "Cormac" matches "Cormac Duffy")
-        if roster_lower.split_whitespace().next().unwrap_or("") == first {
-            return true;
+
+        // First-name-only candidate: allow a first-name match against any roster entry.
+        // "Cormac" (single token) vs roster "Cormac Duffy" → match (casual reference).
+        if !candidate_is_full_name {
+            let candidate_first = tokens.first().copied().unwrap_or("");
+            if roster_lower.split_whitespace().next().unwrap_or("") == candidate_first {
+                return true;
+            }
         }
-        // Candidate first-name matches roster full name (e.g. candidate "Cormac Sweeney",
-        // roster "Cormac Duffy" — first names match, so the PLAYER is referring to the
-        // same first-name but with a fabricated surname. We treat this as NOT in roster
-        // because the full-name differs: only exact full-name or first-name-only roster
-        // match clears it.
+        // Full-name candidate: only exact match clears it (handled above).
+        // "Cormac Sweeney" vs roster "Cormac Duffy" → no match → guard fires.
     }
     false
 }
@@ -1012,6 +1027,43 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "player's own name should not trigger guard: {result:?}"
+        );
+    }
+
+    #[test]
+    fn fabricated_surname_with_real_first_name_is_declined() {
+        // Regression (#1459): roster contains "Cormac Duffy"; player asks about
+        // "Cormac Sweeney" (fabricated surname, shared first name). The guard must
+        // fire — a first-name match alone is NOT sufficient when the candidate
+        // carries a surname.
+        let dialogue = "Aye, I know Cormac Sweeney well. He is a fine man.";
+        let player_input = "Do you know Cormac Sweeney?";
+        let known: Vec<String> = vec!["Cormac Duffy".into(), "Brigid Connolly".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert!(
+            !result.to_lowercase().contains("aye, i know cormac sweeney"),
+            "guard should have fired and replaced fabricated-person confirmation: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    #[test]
+    fn first_name_only_real_person_passes_through() {
+        // A player referring to a roster member by first name only is legitimate —
+        // "Cormac" (single token) vs roster ["Cormac Duffy"] should pass through.
+        let dialogue = "Aye, Cormac is a good man indeed. I see him at the mill most days.";
+        let player_input = "Do you know Cormac?";
+        let known: Vec<String> = vec!["Cormac Duffy".into()];
+        let result = guard_fabricated_person_confirmation(dialogue, player_input, &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "first-name-only reference to a roster member should not trigger guard: {result:?}"
         );
     }
 
