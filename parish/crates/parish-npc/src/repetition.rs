@@ -456,15 +456,35 @@ fn dialogue_affirms_via_pronoun(dialogue: &str) -> bool {
     false
 }
 
-/// Returns `true` when the dialogue contains the given first name in combination
-/// with a pronoun-affirmation marker, with no denial marker present. Used for the
-/// indirect / appositive first-name check (#1470 gap 1): catches "he's out, the
-/// lad Cormac" where "Cormac" appears in appositive position after a pronoun
-/// affirmation ("he's out"), so the standard affirmation-marker-collocated check
-/// misses it.
+/// Returns `true` when `name` appears as a standalone word (not as a substring
+/// of a larger word) in `text`. Matching is case-insensitive. Each word in
+/// `text` is stripped of surrounding non-alphabetic characters before comparison
+/// so that punctuation-attached occurrences ("Al," "Al's") are still found, but
+/// accidental substring matches ("Al" inside "shall" or "talk") are not.
+///
+/// Example: `name="Al"` matches "Aye, Al's at the mill" but NOT "Ye shall talk".
+fn text_contains_name_as_word(text: &str, name: &str) -> bool {
+    let name_lower = name.to_lowercase();
+    for token in text.split_whitespace() {
+        // Strip leading/trailing non-alphabetic chars (punctuation, quotes, etc.)
+        let stripped = token.trim_matches(|c: char| !c.is_alphabetic());
+        if stripped.to_lowercase() == name_lower {
+            return true;
+        }
+    }
+    false
+}
+
+/// Returns `true` when the dialogue contains the given first name as a whole word
+/// (not a substring of another word) in combination with a pronoun-affirmation
+/// marker, with no denial marker present. Used for the indirect / appositive
+/// first-name check (#1470 gap 1): catches "he's out, the lad Cormac" where
+/// "Cormac" appears in appositive position after a pronoun affirmation ("he's
+/// out"), so the standard affirmation-marker-collocated check misses it.
 ///
 /// Fires only when BOTH conditions hold:
-///   1. The first name appears anywhere in the dialogue.
+///   1. The first name appears as a whole word in the dialogue (word-boundary
+///      match — prevents short names like "Al" from falsely matching "shall").
 ///   2. The dialogue contains a pronoun-affirmation marker (from
 ///      `dialogue_affirms_via_pronoun`), confirming the referent is a person
 ///      being located/confirmed rather than merely questioned.
@@ -472,13 +492,13 @@ fn dialogue_affirms_via_pronoun(dialogue: &str) -> bool {
 /// Only used when the caller already established that the first name belongs to a
 /// player-named fabricated full name — do not call for arbitrary first names.
 fn dialogue_contains_name_with_pronoun_affirmation(dialogue: &str, name: &str) -> bool {
-    let lower = dialogue.to_lowercase();
-    let name_lower = name.to_lowercase();
-
-    if !lower.contains(&name_lower) {
+    // Word-boundary check: name must appear as a standalone token, not as a
+    // substring of another word (e.g. "Al" must not match "shall" or "talk").
+    if !text_contains_name_as_word(dialogue, name) {
         return false;
     }
 
+    let lower = dialogue.to_lowercase();
     for marker in DENIAL_MARKERS {
         if lower.contains(marker) {
             return false;
@@ -796,10 +816,17 @@ pub fn guard_fabricated_person_confirmation(
     });
 
     if !current_turn_has_fabricated_candidate && !prior_player_inputs.is_empty() {
-        // Collect fabricated full names established in prior player turns.
-        let prior_established_fabricated: Vec<String> = prior_player_inputs
+        // Pre-extract candidate names from each prior input exactly once to avoid
+        // O(N²) re-parsing inside the ambiguity filter below.
+        let prior_candidates_per_input: Vec<Vec<String>> = prior_player_inputs
             .iter()
-            .flat_map(|prior| extract_candidate_names(prior))
+            .map(|prior| extract_candidate_names(prior))
+            .collect();
+
+        // Collect fabricated full names established in prior player turns.
+        let prior_established_fabricated: Vec<String> = prior_candidates_per_input
+            .iter()
+            .flat_map(|names| names.iter().cloned())
             .filter(|c| {
                 c.split_whitespace().count() >= 2
                     && !name_in_roster(c, known_person_names, player_name)
@@ -812,19 +839,20 @@ pub fn guard_fabricated_person_confirmation(
                     .next()
                     .map(|w| w.to_lowercase())
                     .unwrap_or_default();
-                // Find which prior input(s) mentioned this fabricated name.
-                let prior_that_named_it: Vec<&&str> = prior_player_inputs
+                // Find which prior input(s) mentioned this fabricated name (using
+                // the pre-extracted sets — no re-parsing).
+                let prior_that_named_it: Vec<&Vec<String>> = prior_candidates_per_input
                     .iter()
-                    .filter(|prior| {
-                        extract_candidate_names(prior)
+                    .filter(|names| {
+                        names
                             .iter()
                             .any(|c| c.to_lowercase() == fabricated.to_lowercase())
                     })
                     .collect();
                 // For each such prior input, check whether it ALSO named a real
                 // roster full name that shares this first name.
-                !prior_that_named_it.iter().any(|prior| {
-                    extract_candidate_names(prior).iter().any(|c| {
+                !prior_that_named_it.iter().any(|names| {
+                    names.iter().any(|c| {
                         c.split_whitespace().count() >= 2
                             && name_in_roster(c, known_person_names, player_name)
                             && c.split_whitespace()
@@ -1549,6 +1577,50 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "pronoun follow-up about a real roster member should not trigger guard: {result:?}"
+        );
+    }
+
+    // ── word-boundary false-positive guard (gemini review thread 1) ─────────
+
+    #[test]
+    fn short_firstname_substring_does_not_trigger_guard() {
+        // Regression: a short first name like "Al" (player "Al Sweeney") must NOT
+        // match when the name appears only as a substring inside other words.
+        // "Ye shall talk to the priest" contains "al" (in "shall") and "al" (in
+        // "talk") as substrings, but NOT the standalone word "Al". The guard must
+        // not fire — no false positive.
+        let dialogue = "Ye shall talk to the priest about it, I reckon.";
+        let player_input = "Where is Al Sweeney?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Roisin Brennan".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must not fire when first name 'Al' appears only as substring of other words \
+             ('shall', 'talk') — no word-boundary match: {result:?}"
+        );
+    }
+
+    #[test]
+    fn short_firstname_as_word_still_triggers_guard() {
+        // Positive case: "Al" appears as a standalone word in appositive position
+        // with a pronoun affirmation marker. Guard must fire.
+        // "Aye, he's out, that Al" — pronoun marker "he's out" + standalone "Al".
+        let dialogue = "Aye, he's out, that Al, gone to the mill I think.";
+        let player_input = "Where is Al Sweeney?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Roisin Brennan".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert!(
+            !result.to_lowercase().contains("he's out, that al"),
+            "guard should have fired on standalone first name 'Al' with pronoun affirmation: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
         );
     }
 
