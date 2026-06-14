@@ -1212,9 +1212,10 @@ pub fn strip_trailing_ellipsis_artifact(dialogue: &str) -> String {
 /// Behavior:
 /// - Splits on terminal punctuation (`.`, `!`, `?`, `…`) using [`split_sentences`].
 /// - Keeps the first `MAX_SENTENCE_COUNT` sentence units.
-/// - If a trailing question is present anywhere within the kept sentences it is
-///   preserved, so the NPC remains interactive (the cap does not strip the only
-///   question in the reply).
+/// - If the ORIGINAL final sentence is a question (ends with `?`) and would be
+///   cut by the cap, it is preserved as the last sentence of the result — keeping
+///   first (N-1) sentences plus the trailing question — so the NPC remains
+///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
 /// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
 ///
 /// The cap is intentionally conservative (4 sentences) — a natural NPC
@@ -1240,7 +1241,19 @@ pub fn cap_sentence_count(dialogue: &str) -> String {
     }
 
     // Keep the first N sentences.
-    let kept: Vec<&str> = sentences[..MAX_SENTENCE_COUNT].to_vec();
+    let mut kept: Vec<&str> = sentences[..MAX_SENTENCE_COUNT].to_vec();
+
+    // If the original reply ends with a question that would be cut, preserve it.
+    // Only do this when the last sentence is genuinely interrogative (ends with '?')
+    // and the already-kept slice does not already end with a question.
+    let original_last = *sentences.last().expect("non-empty checked above");
+    let kept_last = *kept.last().expect("MAX_SENTENCE_COUNT >= 1");
+    if original_last.ends_with('?') && !kept_last.ends_with('?') {
+        // Swap out the Nth sentence for the trailing question so the reply
+        // stays at exactly MAX_SENTENCE_COUNT sentences and ends interactively.
+        *kept.last_mut().expect("non-empty") = original_last;
+    }
+
     kept.join(" ")
 }
 
@@ -2113,6 +2126,67 @@ mod tests {
             result.trim(),
             dialogue.trim(),
             "4-sentence reply at the cap limit should be unchanged: {result:?}"
+        );
+    }
+
+    #[test]
+    fn cap_preserves_trailing_question() {
+        // An 8-sentence reply whose LAST sentence is a question must be capped to
+        // <=4 sentences AND the trailing question must appear at the end of the
+        // result so the NPC remains interactive (#1472 — trailing-question preserve).
+        let dialogue = "Good mornin' to ye, friend. \
+            The roads have been muddy these past few days. \
+            Old Séamus from across the hill was asking after the grain prices. \
+            There's much talk about the rent collectors coming round again. \
+            Mary Brien says the miller raised his prices last Tuesday. \
+            The bishop passed through Strokestown not a fortnight ago. \
+            Sure, the weather has been unkind to us all this season. \
+            Now, what brings ye here?";
+        let result = cap_sentence_count(dialogue);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "capped reply should be <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        assert!(
+            result.trim_end().ends_with("what brings ye here?"),
+            "trailing question should be preserved at end of capped reply: {result:?}"
+        );
+    }
+
+    #[test]
+    fn cap_no_trailing_question_unchanged_behavior() {
+        // An 8-sentence reply with NO trailing question must produce the same
+        // result as before: keep the first 4 sentences (head, not tail).
+        let dialogue = "The morning is fine enough today. \
+            I was just heading to the market in town. \
+            Brigid asked me to pick up some wool thread for her. \
+            The last market was rained out entirely. \
+            They say the cattle prices have dropped again. \
+            Old Fionnuala was complaining about the cold. \
+            The priest gave a long sermon on Sunday. \
+            No doubt things will look better by Easter.";
+        let result = cap_sentence_count(dialogue);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "capped reply without trailing question should be <=4 sentences, got {sentence_count}: {result:?}"
+        );
+        // First sentence must survive (head-keep behavior unchanged).
+        assert!(
+            result.contains("The morning is fine enough today"),
+            "first sentence should survive when no trailing question: {result:?}"
+        );
+        // Tail sentences beyond 4 must be dropped.
+        assert!(
+            !result.contains("No doubt things will look better by Easter"),
+            "tail sentence should be dropped when no trailing question: {result:?}"
         );
     }
 
