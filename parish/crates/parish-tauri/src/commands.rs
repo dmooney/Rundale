@@ -11,7 +11,6 @@
 //! - `snapshot`  — read-only world/map/NPC/theme/debug snapshot commands
 //! - `setup`     — BYOK onboarding and local inference setup commands
 //! - `input`     — player input submission, validation, and dispatch
-//! - `movement`  — handle_movement, handle_look
 //! - `saves`     — save/load/branch/new-game persistence commands
 //! - `admin`     — debug snapshot builder, inference rebuild, inactivity tick, bug report
 //! - `screenshot`— screenshot capture, storage, and round-trip callbacks
@@ -23,7 +22,6 @@ pub mod admin;
 pub(crate) mod cmd_tests;
 pub mod demo;
 pub mod input;
-pub(crate) mod movement;
 pub mod reactions;
 pub mod saves;
 pub mod screenshot;
