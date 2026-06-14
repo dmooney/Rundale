@@ -650,15 +650,71 @@ fn extract_candidate_names(player_input: &str) -> Vec<String> {
     candidates
 }
 
+/// Honorific abbreviation pairs: (spelled-out form, abbreviated form).
+///
+/// The model frequently expands honorific abbreviations stored in the roster
+/// (e.g. "Fr." → "Father") when generating dialogue. To avoid false-positive
+/// person-confirmation guard fires — where the NPC correctly names a real
+/// roster member using the spelled-out honorific while the roster stores the
+/// abbreviated form — both forms are normalised to the same canonical token
+/// before comparison (#1500 regression, quality-harness run 16).
+///
+/// Each pair is (long_lower, short_lower) — neither entry includes the
+/// trailing period of the abbreviation because `normalize_honorifics` strips
+/// trailing periods before comparison.
+const HONORIFIC_PAIRS: &[(&str, &str)] = &[
+    ("father", "fr"),
+    ("reverend", "rev"),
+    ("doctor", "dr"),
+    ("mister", "mr"),
+    ("missus", "mrs"),
+    ("miss", "ms"),
+    ("saint", "st"),
+    ("brother", "br"),
+    ("sister", "sr"),
+];
+
+/// Returns the canonical (long-form) honorific for a token, if it is a
+/// known honorific abbreviation or spelling variant (case-insensitive, period
+/// stripped). Tokens that are not honofifics are returned unchanged.
+///
+/// Examples: "fr" → "father", "rev" → "reverend", "dr" → "doctor".
+/// "cormac" → "cormac" (unchanged).
+fn canonical_honorific(token: &str) -> &str {
+    // Strip a trailing period so "fr." and "fr" both normalise.
+    let stripped = token.trim_end_matches('.');
+    for &(long, short) in HONORIFIC_PAIRS {
+        if stripped == short || stripped == long {
+            return long;
+        }
+    }
+    stripped
+}
+
+/// Normalises a roster or candidate name by replacing all leading and
+/// internal honorific tokens with their canonical (long-form) equivalents.
+///
+/// "Fr. Declan Tierney" → "father declan tierney"
+/// "Father Declan"      → "father declan"
+/// "Cormac Duffy"       → "cormac duffy"
+fn normalize_name_honorifics(lower_name: &str) -> String {
+    lower_name
+        .split_whitespace()
+        .map(canonical_honorific)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Checks whether a candidate name matches any entry in the known roster
 /// (case-insensitive).
 ///
 /// Matching rules:
 /// - **Full-name candidate** (2+ tokens, e.g. "Cormac Sweeney"): requires an
-///   exact full-name match against a roster entry ("Cormac Sweeney" must appear
-///   verbatim in the roster). A shared first name with a *different* surname
-///   (e.g. roster has "Cormac Duffy") does NOT constitute a match — the
-///   candidate is treated as fabricated and the guard fires.
+///   exact full-name match against a roster entry after honorific normalisation
+///   ("Father Declan" matches "Fr. Declan Tierney" as a prefix after both are
+///   normalised to "father declan …"). A shared first name with a *different*
+///   surname (e.g. roster has "Cormac Duffy") does NOT constitute a match —
+///   the candidate is treated as fabricated and the guard fires.
 /// - **First-name-only candidate** (single token, e.g. "Cormac"): a first-name
 ///   match against any roster entry is legitimate — the player is referring to a
 ///   known person by first name only. Match is allowed.
@@ -678,12 +734,67 @@ fn name_in_roster(
     let tokens: Vec<&str> = lower.split_whitespace().collect();
     let candidate_is_full_name = tokens.len() >= 2;
 
+    // Normalise the candidate's honorifics once for reuse in the loop.
+    let candidate_norm = normalize_name_honorifics(&lower);
+
     for roster_name in known_person_names {
         let roster_lower = roster_name.to_lowercase();
 
         // Exact full-name match always passes through.
         if roster_lower == lower {
             return true;
+        }
+
+        // Honorific-normalised match: "Father Declan" (→ "father declan") is a
+        // prefix of "Fr. Declan Tierney" (→ "father declan tierney"), so it
+        // matches. We require the candidate to be a leading-token prefix of the
+        // normalised roster name so that "Father Smith" does NOT match "Fr.
+        // Tierney" even though both start with "father" after normalisation.
+        //
+        // Also handles the "stripped-honorific" case: a candidate like "Declan
+        // Tierney" (no honorific) should match a roster entry "Fr. Declan Tierney"
+        // because after stripping the roster's leading honorific the remaining
+        // tokens "declan tierney" equal the candidate. This fires when the player
+        // omits the honorific prefix entirely (e.g. addressing the priest by
+        // given+surname without "Father"/"Fr.").
+        if candidate_is_full_name {
+            let roster_norm = normalize_name_honorifics(&roster_lower);
+            // Prefix check: the normalised candidate must be an exact prefix of
+            // the normalised roster name at a word boundary. "father declan"
+            // matches "father declan tierney" but not "father deirdre ryan".
+            if roster_norm == candidate_norm
+                || roster_norm.starts_with(&format!("{candidate_norm} "))
+            {
+                return true;
+            }
+
+            // Stripped-honorific check: if the roster name's first token is a
+            // known honorific, drop it and compare the remainder to the candidate.
+            // "Fr. Declan Tierney" → drop "fr." → "declan tierney" == "declan tierney".
+            // Prevents "Declan Tierney" from being treated as fabricated when the
+            // roster stores it as "Fr. Declan Tierney".
+            let roster_tokens: Vec<&str> = roster_lower.split_whitespace().collect();
+            if let Some(first_roster_tok) = roster_tokens.first() {
+                let first_is_honorific = {
+                    let stripped = first_roster_tok.trim_end_matches('.');
+                    HONORIFIC_PAIRS
+                        .iter()
+                        .any(|&(long, short)| stripped == long || stripped == short)
+                };
+                if first_is_honorific && roster_tokens.len() > 1 {
+                    // Roster remainder after stripping the leading honorific token.
+                    let remainder = roster_tokens[1..].join(" ");
+                    // Direct equality check (candidate == roster without honorific).
+                    if remainder == lower {
+                        return true;
+                    }
+                    // Also allow the candidate to be a leading-token prefix of the
+                    // remainder for trigram/partial matches ("Declan" in "Declan Tierney").
+                    if remainder.starts_with(&format!("{lower} ")) {
+                        return true;
+                    }
+                }
+            }
         }
 
         // First-name-only candidate: allow a first-name match against any roster entry.
@@ -693,8 +804,21 @@ fn name_in_roster(
             if roster_lower.split_whitespace().next().unwrap_or("") == candidate_first {
                 return true;
             }
+            // Also try honorific-normalised first-name match:
+            // "Father" (single token) vs roster "Fr. Declan Tierney" → normalise
+            // roster first token "fr." → "father" → match.
+            let roster_first_norm = roster_lower
+                .split_whitespace()
+                .next()
+                .map(canonical_honorific)
+                .unwrap_or("");
+            let candidate_first_norm = canonical_honorific(candidate_first);
+            if roster_first_norm == candidate_first_norm {
+                return true;
+            }
         }
-        // Full-name candidate: only exact match clears it (handled above).
+        // Full-name candidate: only exact or honorific-normalised prefix match
+        // clears it (handled above).
         // "Cormac Sweeney" vs roster "Cormac Duffy" → no match → guard fires.
     }
     false
@@ -3177,6 +3301,131 @@ mod tests {
         assert!(
             result_words <= 80,
             "guard pipeline must trim >80 word reply, got {result_words}: {result:?}"
+        );
+    }
+
+    // ── #1500 regression — honorific-prefix false-denial guard ───────────────
+    //
+    // Quality-harness run 16 surfaced a high-severity regression: the
+    // person-confirmation guard fired on CORRECT model output when the
+    // player's question or prior transcript contained a name using the
+    // spelled-out honorific ("Father Declan") while the roster stored the
+    // abbreviated form ("Fr. Declan Tierney"). The guard treated "Father Declan"
+    // as a fabricated full name (exact-string match found nothing), then saw the
+    // NPC's correct reply containing "Father Declan" with affirmation markers
+    // and replaced it with the non-recognition decline.
+    //
+    // The fix adds honorific-abbreviation normalisation to `name_in_roster` so
+    // that "Father Declan" → "father declan" prefix-matches "Fr. Declan Tierney"
+    // → "father declan tierney" after normalisation.
+
+    /// AC-1 (guard-override-false-denial): the guard must STILL fire when the
+    /// NPC affirms a genuinely fabricated stranger whose name appears nowhere
+    /// in the roster — even after the honorific-normalisation fix. Core
+    /// legitimate-fabrication-detection behavior must be preserved.
+    #[test]
+    fn fabricated_stranger_still_declined_after_honorific_fix() {
+        let dialogue = "Aye, I know Cormac Sweeney well. He is a fine man who works at the mill.";
+        let player_input = "Do you know Cormac Sweeney?";
+        // Roster does NOT contain Cormac Sweeney — he is fabricated.
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 3);
+        assert!(
+            !result.to_lowercase().contains("aye, i know cormac sweeney"),
+            "guard must still fire on a genuinely fabricated stranger (#1500): {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
+        );
+    }
+
+    /// AC-2 (guard-override-false-denial): when the NPC states its own name in
+    /// a self-introduction ("I am Father Declan Tierney, at your service."),
+    /// the guard must NOT replace the reply with a denial, even if the player
+    /// asked a question with no name in it. The NPC's own name is in the roster
+    /// (stored as "Fr. Declan Tierney"); after honorific normalisation the guard
+    /// correctly recognises it as a known person.
+    #[test]
+    fn self_introduction_not_denied_after_honorific_fix() {
+        // Player's question has no title-cased name to extract — no candidates.
+        // The NPC is the priest; his name is stored as "Fr. Declan Tierney" in
+        // the roster. The model generates "Father Declan Tierney" in the reply.
+        let dialogue = "I am Father Declan Tierney, at your service.";
+        let player_input = "Would you tell me your name?";
+        let known: Vec<String> = vec![
+            "Fr. Declan Tierney".into(),
+            "Brigid Connolly".into(),
+            "Seamus Moran".into(),
+        ];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert_eq!(
+            result, dialogue,
+            "NPC self-introduction must NOT be replaced by the guard (#1500): {result:?}"
+        );
+    }
+
+    /// AC-3 (guard-override-false-denial): when the player's question uses
+    /// the spelled-out honorific ("Father Declan Tierney") for a real roster
+    /// member stored with an abbreviation ("Fr. Declan Tierney"), the NPC's
+    /// correct reply about that person must NOT be replaced with a denial.
+    /// This is the direct repro for the quality-harness run 16 regression.
+    #[test]
+    fn spelled_out_honorific_of_real_roster_member_not_denied() {
+        // Player asks "What does Father Declan Tierney think about this?"
+        // The NPC (the priest himself, or another NPC) says "Father Declan is a
+        // man of the cloth" — a true, roster-grounded statement.
+        // Before the fix: "Father Declan Tierney" extracted as a bigram/trigram,
+        // not found in the roster (stored as "Fr. Declan Tierney"), treated as
+        // fabricated, guard fires.
+        // After the fix: honorific normalisation makes "Father Declan Tierney"
+        // equal to "Fr. Declan Tierney" → not fabricated → guard does not fire.
+        let dialogue = "'Tis a good laugh, but I'm no priest. Father Declan is a man of the cloth.";
+        let player_input = "Surely Father Declan Tierney is the one I mean?";
+        let known: Vec<String> = vec![
+            "Fr. Declan Tierney".into(),
+            "Brigid Connolly".into(),
+            "Seamus Moran".into(),
+        ];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        assert_eq!(
+            result, dialogue,
+            "NPC correctly naming a real roster member via spelled-out honorific must NOT be \
+             replaced by the guard — honorific normalisation fix (#1500): {result:?}"
+        );
+    }
+
+    /// AC-4 (guard-override-false-denial): honorific normalisation must not
+    /// cause a cross-person false-positive. "Father Smith" must NOT match
+    /// "Fr. Tierney" just because both start with the same canonical honorific
+    /// after normalisation. The suffix (given name) must also align.
+    #[test]
+    fn honorific_normalization_does_not_cross_match_different_persons() {
+        // "Father Smith" (fabricated) vs roster "Fr. Declan Tierney".
+        // After normalisation: "father smith" vs "father declan tierney".
+        // "father smith" is NOT a prefix of "father declan tierney" → no match
+        // → guard still fires on the fabricated "Father Smith".
+        let dialogue = "Aye, Father Smith is a fine man. He is over at the church.";
+        let player_input = "Do you know Father Smith?";
+        let known: Vec<String> = vec!["Fr. Declan Tierney".into(), "Brigid Connolly".into()];
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 1);
+        assert!(
+            !result.to_lowercase().contains("father smith is a fine man"),
+            "guard must still fire when the honorific matches but the given name differs (#1500): {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("no")
+                || result.to_lowercase().contains("not known")
+                || result.to_lowercase().contains("never heard")
+                || result.to_lowercase().contains("no one"),
+            "result should be a decline phrase: {result:?}"
         );
     }
 }

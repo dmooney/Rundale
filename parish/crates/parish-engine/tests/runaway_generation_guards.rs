@@ -290,3 +290,156 @@ fn real_loop_real_npc_description_not_denied() {
          got: {joined:?}"
     );
 }
+
+// ── guard-override-false-denial — honorific-prefix false-denial regression ────
+//
+// Quality-harness run 16 (#1500): the person-confirmation guard over-fires when
+// the player's question contains a name with a spelled-out honorific
+// ("Father Declan Tierney") while the roster stores the abbreviated form
+// ("Fr. Declan Tierney"). The guard treated the spelled-out form as a fabricated
+// full name and replaced the NPC's correct reply with a non-recognition decline.
+//
+// These tests drive the real game loop via `execute_via_real_loop` with a mock
+// model so the guard in `run_npc_turn` is exercised deterministically.
+
+/// AC-2 (guard-override-false-denial, game-loop tier): when the mock model
+/// returns a correct NPC self-introduction ("I am <NPC full name>, at your
+/// service."), the player-visible dialogue must NOT be replaced with the
+/// non-recognition decline. This is the Turn 5 repro from the harness log.
+#[test]
+fn real_loop_self_introduction_not_replaced_by_guard() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // The mock model returns a self-introduction using the NPC's own name.
+    // This is the canonical correct model behaviour for "Would you tell me
+    // your name?" — the guard must never suppress it.
+    let self_intro = format!("I am {speaker_name}, at your service.");
+
+    h.mock().push_for(&speaker_name, self_intro.clone());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let events = h.execute_via_real_loop("Would you tell me your name?");
+    let _ = events;
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC self-introduction turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The guard must NOT have fired — the self-introduction must reach the player.
+    let decline_phrases = [
+        "know no one by that name",
+        "not known to me",
+        "never heard of",
+        "no one by that name",
+        "wrong parish",
+    ];
+    for phrase in &decline_phrases {
+        assert!(
+            !joined.to_lowercase().contains(phrase),
+            "self-introduction must NOT be replaced by a non-recognition decline \
+             (guard-override-false-denial, #1500); decline phrase {phrase:?} found in: {joined:?}"
+        );
+    }
+
+    // The NPC's own name must appear in the player-visible output — the
+    // self-introduction reached the player intact (or was trimmed at a
+    // word-count boundary, but the name still survives as the first element).
+    assert!(
+        joined.contains(&speaker_name),
+        "NPC's own name must survive in the player-visible self-introduction (#1500); \
+         got: {joined:?}"
+    );
+}
+
+/// AC-3 (guard-override-false-denial, game-loop tier): when the player's
+/// question contains a real roster member's name using the spelled-out
+/// honorific ("Father <Name>") while the roster stores the abbreviated form
+/// ("Fr. <Name>"), the NPC's correct reply about that person must NOT be
+/// replaced with a denial. This is the Turn 13/15 repro from the harness log.
+#[test]
+fn real_loop_spelled_out_honorific_of_roster_member_not_denied() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // Find a real priest / Fr. NPC in the roster if one exists.
+    // If none, use the speaker NPC itself with a "Fr." prefix to simulate
+    // the exact condition: player uses "Father X", roster stores "Fr. X".
+    //
+    // We inject the abbreviation into the speaker's name for the duration
+    // of this test so the honorific mismatch is guaranteed regardless of
+    // which NPC the harness picked.
+    let original_name = speaker_name.clone();
+    let abbrev_name = format!("Fr. {original_name}");
+    {
+        // Temporarily rename the speaker to the abbreviated form so
+        // `known_person_names` in `prepare_npc_conversation_turn` will
+        // contain the abbreviated name.
+        let speaker_id = h
+            .app
+            .npc_manager
+            .all_npcs()
+            .find(|n| n.name == speaker_name)
+            .map(|n| n.id)
+            .expect("speaker must exist");
+        if let Some(npc) = h.app.npc_manager.get_mut(speaker_id) {
+            npc.name = abbrev_name.clone();
+        }
+    }
+
+    // The mock model correctly names the NPC using the spelled-out honorific —
+    // exactly what a model would do when "Father X" appears in the player's
+    // question. The guard must not treat "Father X" as fabricated.
+    let correct_reply = format!(
+        "'Tis a good laugh, but I'm no priest. Father {original_name} is a man of the cloth."
+    );
+    h.mock().push_for(&abbrev_name, correct_reply.clone());
+
+    let mut rx = h.app.world.event_bus.subscribe();
+    // Player input contains "Father <original_name>" — the spelled-out form.
+    let player_input = format!("Surely Father {original_name} is the one I mean?");
+    let events = h.execute_via_real_loop(&player_input);
+    let _ = events;
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The guard must NOT have fired — the correct reply must reach the player.
+    let decline_phrases = [
+        "know no one by that name",
+        "not known to me",
+        "never heard of",
+        "no one by that name",
+        "wrong parish",
+    ];
+    for phrase in &decline_phrases {
+        assert!(
+            !joined.to_lowercase().contains(phrase),
+            "NPC correctly naming a real roster member (spelled-out honorific) must NOT \
+             be replaced by a denial (guard-override-false-denial, #1500); \
+             decline phrase {phrase:?} found in: {joined:?}"
+        );
+    }
+}
