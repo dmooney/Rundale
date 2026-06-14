@@ -1538,8 +1538,11 @@ fn wrong_speaker_recovery(seed: u64) -> &'static str {
 ///
 /// The caller decides which case applies based on whose name matched.
 fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
-    let lower = dialogue.to_lowercase();
-    let name_lower = name.to_lowercase();
+    // Normalise the typographic apostrophe (U+2019, which the 14B routinely
+    // emits) to ASCII so the prefix list and apostrophe'd names (O'Brien)
+    // match regardless of quote style.
+    let lower = dialogue.to_lowercase().replace('\u{2019}', "'");
+    let name_lower = name.to_lowercase().replace('\u{2019}', "'");
 
     // Must contain the name at all.
     if !lower.contains(&name_lower) {
@@ -1548,10 +1551,11 @@ fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
 
     // First-person identity claim patterns, case-insensitive.
     // We build the pattern by checking if any marker appears immediately before the name.
+    // Apostrophes are normalised to ASCII above, so a single ASCII form covers
+    // both the straight and the typographic quote the model emits.
     const IDENTITY_PREFIXES: &[&str] = &[
         "i'm ",
         "i am ",
-        "i'm ", // typographic apostrophe variant
         "the name's ",
         "the name is ",
         "my name's ",
@@ -1559,7 +1563,6 @@ fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
         "it's ",  // "It's Brendan here"
         "it is ", // "It is Brendan, the …"
         "'tis ",  // Hiberno-English contraction
-        "'tis ",  // typographic apostrophe variant
     ];
 
     for prefix in IDENTITY_PREFIXES {
@@ -1622,6 +1625,13 @@ pub fn guard_wrong_speaker_identity(
         }
     }
 
+    // Hoisted out of the loop — `speaker_name` is constant throughout.
+    let speaker_first_lower = speaker_name
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+
     for (roster_name, _occupation) in roster {
         // Skip the speaker's own entry.
         if roster_name.to_lowercase() == speaker_lower {
@@ -1643,11 +1653,6 @@ pub fn guard_wrong_speaker_identity(
         // differs from the speaker's own first name).
         if let Some(roster_first) = roster_name.split_whitespace().next() {
             let roster_first_lower = roster_first.to_lowercase();
-            let speaker_first_lower = speaker_name
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .to_lowercase();
             // Only fire on first-name-only if the first name is unique in the
             // roster and is not the speaker's own first name.
             let count = first_name_counts
@@ -2668,6 +2673,18 @@ mod tests {
         assert!(
             !result.trim().is_empty(),
             "replacement must not be blank: {result:?}"
+        );
+    }
+
+    /// Regression: the 14B routinely emits a typographic apostrophe (U+2019).
+    /// "I’m Brendan" (curly quote) must fire the guard just like the ASCII form.
+    #[test]
+    fn wrong_speaker_guard_fires_on_typographic_apostrophe() {
+        let dialogue = "Sure, I\u{2019}m Brendan, the Miller\u{2019}s Son.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert!(
+            !result.to_lowercase().contains("brendan"),
+            "curly-apostrophe identity claim must still be replaced: {result:?}"
         );
     }
 
