@@ -1277,7 +1277,7 @@ fn guard_against_repetition_varies_cross_turn_repeat() {
     // Model echoes its own previous line near-verbatim (only trailing
     // punctuation changed).
     let new_line = "Sure, the talk 'round here be always of the weather and the rents, m'friend!";
-    let out = guard_against_repetition(new_line, Some(prev), 0.92, 42);
+    let out = guard_against_repetition(new_line, Some(prev), 0.92, 42, &[]);
     assert!(!out.trim().is_empty(), "AC-3: fallback must be non-empty");
     assert!(
         !is_near_identical(&out, prev, 0.92),
@@ -1291,7 +1291,7 @@ fn guard_against_repetition_varies_cross_turn_repeat() {
 fn guard_against_repetition_passes_distinct_line() {
     let prev = "Good evening to ye, traveller.";
     let new_line = "The miller's wife claims she saw a boat on the stream by night.";
-    let out = guard_against_repetition(new_line, Some(prev), 0.92, 7);
+    let out = guard_against_repetition(new_line, Some(prev), 0.92, 7, &[]);
     assert_eq!(
         out, new_line,
         "AC-4: distinct line must pass through unchanged"
@@ -1305,7 +1305,7 @@ fn guard_against_repetition_passes_distinct_line() {
 fn guard_against_repetition_handles_loop_that_echoes_previous() {
     let prev = "Speak yer mind, and we'll see what be in it, m'friend.";
     let new_line = "Speak yer mind, and we'll see what be in it, m'friend. ".repeat(15);
-    let out = guard_against_repetition(&new_line, Some(prev), 0.92, 3);
+    let out = guard_against_repetition(&new_line, Some(prev), 0.92, 3, &[]);
     assert!(out.matches("Speak yer mind").count() <= 1, "got:\n{out}");
     assert!(
         !is_near_identical(&out, prev, 0.92),
@@ -1365,7 +1365,7 @@ fn dedup_farewell_tokens_no_farewell_unchanged() {
 #[test]
 fn guard_against_repetition_deduplicates_farewell_tokens() {
     let double = "May yer trade flourish. Slán abhaile to ye. Safe journey. Slán abhaile";
-    let out = guard_against_repetition(double, None, 0.92, 0);
+    let out = guard_against_repetition(double, None, 0.92, 0, &[]);
     let lower = out.to_lowercase();
     let count = lower.matches("slán abhaile").count();
     assert_eq!(count, 1, "guard must dedup double farewell, got:\n{out}");
@@ -1377,11 +1377,11 @@ fn guard_against_repetition_deduplicates_farewell_tokens() {
 fn guard_against_repetition_threshold_zero_disables_cross_turn_only() {
     let prev = "Aye, as I said before.";
     let new_line = "Aye, as I said before.";
-    let out = guard_against_repetition(new_line, Some(prev), 0.0, 1);
+    let out = guard_against_repetition(new_line, Some(prev), 0.0, 1, &[]);
     // Cross-turn check disabled: the line is NOT replaced by a fallback.
     assert_eq!(out, new_line);
     // But a runaway loop is still collapsed even with the check disabled.
     let loop_line = "Same clause here. ".repeat(10);
-    let collapsed = guard_against_repetition(&loop_line, None, 0.0, 1);
+    let collapsed = guard_against_repetition(&loop_line, None, 0.0, 1, &[]);
     assert_eq!(collapsed.matches("Same clause here").count(), 1);
 }

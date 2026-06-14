@@ -595,6 +595,7 @@ pub async fn run_npc_turn(
             &display_label,
             &setup.npc_name,
             Some(req_id),
+            &setup.known_person_names,
         );
         captured_display_text = outcome.display_text;
     }

@@ -296,17 +296,28 @@ pub fn extract_normalized_opener(reply: &str) -> String {
 /// 2. Remove duplicate farewell tokens that are not consecutive
 ///    ([`dedup_farewell_tokens`], #1387).
 /// 3. If the collapsed line is near-identical to the NPC's own `previous_line`
-///    ([`is_near_identical`] at `threshold`), substitute a deterministic varied
-///    fallback ([`varied_repetition_fallback`] keyed by `seed`).
+///    ([`is_near_identical`] at `threshold`), and the overlap is NOT explained
+///    by a shared grounded full person name from `grounded_person_names`,
+///    substitute a deterministic varied fallback ([`varied_repetition_fallback`]
+///    keyed by `seed`).
 ///
 /// `previous_line` is `None` when the NPC has no prior line at this location.
 /// A `threshold` of `0.0` disables the cross-turn check (intra-line collapse
 /// still runs, since runaway loops are always undesirable).
+///
+/// `grounded_person_names` is the NPC's known-roster list (e.g.
+/// `setup.known_person_names`). Pass `&[]` to disable the grounded-name bypass.
+/// When any full name (≥2 tokens, e.g. "Una Malone") from this list appears
+/// (case-insensitive substring) in BOTH `new_line` AND `previous_line`, the high
+/// word-similarity is explained by topic continuity — the guard does NOT
+/// substitute a fallback. Only full names are considered: single-token first
+/// names are too common to serve as a conclusive grounding anchor.
 pub fn guard_against_repetition(
     new_line: &str,
     previous_line: Option<&str>,
     threshold: f32,
     seed: u64,
+    grounded_person_names: &[String],
 ) -> String {
     let collapsed = collapse_repeated_sentences(new_line);
     let deduped = dedup_farewell_tokens(&collapsed);
@@ -319,6 +330,32 @@ pub fn guard_against_repetition(
             .map(|prev| is_near_identical(&deduped, prev, threshold))
             .unwrap_or(false)
     {
+        // Skip the fallback substitution when the high similarity between new_line and
+        // previous_line is explained by both lines discussing the same GROUNDED person
+        // (i.e. a real roster member whose full name appears in both lines).  Without
+        // this check, a correct follow-up about an in-roster person triggers a false
+        // positive: both lines legitimately share words because they're both on-topic.
+        // Only full names (≥2 tokens, e.g. "Una Malone") are used as the grounding
+        // anchor — single-token first names are too common to be conclusive.
+        let grounded_topic_match = !grounded_person_names.is_empty()
+            && grounded_person_names.iter().any(|name| {
+                let tokens: Vec<&str> = name.split_whitespace().collect();
+                if tokens.len() < 2 {
+                    return false; // first-name-only: too ambiguous
+                }
+                // The full name must appear as a substring in BOTH lines.
+                let name_lower = name.to_lowercase();
+                let deduped_lower = deduped.to_lowercase();
+                let prev_lower = previous_line.unwrap_or("").to_lowercase();
+                deduped_lower.contains(&name_lower) && prev_lower.contains(&name_lower)
+            });
+        if grounded_topic_match {
+            tracing::debug!(
+                "repetition guard skipped: near-identical lines share a grounded full \
+                 person name — not degenerate repetition (guard-false-positive-known-npc)"
+            );
+            return deduped;
+        }
         return varied_repetition_fallback(seed).to_string();
     }
     deduped
