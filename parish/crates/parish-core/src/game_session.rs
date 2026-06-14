@@ -1340,10 +1340,8 @@ mod tests {
         let Some((mut world, mut mgr, templates, transport)) = setup() else {
             return;
         };
-        let Some((origin, _dest, dest_name)) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
-        else {
-            return;
-        };
+        let (origin, _dest, dest_name) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
+            .expect("default mod must provide a one-hop arrival with a guaranteed greeter");
         world.player_location = origin;
 
         let effects = apply_movement(
@@ -1374,10 +1372,8 @@ mod tests {
         let Some((mut world, mut mgr, templates, transport)) = setup() else {
             return;
         };
-        let Some((origin, _dest, dest_name)) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
-        else {
-            return;
-        };
+        let (origin, _dest, dest_name) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
+            .expect("default mod must provide a one-hop arrival with a guaranteed greeter");
         world.player_location = origin;
 
         let mut flags = FeatureFlags::default();
