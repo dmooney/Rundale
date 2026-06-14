@@ -427,6 +427,33 @@ fn current_display_session() -> DisplaySession {
     DisplaySession::Unknown
 }
 
+/// Wakes the display on macOS so a screen that is merely ASLEEP — which reports
+/// `CGSSessionScreenIsLocked = true` and would otherwise fail the precheck as if
+/// the session were password-locked — is composited again before a capture.
+///
+/// Best-effort: spawns `caffeinate -u` (declare-user-activity), bounded with
+/// `-t 5` so it does not hold the screen on. A genuinely locked session stays
+/// locked after this, so the re-probe in [`do_take_screenshot`] still fails
+/// correctly; only a slept-but-unlocked screen is recovered. A spawn failure
+/// leaves the original behavior unchanged. No-op on non-macOS hosts (their
+/// session probe never returns `Locked`, so this is never reached there).
+#[cfg(target_os = "macos")]
+fn wake_display() {
+    // `-u` wakes the display (declare user activity); `-d` HOLDS a
+    // PreventUserIdleDisplaySleep power assertion — the same mechanism apps use to
+    // keep the screen on — so the panel cannot idle back to sleep mid-capture.
+    // Without `-d`, `-u` only flicks the display on momentarily and the screen
+    // re-sleeps before the capture completes, yielding a blank/timed-out frame.
+    // `-t 90` bounds the assertion past the capture deadline (default 45 s); the
+    // process releases it afterward so the screen is free to sleep again.
+    let _ = tokio::process::Command::new("caffeinate")
+        .args(["-u", "-d", "-t", "90"])
+        .spawn();
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wake_display() {}
+
 /// True when a captured OS window belongs to the Parish/Rundale desktop app.
 ///
 /// Matched on the owning application name: the dev binary reports
@@ -668,7 +695,25 @@ pub(crate) async fn do_take_screenshot(
     // logged out). Otherwise the native path errors quickly but the html-to-image
     // fallback waits on a webview that can't render while locked, hanging for the
     // full capture deadline before a vague timeout (#1402).
-    precheck_session(current_display_session())?;
+    //
+    // A merely ASLEEP display reports `CGSSessionScreenIsLocked = true`, so a
+    // `Locked` probe can mean either a password-locked session OR just a slept
+    // screen. Wake the display and re-probe: a genuinely locked screen stays
+    // `Locked` (precheck still fails), but a slept-but-unlocked screen clears the
+    // flag and composites fine once awake — so a screenshot no longer fails black
+    // just because the panel idled off (#1402 follow-up).
+    let session = current_display_session();
+    let session = if matches!(session, DisplaySession::Locked) {
+        wake_display();
+        // A cold wake from display sleep needs the window server several seconds
+        // to relight the panel and re-composite app windows; capturing too soon
+        // yields a blank frame. 5 s is comfortably inside the 45 s capture deadline.
+        tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
+        current_display_session()
+    } else {
+        session
+    };
+    precheck_session(session)?;
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     match do_take_screenshot_native(state, app).await {
