@@ -39,8 +39,8 @@ else
         curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null && break
         sleep 1
     done
-    curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null ||
-        {
+    curl -sf -o /dev/null "http://localhost:${VITE_PORT}" 2>/dev/null \
+        || {
             echo "ERROR: vite did not come up on :${VITE_PORT} (see ${VITE_LOG})"
             exit 1
         }
@@ -59,8 +59,8 @@ for _ in $(seq 1 120); do
     curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 && break
     sleep 1
 done
-curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 ||
-    {
+curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 \
+    || {
         echo "ERROR: parish-tauri health never came up on :${PORT} (see ${TAURI_LOG})"
         exit 1
     }
