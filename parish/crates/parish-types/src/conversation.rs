@@ -135,6 +135,35 @@ impl ConversationLog {
             .collect()
     }
 
+    /// Returns the last `n` dialogue lines spoken at `location` by speakers
+    /// *other than* `npc_id`, oldest first.
+    ///
+    /// Used to build the cross-NPC crutch-phrase suppression block (#1422):
+    /// small models reach for an identical opener frame ("ye've come to the
+    /// right place") across consecutive *different* NPCs in a session. The
+    /// per-NPC anti-recycling guard ([`npc_prior_lines`](Self::npc_prior_lines))
+    /// cannot catch a frame shared *across* NPCs, so this feeds other speakers'
+    /// recent lines back as a "do not reuse these frames" list.
+    pub fn other_npcs_recent_lines(
+        &self,
+        location: LocationId,
+        npc_id: NpcId,
+        n: usize,
+    ) -> Vec<&str> {
+        let mut lines: Vec<&str> = self
+            .exchanges
+            .iter()
+            .filter(|e| {
+                e.location == location && e.speaker_id != npc_id && e.speaker_id != NpcId(0)
+            })
+            .rev()
+            .take(n)
+            .map(|e| e.npc_dialogue.as_str())
+            .collect();
+        lines.reverse();
+        lines
+    }
+
     /// Returns the number of exchanges involving `npc_id` at `location`.
     ///
     /// Used to determine NPC–player familiarity level for address vocabulary
@@ -339,6 +368,42 @@ mod tests {
         assert_eq!(
             log.context_string(LocationId(1), NpcId(1), "the newcomer", 5),
             ""
+        );
+    }
+
+    #[test]
+    fn test_other_npcs_recent_lines_excludes_self_and_player() {
+        let mut log = ConversationLog::new();
+        // NPC 1 (self), NPC 2 (other), and player (id 0) all speak at loc 1.
+        log.add(make_exchange(
+            8,
+            1,
+            "Peig",
+            "hi",
+            "Ye've come to the right place.",
+            1,
+        ));
+        log.add(make_exchange(
+            9,
+            2,
+            "Roisin",
+            "hi",
+            "Ye've come to the right place too.",
+            1,
+        ));
+        log.add(make_exchange(10, 0, "Player", "hi", "player line", 1));
+        // Different location — must be excluded.
+        log.add(make_exchange(11, 3, "Maire", "hi", "elsewhere line", 2));
+
+        let lines = log.other_npcs_recent_lines(LocationId(1), NpcId(1), 6);
+        assert_eq!(lines, vec!["Ye've come to the right place too."]);
+        assert!(
+            !lines.iter().any(|l| l.contains("player line")),
+            "player (id 0) lines must be excluded: {lines:?}"
+        );
+        assert!(
+            !lines.iter().any(|l| l.contains("elsewhere")),
+            "other-location lines must be excluded: {lines:?}"
         );
     }
 

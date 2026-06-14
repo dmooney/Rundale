@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use crate::config::FeatureFlags;
 use crate::config::InferenceCategory;
 use crate::game_loop::GameLoopContext;
 use crate::game_session::{
@@ -25,7 +26,8 @@ use crate::game_session::{
 };
 use crate::ipc::{
     StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, compute_name_hints,
-    snapshot_from_world, text_log, text_log_for_stream_turn, text_log_typed,
+    snapshot_from_world, text_log, text_log_for_stream_turn, text_log_for_stream_turn_typed,
+    text_log_typed,
 };
 use crate::npc::reactions::ReactionTemplates;
 use crate::world::transport::TransportMode;
@@ -53,6 +55,14 @@ pub async fn handle_movement(
     transport: &TransportMode,
     reaction_templates: &ReactionTemplates,
 ) -> GameEffects {
+    // Snapshot flags before acquiring world/npc_manager locks to keep the
+    // critical section minimal and honour the documented lock order
+    // (world → npc_manager → … → config).  FeatureFlags is cheap to clone.
+    let flags: FeatureFlags = {
+        let cfg = ctx.config.lock().await;
+        cfg.flags.clone()
+    };
+
     // Apply movement within a single lock scope to prevent TOCTOU races.
     // `apply_movement` itself publishes `PlayerMoved` on successful arrival
     // so this handler doesn't need to — see `game_session::apply_movement`.
@@ -65,12 +75,10 @@ pub async fn handle_movement(
             reaction_templates,
             target,
             transport,
+            &flags,
         );
         // Travel encounter — default-on, kill-switchable via `travel-encounters` flag.
-        let encounters_enabled = {
-            let cfg = ctx.config.lock().await;
-            !cfg.flags.is_disabled("travel-encounters")
-        };
+        let encounters_enabled = !flags.is_disabled("travel-encounters");
         let rolled = if effects.world_changed && encounters_enabled {
             roll_travel_encounter(&world, &effects)
         } else {
@@ -188,7 +196,7 @@ pub async fn handle_movement(
             &reaction_model,
             None, // inference_log: None — shared code doesn't hold runtime-specific logs
             &ctx.language,
-            move |turn_id, npc_name| {
+            move |turn_id, npc_name, subtype| {
                 // Tie the placeholder to `turn_id` via `text_log_for_stream_turn`
                 // so the UI recognises it as a streaming bubble (see
                 // +page.svelte `onTextLog` guard requiring `stream_turn_id != null`)
@@ -196,14 +204,19 @@ pub async fn handle_movement(
                 // when the per-turn `stream-turn-end` fires with no tokens
                 // accumulated. Using bare `text_log` here previously produced a
                 // permanent blank chat bubble on empty LLM reaction output.
+                //
+                // When subtype is Some("action") (non-verbal Gesture reactions),
+                // carry the subtype so the frontend renders the reaction as
+                // italicised narration rather than a speech bubble (#1431 item 2).
+                let payload = match subtype {
+                    Some(st) => {
+                        text_log_for_stream_turn_typed(npc_name, String::new(), turn_id, st)
+                    }
+                    None => text_log_for_stream_turn(npc_name, String::new(), turn_id),
+                };
                 emitter_clone.emit_event(
                     "text-log",
-                    serde_json::to_value(text_log_for_stream_turn(
-                        npc_name,
-                        String::new(),
-                        turn_id,
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
+                    serde_json::to_value(payload).unwrap_or(serde_json::Value::Null),
                 );
             },
             move |turn_id, source, batch| {

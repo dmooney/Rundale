@@ -1,0 +1,19 @@
+# play_1447-1448-1451 — live proof: NPC dialogue prompt directives
+# ==================================================================
+# Exercises three prompt-assembly fixes in a REAL headless run backed
+# by vllm-mlx (Qwen2.5-14B). The assembled system prompt is logged to
+# the inference_logs/ JSONL and inspected for the directive text.
+#
+# Run (new game, headless):
+#   PARISH_PROVIDER=vllm-mlx \
+#   PARISH_BASE_URL=http://localhost:8000 \
+#   PARISH_MODEL=mlx-community/Qwen2.5-14B-Instruct-4bit \
+#   PARISH_INTENT_PROVIDER=vllm-mlx \
+#   PARISH_INTENT_BASE_URL=http://localhost:8001 \
+#   PARISH_INTENT_MODEL=mlx-community/Qwen2.5-1.5B-Instruct-4bit \
+#   printf 'N\nlook\nGood morning to you.\n/quit\n' | \
+#   parish-engine
+#
+# Evidence check: inspect newest inference_logs/*.jsonl for gen_ai.prompt
+# and grep for: BACKGROUND AWARENESS, do NOT quote it word-for-word,
+# do NOT narrate, CURRENT SEASON, Do not reference any other season.

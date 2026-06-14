@@ -118,6 +118,29 @@ pub struct NpcConfig {
     /// feature flag (`flags.is_disabled("dialogue-anti-repetition")` → false).
     #[serde(default = "default_dialogue_anti_repetition")]
     pub dialogue_anti_repetition: bool,
+    /// Enable the post-generation fabricated-person confirmation guard (#1459).
+    ///
+    /// When `true` (the default), a post-generation scan checks the finalized
+    /// dialogue for affirmative confirmation of a named person from the player
+    /// input who is NOT in the NPC's known-roster. If the guard fires it
+    /// replaces the entire dialogue with a stock non-recognition decline. The
+    /// 14B model ignores the PEOPLE-YOU-KNOW prompt directive for presupposed
+    /// names; this is the deterministic backstop. Controlled at runtime by the
+    /// `dialogue-person-confirmation-guard` feature flag (default-on).
+    #[serde(default = "default_person_confirmation_guard_enabled")]
+    pub person_confirmation_guard_enabled: bool,
+    /// Enable the post-generation verbosity / run-on guard (#1460).
+    ///
+    /// When `true` (the default), the finalized dialogue passes through three
+    /// structural fixes: (a) strip bare leaked mood-adjective, (b) trim
+    /// mid-sentence truncation ellipsis to the last complete sentence, (c) cap
+    /// trailing question stack to at most one question. These target degenerate
+    /// Qwen2.5-14B outputs where the model emits 5-6 identical questions,
+    /// truncates mid-sentence with "…", or leaks the literal mood word.
+    /// Controlled at runtime by the `dialogue-verbosity-guard` feature flag
+    /// (default-on).
+    #[serde(default = "default_verbosity_guard_enabled")]
+    pub verbosity_guard_enabled: bool,
 }
 
 impl Default for NpcConfig {
@@ -140,6 +163,8 @@ impl Default for NpcConfig {
             grounding_enabled: default_grounding_enabled(),
             dialogue_sentence_boundary_trim: default_dialogue_sentence_boundary_trim(),
             dialogue_anti_repetition: default_dialogue_anti_repetition(),
+            person_confirmation_guard_enabled: default_person_confirmation_guard_enabled(),
+            verbosity_guard_enabled: default_verbosity_guard_enabled(),
         }
     }
 }
@@ -196,6 +221,14 @@ fn default_grounding_enabled() -> bool {
 }
 
 fn default_dialogue_sentence_boundary_trim() -> bool {
+    true
+}
+
+fn default_person_confirmation_guard_enabled() -> bool {
+    true
+}
+
+fn default_verbosity_guard_enabled() -> bool {
     true
 }
 

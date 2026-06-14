@@ -2,10 +2,6 @@
 name: quality-harness
 description: Run a game quality-control playtest — YOU drive the LIVE Rundale game via the parish MCP against real models, play in-character for N turns, observe the world, then judge it CRITICALLY (anchored rubric, discrete findings) and file bugs. Trigger when the user says "run the quality harness", "do a harness run", "playtest the game", "QA the game", "drive a playtest", or similar. NOT for model benchmarking (that is /rundale-bench) and NOT for scripted bug-probing (that is /demo-audit-mcp).
 argument-hint: '[turns N] [persona "..."] [goal "..."]'
-paths:
-  - parish/crates/parish-tauri/**
-  - parish/crates/parish-mcp/**
-  - docs/agent/driving-the-game-via-mcp.md
 ---
 
 # quality-harness — agent-driven critical playtest
@@ -35,8 +31,15 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
      fresh session** (Tauri must be running first); pre-build with
      `cargo build -p parish-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
 2. Confirm the game is up: `parish_engine_state` returns a scene. If it errors with a transport
-   error, the Tauri app isn't running — ask the user to launch
-   `cargo run -p parish-tauri -- --mcp-port 3030` (it auto-starts the bundled models).
+   error, the Tauri app isn't running — launch it with
+   `bash parish/scripts/launch-tauri-screenshottable.sh 3030` (it starts vite **then** the app,
+   so the window renders the game; auto-starts the bundled models). Plain
+   `cargo run -p parish-tauri -- --mcp-port 3030` skips vite, so the debug binary loads its UI
+   from `devUrl` (:5173) — with no vite running the window is blank **white** and every
+   screenshot comes back a rejected blank frame (the engine still works over MCP; only the
+   window is blank). For SCREENSHOTS specifically: use the helper above (frontend served), and
+   note the in-app fix wakes a **slept** display before capture — a screen that idled off reports
+   as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`).
 3. Disable focus-auto-pause so window/focus events can't toggle game time during the run
    (once #1357 lands): the harness owns pause state. Until then, just always set `/pause`
    explicitly each loop and never foreground the window except to screenshot (then restore).

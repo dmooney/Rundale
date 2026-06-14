@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::config::ReactionConfig;
+use crate::config::{FeatureFlags, ReactionConfig};
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
 use crate::inference::InferenceLog;
@@ -115,6 +115,7 @@ pub fn apply_movement(
     reaction_templates: &ReactionTemplates,
     target: &str,
     transport: &TransportMode,
+    flags: &FeatureFlags,
 ) -> GameEffects {
     let result = resolve_movement_with_weather(
         target,
@@ -166,6 +167,39 @@ pub fn apply_movement(
                         public: data.public,
                         lat: data.lat,
                         lon: data.lon,
+                    });
+            }
+
+            // Seed a player-arrival rumour into the gossip network so NPCs can
+            // later learn and spread word of the stranger's movements.
+            //
+            // Gated behind `player-action-gossip` (default-on via `is_disabled`).
+            // The player's synthetic NpcId is NpcId(0); see the guard comment in
+            // `create_gossip_from_tier2_event` which explicitly avoids that id as
+            // a default for NPC-sourced gossip.
+            if !flags.is_disabled("player-action-gossip") {
+                let loc_name = world
+                    .graph
+                    .get(destination)
+                    .map(|d| d.name.as_str())
+                    .unwrap_or("somewhere");
+                let content = format!("A stranger arrived at {loc_name}");
+                let gossip_id =
+                    world
+                        .gossip_network
+                        .create(content.clone(), NpcId(0), world.clock.now());
+                tracing::debug!(
+                    gossip_id,
+                    location = %loc_name,
+                    "[gossip] player arrival seeded: {content}"
+                );
+                world
+                    .event_bus
+                    .publish(parish_types::events::GameEvent::GossipSpread {
+                        source: NpcId(0),
+                        location: destination,
+                        content,
+                        timestamp: world.clock.now(),
                     });
             }
 
@@ -779,12 +813,15 @@ fn build_look_text(
 /// - `client` — LLM client, or `None` to always use canned text
 /// - `model` — model name passed to the LLM
 /// - `inference_log` — optional log to record each call for the debug panel
-/// - `emit_text_log(turn_id, npc_name)` — called once per reaction to create
-///   an empty placeholder in the frontend chat log before streaming begins.
-///   The implementation MUST tie the placeholder to `turn_id` via
-///   `text_log_for_stream_turn` so the UI's streaming-placeholder guard
-///   recognises it and `finalizeStreamingEntry` can remove it when the turn
-///   ends with no tokens (otherwise an empty bubble lingers in the chat).
+/// - `emit_text_log(turn_id, npc_name, subtype)` — called once per reaction
+///   to create an empty placeholder in the frontend chat log before streaming
+///   begins. `subtype` is `Some("action")` for non-verbal reactions (e.g.
+///   `ReactionKind::Gesture`) and `None` for verbal ones. The implementation
+///   MUST tie the placeholder to `turn_id` via `text_log_for_stream_turn` (or
+///   `text_log_for_stream_turn_typed` when subtype is `Some`) so the UI's
+///   streaming-placeholder guard recognises it and `finalizeStreamingEntry` can
+///   remove it when the turn ends with no tokens (otherwise an empty bubble
+///   lingers in the chat).
 /// - `emit_stream_token(turn_id, source, batch)` — called with each batched
 ///   token chunk to be appended to the current streaming entry
 /// - `emit_stream_turn_end(turn_id)` — called exactly once after the per-NPC
@@ -806,7 +843,7 @@ pub async fn stream_reaction_texts(
     model: &str,
     inference_log: Option<&InferenceLog>,
     language: &LanguageSettings,
-    mut emit_text_log: impl FnMut(u64, &str),
+    mut emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
     mut emit_stream_turn_end: impl FnMut(u64),
 ) {
@@ -820,9 +857,19 @@ pub async fn stream_reaction_texts(
         let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
         let turn_id = REACTION_REQ_ID.fetch_add(1, Ordering::Relaxed);
 
+        // Derive the frontend subtype from the reaction kind: non-verbal reactions
+        // (Gesture and any future non-verbal kind) carry `subtype: "action"` so
+        // the UI renders them as italicised narration rather than a speech bubble.
+        let reaction_subtype: Option<&'static str> =
+            if reaction.kind == crate::npc::reactions::ReactionKind::Gesture {
+                Some("action")
+            } else {
+                None
+            };
+
         // Emit an empty placeholder so the frontend shows the NPC name immediately
         // and the stream-pump knows which entry to fill.
-        emit_text_log(turn_id, &reaction.npc_display_name);
+        emit_text_log(turn_id, &reaction.npc_display_name, reaction_subtype);
 
         let (tx, rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
 
@@ -953,7 +1000,14 @@ mod tests {
             return;
         };
         let loc = world.current_location().name.clone();
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &loc, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &loc,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(!effects.messages.is_empty());
     }
 
@@ -968,6 +1022,7 @@ mod tests {
             &templates,
             "xyzzy-no-such-place",
             &transport,
+            &FeatureFlags::default(),
         );
         assert!(!effects.world_changed);
         assert!(effects.travel_start.is_none());
@@ -991,7 +1046,14 @@ mod tests {
             .get(neighbor_id)
             .map(|d| d.name.clone())
             .unwrap_or_default();
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(effects.world_changed);
         assert!(effects.travel_start.is_some());
         assert_eq!(world.player_location, neighbor_id);
@@ -1041,7 +1103,7 @@ mod tests {
             "",
             None,
             &lang,
-            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, name, _subtype| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |turn_id| turn_ends.push(turn_id),
         )
@@ -1106,7 +1168,7 @@ mod tests {
             "sim",
             None,
             &lang,
-            |_, _| {},
+            |_, _, _| {},
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |_turn_id| {},
         )
@@ -1244,7 +1306,14 @@ mod tests {
             .expect("npcs_at target should not be empty");
 
         // Move there.
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &target_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &target_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
         assert!(effects.world_changed);
         assert_eq!(world.player_location, target);
 
@@ -1280,6 +1349,7 @@ mod tests {
             &templates,
             "definitely-not-a-place-0xdeadbeef",
             &transport,
+            &FeatureFlags::default(),
         );
         // The not-found message should also have been logged to world.log.
         assert!(
@@ -1317,7 +1387,14 @@ mod tests {
             .map(|d| d.name.clone())
             .unwrap_or_default();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         assert!(effects.world_changed);
         assert!(
@@ -1352,7 +1429,14 @@ mod tests {
         assert!(!world.visited_locations.contains(&neighbor_id));
         let clock_before = world.clock.now();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &neighbor_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         // World mutations: visited, clock advanced, edge traversal recorded.
         assert!(effects.world_changed);
@@ -1377,7 +1461,14 @@ mod tests {
         let start = world.player_location;
         let text_log_before = world.text_log.len();
 
-        let effects = apply_movement(&mut world, &mut mgr, &templates, &exact_name, &transport);
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &exact_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
 
         // Player location should not change, but the harness currently resolves the
         // *same* name via fuzzy match to the same location — accept either the
@@ -1420,7 +1511,7 @@ mod tests {
             "",
             None,
             &lang,
-            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, name, _subtype| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
             |turn_id| turn_ends.push(turn_id),
         )
@@ -1429,6 +1520,63 @@ mod tests {
         assert!(log_sources.is_empty());
         assert!(token_chunks.is_empty());
         assert!(turn_ends.is_empty());
+    }
+
+    /// Item 2 (#1431): a `Gesture` reaction must emit `subtype: Some("action")` so
+    /// the frontend can render it as italicised narration rather than a speech bubble.
+    /// A `Greeting` reaction must emit `subtype: None` (verbal — rendered as a bubble).
+    #[tokio::test]
+    async fn stream_reaction_texts_gesture_emits_action_subtype() {
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+
+        let gesture = NpcReaction {
+            npc_id: NpcId(1),
+            npc_display_name: "Siobhan".to_string(),
+            kind: ReactionKind::Gesture,
+            canned_text: "looks up briefly".to_string(),
+            introduces: false,
+            use_llm: false,
+        };
+        let greeting = NpcReaction {
+            npc_id: NpcId(2),
+            npc_display_name: "Cormac".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Good day to ye".to_string(),
+            introduces: false,
+            use_llm: false,
+        };
+
+        let mut subtypes: Vec<Option<&'static str>> = Vec::new();
+
+        let lang = crate::npc::LanguageSettings::english_only();
+        stream_reaction_texts(
+            &[gesture, greeting],
+            &[],
+            LocationId(0),
+            "Kilteevan",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            &lang,
+            |_turn_id, _name, subtype| subtypes.push(subtype),
+            |_turn_id, _source, _tok| {},
+            |_turn_id| {},
+        )
+        .await;
+
+        assert_eq!(subtypes.len(), 2, "one subtype call per reaction");
+        assert_eq!(
+            subtypes[0],
+            Some("action"),
+            "Gesture reaction must carry subtype 'action'"
+        );
+        assert_eq!(
+            subtypes[1], None,
+            "Greeting reaction must carry no subtype (verbal)"
+        );
     }
 
     /// Regression for the "blank NPC reply" bug: every per-NPC reaction MUST
@@ -1477,7 +1625,7 @@ mod tests {
             "",
             None,
             &lang,
-            |turn_id, _name| placeholder_turn_ids.push(turn_id),
+            |turn_id, _name, _subtype| placeholder_turn_ids.push(turn_id),
             |_turn_id, _source, _tok| { /* no tokens emitted for empty canned */ },
             |turn_id| turn_end_ids.push(turn_id),
         )

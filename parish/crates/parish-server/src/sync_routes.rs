@@ -108,7 +108,7 @@ pub async fn post_command(
     match classified {
         InputResult::SystemCommand(cmd) => {
             let cmd_name = format!("{cmd:?}").to_lowercase();
-            handle_system_command(cmd, &state).await;
+            handle_system_command(cmd, &state, &text).await;
             let drain = crate::drain::drain_command(stream, deadline).await;
 
             let elapsed_ms = start.elapsed().as_millis() as u64;

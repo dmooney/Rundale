@@ -2,10 +2,6 @@
 name: check
 description: Run the Rundale quality gates — `just check` (pre-commit) and `just verify` (pre-push, adds the game-harness walkthrough) — and diagnose failures, including the known CI false positives. Use before committing, before pushing, or when debugging a CI failure.
 disable-model-invocation: true
-paths:
-  - .github/**
-  - parish/scripts/**
-  - justfile
 ---
 
 Run the Rundale quality gates. There are two levels — run the one that matches where you are.

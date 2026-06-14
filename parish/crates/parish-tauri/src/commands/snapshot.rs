@@ -56,14 +56,6 @@ pub(super) async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHan
     let _ = app.emit(crate::events::EVENT_WORLD_UPDATE, snapshot);
 }
 
-/// Returns a formatted game-time string (`HH:MM YYYY-MM-DD`) snapshotted
-/// from the shared world clock. Used for debug event timestamps so the
-/// Events tab no longer renders blank times.
-pub(super) async fn debug_event_timestamp(state: &Arc<AppState>) -> String {
-    let world = state.world.lock().await;
-    world.clock.now().format("%H:%M %Y-%m-%d").to_string()
-}
-
 // ── Commands ─────────────────────────────────────────────────────────────────
 
 /// Returns a snapshot of the current world state (location, time, weather, season).

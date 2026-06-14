@@ -72,10 +72,18 @@ pub const DIALOGUE_ANTI_REPETITION_FLAG: &str = "dialogue-anti-repetition";
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
 /// `mood`, `internal_thought`, `language_hints`) fits without hitting the
-/// provider default and truncating mid-sentence (#982). vllm-mlx and most
+/// provider default and truncating mid-sentence (#982, #1431). vllm-mlx and most
 /// OpenAI-compat servers default to a value too low for the structured-output
 /// schema once the dialogue runs more than a sentence or two.
-pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 512;
+///
+/// Raised from 512 → 768 (#1431 item 3): at 512 tokens the budget was
+/// consumed by `internal_thought` / `action` / `mood` before `dialogue`
+/// finished, producing mid-sentence cutoffs. Budget breakdown:
+///   - `internal_thought` (~15-20 words): ~25 tokens
+///   - `action` + `mood` + JSON envelope overhead: ~35 tokens
+///   - 2-3 sentence Hiberno-English dialogue (~70-110 tokens)
+///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
+pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 768;
 
 /// Output of a single NPC turn.
 #[derive(Debug)]
@@ -114,7 +122,7 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let setup = {
+    let (setup, person_guard_enabled, verbosity_guard_enabled) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -126,12 +134,18 @@ pub async fn run_npc_turn(
             prompt_input,
             speaker_id,
         );
+        let person_guard = !config
+            .flags
+            .is_disabled("dialogue-person-confirmation-guard");
+        let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
+            person_confirmation_guard_enabled: person_guard,
+            verbosity_guard_enabled: verbosity_guard,
             ..crate::config::NpcConfig::default()
         };
-        crate::ipc::prepare_npc_conversation_turn(
+        let setup = crate::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
             prompt_input,
@@ -140,8 +154,10 @@ pub async fn run_npc_turn(
             config.improv_enabled,
             &ctx.language,
             &npc_cfg,
-        )
-    }?;
+        );
+        (setup, person_guard, verbosity_guard)
+    };
+    let setup = setup?;
 
     let loading_cancel = spawn_loading();
 
@@ -320,12 +336,55 @@ pub async fn run_npc_turn(
         cancel.cancel();
     }
 
-    let parsed = parse_npc_stream_response(&response.text);
+    let mut parsed = parse_npc_stream_response(&response.text);
     let hints = parsed
         .metadata
         .as_ref()
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
+
+    // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
+    // when the NPC's reply affirmatively confirms a fabricated person from the
+    // player's input (or an earlier turn) who is not in the known-roster, and
+    // replace with a stock decline.
+    // Runs before the logging/quality-check block so the guarded text is what
+    // gets logged and forwarded to the shared pipeline.
+    if person_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        // Extract prior player-speaker lines from the conversation transcript so
+        // the pronoun follow-up guard (#1470 gap 2) can detect fabricated
+        // referents established in earlier turns.
+        let prior_player_inputs: Vec<&str> = transcript
+            .iter()
+            .filter(|line| line.speaker == "You")
+            .map(|line| line.text.as_str())
+            .collect();
+        let guarded = crate::npc::guard_fabricated_person_confirmation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            &prior_player_inputs,
+            None,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation verbosity / run-on guard (#1460): strip bare leaked
+    // mood-adjective, trim mid-sentence truncation ellipsis to the last
+    // complete sentence, and cap trailing question stacks to at most one.
+    // Applied here (before the shared pipeline) so the guarded text is what
+    // gets stored in the conversation log and event bus — same effect for
+    // every runtime (Tauri, server, headless) via the shared npc_turn path.
+    if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
 
     if !parsed.dialogue.trim().is_empty() {
         tracing::info!(
@@ -1561,5 +1620,24 @@ pub mod tests {
         );
         conv.end_turn();
         assert!(conv.try_begin_turn(), "after release, a new turn may claim");
+    }
+
+    /// AC-4 (#1431 item 3): the Tier 1 token budget must be large enough to
+    /// fit a complete 2-3 sentence dialogue reply plus the full JSON envelope
+    /// (`dialogue`, `action`, `mood`, `internal_thought`, `language_hints`).
+    /// At 512 the budget was consumed by metadata fields before `dialogue`
+    /// finished, causing mid-sentence cutoffs.
+    #[test]
+    fn tier1_dialogue_max_tokens_is_adequate() {
+        // 768 tokens: ~25 for internal_thought, ~35 for envelope overhead,
+        // ~110 for 2-3 sentence dialogue at ~4 chars/token — leaves headroom.
+        // Read through a local variable so clippy does not flag a const comparison.
+        let budget: u32 = super::TIER1_DIALOGUE_MAX_TOKENS;
+        assert!(
+            budget >= 768,
+            "TIER1_DIALOGUE_MAX_TOKENS must be >= 768 to prevent mid-sentence \
+             truncation when metadata fields precede dialogue in the JSON output \
+             (fix #1431 item 3); current value: {budget}"
+        );
     }
 }

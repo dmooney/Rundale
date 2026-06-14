@@ -76,6 +76,11 @@ export const fullMapOpen = writable<boolean>(false);
 
 export const focailOpen = writable<boolean>(false);
 
+/** Monotonically increasing counter incremented each time the player submits
+ *  a message. ChatPanel subscribes and scrolls to the bottom unconditionally
+ *  when this changes, regardless of current scroll position (#1431 item 4). */
+export const playerSubmittedCount = writable<number>(0);
+
 /**
  * Resets focailOpen to false when the viewport transitions to desktop
  * (i.e. when the narrow-viewport media query stops matching).

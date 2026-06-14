@@ -143,7 +143,7 @@ impl GameTestHarness {
                 let host =
                     CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
                 let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    rt.block_on(handle_system_command(&host, cmd))
+                    rt.block_on(handle_system_command(&host, cmd, trimmed))
                 }));
                 drop(host);
                 self.app = Arc::into_inner(app_arc)

@@ -225,6 +225,25 @@ impl SystemCommandHost for AppStateCommandHost {
         Box::pin(async move { apply_inference_log_sub(&file_log, sub) })
     }
 
+    fn emit_command_echo(&self, raw_text: &str) {
+        let payload = text_log_typed("player", raw_text, "command");
+        self.state
+            .event_bus
+            .emit_named(Topic::TextLog, "text-log", &payload);
+    }
+
+    fn is_echo_commands_disabled(&self) -> bool {
+        // Synchronous read — we're inside a non-async trait method.  Using
+        // `try_lock` avoids blocking the async runtime.  If the lock is
+        // contended (rare — only during a concurrent config write) we fall
+        // back to `false` (echo fires) rather than silently suppressing it.
+        self.state
+            .config
+            .try_lock()
+            .map(|c| c.flags.is_disabled("echo-commands"))
+            .unwrap_or(false)
+    }
+
     fn emit_text_log(&self, msg: String, presentation: TextPresentation) {
         let payload = match presentation {
             TextPresentation::Tabular => text_log_typed("system", msg, "tabular"),
