@@ -136,8 +136,12 @@ pub fn build_enhanced_system_prompt_with_config(
                 }
             }
             prompt.push_str(
-                "If you want to mention anyone not listed above, \
-                describe them by role or appearance \u{2014} never invent a name.\n",
+                "Each entry above gives the person's pronouns (where known) and \
+                age \u{2014} use their stated pronouns and never guess gender from \
+                a name. If you \
+                want to mention anyone not listed above, describe them by role or \
+                appearance \u{2014} never invent a name, and never refer to a \
+                person (he/she/they/her/him) who has not been mentioned.\n",
             );
         }
     } else if !npc.relationships.is_empty() {
