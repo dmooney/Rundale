@@ -5,6 +5,7 @@
 //! covering mood, activity, location, and relationship deltas.
 
 use chrono::{DateTime, Utc};
+use regex::Regex;
 use std::collections::HashMap;
 
 use crate::memory::{MemoryEntry, try_promote};
@@ -286,21 +287,10 @@ const SEASON_TOKENS: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// Returns the last character that ends at byte offset `end` (i.e. the last
-/// char of `s[..end]`).  Safe for multi-byte UTF-8 strings.
-fn char_before(s: &str, end: usize) -> Option<char> {
-    s[..end].chars().next_back()
-}
-
-/// Returns the first character that starts at byte offset `start`.
-fn char_after(s: &str, start: usize) -> Option<char> {
-    s[start..].chars().next()
-}
-
 /// Removes wrong-season tokens from an LLM-generated activity summary.
 ///
 /// Scans `text` for references to seasons other than `current_season`
-/// (case-insensitive) and deletes them in-place. Multi-word seasonal phrases
+/// (case-insensitive) and deletes them. Multi-word seasonal phrases
 /// are matched before single season words so no dangling fragments remain.
 ///
 /// Only clear wrong-season markers are touched; the function is conservative
@@ -309,6 +299,16 @@ fn char_after(s: &str, start: usize) -> Option<char> {
 ///
 /// `current_season` is compared case-insensitively, accepting "Spring",
 /// "spring", "SPRING", etc.
+///
+/// # UTF-8 correctness
+///
+/// Matching is done via the `regex` crate with the `(?i)` case-insensitive
+/// flag operating directly on the original `text` bytes.  This avoids the
+/// earlier approach of calling `to_lowercase()` and reusing its byte offsets
+/// on the original string, which is unsound for Unicode code points whose
+/// lowercase form has a different UTF-8 byte length (e.g. `İ` U+0130 encodes
+/// to 2 bytes but its lowercase `i\u{307}` encodes to 3 bytes; the Kelvin
+/// sign `K` U+212A encodes to 3 bytes but lowercase `k` encodes to 1 byte).
 pub fn scrub_wrong_season_tokens(text: &str, current_season: &str) -> (String, bool) {
     let current_lower = current_season.to_lowercase();
 
@@ -334,54 +334,24 @@ pub fn scrub_wrong_season_tokens(text: &str, current_season: &str) -> (String, b
 
     for token_list in &wrong_tokens {
         for &token in *token_list {
-            // Work on a lowercase copy for position finding; byte offsets are
-            // valid for splicing the original-case string because both strings
-            // have identical UTF-8 layout (only ASCII letters change case).
-            let lower_result = result.to_lowercase();
-            if !lower_result.contains(token) {
-                continue;
+            // Build a case-insensitive regex that matches the token at word
+            // boundaries (\b).  The tokens are all ASCII so \b gives the same
+            // word-boundary semantics as the previous char_before/char_after
+            // guards.  We use \b on both sides so "midsummer" is not mutilated
+            // when "summer" is being removed.
+            //
+            // Regex::new can only fail for invalid patterns; all SEASON_TOKENS
+            // are ASCII literals, so unwrap() is safe here.
+            let pattern = format!(r"(?i)\b{}\b", regex::escape(token));
+            let re = Regex::new(&pattern).expect("SEASON_TOKENS are valid regex literals");
+
+            if re.is_match(&result) {
+                let cleaned = re.replace_all(&result, "");
+                // Collapse runs of multiple spaces / leading-trailing whitespace
+                // that result from phrase removal.
+                result = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+                changed = true;
             }
-
-            let mut new_result = String::with_capacity(result.len());
-            let mut last = 0usize;
-            let mut search_start = 0usize;
-
-            while search_start <= lower_result.len() {
-                let Some(pos) = lower_result[search_start..].find(token) else {
-                    break;
-                };
-                let abs_pos = search_start + pos;
-                let end = abs_pos + token.len();
-
-                // Word-boundary check using byte-safe helpers.
-                // `abs_pos` and `end` are byte offsets, valid as slice indices
-                // because find() always returns char-boundary-aligned positions.
-                let before_ok = abs_pos == 0
-                    || !char_before(&lower_result, abs_pos)
-                        .unwrap_or(' ')
-                        .is_alphabetic();
-                let after_ok = end >= lower_result.len()
-                    || !char_after(&lower_result, end)
-                        .unwrap_or(' ')
-                        .is_alphabetic();
-
-                if before_ok && after_ok {
-                    new_result.push_str(&result[last..abs_pos]);
-                    last = end;
-                    changed = true;
-                    // Advance past the full match to avoid re-matching.
-                    search_start = end;
-                } else {
-                    // Boundary guard rejected; advance by one byte past match
-                    // start so we don't loop forever on the same position.
-                    search_start = abs_pos + 1;
-                }
-            }
-
-            new_result.push_str(&result[last..]);
-            // Collapse runs of multiple spaces / leading-trailing whitespace
-            // that result from phrase removal.
-            result = new_result.split_whitespace().collect::<Vec<_>>().join(" ");
         }
     }
 
@@ -1099,5 +1069,42 @@ mod tests {
         let (cleaned, changed) = scrub_wrong_season_tokens("", "Summer");
         assert!(!changed);
         assert_eq!(cleaned, "");
+    }
+
+    /// UTF-8 safety (#1462 follow-up): strings containing Unicode characters
+    /// whose lowercase form has a different UTF-8 byte length must not panic
+    /// and must still scrub wrong-season tokens correctly.
+    ///
+    /// The old implementation called `to_lowercase()` on the work buffer and
+    /// reused those byte offsets to splice the original string.  For `İ`
+    /// (U+0130, 2 UTF-8 bytes) the lowercase form is `i\u{307}` (3 bytes),
+    /// so the offset from the lowercased copy pointed into the middle of a
+    /// multi-byte sequence in the original — causing a panic or wrong removal.
+    /// The regex-based implementation operates directly on the original string
+    /// and is not affected by this mismatch.
+    #[test]
+    fn test_tier3_season_guard_unicode_no_panic() {
+        // İ (U+0130, LATIN CAPITAL LETTER I WITH DOT ABOVE) encodes as 2 bytes
+        // in UTF-8 but its Unicode lowercase is "i\u{0307}" (3 bytes).
+        // Place it right before a wrong-season token so the old offset
+        // arithmetic would have been forced to mis-slice or panic.
+        let input = "İlkbahar summer days were warm.";
+        // Must not panic, and "summer" must be removed (season=Spring).
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Spring");
+        assert!(changed, "summer token must be scrubbed: {cleaned:?}");
+        assert!(
+            !cleaned.to_lowercase().contains("summer"),
+            "cleaned text must not contain 'summer': {cleaned:?}"
+        );
+
+        // Also test with the Kelvin sign K (U+212A, 3 UTF-8 bytes) whose
+        // lowercase is 'k' (1 byte).
+        let input2 = "\u{212A}eltic winter cold lingered.";
+        let (cleaned2, changed2) = scrub_wrong_season_tokens(input2, "Spring");
+        assert!(changed2, "winter token must be scrubbed: {cleaned2:?}");
+        assert!(
+            !cleaned2.to_lowercase().contains("winter"),
+            "cleaned text must not contain 'winter': {cleaned2:?}"
+        );
     }
 }
