@@ -195,11 +195,15 @@ validate_evidence_file() {
             # tier (rule #10) requires for proofs of changes touching
             # the Tauri/server/CLI/UI/mod seams. Plain
             # `Evidence type: gameplay transcript` remains valid for
-            # non-runtime proof-relevant changes.
-            if grep -Eiq '^Evidence type:[[:space:]]*(live[[:space:]]+)?(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
+            # non-runtime proof-relevant changes. `game-loop integration
+            # test` is the real-loop tier for deterministic guards that
+            # cannot be triggered live on demand (its runtime-path
+            # acceptance below additionally requires an `execute_via_real_loop`
+            # reference, so it cannot be stamped over plain unit tests).
+            if grep -Eiq '^Evidence type:[[:space:]]*((live[[:space:]]+)?(gameplay transcript|screenshot|gif)|game-loop integration test)[[:space:]]*$' "$file"; then
                 return 0
             fi
-            echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)'." >&2
+            echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)' or 'Evidence type: game-loop integration test'." >&2
             return 1
             ;;
     esac
