@@ -1946,6 +1946,12 @@ mod tests {
     #[test]
     fn test_canned_multi_npc_response_from_free_text_names() {
         let mut h = GameTestHarness::new();
+        // Free-text name addressing ("Padraig", "Niamh") resolves against
+        // *introduced* NPCs, and arrival greetings are what introduce them on
+        // entry. Those greetings are gated off by default (npc-arrival-greetings),
+        // so enable the flag here to exercise the historical arrival-introduction
+        // path this test depends on.
+        h.execute("/flag enable npc-arrival-greetings");
         h.advance_time(120); // 10am — Padraig and Niamh are scheduled at the pub.
         h.execute("go to crossroads");
         h.execute("go to pub");
