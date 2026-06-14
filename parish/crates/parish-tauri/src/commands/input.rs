@@ -57,7 +57,7 @@ pub(crate) async fn do_submit_input(
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
-            handle_system_command(cmd, state, app).await;
+            handle_system_command(cmd, state, app, &text).await;
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -147,12 +147,13 @@ async fn handle_system_command(
     cmd: parish_core::input::Command,
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
+    raw_text: &str,
 ) {
     use crate::command_host::TauriCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
 
     let host = TauriCommandHost::new(Arc::clone(state), app.clone());
-    shared_handle(&host, cmd).await;
+    shared_handle(&host, cmd, raw_text).await;
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.

@@ -309,6 +309,8 @@ const EXPECTED_HOST_METHODS: &[&str] = &[
     "inference_log_toggle",
     "emit_text_log",
     "emit_world_update",
+    "emit_command_echo",
+    "is_echo_commands_disabled",
 ];
 
 /// The three production entry-point hosts (crate label, source path relative to
@@ -334,6 +336,14 @@ const DEFAULT_RELIANT_ALLOWLIST: &[(&str, &str)] = &[
     // explicit, reviewed exception rather than silent drift.
     ("parish-server", "reset_byok"),
     ("parish-engine", "reset_byok"),
+    // `emit_command_echo` and `is_echo_commands_disabled` support the
+    // #1423 command-echo feature (display slash commands in the transcript).
+    // The headless CLI REPL already prints the raw input at the prompt, so
+    // echoing into a text-log event would double-print; the default no-op is
+    // the correct behaviour there. GUI backends (Tauri, server) emit the
+    // player+command payload and check the flag — both override these methods.
+    ("parish-engine", "emit_command_echo"),
+    ("parish-engine", "is_echo_commands_disabled"),
 ];
 
 /// Extract the `fn <name>` declarations inside the `SystemCommandHost` trait
