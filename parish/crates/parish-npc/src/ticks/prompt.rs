@@ -213,6 +213,22 @@ pub fn build_enhanced_system_prompt_with_config(
             location \u{2014} a wrong yarn is worse than an honest \"I don't know \
             it.\"\n",
         );
+        // #1504: distinguish acquaintance questions from identity challenges.
+        // "Do you know X?" is an ACQUAINTANCE question — answer whether you
+        // know the named person. It is NOT asking whether you ARE that person.
+        // Never respond with your own name or identity ("I'm but Seamus") to
+        // "Do you know X?" — that answers a question that was never asked.
+        // Only assert your own identity when directly asked "Are you X?" or
+        // "Who are you?".
+        prompt.push_str(
+            "ACQUAINTANCE vs IDENTITY: \"Do you know X?\" is an ACQUAINTANCE \
+            question \u{2014} answer it directly: \"Aye, I know them\" or \
+            \"I know no one by that name.\" Do NOT respond with your own name or \
+            clarify who you are in answer to an acquaintance question \u{2014} \
+            that addresses a question that was never asked. Reserve first-person \
+            identity assertions (\"I'm ...\", \"My name is ...\") for when someone \
+            directly asks \"Are you X?\" or \"Who are you?\"\n",
+        );
     }
 
     prompt
@@ -2034,6 +2050,58 @@ mod tests {
         assert!(
             context.contains("Tending the cow"),
             "assembled context must include the activity text (#1448):\n{context}"
+        );
+    }
+
+    /// AC-1 (#1504): when grounding is enabled, the system prompt must contain
+    /// the acquaintance-vs-identity directive that prevents the NPC from
+    /// answering "do you know X?" with a self-identification assertion.
+    #[test]
+    fn grounding_block_distinguishes_acquaintance_from_identity_questions() {
+        let npc = make_test_npc(1, "Seamus", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+        let places = vec!["Darcy's Pub".to_string(), "The Mill".to_string()];
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &lang,
+            &config,
+            &names,
+            None,
+            Some(&places),
+        );
+        assert!(
+            prompt.contains("ACQUAINTANCE vs IDENTITY") || prompt.contains("acquaintance question"),
+            "grounding block must contain acquaintance-vs-identity directive (#1504):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Do you know X?") || prompt.contains("do you know"),
+            "directive must reference the 'do you know' pattern (#1504):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("identity") || prompt.contains("\"Are you X?\""),
+            "directive must distinguish identity questions (#1504):\n{prompt}"
+        );
+    }
+
+    /// AC-2 (#1504): the acquaintance-vs-identity directive must NOT appear
+    /// when grounding is disabled (location_names is None).
+    #[test]
+    fn acquaintance_vs_identity_directive_absent_when_grounding_disabled() {
+        let npc = make_test_npc(1, "Seamus", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc, false, &lang, &config, &names, None, None,
+        );
+        assert!(
+            !prompt.contains("ACQUAINTANCE vs IDENTITY"),
+            "acquaintance-vs-identity directive must be absent when grounding is disabled:\n{prompt}"
         );
     }
 }
