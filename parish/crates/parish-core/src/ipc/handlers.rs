@@ -801,6 +801,10 @@ pub struct NpcConversationSetup {
     /// Used by the post-generation person-confirmation guard (#1459) to detect
     /// when the NPC's reply affirms a fabricated person not on this list.
     pub known_person_names: Vec<String>,
+    /// Full roster as (name, occupation) pairs, including the speaker.
+    /// Used by the wrong-speaker-identity guard (#1475) to detect when this
+    /// NPC's reply claims to be a different roster member.
+    pub roster_names_occupations: Vec<(String, String)>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -939,6 +943,15 @@ pub fn prepare_npc_conversation_turn(
     // allows the player's own name when it appears in a question.
     let known_person_names: Vec<String> = roster.iter().map(|(_, name, _)| name.clone()).collect();
 
+    // For the wrong-speaker-identity guard (#1475): (name, occupation) pairs
+    // for all roster members. Exclude the player entry (NpcId(0)) since the
+    // guard is about NPC identities, not the player.
+    let roster_names_occupations: Vec<(String, String)> = roster
+        .iter()
+        .filter(|(id, _, _)| id.0 != 0)
+        .map(|(_, name, occ)| (name.clone(), occ.clone()))
+        .collect();
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
@@ -946,6 +959,7 @@ pub fn prepare_npc_conversation_turn(
         system_prompt,
         context,
         known_person_names,
+        roster_names_occupations,
     })
 }
 
