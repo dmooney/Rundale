@@ -1461,28 +1461,245 @@ pub fn strip_leaked_mood_word(dialogue: &str) -> String {
     text.to_string()
 }
 
-/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460, #1472).
+// ── #1487 — degenerate intra-response phrase repetition guard ─────────────────
+//
+// A small quantized model (e.g. Qwen2.5-14B-4bit) can enter a degenerate
+// sampling loop that repeats a short phrase (3–8 words) 10–20 times in a row
+// WITHOUT sentence-terminating punctuation between each occurrence. The result
+// is a wall of near-identical commas-delimited clauses ("in His time and His
+// way, and His purpose… in His time and His way…" × 15) that fills the
+// token cap. `split_sentences` produces ONE entry for the whole wall, so
+// `collapse_repeated_sentences` and `collapse_distributed_repeated_sentences`
+// never see the repetition.
+//
+// This guard operates at the WORD level instead:
+//  1. Split into whitespace-delimited word-tokens.
+//  2. Search for the longest repeated n-gram (n ∈ [3, 8]) that appears ≥
+//     DEGENERATE_REPEAT_MIN times.
+//  3. If found, truncate the text at the END of the FIRST occurrence of that
+//     n-gram so the surviving prefix ends cleanly.
+//
+// Conservative thresholds (n ≥ 3 words, repetitions ≥ 4) prevent false
+// positives on natural repetition like "Aye, aye" or "day by day".
+
+/// Detects and collapses a degenerate intra-response phrase-repetition loop
+/// (#1487 — sub-sentence phrase loop guard).
+///
+/// When a small model repeats a short phrase (3–8 words) four or more times
+/// within a single response (regardless of intervening punctuation), this
+/// function truncates the text at the end of the FIRST occurrence of that
+/// phrase, then trims to the last complete sentence before the loop started.
+///
+/// # Behaviour
+///
+/// - Scans for n-grams of length 3–8 (longest first, to keep the most
+///   context) that appear ≥ 4 times in the word-token sequence.
+/// - On detection, keeps only the text up to (and including) the end byte
+///   position of the first n-gram occurrence, then trims back to the last
+///   sentence-ending punctuation (`.`, `!`, `?`) so the reply ends cleanly.
+/// - If no complete sentence precedes the first occurrence (e.g. the entire
+///   reply IS the loop), returns the first occurrence as-is rather than a
+///   blank.
+/// - Replies without degenerate repetition are returned unchanged.
+///
+/// Exposed as `pub` so the caller in `guard_verbosity_runons` and unit tests
+/// can invoke it directly.
+pub fn collapse_degenerate_phrase_loop(dialogue: &str) -> String {
+    /// Maximum n-gram width to consider. Longer phrases are unlikely to repeat
+    /// 4× within a single NPC reply in legitimate prose.
+    const MAX_NGRAM: usize = 8;
+    /// Minimum n-gram width to consider. Phrases shorter than 3 words are
+    /// too generic ("and the", "in a") to reliably signal degeneration.
+    const MIN_NGRAM: usize = 3;
+    /// Minimum repetition count to trigger the guard. Natural dialogue can
+    /// repeat short phrases 2–3 times ("aye, aye" or consecutive paired
+    /// clauses); 4 repetitions is the degeneration threshold.
+    const MIN_REPEATS: usize = 4;
+
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let n = words.len();
+    if n < MIN_NGRAM * MIN_REPEATS {
+        // Not enough words for even the shortest degenerate loop.
+        return text.to_string();
+    }
+
+    // Try n-gram widths from largest to smallest so we truncate at the
+    // richest possible context.
+    let mut best: Option<(usize, usize, usize)> = None; // (width, first_start, repeat_count)
+    'outer: for width in (MIN_NGRAM..=MAX_NGRAM).rev() {
+        if width * MIN_REPEATS > n {
+            continue;
+        }
+        // Index every n-gram start position by its normalized token tuple.
+        let mut positions: std::collections::HashMap<Vec<String>, Vec<usize>> =
+            std::collections::HashMap::new();
+        for start in 0..=(n - width) {
+            let key: Vec<String> = words[start..start + width]
+                .iter()
+                .map(|w| normalize_for_repetition(w))
+                .collect();
+            positions.entry(key).or_default().push(start);
+        }
+        for starts in positions.values() {
+            if starts.len() >= MIN_REPEATS {
+                let first = *starts.iter().min().unwrap();
+                let rep = starts.len();
+                // Prefer the n-gram that (a) repeats most, (b) is longest on tie.
+                if best.is_none()
+                    || rep > best.unwrap().2
+                    || (rep == best.unwrap().2 && width > best.unwrap().0)
+                {
+                    best = Some((width, first, rep));
+                }
+                // Found at this width — no need to check further n-grams of
+                // the same width (we already have a candidate). Move to the
+                // next width.
+                break 'outer;
+            }
+        }
+    }
+
+    let Some((width, first_start, _)) = best else {
+        return text.to_string();
+    };
+
+    // The loop was detected. Build the prefix text from words[0..first_start+width]
+    // by re-joining (single space between tokens). This avoids fragile byte-cursor
+    // arithmetic on the original string and is correct for any whitespace variation.
+    let prefix_joined = words[..first_start + width].join(" ");
+    let prefix = prefix_joined.trim_end();
+    if prefix.is_empty() {
+        return text.to_string();
+    }
+
+    // Trim back to the last sentence boundary so the reply ends cleanly.
+    if let Some(last_end) = prefix.rfind(['.', '!', '?']) {
+        let sentence_end = last_end + 1;
+        if sentence_end < prefix.len() {
+            // There is trailing non-sentence content after the last complete
+            // sentence within the prefix — trim it off.
+            return prefix[..sentence_end].trim().to_string();
+        }
+        return prefix.to_string();
+    }
+
+    // No sentence boundary found before the loop: return the prefix as-is
+    // rather than an empty string.
+    prefix.to_string()
+}
+
+// ── #1489 — word-count cap guard ──────────────────────────────────────────────
+//
+// Some generations run 43–47 s and hit the token cap, producing a reply that
+// may be 200+ words across 4 or fewer sentences (so `cap_sentence_count` does
+// not trim it). A word-count cap is the deterministic backstop: if the reply
+// exceeds MAX_WORDS words, trim at the last sentence boundary within the first
+// MAX_WORDS words. This bounds time-to-display and forces the NPC to be concise.
+
+/// Trims a dialogue string to at most `MAX_WORDS` words, cutting back to the
+/// last complete sentence (#1489 — word-count cap guard).
+///
+/// # Behaviour
+///
+/// - Counts whitespace-delimited word tokens. If the total is ≤ `MAX_WORDS`,
+///   the string is returned unchanged (the common, fast path).
+/// - When the cap fires: finds the last sentence-ending punctuation (`.`, `!`,
+///   `?`) within the first `MAX_WORDS` words and trims to that boundary.
+/// - If no sentence boundary exists within the budget (very unusual — the reply
+///   is one long unpunctuated run), the first `MAX_WORDS` words are returned
+///   with a closing period added.
+///
+/// Conservative: `MAX_WORDS = 80`. A natural 3–4 sentence NPC reply in
+/// Hiberno-English is 40–60 words; 80 words gives generous headroom (≈ 5
+/// sentences at normal length) while preventing multi-hundred-word runaways.
+pub fn cap_word_count(dialogue: &str) -> String {
+    /// Maximum word count before the cap fires. 80 words ≈ 400 tokens at
+    /// ~5 chars/token — well within a single inference call budget while
+    /// enforcing a ceiling on runaway length.
+    const MAX_WORDS: usize = 80;
+
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    // Fast path: count words. If within budget, return immediately.
+    let word_count = text.split_whitespace().count();
+    if word_count <= MAX_WORDS {
+        return text.to_string();
+    }
+
+    // Find the byte offset of the end of the MAX_WORDS-th word token.
+    let mut remaining = MAX_WORDS;
+    let mut budget_end = text.len();
+    let mut in_word = false;
+    let mut cursor = 0usize;
+    for c in text.chars() {
+        let was_in_word = in_word;
+        in_word = !c.is_whitespace();
+        // Transition non-whitespace → whitespace: a word just ended.
+        if was_in_word && !in_word {
+            remaining -= 1;
+            if remaining == 0 {
+                budget_end = cursor;
+                break;
+            }
+        }
+        cursor += c.len_utf8();
+    }
+    // Handle the case where the string ends mid-word (no trailing whitespace).
+    if in_word && remaining == 1 {
+        budget_end = text.len();
+    }
+
+    let prefix = &text[..budget_end];
+
+    // Trim to the last sentence boundary within the prefix.
+    if let Some(last_end) = prefix.rfind(['.', '!', '?']) {
+        let sentence_end = last_end + 1;
+        // Only use the sentence boundary if it's not before the very beginning
+        // (i.e. there IS some content before it).
+        if sentence_end > 1 {
+            return text[..sentence_end].trim().to_string();
+        }
+    }
+
+    // No sentence boundary: return the first MAX_WORDS words with a period.
+    format!("{}.", prefix.trim_end())
+}
+
+/// Applies the full verbosity / run-on guard to a finalized dialogue string (#1460, #1472, #1487, #1489).
 ///
 /// Steps, in order:
 /// 1. Strip bare leaked mood-adjective from tail ([`strip_leaked_mood_word`]).
 /// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
 /// 3. Strip trailing ellipsis artifact after otherwise-complete text
 ///    ([`strip_trailing_ellipsis_artifact`], #1472).
-/// 4. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 5. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 6. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 7. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+/// 4. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
+///    Detects when a short phrase (3–8 words) repeats ≥ 4× and truncates at the
+///    first clean sentence boundary before the loop.
+/// 5. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 6. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 7. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 8. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
 ///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///    guards (steps 4-6) cannot catch.
+///    guards (steps 5-7) cannot catch.
+/// 9. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
+///    ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
-/// Steps 4 and 5 are the #1460 core fix for distributed / interleaved repetition
+/// Steps 5 and 6 are the #1460 core fix for distributed / interleaved repetition
 /// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
-/// called upstream by `guard_against_repetition`) does not catch. Step 6 keeps
-/// the earlier trailing-question guard in place as a final cleanup. Step 7 runs
-/// LAST so it operates on already-cleaned text, giving the surgical guards their
-/// best shot before the blunt cap applies.
+/// called upstream by `guard_against_repetition`) does not catch. Step 7 keeps
+/// the earlier trailing-question guard in place as a final cleanup. Step 8 runs
+/// before step 9 so it operates on already-cleaned text, giving the surgical
+/// guards their best shot before the blunt caps apply.
 ///
-/// Conservative — does not alter legitimate prose within 4 sentences.
+/// Conservative — does not alter legitimate prose within 4 sentences and 80 words.
 pub fn guard_verbosity_runons(dialogue: &str) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
@@ -1490,10 +1707,12 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_mood = strip_leaked_mood_word(dialogue);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_ellipsis);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_phrase_loop);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
-    cap_sentence_count(&after_trailing_q)
+    let after_sentence_cap = cap_sentence_count(&after_trailing_q);
+    cap_word_count(&after_sentence_cap)
 }
 
 // ── #1475 — wrong-speaker identity guard ──────────────────────────────────────
@@ -2779,6 +2998,185 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "first-name self-reference must not be blocked: {result:?}"
+        );
+    }
+
+    // ── #1487 — degenerate intra-response phrase-loop guard ───────────────────
+
+    /// AC-1 (#1487): the priest repro — a short clause repeated 15× to the
+    /// token cap. The guard must detect the loop and truncate at a clean
+    /// sentence boundary before the loop begins.
+    #[test]
+    fn degenerate_phrase_loop_15x_repetition_collapsed() {
+        // The harness-observed repro pattern: "in His time and His way, and
+        // His purpose…" repeated ~15 times, no terminal punctuation between
+        // occurrences. We represent it as repeating 15×.
+        let preamble = "God's blessings upon ye, and may ye find what ye seek.";
+        let loop_clause = "in His time and His way and His purpose";
+        // Build: preamble + 15× the loop clause separated by commas
+        let loop_part = std::iter::repeat_n(loop_clause, 15)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let dialogue = format!("{preamble} {loop_part}");
+        let result = collapse_degenerate_phrase_loop(&dialogue);
+        // The preamble must survive.
+        assert!(
+            result.contains("God's blessings upon ye"),
+            "preamble sentence must survive: {result:?}"
+        );
+        // The loop must be gone.
+        let occurrences = result
+            .to_lowercase()
+            .matches("in his time and his way")
+            .count();
+        assert!(
+            occurrences <= 1,
+            "phrase loop must collapse to ≤1 occurrence, got {occurrences}: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1487): a reply with varied legitimate prose must not be altered.
+    #[test]
+    fn degenerate_phrase_loop_leaves_varied_prose_unchanged() {
+        let dialogue = "A fine morning to ye. The harvest has come in well this year. \
+            Brigid Connolly was asking after the grain prices only yesterday. \
+            And the priest is expected back by Thursday, so they say.";
+        let result = collapse_degenerate_phrase_loop(dialogue);
+        assert!(
+            result.contains("fine morning"),
+            "first sentence must survive: {result:?}"
+        );
+        assert!(
+            result.contains("Brigid Connolly"),
+            "third sentence must survive: {result:?}"
+        );
+        assert!(
+            result.contains("Thursday"),
+            "last sentence must survive: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1487): a short phrase repeated exactly 3× (below the 4× threshold)
+    /// must not trigger the guard — natural repetition must be allowed.
+    #[test]
+    fn degenerate_phrase_loop_below_threshold_passes_through() {
+        // "come back soon" appears 3× — below the 4× threshold.
+        let dialogue = "Come back soon, come back soon, come back soon, friend.";
+        let result = collapse_degenerate_phrase_loop(dialogue);
+        // The guard must not have fired (3× < 4× threshold).
+        assert!(
+            result.contains("come back soon"),
+            "3× repetition should pass through (below threshold): {result:?}"
+        );
+    }
+
+    /// AC-4 (#1487): the guard integrates into `guard_verbosity_runons`
+    /// end-to-end, so a runaway is fully cleaned even through the full pipeline.
+    #[test]
+    fn guard_verbosity_runons_collapses_phrase_loop_end_to_end() {
+        let preamble = "Peace be with ye, friend.";
+        let loop_clause = "in His time and His purpose";
+        let loop_part = std::iter::repeat_n(loop_clause, 12)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let dialogue = format!("{preamble} {loop_part}");
+        let result = guard_verbosity_runons(&dialogue);
+        // The preamble must survive.
+        assert!(
+            result.contains("Peace be with ye"),
+            "preamble must survive guard pipeline: {result:?}"
+        );
+        // The loop must be gone.
+        let occurrences = result
+            .to_lowercase()
+            .matches("in his time and his purpose")
+            .count();
+        assert!(
+            occurrences <= 1,
+            "phrase loop must be gone after guard pipeline, got {occurrences}: {result:?}"
+        );
+    }
+
+    // ── #1489 — word-count cap guard ─────────────────────────────────────────
+
+    /// AC-1 (#1489): a reply over 80 words must be trimmed to the last sentence
+    /// boundary within the 80-word budget.
+    #[test]
+    fn word_count_cap_trims_overlong_reply() {
+        // Build a 100-word reply across 3 sentences.
+        // S1: ~10 words, S2: ~55 words, S3: ~35 words — total ~100 words.
+        let s1 = "Good day to ye, friend, and welcome to Kilteevan.";
+        let s2 = "The roads have been fierce hard on everyone this past fortnight and the river at \
+            Strokestown rose three whole feet after the terrible rains came down last Tuesday \
+            and Wednesday and the landlord sent his agent round to collect the rents early \
+            before the harvest was even in which caused great hardship to all.";
+        let s3 = "But sure the sun is shining today and the market in town is full of good cheer \
+            and the grain prices are better than they were last harvest time which is a true blessing.";
+        let dialogue = format!("{s1} {s2} {s3}");
+        let word_count = dialogue.split_whitespace().count();
+        assert!(
+            word_count > 80,
+            "test input must be >80 words, got {word_count}"
+        );
+        let result = cap_word_count(&dialogue);
+        let result_words = result.split_whitespace().count();
+        assert!(
+            result_words <= 80,
+            "output must be <=80 words, got {result_words}: {result:?}"
+        );
+        // The first sentence must always survive.
+        assert!(
+            result.contains("Good day to ye"),
+            "first sentence must survive: {result:?}"
+        );
+        // The result must end with sentence punctuation.
+        assert!(
+            result.trim_end().ends_with(['.', '!', '?']),
+            "result must end with sentence punctuation: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1489): a reply of 80 words or fewer must pass through unchanged.
+    #[test]
+    fn word_count_cap_noop_on_short_reply() {
+        let dialogue = "Good day to ye. The harvest has been fine this year. \
+            Brigid Connolly was asking after the grain prices only yesterday.";
+        let word_count = dialogue.split_whitespace().count();
+        assert!(
+            word_count <= 80,
+            "test input must be <=80 words, got {word_count}"
+        );
+        let result = cap_word_count(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "short reply must pass through unchanged"
+        );
+    }
+
+    /// AC-3 (#1489): the cap integrates into guard_verbosity_runons, so a
+    /// very long reply (>80 words, few sentences) is trimmed by the pipeline.
+    #[test]
+    fn guard_verbosity_runons_word_cap_end_to_end() {
+        // A reply that is only 2 sentences but 100+ words (bypasses sentence cap).
+        let s1 = "Good day to ye, friend, and welcome to the parish.";
+        let s2 = "The roads have been fierce hard on everyone this past fortnight and the river at \
+            Strokestown rose three whole feet after the terrible rains came down last Tuesday \
+            and Wednesday and the landlord sent his agent round to collect the rents early \
+            before the harvest was even in which caused great hardship to all the families \
+            in the townland and the priest gave a long sermon about charity on Sunday morning \
+            but sure people are struggling all the same and the market prices are terrible.";
+        let dialogue = format!("{s1} {s2}");
+        let word_count = dialogue.split_whitespace().count();
+        assert!(
+            word_count > 80,
+            "test input must be >80 words, got {word_count}"
+        );
+        let result = guard_verbosity_runons(&dialogue);
+        let result_words = result.split_whitespace().count();
+        assert!(
+            result_words <= 80,
+            "guard pipeline must trim >80 word reply, got {result_words}: {result:?}"
         );
     }
 }
