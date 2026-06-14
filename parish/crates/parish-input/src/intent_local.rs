@@ -192,6 +192,113 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         }
     }
 
+    // First-person physical action prefixes: checked BEFORE the first-person
+    // narrative guard so "I pick up a stone" routes to Interact, not Talk (#1476).
+    // These mirror the bare interact_prefixes with a leading "i " pronoun form.
+    let fp_interact_prefixes: &[&str] = &[
+        "i pick up ",
+        "i put down ",
+        "i set down ",
+        "i tie a ",
+        "i tie the ",
+        "i tie your ",
+        "i light the ",
+        "i light a ",
+        "i pour the ",
+        "i pour a ",
+        "i fill the ",
+        "i fill a ",
+        "i lift the ",
+        "i lift a ",
+        "i carry the ",
+        "i carry a ",
+        "i pump the ",
+        "i pump a ",
+        "i dig a ",
+        "i dig the ",
+        "i kneel at ",
+        "i kneel before ",
+        "i wash the ",
+        "i wash your ",
+        "i hang the ",
+        "i hang a ",
+        "i place the ",
+        "i place a ",
+        "i drop the ",
+        "i drop a ",
+        "i draw a ",
+        "i draw the ",
+        "i draw your ",
+        "i draw water",
+        "i fetch a ",
+        "i fetch the ",
+        "i fetch water",
+        "i gather a ",
+        "i gather the ",
+        "i gather some ",
+        "i gather up ",
+        "i cut a ",
+        "i cut the ",
+        "i cut some ",
+        "i sweep the ",
+        "i sweep a ",
+        "i scrub the ",
+        "i scrub a ",
+        "i stack the ",
+        "i stack a ",
+        "i mend the ",
+        "i mend a ",
+        "i mend your ",
+        "i feed the ",
+        "i feed a ",
+        "i milk the ",
+        "i milk a ",
+        "i knead the ",
+        "i knead a ",
+        "i drink from ",
+        "i drink the ",
+        "i drink a ",
+        "i open the ",
+        "i open a ",
+        "i close the ",
+        "i close a ",
+        "i stoke the ",
+        "i stoke a ",
+        "i tend the ",
+        "i tend to ",
+        "i tend a ",
+        "i rake the ",
+        "i rake a ",
+        "i sow the ",
+        "i sow a ",
+        "i plant a ",
+        "i plant the ",
+        "i pump the well",
+        "i walk to the well",
+        "i go to the well",
+    ];
+    for prefix in fp_interact_prefixes {
+        if lower.starts_with(prefix) {
+            let byte_offset: usize = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(i, _)| i)
+                .unwrap_or(trimmed.len());
+            let rest = trimmed[byte_offset..].trim();
+            let target = if rest.is_empty() {
+                None
+            } else {
+                Some(rest.to_string())
+            };
+            return Some(PlayerIntent {
+                intent: IntentKind::Interact,
+                target,
+                dialogue: None,
+                raw: raw_input.to_string(),
+            });
+        }
+    }
+
     // First-person narrative guard: sentences that begin with a first-person
     // pronoun are clearly conversational, never navigation commands.  Catching
     // them here prevents the LLM from extracting a place name mentioned in the
@@ -643,7 +750,71 @@ mod tests {
     fn test_local_parse_interact_does_not_trigger_on_dialogue() {
         assert!(parse_intent_local("tell Mary hello").is_none());
         assert!(parse_intent_local("hello there").is_none());
-        // First-person stays Talk, not Interact.
+        // First-person narrative (past tense, no known fp_interact prefix) stays Talk.
+        let intent = parse_intent_local("I came from the coast").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        // Present-tense first-person action "I pick up" now routes to Interact (#1476).
+        // Past-tense "I picked up" is NOT in fp_interact_prefixes and stays Talk.
+        let intent = parse_intent_local("I picked up the stone").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+    }
+
+    // ── First-person interact (#1476) ─────────────────────────────────────────
+
+    /// AC-1 (#1476): "I pick up a stone" must route to Interact, not Talk.
+    /// Before the fix, the first-person narrative guard intercepted it.
+    #[test]
+    fn test_first_person_physical_action_routes_to_interact() {
+        // Present tense "pick up"
+        let intent = parse_intent_local("I pick up a stone").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert!(intent.dialogue.is_none());
+
+        // Draw water
+        let intent = parse_intent_local("I draw water from the well").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Fetch water
+        let intent = parse_intent_local("I fetch water").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Gather
+        let intent = parse_intent_local("I gather some turf").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Kneel before
+        let intent = parse_intent_local("I kneel before the altar").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Plant
+        let intent = parse_intent_local("I plant a seed in the ground").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Put down
+        let intent = parse_intent_local("I put down the basket").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Open
+        let intent = parse_intent_local("I open the gate").unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+    }
+
+    /// AC-2 (#1476): First-person narrative without a known action verb stays Talk.
+    #[test]
+    fn test_first_person_narrative_non_action_stays_talk() {
+        // "I came" is not in fp_interact_prefixes.
+        let intent = parse_intent_local("I came from the coast").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        // "I heard" is not in fp_interact_prefixes.
+        let intent = parse_intent_local("I heard there was trouble").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        // "I'm not from around here" stays Talk (i'm prefix → first-person guard).
+        let intent = parse_intent_local("I'm not from around here").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        // Past-tense first-person stays Talk (not in fp_interact_prefixes).
         let intent = parse_intent_local("I picked up the stone").unwrap();
         assert_eq!(intent.intent, IntentKind::Talk);
     }

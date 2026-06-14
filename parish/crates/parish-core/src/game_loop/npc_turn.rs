@@ -146,6 +146,9 @@ pub async fn run_npc_turn(
         setup,
         person_guard_enabled,
         verbosity_guard_enabled,
+        mood_sentence_cap_enabled,
+        wrong_location_guard_enabled,
+        routing_guard_enabled,
         wrong_speaker_guard_enabled,
         acquaintance_guard_enabled,
         action_narration_enabled,
@@ -166,6 +169,12 @@ pub async fn run_npc_turn(
             .flags
             .is_disabled("dialogue-person-confirmation-guard");
         let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
+        // Mood-aware sentence cap (#1491): default-on, kill-switch only.
+        let mood_sentence_cap = !config.flags.is_disabled("npc-mood-aware-sentence-cap");
+        // Wrong-location reference guard (#1477): default-on, kill-switch only.
+        let wrong_location_guard = !config.flags.is_disabled("npc-wrong-location-guard");
+        // Routing-after-denial guard (#1478): default-on, kill-switch only.
+        let routing_guard = !config.flags.is_disabled("dialogue-person-routing-guard");
         // Wrong-speaker-identity guard (#1475): default-on, kill-switch only.
         let wrong_speaker_guard = !config.flags.is_disabled("npc-wrong-speaker-guard");
         // Acquaintance-question intent-drift guard (#1504): default-on, kill-switch only.
@@ -195,6 +204,9 @@ pub async fn run_npc_turn(
             setup,
             person_guard,
             verbosity_guard,
+            mood_sentence_cap,
+            wrong_location_guard,
+            routing_guard,
             wrong_speaker_guard,
             acquaintance_guard,
             action_narration,
@@ -417,14 +429,53 @@ pub async fn run_npc_turn(
         }
     }
 
-    // Post-generation verbosity / run-on guard (#1460): strip bare leaked
+    // Post-generation routing-after-denial guard (#1478): when the NPC denied
+    // knowing a fabricated person but also added a routing phrase ("ask at X",
+    // "you might find them at…"), replace with a clean non-recognition decline.
+    // Runs immediately after the primary person-confirmation guard.
+    // Default-on; kill-switch via `dialogue-person-routing-guard` flag.
+    if routing_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_fabricated_person_routing(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            None,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation wrong-location reference guard (#1477): detect when an NPC
+    // names a settlement other than the current location in "here in X" / "village
+    // of X" collocations, and replace the wrong name with the correct one.
+    // Default-on; kill-switch via `npc-wrong-location-guard` flag.
+    if wrong_location_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let loc = setup.location_name.as_str();
+        let guarded = crate::npc::guard_wrong_location_reference(&parsed.dialogue, Some(loc));
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
     // mood-adjective, trim mid-sentence truncation ellipsis to the last
     // complete sentence, and cap trailing question stacks to at most one.
+    // When mood-aware sentence cap is enabled (#1491), uses a tighter 2-sentence
+    // cap for busy/curt NPC moods.
     // Applied here (before the shared pipeline) so the guarded text is what
     // gets stored in the conversation log and event bus — same effect for
     // every runtime (Tauri, server, headless) via the shared npc_turn path.
     if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
+        let guarded = if mood_sentence_cap_enabled {
+            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
+        } else {
+            crate::npc::guard_verbosity_runons(&parsed.dialogue)
+        };
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
@@ -848,6 +899,23 @@ pub async fn handle_npc_conversation(
                 ))
                 .unwrap_or(serde_json::Value::Null),
             );
+        } else {
+            // #1493: all named targets are absent. The player may have typed a
+            // farewell ("Goodbye, Mary") to someone who has already departed.
+            // Emit the player's own line so it appears in the log, then follow
+            // with a graceful system message so the interaction is not silent.
+            if !trimmed.is_empty() {
+                ctx.emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log_typed("You", &trimmed, "dialogue"))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+                ctx.emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log("system", "They've already gone."))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
         }
         return;
     }

@@ -1557,12 +1557,14 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
 /// turn should deliver one thought in 2-3 sentences and optionally ask one
 /// question; 4 gives generous headroom without admitting multi-beat rambles.
 pub fn cap_sentence_count(dialogue: &str) -> String {
-    /// Maximum number of sentences kept from an NPC reply. Replies longer than
-    /// this are trimmed at the nearest sentence boundary after the Nth sentence.
-    /// Default 4 — enough for a natural period-appropriate response (greeting +
-    /// substance + optional qualifier + one question).
-    const MAX_SENTENCE_COUNT: usize = 4;
+    cap_sentence_count_with_limit(dialogue, 4)
+}
 
+/// Applies the sentence-count cap at a specific `max` limit (#1491).
+///
+/// Factored out of `cap_sentence_count` so both the default (4-sentence) cap and
+/// the mood-aware tighter cap share one implementation.
+fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
     let sentences = split_sentences(dialogue);
     // Filter out empty fragments produced by split_sentences.
     let sentences: Vec<&str> = sentences
@@ -1571,25 +1573,87 @@ pub fn cap_sentence_count(dialogue: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect();
 
-    if sentences.len() <= MAX_SENTENCE_COUNT {
+    if sentences.len() <= max {
         return dialogue.trim().to_string();
     }
 
     // Keep the first N sentences.
-    let mut kept: Vec<&str> = sentences[..MAX_SENTENCE_COUNT].to_vec();
+    let mut kept: Vec<&str> = sentences[..max].to_vec();
 
     // If the original reply ends with a question that would be cut, preserve it.
     // Only do this when the last sentence is genuinely interrogative (ends with '?')
     // and the already-kept slice does not already end with a question.
     let original_last = *sentences.last().expect("non-empty checked above");
-    let kept_last = *kept.last().expect("MAX_SENTENCE_COUNT >= 1");
+    let kept_last = *kept.last().expect("max >= 1");
     if original_last.ends_with('?') && !kept_last.ends_with('?') {
         // Swap out the Nth sentence for the trailing question so the reply
-        // stays at exactly MAX_SENTENCE_COUNT sentences and ends interactively.
+        // stays at exactly max sentences and ends interactively.
         *kept.last_mut().expect("non-empty") = original_last;
     }
 
     kept.join(" ")
+}
+
+// ── #1491 — mood-aware sentence cap ───────────────────────────────────────────
+
+/// Mood keywords that indicate a busy/curt NPC should get a tighter (2-sentence)
+/// cap instead of the default 4 (#1491).
+const BUSY_MOOD_KEYWORDS: &[&str] = &[
+    "busy",
+    "sharp",
+    "curt",
+    "distracted",
+    "preoccupied",
+    "rushed",
+    "hurried",
+    "impatient",
+    "terse",
+    "brusque",
+    "irritated",
+    "frustrated",
+];
+
+/// Applies the sentence-count cap with optional mood-aware tightening (#1491).
+///
+/// For busy/curt moods (matching `BUSY_MOOD_KEYWORDS`), caps at 2 sentences;
+/// otherwise uses the default 4. Exposed for tests.
+///
+/// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
+pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String {
+    let cap = match mood {
+        Some(m) => {
+            let m_lower = m.to_lowercase();
+            if BUSY_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
+                2
+            } else {
+                4
+            }
+        }
+        None => 4,
+    };
+    cap_sentence_count_with_limit(dialogue, cap)
+}
+
+/// Runs the full verbosity guard pipeline with optional mood-aware sentence cap (#1491).
+///
+/// When `mood` is `Some` and contains a "busy" mood keyword, the sentence cap
+/// is reduced to 2 (from the default 4) so a busy NPC stays terse.
+///
+/// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
+pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+    let after_mood = strip_leaked_mood_word(dialogue);
+    let after_trunc = trim_mid_sentence_truncation(&after_mood);
+    let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
+    let after_total_q = cap_total_questions(&after_distributed);
+    let after_trailing_q = cap_trailing_questions(&after_total_q);
+    let after_sentence_cap = cap_sentence_count_for_mood(&after_trailing_q, mood);
+    cap_word_count(&after_sentence_cap)
 }
 
 /// Known mood adjectives that the Qwen2.5-14B model leaks as bare words at the
@@ -1959,6 +2023,193 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count(&after_trailing_q);
     cap_word_count(&after_sentence_cap)
+}
+
+// ── #1477 — wrong-location reference guard ────────────────────────────────────
+
+/// Settlement collocations indicating the NPC is naming the current location.
+/// If any of these patterns appears followed by a name that is NOT the actual
+/// current location, the guard fires (#1477).
+const WRONG_LOCATION_COLLOCATIONS: &[&str] = &[
+    "here in ",
+    "here at ",
+    "this village of ",
+    "this town of ",
+    "this place called ",
+    "village of ",
+    "town of ",
+    "in the village of ",
+    "in the town of ",
+    "we are in ",
+    "we're in ",
+    "you're in ",
+    "you are in ",
+    "welcome to ",
+];
+
+/// Post-generation guard that detects when an NPC names a settlement other than
+/// the current location in a "here in X" or "village of X" collocation (#1477).
+///
+/// When the current location name is provided, scans the dialogue for settlement
+/// collocations followed by a capitalized name that is NOT the current location.
+/// If found, replaces the wrong settlement name with the correct one.
+///
+/// Conservative: only fires when a collocation is immediately followed by a
+/// capitalized word sequence that does NOT match (case-insensitive) the actual
+/// location name. If `current_location` is `None` or empty, returns unchanged.
+///
+/// Gate: `npc-wrong-location-guard` (default-on).
+pub fn guard_wrong_location_reference(dialogue: &str, current_location: Option<&str>) -> String {
+    let Some(loc) = current_location else {
+        return dialogue.to_string();
+    };
+    if loc.is_empty() || dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let loc_lower = loc.to_lowercase();
+    let lower = dialogue.to_lowercase();
+
+    for colloc in WRONG_LOCATION_COLLOCATIONS {
+        if let Some(pos) = lower.find(colloc) {
+            let after_pos = pos + colloc.len();
+            let after = &dialogue[after_pos..];
+            // Extract the named settlement: consecutive capitalized words
+            // (stop at punctuation or lowercase words).
+            let named: String = after
+                .split_whitespace()
+                .take_while(|w| {
+                    let stripped = w.trim_matches(|c: char| !c.is_alphabetic());
+                    !stripped.is_empty()
+                        && stripped
+                            .chars()
+                            .next()
+                            .map(|c| c.is_uppercase())
+                            .unwrap_or(false)
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            if named.is_empty() {
+                continue;
+            }
+            let named_clean: String = named
+                .to_lowercase()
+                .chars()
+                .filter(|c| c.is_alphabetic() || c.is_whitespace())
+                .collect::<String>()
+                .trim()
+                .to_string();
+            // If names match (or one contains the other), no issue.
+            if named_clean == loc_lower
+                || loc_lower.contains(&named_clean)
+                || named_clean.contains(&loc_lower)
+            {
+                continue;
+            }
+            // Wrong location named: replace it with the correct one.
+            tracing::warn!(
+                wrong_location = %named,
+                correct_location = %loc,
+                "wrong-location guard fired: NPC named wrong settlement (#1477)"
+            );
+            let orig_colloc = &dialogue[pos..pos + colloc.len()];
+            let replacement = format!("{orig_colloc}{loc}");
+            let pattern = format!("{orig_colloc}{named}");
+            return dialogue.replacen(&pattern, &replacement, 1);
+        }
+    }
+
+    dialogue.to_string()
+}
+
+// ── #1478 — routing-after-denial guard ────────────────────────────────────────
+
+/// Routing phrases that redirect the player to find the ungrounded person,
+/// re-affirming the fabrication after a denial (#1478).
+const ROUTING_AFTER_DENIAL_PHRASES: &[&str] = &[
+    "ask at ",
+    "ask in ",
+    "try asking",
+    "try at ",
+    "you might find",
+    "you'll find",
+    "seen him at",
+    "seen her at",
+    "seen him in",
+    "seen her in",
+    "he may be at",
+    "she may be at",
+    "he might be at",
+    "she might be at",
+    "he could be at",
+    "she could be at",
+    "check at ",
+    "check in ",
+    "look for him at",
+    "look for her at",
+    "look for them at",
+    "might find him",
+    "might find her",
+    "head to ",
+    "try the ",
+];
+
+/// Post-generation guard: when the NPC's reply contains a denial marker for an
+/// unknown person BUT also contains a routing phrase directing the player where
+/// to find them, replaces with a clean non-recognition decline (#1478).
+///
+/// The `guard_fabricated_person_confirmation` guard correctly skips when a denial
+/// is present. But the model can produce: "I know no such person... but ask at
+/// Darcy's Pub — seen him there." This re-affirms the fabrication after declining.
+///
+/// This guard fires when:
+///   1. The player input names a person NOT in `known_person_names`.
+///   2. The NPC dialogue contains a denial marker (the primary guard approved it).
+///   3. The NPC dialogue ALSO contains a routing phrase after the denial.
+///
+/// Action: replace the whole dialogue with a clean non-recognition decline.
+///
+/// Gate: `dialogue-person-routing-guard` (default-on).
+pub fn guard_fabricated_person_routing(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let candidates = extract_candidate_names(player_input);
+    // Only fire if at least one candidate is fabricated (multi-word, not in roster).
+    let has_fabricated = candidates.iter().any(|c| {
+        c.split_whitespace().count() >= 2 && !name_in_roster(c, known_person_names, player_name)
+    });
+    if !has_fabricated {
+        return dialogue.to_string();
+    }
+
+    let lower = dialogue.to_lowercase();
+
+    // Only fires when there IS a denial marker (the primary guard approved it).
+    let has_denial = DENIAL_MARKERS.iter().any(|m| lower.contains(m));
+    if !has_denial {
+        return dialogue.to_string();
+    }
+
+    // Fire when a routing phrase is also present.
+    let has_routing = ROUTING_AFTER_DENIAL_PHRASES
+        .iter()
+        .any(|r| lower.contains(r));
+    if !has_routing {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!(
+        "person-routing guard fired: NPC denied then routed player to fabricated person (#1478)"
+    );
+    non_recognition_decline(seed).to_string()
 }
 
 // ── #1475 — wrong-speaker identity guard ──────────────────────────────────────
@@ -4028,6 +4279,197 @@ mod tests {
         assert!(
             result_b.contains("church is just ahead"),
             "substantive content after stripped opener must survive: {result_b:?}"
+        );
+    }
+
+    // ── #1491 — mood-aware sentence cap ──────────────────────────────────────
+
+    /// AC-1 (#1491): A 5-sentence reply with a "busy" mood is capped at 2.
+    #[test]
+    fn mood_aware_sentence_cap_busy_mood_caps_at_2() {
+        let dialogue = "Aye, I've heard that. The rents are fierce high. \
+            The harvest was poor this year. The landlord takes no pity. \
+            God help us all.";
+        let result = cap_sentence_count_for_mood(dialogue, Some("busy"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 2,
+            "busy mood must cap at 2 sentences; got {sentence_count}: {result:?}"
+        );
+        // First sentence survives.
+        assert!(
+            result.contains("heard that"),
+            "first sentence must survive: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1491): A "curt" mood also gets the 2-sentence cap.
+    #[test]
+    fn mood_aware_sentence_cap_curt_mood_caps_at_2() {
+        let dialogue = "I'm busy. Leave me be. There's work to do. Come back later.";
+        let result = cap_sentence_count_for_mood(dialogue, Some("curt"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 2,
+            "curt mood must cap at 2 sentences; got {sentence_count}: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1491): A neutral mood keeps the default 4-sentence cap.
+    #[test]
+    fn mood_aware_sentence_cap_neutral_mood_keeps_4() {
+        let dialogue = "Good day to ye. The weather's been mild. \
+            The cattle are doing well. I saw the priest this morning. \
+            He sent his regards.";
+        let result = cap_sentence_count_for_mood(dialogue, Some("neutral"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "neutral mood must cap at 4; got {sentence_count}: {result:?}"
+        );
+        assert!(
+            sentence_count >= 4,
+            "neutral mood with 5 sentences must keep 4; got {sentence_count}: {result:?}"
+        );
+    }
+
+    /// AC-4 (#1491): None mood uses default 4-sentence cap (no panic).
+    #[test]
+    fn mood_aware_sentence_cap_none_mood_uses_default() {
+        let dialogue = "One. Two. Three. Four. Five.";
+        let result = cap_sentence_count_for_mood(dialogue, None);
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 4,
+            "None mood must cap at 4; got {sentence_count}: {result:?}"
+        );
+    }
+
+    /// AC-5 (#1491): guard_verbosity_runons_with_mood applies the full pipeline with mood cap.
+    #[test]
+    fn verbosity_runons_with_mood_applies_full_pipeline() {
+        // 5 sentences with "frustrated" mood should reduce to 2 sentences.
+        let dialogue = "God help us. The road is long. The river's high. \
+            The rents are fierce. May the Lord protect us.";
+        let result = guard_verbosity_runons_with_mood(dialogue, Some("frustrated"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        assert!(
+            sentence_count <= 2,
+            "frustrated mood pipeline must cap at 2 sentences; got {sentence_count}: {result:?}"
+        );
+    }
+
+    // ── #1477 — wrong-location reference guard ───────────────────────────────
+
+    /// AC-1 (#1477): "here in WrongPlace" with wrong location name is corrected.
+    #[test]
+    fn wrong_location_guard_corrects_here_in() {
+        let dialogue = "Aye, here in Strokestown, life is hard.";
+        let result = guard_wrong_location_reference(dialogue, Some("Kilteevan"));
+        assert!(
+            result.contains("Kilteevan"),
+            "wrong location should be replaced with correct one: {result:?}"
+        );
+        assert!(
+            !result.contains("Strokestown"),
+            "wrong location name must be removed: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1477): Correct location name mentioned — no change.
+    #[test]
+    fn wrong_location_guard_passes_correct_location() {
+        let dialogue = "Aye, here in Kilteevan, we know how to work.";
+        let result = guard_wrong_location_reference(dialogue, Some("Kilteevan"));
+        assert_eq!(
+            result, dialogue,
+            "correct location must pass through unchanged"
+        );
+    }
+
+    /// AC-3 (#1477): When current_location is None, dialogue is unchanged.
+    #[test]
+    fn wrong_location_guard_no_op_without_location() {
+        let dialogue = "Here in Strokestown, the rents are high.";
+        let result = guard_wrong_location_reference(dialogue, None);
+        assert_eq!(
+            result, dialogue,
+            "no location provided must return dialogue unchanged"
+        );
+    }
+
+    /// AC-4 (#1477): "village of X" collocation also fires.
+    #[test]
+    fn wrong_location_guard_village_of_collocation() {
+        let dialogue = "Welcome to the village of Ballygar, stranger.";
+        let result = guard_wrong_location_reference(dialogue, Some("Kilteevan"));
+        assert!(
+            result.contains("Kilteevan"),
+            "village of collocation must be corrected: {result:?}"
+        );
+    }
+
+    // ── #1478 — routing-after-denial guard ───────────────────────────────────
+
+    fn make_names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// AC-1 (#1478): Denial + routing phrase for fabricated person fires guard.
+    #[test]
+    fn routing_after_denial_guard_fires_on_denial_plus_routing() {
+        let dialogue = "I know no such person in these parts, \
+            but you might find him at Darcy's Pub.";
+        let known = make_names(&["Mary Burke", "Seamus Flynn"]);
+        let result =
+            guard_fabricated_person_routing(dialogue, "Where is Cormac Sweeney?", &known, None, 0);
+        // Should have replaced with a clean decline, not the original routing text.
+        assert!(
+            !result.to_lowercase().contains("darcy"),
+            "routing phrase after denial must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1478): Denial alone (no routing phrase) — guard does not fire.
+    #[test]
+    fn routing_after_denial_guard_no_fire_on_denial_only() {
+        let dialogue = "I know no such person in these parts.";
+        let known = make_names(&["Mary Burke", "Seamus Flynn"]);
+        let result =
+            guard_fabricated_person_routing(dialogue, "Where is Cormac Sweeney?", &known, None, 0);
+        assert_eq!(
+            result, dialogue,
+            "denial without routing must pass through unchanged"
+        );
+    }
+
+    /// AC-3 (#1478): Real person + routing phrase — guard does not fire.
+    #[test]
+    fn routing_after_denial_guard_no_fire_for_real_person() {
+        // Mary Burke is in the roster, so no fabricated candidate.
+        let dialogue = "I know no such person... but ask at Mary's house.";
+        let known = make_names(&["Mary Burke", "Seamus Flynn"]);
+        let result =
+            guard_fabricated_person_routing(dialogue, "Where is Mary Burke?", &known, None, 0);
+        // Mary Burke is in the roster, so no fabricated candidate — guard should not fire.
+        assert_eq!(
+            result, dialogue,
+            "real person must not trigger the routing guard"
         );
     }
 }
