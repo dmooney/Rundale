@@ -106,8 +106,7 @@ fn real_loop_degenerate_phrase_loop_is_collapsed() {
     // Preamble is kept so the NPC isn't silent after guard fires.
     let preamble = "God's blessings upon ye.";
     let loop_phrase = "in His time and His purpose";
-    let loop_part = std::iter::repeat(loop_phrase)
-        .take(15)
+    let loop_part = std::iter::repeat_n(loop_phrase, 15)
         .collect::<Vec<_>>()
         .join(", ");
     let runaway = format!("{preamble} {loop_part}");
@@ -120,7 +119,7 @@ fn real_loop_degenerate_phrase_loop_is_collapsed() {
     let dialogue_texts: Vec<String> = dialogue_events
         .iter()
         .filter_map(|ev| match ev {
-            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.as_ref().map(|s| s.clone()),
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
             _ => None,
         })
         .collect();
@@ -187,7 +186,7 @@ fn real_loop_overlong_reply_is_word_capped() {
     let dialogue_texts: Vec<String> = dialogue_events
         .iter()
         .filter_map(|ev| match ev {
-            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.as_ref().map(|s| s.clone()),
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
             _ => None,
         })
         .collect();
@@ -252,7 +251,7 @@ fn real_loop_real_npc_description_not_denied() {
     let shown: Vec<String> = dialogue_events
         .iter()
         .filter_map(|ev| match ev {
-            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.as_ref().map(|s| s.clone()),
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
             _ => None,
         })
         .collect();
