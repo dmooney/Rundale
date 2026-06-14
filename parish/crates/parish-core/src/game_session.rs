@@ -44,6 +44,22 @@ pub fn reaction_req_id_peek() -> u64 {
     REACTION_REQ_ID.load(Ordering::Relaxed)
 }
 
+/// Feature-flag name (default **off**) that enables spontaneous NPC arrival
+/// greetings.
+///
+/// When the player moves into a populated location, [`apply_arrival_reactions`]
+/// normally generates greet / welcome / introduce / nod lines. With this flag
+/// unset (the default, since `FeatureFlags::is_enabled` returns `false` for
+/// unknown flags) those spontaneous greetings are suppressed: NPCs only speak
+/// when the player addresses them. Enable with `/flag enable npc-arrival-greetings`
+/// to restore the lively-arrival behavior.
+///
+/// Muting greetings does **not** leave NPCs anonymous — the dialogue path marks
+/// an NPC introduced on first conversation (`ipc::handlers`), independent of the
+/// arrival path. The background social simulation (Tier 2 gossip, mood drift,
+/// schedules) is likewise untouched; only the visible arrival lines are gated.
+pub const NPC_ARRIVAL_GREETINGS_FLAG: &str = "npc-arrival-greetings";
+
 // ── Public types ─────────────────────────────────────────────────────────────
 
 /// A player-visible message produced by movement resolution.
@@ -225,12 +241,23 @@ pub fn apply_movement(
             // Generate arrival reactions; canned text is logged to world.log.
             // Raw reactions are returned so backends with an LLM client can
             // upgrade use_llm entries via resolve_llm_greeting.
-            let arrival_reactions = apply_arrival_reactions(
-                world,
-                npc_manager,
-                reaction_templates,
-                &ReactionConfig::default(),
-            );
+            //
+            // Gated behind `npc-arrival-greetings` (default-off via `is_enabled`,
+            // so unknown == suppressed). When off, the arrival is silent: no
+            // greeting is generated, logged, or streamed, and no NPC is
+            // introduced via the arrival path — introductions still happen on
+            // first conversation (see `ipc::handlers`). The background social
+            // simulation is untouched (this gates only the visible greeting).
+            let arrival_reactions = if flags.is_enabled(NPC_ARRIVAL_GREETINGS_FLAG) {
+                apply_arrival_reactions(
+                    world,
+                    npc_manager,
+                    reaction_templates,
+                    &ReactionConfig::default(),
+                )
+            } else {
+                Vec::new()
+            };
 
             // Build system message list (narration + look only — NOT reactions)
             let mut messages: Vec<GameMessage> = Vec::new();
@@ -982,6 +1009,7 @@ pub async fn stream_reaction_texts(
 mod tests {
     use super::*;
     use crate::game_mod::{GameMod, find_default_mod};
+    use crate::npc::reactions::reaction_threshold;
     use crate::world::transport::TransportMode;
 
     fn setup() -> Option<(WorldState, NpcManager, ReactionTemplates, TransportMode)> {
@@ -1264,6 +1292,113 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Helper for the `npc-arrival-greetings` gate tests: find a one-hop arrival
+    /// into a populated location where at least one present NPC is *guaranteed*
+    /// to react (its `reaction_threshold` clamps to 1.0 at an indoor workplace),
+    /// so the assertion is deterministic and not at the mercy of the dice.
+    ///
+    /// Returns `(origin, destination, destination_name)` — set the player at
+    /// `origin` and `apply_movement` to `destination_name`. `None` if the default
+    /// mod / current time-of-day offers no guaranteed greeter (test no-ops).
+    fn find_one_hop_to_guaranteed_greeter(
+        world: &WorldState,
+        mgr: &NpcManager,
+    ) -> Option<(LocationId, LocationId, String)> {
+        let config = ReactionConfig::default();
+        let tod = world.clock.time_of_day();
+        for dest in world.graph.location_ids() {
+            let present = mgr.npcs_at(dest);
+            if present.is_empty() {
+                continue;
+            }
+            let Some(dest_data) = world.graph.get(dest) else {
+                continue;
+            };
+            let guaranteed = present
+                .iter()
+                .copied()
+                .any(|npc| reaction_threshold(npc, dest_data, tod, &config) >= 1.0);
+            if !guaranteed {
+                continue;
+            }
+            if let Some((origin, _)) = world.graph.neighbors(dest).into_iter().next() {
+                return Some((origin, dest, dest_data.name.clone()));
+            }
+        }
+        None
+    }
+
+    /// With the `npc-arrival-greetings` flag at its default (off), arriving at a
+    /// populated location must produce NO arrival greetings — even at a location
+    /// where an NPC would otherwise be guaranteed to react. This is the core
+    /// suppression proof and also catches an inverted gate condition (an inverted
+    /// gate would yield the guaranteed reaction here and fail the assert).
+    #[test]
+    fn apply_movement_suppresses_arrival_greetings_when_flag_off() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let Some((origin, _dest, dest_name)) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
+        else {
+            return;
+        };
+        world.player_location = origin;
+
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            &dest_name,
+            &transport,
+            &FeatureFlags::default(),
+        );
+
+        assert!(
+            effects.world_changed,
+            "precondition: the player should have arrived at the populated destination"
+        );
+        assert!(
+            effects.arrival_reactions.is_empty(),
+            "arrival greetings must be suppressed when npc-arrival-greetings is off (default)"
+        );
+    }
+
+    /// Enabling `npc-arrival-greetings` restores arrival greetings: arriving at a
+    /// location with a guaranteed-reactor NPC yields at least one reaction. This
+    /// pins the gate to the exact flag constant — checking a different flag would
+    /// leave this empty and fail.
+    #[test]
+    fn apply_movement_emits_arrival_greetings_when_flag_enabled() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let Some((origin, _dest, dest_name)) = find_one_hop_to_guaranteed_greeter(&world, &mgr)
+        else {
+            return;
+        };
+        world.player_location = origin;
+
+        let mut flags = FeatureFlags::default();
+        flags.enable(NPC_ARRIVAL_GREETINGS_FLAG);
+
+        let effects = apply_movement(
+            &mut world, &mut mgr, &templates, &dest_name, &transport, &flags,
+        );
+
+        assert!(effects.world_changed);
+        assert!(
+            !effects.arrival_reactions.is_empty(),
+            "a guaranteed-reactor NPC must greet on arrival when npc-arrival-greetings is enabled"
+        );
+    }
+
+    /// Pin the flag name — the live `/flag enable npc-arrival-greetings` command,
+    /// docs, and fixture all depend on this exact string.
+    #[test]
+    fn npc_arrival_greetings_flag_name_is_stable() {
+        assert_eq!(NPC_ARRIVAL_GREETINGS_FLAG, "npc-arrival-greetings");
     }
 
     /// Regression: `apply_movement` should reassign NPC cognitive tiers.
