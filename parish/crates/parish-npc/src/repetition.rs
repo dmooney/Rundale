@@ -194,6 +194,99 @@ pub fn dedup_farewell_tokens(dialogue: &str) -> String {
     result
 }
 
+/// Splits `dialogue` into its opener (first sentence) and the remainder in a
+/// single pass, avoiding the double [`split_sentences`] call that `extract_opener`
+/// and `remainder_after_opener` previously incurred when called together on the
+/// hot dialogue path.
+///
+/// Returns `(normalized_opener, remainder)` where:
+/// - `normalized_opener` is the first sentence lowercased, whitespace-collapsed,
+///   and trailing-punctuation-stripped (identical to what [`extract_opener`] used
+///   to return independently).
+/// - `remainder` is everything after the first sentence, leading whitespace
+///   trimmed (empty `&str` when there is no second sentence).
+fn split_opener_remainder(dialogue: &str) -> (String, &str) {
+    let sentences = split_sentences(dialogue);
+    let normalized = match sentences.first() {
+        Some(first) => normalize_for_repetition(first),
+        None => normalize_for_repetition(dialogue),
+    };
+    let remainder = if sentences.len() < 2 {
+        ""
+    } else {
+        // The first sentence spans [0, sentences[0].len()) bytes in `dialogue`;
+        // everything after it (leading whitespace trimmed) is the remainder.
+        dialogue[sentences[0].len()..].trim_start()
+    };
+    (normalized, remainder)
+}
+
+/// Cross-NPC opener de-duplication guard (#1422).
+///
+/// When multiple NPCs reply in a single multi-NPC turn, small models often open
+/// with the same stock phrase (e.g. "Ye've come to the right place …") because
+/// they share the same system-prompt template. This function prevents the
+/// duplication from reaching the player by stripping the repeated opener
+/// sentence from `reply` when it matches one already used in this turn.
+///
+/// # Parameters
+///
+/// - `prior_openers`: normalized opener strings already emitted by earlier NPCs
+///   in this turn (see [`extract_normalized_opener`]). Pass `&[]` on the first
+///   NPC — the function returns `reply` unchanged.
+/// - `reply`: the freshly post-processed dialogue for the current NPC.
+///
+/// # Behaviour
+///
+/// 1. Extracts and normalizes the opener of `reply` (first sentence, lowercased,
+///    punctuation-stripped, ~6 words).
+/// 2. Computes word-level Jaccard similarity against every prior opener.
+/// 3. If any prior opener is near-identical (≥ 0.75 Jaccard, or normalized-equal),
+///    the opener sentence is dropped from `reply`; the substantive remainder is
+///    returned. If the remainder is empty after dropping (the reply WAS only the
+///    stock opener), the original reply is returned unchanged — dropping it
+///    entirely would produce a blank line, which is worse.
+/// 4. If no collision is detected, `reply` is returned unchanged.
+///
+/// This function is pure, deterministic, and model-agnostic — it requires no
+/// inference and runs identically for every provider.
+pub fn dedupe_cross_npc_openers(prior_openers: &[String], reply: &str) -> String {
+    if prior_openers.is_empty() || reply.trim().is_empty() {
+        return reply.to_string();
+    }
+    // Single split: derive both the normalized opener and the remainder in one
+    // pass instead of calling split_sentences twice (#1422 review).
+    let (my_opener, rest) = split_opener_remainder(reply);
+    if my_opener.is_empty() {
+        return reply.to_string();
+    }
+    // `prior_openers` entries are already normalized at insertion
+    // (via `extract_normalized_opener` → `normalize_for_repetition`), so
+    // comparing `prev` directly against `my_opener` is correct and avoids a
+    // redundant normalize call (#1422 review).
+    let is_duplicate = prior_openers
+        .iter()
+        .any(|prev| prev.as_str() == my_opener || dialogue_similarity(&my_opener, prev) >= 0.75);
+    if !is_duplicate {
+        return reply.to_string();
+    }
+    if rest.is_empty() {
+        // The entire reply is the duplicated opener — returning blank would be
+        // worse, so keep the original.
+        return reply.to_string();
+    }
+    rest.to_string()
+}
+
+/// Returns the normalized opener of `reply` for collection into the
+/// `prior_openers` list used by [`dedupe_cross_npc_openers`].
+///
+/// Call this **after** any other post-processing guards so the stored opener
+/// reflects what was actually shown to the player.
+pub fn extract_normalized_opener(reply: &str) -> String {
+    split_opener_remainder(reply).0
+}
+
 /// Applies the full anti-repetition guard to a freshly generated NPC line
 /// (#1228, #1387). This is the single entry point the shared dialogue path calls.
 ///
@@ -1408,6 +1501,92 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── dedupe_cross_npc_openers (#1422) ──────────────────────────────────────
+
+    /// AC-1: when a subsequent NPC opens with the same stock phrase as a prior
+    /// NPC this turn, the duplicated opener is stripped and the substantive
+    /// remainder is preserved.
+    #[test]
+    fn cross_npc_opener_dedup_strips_duplicate_opener() {
+        let prior = vec!["Ye've come to the right place for gossip".to_string()];
+        let reply =
+            "Ye've come to the right place for information. The lads at the forge would know more.";
+        let result = dedupe_cross_npc_openers(&prior, reply);
+        // The duplicate opener must be gone.
+        assert!(
+            !result.starts_with("Ye've come to the right place"),
+            "duplicate opener must be stripped; got: {result:?}"
+        );
+        // The substantive remainder must be preserved.
+        assert!(
+            result.contains("The lads at the forge would know more"),
+            "substantive remainder must survive; got: {result:?}"
+        );
+    }
+
+    /// AC-2: a reply with a distinct opener passes through unchanged.
+    #[test]
+    fn cross_npc_opener_dedup_passes_through_distinct_opener() {
+        let prior = vec!["Ye've come to the right place for gossip".to_string()];
+        let reply = "A fine morning it is. Lots of work to be done today.";
+        let result = dedupe_cross_npc_openers(&prior, reply);
+        assert_eq!(
+            result, reply,
+            "distinct opener must not be modified; got: {result:?}"
+        );
+    }
+
+    /// No prior openers: the first NPC's reply always passes through.
+    #[test]
+    fn cross_npc_opener_dedup_no_op_when_no_priors() {
+        let prior: Vec<String> = vec![];
+        let reply = "Ye've come to the right place for information, so.";
+        let result = dedupe_cross_npc_openers(&prior, reply);
+        assert_eq!(
+            result, reply,
+            "with no priors, reply must pass through unchanged"
+        );
+    }
+
+    /// When the entire reply is the duplicated opener (no remainder), the
+    /// original is returned rather than an empty string.
+    #[test]
+    fn cross_npc_opener_dedup_keeps_original_when_no_remainder() {
+        let prior = vec!["Ye've come to the right place".to_string()];
+        // Only one sentence — there is no remainder.
+        let reply = "Ye've come to the right place!";
+        let result = dedupe_cross_npc_openers(&prior, reply);
+        // Must not be blank — return the original.
+        assert!(
+            !result.is_empty(),
+            "must not return blank when no remainder exists; got: {result:?}"
+        );
+    }
+
+    /// Normalised equality catches case/punctuation variation in the opener.
+    #[test]
+    fn cross_npc_opener_dedup_normalises_case_and_punctuation() {
+        let prior = vec!["ye've come to the right place for gossip".to_string()];
+        // Same opener, different capitalisation + punctuation.
+        let reply = "Ye've come to the right place for gossip! Sure and I can help ye too.";
+        let result = dedupe_cross_npc_openers(&prior, reply);
+        assert!(
+            !result.starts_with("Ye've come to the right place"),
+            "normalised duplicate must be stripped; got: {result:?}"
+        );
+        assert!(
+            result.contains("Sure and I can help"),
+            "substantive remainder must survive; got: {result:?}"
+        );
+    }
+
+    /// `extract_normalized_opener` returns the first-sentence opener, normalised.
+    #[test]
+    fn extract_normalized_opener_returns_first_sentence() {
+        let opener = extract_normalized_opener("Good morning to ye. How can I help?");
+        assert_eq!(opener, "good morning to ye");
+    }
 
     // ── #1228 existing guard ──────────────────────────────────────────────────
 

@@ -1903,6 +1903,40 @@ mod tests {
         );
     }
 
+    // ── Part-B (#1422): enhanced system prompt carries single-question cap ────
+
+    /// The enhanced system prompt (built on top of the Tier 1 base prompt) must
+    /// carry the "AT MOST ONE question per reply" brevity instruction (#1422
+    /// Part B). `build_enhanced_system_prompt_with_config` delegates to
+    /// `build_tier1_system_prompt` for its base, so the cap is inherited;
+    /// this test is the explicit regression guard.
+    #[test]
+    fn enhanced_system_prompt_carries_single_question_cap() {
+        let npc = make_test_npc(1, "Padraig", 1);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let lang = LanguageSettings::english_only();
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc, false, &lang, &config, &names, None, None,
+        );
+        assert!(
+            prompt.contains("AT MOST ONE question") || prompt.contains("at most one question"),
+            "enhanced system prompt must carry the single-question brevity cap (#1422 Part B):\n{prompt}"
+        );
+    }
+
+    /// Companion: the `dialogue_anti_repetition` config field defaults to true
+    /// so the cross-NPC opener dedup ships enabled by default (#1422).
+    #[test]
+    fn npc_config_dialogue_anti_repetition_defaults_true() {
+        let cfg = NpcConfig::default();
+        assert!(
+            cfg.dialogue_anti_repetition,
+            "dialogue_anti_repetition must default to true (#1422)"
+        );
+    }
+
     // ── #1447: conversation-history paraphrase framing ───────────────────────
 
     /// AC (#1447): conversation_block must carry the paraphrase directive —

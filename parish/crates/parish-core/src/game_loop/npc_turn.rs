@@ -60,6 +60,14 @@ pub const AUTONOMOUS_NPC_CHAIN_FLAG: &str = "autonomous-npc-chain";
 /// the legacy interleaving behavior for debugging.
 pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
 
+/// Feature-flag name (default **on**) that enables cross-NPC opener
+/// de-duplication within a single multi-NPC turn (#1422). When multiple NPCs
+/// reply in one turn, small models often open with the same stock phrase. This
+/// deterministic, model-agnostic guard strips the duplicated opener from each
+/// subsequent NPC's reply. Kill-switch: disable by setting this flag explicitly
+/// (`flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG)` → true).
+pub const DIALOGUE_ANTI_REPETITION_FLAG: &str = "dialogue-anti-repetition";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
@@ -579,6 +587,7 @@ pub async fn handle_npc_conversation(
         model,
         max_follow_up_turns,
         autonomous_chain_enabled,
+        anti_repetition_enabled,
         targets,
         absent,
     ) = {
@@ -609,6 +618,9 @@ pub async fn handle_npc_conversation(
             config.model_name.clone(),
             config.max_follow_up_turns,
             config.flags.is_enabled(AUTONOMOUS_NPC_CHAIN_FLAG),
+            // Default-on kill-switch: disabled only when flag is explicitly set
+            // (#1422 cross-NPC opener de-duplication).
+            !config.flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG),
             targets,
             absent,
         )
@@ -733,6 +745,11 @@ pub async fn handle_npc_conversation(
     let mut combined_hints: Vec<crate::npc::LanguageHint> = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
+    // Cross-NPC opener de-duplication (#1422): collect the normalized first
+    // sentence of each NPC reply already emitted this turn so subsequent NPCs
+    // can be checked against it. Only active for multi-NPC Phase 1 turns when
+    // `anti_repetition_enabled` is true.
+    let mut openers_this_turn: Vec<String> = Vec::new();
 
     // Phase 1: each addressed NPC takes one turn in the order named.
     for speaker_id in &targets {
@@ -752,7 +769,34 @@ pub async fn handle_npc_conversation(
         };
 
         combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
+        if let Some(mut line) = outcome.line {
+            // Cross-NPC opener dedup: strip the duplicated stock opener from
+            // this reply if a previous NPC already used a near-identical one
+            // this turn (#1422). Applied after all other per-turn guards so
+            // `line.text` is the fully post-processed dialogue.
+            if anti_repetition_enabled && targets.len() > 1 {
+                let deduped = crate::npc::dedupe_cross_npc_openers(&openers_this_turn, &line.text);
+                if deduped != line.text {
+                    tracing::debug!(
+                        npc = %line.speaker,
+                        "stripped duplicate cross-NPC opener (#1422)"
+                    );
+                }
+                // Collect opener from whatever we actually show the player.
+                let shown_opener = crate::npc::extract_normalized_opener(&deduped);
+                if !shown_opener.is_empty() {
+                    openers_this_turn.push(shown_opener);
+                }
+                line.text = deduped;
+            } else if anti_repetition_enabled {
+                // Single-NPC turn: collect opener for any future autonomous
+                // follow-ups within the same Phase 1 context (no-op for
+                // autonomous chain, which has its own cadence).
+                let opener = crate::npc::extract_normalized_opener(&line.text);
+                if !opener.is_empty() {
+                    openers_this_turn.push(opener);
+                }
+            }
             transcript.push(line.clone());
             let mut conversation = ctx.conversation.lock().await;
             conversation.push_line(line);
