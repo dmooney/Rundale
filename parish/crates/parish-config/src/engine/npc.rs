@@ -107,6 +107,17 @@ pub struct NpcConfig {
     /// feature-flag layer (matching `dialogue_display_max_chars`).
     #[serde(default = "default_dialogue_sentence_boundary_trim")]
     pub dialogue_sentence_boundary_trim: bool,
+    /// Enable cross-NPC opener de-duplication within a single multi-NPC turn (#1422).
+    ///
+    /// When `true` (the default), the shared orchestration layer strips the
+    /// duplicated stock opener sentence from a co-located NPC's reply when it
+    /// near-exactly matches an opener already used by an earlier NPC in the same
+    /// turn. This prevents the "Ye've come to the right place …" tic from
+    /// appearing across three different NPCs in one run. Deterministic and
+    /// provider-agnostic. Controlled at runtime by the `dialogue-anti-repetition`
+    /// feature flag (`flags.is_disabled("dialogue-anti-repetition")` → false).
+    #[serde(default = "default_dialogue_anti_repetition")]
+    pub dialogue_anti_repetition: bool,
     /// Enable the post-generation fabricated-person confirmation guard (#1459).
     ///
     /// When `true` (the default), a post-generation scan checks the finalized
@@ -151,6 +162,7 @@ impl Default for NpcConfig {
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
             grounding_enabled: default_grounding_enabled(),
             dialogue_sentence_boundary_trim: default_dialogue_sentence_boundary_trim(),
+            dialogue_anti_repetition: default_dialogue_anti_repetition(),
             person_confirmation_guard_enabled: default_person_confirmation_guard_enabled(),
             verbosity_guard_enabled: default_verbosity_guard_enabled(),
         }
@@ -228,6 +240,10 @@ fn default_dialogue_repetition_threshold() -> f32 {
     // variation — which reuses common function words but introduces new content
     // words — comfortably below the bar. Enabled by default.
     0.92
+}
+
+fn default_dialogue_anti_repetition() -> bool {
+    true
 }
 
 /// Cognitive tier assignment based on distance from player.
