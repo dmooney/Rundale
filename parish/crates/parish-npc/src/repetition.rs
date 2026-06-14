@@ -517,6 +517,177 @@ pub fn guard_fabricated_person_confirmation(
 // It is conservative — it only removes clearly structural artifacts, not
 // legitimate prose.
 
+/// Collapses non-consecutive near-duplicate sentences within a single dialogue
+/// string (#1460 — distributed repetition guard).
+///
+/// The model can produce the same semantic clause interleaved with other text,
+/// e.g. "what is it ye seek from yer cousin ... what is it ye seek from yer
+/// kin ... other text ... what is it ye seek from him" — these are not
+/// consecutive, so `collapse_repeated_sentences` does not catch them.
+///
+/// Algorithm:
+/// 1. Split into sentence units (same `split_sentences` as the consecutive guard).
+/// 2. For each sentence, compute a normalized content-token list.
+/// 3. Compare against the set of already-kept sentences using two signals:
+///    - **Jaccard similarity** >= `DISTRIBUTED_DEDUP_THRESHOLD` (0.60) on the
+///      token *set* — catches near-verbatim restatements.
+///    - **Shared prefix** of >= `MIN_SHARED_PREFIX` (5) consecutive words — catches
+///      template variations like "what is it ye seek from <kin/Cormac/him>" that
+///      share a syntactic frame but differ in the object NP.
+/// 4. If either signal fires AND the sentence is long enough (>= `MIN_CONTENT_TOKENS`
+///    content tokens — short lines like "Aye." are exempt), drop the duplicate.
+///
+/// Conservative thresholds prevent false positives on legitimate varied dialogue.
+/// The function is stable: the FIRST occurrence of a near-duplicate cluster is
+/// always kept; later ones are dropped.
+pub fn collapse_distributed_repeated_sentences(dialogue: &str) -> String {
+    /// Minimum number of content tokens a sentence must have for distributed
+    /// dedup to apply. Shorter sentences have too little signal to compare
+    /// safely — e.g. "Aye." or "I see." are kept as-is to avoid false
+    /// positives on natural short acknowledgements.
+    const MIN_CONTENT_TOKENS: usize = 5;
+    /// Jaccard similarity threshold for two sentences to count as near-duplicate
+    /// via the set-overlap signal. 0.60 is conservative — it requires 60% of the
+    /// token *set* to be shared, so sentences that merely share a handful of
+    /// common function words do not collide.
+    const DISTRIBUTED_DEDUP_THRESHOLD: f32 = 0.60;
+    /// Minimum length of a shared leading-word prefix for two sentences to count
+    /// as template-duplicates. "what is it ye" is 4 words and is the syntactic
+    /// frame shared by "what is it ye seek from X" vs "what is it ye want from
+    /// Y". 4 is a safe floor: generic openers like "aye, the" or "i do not" are
+    /// only 2–3 words long and won't reach it.
+    const MIN_SHARED_PREFIX: usize = 4;
+
+    let sentences = split_sentences(dialogue);
+    if sentences.len() < 2 {
+        return dialogue.to_string();
+    }
+
+    // Each entry is (norm_string, ordered_token_vec, token_set).
+    struct KeptEntry {
+        norm: String,
+        tokens: Vec<String>,
+        set: std::collections::HashSet<String>,
+    }
+
+    let mut kept: Vec<&str> = Vec::with_capacity(sentences.len());
+    let mut kept_entries: Vec<KeptEntry> = Vec::new();
+
+    for sentence in &sentences {
+        let norm = normalize_for_repetition(sentence);
+        if norm.is_empty() {
+            continue;
+        }
+
+        let tokens: Vec<String> = norm
+            .split_whitespace()
+            .filter(|w| !w.is_empty())
+            .map(|w| w.to_string())
+            .collect();
+
+        let token_count = tokens.len();
+        let token_set: std::collections::HashSet<String> = tokens.iter().cloned().collect();
+
+        // Only apply distributed dedup when sentence is long enough.
+        if token_count >= MIN_CONTENT_TOKENS {
+            let mut is_near_dup = false;
+            for entry in &kept_entries {
+                // Fast path: exact normalized match.
+                if entry.norm == norm {
+                    is_near_dup = true;
+                    break;
+                }
+                // Signal 1: Jaccard on token sets.
+                let intersection = token_set.intersection(&entry.set).count() as f32;
+                let union = token_set.union(&entry.set).count() as f32;
+                if union > 0.0 && (intersection / union) >= DISTRIBUTED_DEDUP_THRESHOLD {
+                    is_near_dup = true;
+                    break;
+                }
+                // Signal 2: shared leading prefix of >= MIN_SHARED_PREFIX words.
+                let shared_prefix = tokens
+                    .iter()
+                    .zip(entry.tokens.iter())
+                    .take_while(|(a, b)| a == b)
+                    .count();
+                if shared_prefix >= MIN_SHARED_PREFIX {
+                    is_near_dup = true;
+                    break;
+                }
+            }
+            if is_near_dup {
+                continue;
+            }
+        }
+
+        kept.push(sentence.trim());
+        kept_entries.push(KeptEntry {
+            norm,
+            tokens,
+            set: token_set,
+        });
+    }
+
+    if kept.is_empty() {
+        return dialogue.trim().to_string();
+    }
+    kept.join(" ")
+}
+
+/// Caps the total number of interrogative sentences in a reply to at most
+/// `MAX_TOTAL_QUESTIONS` (#1460 — total-question cap).
+///
+/// The trailing question-cap (`cap_trailing_questions`) only strips questions
+/// that appear at the end. When the model produces scattered repeated questions
+/// interleaved with other text, the trailing cap does not help. This function
+/// counts ALL question-ending sentences in the reply and, if there are more than
+/// `MAX_TOTAL_QUESTIONS`, drops the earlier ones and keeps only the last
+/// `MAX_TOTAL_QUESTIONS`. Non-question sentences are always preserved. Applies
+/// after distributed dedup.
+pub fn cap_total_questions(dialogue: &str) -> String {
+    /// Maximum number of questions permitted in a single NPC reply. A natural
+    /// reply might legitimately end with one question; two is generous headroom
+    /// for a reply that has both a mid-body rhetorical question and a closing
+    /// question. More than two is a loop artifact.
+    const MAX_TOTAL_QUESTIONS: usize = 2;
+
+    let sentences = split_sentences(dialogue);
+    if sentences.len() < 2 {
+        return dialogue.to_string();
+    }
+
+    // Identify indices of all interrogative sentences.
+    let question_indices: Vec<usize> = sentences
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.trim().ends_with('?'))
+        .map(|(i, _)| i)
+        .collect();
+
+    if question_indices.len() <= MAX_TOTAL_QUESTIONS {
+        // Already within budget — nothing to do.
+        return dialogue.to_string();
+    }
+
+    // Drop the earliest questions, keep only the last MAX_TOTAL_QUESTIONS.
+    let drop_count = question_indices.len() - MAX_TOTAL_QUESTIONS;
+    let drop_set: std::collections::HashSet<usize> =
+        question_indices[..drop_count].iter().copied().collect();
+
+    let kept: Vec<&str> = sentences
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !drop_set.contains(i))
+        .map(|(_, s)| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if kept.is_empty() {
+        return dialogue.trim().to_string();
+    }
+    kept.join(" ")
+}
+
 /// Strips all but the last interrogative sentence from a multi-question tail
 /// (#1460 — question-stack guard).
 ///
@@ -704,12 +875,14 @@ pub fn strip_leaked_mood_word(dialogue: &str) -> String {
 /// Steps, in order:
 /// 1. Strip bare leaked mood-adjective from tail ([`strip_leaked_mood_word`]).
 /// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
-/// 3. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 3. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 4. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 5. Cap trailing question stack to one ([`cap_trailing_questions`]).
 ///
-/// Note: near-duplicate sentence collapse is handled upstream by
-/// [`guard_against_repetition`] (step 1 in the shared pipeline). This guard
-/// adds the cases that `collapse_repeated_sentences` does not cover: question
-/// stacks (near-duplicate interrogatives), truncation artifacts, and mood leaks.
+/// Steps 3 and 4 are the #1460 core fix for distributed / interleaved repetition
+/// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
+/// called upstream by `guard_against_repetition`) does not catch. Step 5 keeps
+/// the earlier trailing-question guard in place as a final cleanup.
 ///
 /// Conservative — does not alter legitimate prose.
 pub fn guard_verbosity_runons(dialogue: &str) -> String {
@@ -718,7 +891,9 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     }
     let after_mood = strip_leaked_mood_word(dialogue);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
-    cap_trailing_questions(&after_trunc)
+    let after_distributed = collapse_distributed_repeated_sentences(&after_trunc);
+    let after_total_q = cap_total_questions(&after_distributed);
+    cap_trailing_questions(&after_total_q)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -733,10 +908,7 @@ mod tests {
     fn collapse_repeated_six_times() {
         // Adversarial: same clause repeated 6 times → collapsed to 1.
         let clause = "Speak yer mind, and we'll see what be in it, m'friend.";
-        let input = std::iter::repeat(clause)
-            .take(6)
-            .collect::<Vec<_>>()
-            .join(" ");
+        let input = std::iter::repeat_n(clause, 6).collect::<Vec<_>>().join(" ");
         let result = collapse_repeated_sentences(&input);
         // Should contain the clause exactly once.
         let occurrences = result.matches(clause).count();
@@ -980,6 +1152,174 @@ mod tests {
         assert!(
             q_count <= 1,
             "question stack should be capped to 1, got {q_count}: {result:?}"
+        );
+    }
+
+    // ── #1460 distributed / non-consecutive repetition (new) ─────────────────
+
+    #[test]
+    fn peig_repro_distributed_seek_questions_collapse() {
+        // Adversarial: the Peig repro from the quality-harness session.
+        // "what is it ye seek from X" appears 4× interleaved with other clauses.
+        // All four near-duplicate questions must collapse to one, and the other
+        // content sentences must survive.
+        let dialogue = "Good day to ye, stranger. \
+            What is it ye seek from yer cousin in these parts? \
+            The morning is fair enough. \
+            What is it ye seek from yer kin hereabouts? \
+            Mind yer step on the path. \
+            What is it ye want from Cormac, then? \
+            What is it ye seek from him?";
+        let result = collapse_distributed_repeated_sentences(dialogue);
+        // Non-duplicate content must survive.
+        assert!(
+            result.contains("Good day to ye"),
+            "preamble should survive: {result:?}"
+        );
+        assert!(
+            result.contains("The morning is fair enough"),
+            "non-duplicate sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("Mind yer step"),
+            "non-duplicate sentence should survive: {result:?}"
+        );
+        // Only one "what is it ye seek/want" question should remain.
+        let seek_count = result.to_lowercase().matches("what is it ye").count();
+        assert_eq!(
+            seek_count, 1,
+            "distributed seek-question should collapse to 1, got {seek_count}: {result:?}"
+        );
+    }
+
+    #[test]
+    fn alternating_ab_loop_collapses() {
+        // Adversarial: A/B/A/B alternating loop — neither A nor B is consecutive,
+        // but each appears twice. After dedup, only the first A and first B remain.
+        let dialogue = "Speak up now, I haven't got all day for ye. \
+            Ye'd best be quick about it, friend. \
+            Speak up now, I haven't got all day for ye. \
+            Ye'd best be quick about it, friend.";
+        let result = collapse_distributed_repeated_sentences(dialogue);
+        // Each clause should appear at most once.
+        let speak_count = result.to_lowercase().matches("speak up now").count();
+        let quick_count = result.to_lowercase().matches("ye'd best be quick").count();
+        assert_eq!(
+            speak_count, 1,
+            "\"speak up now\" should appear once, got {speak_count}: {result:?}"
+        );
+        assert_eq!(
+            quick_count, 1,
+            "\"ye'd best be quick\" should appear once, got {quick_count}: {result:?}"
+        );
+    }
+
+    #[test]
+    fn legitimate_varied_dialogue_unchanged_by_distributed_dedup() {
+        // Conservative: a reply with genuine variety must not be altered.
+        let dialogue = "Good day to ye. The harvest has been fine this year. \
+            Brigid Connolly was asking after the grain prices only yesterday. \
+            And the priest is expected back by Thursday, they say. \
+            Have ye heard any news from Roscommon yourself?";
+        let result = collapse_distributed_repeated_sentences(dialogue);
+        // All sentences must survive (modulo whitespace rejoin).
+        assert!(
+            result.contains("Good day to ye"),
+            "first sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("harvest has been fine"),
+            "harvest sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("Brigid Connolly"),
+            "Brigid sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("priest is expected"),
+            "priest sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("news from Roscommon"),
+            "closing question should survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn total_question_cap_keeps_last_two() {
+        // Four scattered questions: cap_total_questions should keep the last 2
+        // and drop the first 2, while preserving all non-question sentences.
+        let dialogue = "What brings ye here? \
+            The morning is cold. \
+            Have ye come far? \
+            Aye, the roads are rough. \
+            Are ye looking for work? \
+            Mind yer step. \
+            What is it ye want of me?";
+        let result = cap_total_questions(dialogue);
+        let q_count = result.matches('?').count();
+        assert!(
+            q_count <= 2,
+            "should have at most 2 questions after total cap, got {q_count}: {result:?}"
+        );
+        // The LAST two questions should be kept (positional preference).
+        assert!(
+            result.contains("Are ye looking for work") || result.contains("What is it ye want"),
+            "later questions should be preferred: {result:?}"
+        );
+        // Non-question sentences must survive.
+        assert!(
+            result.contains("The morning is cold"),
+            "non-question sentence should survive: {result:?}"
+        );
+        assert!(
+            result.contains("Mind yer step"),
+            "non-question sentence should survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn total_question_cap_noop_on_two_questions() {
+        // Exactly 2 questions — cap must not alter anything.
+        let dialogue = "Fine day it is. Have ye come far? \
+            The road from Roscommon is rough. What brings ye here?";
+        let result = cap_total_questions(dialogue);
+        assert_eq!(
+            result.trim(),
+            dialogue.trim(),
+            "two questions should pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_collapses_distributed_repro() {
+        // Integration: the full guard_verbosity_runons path collapses the Peig
+        // repro pattern end-to-end (mood leak, distributed dedup, total-q cap,
+        // trailing-q cap all chained).
+        let dialogue = "Good day to ye, stranger. \
+            What is it ye seek from yer cousin in these parts? \
+            The morning is fair enough. \
+            What is it ye seek from yer kin hereabouts? \
+            Mind yer step on the path. \
+            What is it ye want from Cormac, then? \
+            What is it ye seek from him? \
+            irritated";
+        let result = guard_verbosity_runons(dialogue);
+        // Mood word stripped.
+        assert!(
+            !result.to_lowercase().ends_with("irritated"),
+            "mood word should be stripped: {result:?}"
+        );
+        // At most one question.
+        let q_count = result.matches('?').count();
+        assert!(
+            q_count <= 1,
+            "question count should be <=1 after full guard, got {q_count}: {result:?}"
+        );
+        // Non-question content survives.
+        assert!(
+            result.contains("Good day to ye"),
+            "preamble should survive: {result:?}"
         );
     }
 }
