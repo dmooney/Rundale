@@ -1496,6 +1496,187 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     cap_sentence_count(&after_trailing_q)
 }
 
+// ── #1475 — wrong-speaker identity guard ──────────────────────────────────────
+//
+// The Qwen2.5-14B-4bit model sometimes adopts a different roster NPC's
+// first-person persona mid-reply, producing lines like:
+//   "Sure, I'm Brendan, the Miller's Son. Ye've caught me just 'tween chores."
+// when the actual speaker is Nora Duffy.
+//
+// This guard runs post-generation: it scans the NPC's dialogue for first-person
+// identity-claim patterns ("I'm X", "I am X", "the name's X", "my name is X")
+// where X matches a DIFFERENT roster member's name or occupation, and replaces
+// the entire dialogue with a short, identity-neutral recovery line.
+//
+// Conservative: only fires when the claimed name is a distinct roster member
+// (not the speaker). Never fires for a correct self-introduction ("I'm Nora").
+// When the roster has only the speaker (or is empty), the guard is a no-op.
+//
+// Gated by the default-on flag `npc-wrong-speaker-guard` — callers must check
+// `config.flags.is_disabled("npc-wrong-speaker-guard")` and skip when true.
+
+/// A short, period-appropriate recovery line used when an NPC adopted another
+/// character's identity. Cycles through a small pool keyed by `seed` so the
+/// substituted line varies across NPCs and turns.
+fn wrong_speaker_recovery(seed: u64) -> &'static str {
+    const POOL: &[&str] = &[
+        "Aye, what can I do for ye?",
+        "Grand day to ye — what brings ye here?",
+        "Sure, how can I help ye today?",
+        "Aye, I'm right here. What do ye need?",
+        "Well now, speak yer mind.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+/// Returns `true` when `dialogue` contains a first-person identity claim ("I'm
+/// X", "I am X", "the name's X", "my name is X") for the given `name`.
+///
+/// Matching is case-insensitive. This helper is used to detect BOTH:
+///   1. Legitimate self-introductions by the speaker (name == speaker_name).
+///   2. Wrong-identity claims by the speaker (name == other roster member's name).
+///
+/// The caller decides which case applies based on whose name matched.
+fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
+    // Normalise the typographic apostrophe (U+2019, which the 14B routinely
+    // emits) to ASCII so the prefix list and apostrophe'd names (O'Brien)
+    // match regardless of quote style.
+    let lower = dialogue.to_lowercase().replace('\u{2019}', "'");
+    let name_lower = name.to_lowercase().replace('\u{2019}', "'");
+
+    // Must contain the name at all.
+    if !lower.contains(&name_lower) {
+        return false;
+    }
+
+    // First-person identity claim patterns, case-insensitive.
+    // We build the pattern by checking if any marker appears immediately before the name.
+    // Apostrophes are normalised to ASCII above, so a single ASCII form covers
+    // both the straight and the typographic quote the model emits.
+    const IDENTITY_PREFIXES: &[&str] = &[
+        "i'm ",
+        "i am ",
+        "the name's ",
+        "the name is ",
+        "my name's ",
+        "my name is ",
+        "it's ",  // "It's Brendan here"
+        "it is ", // "It is Brendan, the …"
+        "'tis ",  // Hiberno-English contraction
+    ];
+
+    for prefix in IDENTITY_PREFIXES {
+        let pattern = format!("{}{}", prefix, name_lower);
+        if lower.contains(&pattern) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Post-generation guard for wrong-speaker identity (#1475).
+///
+/// Detects when the NPC's dialogue contains a first-person claim to be a
+/// DIFFERENT roster member (e.g. Nora Duffy saying "I'm Brendan, the
+/// Miller's Son") and replaces the dialogue with a short recovery line.
+///
+/// # Parameters
+///
+/// - `dialogue`: the finalized NPC reply.
+/// - `speaker_name`: the actual NPC's real name (e.g. "Nora Duffy").
+/// - `roster`: all roster entries for this NPC's known-people list as
+///   `(name, occupation)` pairs. The speaker's own entry may be included;
+///   it is skipped when matching. Pass `&[]` when no roster is available.
+/// - `seed`: deterministic seed for recovery pool selection.
+///
+/// # Behaviour
+///
+/// 1. If the roster has fewer than 2 members total (including speaker),
+///    return dialogue unchanged — no other identity to steal.
+/// 2. For each other roster member (name ≠ speaker_name, case-insensitive):
+///    a. Check the full name ("I'm Brendan Walsh").
+///    b. Check the first name only ("I'm Brendan") — but only when no other
+///    roster member (including the speaker) shares that first name, to
+///    avoid false positives where a common first name appears.
+/// 3. If any match fires, log a warning and return a recovery line.
+/// 4. Otherwise return the dialogue unchanged.
+///
+/// Conservative: does NOT fire for third-person mentions ("Brendan is at the
+/// mill") — only first-person identity-claim patterns.
+pub fn guard_wrong_speaker_identity(
+    dialogue: &str,
+    speaker_name: &str,
+    roster: &[(String, String)],
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() || roster.len() < 2 {
+        return dialogue.to_string();
+    }
+
+    let speaker_lower = speaker_name.to_lowercase();
+
+    // Pre-compute how many roster members share each first name so we can
+    // avoid false positives when a first name is ambiguous.
+    let mut first_name_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for (name, _) in roster {
+        if let Some(first) = name.split_whitespace().next() {
+            *first_name_counts.entry(first.to_lowercase()).or_insert(0) += 1;
+        }
+    }
+
+    // Hoisted out of the loop — `speaker_name` is constant throughout.
+    let speaker_first_lower = speaker_name
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+
+    for (roster_name, _occupation) in roster {
+        // Skip the speaker's own entry.
+        if roster_name.to_lowercase() == speaker_lower {
+            continue;
+        }
+
+        // Check full name first (e.g. "I'm Brendan Walsh").
+        if dialogue_claims_identity(dialogue, roster_name) {
+            tracing::warn!(
+                speaker = %speaker_name,
+                claimed_identity = %roster_name,
+                "wrong-speaker-identity guard fired: NPC claimed another roster member's full name (#1475)"
+            );
+            return wrong_speaker_recovery(seed).to_string();
+        }
+
+        // Check first name only (e.g. "I'm Brendan") — but only when the
+        // first name is unambiguous (appears exactly once in the roster and
+        // differs from the speaker's own first name).
+        if let Some(roster_first) = roster_name.split_whitespace().next() {
+            let roster_first_lower = roster_first.to_lowercase();
+            // Only fire on first-name-only if the first name is unique in the
+            // roster and is not the speaker's own first name.
+            let count = first_name_counts
+                .get(&roster_first_lower)
+                .copied()
+                .unwrap_or(0);
+            if count == 1
+                && roster_first_lower != speaker_first_lower
+                && dialogue_claims_identity(dialogue, roster_first)
+            {
+                tracing::warn!(
+                    speaker = %speaker_name,
+                    claimed_identity_first_name = %roster_first,
+                    claimed_identity_full = %roster_name,
+                    "wrong-speaker-identity guard fired: NPC claimed another roster member's first name (#1475)"
+                );
+                return wrong_speaker_recovery(seed).to_string();
+            }
+        }
+    }
+
+    dialogue.to_string()
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -2466,6 +2647,138 @@ mod tests {
         assert!(
             result.contains("Good day to ye"),
             "first sentence must survive: {result:?}"
+        );
+    }
+
+    // ── #1475 — wrong-speaker identity guard ─────────────────────────────────
+
+    fn nora_roster() -> Vec<(String, String)> {
+        vec![
+            ("Nora Duffy".to_string(), "Miller's Assistant".to_string()),
+            ("Brendan Walsh".to_string(), "Miller's Son".to_string()),
+            ("Cormac Duffy".to_string(), "Miller".to_string()),
+        ]
+    }
+
+    /// AC-1: NPC adopts another roster member's name → guard fires and replaces.
+    #[test]
+    fn wrong_speaker_guard_fires_on_stolen_roster_name() {
+        let dialogue = "Sure, I'm Brendan, the Miller's Son. Ye've caught me just 'tween chores.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert!(
+            !result.to_lowercase().contains("brendan"),
+            "stolen-identity dialogue must be replaced, must not contain other NPC's name: {result:?}"
+        );
+        // Must be a recovery line, not blank.
+        assert!(
+            !result.trim().is_empty(),
+            "replacement must not be blank: {result:?}"
+        );
+    }
+
+    /// Regression: the 14B routinely emits a typographic apostrophe (U+2019).
+    /// "I’m Brendan" (curly quote) must fire the guard just like the ASCII form.
+    #[test]
+    fn wrong_speaker_guard_fires_on_typographic_apostrophe() {
+        let dialogue = "Sure, I\u{2019}m Brendan, the Miller\u{2019}s Son.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert!(
+            !result.to_lowercase().contains("brendan"),
+            "curly-apostrophe identity claim must still be replaced: {result:?}"
+        );
+    }
+
+    /// AC-2: NPC correctly introduces itself → guard must NOT fire.
+    #[test]
+    fn wrong_speaker_guard_does_not_fire_on_correct_self_introduction() {
+        let dialogue = "I'm Nora Duffy, the Miller's Assistant. Grand day to ye.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert_eq!(
+            result, dialogue,
+            "correct self-introduction must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-3: NPC mentions another roster member in third person → guard must NOT fire.
+    #[test]
+    fn wrong_speaker_guard_does_not_fire_on_third_person_mention() {
+        let dialogue =
+            "Ye'll want to speak to Brendan Walsh for that — he knows the mill better than I.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert_eq!(
+            result, dialogue,
+            "third-person mention of another NPC must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-4: "the name's X" pattern fires for another roster member.
+    #[test]
+    fn wrong_speaker_guard_fires_on_the_names_pattern() {
+        let dialogue = "The name's Brendan, friend, Miller's Son of Kilteevan.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 1);
+        assert!(
+            !result.to_lowercase().contains("brendan"),
+            "'the name's X' wrong-identity must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-5: "I am X, the Y" pattern fires for another roster member.
+    #[test]
+    fn wrong_speaker_guard_fires_on_i_am_pattern() {
+        let dialogue = "I am Brendan, the Miller's Son. Come in.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 2);
+        assert!(
+            !result.to_lowercase().contains("i am brendan"),
+            "'I am X' wrong-identity must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-6 kill-switch: guard returns dialogue unchanged when skipped (caller check).
+    /// (The caller checks `config.flags.is_disabled(...)` and skips the guard call.
+    /// We test the guard itself returns unchanged when the roster is too small.)
+    #[test]
+    fn wrong_speaker_guard_noop_on_single_member_roster() {
+        let dialogue = "I'm Brendan, the Miller's Son.";
+        // Only one roster member (no other NPC to steal from).
+        let single_roster = vec![("Nora Duffy".to_string(), "Miller's Assistant".to_string())];
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &single_roster, 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must not fire when roster has only the speaker: {result:?}"
+        );
+    }
+
+    /// AC-7: empty roster → guard is a no-op.
+    #[test]
+    fn wrong_speaker_guard_noop_on_empty_roster() {
+        let dialogue = "I'm Brendan, the Miller's Son.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &[], 0);
+        assert_eq!(
+            result, dialogue,
+            "guard must not fire when roster is empty: {result:?}"
+        );
+    }
+
+    /// Regression: "my name is X" pattern fires for another roster member.
+    #[test]
+    fn wrong_speaker_guard_fires_on_my_name_is_pattern() {
+        let dialogue = "My name is Cormac, the Miller. I've been at the wheel since dawn.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 3);
+        assert!(
+            !result.to_lowercase().contains("cormac"),
+            "'my name is X' wrong-identity must be replaced: {result:?}"
+        );
+    }
+
+    /// Conservative: first-name-only correct self-ref passes through.
+    #[test]
+    fn wrong_speaker_guard_does_not_fire_on_first_name_self_ref() {
+        // "I'm Nora" is the speaker's own first name — must pass through.
+        let dialogue = "I'm Nora, and I've been here since morning.";
+        let result = guard_wrong_speaker_identity(dialogue, "Nora Duffy", &nora_roster(), 0);
+        assert_eq!(
+            result, dialogue,
+            "first-name self-reference must not be blocked: {result:?}"
         );
     }
 }

@@ -122,7 +122,7 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let (setup, person_guard_enabled, verbosity_guard_enabled) = {
+    let (setup, person_guard_enabled, verbosity_guard_enabled, wrong_speaker_guard_enabled) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -138,6 +138,8 @@ pub async fn run_npc_turn(
             .flags
             .is_disabled("dialogue-person-confirmation-guard");
         let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
+        // Wrong-speaker-identity guard (#1475): default-on, kill-switch only.
+        let wrong_speaker_guard = !config.flags.is_disabled("npc-wrong-speaker-guard");
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
@@ -155,7 +157,7 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
-        (setup, person_guard, verbosity_guard)
+        (setup, person_guard, verbosity_guard, wrong_speaker_guard)
     };
     let setup = setup?;
 
@@ -381,6 +383,24 @@ pub async fn run_npc_turn(
     // every runtime (Tauri, server, headless) via the shared npc_turn path.
     if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation wrong-speaker-identity guard (#1475): detect when the
+    // NPC's reply claims to be a different roster member ("I'm Brendan, the
+    // Miller's Son" spoken by Nora Duffy) and replace with a recovery line.
+    // Default-on; kill-switch via `npc-wrong-speaker-guard` flag.
+    if wrong_speaker_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_wrong_speaker_identity(
+            &parsed.dialogue,
+            &setup.npc_name,
+            &setup.roster_names_occupations,
+            guard_seed,
+        );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
