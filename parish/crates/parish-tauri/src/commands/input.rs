@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use parish_core::input::{InputResult, classify_input, is_player_dialogue, parse_intent};
+use parish_core::input::{InputResult, classify_input, is_player_dialogue};
 use parish_core::ipc::text_log;
 use tauri::Emitter;
 
@@ -110,15 +110,8 @@ pub fn validate_input_text(raw: &str) -> Result<String, String> {
 }
 
 /// Maximum number of NPC chips a single `submit_input` may carry. Validated
-/// in [`validate_addressed_to`] and reused by `handle_game_input` to bound
-/// `Vec::with_capacity` calls (#933 — CodeQL `rust/uncontrolled-allocation-size`).
+/// in [`validate_addressed_to`] (#933 — CodeQL `rust/uncontrolled-allocation-size`).
 pub(crate) const MAX_ADDRESSED_TO: usize = 10;
-
-/// Upper bound for the merged `addressed_to + mentions` target list. Sized
-/// generously above the realistic combined total — `addressed_to` is capped
-/// at [`MAX_ADDRESSED_TO`] and `mentions.names.len()` is bounded by NPCs in
-/// the world — so the allocation is guaranteed-small regardless of input.
-pub(crate) const MAX_TARGETS: usize = 64;
 
 /// Validates the `addressed_to` list from the `submit_input` command.
 ///
@@ -164,260 +157,18 @@ async fn handle_system_command(
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 ///
-/// Takes plain `&Arc<AppState>` (not `tauri::State<...>`) so the body can be
-/// called from non-Tauri-extractor contexts — namely the `mcp_bridge` Axum
-/// handlers, which share the same live AppState as the desktop window. The
-/// Tauri callsite passes `state.inner()`.
+/// Delegates to [`parish_core::game_loop::handle_game_input`] for all shared
+/// logic (intent parsing, Interact narration, no-silent-drop fallback, NPC
+/// conversation) — identical to the server path in `parish-server` (rule #12 /
+/// #2 mode-parity, #1467). Takes plain `&Arc<AppState>` (not
+/// `tauri::State<...>`) so the body can be called from non-Tauri-extractor
+/// contexts — namely the `mcp_bridge` Axum handlers, which share the same live
+/// AppState as the desktop window. The Tauri callsite passes `state.inner()`.
 pub(crate) async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
     state: &Arc<AppState>,
     app: tauri::AppHandle,
-) {
-    // Parse intent: tries local keywords first, then LLM for ambiguous input,
-    // inside a TOCTOU-guarded inference-pause window (#283).
-    let intent = parse_player_intent(&raw, state, &app).await;
-
-    let is_move = intent
-        .as_ref()
-        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Move))
-        .unwrap_or(false);
-    let is_look = intent
-        .as_ref()
-        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Look))
-        .unwrap_or(false);
-    let is_examine = intent
-        .as_ref()
-        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Examine))
-        .unwrap_or(false);
-    let is_talk = intent
-        .as_ref()
-        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Talk))
-        .unwrap_or(false);
-    let move_target = intent
-        .as_ref()
-        .filter(|_i| is_move)
-        .and_then(|i| i.target.clone());
-    let examine_target = intent
-        .as_ref()
-        .filter(|_i| is_examine)
-        .and_then(|i| i.target.clone());
-    let talk_target = intent
-        .as_ref()
-        .filter(|_i| is_talk)
-        .and_then(|i| i.target.clone());
-
-    if is_move {
-        if let Some(target) = move_target {
-            super::movement::handle_movement(&target, state, &app).await;
-        } else {
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                crate::events::TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".into(),
-                    content: "And where would ye be off to?".to_string(),
-                    subtype: None,
-                },
-            );
-        }
-        return;
-    }
-
-    if is_look {
-        super::movement::handle_look(state, &app).await;
-        return;
-    }
-
-    if is_examine {
-        handle_examine_tauri(examine_target, state, &app).await;
-        return;
-    }
-
-    // Extract NPC mentions from the raw text and validate the LLM's talk_target
-    // against co-located NPCs. The talk_target is only accepted when it resolves
-    // to a present NPC; non-NPC nouns and absent names must not be pushed into
-    // the target list — they would generate a spurious "{name} is not here."
-    // message (#1376). Mirrors the same guard in `parish-core`'s
-    // `handle_game_input` (rule #12 / #2 mode-parity).
-    //
-    // Lock ordering: capture `player_location` from `world` then drop the world
-    // guard before acquiring `npc_manager`, re-acquiring `world` only for the
-    // `extract_npc_mentions` call. Holding both locks simultaneously caused
-    // unnecessary latency on the heavily-contended `world` state and risked
-    // lock-order inversions on other paths that acquire them in the opposite order.
-    let player_location = state.world.lock().await.player_location;
-    let npc_manager = state.npc_manager.lock().await;
-    let mentions = {
-        let world = state.world.lock().await;
-        parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
-    };
-    let validated_talk_target = if is_talk {
-        talk_target.filter(|t| {
-            npc_manager
-                .find_by_name(t, player_location)
-                .or_else(|| npc_manager.find_by_role_at(t, player_location))
-                .is_some()
-        })
-    } else {
-        None
-    };
-    drop(npc_manager);
-
-    let targets = assemble_npc_targets(
-        addressed_to,
-        &mentions.names,
-        is_talk,
-        validated_talk_target,
-    );
-
-    handle_npc_conversation(mentions.remaining, targets, state, app).await;
-}
-
-/// Resolves and TOCTOU-guards the player's parsed intent.
-///
-/// Resolves the Intent-category inference client, brackets the (possibly slow)
-/// LLM intent parse in an inference-pause window, and warns the player if the
-/// world advanced mid-parse (#283). Falls back to local keyword parsing when no
-/// client is configured. Extracted from `handle_game_input` (#1200 TD-012).
-async fn parse_player_intent(
-    raw: &str,
-    state: &Arc<AppState>,
-    app: &tauri::AppHandle,
-) -> Option<parish_core::input::PlayerIntent> {
-    use parish_core::config::InferenceCategory;
-
-    // Resolve the intent client and model (Intent category override, or base).
-    let (client, model) = {
-        let config = state.config.lock().await;
-        let base_client = state.client.lock().await;
-        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
-    };
-
-    if let Some(client) = &client {
-        // Capture generation before releasing the lock so we can detect TOCTOU
-        // races on re-acquire (issue #283).
-        let gen_before = {
-            let mut world = state.world.lock().await;
-            world.clock.inference_pause();
-            world.tick_generation
-        };
-        let result = parse_intent(client, raw, &model).await;
-        {
-            let mut world = state.world.lock().await;
-            world.clock.inference_resume();
-            let gen_after = world.tick_generation;
-            if gen_after != gen_before {
-                tracing::warn!(
-                    gen_before,
-                    gen_after,
-                    "World advanced during intent parse (TOCTOU #283) — \
-                     {} tick(s) elapsed; proceeding with parsed intent",
-                    gen_after.wrapping_sub(gen_before),
-                );
-                let _ = app.emit(
-                    crate::events::EVENT_TEXT_LOG,
-                    text_log(
-                        "system",
-                        "The world shifted while your words were in the air.",
-                    ),
-                );
-            }
-        }
-        result.ok()
-    } else {
-        // No client configured — use local keyword parsing only.
-        parish_core::input::parse_intent_local(raw)
-    }
-}
-
-/// Builds the deduplicated NPC target list for a talk turn.
-///
-/// Order of precedence: chip selections (`addressed_to`, real names from the
-/// frontend), then names mentioned in the player's text, then the LLM's single
-/// talk target. Pre-allocated at the fixed `MAX_TARGETS` upper bound so the
-/// allocation size is a constant CodeQL can see is input-independent. Extracted
-/// from `handle_game_input` (#1200 TD-012).
-fn assemble_npc_targets(
-    addressed_to: Vec<String>,
-    mention_names: &[String],
-    is_talk: bool,
-    talk_target: Option<String>,
-) -> Vec<String> {
-    let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
-    for name in addressed_to {
-        if !targets.iter().any(|t| t == &name) {
-            targets.push(name);
-        }
-    }
-    for name in mention_names {
-        if !targets.iter().any(|t| t == name) {
-            targets.push(name.clone());
-        }
-    }
-    if is_talk
-        && let Some(target) = talk_target
-        && !targets.iter().any(|t| t == &target)
-    {
-        targets.push(target);
-    }
-    targets
-}
-
-/// Routes input to one or more NPCs at the player's location, or shows an idle message.
-///
-/// Delegates to [`parish_core::game_loop::handle_npc_conversation`] for all
-/// shared logic (#696), then emits a world-update snapshot when inference
-/// finishes.
-async fn handle_npc_conversation(
-    raw: String,
-    target_names: Vec<String>,
-    state: &Arc<AppState>,
-    app: tauri::AppHandle,
-) {
-    let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
-        std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
-    let ctx = parish_core::game_loop::GameLoopContext {
-        world: &state.world,
-        npc_manager: &state.npc_manager,
-        config: &state.config,
-        conversation: &state.conversation,
-        inference_queue: &state.inference_queue,
-        emitter: std::sync::Arc::clone(&emitter),
-        inference_config: &state.inference_config,
-        pronunciations: &state.pronunciations,
-        client: &state.client,
-        cloud_client: &state.cloud_client,
-        language: state.language_settings.clone(),
-        inference_failure_messages: &state.inference_failure_messages,
-        idle_messages: &state.idle_messages,
-    };
-
-    let app_for_loading = app.clone();
-    let spawn_loading = move || {
-        let cancel = tokio_util::sync::CancellationToken::new();
-        crate::events::spawn_loading_animation(app_for_loading.clone(), cancel.clone());
-        Some(cancel)
-    };
-
-    super::snapshot::emit_world_update(state, &app).await;
-    parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
-    super::snapshot::emit_world_update(state, &app).await;
-}
-
-/// Handles an `Examine` intent in the Tauri backend.
-///
-/// Delegates to [`parish_core::game_loop::handle_examine`] via a thin
-/// [`GameLoopContext`] shim so mode parity is maintained with the server and
-/// headless paths (rule #2/#12).  Emits a world-update snapshot after the
-/// examine response so the frontend stays consistent.
-///
-/// Gated by the `examine-intent` feature flag (default-ON).
-async fn handle_examine_tauri(
-    examine_target: Option<String>,
-    state: &Arc<AppState>,
-    app: &tauri::AppHandle,
 ) {
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
@@ -437,8 +188,26 @@ async fn handle_examine_tauri(
         idle_messages: &state.idle_messages,
     };
     let transport = state.transport.default_mode().clone();
-    parish_core::game_loop::handle_examine(&ctx, examine_target, &transport).await;
-    super::snapshot::emit_world_update(state, app).await;
+    let reaction_templates = state.reaction_templates.clone();
+
+    let app_for_loading = app.clone();
+    let spawn_loading = move || {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        crate::events::spawn_loading_animation(app_for_loading.clone(), cancel.clone());
+        Some(cancel)
+    };
+
+    super::snapshot::emit_world_update(state, &app).await;
+    parish_core::game_loop::handle_game_input(
+        &ctx,
+        raw,
+        addressed_to,
+        &transport,
+        &reaction_templates,
+        spawn_loading,
+    )
+    .await;
+    super::snapshot::emit_world_update(state, &app).await;
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
@@ -571,41 +340,6 @@ mod tests {
         }
     }
 
-    // ── assemble_npc_targets ────────────────────────────────────────────────
-
-    /// `assemble_npc_targets` with a `None` validated_talk_target must not add
-    /// any name beyond addressed_to + mentions (#1376).
-    #[test]
-    fn assemble_npc_targets_none_talk_target_excluded() {
-        let targets = assemble_npc_targets(
-            vec!["Maire Gallagher".to_string()],
-            &[],
-            true,
-            None, // unresolvable talk_target filtered upstream
-        );
-        assert_eq!(targets, vec!["Maire Gallagher".to_string()]);
-    }
-
-    /// A valid talk_target (one that resolved to a co-located NPC) is included.
-    #[test]
-    fn assemble_npc_targets_valid_talk_target_included() {
-        let targets = assemble_npc_targets(vec![], &[], true, Some("Roisin Connolly".to_string()));
-        assert_eq!(targets, vec!["Roisin Connolly".to_string()]);
-    }
-
-    /// A talk_target that duplicates an addressed_to chip name must not appear
-    /// twice.
-    #[test]
-    fn assemble_npc_targets_deduplicates_talk_target() {
-        let targets = assemble_npc_targets(
-            vec!["Maire Gallagher".to_string()],
-            &[],
-            true,
-            Some("Maire Gallagher".to_string()),
-        );
-        assert_eq!(targets, vec!["Maire Gallagher".to_string()]);
-    }
-
     // ── #9 sim-cancel preemption ─────────────────────────────────────────────
 
     /// Snapshotting `sim_cancel`, then calling the fire-and-replace block
@@ -641,6 +375,168 @@ mod tests {
         assert!(
             !next.is_cancelled(),
             "replacement token must be fresh / uncancelled"
+        );
+    }
+
+    // ── #1467: Tauri submit-input path parity — action narration ────────────
+    //
+    // These tests verify that the Tauri/MCP-bridge submit-input path now routes
+    // through `parish_core::game_loop::handle_game_input` and therefore produces
+    // the same Interact narration that the headless server path does.  They
+    // exercise the game-loop context directly (the exact function the new
+    // `handle_game_input` wrapper calls) since constructing a tauri::AppHandle
+    // in unit tests is not possible without a real Tauri runtime.
+
+    /// Minimal capturing EventEmitter for parity tests.
+    ///
+    /// Collects `(event_name, payload)` pairs so tests can assert the Tauri
+    /// dispatch path emits the correct action narrations.
+    struct TestCapturingEmitter {
+        events: std::sync::Mutex<Vec<(String, serde_json::Value)>>,
+    }
+
+    impl TestCapturingEmitter {
+        fn new() -> Self {
+            Self {
+                events: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn text_log_contents(&self) -> Vec<String> {
+            self.events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(n, _)| n == "text-log")
+                .filter_map(|(_, p)| {
+                    p.get("content")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
+                .collect()
+        }
+    }
+
+    impl parish_core::ipc::EventEmitter for TestCapturingEmitter {
+        fn emit_event(&self, name: &str, payload: serde_json::Value) {
+            self.events
+                .lock()
+                .unwrap()
+                .push((name.to_string(), payload));
+        }
+    }
+
+    fn make_transport_1467() -> parish_core::world::transport::TransportMode {
+        parish_core::world::transport::TransportMode {
+            label: "on foot".to_string(),
+            id: "walking".to_string(),
+            speed_m_per_s: 1.2,
+        }
+    }
+
+    /// Build a minimal GameLoopContext for #1467 parity tests (no LLM).
+    async fn run_parity_input(input: &str) -> Vec<String> {
+        let emitter = std::sync::Arc::new(TestCapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(parish_core::world::WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(parish_core::npc::manager::NpcManager::new());
+        let config = tokio::sync::Mutex::new(parish_core::ipc::GameConfig::default());
+        let conversation =
+            tokio::sync::Mutex::new(parish_core::ipc::ConversationRuntimeState::new());
+        let inference_queue: tokio::sync::Mutex<Option<parish_core::inference::InferenceQueue>> =
+            tokio::sync::Mutex::new(None);
+        let client: tokio::sync::Mutex<Option<parish_core::inference::AnyClient>> =
+            tokio::sync::Mutex::new(None);
+        let cloud_client: tokio::sync::Mutex<Option<parish_core::inference::AnyClient>> =
+            tokio::sync::Mutex::new(None);
+        let inference_config = parish_core::config::InferenceConfig::default();
+
+        let ctx = parish_core::game_loop::GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: std::sync::Arc::clone(&emitter)
+                as std::sync::Arc<dyn parish_core::ipc::EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: parish_core::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+        let transport = make_transport_1467();
+        let reaction_templates = parish_core::npc::reactions::ReactionTemplates::default();
+
+        parish_core::game_loop::handle_game_input(
+            &ctx,
+            input.to_string(),
+            vec![],
+            &transport,
+            &reaction_templates,
+            || None,
+        )
+        .await;
+
+        emitter.text_log_contents()
+    }
+
+    /// AC-1 (#1467): "draw a bucket of water from the well and take a long drink"
+    /// must route to narrated action (not NPC dialogue) in the Tauri path.
+    ///
+    /// This is the exact repro input from the quality-harness run that revealed
+    /// the mode-parity gap. The local parser classifies "draw " as Interact (#1461).
+    /// The shared `handle_game_input` must emit "You draw..." narration.
+    #[tokio::test]
+    async fn tauri_path_draw_water_action_narrates_not_npc_dialogue() {
+        let logs =
+            run_parity_input("draw a bucket of water from the well and take a long drink").await;
+
+        // Must emit a narrated action, not nothing.
+        assert!(
+            !logs.is_empty(),
+            "#1467 tauri-parity: 'draw a bucket...' must emit a text-log; got none"
+        );
+        // The narration must reference the action ("draw") — not be an NPC speech reply.
+        assert!(
+            logs.iter().any(|l| l.starts_with("You draw")),
+            "#1467 tauri-parity: expected 'You draw...' narration; got: {logs:?}"
+        );
+    }
+
+    /// AC-2 (#1467): "pick up the bellows and pump them" is also an Interact-classified
+    /// action — must narrate in the Tauri path.
+    #[tokio::test]
+    async fn tauri_path_pick_up_bellows_action_narrates() {
+        let logs = run_parity_input("pick up the bellows and pump them").await;
+
+        assert!(
+            !logs.is_empty(),
+            "#1467 tauri-parity: 'pick up the bellows...' must emit a text-log; got none"
+        );
+        assert!(
+            logs.iter().any(|l| l.starts_with("You pick up")),
+            "#1467 tauri-parity: expected 'You pick up...' narration; got: {logs:?}"
+        );
+    }
+
+    /// AC-3 (#1467): greetings must still route to NPC dialogue (regression guard).
+    /// In no-LLM mode with no NPC present, a greeting produces an idle text-log
+    /// — which is still a dialogue path, NOT action narration.
+    #[tokio::test]
+    async fn tauri_path_greeting_routes_to_dialogue_not_narration() {
+        let logs = run_parity_input("good morning").await;
+
+        // Must emit something (idle message from NPC dialogue path, no NPC present).
+        assert!(
+            !logs.is_empty(),
+            "#1467 regression: greeting must produce a text-log; got none"
+        );
+        // Must NOT be an action narration starting with "You ".
+        assert!(
+            !logs.iter().any(|l| l.starts_with("You good morning")),
+            "#1467 regression: greeting must not produce action narration; got: {logs:?}"
         );
     }
 }
