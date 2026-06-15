@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
@@ -15,7 +15,7 @@
 	// Default true so the initial load scrolls into view.
 	// Updated by the scroll listener below — the ONLY place user scroll intent
 	// is read (after content mutation, not during it).
-	let stickToBottom = true;
+	let stickToBottom = $state(true);
 
 	// Track the last playerSubmittedCount value we handled so we can detect a
 	// fresh increment. Initialised to the store's current value so that
@@ -69,7 +69,9 @@
 		// Scroll on any log growth when sticky (covers backend/bridge-driven
 		// turns that never touch playerSubmittedCount), OR force-scroll on
 		// player submit regardless.
-		const shouldScroll = forceScroll || (logGrew && stickToBottom);
+		// Read stickToBottom via untrack so scroll events don't re-trigger
+		// this effect — only $textLog / $playerSubmittedCount changes should.
+		const shouldScroll = forceScroll || (logGrew && untrack(() => stickToBottom));
 		tick().then(() => {
 			if (logEl && shouldScroll) {
 				logEl.scrollTop = logEl.scrollHeight;
