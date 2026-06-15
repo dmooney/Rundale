@@ -22,6 +22,18 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 - **Control time explicitly** (see below). Never rely on window focus.
 - **Judge critically.** Default skeptical. See the rubric — inflated scores are a failure of
   the harness.
+- **Judge what the player SEES, not just the API.** Empty `exchanges` proves the engine
+  produced no NPC reply — it does **not** prove the turn was rendered correctly. After every
+  non-dialogue input (look / examine / move / system command), screenshot and confirm the UI
+  renders it in a distinct command/narration style with **no** "You" speech bubble and **no**
+  NPC speaker chip. A command drawn as dialogue, or pinned to an NPC who never replied, is a
+  real defect that the API transcript hides — `parish_turn` / `get_transcript` will look clean.
+- **Attribute every line to its source before scoring.** Tag each transcript/screen line as one
+  of: player speech, player command, **system/time narration**, NPC dialogue, or autonomous
+  world event. The time levers emit narration — `/resume` → "Time stirs again in the parish",
+  `/wait N` → "You wait for N minutes… It is now HH:MM", `/pause` → "The clocks of the parish
+  stand still" — that is **your** scaffolding, not world life. Never credit it to
+  `world_responsiveness` or to an NPC.
 
 ## 1. Preflight (do this first, every time)
 
@@ -110,7 +122,16 @@ signature}`. Examples of things a critical playtester MUST flag (not an exhausti
   — this is a character-fidelity **failure**, not a nitpick; cap `character_fidelity` ≤ 60 if it
   happens across NPCs.
 - **Unfounded familiarity** — an NPC implying prior knowledge of a stranger.
-- **Command treated as dialogue** / intent misfire (#1351).
+- **Command treated as dialogue** / intent misfire (#1351). Two distinct flavours, both
+  fileable: (a) the engine generates an NPC reply to a non-dialogue input; (b) the engine makes
+  no reply (`exchanges` empty) but the **UI still renders the command as a "You" speech bubble
+  and/or attaches an NPC speaker chip** — a presentation-layer misroute you can only see in the
+  screenshot. Always screenshot a look/examine/system turn and check its rendering; do not pass
+  it just because the API transcript shows no NPC line.
+- **Source/attribution slip in your own judging** — scoring system/time narration
+  (`/resume` / `/wait` / `/pause` lines) as world life, or crediting a line to the wrong
+  speaker. A finding built on a misattributed line is a false finding; verify the line's origin
+  first.
 - **Small-model verbosity** — rambling, repetition, multiple questions crammed in one reply.
 - Any anachronism, contradiction, retcon, teleport, or scaffolding/JSON leak.
 - A turn where the world did **not** respond when it should have.
@@ -122,12 +143,20 @@ state change for several turns.
 ## 5. Output + file bugs
 
 Produce: per-turn log, the 7 axis scores + rationale, the weighted quality (or GATED + reason),
-and the full findings list. Then **file the substantive findings** via
+and the full findings list. Then **file every finding** via
 `mcp__parish__parish_file_bug(title, description, context)` — it bundles a screenshot + logs +
 state into a GitHub issue labeled for the `/backlog` drain and **returns the issue URL**.
 **Record that URL against the finding's `signature`** — §6 step 2 writes it into the payload so
-the dashboard links the finding to its issue. Dedup obvious repeats. Recurring model-quality
-findings (mood-blind dialogue, verbosity) are real bugs — file them.
+the dashboard links the finding to its issue.
+
+**File all of them, not just the headline ones.** The rule is dedup, not triage: collapse only
+genuine duplicates (the same defect seen twice). **Do not skip a finding because it is
+low-severity** — a `low` is still a real defect and still gets an issue; severity sets priority,
+not whether it is filed. Recurring model-quality findings (mood-blind dialogue, verbosity) are
+real bugs too. The only findings that may go unfiled are ones folded into another issue as an
+exact duplicate; say so explicitly in the output ("folded into #NNNN"). Every finding you carry
+into the ingest payload should have an `issue_url` unless it is such a dup — a payload finding
+with no `issue_url` and no dup note is a filing miss.
 
 ## 6. Persist to the dashboard
 
@@ -146,11 +175,20 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine). Every `frame.png` must be
    non-empty (the ingest validates this — rule #14).
 
-   **Per-turn inference log (clickable on the run page).** For each turn, also write
-   `turns/NNN/llm.json` and reference it from that turn's payload as
-   `"llm_transcript_path": "turns/NNN/llm.json"`. The dashboard makes a turn with a log
-   clickable, opening a panel that shows the dialogue exchange by default with a collapsible
-   raw prompt/response section. Capture the raw model I/O from the Tauri black-box (the
+   **Per-turn inference log (clickable on the run page) — MANDATORY for every dialogue turn.**
+   `ingest` only rejects a _dangling_ `llm_transcript_path`; it does **not** reject a dialogue
+   turn that omits one, so a logless run validates green and the dashboard renders blank,
+   non-clickable turns. Do not rely on the validator — author the logs yourself. For **every
+   turn that produced an NPC exchange** write `turns/NNN/llm.json` and reference it from that
+   turn's payload as `"llm_transcript_path": "turns/NNN/llm.json"`. Capture the inference logs
+   **live, per turn, before you close the app** (§7) — once Rundale quits, `get_debug_snapshot`
+   is gone and the raw prompt/response is unrecoverable, leaving exchanges-only logs. Also
+   populate `turns/NNN/lines.json` with the turn's narrative lines (an empty `[]` renders an
+   empty, useless panel — fill it with the look/movement/system narration even when there is no
+   dialogue). Omit `llm_transcript_path` **only** for turns with no NPC exchange (movement,
+   `look`, a system command) — those stay non-clickable by design. The dashboard makes a turn
+   with a log clickable, opening a panel that shows the dialogue exchange by default with a
+   collapsible raw prompt/response section. Capture the raw model I/O from the Tauri black-box (the
    `get_debug_snapshot.conversations` history / the session `inference_logs/<ts>.jsonl` gen_ai
    spans) for the calls that fired during the turn. Schema:
 

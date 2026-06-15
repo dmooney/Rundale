@@ -25,7 +25,12 @@ mkdir -p "$artifacts/runs/$uuid/turns/000"
 base64 -d >"$artifacts/runs/$uuid/turns/000/frame.png" <<'PNG'
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC
 PNG
-echo '[]' >"$artifacts/runs/$uuid/turns/000/lines.json"
+# Non-empty narration + an inference log: ingest now rejects a dialogue turn
+# that ships no llm.json, and warns on an empty lines.json.
+echo '["Aiden greets a stranger at the well."]' >"$artifacts/runs/$uuid/turns/000/lines.json"
+cat >"$artifacts/runs/$uuid/turns/000/llm.json" <<'LLM'
+{"turn_index":0,"player_input":"Good morning to you. I'm new to Kilteevan. Might I ask your name?","exchanges":[{"speaker":"You","text":"Good morning to you. I'm new to Kilteevan. Might I ask your name?"},{"speaker":"Peig Hannigan","text":"Welcome to Kilteevan, this fine mornin'."}],"inferences":[]}
+LLM
 
 cd "$root/parish"
 
