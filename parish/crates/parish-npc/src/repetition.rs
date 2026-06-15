@@ -1700,6 +1700,12 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
     let words: Vec<&str> = text.split_whitespace().collect();
     let n = words.len();
 
+    // Precompute normalized form of every token once — normalize_for_repetition
+    // allocates a String (lowercase + split/join + trim), so calling it inside
+    // nested loops would normalize each word O(n²) times in the worst case.
+    // With the precomputed slice we normalize each word exactly once.
+    let normed: Vec<String> = words.iter().map(|w| normalize_for_repetition(w)).collect();
+
     const MIN_WIDTH: usize = 3;
     const MAX_WIDTH: usize = 5;
     // Maximum words between the START of the first occurrence and the START
@@ -1712,10 +1718,7 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
             continue;
         }
         for i in 0..=(n.saturating_sub(width)) {
-            let ngram: Vec<String> = words[i..i + width]
-                .iter()
-                .map(|w| normalize_for_repetition(w))
-                .collect();
+            let ngram = &normed[i..i + width];
             // Skip all-stopword n-grams (e.g. "and the a") — too common to be
             // meaningful repeated phrases. Require at least one content word.
             let has_content = ngram.iter().any(|t| t.len() >= 4);
@@ -1725,10 +1728,7 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
             // Search for a second occurrence within MAX_START_GAP words.
             let search_end = (i + MAX_START_GAP).min(n.saturating_sub(width) + 1);
             for j in (i + width)..search_end {
-                let other: Vec<String> = words[j..j + width]
-                    .iter()
-                    .map(|w| normalize_for_repetition(w))
-                    .collect();
+                let other = &normed[j..j + width];
                 if ngram == other {
                     // Found a nearby repeat. Build the prefix up to (and
                     // including) the end of the first occurrence, then
