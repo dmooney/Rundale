@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
@@ -10,6 +10,12 @@
 	let logEl: HTMLDivElement;
 	let hoveredMessageId: string | null = $state(null);
 	const pendingReactions = new SvelteSet<string>();
+
+	// Sticky-bottom flag: true when the panel is at (or near) the bottom.
+	// Default true so the initial load scrolls into view.
+	// Updated by the scroll listener below — the ONLY place user scroll intent
+	// is read (after content mutation, not during it).
+	let stickToBottom = $state(true);
 
 	// Track the last playerSubmittedCount value we handled so we can detect a
 	// fresh increment. Initialised to the store's current value so that
@@ -26,6 +32,16 @@
 	// can exceed the near-bottom threshold and the panel stops short (#1431).
 	let scrollOnNextLogGrowth = false;
 
+	/** Called on every real user scroll event. Measures whether the panel is
+	 *  near the bottom and updates stickToBottom accordingly. We read geometry
+	 *  here (on actual scroll) rather than after content mutations so the
+	 *  measurement is never contaminated by newly-rendered content. */
+	function handleScroll() {
+		if (!logEl) return;
+		stickToBottom =
+			logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50;
+	}
+
 	$effect(() => {
 		const entries = $textLog;
 		// Re-read the counter inside the effect so Svelte tracks it as a
@@ -37,8 +53,12 @@
 		lastSubmittedCount = currentCount;
 		lastLogLength = entries.length;
 
-		// Arm the one-shot flag on every player submit.
-		if (countIncremented) scrollOnNextLogGrowth = true;
+		// Player submit: arm the one-shot flag and re-stick so the player
+		// always follows their own message.
+		if (countIncremented) {
+			scrollOnNextLogGrowth = true;
+			stickToBottom = true;
+		}
 
 		// Force-scroll when: (a) the count just incremented, OR (b) the log
 		// grew while the one-shot flag was armed (the player's echo arrived in
@@ -46,11 +66,14 @@
 		const forceScroll = countIncremented || (scrollOnNextLogGrowth && logGrew);
 		if (logGrew && scrollOnNextLogGrowth) scrollOnNextLogGrowth = false;
 
-		const nearBottom = forceScroll || (logEl
-			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
-			: true);
+		// Scroll on any log growth when sticky (covers backend/bridge-driven
+		// turns that never touch playerSubmittedCount), OR force-scroll on
+		// player submit regardless.
+		// Read stickToBottom via untrack so scroll events don't re-trigger
+		// this effect — only $textLog / $playerSubmittedCount changes should.
+		const shouldScroll = forceScroll || (logGrew && untrack(() => stickToBottom));
 		tick().then(() => {
-			if (logEl && nearBottom) {
+			if (logEl && shouldScroll) {
 				logEl.scrollTop = logEl.scrollHeight;
 			}
 		});
@@ -201,7 +224,7 @@
 	}
 </script>
 
-<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
+<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log" onscroll={handleScroll}>
 	{#each $textLog as entry, index (entry.id || entry.stream_turn_id || `${entry.source}:${index}`)}
 		{#if entryType(entry) === 'command'}
 			<div class="entry command" data-testid="command-entry" role="log">

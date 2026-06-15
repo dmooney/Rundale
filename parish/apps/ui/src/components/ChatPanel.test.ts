@@ -280,6 +280,163 @@ describe('ChatPanel', () => {
 			expect(container.querySelector('.chat-panel')).toBeTruthy();
 		});
 
+		// Sticky-bottom semantics (#1524):
+		//
+		// The panel uses a `stickToBottom` flag (default true) updated by the
+		// scroll event listener.  The $effect scrolls on ANY log growth when
+		// sticky, covering backend/bridge-driven turns that never touch
+		// playerSubmittedCount.  If the user has scrolled up (sticky=false) only
+		// a player submit re-sticks.
+		//
+		// Strategy: monkey-patch scrollHeight/clientHeight on the container so
+		// the sticky guard reads non-zero geometry.  To simulate "user scrolled
+		// up" we fire a real scroll event with scrollTop=0 so handleScroll()
+		// sets stickToBottom=false before the store update under test.
+		describe('#1524 sticky-bottom — source-agnostic autoscroll', () => {
+			it('DOES scroll when a backend/bridge-driven log entry arrives and panel is sticky', async () => {
+				// No playerSubmittedCount change — simulates a bridge/harness turn.
+				playerSubmittedCount.set(0);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect's async tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Geometry: tall enough that the sticky guard is meaningful.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop=450 → 500-450-200=−150 < 50 → panel is near-bottom.
+				// Assign via property (not the setter spy which isn't installed yet).
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 450,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire a real scroll event so handleScroll() sees the near-bottom
+				// geometry and sets stickToBottom=true.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Backend/bridge-driven log growth: no playerSubmittedCount change.
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good evening.' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Panel was sticky → must scroll.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+
+			it('does NOT scroll when the user has scrolled up (sticky=false) and no submit', async () => {
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect.
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Geometry: user is near the top, far from the bottom.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event: 500-0-200=300 > 50 → handleScroll sets sticky=false.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Passive backend-driven update (no playerSubmittedCount change).
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good day to ye.' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// sticky=false → must NOT scroll.
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('DOES force-scroll on player submit even when user scrolled up, and re-sticks', async () => {
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect.
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate user scrolled to top.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Scroll event → sticky=false.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Player submits: count 1→2, echo lands.
+				playerSubmittedCount.set(2);
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'go north' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Force-scroll on player submit regardless of sticky.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
+
 		// #1431 item 4 regression: the original fix used `$playerSubmittedCount > 0`
 		// which is ALWAYS true after the first send, so every passive NPC/world
 		// update force-scrolled the user back to the bottom even when they had
@@ -318,7 +475,17 @@ describe('ChatPanel', () => {
 					value: 200,
 					configurable: true,
 				});
-				// scrollTop stays 0 (user scrolled to top).
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event so handleScroll() sets stickToBottom=false.
+				// (The new sticky-bottom logic requires this — without it the
+				// component's default stickToBottom=true would cause a scroll
+				// even without a submit.)
+				await fireEvent.scroll(logEl);
 
 				// Now install the spy — any call from here on is attributable to
 				// the store change below.
@@ -362,7 +529,14 @@ describe('ChatPanel', () => {
 					value: 200,
 					configurable: true,
 				});
-				// scrollTop = 0 (user is at top of history).
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event to set stickToBottom=false.
+				await fireEvent.scroll(logEl);
 
 				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
 
