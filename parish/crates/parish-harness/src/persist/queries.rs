@@ -111,6 +111,22 @@ pub struct AbCompare {
 }
 
 impl Db {
+    /// Findings that still need a real issue link — `issue_url` is NULL or
+    /// records a prior filing error. Returns `(finding_row_id, signature)`
+    /// across all runs, ordered by id, for the `backfill-issues` subcommand.
+    pub fn findings_needing_issue_url(&self) -> Result<Vec<(i64, String)>> {
+        let conn = &self.conn;
+        let mut stmt = conn.prepare(
+            "SELECT id, signature FROM findings
+              WHERE issue_url IS NULL OR issue_url LIKE 'filing-error:%'
+              ORDER BY id ASC",
+        )?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// Return the most recent `limit` runs in reverse-chronological order.
     pub fn list_runs(&self, limit: u32) -> Result<Vec<RunSummaryDto>> {
         let conn = &self.conn;
