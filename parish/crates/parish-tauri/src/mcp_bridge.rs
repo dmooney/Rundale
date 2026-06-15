@@ -664,10 +664,10 @@ async fn latest_screenshot(
 
 async fn take_screenshot_mcp(
     State(b): State<BridgeState>,
-) -> Result<Json<ScreenshotInfo>, AppError> {
+) -> Result<Json<ScreenshotInfo>, ScreenshotAppError> {
     let info = crate::commands::do_take_screenshot(&b.state, &b.app)
         .await
-        .map_err(AppError::from)?;
+        .map_err(ScreenshotAppError::from_domain_error)?;
     Ok(Json(info))
 }
 
@@ -851,6 +851,78 @@ impl From<String> for AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         (StatusCode::INTERNAL_SERVER_ERROR, self.0).into_response()
+    }
+}
+
+// ── Screenshot-specific error mapping (#1522) ────────────────────────────────
+
+/// Typed HTTP error for `POST /api/take-screenshot`.
+///
+/// Distinguishes retriable window-unavailability conditions (HTTP 503) from
+/// genuine server faults (HTTP 500). The MCP layer surfaces 503 as
+/// `isError: true` content with a `kind` field the caller can pattern-match
+/// to decide whether to retry after bringing the window to the foreground.
+///
+/// # Variants and HTTP status
+///
+/// | Variant             | Status | `kind` field       | When                                       |
+/// |---------------------|--------|--------------------|--------------------------------------------|\n/// | `WindowUnavailable` | 503    | `window_unavailable` | No Parish window found / not composited  |
+/// | `BlankCapture`      | 503    | `blank_capture`    | Capture succeeded but image is solid-colour|
+/// | `Internal`          | 500    | `internal_error`   | Any other unexpected failure               |
+struct ScreenshotAppError {
+    kind: &'static str,
+    message: String,
+    status: StatusCode,
+}
+
+impl ScreenshotAppError {
+    /// Classifies a domain error string returned by `do_take_screenshot` into
+    /// one of the three [`ScreenshotAppError`] variants.
+    ///
+    /// Detection is done on substrings present in the messages produced by
+    /// the named helpers in `commands/screenshot.rs`:
+    ///
+    /// - `no_window_error()` → "minimized" / "Space" / "asleep/locked"
+    /// - `reject_blank_capture()` → "blank (single solid colour)"
+    /// - everything else → `Internal`
+    ///
+    /// Using substring matching rather than an enum from the inner module
+    /// keeps the interface boundary as `Result<_, String>` (matching every
+    /// other `do_*` helper) without requiring a new cross-crate error type.
+    /// The test suite pins the exact substrings so a wording change is caught
+    /// at compile time rather than silently reverting the HTTP status.
+    pub(crate) fn from_domain_error(msg: String) -> Self {
+        if msg.contains("no Parish") || msg.contains("no Rundale") || msg.contains("minimized") {
+            // `no_window_error()` in screenshot.rs.
+            Self {
+                kind: "window_unavailable",
+                message: msg,
+                status: StatusCode::SERVICE_UNAVAILABLE,
+            }
+        } else if msg.contains("blank (single solid colour)") {
+            // `reject_blank_capture()` in screenshot.rs.
+            Self {
+                kind: "blank_capture",
+                message: msg,
+                status: StatusCode::SERVICE_UNAVAILABLE,
+            }
+        } else {
+            Self {
+                kind: "internal_error",
+                message: msg,
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        }
+    }
+}
+
+impl IntoResponse for ScreenshotAppError {
+    fn into_response(self) -> axum::response::Response {
+        let body = serde_json::json!({
+            "kind": self.kind,
+            "message": self.message,
+        });
+        (self.status, Json(body)).into_response()
     }
 }
 
@@ -1402,5 +1474,111 @@ mod tests {
         assert!(!clock.time_label.is_empty());
         assert!(event_cursor == 0, "no events added");
         assert!(events.is_empty());
+    }
+
+    // ── #1522 screenshot HTTP-status mapping ─────────────────────────────────
+
+    /// `no_window_error()` in screenshot.rs contains "no Parish" and "minimized";
+    /// verify that string routes to HTTP 503 with kind = "window_unavailable".
+    #[test]
+    fn screenshot_error_window_not_found_maps_to_503() {
+        // Reproduce the exact message produced by `no_window_error()` in
+        // commands/screenshot.rs so this test pins the substring contract.
+        let msg = "no Parish/Rundale window found to capture — the window may be minimized, \
+                   on another Space or display, or the screen is asleep/locked"
+            .to_string();
+        let err = ScreenshotAppError::from_domain_error(msg);
+        assert_eq!(
+            err.status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "window-not-found must map to 503, not 500"
+        );
+        assert_eq!(
+            err.kind, "window_unavailable",
+            "kind field must be window_unavailable"
+        );
+    }
+
+    /// `reject_blank_capture()` in screenshot.rs produces "blank (single solid colour)";
+    /// verify that string routes to HTTP 503 with kind = "blank_capture".
+    #[test]
+    fn screenshot_error_blank_capture_maps_to_503() {
+        let msg = "captured screenshot is blank (single solid colour) — the app window \
+                   was not capturable (e.g. not composited / off-screen); refusing to \
+                   report an empty image as a successful capture"
+            .to_string();
+        let err = ScreenshotAppError::from_domain_error(msg);
+        assert_eq!(
+            err.status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "blank-capture must map to 503, not 500"
+        );
+        assert_eq!(err.kind, "blank_capture", "kind field must be blank_capture");
+    }
+
+    /// Any other error (I/O, encode, unexpected) must remain HTTP 500 so
+    /// genuine server faults are distinguishable from retriable conditions.
+    #[test]
+    fn screenshot_error_generic_io_maps_to_500() {
+        let msg = "failed to write /tmp/parish-shot.png: permission denied".to_string();
+        let err = ScreenshotAppError::from_domain_error(msg);
+        assert_eq!(
+            err.status,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "generic I/O error must remain 500"
+        );
+        assert_eq!(
+            err.kind, "internal_error",
+            "kind field must be internal_error for generic errors"
+        );
+    }
+
+    /// End-to-end `IntoResponse` check: exercises the real Axum response path
+    /// (`IntoResponse::into_response()`) so the HTTP status lives in the actual
+    /// response object, not just the internal fields. This drives the production
+    /// code path that the MCP bridge executes when returning an error to the
+    /// `parish-mcp` client (#1522).
+    #[test]
+    fn screenshot_error_into_response_status_codes() {
+        // window_unavailable → 503
+        {
+            let err = ScreenshotAppError::from_domain_error(
+                "no Parish/Rundale window found to capture — the window may be minimized, \
+                 on another Space or display, or the screen is asleep/locked"
+                    .to_string(),
+            );
+            let resp = err.into_response();
+            assert_eq!(
+                resp.status(),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "window_unavailable IntoResponse must produce 503"
+            );
+        }
+        // blank_capture → 503
+        {
+            let err = ScreenshotAppError::from_domain_error(
+                "captured screenshot is blank (single solid colour) — the app window \
+                 was not capturable"
+                    .to_string(),
+            );
+            let resp = err.into_response();
+            assert_eq!(
+                resp.status(),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "blank_capture IntoResponse must produce 503"
+            );
+        }
+        // generic → 500
+        {
+            let err = ScreenshotAppError::from_domain_error(
+                "failed to write /tmp/shot.png: permission denied".to_string(),
+            );
+            let resp = err.into_response();
+            assert_eq!(
+                resp.status(),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "generic error IntoResponse must produce 500"
+            );
+        }
     }
 }
