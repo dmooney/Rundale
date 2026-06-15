@@ -210,6 +210,7 @@ fn ipc_field_parity() {
         &DialogueCorrectedPayload {
             turn_id: 1,
             corrected_text: "Good day to ye.".into(),
+            message_id: Some("msg-1".into()),
         },
         &manifest,
     );

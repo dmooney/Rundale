@@ -652,6 +652,7 @@ pub async fn run_npc_turn(
             serde_json::to_value(DialogueCorrectedPayload {
                 turn_id: req_id,
                 corrected_text: parsed.dialogue.clone(),
+                message_id: message_id.clone(),
             })
             .unwrap_or(serde_json::Value::Null),
         );

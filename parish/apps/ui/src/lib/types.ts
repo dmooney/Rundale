@@ -185,6 +185,10 @@ export interface StreamEndPayload {
 export interface DialogueCorrectedPayload {
 	turn_id: number;
 	corrected_text: string;
+	/** Stable message ID from the original placeholder `text-log` event.
+	 *  Present when the backend emits it (post-#1552 parity); allows the UI to
+	 *  locate the entry by id when `stream_turn_id` has already been cleared. */
+	message_id?: string;
 }
 
 export interface TextLogPayload {

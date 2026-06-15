@@ -202,6 +202,13 @@ pub struct DialogueCorrectedPayload {
     pub turn_id: u64,
     /// The post-guard canonical dialogue text.
     pub corrected_text: String,
+    /// Stable message ID carried through from the original placeholder (`text-log`
+    /// with `stream_turn_id`). Lets the frontend locate the entry by id rather than
+    /// by `stream_turn_id` (which is cleared after finalization), avoiding a missed
+    /// replacement when `dialogue-corrected` arrives after the stream pump has
+    /// already finalized the entry (#1552 parity).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
 }
 
 /// Payload for `text-log` events.

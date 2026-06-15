@@ -443,8 +443,10 @@ export function createStreamManager(): StreamManager {
 		stopTurnPump(turn);
 		turn.buffer = '';
 		turn.complete = true;
-		// Re-schedule pump so finalizePendingTurn runs (clears streaming flags).
-		scheduleTurnPump(turn, 0);
+		// Finalize synchronously so the streaming flags are cleared before the
+		// caller writes the corrected text — avoids the race where a scheduled
+		// pump fires after the replacement and re-appends stale raw tokens (#1552).
+		finalizePendingTurn(turnId);
 	}
 
 	return {
