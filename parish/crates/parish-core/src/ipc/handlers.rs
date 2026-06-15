@@ -809,6 +809,10 @@ pub struct NpcConversationSetup {
     /// Used by the wrong-location-reference guard (#1477) to detect when an NPC
     /// names a different settlement in "here in X" / "village of X" collocations.
     pub location_name: String,
+    /// All known location names in the world graph.
+    /// Used by the invented-place-confirmation guard (#1530) to detect when an
+    /// NPC confirms a place name that does not exist in the world.
+    pub known_location_names: Vec<String>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -978,6 +982,20 @@ pub fn prepare_npc_conversation_turn(
         .map(|d| d.name.clone())
         .unwrap_or_default();
 
+    // All location names in the world graph, for the invented-place guard (#1530).
+    // Reuse the already-computed `location_names` if grounding was enabled;
+    // otherwise build it fresh so the guard always has the full list.
+    let known_location_names: Vec<String> = location_names.unwrap_or_else(|| {
+        let mut names: Vec<String> = world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| world.graph.get(id).map(|d| d.name.clone()))
+            .collect();
+        names.sort();
+        names
+    });
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
@@ -987,6 +1005,7 @@ pub fn prepare_npc_conversation_turn(
         known_person_names,
         roster_names_occupations,
         location_name,
+        known_location_names,
     })
 }
 
