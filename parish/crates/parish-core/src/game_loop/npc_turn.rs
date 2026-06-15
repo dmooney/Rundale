@@ -473,13 +473,28 @@ pub async fn run_npc_turn(
         }
     }
 
+    // Post-generation false-denial guard (#1527, #1528) and invented-place
+    // confirmation guard (#1530): both require a seed derived from the world
+    // clock.  Acquire the async world lock ONCE here if either guard is active
+    // and the dialogue is non-empty, then reuse the seed for both guards to
+    // avoid redundant lock acquisitions.
+    let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
+        || invented_place_guard_enabled)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let ts = ctx.world.lock().await.clock.now().timestamp() as u64;
+        Some(speaker_id.0 as u64 ^ ts)
+    } else {
+        None
+    };
+
     // Post-generation false-denial guard (#1527, #1528): detect when an NPC
     // wrongly denies knowing a person who IS in the parish roster (known_person_names).
     // Runs after the routing guard so only confirmed-false denials are caught here.
     // Default-on; kill-switch via `dialogue-false-denial-guard` flag.
     if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
         let guarded = crate::npc::guard_false_denial_of_roster_person(
             &parsed.dialogue,
             prompt_input,
@@ -496,8 +511,8 @@ pub async fn run_npc_turn(
     // NPC affirms an invented place that is not in the world's location list.
     // Default-on; kill-switch via `dialogue-invented-place-guard` flag.
     if invented_place_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
         let guarded = crate::npc::guard_invented_place_confirmation(
             &parsed.dialogue,
             prompt_input,
