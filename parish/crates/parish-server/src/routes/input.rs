@@ -66,7 +66,7 @@ pub async fn submit_input(
             {
                 return status;
             }
-            handle_system_command(cmd, &state).await;
+            handle_system_command(cmd, &state, &text).await;
         }
         InputResult::GameInput(raw) => {
             // #1351 — only surface a player speech bubble + NPC reactions for
@@ -165,12 +165,16 @@ pub async fn emit_world_update(state: &Arc<AppState>) {
 ///
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
 /// [`AppStateCommandHost`] adapter (#696 slice 7).
-pub async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
+pub async fn handle_system_command(
+    cmd: parish_core::input::Command,
+    state: &Arc<AppState>,
+    raw_text: &str,
+) {
     use crate::command_host::AppStateCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
 
     let host = AppStateCommandHost::new(Arc::clone(state));
-    shared_handle(&host, cmd).await;
+    shared_handle(&host, cmd, raw_text).await;
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.

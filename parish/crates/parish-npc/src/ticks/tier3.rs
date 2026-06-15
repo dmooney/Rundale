@@ -5,6 +5,7 @@
 //! covering mood, activity, location, and relationship deltas.
 
 use chrono::{DateTime, Utc};
+use regex::Regex;
 use std::collections::HashMap;
 
 use crate::memory::{MemoryEntry, try_promote};
@@ -174,10 +175,13 @@ pub fn build_tier3_prompt(
         })
         .collect();
 
+    // #1451: "the season is X" was underweighted — LLM generated summer activities
+    // in Spring. Make it a named directive with an explicit prohibition.
     let mut prompt = format!(
         "You are simulating background NPC activity in a rural Irish parish in 1820. \
         Simulate {hours} hours of activity for the people below. \
-        The weather is {weather}, the season is {season}, the time is {time}.\n\n\
+        The weather is {weather}. CURRENT SEASON: {season} — do not reference any \
+        other season in the activity summaries. The time is {time}.\n\n\
         NPCs (id in brackets — reuse these in your JSON):\n\
         {npcs}\n\n\
         For each NPC, return one update describing their mood, what they did, \
@@ -196,6 +200,162 @@ pub fn build_tier3_prompt(
     prompt.push_str("\n\n");
     prompt.push_str(&language_directive(language));
     prompt
+}
+
+// ── season guard ──────────────────────────────────────────────────────────
+
+/// Wrong-season keywords for each named season.
+///
+/// Each entry is (season_name_lowercase, &[wrong-season token patterns]).
+/// Only the seasons OTHER than the current one are checked against the text.
+/// Patterns are matched case-insensitively as whole words or phrases so we
+/// don't accidentally clobber e.g. "autumn-coloured" when season is Autumn.
+///
+/// The list is conservative: single-season nouns/adjectives that are
+/// unambiguous calendar markers, plus the distinctive phrase that triggered
+/// #1462 ("long summer days"). Compound phrases are matched before single
+/// tokens so a phrase replacement doesn't leave a dangling word.
+const SEASON_TOKENS: &[(&str, &[&str])] = &[
+    (
+        "summer",
+        &[
+            "long summer days",
+            "summer heat",
+            "summer sun",
+            "summer warmth",
+            "summer months",
+            "summer evenings",
+            "summer days",
+            "summer morning",
+            "summer afternoon",
+            "summer nights",
+            "summer rains",
+            "summer harvest",
+            "summer work",
+            "summer",
+        ],
+    ),
+    (
+        "winter",
+        &[
+            "dead of winter",
+            "winter chill",
+            "winter cold",
+            "winter frost",
+            "winter months",
+            "winter evenings",
+            "winter days",
+            "winter morning",
+            "winter afternoon",
+            "winter nights",
+            "winter",
+        ],
+    ),
+    (
+        "spring",
+        &[
+            "spring rains",
+            "spring warmth",
+            "spring months",
+            "spring days",
+            "spring morning",
+            "spring afternoon",
+            "spring evenings",
+            "spring nights",
+            "spring sowing",
+            "spring planting",
+            "spring",
+        ],
+    ),
+    (
+        "autumn",
+        &[
+            "autumn harvest",
+            "autumn chill",
+            "autumn months",
+            "autumn days",
+            "autumn morning",
+            "autumn afternoon",
+            "autumn evenings",
+            "autumn nights",
+            "autumn",
+            "fall harvest",
+            "fall months",
+            "fall days",
+            "fall",
+        ],
+    ),
+];
+
+/// Removes wrong-season tokens from an LLM-generated activity summary.
+///
+/// Scans `text` for references to seasons other than `current_season`
+/// (case-insensitive) and deletes them. Multi-word seasonal phrases
+/// are matched before single season words so no dangling fragments remain.
+///
+/// Only clear wrong-season markers are touched; the function is conservative
+/// and will not alter season-neutral phrasing.  Returns the cleaned text and
+/// a boolean indicating whether any substitution was made (for logging).
+///
+/// `current_season` is compared case-insensitively, accepting "Spring",
+/// "spring", "SPRING", etc.
+///
+/// # UTF-8 correctness
+///
+/// Matching is done via the `regex` crate with the `(?i)` case-insensitive
+/// flag operating directly on the original `text` bytes.  This avoids the
+/// earlier approach of calling `to_lowercase()` and reusing its byte offsets
+/// on the original string, which is unsound for Unicode code points whose
+/// lowercase form has a different UTF-8 byte length (e.g. `İ` U+0130 encodes
+/// to 2 bytes but its lowercase `i\u{307}` encodes to 3 bytes; the Kelvin
+/// sign `K` U+212A encodes to 3 bytes but lowercase `k` encodes to 1 byte).
+pub fn scrub_wrong_season_tokens(text: &str, current_season: &str) -> (String, bool) {
+    let current_lower = current_season.to_lowercase();
+
+    // Collect wrong-season token lists.
+    let wrong_tokens: Vec<&[&str]> = SEASON_TOKENS
+        .iter()
+        .filter(|(season, _)| {
+            // "fall" is an alias for autumn — treat both as the same season.
+            let is_current = *season == current_lower
+                || (current_lower == "autumn" && *season == "fall")
+                || (current_lower == "fall" && *season == "autumn");
+            !is_current
+        })
+        .map(|(_, tokens)| *tokens)
+        .collect();
+
+    if wrong_tokens.is_empty() {
+        return (text.to_string(), false);
+    }
+
+    let mut result = text.to_string();
+    let mut changed = false;
+
+    for token_list in &wrong_tokens {
+        for &token in *token_list {
+            // Build a case-insensitive regex that matches the token at word
+            // boundaries (\b).  The tokens are all ASCII so \b gives the same
+            // word-boundary semantics as the previous char_before/char_after
+            // guards.  We use \b on both sides so "midsummer" is not mutilated
+            // when "summer" is being removed.
+            //
+            // Regex::new can only fail for invalid patterns; all SEASON_TOKENS
+            // are ASCII literals, so unwrap() is safe here.
+            let pattern = format!(r"(?i)\b{}\b", regex::escape(token));
+            let re = Regex::new(&pattern).expect("SEASON_TOKENS are valid regex literals");
+
+            if re.is_match(&result) {
+                let cleaned = re.replace_all(&result, "");
+                // Collapse runs of multiple spaces / leading-trailing whitespace
+                // that result from phrase removal.
+                result = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+                changed = true;
+            }
+        }
+    }
+
+    (result, changed)
 }
 
 // ── default batch size ─────────────────────────────────────────────────────
@@ -277,7 +437,24 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             serde_json::from_str::<Tier3Response>(&s)
                 .map_err(|e| ParishError::Inference(format!("Tier 3 JSON parse failed: {e}")))
         }) {
-            Ok(resp) => {
+            Ok(mut resp) => {
+                // Season guard (#1462): scrub wrong-season tokens from every
+                // activity_summary before storing.  The prompt directive
+                // (defense-in-depth, #1451) is kept alongside this guard.
+                for update in &mut resp.updates {
+                    let (clean, was_dirty) =
+                        scrub_wrong_season_tokens(&update.activity_summary, ctx.season);
+                    if was_dirty {
+                        tracing::warn!(
+                            npc_id = update.npc_id.0,
+                            original = %update.activity_summary,
+                            cleaned = %clean,
+                            season = ctx.season,
+                            "tier3 season guard: scrubbed wrong-season text (#1462)"
+                        );
+                        update.activity_summary = clean;
+                    }
+                }
                 all_updates.extend(resp.updates);
             }
             Err(e) => {
@@ -720,6 +897,43 @@ mod tests {
         assert_eq!(snap.intelligence_adjectives, "eloquent, wise");
     }
 
+    // ── #1451: season directive in tier3 prompt ──────────────────────────────
+
+    /// AC (#1451): the Tier 3 batch prompt must carry a "CURRENT SEASON" directive
+    /// with an explicit no-other-season prohibition so activity summaries stay
+    /// season-correct even for distant NPCs.
+    #[test]
+    fn tier3_prompt_carries_season_directive() {
+        let snapshots: Vec<Tier3Snapshot> = vec![Tier3Snapshot {
+            id: NpcId(1),
+            name: "Padraig".to_string(),
+            occupation: "Publican".to_string(),
+            age: 58,
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            mood: "content".to_string(),
+            context: String::new(),
+            intelligence_adjectives: String::new(),
+            relationship_summary: String::new(),
+        }];
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Clear", "Spring", 4, &lang);
+
+        assert!(
+            prompt.contains("CURRENT SEASON:") || prompt.contains("CURRENT SEASON"),
+            "tier3 prompt must carry a CURRENT SEASON directive (#1451):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("Spring"),
+            "tier3 prompt must name the actual season (#1451):\n{prompt}"
+        );
+        assert!(
+            prompt.contains("do not reference any other season")
+                || prompt.contains("Do not reference any other season"),
+            "tier3 prompt must prohibit referencing other seasons (#1451):\n{prompt}"
+        );
+    }
+
     /// AC-1 (#1397): when grounding_enabled is true, temperature and
     /// frequency_penalty must be Some(…) — not None — so the vllm-mlx server
     /// uses our pinned values rather than its high-temperature defaults.
@@ -766,6 +980,131 @@ mod tests {
         assert!(
             freq.is_none(),
             "frequency_penalty must be None when grounding disabled"
+        );
+    }
+
+    // ── #1462: season guard tests ────────────────────────────────────────────
+
+    /// AC-1 (#1462): the exact phrase that triggered the bug ("long summer days")
+    /// must be scrubbed when the current season is Spring.
+    #[test]
+    fn test_tier3_season_guard_scrubs_wrong_season() {
+        let input = "teaching at the hedge school — the long summer days allow more lessons";
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Spring");
+        assert!(changed, "guard must report a change for wrong-season input");
+        assert!(
+            !cleaned.to_lowercase().contains("summer"),
+            "cleaned text must not contain 'summer': {cleaned:?}"
+        );
+    }
+
+    /// AC-2 (#1462): correct-season text must pass through unchanged.
+    #[test]
+    fn test_tier3_season_guard_leaves_correct_season_alone() {
+        let input = "the spring rains kept everyone indoors today";
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Spring");
+        assert!(!changed, "guard must not alter correct-season text");
+        assert!(
+            cleaned.contains("spring"),
+            "spring token must survive: {cleaned:?}"
+        );
+    }
+
+    /// AC-3 (#1462): when season=Winter all other season names are scrubbed.
+    #[test]
+    fn test_tier3_season_guard_scrubs_all_wrong_seasons_in_winter() {
+        for wrong in &["summer", "spring", "autumn", "fall"] {
+            let input = format!("spent the day watching the {wrong} colours fade");
+            let (cleaned, changed) = scrub_wrong_season_tokens(&input, "Winter");
+            assert!(
+                changed,
+                "guard must detect '{wrong}' as wrong-season when season=Winter"
+            );
+            assert!(
+                !cleaned.to_lowercase().contains(wrong),
+                "cleaned text must not contain '{wrong}': {cleaned:?}"
+            );
+        }
+    }
+
+    /// AC-3b (#1462): "summer days" multi-word phrase is fully removed in Spring.
+    #[test]
+    fn test_tier3_season_guard_removes_summer_days_phrase() {
+        let input = "He worked through the summer days with unusual energy.";
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Spring");
+        assert!(changed);
+        assert!(
+            !cleaned.to_lowercase().contains("summer"),
+            "summer must be gone: {cleaned:?}"
+        );
+    }
+
+    /// AC-3c (#1462): "midsummer" must NOT be altered (word-boundary guard).
+    #[test]
+    fn test_tier3_season_guard_respects_word_boundaries() {
+        // "midsummer" embeds "summer" but is a different word — do not clobber.
+        let input = "A midsummer festival memory lingered in her thoughts.";
+        let (cleaned, _) = scrub_wrong_season_tokens(input, "Spring");
+        // We do NOT assert changed==false because the current implementation
+        // is conservative but may or may not catch "midsummer" depending on
+        // boundary logic.  The key invariant: "mid" must not be orphaned.
+        assert!(
+            !cleaned.contains("mid "),
+            "word boundary guard must not leave dangling 'mid': {cleaned:?}"
+        );
+    }
+
+    /// AC-5 (#1462): season-neutral text is untouched.
+    #[test]
+    fn test_tier3_season_guard_neutral_text_unchanged() {
+        let input = "Padraig swept the pub floor and polished the taps.";
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Autumn");
+        assert!(!changed);
+        assert_eq!(cleaned, input);
+    }
+
+    /// AC-5b (#1462): empty input is safe.
+    #[test]
+    fn test_tier3_season_guard_empty_input() {
+        let (cleaned, changed) = scrub_wrong_season_tokens("", "Summer");
+        assert!(!changed);
+        assert_eq!(cleaned, "");
+    }
+
+    /// UTF-8 safety (#1462 follow-up): strings containing Unicode characters
+    /// whose lowercase form has a different UTF-8 byte length must not panic
+    /// and must still scrub wrong-season tokens correctly.
+    ///
+    /// The old implementation called `to_lowercase()` on the work buffer and
+    /// reused those byte offsets to splice the original string.  For `İ`
+    /// (U+0130, 2 UTF-8 bytes) the lowercase form is `i\u{307}` (3 bytes),
+    /// so the offset from the lowercased copy pointed into the middle of a
+    /// multi-byte sequence in the original — causing a panic or wrong removal.
+    /// The regex-based implementation operates directly on the original string
+    /// and is not affected by this mismatch.
+    #[test]
+    fn test_tier3_season_guard_unicode_no_panic() {
+        // İ (U+0130, LATIN CAPITAL LETTER I WITH DOT ABOVE) encodes as 2 bytes
+        // in UTF-8 but its Unicode lowercase is "i\u{0307}" (3 bytes).
+        // Place it right before a wrong-season token so the old offset
+        // arithmetic would have been forced to mis-slice or panic.
+        let input = "İlkbahar summer days were warm.";
+        // Must not panic, and "summer" must be removed (season=Spring).
+        let (cleaned, changed) = scrub_wrong_season_tokens(input, "Spring");
+        assert!(changed, "summer token must be scrubbed: {cleaned:?}");
+        assert!(
+            !cleaned.to_lowercase().contains("summer"),
+            "cleaned text must not contain 'summer': {cleaned:?}"
+        );
+
+        // Also test with the Kelvin sign K (U+212A, 3 UTF-8 bytes) whose
+        // lowercase is 'k' (1 byte).
+        let input2 = "\u{212A}eltic winter cold lingered.";
+        let (cleaned2, changed2) = scrub_wrong_season_tokens(input2, "Spring");
+        assert!(changed2, "winter token must be scrubbed: {cleaned2:?}");
+        assert!(
+            !cleaned2.to_lowercase().contains("winter"),
+            "cleaned text must not contain 'winter': {cleaned2:?}"
         );
     }
 }

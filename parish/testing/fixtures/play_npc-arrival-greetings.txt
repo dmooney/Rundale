@@ -1,0 +1,45 @@
+# npc-arrival-greetings play-test
+# =================================
+# Proves the npc-arrival-greetings flag (default OFF) mutes spontaneous NPC
+# arrival greetings while leaving the background simulation intact. Each arrival
+# below lands at Darcy's Pub, where the Publican stands at his (indoor) workplace
+# — a guaranteed greeter when the flag is on — so the OFF vs ON difference is
+# deterministic. Travel-atmosphere lines (prefixed "· ") are separate features
+# (travel-encounters, default-on) and out of scope here.
+
+# --- Baseline ---------------------------------------------------------------
+/status
+/flags
+/npcs
+
+# --- AC1: default OFF -> arrival at the populated pub is SILENT --------------
+go to the pub
+/npcs
+
+# --- AC2: enable -> greetings RETURN at the populated pub -------------------
+/flag enable npc-arrival-greetings
+/flags
+go to the crossroads
+go to the pub
+# Expect a greeting/welcome line from the Publican (Padraig Darcy) here.
+/npcs
+
+# --- AC3: disable -> SILENT again at the populated pub ----------------------
+/flag disable npc-arrival-greetings
+/flags
+go to the crossroads
+go to the pub
+# Expect no greeting line again.
+/npcs
+
+# --- AC4: dialogue path still addresses the NPC by identity -----------------
+# (Full reply needs a live model; headless shows the addressed NPC's identity.)
+Good day to you. I have just arrived in the parish.
+/npcs
+
+# --- AC5: background sim still ticks (mute visible only) ---------------------
+/speed fast
+/wait 240
+/time
+/debug npcs
+/status

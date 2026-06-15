@@ -1,4 +1,7 @@
 # Rundale — Game Mod Manifest
+# Manifest schema version understood by this engine release (#1366).
+schema_version = 1
+
 [mod]
 name = "Rundale"
 title = "Rundale"

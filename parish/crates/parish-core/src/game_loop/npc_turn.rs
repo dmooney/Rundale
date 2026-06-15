@@ -41,6 +41,7 @@ use crate::inference::{
 use crate::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID, StreamEndPayload,
     StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log, text_log_for_stream_turn,
+    text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
@@ -60,14 +61,49 @@ pub const AUTONOMOUS_NPC_CHAIN_FLAG: &str = "autonomous-npc-chain";
 /// the legacy interleaving behavior for debugging.
 pub const SERIALIZE_TURN_STREAM_FLAG: &str = "serialize-turn-stream";
 
+/// Feature-flag name (default **on**) that enables cross-NPC opener
+/// de-duplication within a single multi-NPC turn (#1422). When multiple NPCs
+/// reply in one turn, small models often open with the same stock phrase. This
+/// deterministic, model-agnostic guard strips the duplicated opener from each
+/// subsequent NPC's reply. Kill-switch: disable by setting this flag explicitly
+/// (`flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG)` → true).
+pub const DIALOGUE_ANTI_REPETITION_FLAG: &str = "dialogue-anti-repetition";
+
+/// Feature-flag name (default **on**) that enables the acquaintance-question /
+/// identity-drift guard (#1504). When the player asks "do you know X?" and the
+/// NPC responds with a pure self-identification ("I'm but Seamus Gallagher")
+/// instead of answering whether they know the named person, this guard replaces
+/// the response with the correct acquaintance answer. Kill-switch only.
+pub const ACQUAINTANCE_INTENT_GUARD_FLAG: &str = "npc-acquaintance-intent-guard";
+
+/// Feature-flag name (default **on**) that surfaces the NPC's `action` field
+/// as a player-visible stage-direction line alongside the spoken dialogue (#1490).
+///
+/// When a Tier-1 JSON response carries a non-empty `action` field (e.g.
+/// `"nods curtly"`, `"sighs"`) and this flag is enabled, a `text-log` event
+/// with `subtype: "action"` is emitted immediately after the dialogue bubble,
+/// formatted as `*{NPC name} {action}.*` so the frontend renders it as
+/// italicised narration. The action text is ignored when the flag is disabled
+/// or when the field is absent/empty. Kill-switch: disable via
+/// `flags.is_disabled(NPC_ACTION_NARRATION_FLAG)`.
+pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
 /// `mood`, `internal_thought`, `language_hints`) fits without hitting the
-/// provider default and truncating mid-sentence (#982). vllm-mlx and most
+/// provider default and truncating mid-sentence (#982, #1431). vllm-mlx and most
 /// OpenAI-compat servers default to a value too low for the structured-output
 /// schema once the dialogue runs more than a sentence or two.
-pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 512;
+///
+/// Raised from 512 → 768 (#1431 item 3): at 512 tokens the budget was
+/// consumed by `internal_thought` / `action` / `mood` before `dialogue`
+/// finished, producing mid-sentence cutoffs. Budget breakdown:
+///   - `internal_thought` (~15-20 words): ~25 tokens
+///   - `action` + `mood` + JSON envelope overhead: ~35 tokens
+///   - 2-3 sentence Hiberno-English dialogue (~70-110 tokens)
+///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
+pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 768;
 
 /// Output of a single NPC turn.
 #[derive(Debug)]
@@ -106,7 +142,20 @@ pub async fn run_npc_turn(
     player_initiated: bool,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
-    let setup = {
+    let (
+        setup,
+        person_guard_enabled,
+        verbosity_guard_enabled,
+        mood_sentence_cap_enabled,
+        wrong_location_guard_enabled,
+        routing_guard_enabled,
+        wrong_speaker_guard_enabled,
+        acquaintance_guard_enabled,
+        action_narration_enabled,
+        anti_repetition_enabled,
+        false_denial_guard_enabled,
+        invented_place_guard_enabled,
+    ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
@@ -118,12 +167,40 @@ pub async fn run_npc_turn(
             prompt_input,
             speaker_id,
         );
+        let person_guard = !config
+            .flags
+            .is_disabled("dialogue-person-confirmation-guard");
+        let verbosity_guard = !config.flags.is_disabled("dialogue-verbosity-guard");
+        // Mood-aware sentence cap (#1491): default-on, kill-switch only.
+        let mood_sentence_cap = !config.flags.is_disabled("npc-mood-aware-sentence-cap");
+        // Wrong-location reference guard (#1477): default-on, kill-switch only.
+        let wrong_location_guard = !config.flags.is_disabled("npc-wrong-location-guard");
+        // Routing-after-denial guard (#1478): default-on, kill-switch only.
+        let routing_guard = !config.flags.is_disabled("dialogue-person-routing-guard");
+        // Wrong-speaker-identity guard (#1475): default-on, kill-switch only.
+        let wrong_speaker_guard = !config.flags.is_disabled("npc-wrong-speaker-guard");
+        // Acquaintance-question intent-drift guard (#1504): default-on, kill-switch only.
+        let acquaintance_guard = !config.flags.is_disabled(ACQUAINTANCE_INTENT_GUARD_FLAG);
+        // NPC action narration (#1490): default-on, kill-switch only.
+        let action_narration = !config.flags.is_disabled(NPC_ACTION_NARRATION_FLAG);
+        // Cross-NPC opener de-duplication (#1422, #1492): default-on kill-switch.
+        let anti_rep = !config.flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG);
+        // False-denial guard (#1527, #1528): default-on, kill-switch only.
+        let false_denial_guard = !config
+            .flags
+            .is_disabled(parish_npc::FALSE_DENIAL_GUARD_FLAG);
+        // Invented-place confirmation guard (#1530): default-on, kill-switch only.
+        let invented_place_guard = !config
+            .flags
+            .is_disabled(parish_npc::INVENTED_PLACE_GUARD_FLAG);
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
+            person_confirmation_guard_enabled: person_guard,
+            verbosity_guard_enabled: verbosity_guard,
             ..crate::config::NpcConfig::default()
         };
-        crate::ipc::prepare_npc_conversation_turn(
+        let setup = crate::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
             prompt_input,
@@ -132,8 +209,23 @@ pub async fn run_npc_turn(
             config.improv_enabled,
             &ctx.language,
             &npc_cfg,
+        );
+        (
+            setup,
+            person_guard,
+            verbosity_guard,
+            mood_sentence_cap,
+            wrong_location_guard,
+            routing_guard,
+            wrong_speaker_guard,
+            acquaintance_guard,
+            action_narration,
+            anti_rep,
+            false_denial_guard,
+            invented_place_guard,
         )
-    }?;
+    };
+    let setup = setup?;
 
     let loading_cancel = spawn_loading();
 
@@ -312,12 +404,209 @@ pub async fn run_npc_turn(
         cancel.cancel();
     }
 
-    let parsed = parse_npc_stream_response(&response.text);
+    let mut parsed = parse_npc_stream_response(&response.text);
     let hints = parsed
         .metadata
         .as_ref()
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
+
+    // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
+    // when the NPC's reply affirmatively confirms a fabricated person from the
+    // player's input (or an earlier turn) who is not in the known-roster, and
+    // replace with a stock decline.
+    // Runs before the logging/quality-check block so the guarded text is what
+    // gets logged and forwarded to the shared pipeline.
+    if person_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        // Extract prior player-speaker lines from the conversation transcript so
+        // the pronoun follow-up guard (#1470 gap 2) can detect fabricated
+        // referents established in earlier turns.
+        let prior_player_inputs: Vec<&str> = transcript
+            .iter()
+            .filter(|line| line.speaker == "You")
+            .map(|line| line.text.as_str())
+            .collect();
+        let guarded = crate::npc::guard_fabricated_person_confirmation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            &prior_player_inputs,
+            setup.player_name.as_deref(),
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation routing-after-denial guard (#1478): when the NPC denied
+    // knowing a fabricated person but also added a routing phrase ("ask at X",
+    // "you might find them at…"), replace with a clean non-recognition decline.
+    // Runs immediately after the primary person-confirmation guard.
+    // Default-on; kill-switch via `dialogue-person-routing-guard` flag.
+    if routing_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_fabricated_person_routing(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            setup.player_name.as_deref(),
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation wrong-location reference guard (#1477): detect when an NPC
+    // names a settlement other than the current location in "here in X" / "village
+    // of X" collocations, and replace the wrong name with the correct one.
+    // Default-on; kill-switch via `npc-wrong-location-guard` flag.
+    if wrong_location_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let loc = setup.location_name.as_str();
+        let guarded = crate::npc::guard_wrong_location_reference(&parsed.dialogue, Some(loc));
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation false-denial guard (#1527, #1528) and invented-place
+    // confirmation guard (#1530): both require a seed derived from the world
+    // clock.  Acquire the async world lock ONCE here if either guard is active
+    // and the dialogue is non-empty, then reuse the seed for both guards to
+    // avoid redundant lock acquisitions.
+    let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
+        || invented_place_guard_enabled)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let ts = ctx.world.lock().await.clock.now().timestamp() as u64;
+        Some(speaker_id.0 as u64 ^ ts)
+    } else {
+        None
+    };
+
+    // Post-generation false-denial guard (#1527, #1528): detect when an NPC
+    // wrongly denies knowing a person who IS in the parish roster (known_person_names).
+    // Runs after the routing guard so only confirmed-false denials are caught here.
+    // Default-on; kill-switch via `dialogue-false-denial-guard` flag.
+    if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_false_denial_of_roster_person(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            setup.player_name.as_deref(),
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation invented-place confirmation guard (#1530): detect when an
+    // NPC affirms an invented place that is not in the world's location list.
+    // Default-on; kill-switch via `dialogue-invented-place-guard` flag.
+    if invented_place_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_invented_place_confirmation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_location_names,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
+    // mood-adjective, trim mid-sentence truncation ellipsis to the last
+    // complete sentence, and cap trailing question stacks to at most one.
+    // When mood-aware sentence cap is enabled (#1491), uses a tighter 2-sentence
+    // cap for busy/curt NPC moods.
+    // Applied here (before the shared pipeline) so the guarded text is what
+    // gets stored in the conversation log and event bus — same effect for
+    // every runtime (Tauri, server, headless) via the shared npc_turn path.
+    if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
+        let guarded = if mood_sentence_cap_enabled {
+            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
+        } else {
+            crate::npc::guard_verbosity_runons(&parsed.dialogue)
+        };
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation wrong-speaker-identity guard (#1475): detect when the
+    // NPC's reply claims to be a different roster member ("I'm Brendan, the
+    // Miller's Son" spoken by Nora Duffy) and replace with a recovery line.
+    // Default-on; kill-switch via `npc-wrong-speaker-guard` flag.
+    if wrong_speaker_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_wrong_speaker_identity(
+            &parsed.dialogue,
+            &setup.npc_name,
+            &setup.roster_names_occupations,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation acquaintance-question intent-drift guard (#1504): detect
+    // when the player asked "do you know X?" and the NPC responded only with a
+    // self-identification ("I'm but Seamus Gallagher") instead of answering
+    // whether they know the named person. Replaces with the correct acquaintance
+    // answer (affirmation if known, non-recognition decline if not).
+    // Default-on; kill-switch via `npc-acquaintance-intent-guard` flag.
+    if acquaintance_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed =
+            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
+        let guarded = crate::npc::guard_acquaintance_question_intent_drift(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.npc_name,
+            &setup.known_person_names,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Cross-NPC opener de-duplication (#1422, #1492): strip duplicate stock
+    // opener if the session has already seen a near-identical one from a
+    // previous NPC at this location (across any number of prior turns).
+    // Run BEFORE `apply_npc_dialogue_turn` so the `DialogueOccurred` event
+    // and conversation log carry the deduped text, not the raw opener.
+    if anti_repetition_enabled && !parsed.dialogue.trim().is_empty() {
+        let mut conversation = ctx.conversation.lock().await;
+        let deduped = crate::npc::dedupe_cross_npc_openers(
+            &conversation.seen_openers_this_location,
+            &parsed.dialogue,
+        );
+        if deduped != parsed.dialogue {
+            tracing::debug!(
+                npc = %display_label,
+                "stripped duplicate cross-NPC opener in run_npc_turn (#1422/#1492)"
+            );
+        }
+        // Record the opener actually shown to the player.
+        let shown_opener = crate::npc::extract_normalized_opener(&deduped);
+        if !shown_opener.is_empty() {
+            conversation.record_opener(shown_opener);
+        }
+        parsed.dialogue = deduped;
+    }
 
     if !parsed.dialogue.trim().is_empty() {
         tracing::info!(
@@ -369,8 +658,47 @@ pub async fn run_npc_turn(
             &display_label,
             &setup.npc_name,
             Some(req_id),
+            &setup.known_person_names,
         );
         captured_display_text = outcome.display_text;
+    }
+
+    // NPC action narration (#1490): if the model supplied a non-empty `action`
+    // field (e.g. "nods curtly", "sighs"), emit it as a player-visible
+    // stage-direction alongside the dialogue. The `subtype: "action"` tag
+    // matches the existing pattern used by arrival-reaction Gesture events
+    // (see `stream_reaction_texts` in `game_session.rs` and movement.rs), so
+    // the frontend renders it as italicised narration in the system style.
+    //
+    // Format: `*{NPC name} {action}.*` — the asterisks trigger the frontend's
+    // `parseEmotes` path (italic span) and the trailing period normalises
+    // sentences that omit it. Emitted only when the flag is on (default) and
+    // the action field is non-empty after trimming.
+    if action_narration_enabled {
+        let action_text = parsed
+            .metadata
+            .as_ref()
+            .map(|m| m.action.trim())
+            .unwrap_or("");
+        if !action_text.is_empty() {
+            // Normalise to a period if the action text doesn't already end with
+            // sentence-ending punctuation, so the line reads as a complete clause.
+            let punct = if action_text
+                .chars()
+                .last()
+                .is_some_and(|c| matches!(c, '.' | '!' | '?'))
+            {
+                ""
+            } else {
+                "."
+            };
+            let narration = format!("*{display_label} {action_text}{punct}*");
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log_typed(&display_label, narration, "action"))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
     }
 
     // Note: the on-disk chat transcript is fed from the `GameEvent` bus
@@ -635,6 +963,23 @@ pub async fn handle_npc_conversation(
                 ))
                 .unwrap_or(serde_json::Value::Null),
             );
+        } else {
+            // #1493: all named targets are absent. The player may have typed a
+            // farewell ("Goodbye, Mary") to someone who has already departed.
+            // Emit the player's own line so it appears in the log, then follow
+            // with a graceful system message so the interaction is not silent.
+            if !trimmed.is_empty() {
+                ctx.emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log_typed("You", &trimmed, "dialogue"))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+                ctx.emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log("system", "They've already gone."))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
         }
         return;
     }
@@ -676,6 +1021,13 @@ pub async fn handle_npc_conversation(
     let mut last_speaker: Option<NpcId> = None;
 
     // Phase 1: each addressed NPC takes one turn in the order named.
+    // Cross-NPC opener de-duplication (#1422, #1492) is now applied inside
+    // `run_npc_turn` (before `apply_npc_dialogue_turn` publishes the
+    // `DialogueOccurred` event), so the event and conversation log carry the
+    // already-deduped text. The session-level `seen_openers_this_location` set
+    // in `ctx.conversation` accumulates across both turns within this call and
+    // across successive calls (when the callers share the same `conversation`
+    // Mutex — e.g. the real-loop test harness).
     for speaker_id in &targets {
         let Some(outcome) = run_npc_turn(
             ctx,
@@ -1517,5 +1869,24 @@ pub mod tests {
         );
         conv.end_turn();
         assert!(conv.try_begin_turn(), "after release, a new turn may claim");
+    }
+
+    /// AC-4 (#1431 item 3): the Tier 1 token budget must be large enough to
+    /// fit a complete 2-3 sentence dialogue reply plus the full JSON envelope
+    /// (`dialogue`, `action`, `mood`, `internal_thought`, `language_hints`).
+    /// At 512 the budget was consumed by metadata fields before `dialogue`
+    /// finished, causing mid-sentence cutoffs.
+    #[test]
+    fn tier1_dialogue_max_tokens_is_adequate() {
+        // 768 tokens: ~25 for internal_thought, ~35 for envelope overhead,
+        // ~110 for 2-3 sentence dialogue at ~4 chars/token — leaves headroom.
+        // Read through a local variable so clippy does not flag a const comparison.
+        let budget: u32 = super::TIER1_DIALOGUE_MAX_TOKENS;
+        assert!(
+            budget >= 768,
+            "TIER1_DIALOGUE_MAX_TOKENS must be >= 768 to prevent mid-sentence \
+             truncation when metadata fields precede dialogue in the JSON output \
+             (fix #1431 item 3); current value: {budget}"
+        );
     }
 }

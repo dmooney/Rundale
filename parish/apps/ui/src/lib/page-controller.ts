@@ -30,6 +30,9 @@ import {
 	pushErrorLog,
 	formatIpcError,
 	flushStream,
+	playerSubmittedCount,
+	noteStreamingStarted,
+	resetExternalDrive,
 } from '../stores/game';
 import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
@@ -70,6 +73,18 @@ import { createStreamManager } from '$lib/setup/stream-manager';
 import { applyAppIcon } from '$lib/app-icon';
 
 const MOUSEMOVE_THROTTLE_MS = 1000;
+
+/**
+ * Safety ceiling for the loading spinner (#1536).
+ *
+ * If `loading {active:false}` never fires (e.g. a bridge-driven turn that
+ * doesn't emit a `stream-end`), or fires while the stream-manager's guards
+ * prevent the clear (pending turns / hints), the spinner would remain visible
+ * forever.  This timeout unconditionally clears `streamingActive` after
+ * LOADING_SAFETY_TIMEOUT_MS, guaranteeing the UI recovers regardless of the
+ * event sequence from the backend.
+ */
+const LOADING_SAFETY_TIMEOUT_MS = 10_000;
 
 /**
  * Wires up initial data load + real-time event subscriptions for the app
@@ -226,6 +241,38 @@ export async function createPageController(): Promise<() => void> {
 	// view on the player's first keystroke before the next turn lands (#1379).
 	flushStream.set(() => sm.flushAll());
 
+	// ── Loading safety timeout (#1536) ──────────────────────────────────────
+	// Tracks the active safety timer. Cleared on every `loading {active:false}`
+	// or `stream-end` so normal turns don't trip it; fires only when no
+	// terminal event arrives within LOADING_SAFETY_TIMEOUT_MS.
+	let loadingSafetyTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function armLoadingSafetyTimer() {
+		if (loadingSafetyTimer !== null) clearTimeout(loadingSafetyTimer);
+		loadingSafetyTimer = setTimeout(() => {
+			loadingSafetyTimer = null;
+			// Force-clear: a bridge-driven or non-streaming turn may never emit
+			// stream-end or a clean loading{active:false} path through the guards.
+			if (get(streamingActive)) {
+				sm.reset();
+				streamingActive.set(false);
+				resetExternalDrive();
+			}
+		}, LOADING_SAFETY_TIMEOUT_MS);
+	}
+
+	function disarmLoadingSafetyTimer() {
+		if (loadingSafetyTimer !== null) {
+			clearTimeout(loadingSafetyTimer);
+			loadingSafetyTimer = null;
+		}
+	}
+
+	// ── External-drive tracking (#1537) ─────────────────────────────────────
+	// Snapshot the playerSubmittedCount at the start of each turn so we can
+	// detect bridge-driven turns where the count doesn't change.
+	let lastLocalSubmitCount = get(playerSubmittedCount);
+
 	const listeners: Array<() => void> = [];
 	try {
 		listeners.push(
@@ -336,6 +383,9 @@ export async function createPageController(): Promise<() => void> {
 
 		listeners.push(
 			await onStreamEnd((payload) => {
+				// Terminal event for the turn — disarm the safety timeout so a normal
+				// NPC stream doesn't trip it while the pump is draining (#1536).
+				disarmLoadingSafetyTimer();
 				sm.setPendingEndHints(payload.hints);
 				sm.maybeFinishNpcStream();
 			}),
@@ -348,6 +398,28 @@ export async function createPageController(): Promise<() => void> {
 					streamingActive.set(true);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
+					// Detect bridge-driven turns: if playerSubmittedCount hasn't
+					// changed since the last turn boundary, the input didn't come
+					// from the local InputField (#1537).
+					//
+					// Only re-evaluate external/local at the START of a new chain
+					// (when !sm.isChainInProgress()).  During a multi-turn NPC
+					// conversation the backend cancels and re-spawns the loading
+					// animation per NPC turn, firing loading{active:true} multiple
+					// times within a single player-initiated interaction.  On those
+					// re-spawns playerSubmittedCount has NOT incremented again, so a
+					// naïve re-evaluation would falsely mark the whole chain as
+					// external (#1538).  Instead we inherit the chain's existing
+					// local/external classification for all re-spawned loadings.
+					if (!sm.isChainInProgress()) {
+						const currentCount = get(playerSubmittedCount);
+						noteStreamingStarted(currentCount, lastLocalSubmitCount);
+						lastLocalSubmitCount = currentCount;
+					}
+					// Arm the safety timeout so the spinner can't hang forever if
+					// the terminal event (stream-end / loading{active:false}) is
+					// lost (e.g. a bridge turn that emits no NPC stream, #1536).
+					armLoadingSafetyTimer();
 				} else if (
 					!sm.isChainInProgress() &&
 					sm.pendingTurnCount() === 0 &&
@@ -366,6 +438,7 @@ export async function createPageController(): Promise<() => void> {
 					// chain's terminal `stream-end`. Without this gate the demo
 					// loop's waitForFalse(streamingActive) resolves mid-chain and
 					// fires the next player turn over an unfinished reply.
+					disarmLoadingSafetyTimer();
 					streamingActive.set(false);
 				}
 			}),
@@ -505,6 +578,8 @@ export async function createPageController(): Promise<() => void> {
 		document.removeEventListener('visibilitychange', handleVisibilityChange);
 		tracker.dispose();
 		flushStream.set(() => 0);
+		disarmLoadingSafetyTimer();
+		resetExternalDrive();
 		sm.dispose();
 		listeners.forEach((fn) => fn());
 	};

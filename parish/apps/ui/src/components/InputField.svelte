@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream, playerSubmittedCount } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
@@ -485,6 +485,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
 		try {
+			// Signal to ChatPanel that the player submitted so it scrolls to the
+			// bottom unconditionally, showing the echoed bubble (#1431 item 4).
+			playerSubmittedCount.update((n) => n + 1);
 			await submitInput(trimmed, addressedTo);
 		} catch (err) {
 			pushErrorLog(`Could not send input: ${formatIpcError(err)}`);
@@ -976,9 +979,14 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	/* ── Quick-travel chips ────────────────────────────────────────────────── */
 
+	/* Single-line, horizontally-scrollable rows: with one NPC and many
+	   destinations the wrapped chip rows stacked three lines tall and
+	   squeezed the chat. Bounded height regardless of chip count. */
 	.npc-chips {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: thin;
 		align-items: center;
 		gap: 0.45rem;
 		padding: 0.45rem 0.75rem;
@@ -1002,6 +1010,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		align-items: center;
 		gap: 0.45rem;
 		min-width: 0;
+		flex: 0 0 auto;
+		white-space: nowrap;
 		padding: 0.35rem 0.55rem;
 		border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
 		border-radius: 999px;
@@ -1050,7 +1060,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	.travel-chips {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: thin;
 		align-items: center;
 		gap: 0.4rem;
 		padding: 0.4rem 0.75rem;
@@ -1072,6 +1084,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
+		flex: 0 0 auto;
+		white-space: nowrap;
 		background: transparent;
 		color: var(--color-muted);
 		border: 1px solid var(--color-border);

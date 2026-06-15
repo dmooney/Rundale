@@ -99,6 +99,8 @@ All **shared game logic** lives in the workspace's leaf crates (`parish-chronicl
 
 `parish-engine` re-exports `parish_core` via `pub use parish_core::*` in `parish/crates/parish-engine/src/lib.rs` and only adds binary-specific modules: `main.rs`, `headless.rs`, `testing.rs`, `app.rs`, `config.rs` (CLI overrides on top of `parish_config`), `debug.rs`.
 
+**Naming note (#1366 §6):** despite its name, `parish-engine` is a thin **entry-point binary** (headless REPL / `--script` / Tauri-launch); the engine in all but name is `parish-core` plus the leaf crates. A rename (`parish-headless` / `parish-cli`) was considered and deliberately declined — the churn (workspace manifests, CI, scripts, years of issue history citing the name) outweighs the clarity gain while docs consistently call it an entry point. Always describe it as an entry point, never as "the engine".
+
 **Never create modules in `parish/crates/parish-engine/src/` that duplicate logic living in a leaf crate** — extend the leaf crate and re-export if needed.
 
 ## Mode parity
@@ -106,6 +108,18 @@ All **shared game logic** lives in the workspace's leaf crates (`parish-chronicl
 All modes (Tauri, CLI/headless, Axum web server, future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in a leaf crate + re-export from `parish-core`, then wire it from every entry point (`parish/crates/parish-tauri/src/commands.rs`, `parish/crates/parish-server/src/routes.rs`, `parish/crates/parish-engine/src/headless.rs`, `parish/crates/parish-engine/src/testing.rs`).
 
 `parish-client` is **not** an entry point — it's a downstream consumer of the HTTP API. Any new gameplay command exposed on `POST /api/command` automatically reaches `parish-client`, MCP, and the Svelte UI; no separate wiring required. Conversely, do not put gameplay logic in `parish-client` itself — it owns rendering and HTTP transport only.
+
+### `tokio` in leaf crates — rationale (#1366 §7)
+
+"Backend-agnostic" forbids HTTP/UI stacks (`axum`, `tauri`, `reqwest` outside `parish-providers`), **not** the async runtime: the shared game loop is async in every mode, so leaf crates legitimately use `tokio`. Per-crate justification, audited 2026-06:
+
+- `parish-types` — `sync` feature only (channel/mutex types appear in shared event signatures). Keep it that way.
+- `parish-npc`, `parish-inference`, `parish-setup`, `parish-providers` — real async machinery: `spawn`/`select`/`time` for ticks, the inference worker, queue timeouts, and managed child processes.
+- `parish-chronicle`, `parish-persistence`, `parish-diagnostics` — `tokio::fs` / `spawn_blocking` for non-blocking disk I/O on the event-pump and bug-report paths.
+- `parish-input` — dev-dependency only (`#[tokio::test]`); the parse path itself is sync.
+- `parish-world`, `parish-config`, `parish-palette`, `parish-mod`, `parish-editor` — no `tokio`; keep them sync.
+
+When adding `tokio` to a currently-sync leaf crate, record the reason in that crate's `AGENTS.md`.
 
 ## Idempotency
 

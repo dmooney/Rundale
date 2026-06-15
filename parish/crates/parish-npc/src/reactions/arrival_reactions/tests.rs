@@ -401,7 +401,76 @@ fn test_build_reaction_prompt_not_introduced() {
     assert!(system.contains("Publican"));
     assert!(context.contains("Darcy's Pub"));
     assert!(context.contains("morning"));
-    assert!(context.contains("Introduce yourself"));
+    // Greeting must be directed AT the newcomer, not a self-introduction monologue.
+    assert!(
+        context.contains("newcomer") || context.contains("stranger"),
+        "context should frame the task as greeting the newcomer, got: {context}"
+    );
+    // The old self-focused wording must not appear.
+    assert!(
+        !context.contains("Introduce yourself briefly"),
+        "self-introduction-only wording must not appear in context, got: {context}"
+    );
+}
+
+/// Arrival greeting prompt instructs the NPC to address the player, not narrate themselves.
+///
+/// Regression guard for #1431 item 1: the model was producing self-directed greetings
+/// ("I'm Padraig. I work here.") because the prompt said "Introduce yourself briefly"
+/// with no instruction to address the newcomer.
+#[test]
+fn test_arrival_greeting_prompt_addresses_newcomer_not_self() {
+    // Unintroduced NPC at their workplace — the path that produced self-greetings.
+    let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
+    let lang = LanguageSettings::english_only();
+    let (system, context) = build_reaction_prompt(
+        &npc,
+        "Darcy's Pub",
+        TimeOfDay::Morning,
+        "overcast",
+        /*is_introduced=*/ false,
+        /*at_workplace=*/ true,
+        &lang,
+    );
+    // System prompt must direct the NPC to speak TO the newcomer.
+    assert!(
+        system.contains("Address the newcomer directly") || system.contains("speak TO them"),
+        "system prompt must instruct outward address, got: {system}"
+    );
+    // Context must frame the task as welcoming/greeting, not pure self-introduction.
+    assert!(
+        context.contains("newcomer") || context.contains("stranger"),
+        "context must frame arrival as greeting the newcomer, got: {context}"
+    );
+    // Must not use the self-greeting trigger phrase.
+    assert!(
+        !context.contains("Introduce yourself briefly"),
+        "self-introduction-only wording must be absent, got: {context}"
+    );
+
+    // Same check for unintroduced NPC NOT at workplace.
+    let (system2, context2) = build_reaction_prompt(
+        &npc,
+        "The Road",
+        TimeOfDay::Afternoon,
+        "clear",
+        /*is_introduced=*/ false,
+        /*at_workplace=*/ false,
+        &lang,
+    );
+    assert!(
+        context2.contains("newcomer") || context2.contains("stranger"),
+        "non-workplace context must also frame the greeting as addressing the newcomer, got: {context2}"
+    );
+    assert!(
+        !context2.contains("Introduce yourself"),
+        "self-introduction-only wording must be absent in non-workplace case, got: {context2}"
+    );
+    // System prompt is shared — same outward-address instruction.
+    assert!(
+        system2.contains("Address the newcomer directly") || system2.contains("speak TO them"),
+        "system prompt must instruct outward address (non-workplace), got: {system2}"
+    );
 }
 
 #[test]

@@ -17,6 +17,7 @@ import {
 	loadingPhrase,
 	loadingColor,
 	worldState,
+	playerSubmittedCount,
 } from '../stores/game';
 import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
@@ -33,6 +34,7 @@ describe('ChatPanel', () => {
 		loadingPhrase.set('');
 		loadingColor.set([72, 199, 142]);
 		worldState.set(null);
+		playerSubmittedCount.set(0);
 	});
 
 	/** Builds a minimal WorldSnapshot; only location_name drives richify(). */
@@ -261,6 +263,349 @@ describe('ChatPanel', () => {
 			await Promise.resolve();
 
 			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+
+		// #1431 item 4: playerSubmittedCount increments force-scroll regardless
+		// of the near-bottom guard. jsdom cannot measure scrollHeight/clientHeight
+		// (both are 0), so we assert that the component at least reads the store
+		// without throwing — the live scroll behaviour is proven by Playwright.
+		it('reads playerSubmittedCount without error when player submits', async () => {
+			textLog.set([{ source: 'player', content: 'go north' }]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+
+			playerSubmittedCount.set(1);
+			await Promise.resolve();
+
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+
+		// Sticky-bottom semantics (#1524):
+		//
+		// The panel uses a `stickToBottom` flag (default true) updated by the
+		// scroll event listener.  The $effect scrolls on ANY log growth when
+		// sticky, covering backend/bridge-driven turns that never touch
+		// playerSubmittedCount.  If the user has scrolled up (sticky=false) only
+		// a player submit re-sticks.
+		//
+		// Strategy: monkey-patch scrollHeight/clientHeight on the container so
+		// the sticky guard reads non-zero geometry.  To simulate "user scrolled
+		// up" we fire a real scroll event with scrollTop=0 so handleScroll()
+		// sets stickToBottom=false before the store update under test.
+		describe('#1524 sticky-bottom — source-agnostic autoscroll', () => {
+			it('DOES scroll when a backend/bridge-driven log entry arrives and panel is sticky', async () => {
+				// No playerSubmittedCount change — simulates a bridge/harness turn.
+				playerSubmittedCount.set(0);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect's async tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Geometry: tall enough that the sticky guard is meaningful.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				// scrollTop=450 → 500-450-200=−150 < 50 → panel is near-bottom.
+				// Assign via property (not the setter spy which isn't installed yet).
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 450,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire a real scroll event so handleScroll() sees the near-bottom
+				// geometry and sets stickToBottom=true.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Backend/bridge-driven log growth: no playerSubmittedCount change.
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good evening.' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Panel was sticky → must scroll.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+
+			it('does NOT scroll when the user has scrolled up (sticky=false) and no submit', async () => {
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect.
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Geometry: user is near the top, far from the bottom.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event: 500-0-200=300 > 50 → handleScroll sets sticky=false.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Passive backend-driven update (no playerSubmittedCount change).
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good day to ye.' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// sticky=false → must NOT scroll.
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('DOES force-scroll on player submit even when user scrolled up, and re-sticks', async () => {
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect.
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate user scrolled to top.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Scroll event → sticky=false.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Player submits: count 1→2, echo lands.
+				playerSubmittedCount.set(2);
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'go north' },
+				]);
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Force-scroll on player submit regardless of sticky.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
+
+		// #1431 item 4 regression: the original fix used `$playerSubmittedCount > 0`
+		// which is ALWAYS true after the first send, so every passive NPC/world
+		// update force-scrolled the user back to the bottom even when they had
+		// scrolled up. The fix must track the LAST handled count and only
+		// force-scroll when it INCREMENTS.
+		//
+		// Strategy: we monkey-patch scrollHeight/clientHeight on the container
+		// BEFORE rendering so Svelte's initial $effect run already sees the
+		// "scrolled up" geometry (300px of headroom). The spy is then installed
+		// before the reactive update, guaranteeing it only captures calls that
+		// arise from the store change under test.
+		describe('#1431 item 4 — force-scroll only on submit increment', () => {
+			it('does NOT force-scroll on a passive textLog update when scrolled up', async () => {
+				// Start with count already at 1 (simulates a previous submit).
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Flush all pending microtasks from the initial mount effect
+				// (tick() inside $effect is async — must drain before installing spy).
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate the user having scrolled up AFTER the initial render
+				// settles: scrollHeight=500, clientHeight=200, scrollTop=0 →
+				// distance from bottom = 300 > 50 → NOT near bottom.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event so handleScroll() sets stickToBottom=false.
+				// (The new sticky-bottom logic requires this — without it the
+				// component's default stickToBottom=true would cause a scroll
+				// even without a submit.)
+				await fireEvent.scroll(logEl);
+
+				// Now install the spy — any call from here on is attributable to
+				// the store change below.
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Passive update: only textLog changes, playerSubmittedCount stays at 1.
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'Brigid', content: 'Good day to ye.' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop must NOT have been set — the user's scroll position
+				// should be preserved when no submit occurred.
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('DOES force-scroll when playerSubmittedCount increments', async () => {
+				// Start with count at 1.
+				playerSubmittedCount.set(1);
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				expect(logEl).toBeTruthy();
+
+				// Drain the mount effect's async tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// Simulate scrolled up.
+				Object.defineProperty(logEl, 'scrollHeight', {
+					value: 500,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'clientHeight', {
+					value: 200,
+					configurable: true,
+				});
+				Object.defineProperty(logEl, 'scrollTop', {
+					value: 0,
+					configurable: true,
+					writable: true,
+				});
+
+				// Fire scroll event to set stickToBottom=false.
+				await fireEvent.scroll(logEl);
+
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				// Player sends a new message: count increments to 2 and log gets the echo.
+				playerSubmittedCount.set(2);
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'go north' },
+				]);
+				// Flush microtasks for the reactive effect + tick().
+				await Promise.resolve();
+				await Promise.resolve();
+				await Promise.resolve();
+
+				// scrollTop MUST have been set to scrollHeight (500) because the
+				// count incremented — force-scroll on player submit.
+				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
+	});
+
+	// #1431 item 2: NPC gesture/action reactions carry subtype "action" and must
+	// render as system-style narration (no speech bubble), not NPC dialogue.
+	describe('action subtype rendering (#1431 item 2)', () => {
+		it('renders an entry with subtype "action" as a system entry, not a bubble', () => {
+			textLog.set([
+				{
+					source: 'Brigid',
+					content: 'looks up briefly',
+					subtype: 'action',
+					stream_turn_id: 1,
+				},
+			]);
+			const { container } = render(ChatPanel);
+			// Must NOT render a speech bubble
+			expect(container.querySelector('.bubble-row')).toBeFalsy();
+			// Must render as a system entry
+			expect(container.querySelector('.entry.system')).toBeTruthy();
+		});
+
+		it('renders an NPC entry WITHOUT subtype "action" as a speech bubble', () => {
+			textLog.set([
+				{ source: 'Brigid', content: 'Good morning to ye.', id: 'msg-1' },
+			]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.bubble-row.npc')).toBeTruthy();
+			expect(container.querySelector('.entry.system')).toBeFalsy();
+		});
+
+		it('action subtype text is shown in the system entry content', () => {
+			textLog.set([
+				{
+					source: 'Ciarán',
+					content: 'nods quietly',
+					subtype: 'action',
+				},
+			]);
+			const { getByText } = render(ChatPanel);
+			expect(getByText('nods quietly')).toBeTruthy();
+		});
+
+		// Source CSS regression guard: the component must not have any CSS rule
+		// that would prevent entries with subtype "action" from reaching the
+		// system-entry branch.
+		it('entryType "action" subtype CSS guard: no bubble-row for action entries', () => {
+			const normalized = COMPONENT_SRC;
+			// The entryType function in the source must contain the action guard.
+			expect(normalized).toContain("subtype === 'action'");
+			expect(normalized).toContain("return 'system'");
 		});
 	});
 
@@ -592,6 +937,139 @@ describe('ChatPanel', () => {
 					/\.npc \.bubble-wrapper \{ align-items: flex-start;/,
 				);
 			});
+		});
+	});
+});
+
+// ── #1423 slash-command echo rendering ────────────────────────────────────────
+describe('ChatPanel — slash command echo (#1423)', () => {
+	beforeEach(() => {
+		textLog.set([]);
+		streamingActive.set(false);
+		worldState.set(null);
+	});
+
+	// AC-6: command subtype renders as .entry.command, NOT .bubble-row.player
+	it('renders {source:"player", subtype:"command"} as .entry.command', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('[data-testid="command-entry"]');
+		expect(entry).toBeTruthy();
+		expect(entry?.classList.contains('command')).toBe(true);
+	});
+
+	it('command entry contains the typed command text', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('[data-testid="command-entry"]');
+		expect(entry?.textContent).toContain('/pause');
+	});
+
+	it('does NOT render a .bubble-row.player for a command entry (AC-6)', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+		]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.player')).toBeFalsy();
+	});
+
+	it('normal player dialogue still renders as .bubble-row.player', () => {
+		textLog.set([{ id: 'p-1', source: 'player', content: 'Good morning!' }]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.player')).toBeTruthy();
+		expect(
+			container.querySelector('[data-testid="command-entry"]'),
+		).toBeFalsy();
+	});
+
+	it('command entry is distinct from system narration', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/pause' },
+			{
+				id: 'sys-1',
+				source: 'system',
+				content: 'The clocks of the parish stand still.',
+			},
+		]);
+		const { container } = render(ChatPanel);
+		expect(
+			container.querySelector('[data-testid="command-entry"]'),
+		).toBeTruthy();
+		expect(container.querySelector('.entry.system')).toBeTruthy();
+		// Command entry is not a system entry
+		expect(
+			container
+				.querySelector('[data-testid="command-entry"]')
+				?.classList.contains('system'),
+		).toBe(false);
+	});
+
+	it('renders command-prompt and command-text spans inside .entry.command', () => {
+		textLog.set([
+			{ id: 'cmd-1', source: 'player', subtype: 'command', content: '/resume' },
+		]);
+		const { container } = render(ChatPanel);
+		const entry = container.querySelector('.entry.command');
+		expect(entry?.querySelector('.command-prompt')).toBeTruthy();
+		expect(entry?.querySelector('.command-text')?.textContent).toBe('/resume');
+	});
+});
+
+describe('ChatPanel — UI design pass (game-ui-design-ma9ls0)', () => {
+	beforeEach(() => {
+		textLog.set([]);
+		streamingActive.set(false);
+		worldState.set(null);
+	});
+
+	it('renders a time-rule entry as a separator with its label', () => {
+		textLog.set([
+			{ source: 'system', content: 'You arrive.' },
+			{ source: 'system', subtype: 'time-rule', content: 'Dusk — Monday' },
+		]);
+		const { container, getByText } = render(ChatPanel);
+		const rule = container.querySelector('.time-rule');
+		expect(rule).toBeTruthy();
+		expect(rule?.getAttribute('role')).toBe('separator');
+		expect(getByText('Dusk — Monday')).toBeTruthy();
+	});
+
+	it('renders the splash as a title card with demoted metadata', () => {
+		textLog.set([
+			{
+				source: 'system',
+				content: 'Rundale\nCopyright © 2026 David Mooney.\nmain — 2026',
+			},
+		]);
+		const { container } = render(ChatPanel);
+		const card = container.querySelector('.splash-card');
+		expect(card).toBeTruthy();
+		expect(card?.querySelector('strong')?.textContent).toBe('Rundale');
+		expect(card?.querySelector('.splash-meta')?.textContent).toContain(
+			'Copyright',
+		);
+	});
+
+	describe('scoped CSS regression guards (jsdom cannot apply scoped styles)', () => {
+		const normalized = COMPONENT_SRC;
+
+		it('does not pin the log with justify-content: flex-end (breaks top scroll)', () => {
+			expect(normalized).not.toMatch(
+				/\.chat-panel \{[^}]*justify-content: flex-end/,
+			);
+			expect(normalized).toMatch(
+				/\.chat-panel > :global\(:first-child\) \{ margin-top: auto;/,
+			);
+		});
+
+		it('darkens the player bubble toward the foreground ink for contrast', () => {
+			expect(normalized).toMatch(
+				/\.player \.bubble \{ background: color-mix\(in srgb, var\(--color-accent\) 55%, var\(--color-fg\)\);/,
+			);
 		});
 	});
 });

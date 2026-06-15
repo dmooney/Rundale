@@ -14,6 +14,7 @@
 	import BugReportModal from '../components/BugReportModal.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
+	import ShortcutsOverlay from '../components/ShortcutsOverlay.svelte';
 
 	import { uiConfig, fullMapOpen, focailOpen, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
@@ -60,8 +61,23 @@
 		}
 	}
 
+	/** Keyboard-shortcuts help overlay, toggled with `?`. */
+	let shortcutsOpen = $state(false);
+
+	/** True when the keystroke originated in a text-entry context where
+	 *  single-letter shortcuts (M, ?) must not fire. */
+	function isTypingContext(): boolean {
+		const el = document.activeElement;
+		return (
+			el?.tagName === 'INPUT' ||
+			el?.tagName === 'TEXTAREA' ||
+			!!(el as HTMLElement | null)?.isContentEditable
+		);
+	}
+
 	// F2 = capture screenshot, F5 toggle for save picker, F10 toggle for demo panel,
-	// F11 toggle fullscreen (desktop), F12 toggle for debug panel, M toggle for map
+	// F11 toggle fullscreen (desktop), F12 toggle for debug panel, M toggle for map,
+	// ? = keyboard-shortcuts overlay
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && get(demoEnabled)) {
 			e.preventDefault();
@@ -100,9 +116,14 @@
 			}
 		}
 		// Toggle full map with M key, but only when not typing in an input/textarea/contenteditable
-		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && !(document.activeElement as HTMLElement)?.isContentEditable) {
+		if ((e.key === 'm' || e.key === 'M') && !isTypingContext()) {
 			e.preventDefault();
 			fullMapOpen.update((v) => !v);
+		}
+		// `?` opens the shortcuts overlay (the overlay handles its own close)
+		if (e.key === '?' && !shortcutsOpen && !isTypingContext()) {
+			e.preventDefault();
+			shortcutsOpen = true;
 		}
 	}
 
@@ -258,6 +279,9 @@
 {#if $modSelectorVisible}
 	<ModSelectorOverlay onclose={() => modSelectorVisible.set(false)} required={$uiConfig?.base_mod_required} />
 {/if}
+{#if shortcutsOpen}
+	<ShortcutsOverlay onclose={() => (shortcutsOpen = false)} />
+{/if}
 
 {#if screenshotToast}
 	<div class="screenshot-toast" role="status" aria-live="polite">{screenshotToast}</div>
@@ -287,7 +311,9 @@
 	.main-area {
 		flex: 1;
 		display: grid;
-		grid-template-columns: 1fr 220px;
+		/* Right column: wide enough for a readable minimap + the Present /
+		   Language Hints panels, scaling with the viewport (was fixed 220px). */
+		grid-template-columns: 1fr clamp(240px, 22vw, 320px);
 		overflow: hidden;
 		min-height: 0;
 		position: relative;

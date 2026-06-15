@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
 	import { reactToMessage } from '$lib/ipc';
@@ -11,21 +11,81 @@
 	let hoveredMessageId: string | null = $state(null);
 	const pendingReactions = new SvelteSet<string>();
 
+	// Sticky-bottom flag: true when the panel is at (or near) the bottom.
+	// Default true so the initial load scrolls into view.
+	// Updated by the scroll listener below — the ONLY place user scroll intent
+	// is read (after content mutation, not during it).
+	let stickToBottom = $state(true);
+
+	// Track the last playerSubmittedCount value we handled so we can detect a
+	// fresh increment. Initialised to the store's current value so that
+	// pre-existing submissions at component mount don't trigger a spurious
+	// force-scroll (#1431 item 4).
+	let lastSubmittedCount = $playerSubmittedCount;
+	// Track the last textLog length so we can detect when the player's echo
+	// has actually landed in the log after a submit.
+	let lastLogLength = $textLog.length;
+	// Set when the player submits; cleared once we force-scroll after the
+	// player's echo entry arrives (log grows while this flag is set). This
+	// handles the case where the count increments BEFORE the echo text-log
+	// event fires — without the flag the delta between the two effect runs
+	// can exceed the near-bottom threshold and the panel stops short (#1431).
+	let scrollOnNextLogGrowth = false;
+
+	/** Called on every real user scroll event. Measures whether the panel is
+	 *  near the bottom and updates stickToBottom accordingly. We read geometry
+	 *  here (on actual scroll) rather than after content mutations so the
+	 *  measurement is never contaminated by newly-rendered content. */
+	function handleScroll() {
+		if (!logEl) return;
+		stickToBottom =
+			logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50;
+	}
+
 	$effect(() => {
-		const _ = $textLog;
-		const nearBottom = logEl
-			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
-			: true;
+		const entries = $textLog;
+		// Re-read the counter inside the effect so Svelte tracks it as a
+		// reactive dependency and re-runs on every increment.
+		const currentCount = $playerSubmittedCount;
+		const countIncremented = currentCount > lastSubmittedCount;
+		const logGrew = entries.length > lastLogLength;
+
+		lastSubmittedCount = currentCount;
+		lastLogLength = entries.length;
+
+		// Player submit: arm the one-shot flag and re-stick so the player
+		// always follows their own message.
+		if (countIncremented) {
+			scrollOnNextLogGrowth = true;
+			stickToBottom = true;
+		}
+
+		// Force-scroll when: (a) the count just incremented, OR (b) the log
+		// grew while the one-shot flag was armed (the player's echo arrived in
+		// a separate effect run after the count increment).  Disarm once used.
+		const forceScroll = countIncremented || (scrollOnNextLogGrowth && logGrew);
+		if (logGrew && scrollOnNextLogGrowth) scrollOnNextLogGrowth = false;
+
+		// Scroll on any log growth when sticky (covers backend/bridge-driven
+		// turns that never touch playerSubmittedCount), OR force-scroll on
+		// player submit regardless.
+		// Read stickToBottom via untrack so scroll events don't re-trigger
+		// this effect — only $textLog / $playerSubmittedCount changes should.
+		const shouldScroll = forceScroll || (logGrew && untrack(() => stickToBottom));
 		tick().then(() => {
-			if (logEl && nearBottom) {
+			if (logEl && shouldScroll) {
 				logEl.scrollTop = logEl.scrollHeight;
 			}
 		});
 	});
 
-	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' {
+	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' | 'command' {
+		if (entry.source === 'player' && entry.subtype === 'command') return 'command';
 		if (entry.source === 'player') return 'player';
 		if (entry.source === 'system') return 'system';
+		// Non-verbal NPC reactions (subtype "action") are rendered as italicised
+		// narration in the system-message style, not as speech bubbles (#1431 item 2).
+		if (entry.subtype === 'action') return 'system';
 		return 'npc';
 	}
 
@@ -164,13 +224,22 @@
 	}
 </script>
 
-<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
+<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log" onscroll={handleScroll}>
 	{#each $textLog as entry, index (entry.id || entry.stream_turn_id || `${entry.source}:${index}`)}
-		{#if entryType(entry) === 'system'}
+		{#if entryType(entry) === 'command'}
+			<div class="entry command" data-testid="command-entry" role="log">
+				<span class="command-prompt" aria-hidden="true">&gt;</span>
+				<span class="command-text">{entry.content}</span>
+			</div>
+		{:else if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
 			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'} class:tabular={entry.subtype === 'tabular'}>
-				{#if entry.subtype === 'tabular'}
+				{#if entry.subtype === 'time-rule'}
+					<div class="time-rule" role="separator" aria-label={entry.content}>
+						<span class="time-rule-text">{entry.content}</span>
+					</div>
+				{:else if entry.subtype === 'tabular'}
 					{@const rows = parseTabularRows(entry.content)}
 					<div class="tabular-grid">
 						{#each rows as row, ri (ri)}
@@ -183,7 +252,10 @@
 						{/each}
 					</div>
 				{:else if isSplash}
-					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
+					<div class="splash-card">
+						<strong>{lines[0]}</strong>
+						<span class="splash-meta">{lines.slice(1).join('\n')}</span>
+					</div>
 				{:else}
 					<span class="content">{#each parseEmotes(entry.content) as seg, si (si)}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs, rsi (rsi)}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 				{/if}
@@ -292,12 +364,42 @@
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
-		justify-content: flex-end;
 		gap: 0.6rem;
 		background: var(--color-bg);
 	}
 
+	/* Pin sparse content to the bottom without `justify-content: flex-end`,
+	   which makes the overflowed top of a long log unreachable by scroll in
+	   a flex scroll container. */
+	.chat-panel > :global(:first-child) {
+		margin-top: auto;
+	}
+
 	/* System messages: narrative prose */
+	/* Command echo — player-typed slash commands shown as a distinct input line,
+	   not a dialogue bubble. Monospace prompt + command text, muted so the
+	   narration that follows draws the eye. */
+	.entry.command {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		padding: 0.25rem 0;
+		font-family: var(--font-mono, monospace);
+		font-size: 0.9rem;
+		color: var(--color-muted);
+		opacity: 0.8;
+	}
+
+	.command-prompt {
+		color: var(--color-accent);
+		font-weight: 600;
+		user-select: none;
+	}
+
+	.command-text {
+		letter-spacing: 0.01em;
+	}
+
 	.entry.system {
 		line-height: 1.75;
 		font-size: 1.05rem;
@@ -354,16 +456,56 @@
 		color: var(--color-bg);
 	}
 
-	/* Title card: splash message with <strong> title */
-	.entry.system :global(strong) {
+	/* Title card: centred frontispiece for the splash message. The title
+	   leads in the display face; copyright/branch metadata is demoted to
+	   small muted text so it no longer opens the narrative at body size. */
+	.splash-card {
+		display: block;
+		text-align: center;
+		padding: 1.25rem 1rem 0.75rem;
+	}
+
+	.splash-card strong {
 		font-family: var(--font-display);
-		font-size: 1.25rem;
-		letter-spacing: 0.06em;
+		font-size: 1.45rem;
+		letter-spacing: 0.1em;
 		display: block;
 		color: var(--color-accent);
 		font-weight: 600;
-		margin-bottom: 0.4rem;
-		text-align: center;
+		margin-bottom: 0.5rem;
+	}
+
+	.splash-meta {
+		display: block;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		color: var(--color-muted);
+		white-space: pre-wrap;
+	}
+
+	/* Time-of-day separator — small-caps label between hairline rules so
+	   the 36× clock's passage is visible in the chronicle. */
+	.time-rule {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.35rem 0;
+	}
+
+	.time-rule::before,
+	.time-rule::after {
+		content: '';
+		flex: 1;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.time-rule-text {
+		font-family: var(--font-display);
+		font-size: 0.64rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+		white-space: nowrap;
 	}
 
 	/* Bubble row: flex container controlling left/right alignment */
@@ -436,9 +578,12 @@
 		word-wrap: break-word;
 	}
 
-	/* Player message: italic, no rounded top-right */
+	/* Player message: italic, no rounded top-right. The bubble darkens the
+	   accent toward the foreground ink so the bg-coloured text passes WCAG
+	   AA (cream-on-raw-gold was ~2.3:1); fg/bg are the theme's guaranteed
+	   contrast pair, so mixing toward fg raises contrast in every palette. */
 	.player .bubble {
-		background: var(--color-accent);
+		background: color-mix(in srgb, var(--color-accent) 55%, var(--color-fg));
 		color: var(--color-bg);
 		border-radius: 0.85rem 0 0.15rem 0.85rem;
 		font-style: italic;

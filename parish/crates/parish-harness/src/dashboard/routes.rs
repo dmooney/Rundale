@@ -512,6 +512,51 @@ mod tests {
     }
 
     #[test]
+    fn dashboard_html_has_lightbox() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        // Lightbox overlay element is present.
+        assert!(
+            html.contains("id=\"zoom-overlay\""),
+            "dashboard must contain the zoom-overlay element"
+        );
+        assert!(
+            html.contains("id=\"zoom-img\""),
+            "dashboard must contain the zoom-img element"
+        );
+        assert!(
+            html.contains("id=\"zoom-close\""),
+            "dashboard must contain the zoom-close button"
+        );
+        // JS functions for opening/closing the lightbox.
+        assert!(
+            html.contains("function openZoom"),
+            "dashboard must define openZoom()"
+        );
+        assert!(
+            html.contains("function closeZoom"),
+            "dashboard must define closeZoom()"
+        );
+        // Images carry the data-zoom-src attribute for lightbox hookup.
+        assert!(
+            html.contains("data-zoom-src"),
+            "dashboard must mark thumbnails with data-zoom-src for lightbox"
+        );
+        // Escape key closes the lightbox.
+        assert!(
+            html.contains("Escape") && html.contains("closeZoom"),
+            "dashboard must close lightbox on Escape key"
+        );
+        // No external dependency introduced.
+        let lower = html.to_lowercase();
+        assert!(
+            !lower.contains("glightbox")
+                && !lower.contains("fancybox")
+                && !lower.contains("lightbox.js"),
+            "dashboard lightbox must be pure vanilla JS with no external dependency"
+        );
+    }
+
+    #[test]
     fn dashboard_html_has_axes_radar() {
         let html = include_str!("../../dashboard-ui/index.html");
         // Radar renderer is present and wired into the detail view (C1, C3).

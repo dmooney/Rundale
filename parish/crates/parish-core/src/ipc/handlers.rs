@@ -314,6 +314,24 @@ pub fn text_log_for_stream_turn(
     }
 }
 
+/// Creates a [`TextLogPayload`] tied to a specific NPC stream turn with a
+/// semantic subtype for frontend styling (e.g. `"action"` for non-verbal
+/// reactions such as gestures).
+pub fn text_log_for_stream_turn_typed(
+    source: impl Into<String>,
+    content: impl Into<String>,
+    stream_turn_id: u64,
+    subtype: impl Into<String>,
+) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: Some(stream_turn_id),
+        source: source.into(),
+        content: content.into(),
+        subtype: Some(subtype.into()),
+    }
+}
+
 /// Creates a [`TextLogPayload`] with a semantic subtype for frontend styling.
 pub fn text_log_typed(
     source: impl Into<String>,
@@ -779,6 +797,26 @@ pub struct NpcConversationSetup {
     pub system_prompt: String,
     /// The assembled context string for the LLM.
     pub context: String,
+    /// Names from the NPC's known-people roster (PEOPLE YOU KNOW list).
+    /// Used by the post-generation person-confirmation guard (#1459) to detect
+    /// when the NPC's reply affirms a fabricated person not on this list.
+    pub known_person_names: Vec<String>,
+    /// Full roster as (name, occupation) pairs, including the speaker.
+    /// Used by the wrong-speaker-identity guard (#1475) to detect when this
+    /// NPC's reply claims to be a different roster member.
+    pub roster_names_occupations: Vec<(String, String)>,
+    /// Current player location name.
+    /// Used by the wrong-location-reference guard (#1477) to detect when an NPC
+    /// names a different settlement in "here in X" / "village of X" collocations.
+    pub location_name: String,
+    /// All known location names in the world graph.
+    /// Used by the invented-place-confirmation guard (#1530) to detect when an
+    /// NPC confirms a place name that does not exist in the world.
+    pub known_location_names: Vec<String>,
+    /// Player's name as currently known from world state.
+    /// Passed through to post-generation guards so the player's own name is
+    /// never treated as a fabricated third-party person (#1553).
+    pub player_name: Option<String>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -911,12 +949,68 @@ pub fn prepare_npc_conversation_turn(
          one tone, one beat.\n",
     );
 
+    // Extract plain name strings for the person-confirmation guard (#1459, #1488).
+    //
+    // The guard must never emit a false denial for a REAL parish NPC — even one
+    // the speaking NPC does not personally know. `roster` only contains the NPCs
+    // this NPC has a relationship/co-residence with ("PEOPLE YOU KNOW"), so a
+    // shopkeeper recommended by one NPC but absent from another NPC's roster
+    // would wrongly trigger the guard (#1488: Roisin false-denial bug).
+    //
+    // Fix: seed the known list from ALL parish NPC names, then append the
+    // player entry from the personal roster. This makes the guard conservative:
+    // it only fires for names that do not appear anywhere in the parish registry.
+    let mut known_person_names: Vec<String> =
+        npc_manager.all_npcs().map(|n| n.name.clone()).collect();
+    // Also include the player's name if injected at the front of `roster`.
+    // The player entry has NpcId(0); include it to avoid false-positive on the
+    // player's own name appearing in a question.
+    for (id, name, _) in &roster {
+        if *id == NpcId(0) && !known_person_names.iter().any(|n| n == name) {
+            known_person_names.push(name.clone());
+        }
+    }
+
+    // For the wrong-speaker-identity guard (#1475): (name, occupation) pairs
+    // for all roster members. Exclude the player entry (NpcId(0)) since the
+    // guard is about NPC identities, not the player.
+    let roster_names_occupations: Vec<(String, String)> = roster
+        .iter()
+        .filter(|(id, _, _)| id.0 != 0)
+        .map(|(_, name, occ)| (name.clone(), occ.clone()))
+        .collect();
+
+    let location_name = world
+        .graph
+        .get(world.player_location)
+        .map(|d| d.name.clone())
+        .unwrap_or_default();
+
+    // All location names in the world graph, for the invented-place guard (#1530).
+    // Reuse the already-computed `location_names` if grounding was enabled;
+    // otherwise build it fresh so the guard always has the full list.
+    let known_location_names: Vec<String> = location_names.unwrap_or_else(|| {
+        let mut names: Vec<String> = world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| world.graph.get(id).map(|d| d.name.clone()))
+            .collect();
+        names.sort();
+        names
+    });
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
         npc_id: speaker_id,
         system_prompt,
         context,
+        known_person_names,
+        roster_names_occupations,
+        location_name,
+        known_location_names,
+        player_name: world.player_name.clone(),
     })
 }
 
@@ -1936,5 +2030,94 @@ mod tests {
         );
         // "Father" is absent (ambiguous, treated as unresolvable).
         assert_eq!(result.absent, vec!["Father".to_string()]);
+    }
+
+    /// AC-1 (#1488): `prepare_npc_conversation_turn` must include ALL parish
+    /// NPC names in `known_person_names`, not just those in the speaking NPC's
+    /// personal relationship roster. This prevents the person-confirmation guard
+    /// from emitting a false denial when NPC-A accurately describes NPC-C, who
+    /// is a real parish NPC but not in NPC-A's personal roster.
+    ///
+    /// Repro: priest (NPC 1) has NO relationship with Roisin (NPC 2). When the
+    /// player asks the priest about Roisin, the guard must NOT fire — Roisin is
+    /// in the parish registry even if she's absent from the priest's roster.
+    #[test]
+    fn known_person_names_includes_all_parish_npcs_not_just_roster() {
+        use crate::config::NpcConfig;
+        use crate::npc::{Npc, manager::NpcManager};
+        use crate::world::WorldState;
+
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        // NPC 1: priest (the speaker — has no relationship with Roisin).
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(1);
+        priest.name = "Father Brennan".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = world.player_location;
+        npc_mgr.add_npc(priest);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        // NPC 2: Roisin — a shopkeeper the priest does NOT have a relationship with.
+        let mut roisin = Npc::new_test_npc();
+        roisin.id = NpcId(2);
+        roisin.name = "Roisin Malone".to_string();
+        roisin.occupation = "Shopkeeper".to_string();
+        // Roisin is at a different location — not co-located with the priest.
+        // So she would NOT appear in the priest's `known_roster`.
+        roisin.location = world
+            .graph
+            .location_ids()
+            .into_iter()
+            .find(|l| *l != world.player_location)
+            .unwrap_or(world.player_location);
+        npc_mgr.add_npc(roisin);
+
+        let npc_cfg = NpcConfig::default();
+        let language = crate::npc::LanguageSettings::english_only();
+
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_mgr,
+            "Where can I find Roisin Malone?",
+            NpcId(1), // priest speaks
+            &[],
+            false,
+            &language,
+            &npc_cfg,
+        );
+
+        let setup = setup.expect("setup must succeed for co-located NPC");
+
+        // The fix: Roisin must appear in known_person_names even though she
+        // is NOT in the priest's personal relationship roster.
+        assert!(
+            setup
+                .known_person_names
+                .iter()
+                .any(|n| n == "Roisin Malone"),
+            "Roisin Malone (a real parish NPC) must appear in known_person_names \
+             even though she has no relationship with the speaking priest (#1488); \
+             got: {:?}",
+            setup.known_person_names
+        );
+
+        // Validate that the person-confirmation guard does NOT fire on a good
+        // reply about Roisin, because she is now in the known list.
+        let good_reply = "Roisin Malone keeps a shop at the crossroads. She is a fine woman.";
+        let guarded = crate::npc::guard_fabricated_person_confirmation(
+            good_reply,
+            "Where can I find Roisin Malone?",
+            &setup.known_person_names,
+            &[],
+            None,
+            0,
+        );
+        assert_eq!(
+            guarded, good_reply,
+            "person-confirmation guard must NOT fire on a real parish NPC (Roisin Malone) \
+             after #1488 fix; got: {guarded:?}"
+        );
     }
 }

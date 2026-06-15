@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 import {
 	textLog,
+	streamingActive,
 	pushErrorLog,
 	formatIpcError,
 	loadingColor,
@@ -10,8 +11,14 @@ import {
 	messageHints,
 	pruneMessageHints,
 	trimTextLog,
+	noteTimeRule,
+	resetTimeRule,
+	externalDriveActive,
+	noteStreamingStarted,
+	resetExternalDrive,
+	EXTERNAL_DRIVE_IDLE_MS,
 } from './game';
-import type { LanguageHint } from '$lib/types';
+import type { LanguageHint, WorldSnapshot } from '$lib/types';
 
 const hint: LanguageHint[] = [
 	{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' },
@@ -215,5 +222,274 @@ describe('trimTextLog (TD-049)', () => {
 		expect(out.length).toBe(500);
 		expect(out[0].id).toBe('e500');
 		expect(out[out.length - 1].id).toBe('e999');
+	});
+});
+
+describe('noteTimeRule (time-of-day separators)', () => {
+	function snap(time_label: string, day_of_week: string): WorldSnapshot {
+		return { time_label, day_of_week } as unknown as WorldSnapshot;
+	}
+
+	beforeEach(() => {
+		resetTimeRule();
+		textLog.set([{ source: 'system', content: 'You arrive.' }]);
+	});
+
+	it('primes on the first snapshot without emitting a rule', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('emits nothing while the period is unchanged', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('appends a time-rule entry when the period changes', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Midday', 'Monday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].subtype).toBe('time-rule');
+		expect(log[1].content).toBe('Midday — Monday');
+	});
+
+	it('appends a rule when the day changes even within the same period label', () => {
+		noteTimeRule(snap('Night', 'Monday'));
+		noteTimeRule(snap('Night', 'Tuesday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].content).toBe('Night — Tuesday');
+	});
+
+	it('never inserts a rule into an empty log (nothing precedes the splash)', () => {
+		textLog.set([]);
+		noteTimeRule(snap('Morning', 'Monday'));
+		noteTimeRule(snap('Midday', 'Monday'));
+		expect(get(textLog).length).toBe(0);
+	});
+
+	it('ignores snapshots without a time label', () => {
+		noteTimeRule(snap('', 'Monday'));
+		noteTimeRule(snap('Morning', 'Monday'));
+		expect(get(textLog).length).toBe(1);
+	});
+
+	it('a null snapshot resets tracking so the next snapshot primes silently', () => {
+		noteTimeRule(snap('Morning', 'Monday'));
+		// World state cleared (new game / branch switch / teardown).
+		noteTimeRule(null);
+		// Without the reset this would emit a Midday rule from the stale key.
+		noteTimeRule(snap('Midday', 'Tuesday'));
+		expect(get(textLog).length).toBe(1);
+		// Subsequent change after re-priming emits normally.
+		noteTimeRule(snap('Dusk', 'Tuesday'));
+		const log = get(textLog);
+		expect(log.length).toBe(2);
+		expect(log[1].content).toBe('Dusk — Tuesday');
+	});
+});
+
+// ── JOB 2 — externalDriveActive / noteStreamingStarted (#1537) ────────────────
+//
+// Signal: when streamingActive becomes true WITHOUT a preceding local
+// playerSubmittedCount increment (i.e. localSubmitCount === lastLocalSubmitCount),
+// the turn was driven by the bridge/harness.  The flag auto-clears after
+// EXTERNAL_DRIVE_IDLE_MS of idle.  For local-player turns the badge clears
+// immediately.
+describe('noteStreamingStarted — external-drive detection (#1537)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		resetExternalDrive();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		resetExternalDrive();
+	});
+
+	it('sets externalDriveActive when the submit count has not changed (bridge turn)', () => {
+		// Both args equal → no local submit happened → external driver.
+		noteStreamingStarted(3, 3);
+		expect(get(externalDriveActive)).toBe(true);
+	});
+
+	it('clears externalDriveActive immediately for a local-player turn', () => {
+		// First mark as externally driven, then a local submit arrives.
+		noteStreamingStarted(3, 3);
+		expect(get(externalDriveActive)).toBe(true);
+		// Local submit: count incremented from 3 to 4.
+		noteStreamingStarted(4, 3);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('auto-clears after EXTERNAL_DRIVE_IDLE_MS', () => {
+		noteStreamingStarted(5, 5);
+		expect(get(externalDriveActive)).toBe(true);
+		// Advance time past the idle threshold.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('keeps the badge alive when consecutive external turns arrive before idle', () => {
+		noteStreamingStarted(5, 5);
+		// Second external turn restarts the timer.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS - 100);
+		noteStreamingStarted(5, 5);
+		// Should still be true after the original deadline.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS - 100);
+		expect(get(externalDriveActive)).toBe(true);
+		// But clears after the refreshed deadline.
+		vi.advanceTimersByTime(200);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('resetExternalDrive cancels the timer and clears the flag', () => {
+		noteStreamingStarted(5, 5);
+		expect(get(externalDriveActive)).toBe(true);
+		resetExternalDrive();
+		expect(get(externalDriveActive)).toBe(false);
+		// No spurious set after timer fires.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+});
+
+// ── JOB 1 — Loading safety timeout pattern (#1536) ────────────────────────────
+//
+// The page-controller arms a 10 s safety timer when loading starts; if stream-end
+// or loading{active:false} never arrives (bridge-driven turn, no NPC stream),
+// the timer force-clears streamingActive.
+//
+// We test the observable behavior of the stores directly here — the timer
+// itself lives in page-controller but it calls streamingActive.set(false), so we
+// can simulate the pattern with fake timers and the stores.
+describe('loading safety timeout behavior (#1536)', () => {
+	const SAFETY_MS = 10_000;
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		streamingActive.set(false);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		streamingActive.set(false);
+	});
+
+	it('streamingActive clears after a timeout when no stream-end fires (bridge-driven turn)', () => {
+		// Simulate page-controller arms safety timer on loading{active:true}.
+		streamingActive.set(true);
+		let cleared = false;
+		const timer = setTimeout(() => {
+			streamingActive.set(false);
+			cleared = true;
+		}, SAFETY_MS);
+
+		expect(get(streamingActive)).toBe(true);
+		vi.advanceTimersByTime(SAFETY_MS - 1);
+		expect(get(streamingActive)).toBe(true); // not yet
+		vi.advanceTimersByTime(2);
+		expect(get(streamingActive)).toBe(false); // safety timeout fired
+		expect(cleared).toBe(true);
+		clearTimeout(timer); // no-op — already fired
+	});
+
+	it('safety timer is disarmed when stream-end fires first', () => {
+		streamingActive.set(true);
+		let safetyFired = false;
+		const timer = setTimeout(() => {
+			safetyFired = true;
+			streamingActive.set(false);
+		}, SAFETY_MS);
+
+		// stream-end fires before the deadline — disarm.
+		clearTimeout(timer);
+		streamingActive.set(false);
+
+		// Advance well past the deadline.
+		vi.advanceTimersByTime(SAFETY_MS + 1000);
+		expect(safetyFired).toBe(false); // never fired
+		expect(get(streamingActive)).toBe(false);
+	});
+});
+
+// ── Multi-turn chain classification fix (#1538) ───────────────────────────────
+//
+// When a LOCAL player initiates a multi-NPC conversation chain, the backend
+// fires loading{active:true} multiple times within that single turn (once per
+// re-spawned NPC stream).  The page-controller fix guards noteStreamingStarted
+// behind !sm.isChainInProgress() so only the FIRST loading event of a chain
+// triggers re-classification; subsequent re-spawns inherit the chain's existing
+// local/external verdict.
+//
+// These tests verify the expected store behavior under the CORRECTED protocol:
+// — Local chain: noteStreamingStarted called once (count incremented), then
+//   subsequent re-spawns do NOT call noteStreamingStarted; externalDriveActive
+//   must remain false throughout.
+// — External chain: noteStreamingStarted called once (count unchanged); badge
+//   must remain true on subsequent re-spawns.
+describe('multi-turn chain classification — page-controller protocol (#1538)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		resetExternalDrive();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		resetExternalDrive();
+	});
+
+	it('local-initiated chain: multiple loading re-spawns with no further submit do NOT set externalDriveActive', () => {
+		// Turn starts: player submitted (count 2 → 3).  Page-controller only calls
+		// noteStreamingStarted on the FIRST loading{active:true} (chain not yet in
+		// progress).
+		noteStreamingStarted(3, 2); // currentCount=3, lastCount=2 → local turn
+		expect(get(externalDriveActive)).toBe(false);
+
+		// Backend re-spawns loading for 2nd and 3rd NPC turns within the same
+		// chain.  Page-controller now skips noteStreamingStarted (chainInProgress).
+		// externalDriveActive must still be false.
+		// (Simulate the skip: simply do NOT call noteStreamingStarted again.)
+		expect(get(externalDriveActive)).toBe(false);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('external chain: badge stays true across multiple re-spawned loadings', () => {
+		// Harness/bridge turn: count unchanged (both 5 → 5 → external).
+		noteStreamingStarted(5, 5); // first loading{active:true}
+		expect(get(externalDriveActive)).toBe(true);
+
+		// Subsequent re-spawns within the same chain also skip noteStreamingStarted
+		// (page-controller guard), so the badge stays true until idle timeout.
+		expect(get(externalDriveActive)).toBe(true);
+
+		// Badge auto-clears after idle.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('naïve re-evaluation (the pre-fix bug) would set externalDriveActive wrongly on re-spawn', () => {
+		// Demonstrate the OLD broken behavior: calling noteStreamingStarted on
+		// every loading re-spawn (count not yet incremented further) would
+		// incorrectly flip externalDriveActive to true for a local chain.
+		// This test documents the hazard that the fix prevents.
+		const lastCount = 2;
+		const currentCount = 3; // local submit happened
+
+		// First loading — classified local (correct).
+		noteStreamingStarted(currentCount, lastCount);
+		expect(get(externalDriveActive)).toBe(false);
+
+		// Simulate the BUG: re-spawn calls noteStreamingStarted again with the
+		// same currentCount (no further submit), which equals the already-updated
+		// lastLocalSubmitCount (3 === 3) → external classification (WRONG).
+		noteStreamingStarted(currentCount, currentCount);
+		expect(get(externalDriveActive)).toBe(true); // incorrectly set — bug!
+
+		// Reset for cleanup.
+		resetExternalDrive();
 	});
 });

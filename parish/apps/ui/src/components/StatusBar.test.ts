@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { worldState } from '../stores/game';
 import StatusBar from './StatusBar.svelte';
@@ -82,6 +82,46 @@ describe('StatusBar', () => {
 		const { container } = render(StatusBar);
 		const clock = container.querySelector('.clock');
 		expect(clock).toBeTruthy();
+	});
+
+	it('keeps Ledger visible but hides dev tools behind the ⋯ menu', () => {
+		worldState.set(snapshot);
+		const { getByText, queryByText, queryByTestId } = render(StatusBar);
+		expect(getByText('Ledger')).toBeTruthy();
+		expect(queryByTestId('dev-menu')).toBeNull();
+		expect(queryByText('Designer')).toBeNull();
+		expect(queryByText('Dbg')).toBeNull();
+		expect(queryByText('Mod')).toBeNull();
+	});
+
+	it('opens the dev menu on ⋯ click, revealing Mod / Designer / Dbg / Bug', async () => {
+		worldState.set(snapshot);
+		const { getByLabelText, getByTestId, getByText } = render(StatusBar);
+		await fireEvent.click(getByLabelText('Developer tools menu'));
+		expect(getByTestId('dev-menu')).toBeTruthy();
+		expect(getByText('Mod')).toBeTruthy();
+		expect(getByText('Designer')).toBeTruthy();
+		expect(getByText('Dbg')).toBeTruthy();
+		expect(getByText('🐛 Bug')).toBeTruthy();
+	});
+
+	it('closes the dev menu on Escape', async () => {
+		worldState.set(snapshot);
+		const { getByLabelText, queryByTestId } = render(StatusBar);
+		await fireEvent.click(getByLabelText('Developer tools menu'));
+		expect(queryByTestId('dev-menu')).toBeTruthy();
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(queryByTestId('dev-menu')).toBeNull();
+	});
+
+	it('closes the dev menu when focus leaves the menu subtree', async () => {
+		worldState.set(snapshot);
+		const { getByLabelText, queryByTestId, container } = render(StatusBar);
+		await fireEvent.click(getByLabelText('Developer tools menu'));
+		expect(queryByTestId('dev-menu')).toBeTruthy();
+		const wrap = container.querySelector('.dev-menu-wrap') as HTMLElement;
+		await fireEvent.focusOut(wrap, { relatedTarget: document.body });
+		expect(queryByTestId('dev-menu')).toBeNull();
 	});
 
 	it('does not schedule another rAF frame after clockFrozen becomes true', async () => {

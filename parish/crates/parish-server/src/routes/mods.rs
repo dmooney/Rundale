@@ -35,7 +35,7 @@ pub fn collect_base_mods(root: &std::path::Path, active_id: &str) -> Vec<ModEntr
         .filter_map(|e| {
             let manifest_path = e.path().join("mod.toml");
             let text = std::fs::read_to_string(&manifest_path).ok()?;
-            let manifest: ModManifest = toml::from_str(&text).ok()?;
+            let manifest = ModManifest::from_toml_str(&text).ok()?;
             if manifest.meta.kind != ModKind::Base {
                 return None;
             }

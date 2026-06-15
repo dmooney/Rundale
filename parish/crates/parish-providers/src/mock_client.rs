@@ -113,6 +113,24 @@ impl MockClient {
         self.push(MockMatcher::Contains(needle.into()), completion);
     }
 
+    /// Enqueue a **raw JSON** completion keyed to requests mentioning `needle`.
+    ///
+    /// Unlike [`push_for`], which treats the completion as plain dialogue text
+    /// and wraps it in the standard `{"dialogue":"...","action":""}` JSON
+    /// envelope, this method passes the string through verbatim for
+    /// JSON-mode requests (`generate_stream_json`). Use this when you need to
+    /// inject a specific `action`, `mood`, or other JSON field (e.g. to test
+    /// action-narration surfacing).
+    ///
+    /// The raw JSON is stored with a sentinel prefix (`\x00json:`) so
+    /// `json_for` can distinguish it from a plain dialogue completion and
+    /// skip the envelope wrapping.
+    pub fn push_json_for(&self, needle: impl Into<String>, raw_json: impl Into<String>) {
+        let raw = raw_json.into();
+        let sentinel = format!("\x00json:{raw}");
+        self.push(MockMatcher::Contains(needle.into()), sentinel);
+    }
+
     /// Number of scripted entries still queued.
     pub fn pending(&self) -> usize {
         self.queue.lock().unwrap().len()
@@ -204,8 +222,14 @@ impl MockClient {
         if system.is_some_and(|s| s.contains("input parser")) {
             return intent_json_for(prompt);
         }
-        let dialogue = self.completion_for(prompt, system);
-        let escaped = dialogue.replace('"', "\\\"").replace('\n', " ");
+        let completion = self.completion_for(prompt, system);
+        // If the enqueued entry was pushed via `push_json_for`, it carries a
+        // `\x00json:` sentinel prefix. Strip the prefix and return the raw JSON
+        // verbatim so the caller can inject specific fields (e.g. `action`, `mood`).
+        if let Some(raw) = completion.strip_prefix("\x00json:") {
+            return raw.to_string();
+        }
+        let escaped = completion.replace('"', "\\\"").replace('\n', " ");
         format!(
             r#"{{"dialogue":"{escaped}","action":"","mood":"neutral","internal_thought":null,"language_hints":[],"mentioned_people":[]}}"#
         )

@@ -76,6 +76,76 @@ export const fullMapOpen = writable<boolean>(false);
 
 export const focailOpen = writable<boolean>(false);
 
+/** Monotonically increasing counter incremented each time the player submits
+ *  a message. ChatPanel subscribes and scrolls to the bottom unconditionally
+ *  when this changes, regardless of current scroll position (#1431 item 4). */
+export const playerSubmittedCount = writable<number>(0);
+
+/**
+ * True while the game is being driven externally (by the quality harness or
+ * any MCP/bridge client) rather than by the local player.
+ *
+ * Signal: `streamingActive` becomes true without a preceding local
+ * `playerSubmittedCount` increment in the same turn.  The flag is cleared
+ * automatically after EXTERNAL_DRIVE_IDLE_MS of no new external activity.
+ *
+ * The StatusBar renders a visible "Auto-play active" badge while this is set
+ * so the user knows they are watching automated play, not their own input
+ * (#1537).
+ */
+export const externalDriveActive = writable<boolean>(false);
+
+/** How long (ms) after the last external-drive turn before the badge clears. */
+export const EXTERNAL_DRIVE_IDLE_MS = 3_000;
+
+/**
+ * Called by the page controller whenever streaming starts.
+ * Compares the current `playerSubmittedCount` against the count at the
+ * previous turn boundary: if they're the same the turn wasn't initiated by
+ * the local InputField, so we mark the game as externally driven and arm the
+ * auto-clear timer.
+ *
+ * `localSubmitCount` is the current value of `playerSubmittedCount` at the
+ * time `streamingActive` transitions to `true`.
+ * `lastLocalSubmitCount` is the value observed at the end of the previous
+ * turn (i.e. before this stream started).
+ *
+ * The caller is responsible for snapshotting and updating
+ * `lastLocalSubmitCount`.
+ */
+let _externalDriveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function noteStreamingStarted(
+	localSubmitCount: number,
+	lastLocalSubmitCount: number,
+): void {
+	if (localSubmitCount === lastLocalSubmitCount) {
+		// No local submit since the last turn — external driver.
+		externalDriveActive.set(true);
+		if (_externalDriveTimer !== null) clearTimeout(_externalDriveTimer);
+		_externalDriveTimer = setTimeout(() => {
+			_externalDriveTimer = null;
+			externalDriveActive.set(false);
+		}, EXTERNAL_DRIVE_IDLE_MS);
+	} else {
+		// Local-player turn: clear the badge immediately.
+		if (_externalDriveTimer !== null) {
+			clearTimeout(_externalDriveTimer);
+			_externalDriveTimer = null;
+		}
+		externalDriveActive.set(false);
+	}
+}
+
+/** Resets external-drive tracking (new game / teardown / tests). */
+export function resetExternalDrive(): void {
+	if (_externalDriveTimer !== null) {
+		clearTimeout(_externalDriveTimer);
+		_externalDriveTimer = null;
+	}
+	externalDriveActive.set(false);
+}
+
 /**
  * Resets focailOpen to false when the viewport transitions to desktop
  * (i.e. when the narrow-viewport media query stops matching).
@@ -129,6 +199,53 @@ export function pruneMessageHints(log: TextLogEntry[]): void {
 // the log changes (including when trimTextLog drops old entries) prune the
 // orphaned hint keys. This is the single chokepoint for all trim sites.
 textLog.subscribe((log) => pruneMessageHints(log));
+
+/** Last seen `time_label|day_of_week` key for time-rule separators. */
+let lastTimeRuleKey: string | null = null;
+
+/** Resets time-rule tracking (new game / branch load / tests). */
+export function resetTimeRule(): void {
+	lastTimeRuleKey = null;
+}
+
+/**
+ * Appends a `time-rule` separator entry to the text log when the world
+ * clock crosses into a new time-of-day period (or a new day).
+ *
+ * The game clock runs at 36× real time, but the chronicle had no temporal
+ * anchors — this gives the log a quiet "Dusk — Monday" rule between
+ * periods. The first snapshot of a session only primes the tracker (no
+ * rule), and nothing is emitted while the log is still empty so a rule
+ * never precedes the splash.
+ */
+export function noteTimeRule(snap: WorldSnapshot | null): void {
+	// A cleared world state (new game / branch switch / teardown) resets
+	// tracking so a stale period key never leaks a spurious separator into
+	// the next session's log (PR #1419 review).
+	if (!snap) {
+		lastTimeRuleKey = null;
+		return;
+	}
+	if (!snap.time_label) return;
+	const key = `${snap.time_label}|${snap.day_of_week}`;
+	if (lastTimeRuleKey === key) return;
+	const isFirst = lastTimeRuleKey === null;
+	lastTimeRuleKey = key;
+	if (isFirst) return;
+	textLog.update((log) => {
+		if (log.length === 0) return log;
+		return trimTextLog([
+			...log,
+			{
+				source: 'system',
+				subtype: 'time-rule',
+				content: `${snap.time_label} — ${snap.day_of_week}`,
+			},
+		]);
+	});
+}
+
+worldState.subscribe((snap) => noteTimeRule(snap));
 
 /**
  * Appends a user-visible error entry to the text log.

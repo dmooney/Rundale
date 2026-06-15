@@ -248,6 +248,14 @@ Opt-in engine flags (**default-off**; `/flag enable <name>` to turn on):
   `idle_banter_after_secs` of player silence. Opt in to let nearby NPCs
   start talking when the player is idle; player-initiated dialogue
   (`npc-llm-reactions`) is unaffected.
+- `npc-arrival-greetings` — spontaneous NPC greetings on arrival. When the
+  player moves into a populated location, present NPCs may greet, welcome,
+  nod, or introduce themselves. **Default-off**: arrivals are silent unless
+  opted in. Muting greetings does not strand NPCs as anonymous — they are
+  still introduced by name on first conversation — and the background social
+  simulation (gossip, mood, schedules) is unaffected; only the visible
+  greeting is gated. Other unprompted-speech paths keep their own switches
+  (`travel-encounters`, `banshee`, `npc-idle-banter`, `autonomous-npc-chain`).
 
 **Provider Configuration (base):**
 

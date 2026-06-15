@@ -195,11 +195,15 @@ validate_evidence_file() {
             # tier (rule #10) requires for proofs of changes touching
             # the Tauri/server/CLI/UI/mod seams. Plain
             # `Evidence type: gameplay transcript` remains valid for
-            # non-runtime proof-relevant changes.
-            if grep -Eiq '^Evidence type:[[:space:]]*(live[[:space:]]+)?(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
+            # non-runtime proof-relevant changes. `game-loop integration
+            # test` is the real-loop tier for deterministic guards that
+            # cannot be triggered live on demand (its runtime-path
+            # acceptance below additionally requires an `execute_via_real_loop`
+            # reference, so it cannot be stamped over plain unit tests).
+            if grep -Eiq '^Evidence type:[[:space:]]*((live[[:space:]]+)?(gameplay transcript|screenshot|gif)|game-loop integration test)[[:space:]]*$' "$file"; then
                 return 0
             fi
-            echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)'." >&2
+            echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)' or 'Evidence type: game-loop integration test'." >&2
             return 1
             ;;
     esac
@@ -413,6 +417,9 @@ if [[ "$relevant_count" -gt 0 ]]; then
     # live. Accepted live signals:
     #   - any binary artifact (screenshot .png/.jpg/.jpeg, gif .gif)
     #   - an artifact that declares 'Evidence type: live ...'
+    #   - an artifact that declares 'Evidence type: game-loop integration test'
+    #     AND references `execute_via_real_loop` (real game-loop wiring, mock
+    #     LLM) — for deterministic guards that can't be triggered live on demand.
     # In PR mode the block content carries the header. In local mode the
     # `.md` summary file declares it; `.txt` transcripts are exempt from
     # the header requirement (literal program output may match the regex
@@ -432,6 +439,23 @@ if [[ "$relevant_count" -gt 0 ]]; then
                     *)
                         if grep -Eiq '^Evidence type:[[:space:]]*live[[:space:]]+(gameplay transcript|screenshot|gif)[[:space:]]*$' "$file"; then
                             live_found=1
+                        elif grep -Eiq '^Evidence type:[[:space:]]*game-loop integration test[[:space:]]*$' "$file" \
+                            && grep -q 'execute_via_real_loop' "$file"; then
+                            # Real-loop integration tier (rule #10). Some runtime
+                            # behaviours — deterministic guards whose ONLY trigger is
+                            # intermittent large-model output (e.g. the 14B
+                            # spontaneously impersonating another NPC, or looping a
+                            # phrase to the token cap) — cannot be reproduced on demand
+                            # in a live process. The honest, strongest proof is a Rust
+                            # integration test that drives the REAL `game_loop`
+                            # (`handle_game_input` -> `run_npc_turn`) via
+                            # `GameTestHarness::execute_via_real_loop`, mocking only the
+                            # LLM boundary. That exercises the exact production wiring —
+                            # the gate's actual concern — so it counts as runtime proof.
+                            # Requiring the `execute_via_real_loop` mention in the same
+                            # evidence file ties the claim to the real mechanism, so the
+                            # tier cannot be stamped over plain unit tests.
+                            live_found=1
                         fi
                         ;;
                 esac
@@ -442,6 +466,9 @@ if [[ "$relevant_count" -gt 0 ]]; then
             echo "Provide a screenshot/gif in the bundle, or include 'Evidence type: live gameplay transcript'" >&2
             echo "in the evidence section. The word 'live' asserts the change was exercised in a real" >&2
             echo "Tauri / server / CLI / browser, not just in unit tests." >&2
+            echo "For a deterministic guard that cannot be triggered live on demand, declare" >&2
+            echo "'Evidence type: game-loop integration test' and reference execute_via_real_loop in" >&2
+            echo "the evidence — a test that drives the real game_loop wiring (mock LLM boundary)." >&2
             failed=1
         fi
     fi

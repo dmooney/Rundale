@@ -20,7 +20,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use parish_core::game_loop::{GameLoopContext, handle_game_input, handle_system_command};
-use parish_core::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter};
+use parish_core::ipc::{CapturingEmitter, EventEmitter};
 use parish_core::npc::reactions::ReactionTemplates;
 
 use crate::command_host::CliCommandHost;
@@ -143,7 +143,7 @@ impl GameTestHarness {
                 let host =
                     CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
                 let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    rt.block_on(handle_system_command(&host, cmd))
+                    rt.block_on(handle_system_command(&host, cmd, trimmed))
                 }));
                 drop(host);
                 self.app = Arc::into_inner(app_arc)
@@ -195,7 +195,10 @@ impl GameTestHarness {
         let world = Mutex::new(std::mem::take(&mut self.app.world));
         let npc_manager = Mutex::new(std::mem::take(&mut self.app.npc_manager));
         let config = Mutex::new(config_snapshot);
-        let conversation = Mutex::new(ConversationRuntimeState::new());
+        // Reuse the harness-level persistent conversation state so session-level
+        // data (e.g. `seen_openers_this_location` for cross-turn opener dedup,
+        // #1492) accumulates across successive `execute_via_real_loop` calls.
+        let conversation = std::sync::Arc::clone(&self.real_loop_conversation);
         // Filled inside the runtime below with a mock-backed queue so the
         // dialogue path runs against the real worker rather than short-circuiting
         // on a missing LLM (#1172 dialogue parity).
