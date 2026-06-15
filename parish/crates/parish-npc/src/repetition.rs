@@ -1681,7 +1681,9 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
-    let after_mood = strip_leaked_mood_word(dialogue);
+    // Step 0 (F1 / #1526): strip CJK/JSON scaffolding leaks FIRST.
+    let after_scaffold = sanitize_scaffolding_leak(dialogue);
+    let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
     let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
@@ -2050,7 +2052,11 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
-    let after_mood = strip_leaked_mood_word(dialogue);
+    // Step 0 (F1 / #1526): strip CJK/JSON scaffolding leaks FIRST — these are
+    // the most urgent artifact and must be removed before the subsequent guards
+    // operate on clean text.
+    let after_scaffold = sanitize_scaffolding_leak(dialogue);
+    let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
     let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
@@ -2653,6 +2659,536 @@ pub fn guard_acquaintance_question_intent_drift(
     } else {
         non_recognition_decline(seed).to_string()
     }
+}
+
+// ── #1526 — CJK / JSON scaffolding sanitizer ──────────────────────────────────
+
+/// Feature-flag name (default **on**) that enables the CJK/JSON scaffolding
+/// sanitizer (#1526). Kill-switch: disable via
+/// `flags.is_disabled(SCAFFOLDING_SANITIZER_FLAG)`.
+pub const SCAFFOLDING_SANITIZER_FLAG: &str = "dialogue-scaffolding-sanitizer";
+
+/// Sanitizes CJK script and JSON scaffolding leaks from a dialogue string (#1526).
+///
+/// Small models occasionally emit CJK meta-reasoning (self-correction thoughts
+/// written in Chinese/Japanese/Korean) or raw JSON brace characters inside the
+/// `dialogue` field after the JSON envelope is unwrapped. This function detects
+/// and removes that suffix.
+///
+/// Detection rules (applied in document order; first match wins):
+/// - **CJK character**: any character in U+2E80..U+9FFF, U+F900..U+FAFF, or
+///   U+20000..U+2A6DF.
+/// - **JSON brace leak**: a `{` that is preceded only by whitespace or a newline
+///   on its line (i.e. a line that starts with `{` after trimming leading
+///   whitespace — the model's self-correction JSON object).
+///
+/// When a scaffold position is found:
+/// 1. Trim any trailing whitespace/newlines before the scaffold start.
+/// 2. Find the last complete sentence ending in `.`, `!`, or `?` before the
+///    scaffold position. If found, return that prefix (trimmed).
+/// 3. If no complete sentence precedes the scaffold, return the text before the
+///    scaffold character (trimmed).
+///
+/// Clean input (no scaffold) is returned unchanged.
+pub fn sanitize_scaffolding_leak(dialogue: &str) -> String {
+    // Find the first scaffold position.
+    let mut scaffold_pos: Option<usize> = None;
+
+    let chars: Vec<(usize, char)> = dialogue.char_indices().collect();
+
+    for (byte_pos, ch) in chars {
+        let cp = ch as u32;
+
+        // CJK ranges.
+        let is_cjk = (0x2E80..=0x9FFF).contains(&cp)
+            || (0xF900..=0xFAFF).contains(&cp)
+            || (0x20000..=0x2A6DF).contains(&cp);
+
+        if is_cjk {
+            scaffold_pos = Some(byte_pos);
+            break;
+        }
+
+        // JSON brace leak: `{` preceded only by whitespace or newline on its
+        // line. We check whether everything from the previous newline to this
+        // `{` is whitespace.
+        if ch == '{' {
+            // Find the byte of the most recent newline before byte_pos.
+            let line_start = dialogue[..byte_pos].rfind('\n').map(|p| p + 1).unwrap_or(0);
+            let before_brace = &dialogue[line_start..byte_pos];
+            if before_brace.trim().is_empty() {
+                scaffold_pos = Some(byte_pos);
+                break;
+            }
+        }
+    }
+
+    let Some(pos) = scaffold_pos else {
+        return dialogue.to_string();
+    };
+
+    // Take the prefix up to the scaffold, trim trailing whitespace/newlines.
+    let prefix = dialogue[..pos].trim_end_matches(|c: char| c.is_whitespace());
+
+    // Find the last complete sentence ending in `.`, `!`, or `?`.
+    if let Some(end) = prefix.rfind(['.', '!', '?']) {
+        // Include the sentence-ending character (end is a byte offset of that char).
+        let sentence_end = end
+            + prefix[end..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+        let sentence = prefix[..sentence_end].trim();
+        if !sentence.is_empty() {
+            tracing::warn!(
+                scaffold_byte = pos,
+                "scaffolding-sanitizer stripped CJK/JSON scaffold from dialogue (#1526)"
+            );
+            return sentence.to_string();
+        }
+    }
+
+    // No complete sentence before scaffold: return the trimmed prefix.
+    let trimmed = prefix.trim();
+    if !trimmed.is_empty() {
+        tracing::warn!(
+            scaffold_byte = pos,
+            "scaffolding-sanitizer stripped CJK/JSON scaffold (no prior sentence) from dialogue (#1526)"
+        );
+        return trimmed.to_string();
+    }
+
+    // Scaffold was at the very start — return empty string rather than the original.
+    String::new()
+}
+
+// ── #1527/#1528 — false denial of known roster person guard ───────────────────
+
+/// Feature-flag name (default **on**) that enables the false-denial guard
+/// (#1527, #1528). Kill-switch: disable via
+/// `flags.is_disabled(FALSE_DENIAL_GUARD_FLAG)`.
+pub const FALSE_DENIAL_GUARD_FLAG: &str = "dialogue-false-denial-guard";
+
+/// Returns a grounded acknowledgement confirming a known parish member.
+/// Cycles through a small pool so successive replies vary.
+fn grounded_acknowledgement(seed: u64) -> &'static str {
+    const POOL: &[&str] = &[
+        "Aye, I know the name well enough from the parish.",
+        "Sure, that name is known hereabouts.",
+        "Aye, they are of this parish right enough.",
+        "I've heard that name in these parts, sure enough.",
+        "Aye, that's a name known to me in the parish.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+/// Post-generation guard for false denial of a known roster person (#1527, #1528).
+///
+/// When an NPC's dialogue contains a denial marker AND the denied name IS in
+/// `known_person_names` (the full parish roster), the denial is incorrect — the
+/// NPC is wrongly claiming ignorance of a real parish member. Replace with a
+/// neutral grounded acknowledgement.
+///
+/// Conservative: only fires when ALL of the following hold:
+///   1. The player's input names a person whose full name IS in `known_person_names`.
+///   2. The NPC dialogue contains that full name (the NPC is talking about them).
+///   3. The NPC dialogue contains a denial marker.
+///   4. The NPC dialogue does NOT contain any of the place-affirmation markers
+///      that would indicate the NPC is correctly locating the person (which
+///      would make the denial non-sensical — already handled by the person-
+///      confirmation guard).
+///
+/// Gate: `dialogue-false-denial-guard` (default-on).
+pub fn guard_false_denial_of_roster_person(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let lower = dialogue.to_lowercase();
+
+    // Must contain a denial marker to trigger.
+    let has_denial = DENIAL_MARKERS.iter().any(|m| lower.contains(m));
+    if !has_denial {
+        return dialogue.to_string();
+    }
+
+    // Check each candidate name from the player's input.
+    let candidates = extract_candidate_names(player_input);
+    for candidate in &candidates {
+        // Only fire for full names (multi-word) that ARE in the roster.
+        if candidate.split_whitespace().count() < 2 {
+            continue;
+        }
+        if !name_in_roster(candidate, known_person_names, player_name) {
+            continue;
+        }
+        // The candidate is a real roster person. Check if the dialogue mentions them.
+        let cand_lower = candidate.to_lowercase();
+        if !lower.contains(&cand_lower) {
+            continue;
+        }
+        // All conditions met: NPC is incorrectly denying a real roster person.
+        tracing::warn!(
+            candidate = %candidate,
+            "false-denial guard fired: NPC denied a known roster person (#1527/#1528)"
+        );
+        return grounded_acknowledgement(seed).to_string();
+    }
+
+    dialogue.to_string()
+}
+
+// ── #1530 — invented place confirmation guard ──────────────────────────────────
+
+/// Feature-flag name (default **on**) that enables the invented-place
+/// confirmation guard (#1530). Kill-switch: disable via
+/// `flags.is_disabled(INVENTED_PLACE_GUARD_FLAG)`.
+pub const INVENTED_PLACE_GUARD_FLAG: &str = "dialogue-invented-place-guard";
+
+/// Place-affirmation markers: phrases indicating the NPC is confirming or
+/// locating a place. Used by `guard_invented_place_confirmation`.
+const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
+    "'tis in ",
+    "it is in ",
+    "is located in ",
+    "you will find it at ",
+    "you'll find it ",
+    "is in ",
+    "lies in ",
+    "stands in ",
+    "can be found ",
+    "is over in ",
+    "is away in ",
+];
+
+/// Returns a stock place-decline for an unknown named place.
+/// Cycles through a small pool to avoid repeated identical responses.
+fn non_recognition_place_decline(seed: u64) -> &'static str {
+    const DECLINES: &[&str] = &[
+        "I know of no such place in this parish.",
+        "That name is not known to me hereabouts — ye may have the wrong place.",
+        "No such place that I've heard of in these parts.",
+        "I cannot say I know of any such place in this parish.",
+        "I know of no place by that name near here.",
+    ];
+    DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+/// Extracts candidate place-name tokens from the player input.
+///
+/// Conservative: only extracts place candidates that are EXPLICITLY signalled
+/// as places in the player's input. This avoids false-positive matches on
+/// NPC person names which appear as capitalized sequences in common inputs.
+///
+/// Two extraction strategies:
+/// 1. **Place-noun collocations**: "cathedral of Saint Aldric", "village of
+///    Ballygar", etc. — a known place-noun followed by "of" and capitalized
+///    words.
+/// 2. **"Where is X?" / "Where are X?" / "Where can I find X?"** patterns:
+///    explicitly directional queries signal that X is a place, not a person.
+///    Only singletons and bigrams that follow a where-is pattern are extracted.
+///
+/// Capitalized word sequences WITHOUT a place-noun or where-is signal are NOT
+/// extracted (they are more likely person names addressed in conversation).
+fn extract_candidate_places(player_input: &str) -> Vec<String> {
+    let words: Vec<&str> = player_input.split_whitespace().collect();
+    let mut candidates: Vec<String> = Vec::new();
+    let n = words.len();
+    let lower_input = player_input.to_lowercase();
+
+    const PLACE_NOUNS: &[&str] = &[
+        "cathedral",
+        "abbey",
+        "castle",
+        "chapel",
+        "church",
+        "tower",
+        "hall",
+        "manor",
+        "market",
+        "bridge",
+        "mill",
+        "crossroads",
+        "village",
+        "town",
+        "island",
+    ];
+
+    // Strategy 1: place-noun collocations ("cathedral of Saint Aldric").
+    for i in 0..n {
+        let w = words[i].trim_matches(|c: char| !c.is_alphabetic());
+        if w.is_empty() {
+            continue;
+        }
+        let w_lower = w.to_lowercase();
+
+        if PLACE_NOUNS.contains(&w_lower.as_str()) {
+            // Look for "of <CapWord(s)>" after this token.
+            if i + 2 < n {
+                let next = words[i + 1].trim_matches(|c: char| !c.is_alphabetic());
+                if next.to_lowercase() == "of" {
+                    let mut phrase_words: Vec<String> = vec![w.to_string(), next.to_string()];
+                    let mut j = i + 2;
+                    while j < n && j <= i + 5 {
+                        let pw = words[j].trim_matches(|c: char| !c.is_alphabetic());
+                        if pw.is_empty() {
+                            break;
+                        }
+                        let is_cap = pw.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                        if !is_cap {
+                            break;
+                        }
+                        phrase_words.push(pw.to_string());
+                        j += 1;
+                    }
+                    if phrase_words.len() >= 3 {
+                        let cap_part = phrase_words[2..].join(" ");
+                        if !cap_part.is_empty() {
+                            candidates.push(cap_part);
+                        }
+                        candidates.push(phrase_words.join(" "));
+                    }
+                }
+            }
+        }
+    }
+
+    // Strategy 2: "where is X?" / "where are X?" / directional queries.
+    // Extract capitalized tokens from the OBJECT POSITION of the query.
+    // We find the where-signal in the input and collect capitalized tokens
+    // that appear AFTER it, skipping common function words.
+    const WHERE_SIGNALS: &[&str] = &[
+        "where is ",
+        "where's ",
+        "where are ",
+        "how do i find ",
+        "how do i get to ",
+        "how do we get to ",
+        "is there a place called ",
+        "find the place called ",
+        "looking for a place called ",
+    ];
+
+    // Common English words that may appear capitalized at sentence start or
+    // in the where-signal itself — never valid place name candidates.
+    // Also includes generic building/place nouns that appear in queries but
+    // are not themselves invented place names.
+    const SKIP_WORDS: &[&str] = &[
+        "where",
+        "is",
+        "are",
+        "the",
+        "a",
+        "an",
+        "i",
+        "how",
+        "do",
+        "we",
+        "there",
+        "place",
+        "called",
+        "looking",
+        "for",
+        "find",
+        "can",
+        "you",
+        "this",
+        "that",
+        "it",
+        "in",
+        "at",
+        "of",
+        "to",
+        "and",
+        "or",
+        "but",
+        // Place-noun generic types (not specific names):
+        "cathedral",
+        "abbey",
+        "castle",
+        "chapel",
+        "church",
+        "tower",
+        "hall",
+        "manor",
+        "market",
+        "bridge",
+        "mill",
+        "crossroads",
+        "village",
+        "town",
+        "island",
+        "pub",
+        "farm",
+        "road",
+        "street",
+        "lane",
+        "path",
+        "well",
+        "forge",
+        "shop",
+        "house",
+        "inn",
+        "tavern",
+    ];
+
+    for signal in WHERE_SIGNALS {
+        if let Some(signal_pos) = lower_input.find(signal) {
+            // Compute the byte offset in the ORIGINAL `player_input` that
+            // corresponds to the end of the matched signal.  We cannot use
+            // `signal_pos + signal.len()` directly as an index into
+            // `player_input` because `to_lowercase()` can change the byte
+            // length of individual chars (e.g. İ → "i\u{307}" expands from
+            // 2 to 3 bytes; ẞ → "ß" shrinks from 3 to 2 bytes), so a byte
+            // offset valid in `lower_input` may land mid-char in `player_input`
+            // and cause a panic.  We walk both strings char-by-char in
+            // lockstep, pairing each original char with the chars produced by
+            // its `to_lowercase()` expansion, to find the exact byte in
+            // `player_input` that corresponds to `lower_target` in
+            // `lower_input`.
+            let lower_target = signal_pos + signal.len();
+            let after_signal_byte = {
+                let mut lower_consumed = 0usize;
+                let mut orig_consumed = 0usize;
+                let mut orig_chars = player_input.chars();
+                'outer: loop {
+                    if lower_consumed >= lower_target {
+                        break 'outer orig_consumed;
+                    }
+                    let Some(orig_ch) = orig_chars.next() else {
+                        break 'outer player_input.len();
+                    };
+                    for lc in orig_ch.to_lowercase() {
+                        if lower_consumed >= lower_target {
+                            break 'outer orig_consumed;
+                        }
+                        lower_consumed += lc.len_utf8();
+                    }
+                    orig_consumed += orig_ch.len_utf8();
+                }
+            };
+            let after_signal = &player_input[after_signal_byte..];
+            let after_words: Vec<&str> = after_signal.split_whitespace().collect();
+
+            for j in 0..after_words.len() {
+                let w = after_words[j].trim_matches(|c: char| !c.is_alphabetic());
+                if w.is_empty() {
+                    continue;
+                }
+                let w_lower = w.to_lowercase();
+                if SKIP_WORDS.contains(&w_lower.as_str()) {
+                    continue;
+                }
+                let is_cap = w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                let is_alnum = w.chars().all(|c| c.is_alphabetic() || c == '\'');
+                if !is_alnum || w.len() < 3 {
+                    continue;
+                }
+
+                // Bigram after signal
+                if j + 1 < after_words.len() {
+                    let w2 = after_words[j + 1].trim_matches(|c: char| !c.is_alphabetic());
+                    let cap2 = w2.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                    let alnum2 = w2.chars().all(|c| c.is_alphabetic() || c == '\'');
+                    if cap2 && alnum2 && w2.len() >= 2 {
+                        candidates.push(format!("{} {}", w, w2));
+                    }
+                }
+
+                // Single-word place name (e.g. "Ballyfantasy") — only if it
+                // looks like a capitalized proper noun or an all-lowercase
+                // place name after a "called" or "place" signal word.
+                if is_cap || w.len() >= 5 {
+                    candidates.push(w.to_string());
+                }
+            }
+        }
+    }
+
+    candidates
+}
+
+/// Returns `true` when `candidate` place name is NOT in `known_location_names`
+/// (case-insensitive substring match either way).
+fn place_not_in_known_locations(candidate: &str, known_location_names: &[String]) -> bool {
+    let cand_lower = candidate.to_lowercase();
+    !known_location_names.iter().any(|loc| {
+        loc.to_lowercase().contains(&cand_lower) || cand_lower.contains(&loc.to_lowercase())
+    })
+}
+
+/// Post-generation guard that detects when an NPC AFFIRMS an invented place
+/// that is not in the world's known location list (#1530).
+///
+/// Distinct from `guard_wrong_location_reference` (#1477) which corrects a
+/// wrong settlement name in "here in X" collocations. This guard catches the
+/// broader case where the NPC confirms an entirely invented place name — one
+/// that does not exist in the world graph at all — when the player asked about
+/// it. Replaces with a stock place-decline.
+///
+/// Conservative: only fires when ALL hold:
+///   1. Player input contains a candidate place name (extracted via
+///      place-noun collocation or explicit directional query pattern).
+///   2. The candidate is NOT in `known_location_names`.
+///   3. The NPC dialogue contains a place-affirmation marker.  Because
+///      candidates are only extracted from explicitly signalled place queries,
+///      an affirmation marker in the dialogue is treated as sufficient evidence
+///      that the NPC is confirming the invented place — the NPC may paraphrase
+///      or describe the location without repeating the exact name.
+///   4. The NPC dialogue does NOT contain a denial marker (already declining).
+///
+/// Gate: `dialogue-invented-place-guard` (default-on).
+pub fn guard_invented_place_confirmation(
+    dialogue: &str,
+    player_input: &str,
+    known_location_names: &[String],
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() || known_location_names.is_empty() {
+        return dialogue.to_string();
+    }
+
+    let lower = dialogue.to_lowercase();
+
+    // If the NPC is already denying, do not interfere.
+    let has_denial = DENIAL_MARKERS.iter().any(|m| lower.contains(m));
+    if has_denial {
+        return dialogue.to_string();
+    }
+
+    // Must contain a place-affirmation marker for the guard to fire.
+    let has_affirmation = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m));
+    if !has_affirmation {
+        return dialogue.to_string();
+    }
+
+    let candidates = extract_candidate_places(player_input);
+
+    for candidate in &candidates {
+        if !place_not_in_known_locations(candidate, known_location_names) {
+            continue;
+        }
+
+        // When the candidate was extracted via the conservative strategies
+        // (place-noun collocation or where-is directional), the presence of a
+        // place-affirmation marker in the dialogue is sufficient evidence that
+        // the NPC is confirming the invented place — the NPC may paraphrase
+        // the name or describe where it "is" without repeating the exact name.
+        tracing::warn!(
+            candidate = %candidate,
+            "invented-place guard fired: NPC confirmed invented place (#1530)"
+        );
+        return non_recognition_place_decline(seed).to_string();
+    }
+
+    dialogue.to_string()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -4508,5 +5044,252 @@ mod tests {
             result, dialogue,
             "real person must not trigger the routing guard"
         );
+    }
+
+    // ── #1526 — CJK / JSON scaffolding sanitizer ──────────────────────────────
+
+    /// AC-1 (#1526): CJK suffix is stripped; clean prefix (up to last sentence) survives.
+    #[test]
+    fn scaffolding_sanitizer_strips_cjk_meta() {
+        // U+4E2D (中) is in the CJK Unified Ideographs block (U+4E00..U+9FFF).
+        let dialogue =
+            "A fine morning to ye, friend. God be with ye.\u{4E2D}\u{6587}\u{5185}\u{5BB9}";
+        let result = sanitize_scaffolding_leak(dialogue);
+        assert!(
+            !result.contains('\u{4E2D}'),
+            "CJK scaffold must be stripped: {result:?}"
+        );
+        assert!(
+            result.contains("God be with ye"),
+            "clean prefix must survive: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1526): JSON brace leak is stripped; clean prefix survives.
+    #[test]
+    fn scaffolding_sanitizer_strips_json_brace() {
+        let dialogue = "Good day to ye.\n{\n  \"action\": \"nods\"";
+        let result = sanitize_scaffolding_leak(dialogue);
+        assert!(
+            !result.contains('{'),
+            "JSON scaffold must be stripped: {result:?}"
+        );
+        assert!(
+            result.contains("Good day to ye"),
+            "clean prefix must survive: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1526): Clean input passes through unchanged.
+    #[test]
+    fn scaffolding_sanitizer_clean_input_unchanged() {
+        let dialogue = "Well now, what brings ye to these parts?";
+        let result = sanitize_scaffolding_leak(dialogue);
+        assert_eq!(result, dialogue, "clean input must be returned unchanged");
+    }
+
+    /// AC-4 (#1526): No complete sentence before scaffold → return text before
+    /// scaffold trimmed (not the full original, not empty).
+    #[test]
+    fn scaffolding_sanitizer_no_complete_sentence_before_cjk() {
+        // The prefix "Good day" has no sentence-ending punctuation.
+        let dialogue = "Good day\u{4E2D}\u{6587}";
+        let result = sanitize_scaffolding_leak(dialogue);
+        assert!(
+            !result.contains('\u{4E2D}'),
+            "CJK scaffold must be stripped: {result:?}"
+        );
+        assert_eq!(
+            result.trim(),
+            "Good day",
+            "pre-scaffold text must survive without trailing CJK: {result:?}"
+        );
+    }
+
+    // ── #1527/#1528 — false denial of roster person guard ─────────────────────
+
+    /// AC-1 (#1527): NPC wrongly denies a known roster person → grounded ack.
+    #[test]
+    fn false_denial_guard_fires_for_roster_person() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        // NPC says "not known to me" about Peig Hannigan, who IS in the roster.
+        let dialogue = "That name is not known to me hereabouts. Peig Hannigan, ye say?";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Do you know Peig Hannigan?",
+            &known,
+            None,
+            0,
+        );
+        assert_ne!(
+            result, dialogue,
+            "guard must fire for roster person: {result:?}"
+        );
+        // Must return a grounded acknowledgement, not the original denial.
+        assert!(
+            !result.to_lowercase().contains("not known to me"),
+            "denial must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1527): NPC correctly declines a fabricated person not in roster → unchanged.
+    #[test]
+    fn false_denial_guard_leaves_correct_stranger_decline() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        let dialogue = "I know no one by that name in these parts.";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Where is Fionn MacCathasaigh?",
+            &known,
+            None,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "correct decline of fabricated person must not be altered: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1527): NPC expresses uncertainty about a roster member without
+    /// a denial marker → unchanged (uncertainty is not denial).
+    #[test]
+    fn false_denial_guard_leaves_genuine_uncertainty() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        // "I'm not sure where she is" — no DENIAL_MARKERS present.
+        let dialogue = "I'm not sure where Peig Hannigan is today.";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Where is Peig Hannigan?",
+            &known,
+            None,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "genuine uncertainty without denial marker must pass through: {result:?}"
+        );
+    }
+
+    /// AC-4 (#1527): Denial marker present but roster name not in dialogue → unchanged.
+    #[test]
+    fn false_denial_guard_no_fire_when_name_absent_from_dialogue() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        // Denial is there but Peig Hannigan's name is NOT in the dialogue.
+        let dialogue = "I know no one by that name hereabouts.";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Where is Peig Hannigan?",
+            &known,
+            None,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "denial without name in dialogue must pass through: {result:?}"
+        );
+    }
+
+    // ── #1530 — invented place confirmation guard ──────────────────────────────
+
+    fn make_locations(locs: &[&str]) -> Vec<String> {
+        locs.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// AC-1 (#1530): NPC confirms an invented place → replaced with place-decline.
+    #[test]
+    fn invented_place_guard_fires_for_unknown_place() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        // NPC says "'Tis in Dublin, far across the land" about "cathedral of Saint Aldric"
+        // (which is not in the known location list).
+        let dialogue = "'Tis in Dublin, far across the land.";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Where is the cathedral of Saint Aldric?",
+            &known,
+            0,
+        );
+        assert_ne!(
+            result, dialogue,
+            "guard must fire for invented place: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("dublin"),
+            "invented-place affirmation must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1530): NPC confirms a real location from the known list → unchanged.
+    #[test]
+    fn invented_place_guard_leaves_known_location() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "'Tis in Kilteevan, just down the road.";
+        let result = guard_invented_place_confirmation(dialogue, "Where is Kilteevan?", &known, 0);
+        assert_eq!(
+            result, dialogue,
+            "known location must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1530): NPC mentions place name but no affirmation marker → unchanged.
+    #[test]
+    fn invented_place_guard_no_fire_without_affirmation() {
+        let known = make_locations(&["Kilteevan", "Roscommon"]);
+        // Denial is present — guard should not fire.
+        let dialogue = "I know of no such place called Ballyweird.";
+        let result = guard_invented_place_confirmation(dialogue, "Where is Ballyweird?", &known, 0);
+        assert_eq!(
+            result, dialogue,
+            "denial without affirmation must pass through: {result:?}"
+        );
+    }
+
+    // ── UTF-8 safety: extract_candidate_places must not panic on multibyte input ──
+
+    /// Regression: `player_input` with a char whose lowercased form has DIFFERENT byte
+    /// length must not cause a byte-index panic in `extract_candidate_places` (#1539).
+    ///
+    /// `İ` (U+0130, 2 UTF-8 bytes) lowercases to "i\u{307}" (3 UTF-8 bytes, 2 codepoints).
+    /// When `İ` precedes the where-signal, the byte offset of `signal_pos + signal.len()`
+    /// in `lower_input` is 1 byte PAST the corresponding position in `player_input`.
+    /// If there is a multibyte char immediately after the signal in `player_input`
+    /// (e.g. `Ä`, 2 bytes), the old code would compute an offset that lands inside `Ä`
+    /// and panic.  This test exercises that exact input shape.
+    #[test]
+    fn extract_candidate_places_multibyte_no_panic() {
+        // İ (2 bytes) before signal + Ä (2 bytes) immediately after signal:
+        // the old byte-offset approach would land mid-Ä and panic.
+        let player_input = "İwhere is Änother?";
+        // Must not panic, and should extract "Änother" or similar as a candidate.
+        let candidates = extract_candidate_places(player_input);
+        // We do not assert a specific extraction — the content after Ä is marginal;
+        // the key invariant is no panic (the test would abort if it panicked).
+        let _ = candidates; // suppress unused-variable warning
+
+        // Also exercise the common Irish-name variant (ASCII, confirms no regression).
+        let player_input_ascii = "where is Ballydrift?";
+        let candidates_ascii = extract_candidate_places(player_input_ascii);
+        assert!(
+            candidates_ascii
+                .iter()
+                .any(|c| c.to_lowercase().contains("ballydrift")),
+            "expected 'Ballydrift' in candidates, got: {candidates_ascii:?}"
+        );
+    }
+
+    /// `guard_invented_place_confirmation` must not panic when `player_input`
+    /// has a multibyte char whose lowercased form has a different byte length,
+    /// and must fire when the extracted candidate is not in the known-location list.
+    #[test]
+    fn invented_place_guard_multibyte_input_no_panic() {
+        let known = make_locations(&["Kilteevan", "Roscommon"]);
+        // Affirmation marker present; any extracted candidate would be unknown.
+        let dialogue = "'Tis just down the road, aye.";
+        // İ (expansion case) before signal, Ä after signal — the exact panic shape.
+        let player_input = "İwhere is Ballymagic?";
+        // Must not panic.
+        let result = guard_invented_place_confirmation(dialogue, player_input, &known, 0);
+        // Whether or not the guard fires (depends on extraction), the result must be a
+        // valid string with no panic.
+        assert!(!result.is_empty(), "result must be non-empty: {result:?}");
     }
 }

@@ -443,3 +443,194 @@ fn real_loop_spelled_out_honorific_of_roster_member_not_denied() {
         );
     }
 }
+
+// ── #1526 — CJK/JSON scaffolding sanitizer (real-loop) ───────────────────────
+
+/// AC-1 (#1526, real-loop): When the mock model emits CJK meta-reasoning as a
+/// suffix inside the `dialogue` field, the `sanitize_scaffolding_leak` guard
+/// (called from `guard_verbosity_runons`) must strip it. The clean prefix before
+/// the scaffold must survive in the player-visible DialogueOccurred event.
+#[test]
+fn real_loop_cjk_scaffolding_sanitized() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // Mock response: clean Irish dialogue followed by CJK scaffold text.
+    // U+4E2D (中) is in the CJK Unified Ideographs block — unmistakeable scaffold.
+    let clean_part = "A fine morning to ye.";
+    let cjk_scaffold = "\u{4E2D}\u{6587}\u{5185}\u{5BB9}\u{6CE8}\u{91CA}";
+    let raw_model_output = format!("{clean_part}{cjk_scaffold}");
+
+    h.mock().push_for(&speaker_name, raw_model_output);
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!("talk to {speaker_name}"));
+
+    let dialogue_events = drain(&mut rx);
+    let dialogue_texts: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !dialogue_texts.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = dialogue_texts.join(" ");
+
+    // CJK scaffold must not appear in player-visible output.
+    assert!(
+        !joined.contains('\u{4E2D}'),
+        "CJK scaffold must be stripped by the real-loop guard (#1526); got: {joined:?}"
+    );
+
+    // The clean prefix must survive.
+    assert!(
+        joined.contains("fine morning"),
+        "clean dialogue prefix must survive CJK scaffold removal (#1526); got: {joined:?}"
+    );
+}
+
+// ── #1527/#1528 — false denial of roster NPC (real-loop) ─────────────────────
+
+/// AC-1 (#1527/#1528, real-loop): When the mock model denies knowing a real
+/// roster NPC by name, the `guard_false_denial_of_roster_person` guard must
+/// replace the false denial with a grounded acknowledgement.
+#[test]
+fn real_loop_false_denial_of_roster_npc_corrected() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // Find a second real NPC in the parish (the one we moved away).
+    let other_name: String = {
+        let player_loc = h.app.world.player_location;
+        h.app
+            .npc_manager
+            .all_npcs()
+            .find(|n| n.location != player_loc)
+            .map(|n| n.name.clone())
+            .expect("there must be a second NPC in the parish")
+    };
+
+    // The mock model wrongly denies knowing this real roster member.
+    let false_denial = format!("That name is not known to me hereabouts. {other_name}, ye say?");
+
+    h.mock().push_for(&speaker_name, false_denial.clone());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!("Do you know {other_name}?"));
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The false denial must have been replaced with a grounded acknowledgement.
+    // The guard replaces the entire dialogue, so the original denial phrase
+    // must NOT appear in the output.
+    assert!(
+        !joined.to_lowercase().contains("not known to me"),
+        "false denial of roster NPC must be corrected (#1527/#1528); \
+         denial phrase still present in: {joined:?}"
+    );
+}
+
+// ── #1530 — invented place confirmation guard (real-loop) ────────────────────
+
+/// AC-1 (#1530, real-loop): When the mock model affirms an invented place not
+/// in the world's location list, the `guard_invented_place_confirmation` guard
+/// must replace the affirmation with a place-decline.
+#[test]
+fn real_loop_invented_place_confirmation_declined() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // The invented place "Ballyfantasy" is not in the Rundale world graph.
+    // The mock model confirms it — the guard must intercept.
+    let invented_affirmation = "'Tis in Ballyfantasy, over the hill to the east.";
+
+    h.mock()
+        .push_for(&speaker_name, invented_affirmation.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop("Where is Ballyfantasy?");
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The invented place affirmation must have been replaced with a decline.
+    assert!(
+        !joined.to_lowercase().contains("ballyfantasy"),
+        "invented place affirmation must be replaced by the guard (#1530); \
+         invented place name still present in: {joined:?}"
+    );
+}
+
+// ── #1531 — physical action narration in populated scene (real-loop) ──────────
+
+/// AC-1 (#1531, real-loop): A first-person physical action ("I pick up …")
+/// submitted while an NPC is co-located must produce a `text-log` event with
+/// subtype "action" containing the narrated player action, rather than being
+/// silently dropped.
+///
+/// The `is_interact` branch in `handle_game_input` calls `handle_interact`,
+/// which emits the You-line. This test verifies the full path fires via the
+/// real game loop with a co-located NPC present.
+#[test]
+fn real_loop_physical_action_produces_you_line() {
+    let (mut h, _speaker_name) = harness_with_one_npc();
+
+    // `handle_interact` is synchronous and emits the text-log before any NPC
+    // inference is attempted. No mock model response is needed.
+    let events = h.execute_via_real_loop("I pick up one of the horseshoes from the hook.");
+
+    // We expect at least one `text-log` event with source "action" that says
+    // "You pick up …". (`handle_interact` sets `source = "action"`.)
+    let action_events: Vec<_> = events
+        .iter()
+        .filter(|(name, payload)| {
+            name == "text-log" && payload.get("source").and_then(|s| s.as_str()) == Some("action")
+        })
+        .collect();
+
+    assert!(
+        !action_events.is_empty(),
+        "physical action must produce a text-log event with source='action' (#1531); \
+         got events: {events:?}"
+    );
+
+    // The content must narrate the pick-up.
+    let content = action_events[0]
+        .1
+        .get("content")
+        .and_then(|s| s.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    assert!(
+        content.contains("pick up"),
+        "You-line must narrate the player's pick-up action (#1531); \
+         got content: {content:?}"
+    );
+}
