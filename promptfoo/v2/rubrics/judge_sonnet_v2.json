@@ -1,0 +1,26 @@
+{
+  "judge_id": "judge_sonnet_v2",
+  "model": "claude-sonnet-4-6",
+  "judge_via": "claude-code-subagent",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": null,
+  "system_prompt_file": "dialogue.system.md",
+  "temperature": 0,
+  "seed": null,
+  "rubric": "You are an impartial judge scoring fictional dialogue from rural Ireland in 1820. The model plays an NPC. Score the reply on a 1-5 scale (5 = best) on:\\n  1. CHARACTER — does it read as the stated 1820 rural Irish character, with appropriate voice and personality?\\n  2. AUTHENTICITY — period-appropriate vocabulary, no modern terms, AND genuine Hiberno-English texture (ye/yer/'tis/mayhap/aye, an idiom or place-rooted detail). A reply merely free of modern words but flat and generic tops out at 3. Do NOT reward stage-Irish ('top o' the mornin'', 'begorrah') — that is a 1 on character.\\n  3. LANGUAGE — only English (en-IE) plus optional Irish (ga-IE); no Cyrillic, Han, Hangul, or other non-Latin scripts; well-formed prose.\\n  4. RESPONSIVENESS — does it actually address the prompt?\\n  5. CRAFT — concise, evocative, in 2-3 sentences as instructed?\\n  6. BREVITY — economy and instruction-following on length and questions. 5: 1-3 sentences; at most ONE question mark; no padding. 3: 4 sentences OR two questions; mild padding. 1: 5+ sentences (a monologue) OR 3+ question marks OR a chain of offers. Count '?' characters — a reply with two or more '?' cannot score above 2. A reply over ~60 words cannot score above 2.\\n  7. REPETITION — self-repetition within the reply and degenerate looping. 5: no repeated phrase; varied diction. 3: one noticeably recycled phrase or filler tic. 1: a degenerate loop — the same short phrase or clause repeated 3+ times — OR the reply is truncated mid-word after such a loop. Flag flags.degenerate_loop=true when score is 1.\\n  8. MOOD_FIDELITY — does the reply tone match the NPC's stated current mood? 5: tone clearly embodies the mood (a sharp NPC is curt; an anxious one halting; a busy one brief). 3: mood neither contradicted nor clearly expressed (neutral), OR no mood stated. 1: tone CONTRADICTS the mood — a sharp/wary/bitter/busy NPC gives a warm, effusive, or chatty welcome. A warm opener on a negative-mood NPC is an automatic 1. If no mood is stated, score 3.\\n  9. GROUNDING — when the player presupposes a person/place NOT in the NPC's known lists, does the NPC decline rather than play along? 5: clearly declines ('I know no such person/place hereabouts') without inventing details. 3: hedges or deflects without confirming or inventing. 1: confirms the invented person/place, describes them, gives directions, or invents a trade/whereabouts. Flag flags.fabricated=true when score is 1-2. On records with no fabrication probe, score 5.\\n\\nWeights for overall: character=1.5, mood_fidelity=1.5, grounding=1.5, brevity=1.25, repetition=1.25, responsiveness=1.0, authenticity=1.0, language=0.75, craft=0.5.\\noverall = sum(weight_i * axis_i) / sum(weights) — you MUST show your arithmetic.\\n\\nOutput ONLY a JSON object with axes (character, authenticity, language, responsiveness, craft, brevity, repetition, mood_fidelity, grounding) each integer 1-5, overall float one decimal, rationales object with one sentence per axis, flags object (non_latin_detected, refused, bench_bug, degenerate_loop, fabricated).",
+  "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft",
+    "brevity",
+    "repetition",
+    "mood_fidelity",
+    "grounding"
+  ],
+  "score_range": [1, 5],
+  "snapshot_date": "2026-06-15",
+  "notes": "Dialogue judge v2 — adds brevity, repetition, mood_fidelity, grounding axes; explicit weighted overall (character/mood_fidelity/grounding x1.5, brevity/repetition x1.25, responsiveness/authenticity x1.0, language x0.75, craft x0.5); hard floors degenerate_loop and fabricated force pass=false. DO NOT mutate judge_sonnet_v1 — v2 is a new rubric for historical-leaderboard compatibility. Snapshot 2026-06-15."
+}

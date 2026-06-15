@@ -112,9 +112,19 @@ def _gaeilge_candidate_prompt(rec: dict) -> str:
 # Per-slice metadata: which judge rubric + axes, and the candidate max_tokens.
 SLICE_META: dict[str, dict[str, Any]] = {
     "dialogue": {
-        "rubric": "judge_sonnet_v1",
+        "rubric": "judge_sonnet_v2",
         "system": "dialogue.system.md",
-        "axes": ["character", "authenticity", "language", "responsiveness", "craft"],
+        "axes": [
+            "character",
+            "authenticity",
+            "language",
+            "responsiveness",
+            "craft",
+            "brevity",
+            "repetition",
+            "mood_fidelity",
+            "grounding",
+        ],
     },
     "reaction": {
         "rubric": "judge_reaction_v1",
@@ -129,7 +139,7 @@ SLICE_META: dict[str, dict[str, Any]] = {
         "axes": ["fluency", "grammar", "idiom", "task_fulfillment", "english_leakage"],
     },
     "multiturn": {
-        "rubric": "judge_multiturn_v1",
+        "rubric": "judge_multiturn_v2",
         "system": "multiturn.system.md",
         "axes": [
             "continuity",
@@ -137,6 +147,7 @@ SLICE_META: dict[str, dict[str, Any]] = {
             "no_premature_farewell",
             "persona_consistency",
             "memory_retention",
+            "freshness",
         ],
     },
     "intent": {"rubric": None, "system": None, "axes": []},
@@ -426,6 +437,8 @@ def judge_item(slice_name: str, prompt_id: str, prompt: str, response: str, rec:
                 "bench_bug": bool(flags.get("bench_bug", False)),
                 "non_latin_detected": bool(flags.get("non_latin_detected", False)),
                 "refused": bool(flags.get("refused", False)),
+                "degenerate_loop": bool(flags.get("degenerate_loop", False)),
+                "fabricated": bool(flags.get("fabricated", False)),
             },
             "judge_model": judge["model"],
         }
