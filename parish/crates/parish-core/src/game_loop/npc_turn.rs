@@ -2040,27 +2040,33 @@ pub mod tests {
         )
         .await;
 
-        let events = emitter.events.lock().unwrap();
+        // Scope the std `MutexGuard` in a block so it is structurally dropped
+        // before the second `run_npc_turn().await` below — clippy's
+        // `await_holding_lock` does not honour an explicit `drop()` here.
+        let corrected_text = {
+            let events = emitter.events.lock().unwrap();
 
-        // 1. `dialogue-corrected` must be present.
-        let corrected = events
-            .iter()
-            .find(|(name, _)| name == "dialogue-corrected")
-            .map(|(_, payload)| payload.clone());
-        assert!(
-            corrected.is_some(),
-            "expected a `dialogue-corrected` event when the verbosity guard \
-             shortens a 5-sentence reply to 4 (fix #1552); emitted events: {:#?}",
-            events.iter().map(|(n, _)| n).collect::<Vec<_>>()
-        );
+            // 1. `dialogue-corrected` must be present.
+            let corrected = events
+                .iter()
+                .find(|(name, _)| name == "dialogue-corrected")
+                .map(|(_, payload)| payload.clone());
+            assert!(
+                corrected.is_some(),
+                "expected a `dialogue-corrected` event when the verbosity guard \
+                 shortens a 5-sentence reply to 4 (fix #1552); emitted events: {:#?}",
+                events.iter().map(|(n, _)| n).collect::<Vec<_>>()
+            );
 
-        // 2. The corrected text must be shorter than the raw response.
-        let corrected_text = corrected
-            .unwrap()
-            .get("corrected_text")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+            // 2. Extract the corrected text.
+            corrected
+                .unwrap()
+                .get("corrected_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+
         assert!(
             corrected_text.len() < raw_five_sentences.len(),
             "corrected_text ({} chars) must be shorter than the raw 5-sentence \
@@ -2068,8 +2074,6 @@ pub mod tests {
             corrected_text.len(),
             raw_five_sentences.len(),
         );
-
-        drop(events);
 
         // 3. Kill-switch: with `post-guard-ui-replace` disabled, no
         //    `dialogue-corrected` event must be emitted.
