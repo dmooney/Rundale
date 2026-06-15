@@ -634,3 +634,61 @@ fn real_loop_physical_action_produces_you_line() {
          got content: {content:?}"
     );
 }
+
+// ── #1553 — player self-introduction not denied (real-loop) ──────────────────
+
+/// AC-1 (#1553, real-loop): When the player introduces themselves ("I am Aiden
+/// Carney") and the NPC mock model replies with a warm welcome that contains
+/// the player's name alongside affirmation markers, `guard_fabricated_person_confirmation`
+/// (called from `run_npc_turn`) must NOT replace the warm welcome with a canned
+/// denial. The player's own name must be exempt from the fabricated-person guard
+/// via `setup.player_name` threaded from `NpcConversationSetup`.
+#[test]
+fn real_loop_player_self_introduction_not_denied() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // The mock model replies with a warm welcome that contains the player's name
+    // and affirmation markers that would previously trigger the guard.
+    let warm_welcome = "'Tis a fine mornin', Aiden Carney! Welcome to Kilteevan, indeed! \
+                        A cooper is just what we need in these parts.";
+
+    h.mock().push_for(&speaker_name, warm_welcome.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    // Player introduces themselves — detect_and_record_player_name fires first.
+    let _events = h.execute_via_real_loop("I am Aiden Carney, a cooper newly come to Kilteevan.");
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The warm welcome must NOT have been replaced with a canned denial.
+    // Canned denials contain "not known to me", "know no one by that name", etc.
+    assert!(
+        !joined.to_lowercase().contains("not known to me"),
+        "player self-introduction must not trigger the denial guard (#1553); \
+         warm welcome was replaced with a canned denial in: {joined:?}"
+    );
+    assert!(
+        !joined.to_lowercase().contains("know no one by that name"),
+        "player self-introduction must not trigger the denial guard (#1553); \
+         wrong canned decline in: {joined:?}"
+    );
+
+    // The warm welcome must survive intact.
+    assert!(
+        joined.contains("Aiden Carney"),
+        "player name must survive in the NPC's reply (#1553); got: {joined:?}"
+    );
+}
