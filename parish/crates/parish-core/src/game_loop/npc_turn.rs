@@ -433,7 +433,7 @@ pub async fn run_npc_turn(
             prompt_input,
             &setup.known_person_names,
             &prior_player_inputs,
-            None,
+            setup.player_name.as_deref(),
             guard_seed,
         );
         if guarded != parsed.dialogue {
@@ -453,7 +453,7 @@ pub async fn run_npc_turn(
             &parsed.dialogue,
             prompt_input,
             &setup.known_person_names,
-            None,
+            setup.player_name.as_deref(),
             guard_seed,
         );
         if guarded != parsed.dialogue {
@@ -499,7 +499,7 @@ pub async fn run_npc_turn(
             &parsed.dialogue,
             prompt_input,
             &setup.known_person_names,
-            None,
+            setup.player_name.as_deref(),
             guard_seed,
         );
         if guarded != parsed.dialogue {

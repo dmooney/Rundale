@@ -1671,6 +1671,100 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
     cap_sentence_count_with_limit(dialogue, cap)
 }
 
+// ── #1554 — nearby phrase repeat collapse ─────────────────────────────────────
+
+/// Collapses a phrase that appears twice within a 20-word window (#1554).
+///
+/// When the verbosity guards produce an output where a 3–5 word phrase appears
+/// twice within a 20-word span (not necessarily adjacent), this function
+/// truncates at the end of the first occurrence and trims to the nearest
+/// preceding sentence boundary. Example:
+///
+/// "Aye, tell me indeed, what say ye now, indeed, what be it?" →
+/// `collapse_nearby_phrase_repeat` sees "indeed, what" (3 tokens normed) at
+/// positions 3 and 8 within a 20-word window and trims to "Aye, tell me indeed."
+/// (or the prefix up to the first occurrence when no sentence boundary exists
+/// before it).
+///
+/// Conservative: only fires for phrase widths 3–5, exactly 2 occurrences within
+/// a 20-word window, and only when the words involved have meaningful content.
+/// Does not fire on natural varied prose.
+///
+/// Exposed for tests.
+pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let n = words.len();
+
+    const MIN_WIDTH: usize = 3;
+    const MAX_WIDTH: usize = 5;
+    // Maximum words between the START of the first occurrence and the START
+    // of the second occurrence. Covers same-sentence embedded repeats.
+    const MAX_START_GAP: usize = 20;
+
+    // Largest width first: richer context, fewer false positives.
+    for width in (MIN_WIDTH..=MAX_WIDTH).rev() {
+        if width * 2 > n {
+            continue;
+        }
+        for i in 0..=(n.saturating_sub(width)) {
+            let ngram: Vec<String> = words[i..i + width]
+                .iter()
+                .map(|w| normalize_for_repetition(w))
+                .collect();
+            // Skip all-stopword n-grams (e.g. "and the a") — too common to be
+            // meaningful repeated phrases. Require at least one content word.
+            let has_content = ngram.iter().any(|t| t.len() >= 4);
+            if !has_content {
+                continue;
+            }
+            // Search for a second occurrence within MAX_START_GAP words.
+            let search_end = (i + MAX_START_GAP).min(n.saturating_sub(width) + 1);
+            for j in (i + width)..search_end {
+                let other: Vec<String> = words[j..j + width]
+                    .iter()
+                    .map(|w| normalize_for_repetition(w))
+                    .collect();
+                if ngram == other {
+                    // Found a nearby repeat. Build the prefix up to (and
+                    // including) the end of the first occurrence, then
+                    // trim to the nearest sentence boundary.
+                    let prefix_words = &words[..i + width];
+                    let prefix = prefix_words.join(" ");
+                    // Look for the last sentence-end marker in the prefix.
+                    if let Some(last_end) = prefix.rfind(['.', '!', '?']) {
+                        let sentence_end = last_end + 1;
+                        let trimmed = prefix[..sentence_end].trim();
+                        if !trimmed.is_empty() {
+                            tracing::debug!(
+                                phrase = %ngram.join(" "),
+                                "collapsed nearby phrase repeat at sentence boundary (#1554)"
+                            );
+                            return trimmed.to_string();
+                        }
+                    }
+                    // No sentence boundary before the repeat — return the prefix
+                    // as-is so we don't produce empty output.
+                    let trimmed = prefix.trim();
+                    if !trimmed.is_empty() {
+                        tracing::debug!(
+                            phrase = %ngram.join(" "),
+                            "collapsed nearby phrase repeat (no sentence boundary) (#1554)"
+                        );
+                        return trimmed.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    text.to_string()
+}
+
 /// Runs the full verbosity guard pipeline with optional mood-aware sentence cap (#1491).
 ///
 /// When `mood` is `Some` and contains a "busy" mood keyword, the sentence cap
@@ -1688,7 +1782,10 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
     let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
+    // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
+    // that the consecutive guard (step 5, strictly adjacent) misses.
+    let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count_for_mood(&after_trailing_q, mood);
@@ -2061,7 +2158,10 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
     let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
+    // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
+    // that the consecutive guard (step 5, strictly adjacent) misses.
+    let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count(&after_trailing_q);
@@ -5291,5 +5391,118 @@ mod tests {
         // Whether or not the guard fires (depends on extraction), the result must be a
         // valid string with no panic.
         assert!(!result.is_empty(), "result must be non-empty: {result:?}");
+    }
+
+    // ── #1553 — player name exempt from fabricated-person guard ──────────────
+
+    /// When `player_name` is supplied the guard must exempt the player's own
+    /// name from the fabricated-person check (#1553).
+    #[test]
+    fn player_self_introduction_not_denied_when_player_name_passed() {
+        // Warm welcome that contains the player's own name plus affirmation
+        // markers. Must NOT be replaced when player_name is passed.
+        let dialogue = "'Tis a fine mornin', Aiden Carney! Welcome to Kilteevan, indeed! \
+                        A cooper is just what we need. Sit ye down.";
+        let player_input = "I am Aiden Carney, a cooper newly come to Kilteevan.";
+        // Player is NOT in the NPC roster.
+        let known: Vec<String> = vec!["Peig Hannigan".to_string()];
+
+        // Without player_name: the guard might treat "Aiden Carney" as fabricated.
+        // With player_name: the guard exempts it entirely.
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &[],
+            Some("Aiden Carney"),
+            42,
+        );
+        assert_eq!(
+            result, dialogue,
+            "player self-introduction must not trigger the fabricated-person guard when player_name is passed:\n{result}"
+        );
+    }
+
+    /// The NPC's own name IS in `known_person_names` (all parish NPCs are
+    /// included). The guard must never strip it (#1553).
+    #[test]
+    fn npc_own_name_in_roster_never_denied() {
+        let dialogue = "Good morning. Peig Hannigan, me name. And ye be new to these parts, aye?";
+        let player_input = "Are you Peig Hannigan?";
+        let known: Vec<String> = vec!["Peig Hannigan".to_string()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 42);
+        assert_eq!(
+            result, dialogue,
+            "NPC's own name in roster must never be stripped:\n{result}"
+        );
+    }
+
+    /// A grounded answer that mentions the player's name as a recipient (not
+    /// an affirmation of a fabricated third party) must pass through unchanged.
+    #[test]
+    fn grounded_work_answer_not_stripped() {
+        let dialogue = "The forge ye'll find near the bridge, and the mill needs sturdy casks. \
+                        There's work enough for a skilled cooper in Kilteevan.";
+        let player_input = "I am Aiden Carney, a cooper. Might there be work hereabouts?";
+        let known: Vec<String> = vec!["Peig Hannigan".to_string(), "Colm Murphy".to_string()];
+
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &[],
+            Some("Aiden Carney"),
+            42,
+        );
+        assert_eq!(
+            result, dialogue,
+            "grounded work answer must not be stripped by person-confirmation guard:\n{result}"
+        );
+    }
+
+    // ── #1554 — nearby phrase repeat collapse ─────────────────────────────────
+
+    /// The verbosity pipeline output "Aye, tell me indeed, what say ye now,
+    /// indeed, what be it?" has "indeed, what" repeated within a 20-word
+    /// window. The guard must trim it (#1554).
+    #[test]
+    fn collapse_nearby_phrase_repeat_cleans_stacked_tail() {
+        let input = "Aye, tell me indeed, what say ye now, indeed, what be it?";
+        let result = collapse_nearby_phrase_repeat(input);
+        // The second "indeed, what be it" occurrence must be removed.
+        // The result must not contain "indeed" twice within a short span.
+        let result_lower = result.to_lowercase();
+        let first = result_lower.find("indeed").unwrap_or(usize::MAX);
+        let last = result_lower.rfind("indeed").unwrap_or(usize::MAX);
+        assert!(
+            first == last || (last - first) > 15,
+            "nearby phrase repeat must be collapsed: first={first}, last={last}, result={result:?}"
+        );
+    }
+
+    /// Clean dialogue with no nearby repetition must pass through unchanged.
+    #[test]
+    fn collapse_nearby_phrase_repeat_noop_on_clean_dialogue() {
+        let input =
+            "Good morning to ye. The forge is near the bridge, and the mill is by the river.";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(result, input, "clean dialogue must not be modified");
+    }
+
+    /// A phrase repeated once with a very large gap (> 20 words) must not
+    /// trigger the guard — that is natural prose, not a degenerate loop.
+    #[test]
+    fn collapse_nearby_phrase_repeat_ignores_distant_repetition() {
+        // "well enough" appears twice but more than 20 words apart.
+        let input = "I know this land well enough, having walked every road from \
+                     Strokestown to Roscommon and back again, aye, and I know it \
+                     well enough to say there's no finer parish.";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(
+            result, input,
+            "distant repetition (> 20 words) must not trigger the guard"
+        );
     }
 }

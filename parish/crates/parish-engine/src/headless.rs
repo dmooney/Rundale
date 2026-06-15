@@ -802,6 +802,7 @@ fn apply_npc_response(
     npc_display_name: &str,
     npc_actual_name: &str,
     known_person_names: &[String],
+    player_name: Option<&str>,
 ) {
     let mut parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
@@ -822,7 +823,7 @@ fn apply_npc_response(
             player_input,
             known_person_names,
             &[],
-            None,
+            player_name,
             seed,
         );
         if guarded != parsed.dialogue {
@@ -873,6 +874,7 @@ async fn stream_headless_npc_dialogue(
     let system_prompt = setup.system_prompt;
     let context = setup.context;
     let known_person_names = setup.known_person_names.clone();
+    let setup_player_name = setup.player_name.clone();
 
     if let Some(queue) = &app.inference_queue {
         app.world.clock.inference_pause();
@@ -963,6 +965,7 @@ async fn stream_headless_npc_dialogue(
                                 &npc_display_name,
                                 &npc_actual_name,
                                 &known_person_names,
+                                setup_player_name.as_deref(),
                             );
                         }
                     }
