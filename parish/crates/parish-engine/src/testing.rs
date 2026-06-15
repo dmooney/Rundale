@@ -1358,6 +1358,7 @@ impl GameTestHarness {
                 &name,
                 &name,
                 None,
+                &[],
             );
             for event in outcome.debug_events {
                 self.app.debug_event(event);
@@ -1524,6 +1525,7 @@ impl GameTestHarness {
             &name,
             &name,
             None,
+            &[],
         );
         for event in outcome.debug_events {
             self.app.debug_event(event);

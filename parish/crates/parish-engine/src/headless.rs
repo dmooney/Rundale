@@ -852,6 +852,7 @@ fn apply_npc_response(
         npc_display_name,
         npc_actual_name,
         None,
+        &[],
     );
     for event in outcome.debug_events {
         app.debug_event(event);
