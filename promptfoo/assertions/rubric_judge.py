@@ -86,6 +86,25 @@ def get_assert(output, context):
         overall = sum(_DIALOGUE_V2_WEIGHTS[k] * axes[k] for k in _DIALOGUE_V2_WEIGHTS) / weight_sum
         overall = round(overall, 1)
 
+    # §3.7 (multiturn): recompute the multiturn overall from axes in code so it
+    # doesn't depend on the judge's arithmetic — mirrors the dialogue recompute above.
+    _MULTITURN_V2_WEIGHTS = {
+        "continuity": 1.5,
+        "name_fidelity": 1.5,
+        "no_premature_farewell": 1.25,
+        "persona_consistency": 1.25,
+        "memory_retention": 1.0,
+        "freshness": 0.5,
+    }
+    mt_axes = set(_MULTITURN_V2_WEIGHTS.keys())
+    if mt_axes.issubset(set(axes.keys())) and slice_name == "multiturn":
+        # All multiturn v2 axes present — recompute overall in code, ignore judge's value.
+        weight_sum = sum(_MULTITURN_V2_WEIGHTS.values())
+        overall = (
+            sum(_MULTITURN_V2_WEIGHTS[k] * axes[k] for k in _MULTITURN_V2_WEIGHTS) / weight_sum
+        )
+        overall = round(overall, 1)
+
     named["overall"] = float(overall)
 
     if flags.get("non_latin_detected"):
