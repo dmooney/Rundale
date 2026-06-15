@@ -11,6 +11,7 @@
 //! `docs/design/game-quality-harness-architecture.md`.
 
 pub mod actor;
+pub mod backfill;
 pub mod client;
 pub mod config;
 pub mod cost;
