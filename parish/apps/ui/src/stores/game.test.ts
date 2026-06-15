@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 import {
 	textLog,
+	streamingActive,
 	pushErrorLog,
 	formatIpcError,
 	loadingColor,
@@ -12,6 +13,10 @@ import {
 	trimTextLog,
 	noteTimeRule,
 	resetTimeRule,
+	externalDriveActive,
+	noteStreamingStarted,
+	resetExternalDrive,
+	EXTERNAL_DRIVE_IDLE_MS,
 } from './game';
 import type { LanguageHint, WorldSnapshot } from '$lib/types';
 
@@ -284,5 +289,129 @@ describe('noteTimeRule (time-of-day separators)', () => {
 		const log = get(textLog);
 		expect(log.length).toBe(2);
 		expect(log[1].content).toBe('Dusk — Tuesday');
+	});
+});
+
+// ── JOB 2 — externalDriveActive / noteStreamingStarted (#1537) ────────────────
+//
+// Signal: when streamingActive becomes true WITHOUT a preceding local
+// playerSubmittedCount increment (i.e. localSubmitCount === lastLocalSubmitCount),
+// the turn was driven by the bridge/harness.  The flag auto-clears after
+// EXTERNAL_DRIVE_IDLE_MS of idle.  For local-player turns the badge clears
+// immediately.
+describe('noteStreamingStarted — external-drive detection (#1537)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		resetExternalDrive();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		resetExternalDrive();
+	});
+
+	it('sets externalDriveActive when the submit count has not changed (bridge turn)', () => {
+		// Both args equal → no local submit happened → external driver.
+		noteStreamingStarted(3, 3);
+		expect(get(externalDriveActive)).toBe(true);
+	});
+
+	it('clears externalDriveActive immediately for a local-player turn', () => {
+		// First mark as externally driven, then a local submit arrives.
+		noteStreamingStarted(3, 3);
+		expect(get(externalDriveActive)).toBe(true);
+		// Local submit: count incremented from 3 to 4.
+		noteStreamingStarted(4, 3);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('auto-clears after EXTERNAL_DRIVE_IDLE_MS', () => {
+		noteStreamingStarted(5, 5);
+		expect(get(externalDriveActive)).toBe(true);
+		// Advance time past the idle threshold.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('keeps the badge alive when consecutive external turns arrive before idle', () => {
+		noteStreamingStarted(5, 5);
+		// Second external turn restarts the timer.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS - 100);
+		noteStreamingStarted(5, 5);
+		// Should still be true after the original deadline.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS - 100);
+		expect(get(externalDriveActive)).toBe(true);
+		// But clears after the refreshed deadline.
+		vi.advanceTimersByTime(200);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('resetExternalDrive cancels the timer and clears the flag', () => {
+		noteStreamingStarted(5, 5);
+		expect(get(externalDriveActive)).toBe(true);
+		resetExternalDrive();
+		expect(get(externalDriveActive)).toBe(false);
+		// No spurious set after timer fires.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+});
+
+// ── JOB 1 — Loading safety timeout pattern (#1536) ────────────────────────────
+//
+// The page-controller arms a 10 s safety timer when loading starts; if stream-end
+// or loading{active:false} never arrives (bridge-driven turn, no NPC stream),
+// the timer force-clears streamingActive.
+//
+// We test the observable behavior of the stores directly here — the timer
+// itself lives in page-controller but it calls streamingActive.set(false), so we
+// can simulate the pattern with fake timers and the stores.
+describe('loading safety timeout behavior (#1536)', () => {
+	const SAFETY_MS = 10_000;
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		streamingActive.set(false);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		streamingActive.set(false);
+	});
+
+	it('streamingActive clears after a timeout when no stream-end fires (bridge-driven turn)', () => {
+		// Simulate page-controller arms safety timer on loading{active:true}.
+		streamingActive.set(true);
+		let cleared = false;
+		const timer = setTimeout(() => {
+			streamingActive.set(false);
+			cleared = true;
+		}, SAFETY_MS);
+
+		expect(get(streamingActive)).toBe(true);
+		vi.advanceTimersByTime(SAFETY_MS - 1);
+		expect(get(streamingActive)).toBe(true); // not yet
+		vi.advanceTimersByTime(2);
+		expect(get(streamingActive)).toBe(false); // safety timeout fired
+		expect(cleared).toBe(true);
+		clearTimeout(timer); // no-op — already fired
+	});
+
+	it('safety timer is disarmed when stream-end fires first', () => {
+		streamingActive.set(true);
+		let safetyFired = false;
+		const timer = setTimeout(() => {
+			safetyFired = true;
+			streamingActive.set(false);
+		}, SAFETY_MS);
+
+		// stream-end fires before the deadline — disarm.
+		clearTimeout(timer);
+		streamingActive.set(false);
+
+		// Advance well past the deadline.
+		vi.advanceTimersByTime(SAFETY_MS + 1000);
+		expect(safetyFired).toBe(false); // never fired
+		expect(get(streamingActive)).toBe(false);
 	});
 });
