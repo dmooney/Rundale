@@ -401,9 +401,21 @@ export async function createPageController(): Promise<() => void> {
 					// Detect bridge-driven turns: if playerSubmittedCount hasn't
 					// changed since the last turn boundary, the input didn't come
 					// from the local InputField (#1537).
-					const currentCount = get(playerSubmittedCount);
-					noteStreamingStarted(currentCount, lastLocalSubmitCount);
-					lastLocalSubmitCount = currentCount;
+					//
+					// Only re-evaluate external/local at the START of a new chain
+					// (when !sm.isChainInProgress()).  During a multi-turn NPC
+					// conversation the backend cancels and re-spawns the loading
+					// animation per NPC turn, firing loading{active:true} multiple
+					// times within a single player-initiated interaction.  On those
+					// re-spawns playerSubmittedCount has NOT incremented again, so a
+					// naïve re-evaluation would falsely mark the whole chain as
+					// external (#1538).  Instead we inherit the chain's existing
+					// local/external classification for all re-spawned loadings.
+					if (!sm.isChainInProgress()) {
+						const currentCount = get(playerSubmittedCount);
+						noteStreamingStarted(currentCount, lastLocalSubmitCount);
+						lastLocalSubmitCount = currentCount;
+					}
 					// Arm the safety timeout so the spinner can't hang forever if
 					// the terminal event (stream-end / loading{active:false}) is
 					// lost (e.g. a bridge turn that emits no NPC stream, #1536).

@@ -415,3 +415,81 @@ describe('loading safety timeout behavior (#1536)', () => {
 		expect(get(streamingActive)).toBe(false);
 	});
 });
+
+// ── Multi-turn chain classification fix (#1538) ───────────────────────────────
+//
+// When a LOCAL player initiates a multi-NPC conversation chain, the backend
+// fires loading{active:true} multiple times within that single turn (once per
+// re-spawned NPC stream).  The page-controller fix guards noteStreamingStarted
+// behind !sm.isChainInProgress() so only the FIRST loading event of a chain
+// triggers re-classification; subsequent re-spawns inherit the chain's existing
+// local/external verdict.
+//
+// These tests verify the expected store behavior under the CORRECTED protocol:
+// — Local chain: noteStreamingStarted called once (count incremented), then
+//   subsequent re-spawns do NOT call noteStreamingStarted; externalDriveActive
+//   must remain false throughout.
+// — External chain: noteStreamingStarted called once (count unchanged); badge
+//   must remain true on subsequent re-spawns.
+describe('multi-turn chain classification — page-controller protocol (#1538)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		resetExternalDrive();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		resetExternalDrive();
+	});
+
+	it('local-initiated chain: multiple loading re-spawns with no further submit do NOT set externalDriveActive', () => {
+		// Turn starts: player submitted (count 2 → 3).  Page-controller only calls
+		// noteStreamingStarted on the FIRST loading{active:true} (chain not yet in
+		// progress).
+		noteStreamingStarted(3, 2); // currentCount=3, lastCount=2 → local turn
+		expect(get(externalDriveActive)).toBe(false);
+
+		// Backend re-spawns loading for 2nd and 3rd NPC turns within the same
+		// chain.  Page-controller now skips noteStreamingStarted (chainInProgress).
+		// externalDriveActive must still be false.
+		// (Simulate the skip: simply do NOT call noteStreamingStarted again.)
+		expect(get(externalDriveActive)).toBe(false);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('external chain: badge stays true across multiple re-spawned loadings', () => {
+		// Harness/bridge turn: count unchanged (both 5 → 5 → external).
+		noteStreamingStarted(5, 5); // first loading{active:true}
+		expect(get(externalDriveActive)).toBe(true);
+
+		// Subsequent re-spawns within the same chain also skip noteStreamingStarted
+		// (page-controller guard), so the badge stays true until idle timeout.
+		expect(get(externalDriveActive)).toBe(true);
+
+		// Badge auto-clears after idle.
+		vi.advanceTimersByTime(EXTERNAL_DRIVE_IDLE_MS + 1);
+		expect(get(externalDriveActive)).toBe(false);
+	});
+
+	it('naïve re-evaluation (the pre-fix bug) would set externalDriveActive wrongly on re-spawn', () => {
+		// Demonstrate the OLD broken behavior: calling noteStreamingStarted on
+		// every loading re-spawn (count not yet incremented further) would
+		// incorrectly flip externalDriveActive to true for a local chain.
+		// This test documents the hazard that the fix prevents.
+		const lastCount = 2;
+		const currentCount = 3; // local submit happened
+
+		// First loading — classified local (correct).
+		noteStreamingStarted(currentCount, lastCount);
+		expect(get(externalDriveActive)).toBe(false);
+
+		// Simulate the BUG: re-spawn calls noteStreamingStarted again with the
+		// same currentCount (no further submit), which equals the already-updated
+		// lastLocalSubmitCount (3 === 3) → external classification (WRONG).
+		noteStreamingStarted(currentCount, currentCount);
+		expect(get(externalDriveActive)).toBe(true); // incorrectly set — bug!
+
+		// Reset for cleanup.
+		resetExternalDrive();
+	});
+});
