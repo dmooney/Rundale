@@ -95,11 +95,36 @@
     }
     .turn-gallery { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
     .turn-thumb { display: flex; flex-direction: column; align-items: center; gap: .2rem; }
-    .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; }
-    .turn-thumb.clickable { cursor: pointer; }
+    .turn-thumb img { width: 80px; height: 60px; object-fit: cover; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; cursor: zoom-in; transition: border-color .12s ease; }
+    .turn-thumb img:hover { border-color: #7fa3d8; }
+    .turn-thumb.clickable { cursor: default; }
     .turn-thumb.clickable:hover img, .turn-thumb.active img { border-color: #5080c0; }
     .turn-thumb.active img { box-shadow: 0 0 0 1px #5080c0; }
     .turn-thumb-label { font-size: .68rem; color: #666; }
+    .turn-thumb-label.log-link { cursor: pointer; color: var(--blue); }
+    .turn-thumb-label.log-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+    /* Lightbox overlay */
+    #zoom-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.88);
+      align-items: center; justify-content: center;
+      cursor: zoom-out;
+    }
+    #zoom-overlay.open { display: flex; animation: overlay-in .15s ease both; }
+    @keyframes overlay-in { from { opacity: 0; } }
+    #zoom-overlay img {
+      max-width: min(96vw, 1200px); max-height: 90vh;
+      object-fit: contain; border-radius: 4px;
+      box-shadow: 0 4px 32px rgba(0,0,0,.7);
+      cursor: default;
+    }
+    #zoom-close {
+      position: fixed; top: 1rem; right: 1.25rem;
+      font-size: 1.6rem; line-height: 1; color: #bbb;
+      background: none; border: none; cursor: pointer;
+      padding: .25rem .5rem; border-radius: 4px;
+    }
+    #zoom-close:hover { color: #fff; background: rgba(255,255,255,.08); }
     .turn-log { margin: .5rem 0 1rem; background: #14141c; border: 1px solid #23232e; border-radius: 5px; padding: .6rem .8rem; font-size: .82rem; }
     .turn-log h4 { font-size: .9rem; color: #a89880; margin: 0 0 .4rem; }
     .tl-line { margin: .15rem 0; line-height: 1.45; }
@@ -202,6 +227,12 @@
   <footer style="margin-top:2rem;padding-top:.75rem;border-top:1px solid #1e1e2a;font-size:.75rem;color:#555;">
     <span id="cost-footer">Cost: loading…</span>
   </footer>
+
+  <!-- Lightbox overlay for full-size turn frame zoom. -->
+  <div id="zoom-overlay" role="dialog" aria-modal="true" aria-label="Full-size frame">
+    <button id="zoom-close" aria-label="Close">&times;</button>
+    <img id="zoom-img" src="" alt="Full-size turn frame">
+  </div>
 
   <!-- Per-turn inference log: appended at the end of the page, grows naturally. -->
   <div id="turn-log"></div>
@@ -397,17 +428,19 @@
         }
       }
 
-      // Turn gallery — a turn with a captured inference log is clickable.
+      // Turn gallery — thumbnails zoom on image click; turns with a transcript
+      // show a clickable label that opens the inference log.
       if (d.turns.length > 0) {
         const anyLog = d.turns.some(t => t.has_transcript);
-        const hint = anyLog ? ' <span style="font-size:.7rem;color:#666;font-weight:400">— click a turn to view its inference log</span>' : '';
+        const hint = anyLog ? ' <span style="font-size:.7rem;color:#666;font-weight:400">— click a label to view inference log; click image to zoom</span>' : ' <span style="font-size:.7rem;color:#666;font-weight:400">— click an image to zoom</span>';
         html += `<h3>Turns (${d.turns.length})${hint}</h3><div class="turn-gallery" id="turn-gallery">`;
         for (const t of d.turns) {
           const imgSrc = `/api/runs/${s.id}/turns/${t.turn_index}/frame.png`;
           const clk = t.has_transcript ? ' clickable' : '';
+          const labelCls = t.has_transcript ? ' log-link' : '';
           html += `<div class="turn-thumb${clk}" data-turn="${t.turn_index}">
-            <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="${escHtml(t.player_input)}">
-            <span class="turn-thumb-label">t${t.turn_index} ${(t.game_clock||'')}</span>
+            <img src="${imgSrc}" alt="turn ${t.turn_index}" loading="lazy" title="Click to zoom — turn ${t.turn_index}: ${escHtml(t.player_input)}" data-zoom-src="${imgSrc}">
+            <span class="turn-thumb-label${labelCls}">t${t.turn_index} ${(t.game_clock||'')}</span>
           </div>`;
         }
         html += `</div>`;
@@ -415,10 +448,19 @@
 
       container.innerHTML = html;
 
-      // Wire turn clicks → deep-link to that turn's log.
-      container.querySelectorAll('.turn-thumb.clickable').forEach(el => {
+      // Wire image clicks → zoom lightbox.
+      container.querySelectorAll('.turn-thumb img[data-zoom-src]').forEach(img => {
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openZoom(img.dataset.zoomSrc, img.alt);
+        });
+      });
+
+      // Wire label clicks (transcript turns only) → deep-link to that turn's log.
+      container.querySelectorAll('.turn-thumb .turn-thumb-label.log-link').forEach(el => {
         el.addEventListener('click', () => {
-          location.hash = 'run/' + s.id + '/turn/' + el.dataset.turn;
+          const turn = el.closest('.turn-thumb').dataset.turn;
+          location.hash = 'run/' + s.id + '/turn/' + turn;
         });
       });
     }
@@ -481,6 +523,32 @@
     function escHtml(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+
+    // ── Lightbox zoom ─────────────────────────────────────────────────────────
+
+    function openZoom(src, alt) {
+      const overlay = $('zoom-overlay');
+      const img = $('zoom-img');
+      img.src = src;
+      img.alt = alt || 'Full-size turn frame';
+      overlay.classList.add('open');
+      overlay.focus();
+    }
+
+    function closeZoom() {
+      const overlay = $('zoom-overlay');
+      overlay.classList.remove('open');
+      $('zoom-img').src = '';
+    }
+
+    // Close on overlay background click (but not the image itself).
+    $('zoom-overlay').addEventListener('click', (e) => {
+      if (e.target === $('zoom-overlay')) closeZoom();
+    });
+    $('zoom-close').addEventListener('click', closeZoom);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && $('zoom-overlay').classList.contains('open')) closeZoom();
+    });
 
     $('back-btn').addEventListener('click', () => { location.hash = ''; });
     $('refresh-btn').addEventListener('click', loadRuns);
