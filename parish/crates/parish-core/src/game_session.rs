@@ -503,6 +503,7 @@ pub fn apply_npc_dialogue_turn(
     speaker_display_name: &str,
     speaker_actual_name: &str,
     request_id: Option<u64>,
+    grounded_person_names: &[String],
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
 
@@ -552,6 +553,7 @@ pub fn apply_npc_dialogue_turn(
         previous_line.as_deref(),
         npc_cfg.dialogue_repetition_threshold,
         repetition_seed,
+        grounded_person_names,
     );
 
     // Cap the displayed dialogue to the configured limit (#1224). Applied here,
@@ -1952,6 +1954,7 @@ mod tests {
             "Padraig",
             "Padraig O'Brien",
             None,
+            &[],
         );
 
         // The DialogueOccurred event published to the bus must carry the
