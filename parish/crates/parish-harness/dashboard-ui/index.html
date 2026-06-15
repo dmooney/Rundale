@@ -108,7 +108,7 @@
       display: none; position: fixed; inset: 0; z-index: 9999;
       background: rgba(0,0,0,.88);
       align-items: center; justify-content: center;
-      cursor: zoom-out;
+      cursor: zoom-out; outline: none;
     }
     #zoom-overlay.open { display: flex; animation: overlay-in .15s ease both; }
     @keyframes overlay-in { from { opacity: 0; } }
@@ -229,7 +229,7 @@
   </footer>
 
   <!-- Lightbox overlay for full-size turn frame zoom. -->
-  <div id="zoom-overlay" role="dialog" aria-modal="true" aria-label="Full-size frame">
+  <div id="zoom-overlay" role="dialog" aria-modal="true" aria-label="Full-size frame" tabindex="-1">
     <button id="zoom-close" aria-label="Close">&times;</button>
     <img id="zoom-img" src="" alt="Full-size turn frame">
   </div>
