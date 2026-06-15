@@ -39,9 +39,9 @@ use crate::inference::{
     QueueRequest, await_inference_response,
 };
 use crate::ipc::{
-    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID, StreamEndPayload,
-    StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log, text_log_for_stream_turn,
-    text_log_typed,
+    ConversationLine, DialogueCorrectedPayload, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES,
+    REQUEST_ID, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, capitalize_first,
+    text_log, text_log_for_stream_turn, text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
@@ -87,6 +87,19 @@ pub const ACQUAINTANCE_INTENT_GUARD_FLAG: &str = "npc-acquaintance-intent-guard"
 /// or when the field is absent/empty. Kill-switch: disable via
 /// `flags.is_disabled(NPC_ACTION_NARRATION_FLAG)`.
 pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
+
+/// Feature-flag name (default **on**) that emits a `"dialogue-corrected"` event
+/// after all post-generation guards run on an NPC turn, replacing the raw
+/// streamed model output in the UI with the post-guard canonical text (#1552).
+///
+/// When a guard alters `parsed.dialogue` (e.g. the verbosity guard collapses a
+/// repetition loop, the person-confirmation guard replaces a fabricated name),
+/// the event tells the frontend to overwrite the accumulated raw stream tokens
+/// with the corrected dialogue so the player sees the same text that is stored
+/// in the conversation log and returned by `/api/transcript`.
+///
+/// Kill-switch: disable via `flags.is_disabled(POST_GUARD_UI_REPLACE_FLAG)`.
+pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 
 /// Token cap for Tier 1 dialogue generation.
 ///
@@ -155,6 +168,7 @@ pub async fn run_npc_turn(
         anti_repetition_enabled,
         false_denial_guard_enabled,
         invented_place_guard_enabled,
+        post_guard_ui_replace_enabled,
     ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
@@ -193,6 +207,10 @@ pub async fn run_npc_turn(
         let invented_place_guard = !config
             .flags
             .is_disabled(parish_npc::INVENTED_PLACE_GUARD_FLAG);
+        // Post-guard UI replace (#1552): emit `dialogue-corrected` event after
+        // all guards run so the frontend shows post-guard text, not raw model
+        // output. Default-on; kill-switch only.
+        let ui_replace = !config.flags.is_disabled(POST_GUARD_UI_REPLACE_FLAG);
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
@@ -223,6 +241,7 @@ pub async fn run_npc_turn(
             anti_rep,
             false_denial_guard,
             invented_place_guard,
+            ui_replace,
         )
     };
     let setup = setup?;
@@ -410,6 +429,13 @@ pub async fn run_npc_turn(
         .as_ref()
         .map(|meta| meta.language_hints.clone())
         .unwrap_or_default();
+
+    // Snapshot the raw model dialogue before any guard runs.  After all guards
+    // complete we compare against this snapshot to determine whether any guard
+    // altered the text; if so (and the kill-switch is on) we emit
+    // `"dialogue-corrected"` so the frontend can replace the accumulated raw
+    // stream tokens with the post-guard canonical text (#1552).
+    let pre_guard_dialogue = parsed.dialogue.clone();
 
     // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
     // when the NPC's reply affirmatively confirms a fabricated person from the
@@ -606,6 +632,30 @@ pub async fn run_npc_turn(
             conversation.record_opener(shown_opener);
         }
         parsed.dialogue = deduped;
+    }
+
+    // Post-guard UI replace (#1552): if any guard altered the raw model dialogue,
+    // emit `"dialogue-corrected"` so the frontend can replace the accumulated raw
+    // stream tokens with the canonical post-guard text.  Only fires when the
+    // text actually changed (no-op for clean model output) and the kill-switch is
+    // on (default).  The event is emitted AFTER `stream-turn-end` (already fired
+    // above) so the stream pump has already seen all tokens; the UI handler must
+    // flush any remaining buffered tokens and then overwrite with `corrected_text`.
+    if post_guard_ui_replace_enabled && parsed.dialogue != pre_guard_dialogue {
+        tracing::debug!(
+            npc = %display_label,
+            req_id,
+            "guards altered dialogue — emitting dialogue-corrected (#1552)"
+        );
+        ctx.emitter.emit_event(
+            "dialogue-corrected",
+            serde_json::to_value(DialogueCorrectedPayload {
+                turn_id: req_id,
+                corrected_text: parsed.dialogue.clone(),
+                message_id: Some(message_id.clone()),
+            })
+            .unwrap_or(serde_json::Value::Null),
+        );
     }
 
     if !parsed.dialogue.trim().is_empty() {
@@ -1887,6 +1937,196 @@ pub mod tests {
             "TIER1_DIALOGUE_MAX_TOKENS must be >= 768 to prevent mid-sentence \
              truncation when metadata fields precede dialogue in the JSON output \
              (fix #1431 item 3); current value: {budget}"
+        );
+    }
+
+    /// #1552 — post-guard UI replace: when a post-generation guard alters the
+    /// NPC dialogue, `run_npc_turn` must emit a `"dialogue-corrected"` event
+    /// carrying the post-guard canonical text so the frontend can replace the
+    /// accumulated raw stream tokens.
+    ///
+    /// The test uses a fake inference worker that immediately responds with a
+    /// 5-sentence dialogue (above the 4-sentence cap enforced by the verbosity
+    /// guard), then asserts that:
+    ///  1. A `"dialogue-corrected"` event is emitted.
+    ///  2. Its `corrected_text` payload is shorter than the raw response.
+    ///  3. No `"dialogue-corrected"` event is emitted when the kill-switch is
+    ///     disabled (`post-guard-ui-replace` → `false`).
+    #[tokio::test]
+    async fn post_guard_ui_replace_emits_dialogue_corrected() {
+        use crate::inference::{InferenceQueue, InferenceResponse};
+        use crate::npc::Npc;
+
+        // Raw dialogue with 5 sentences — above the 4-sentence cap applied by
+        // `guard_verbosity_runons` / `cap_sentence_count`.
+        let raw_five_sentences = "Good day to ye, friend. \
+            The land hereabouts is fair and rich in cattle. \
+            Many a family has tilled these fields for generations. \
+            The river runs cold in winter and warm come the harvest. \
+            Is it not a fine sight to behold the valley at dusk?";
+
+        // JSON-wrapped so parse_npc_stream_response extracts it as `dialogue`.
+        let raw_json = format!(
+            r#"{{"dialogue": "{raw_five_sentences}", "action": "", "mood": "content", "internal_thought": "", "language_hints": []}}"#
+        );
+
+        // Build a fake inference worker that answers every request immediately.
+        let (itx, mut irx) = tokio::sync::mpsc::channel::<crate::inference::InferenceRequest>(4);
+        let (btx, _) = tokio::sync::mpsc::channel(1);
+        let (xtx, _) = tokio::sync::mpsc::channel(1);
+        let queue = InferenceQueue::new(itx, btx, xtx);
+
+        // Spawn a task that reads InferenceRequests and answers each with our
+        // canned raw_json (streaming the full text as a single token batch,
+        // then sending the final InferenceResponse).
+        let raw_json_clone = raw_json.clone();
+        tokio::spawn(async move {
+            while let Some(req) = irx.recv().await {
+                // Stream the whole payload as a single token batch so the
+                // `stream-token` path is exercised (even though tests don't
+                // pump the timer-based reveal).
+                if let Some(tx) = req.token_tx {
+                    let _ = tx.send(raw_json_clone.clone()).await;
+                }
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: raw_json_clone.clone(),
+                    error: None,
+                });
+            }
+        });
+
+        // Build game context with one NPC at the player's location.
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = player_loc;
+        let npc_id = npc.id;
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(Some(queue.clone()));
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        // Run one NPC turn with the fake queue.
+        let _outcome = super::run_npc_turn(
+            &ctx,
+            &queue,
+            "test-model",
+            npc_id,
+            "Good day to you!",
+            &[],
+            true,
+            || None,
+        )
+        .await;
+
+        // Scope the std `MutexGuard` in a block so it is structurally dropped
+        // before the second `run_npc_turn().await` below — clippy's
+        // `await_holding_lock` does not honour an explicit `drop()` here.
+        let corrected_text = {
+            let events = emitter.events.lock().unwrap();
+
+            // 1. `dialogue-corrected` must be present.
+            let corrected = events
+                .iter()
+                .find(|(name, _)| name == "dialogue-corrected")
+                .map(|(_, payload)| payload.clone());
+            assert!(
+                corrected.is_some(),
+                "expected a `dialogue-corrected` event when the verbosity guard \
+                 shortens a 5-sentence reply to 4 (fix #1552); emitted events: {:#?}",
+                events.iter().map(|(n, _)| n).collect::<Vec<_>>()
+            );
+
+            // 2. Extract the corrected text.
+            corrected
+                .unwrap()
+                .get("corrected_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+
+        assert!(
+            corrected_text.len() < raw_five_sentences.len(),
+            "corrected_text ({} chars) must be shorter than the raw 5-sentence \
+             reply ({} chars); guard did not fire",
+            corrected_text.len(),
+            raw_five_sentences.len(),
+        );
+
+        // 3. Kill-switch: with `post-guard-ui-replace` disabled, no
+        //    `dialogue-corrected` event must be emitted.
+        let emitter2 = Arc::new(CapturingEmitter::new());
+        let world_state2 = WorldState::new();
+        let player_loc2 = world_state2.player_location;
+        let mut npc_mgr2 = NpcManager::new();
+        let mut npc2 = Npc::new_test_npc();
+        npc2.location = player_loc2;
+        let npc_id2 = npc2.id;
+        npc_mgr2.add_npc(npc2);
+
+        let world2 = tokio::sync::Mutex::new(world_state2);
+        let npc_manager2 = tokio::sync::Mutex::new(npc_mgr2);
+        let mut cfg2 = GameConfig::default();
+        cfg2.flags.disable(super::POST_GUARD_UI_REPLACE_FLAG);
+        let config2 = tokio::sync::Mutex::new(cfg2);
+        let conversation2 = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue2 = tokio::sync::Mutex::new(Some(queue.clone()));
+        let client2 = tokio::sync::Mutex::new(None);
+        let cloud_client2 = tokio::sync::Mutex::new(None);
+        let inference_config2 = crate::config::InferenceConfig::default();
+
+        let ctx2 = make_test_ctx!(
+            &world2,
+            &npc_manager2,
+            &config2,
+            &conversation2,
+            &inference_queue2,
+            &client2,
+            &cloud_client2,
+            &inference_config2,
+            Arc::clone(&emitter2) as Arc<dyn EventEmitter>
+        );
+
+        let _outcome2 = super::run_npc_turn(
+            &ctx2,
+            &queue,
+            "test-model",
+            npc_id2,
+            "Good day to you!",
+            &[],
+            true,
+            || None,
+        )
+        .await;
+
+        let events2 = emitter2.events.lock().unwrap();
+        assert!(
+            !events2.iter().any(|(name, _)| name == "dialogue-corrected"),
+            "with kill-switch disabled, no `dialogue-corrected` event must be emitted; \
+             got: {:#?}",
+            events2.iter().map(|(n, _)| n).collect::<Vec<_>>()
         );
     }
 }

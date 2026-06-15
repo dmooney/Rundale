@@ -292,6 +292,30 @@ export function addReaction(
 	});
 }
 
+/** Replaces the content of a streaming textLog entry identified by its
+ *  `stream_turn_id` with post-guard corrected dialogue (#1552).
+ *
+ *  Called when the backend emits `dialogue-corrected` after all post-generation
+ *  guards have run and at least one guard altered the raw model output. The entry
+ *  matching `turnId` may still be streaming (the pump may not have drained yet);
+ *  we overwrite its content unconditionally so the player always sees the
+ *  canonical post-guard text, not the raw model output.
+ */
+export function replaceStreamEntryContent(
+	turnId: number,
+	correctedText: string,
+): void {
+	textLog.update((log) => {
+		const idx = log.findIndex((entry) => entry.stream_turn_id === turnId);
+		if (idx < 0) return log;
+		return [
+			...log.slice(0, idx),
+			{ ...log[idx], content: correctedText },
+			...log.slice(idx + 1),
+		];
+	});
+}
+
 /** Removes a matching reaction from a message in the text log.
  *
  * Used to roll back an optimistic `addReaction` when the backend rejects

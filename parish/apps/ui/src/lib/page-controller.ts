@@ -33,6 +33,7 @@ import {
 	playerSubmittedCount,
 	noteStreamingStarted,
 	resetExternalDrive,
+	replaceStreamEntryContent,
 } from '../stores/game';
 import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
@@ -66,6 +67,7 @@ import {
 	onNpcReaction,
 	onTravelStart,
 	onReconnect,
+	onDialogueCorrected,
 	submitInput,
 } from '$lib/ipc';
 import { createAutoPauseTracker } from '$lib/auto-pause';
@@ -378,6 +380,19 @@ export async function createPageController(): Promise<() => void> {
 				if (!turn) return;
 				turn.complete = true;
 				sm.startTurnPumpIfNeeded(turn);
+			}),
+		);
+
+		listeners.push(
+			await onDialogueCorrected((payload) => {
+				// The backend has applied post-generation guards and found that the raw
+				// model output differed from the canonical post-guard dialogue (#1552).
+				// We must (a) clear the stream pump's remaining buffer so it stops
+				// appending raw tokens and (b) replace the textLog entry content with
+				// the corrected text so the player sees what is stored in the
+				// conversation log and returned by /api/transcript.
+				sm.clearTurnBuffer(payload.turn_id);
+				replaceStreamEntryContent(payload.turn_id, payload.corrected_text);
 			}),
 		);
 
