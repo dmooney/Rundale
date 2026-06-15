@@ -42,12 +42,27 @@ pub struct BackfillReport {
 /// we split on exactly those and take the first non-empty token — which strips any
 /// leading emphasis, backticks, or escaping in every shape.
 pub fn signature_from_body(body: &str) -> Option<String> {
-    let idx = body.find("Signature:")?;
-    let rest = &body[idx + "Signature:".len()..];
-    let token = rest
-        .split(|c: char| c.is_whitespace() || matches!(c, '`' | '*' | '\\'))
-        .find(|s| !s.is_empty())?;
-    Some(token.to_string())
+    // Scan every `Signature:` occurrence, requiring a word boundary before it so
+    // `MySignature:` can't match, and return the first that yields a token. (A
+    // single `find` would stop at the first occurrence even if it's a false
+    // positive, missing a real marker later in the body.)
+    for (idx, _) in body.match_indices("Signature:") {
+        let boundary_ok = body[..idx]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        if !boundary_ok {
+            continue;
+        }
+        let rest = &body[idx + "Signature:".len()..];
+        if let Some(token) = rest
+            .split(|c: char| c.is_whitespace() || matches!(c, '`' | '*' | '\\'))
+            .find(|s| !s.is_empty())
+        {
+            return Some(token.to_string());
+        }
+    }
+    None
 }
 
 /// Page through the repo's issues and build `signature → issue_url`.
@@ -171,6 +186,8 @@ pub fn apply_signature_map(
         ..Default::default()
     };
 
+    // Collect matches, then write them all in one transaction (one fsync).
+    let mut to_write: Vec<(i64, &str)> = Vec::new();
     for (row_id, signature) in unlinked {
         match sig_map.get(signature) {
             Some(url) => {
@@ -178,13 +195,17 @@ pub fn apply_signature_map(
                 if dry_run {
                     println!("  [dry-run] finding {row_id} ({signature}) -> {url}");
                 } else {
-                    db.set_finding_issue_url(*row_id, url)?;
-                    report.written += 1;
                     println!("  linked finding {row_id} ({signature}) -> {url}");
+                    to_write.push((*row_id, url.as_str()));
                 }
             }
             None => println!("  no matching issue for finding {row_id} ({signature})"),
         }
+    }
+
+    if !to_write.is_empty() {
+        db.set_finding_issue_urls_batch(&to_write)?;
+        report.written = to_write.len();
     }
 
     Ok(report)
@@ -312,6 +333,13 @@ mod tests {
             signature_from_body(body).as_deref(),
             Some("degenerate-repetition-loop")
         );
+    }
+
+    #[test]
+    fn skips_non_word_boundary_false_positive() {
+        // "MySignature:" must NOT match; the real marker later in the body must.
+        let body = "Note: MySignature: bogus\n\n**Signature:** real-sig-here";
+        assert_eq!(signature_from_body(body).as_deref(), Some("real-sig-here"));
     }
 
     #[test]

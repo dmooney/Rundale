@@ -64,9 +64,14 @@ APP_PID=$!
 # when it is killed (quality-harness §7 close), caffeinate observes the PID exit and
 # self-terminates — no orphaned assertion, no system-settings change.
 CAFFEINATE_PIDFILE="/tmp/parish-caffeinate-${USER:-shared}.pid"
-nohup caffeinate -d -i -s -w "${APP_PID}" >/dev/null 2>&1 &
-echo $! >"${CAFFEINATE_PIDFILE}"
-echo "holding display awake (caffeinate pid $(cat "${CAFFEINATE_PIDFILE}"), bound to app pid ${APP_PID})"
+if command -v caffeinate >/dev/null 2>&1; then
+    nohup caffeinate -d -i -s -w "${APP_PID}" >/dev/null 2>&1 &
+    echo $! >"${CAFFEINATE_PIDFILE}"
+    echo "holding display awake (caffeinate pid $(cat "${CAFFEINATE_PIDFILE}"), bound to app pid ${APP_PID})"
+else
+    # caffeinate is macOS-only; on Linux/CI there's no display to keep awake.
+    echo "caffeinate not found (non-macOS?) — skipping display-awake hold"
+fi
 
 # 3) Wait for the MCP bridge / HTTP health.
 for _ in $(seq 1 120); do
