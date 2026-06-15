@@ -21,3 +21,13 @@ gpt-5-mini: gpt-5-mini@https://api.openai.com/v1#env:OPENAI_API_KEY
 claude-haiku: claude-haiku-4-5@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY
 llama-3.3-70b-groq: llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:GROQ_API_KEY
 gpt-oss-120b-free: openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY
+
+# Bench v2 local dialogue lineup (user-approved 2026-06-15). Baseline = production 14B;
+# candidates = Gemma 4 + latest Chinese (Qwen3.5/3.6) 4-bit. One model in RAM at a time on :8000.
+local-qwen14b: mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1
+local-gemma4-26b-a4b: mlx-community/gemma-4-26b-a4b-it-4bit@http://localhost:8000/v1
+local-gemma4-31b: mlx-community/gemma-4-31b-it-4bit@http://localhost:8000/v1
+local-qwen3.6-27b: mlx-community/Qwen3.6-27B-4bit@http://localhost:8000/v1
+local-qwen3.5-27b: mlx-community/Qwen3.5-27B-4bit@http://localhost:8000/v1
+local-qwen3.5-27b-opus-distill: mlx-community/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-4bit@http://localhost:8000/v1
+local-qwen3.5-9b: mlx-community/Qwen3.5-9B-4bit@http://localhost:8000/v1
