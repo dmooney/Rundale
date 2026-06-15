@@ -93,6 +93,10 @@ export interface StreamManager {
 	 *  remaining tokens / stream-end were lost during the gap). */
 	reset: () => void;
 	dispose: () => void;
+	/** Clears the pending buffer for `turnId` so the stream pump stops
+	 *  appending raw tokens after a `dialogue-corrected` replacement (#1552).
+	 *  No-op when the turn is not found or is already complete. */
+	clearTurnBuffer: (turnId: number) => void;
 }
 
 export function createStreamManager(): StreamManager {
@@ -427,6 +431,22 @@ export function createStreamManager(): StreamManager {
 		reset();
 	}
 
+	/** Clears the pending buffer for `turnId` so the stream pump stops
+	 *  appending raw tokens after a `dialogue-corrected` replacement (#1552).
+	 *  Stops the pump timer, empties the buffer, and marks the turn complete
+	 *  so finalizePendingTurn fires on the next pumpTurn invocation without
+	 *  additional token appends. No-op when the turn is not found.
+	 */
+	function clearTurnBuffer(turnId: number) {
+		const turn = findPendingTurn(turnId);
+		if (!turn) return;
+		stopTurnPump(turn);
+		turn.buffer = '';
+		turn.complete = true;
+		// Re-schedule pump so finalizePendingTurn runs (clears streaming flags).
+		scheduleTurnPump(turn, 0);
+	}
+
 	return {
 		findPendingTurn,
 		queuePendingTurn,
@@ -442,5 +462,6 @@ export function createStreamManager(): StreamManager {
 		isChainInProgress,
 		reset,
 		dispose,
+		clearTurnBuffer,
 	};
 }

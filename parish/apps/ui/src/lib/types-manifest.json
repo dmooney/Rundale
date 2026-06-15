@@ -37,6 +37,7 @@
 	"TextLogPayload": ["id", "source", "content"],
 	"StreamEndPayload": ["hints"],
 	"StreamTurnEndPayload": ["turn_id"],
+	"DialogueCorrectedPayload": ["turn_id", "corrected_text"],
 	"NpcReactionPayload": ["message_id", "emoji", "source"],
 	"LoadingPayload": ["active"],
 	"TravelWaypoint": ["id", "lat", "lon"],

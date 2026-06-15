@@ -23,6 +23,7 @@ import type {
 	DemoContextSnapshot,
 	DemoConfigPayload,
 	AuthStatus,
+	DialogueCorrectedPayload,
 } from '../types';
 import { command, onEvent, IS_TAURI, COMMAND_TIMEOUT_MS } from './transport';
 
@@ -126,6 +127,10 @@ export const onStreamToken = (cb: (payload: StreamTokenPayload) => void) =>
 
 export const onStreamTurnEnd = (cb: (payload: StreamTurnEndPayload) => void) =>
 	onEvent<StreamTurnEndPayload>('stream-turn-end', cb);
+
+export const onDialogueCorrected = (
+	cb: (payload: DialogueCorrectedPayload) => void,
+) => onEvent<DialogueCorrectedPayload>('dialogue-corrected', cb);
 
 export const onStreamEnd = (cb: (payload: StreamEndPayload) => void) =>
 	onEvent<StreamEndPayload>('stream-end', cb);

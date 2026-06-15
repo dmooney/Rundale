@@ -183,6 +183,27 @@ pub struct StreamEndPayload {
     pub hints: Vec<LanguageHint>,
 }
 
+/// Payload for `dialogue-corrected` events.
+///
+/// Emitted after all post-generation guards run on an NPC turn's `dialogue`
+/// field, but only when at least one guard altered the raw model output
+/// (i.e. the stored/transcript text differs from what was streamed token-by-token).
+/// The UI must replace the accumulated streamed content for `turn_id` with
+/// `corrected_text` so the player sees the post-guard canonical dialogue —
+/// the same text stored in the conversation log and returned by `/api/transcript`
+/// (#1552).
+///
+/// The event is emitted after `stream-turn-end` (so the stream pump has already
+/// seen the raw tokens) and before `stream-end` (so the pump can still be in
+/// progress draining its buffer — the handler must flush/replace immediately).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DialogueCorrectedPayload {
+    /// Stable ID matching the `turn_id` from the `stream-token` events for this turn.
+    pub turn_id: u64,
+    /// The post-guard canonical dialogue text.
+    pub corrected_text: String,
+}
+
 /// Payload for `text-log` events.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TextLogPayload {

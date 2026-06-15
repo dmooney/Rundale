@@ -175,6 +175,18 @@ export interface StreamEndPayload {
 	hints: LanguageHint[];
 }
 
+/** Payload for `dialogue-corrected` events.
+ *
+ * Emitted by the backend after all post-generation guards run on an NPC turn,
+ * only when at least one guard altered the raw model output. The UI must
+ * replace the accumulated stream tokens for `turn_id` with `corrected_text`
+ * so the player sees the post-guard canonical dialogue (#1552).
+ */
+export interface DialogueCorrectedPayload {
+	turn_id: number;
+	corrected_text: string;
+}
+
 export interface TextLogPayload {
 	/** Unique message id for reaction targeting. Rust always serializes this
 	 *  (`#[serde(default)] pub id: String`); `#[serde(default)]` only affects
