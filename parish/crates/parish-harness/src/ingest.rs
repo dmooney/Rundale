@@ -157,13 +157,22 @@ pub fn load_and_ingest(db: &Db, payload_path: &Path, artifacts_root: &Path) -> R
         source: e,
     })?;
 
-    let rec = build_record(payload, artifacts_root)?;
+    let (rec, empty_lines) = build_record(payload, artifacts_root)?;
+    if empty_lines > 0 {
+        tracing::warn!(
+            empty_lines,
+            "ingested run has {empty_lines} turn(s) with an empty lines.json; their dashboard panels will render no narration"
+        );
+    }
     db.ingest_complete_run(rec)
 }
 
 /// Map a deserialized payload onto the domain [`IngestRecord`], validating frame
 /// artifacts along the way.
-fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<IngestRecord> {
+fn build_record(
+    mut payload: IngestPayload,
+    artifacts_root: &Path,
+) -> Result<(IngestRecord, usize)> {
     // Force the config label so every skill run content-hashes to one config row.
     payload.config.label = Some("skill:quality-harness".to_string());
 
@@ -173,6 +182,9 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
     // Map turns, validating that each referenced frame exists and is non-empty
     // (rule #14 — never accept a blank/missing artifact as if it were content).
     let mut turns = Vec::with_capacity(payload.turns.len());
+    // Count of turns whose narrative lines were empty — surfaced as a non-fatal
+    // warning so the caller can flag a half-blank run without rejecting it.
+    let mut empty_lines_warnings = 0usize;
     for t in payload.turns {
         let frame_abs = artifact_dir.join(&t.frame_path);
         let meta = std::fs::metadata(&frame_abs)
@@ -182,6 +194,17 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
                 "turn {} frame is empty: {}",
                 t.turn_index,
                 frame_abs.display()
+            )));
+        }
+        // A dialogue turn must ship an inference log. `ingest` otherwise accepts
+        // a logless dialogue turn, which renders blank and non-clickable on the
+        // dashboard — a run that looks complete but is not (how run 5 shipped).
+        // Non-dialogue turns (movement, look, system) have no NPC exchange and
+        // legitimately carry no log.
+        if t.kind == "dialogue" && t.llm_transcript_path.is_none() {
+            return Err(HarnessError::Config(format!(
+                "turn {idx} is kind=\"dialogue\" but has no llm_transcript_path; dialogue turns must ship an inference log (turns/{idx:03}/llm.json)",
+                idx = t.turn_index
             )));
         }
         // A referenced inference log must exist — never store a dangling path.
@@ -196,6 +219,16 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
                     ),
                 ));
             }
+        }
+        // Empty narrative lines render an empty dashboard panel. Warn but do not
+        // reject — a turn may legitimately have terse narration.
+        if lines_is_empty(&artifact_dir.join(&t.lines_path)) {
+            empty_lines_warnings += 1;
+            tracing::warn!(
+                turn = t.turn_index,
+                lines_path = %t.lines_path,
+                "turn lines.json is empty; the dashboard panel will render no narration"
+            );
         }
         turns.push(TurnRecord {
             turn_index: t.turn_index,
@@ -256,7 +289,7 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
         payload.quality_score.or_else(|| weighted_quality(&axes))
     };
 
-    Ok(IngestRecord {
+    let record = IngestRecord {
         config: payload.config,
         git: payload.git,
         rubric_sha256: payload.rubric_sha256,
@@ -270,5 +303,145 @@ fn build_record(mut payload: IngestPayload, artifacts_root: &Path) -> Result<Ing
         cost_usd: payload.cost.cost_usd,
         player_tokens: payload.cost.player_tokens,
         judge_tokens: payload.cost.judge_tokens,
-    })
+    };
+    Ok((record, empty_lines_warnings))
+}
+
+/// True when a turn's `lines.json` carries no narration — missing, unreadable,
+/// zero bytes, or an empty JSON array. Parses the JSON properly so whitespace
+/// or formatting variants of an empty array (e.g. `[  ]`, `[\n]`) are handled.
+/// Such a turn renders a blank panel on the dashboard, so ingest warns
+/// (non-fatal) when it sees one.
+fn lines_is_empty(path: &Path) -> bool {
+    match std::fs::read_to_string(path) {
+        Ok(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return true;
+            }
+            serde_json::from_str::<Vec<serde_json::Value>>(trimmed)
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+        }
+        Err(_) => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A complete, deserializable payload wrapping the given `turns` array.
+    fn base_payload(uuid: &str, turns: serde_json::Value) -> serde_json::Value {
+        json!({
+            "config": {
+                "label": "skill:quality-harness",
+                "engine_models": {},
+                "flags": [],
+                "player": {"mode": "subagent", "model": "opus", "persona": "p", "strategy": "s"},
+                "judge": {"mode": "subagent", "model": "opus", "rubric_version": "v1", "rubric_sha256": null},
+                "gate": {}
+            },
+            "git": {"sha": "abc1234", "branch": "b", "dirty": false, "pr_number": null},
+            "rubric_sha256": "deadbeef",
+            "uuid": uuid,
+            "gate": null,
+            "quality_score": 70.0,
+            "cost": {"cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0},
+            "turns": turns,
+            "axes": [],
+            "findings": []
+        })
+    }
+
+    /// Lay out `runs/<uuid>/turns/000` with a non-empty frame, the given
+    /// `lines.json` content, and optionally an `llm.json`.
+    fn layout(uuid: &str, lines: &str, with_llm: bool) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let tdir = dir.path().join("runs").join(uuid).join("turns").join("000");
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(tdir.join("frame.png"), b"\x89PNG not-blank").unwrap();
+        std::fs::write(tdir.join("lines.json"), lines).unwrap();
+        if with_llm {
+            std::fs::write(
+                tdir.join("llm.json"),
+                r#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
+            )
+            .unwrap();
+        }
+        dir
+    }
+
+    fn one_turn(kind: &str, with_llm_ref: bool) -> serde_json::Value {
+        let mut t = json!({
+            "turn_index": 0,
+            "player_input": "hi",
+            "kind": kind,
+            "frame_path": "turns/000/frame.png",
+            "lines_path": "turns/000/lines.json"
+        });
+        if with_llm_ref {
+            t["llm_transcript_path"] = json!("turns/000/llm.json");
+        }
+        t
+    }
+
+    fn payload_for(uuid: &str, turn: serde_json::Value) -> IngestPayload {
+        serde_json::from_value(base_payload(uuid, json!([turn]))).unwrap()
+    }
+
+    #[test]
+    fn dialogue_turn_without_llm_log_rejected() {
+        let uuid = "00000000-0000-0000-0000-0000000000aa";
+        let root = layout(uuid, r#"["line"]"#, false);
+        let err = match build_record(payload_for(uuid, one_turn("dialogue", false)), root.path()) {
+            Ok(_) => panic!("expected a logless dialogue turn to be rejected"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("turn 0"),
+            "message should name the turn: {msg}"
+        );
+        assert!(
+            msg.contains("llm_transcript_path"),
+            "message should name the missing field: {msg}"
+        );
+        assert!(
+            msg.contains("dialogue"),
+            "message should name the kind: {msg}"
+        );
+    }
+
+    #[test]
+    fn non_dialogue_turn_without_log_accepted() {
+        let uuid = "00000000-0000-0000-0000-0000000000bb";
+        let root = layout(uuid, r#"["moved on foot"]"#, false);
+        let (rec, warns) =
+            build_record(payload_for(uuid, one_turn("movement", false)), root.path()).unwrap();
+        assert_eq!(rec.turns.len(), 1);
+        assert_eq!(warns, 0);
+    }
+
+    #[test]
+    fn dialogue_turn_with_llm_log_accepted() {
+        let uuid = "00000000-0000-0000-0000-0000000000cc";
+        let root = layout(uuid, r#"["said hello"]"#, true);
+        let (rec, warns) =
+            build_record(payload_for(uuid, one_turn("dialogue", true)), root.path()).unwrap();
+        assert_eq!(rec.turns.len(), 1);
+        assert_eq!(warns, 0);
+    }
+
+    #[test]
+    fn empty_lines_warns_not_rejects() {
+        let uuid = "00000000-0000-0000-0000-0000000000dd";
+        // A non-dialogue turn (so the log rule does not reject) with empty lines.
+        let root = layout(uuid, "[]", false);
+        let (rec, warns) =
+            build_record(payload_for(uuid, one_turn("movement", false)), root.path()).unwrap();
+        assert_eq!(rec.turns.len(), 1);
+        assert_eq!(warns, 1, "empty [] lines.json should warn exactly once");
+    }
 }
