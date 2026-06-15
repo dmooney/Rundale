@@ -1,0 +1,23 @@
+{
+  "judge_id": "judge_multiturn_v2",
+  "model": "claude-sonnet-4-6",
+  "judge_via": "claude-code-subagent",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": null,
+  "system_prompt_file": "multiturn.system.md",
+  "temperature": 0,
+  "seed": null,
+  "rubric": "You are an impartial judge scoring a multi-turn conversation between a player and a non-player character in rural Ireland, 1820. Score the WHOLE transcript 1-5 on six failure-mode axes (5 = best): continuity (no re-introduction after turn 1), name_fidelity (uses the player's stated name, never invents one), no_premature_farewell (no goodbye until the player leaves on the final turn), persona_consistency (same occupation/voice/facts throughout), memory_retention (correctly recalls what the player said in earlier turns), freshness (every reply uses distinct phrasing — no recycled opener/closer on 3+ turns, no degenerate loop in any single turn). Output ONLY a JSON object with an 'axes' object of those six integer scores and an 'overall' mean. No prose.",
+  "rubric_sha256": "ef79e845dff1848c760319cc8b6dc3040733bf3673756ab41a009b09fcdc2fa3",
+  "axes": [
+    "continuity",
+    "name_fidelity",
+    "no_premature_farewell",
+    "persona_consistency",
+    "memory_retention",
+    "freshness"
+  ],
+  "score_range": [1, 5],
+  "snapshot_date": "2026-06-15",
+  "notes": "Multi-turn failure-mode judge v2 — adds freshness axis (varied phrasing across turns, no degenerate loop in any single turn). DO NOT mutate judge_multiturn_v1. Pinned to claude-sonnet-4-6 for the leaderboard of record."
+}
