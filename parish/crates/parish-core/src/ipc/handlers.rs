@@ -813,6 +813,10 @@ pub struct NpcConversationSetup {
     /// Used by the invented-place-confirmation guard (#1530) to detect when an
     /// NPC confirms a place name that does not exist in the world.
     pub known_location_names: Vec<String>,
+    /// Player's name as currently known from world state.
+    /// Passed through to post-generation guards so the player's own name is
+    /// never treated as a fabricated third-party person (#1553).
+    pub player_name: Option<String>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -1006,6 +1010,7 @@ pub fn prepare_npc_conversation_turn(
         roster_names_occupations,
         location_name,
         known_location_names,
+        player_name: world.player_name.clone(),
     })
 }
 
