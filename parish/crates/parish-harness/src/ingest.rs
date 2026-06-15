@@ -308,13 +308,20 @@ fn build_record(
 }
 
 /// True when a turn's `lines.json` carries no narration — missing, unreadable,
-/// zero bytes, or an empty JSON array (`[]`). Such a turn renders a blank panel
-/// on the dashboard, so ingest warns (non-fatal) when it sees one.
+/// zero bytes, or an empty JSON array. Parses the JSON properly so whitespace
+/// or formatting variants of an empty array (e.g. `[  ]`, `[\n]`) are handled.
+/// Such a turn renders a blank panel on the dashboard, so ingest warns
+/// (non-fatal) when it sees one.
 fn lines_is_empty(path: &Path) -> bool {
     match std::fs::read_to_string(path) {
         Ok(s) => {
             let trimmed = s.trim();
-            trimmed.is_empty() || trimmed == "[]"
+            if trimmed.is_empty() {
+                return true;
+            }
+            serde_json::from_str::<Vec<serde_json::Value>>(trimmed)
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
         }
         Err(_) => true,
     }
