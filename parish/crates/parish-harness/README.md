@@ -139,6 +139,21 @@ Payload schema (one JSON object):
 A worked sample lives at `parish/testing/fixtures/ingest_harness_skill/sample-payload.json`
 (with `verify.sh` exercising the full ingest → serve → API round-trip).
 
+### `backfill-issues` — recover finding → issue links
+
+```sh
+$BIN backfill-issues [--db <path>] [--repo owner/name] [--dry-run]
+```
+
+Links stored findings to their GitHub issues for runs that were ingested **without** an inline
+`issue_url` (e.g. an older skill run, or a finding deduped against a prior run's issue). It lists
+the repo's issues once, parses the `**Signature:** <sig>` line every filer embeds in the body
+(plain, backtick-wrapped, or escaped-backtick forms all parse), and writes the matching
+`html_url` onto any finding whose `issue_url` is NULL or a prior `filing-error:`. Exact-signature
+only — never fuzzy — so it can't fabricate an "addressed" link. `--dry-run` prints the matches
+without writing. Needs a GitHub token (`GITHUB_TOKEN` ‖ `GH_TOKEN` ‖ `PARISH_BUG_REPORT_TOKEN`).
+The quality-harness skill runs this after each ingest as a safety net.
+
 ### `db-path`
 
 ```sh
