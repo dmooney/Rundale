@@ -153,6 +153,8 @@ pub async fn run_npc_turn(
         acquaintance_guard_enabled,
         action_narration_enabled,
         anti_repetition_enabled,
+        false_denial_guard_enabled,
+        invented_place_guard_enabled,
     ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
@@ -183,6 +185,14 @@ pub async fn run_npc_turn(
         let action_narration = !config.flags.is_disabled(NPC_ACTION_NARRATION_FLAG);
         // Cross-NPC opener de-duplication (#1422, #1492): default-on kill-switch.
         let anti_rep = !config.flags.is_disabled(DIALOGUE_ANTI_REPETITION_FLAG);
+        // False-denial guard (#1527, #1528): default-on, kill-switch only.
+        let false_denial_guard = !config
+            .flags
+            .is_disabled(parish_npc::FALSE_DENIAL_GUARD_FLAG);
+        // Invented-place confirmation guard (#1530): default-on, kill-switch only.
+        let invented_place_guard = !config
+            .flags
+            .is_disabled(parish_npc::INVENTED_PLACE_GUARD_FLAG);
         let npc_cfg = crate::config::NpcConfig {
             dialogue_quality_continuity: !config.flags.is_disabled("dialogue-quality-continuity"),
             grounding_enabled: !config.flags.is_disabled("npc-dialogue-grounding"),
@@ -211,6 +221,8 @@ pub async fn run_npc_turn(
             acquaintance_guard,
             action_narration,
             anti_rep,
+            false_denial_guard,
+            invented_place_guard,
         )
     };
     let setup = setup?;
@@ -456,6 +468,57 @@ pub async fn run_npc_turn(
     if wrong_location_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let loc = setup.location_name.as_str();
         let guarded = crate::npc::guard_wrong_location_reference(&parsed.dialogue, Some(loc));
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation false-denial guard (#1527, #1528) and invented-place
+    // confirmation guard (#1530): both require a seed derived from the world
+    // clock.  Acquire the async world lock ONCE here if either guard is active
+    // and the dialogue is non-empty, then reuse the seed for both guards to
+    // avoid redundant lock acquisitions.
+    let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
+        || invented_place_guard_enabled)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let ts = ctx.world.lock().await.clock.now().timestamp() as u64;
+        Some(speaker_id.0 as u64 ^ ts)
+    } else {
+        None
+    };
+
+    // Post-generation false-denial guard (#1527, #1528): detect when an NPC
+    // wrongly denies knowing a person who IS in the parish roster (known_person_names).
+    // Runs after the routing guard so only confirmed-false denials are caught here.
+    // Default-on; kill-switch via `dialogue-false-denial-guard` flag.
+    if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_false_denial_of_roster_person(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_person_names,
+            None,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation invented-place confirmation guard (#1530): detect when an
+    // NPC affirms an invented place that is not in the world's location list.
+    // Default-on; kill-switch via `dialogue-invented-place-guard` flag.
+    if invented_place_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_invented_place_confirmation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_location_names,
+            guard_seed,
+        );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
