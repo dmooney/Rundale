@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { worldState } from '../stores/game';
+	import { worldState, externalDriveActive } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
 	import { openBugReport } from '../stores/bugReport';
 	import { savePickerVisible, modSelectorVisible } from '../stores/save';
@@ -128,6 +128,9 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
+		{#if $externalDriveActive}
+			<span class="auto-play-badge" role="status" aria-live="polite" aria-label="Game is being driven by an automated agent" title="An automated agent is driving the game">&#8635; Auto-play</span>
+		{/if}
 		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
 		<div
 			class="dev-menu-wrap"
@@ -249,6 +252,25 @@
 	.muted {
 		color: var(--color-muted);
 		font-style: italic;
+	}
+
+	/* Auto-play badge: visible when an external agent is driving the game (#1537). */
+	.auto-play-badge {
+		font-family: var(--font-display);
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		color: var(--color-accent);
+		border: 1px solid var(--color-accent);
+		padding: 0.1rem 0.45rem;
+		opacity: 0.85;
+		white-space: nowrap;
+		animation: auto-play-pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes auto-play-pulse {
+		0%   { opacity: 0.85; }
+		50%  { opacity: 0.45; }
+		100% { opacity: 0.85; }
 	}
 
 	.save-toggle,

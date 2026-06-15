@@ -82,6 +82,71 @@ export const focailOpen = writable<boolean>(false);
 export const playerSubmittedCount = writable<number>(0);
 
 /**
+ * True while the game is being driven externally (by the quality harness or
+ * any MCP/bridge client) rather than by the local player.
+ *
+ * Signal: `streamingActive` becomes true without a preceding local
+ * `playerSubmittedCount` increment in the same turn.  The flag is cleared
+ * automatically after EXTERNAL_DRIVE_IDLE_MS of no new external activity.
+ *
+ * The StatusBar renders a visible "Auto-play active" badge while this is set
+ * so the user knows they are watching automated play, not their own input
+ * (#1537).
+ */
+export const externalDriveActive = writable<boolean>(false);
+
+/** How long (ms) after the last external-drive turn before the badge clears. */
+export const EXTERNAL_DRIVE_IDLE_MS = 3_000;
+
+/**
+ * Called by the page controller whenever streaming starts.
+ * Compares the current `playerSubmittedCount` against the count at the
+ * previous turn boundary: if they're the same the turn wasn't initiated by
+ * the local InputField, so we mark the game as externally driven and arm the
+ * auto-clear timer.
+ *
+ * `localSubmitCount` is the current value of `playerSubmittedCount` at the
+ * time `streamingActive` transitions to `true`.
+ * `lastLocalSubmitCount` is the value observed at the end of the previous
+ * turn (i.e. before this stream started).
+ *
+ * The caller is responsible for snapshotting and updating
+ * `lastLocalSubmitCount`.
+ */
+let _externalDriveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function noteStreamingStarted(
+	localSubmitCount: number,
+	lastLocalSubmitCount: number,
+): void {
+	if (localSubmitCount === lastLocalSubmitCount) {
+		// No local submit since the last turn — external driver.
+		externalDriveActive.set(true);
+		if (_externalDriveTimer !== null) clearTimeout(_externalDriveTimer);
+		_externalDriveTimer = setTimeout(() => {
+			_externalDriveTimer = null;
+			externalDriveActive.set(false);
+		}, EXTERNAL_DRIVE_IDLE_MS);
+	} else {
+		// Local-player turn: clear the badge immediately.
+		if (_externalDriveTimer !== null) {
+			clearTimeout(_externalDriveTimer);
+			_externalDriveTimer = null;
+		}
+		externalDriveActive.set(false);
+	}
+}
+
+/** Resets external-drive tracking (new game / teardown / tests). */
+export function resetExternalDrive(): void {
+	if (_externalDriveTimer !== null) {
+		clearTimeout(_externalDriveTimer);
+		_externalDriveTimer = null;
+	}
+	externalDriveActive.set(false);
+}
+
+/**
  * Resets focailOpen to false when the viewport transitions to desktop
  * (i.e. when the narrow-viewport media query stops matching).
  *
