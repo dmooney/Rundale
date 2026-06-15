@@ -21,3 +21,10 @@ gpt-5-mini: gpt-5-mini@https://api.openai.com/v1#env:OPENAI_API_KEY
 claude-haiku: claude-haiku-4-5@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY
 llama-3.3-70b-groq: llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:GROQ_API_KEY
 gpt-oss-120b-free: openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY
+
+local-qwen14b: mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1
+local-qwen2.5-32b: mlx-community/Qwen2.5-32B-Instruct-4bit@http://localhost:8000/v1
+local-qwen3-14b: mlx-community/Qwen3-14B-4bit@http://localhost:8000/v1
+local-llama3.1-8b: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit@http://localhost:8000/v1
+local-gemma2-9b: mlx-community/gemma-2-9b-it-4bit@http://localhost:8000/v1
+local-mistral-nemo-12b: mlx-community/Mistral-Nemo-Instruct-2407-4bit@http://localhost:8000/v1
