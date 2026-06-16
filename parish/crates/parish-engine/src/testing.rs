@@ -2109,6 +2109,39 @@ mod tests {
     }
 
     #[test]
+    fn canned_npc_response_strips_stacked_friend_stranger_vocative() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(90);
+        let moved = h.execute("go to Darcy's Pub");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "Do ye have need of him or his guidance, then, friend stranger, or just curious to know the man of God in these parts?",
+        );
+
+        let result = h.execute(
+            "talk to Padraig Darcy about Is Father Declan the man I should speak with about parish matters?",
+        );
+        let ActionResult::NpcResponse { dialogue, .. } = result else {
+            panic!("expected Padraig canned response, got {result:?}");
+        };
+
+        assert!(
+            !dialogue.to_lowercase().contains("friend stranger"),
+            "stacked vocative must be stripped: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("friend, or just curious"),
+            "substantive question and one address term must survive: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("man of God"),
+            "priest reference must survive: {dialogue:?}"
+        );
+    }
+
+    #[test]
     fn canned_npc_response_polishes_stock_declines_and_midday_morning_tic() {
         let mut h = GameTestHarness::new();
         h.advance_time(240);
