@@ -861,6 +861,27 @@ fn name_in_roster(
     false
 }
 
+/// Returns true when a title-cased candidate extracted by the person guard is
+/// actually a known world place. Location matches allow partial contiguous
+/// references such as "Lough Ree" for "The Old Lough Ree Shore" without
+/// treating unrelated surnames like "Mary Church" as a place match for
+/// "Saint Mary's Church".
+fn name_is_known_location(candidate: &str, known_location_names: &[String]) -> bool {
+    let candidate_norm = normalize_for_repetition(candidate);
+    if candidate_norm.is_empty() {
+        return false;
+    }
+    let candidate_tokens: Vec<&str> = candidate_norm.split_whitespace().collect();
+
+    known_location_names.iter().any(|location| {
+        let location_norm = normalize_for_repetition(location);
+        let location_tokens: Vec<&str> = location_norm.split_whitespace().collect();
+        location_tokens
+            .windows(candidate_tokens.len())
+            .any(|window| window == candidate_tokens.as_slice())
+    })
+}
+
 /// Post-generation guard for fabricated-person confirmation (#1459, #1466, #1470).
 ///
 /// After dialogue completion is produced, scans the text for affirmative
@@ -926,6 +947,32 @@ pub fn guard_fabricated_person_confirmation(
     player_name: Option<&str>,
     seed: u64,
 ) -> String {
+    guard_fabricated_person_confirmation_with_locations(
+        dialogue,
+        player_input,
+        known_person_names,
+        &[],
+        prior_player_inputs,
+        player_name,
+        seed,
+    )
+}
+
+/// Location-aware variant of [`guard_fabricated_person_confirmation`].
+///
+/// The person guard extracts title-cased bigrams/trigrams from the player input.
+/// Place names like "Lough Ree" have the same shape as human names, so callers
+/// with world context should pass known locations to prevent valid place-history
+/// answers from being replaced by "no such person" declines (#1569).
+pub fn guard_fabricated_person_confirmation_with_locations(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    known_location_names: &[String],
+    prior_player_inputs: &[&str],
+    player_name: Option<&str>,
+    seed: u64,
+) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
@@ -965,6 +1012,7 @@ pub fn guard_fabricated_person_confirmation(
             }
             // Only fabricated ones (not in roster, not the player's own name).
             !name_in_roster(candidate, known_person_names, player_name)
+                && !name_is_known_location(candidate, known_location_names)
         })
         .filter_map(|candidate| {
             candidate
@@ -989,7 +1037,9 @@ pub fn guard_fabricated_person_confirmation(
         .collect();
 
     for candidate in &candidates {
-        if name_in_roster(candidate, known_person_names, player_name) {
+        if name_in_roster(candidate, known_person_names, player_name)
+            || name_is_known_location(candidate, known_location_names)
+        {
             continue;
         }
         // Primary check: dialogue affirms the full fabricated name.
@@ -1066,7 +1116,9 @@ pub fn guard_fabricated_person_confirmation(
     //   4. The NPC reply contains a pronoun affirmation marker.
     //   5. The NPC reply contains no denial marker.
     let current_turn_has_fabricated_candidate = candidates.iter().any(|c| {
-        c.split_whitespace().count() >= 2 && !name_in_roster(c, known_person_names, player_name)
+        c.split_whitespace().count() >= 2
+            && !name_in_roster(c, known_person_names, player_name)
+            && !name_is_known_location(c, known_location_names)
     });
 
     if !current_turn_has_fabricated_candidate && !prior_player_inputs.is_empty() {
@@ -1084,6 +1136,7 @@ pub fn guard_fabricated_person_confirmation(
             .filter(|c| {
                 c.split_whitespace().count() >= 2
                     && !name_in_roster(c, known_person_names, player_name)
+                    && !name_is_known_location(c, known_location_names)
             })
             // Ambiguous-but-real: exclude if the same prior input also named a real
             // roster full name sharing the first name (too ambiguous to suppress).
@@ -5391,6 +5444,115 @@ mod tests {
         // Whether or not the guard fires (depends on extraction), the result must be a
         // valid string with no panic.
         assert!(!result.is_empty(), "result must be non-empty: {result:?}");
+    }
+
+    // ── #1569 — known place names are not fabricated people ─────────────────
+
+    /// AC-1 (#1569): "Lough Ree" has the same Title-case bigram shape as a
+    /// person name, but it is a known place via "Lough Ree Shore". The
+    /// fabricated-person guard must not replace a valid lake-history answer
+    /// with a "no such person" decline.
+    #[test]
+    fn person_guard_allows_known_place_history_question() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Lough Ree Shore", "Kilteevan Village"]);
+        let player_input =
+            "Aoife, I never saw a lake this grand. What is the history of Lough Ree?";
+        let dialogue = "Ah, the history of Lough Ree is a tale as grand as the lake itself. \
+                        Folk say it was formed by the great flood.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_eq!(
+            result, dialogue,
+            "known place reference must not be treated as a fabricated person: {result:?}"
+        );
+    }
+
+    /// Review hardening (#1569): the known-place exemption must also match a
+    /// candidate phrase in the middle of a longer location name.
+    #[test]
+    fn person_guard_allows_known_place_history_question_for_middle_location_span() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["The Old Lough Ree Shore"]);
+        let player_input = "What is the history of Lough Ree?";
+        let dialogue = "The history of Lough Ree is older than the road itself.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_eq!(
+            result, dialogue,
+            "known place span in the middle of a location must not be treated as a person"
+        );
+    }
+
+    /// Review hardening (#1569): token-window location matching must still
+    /// require the full candidate phrase, not only a surname-like suffix.
+    #[test]
+    fn person_guard_does_not_treat_unrelated_surname_as_known_place() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Saint Mary's Church"]);
+        let player_input = "Do you know Mary Church?";
+        let dialogue = "Aye, Mary Church is at the forge this morning.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "unrelated surname-like phrase must still be guarded"
+        );
+    }
+
+    /// AC-3 (#1569): adding known-place context must not disable the fabricated
+    /// person guard for real fabricated people.
+    #[test]
+    fn person_guard_still_declines_fabricated_person_with_location_context() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Lough Ree Shore", "Kilteevan Village"]);
+        let player_input = "Do you know Cormac Sweeney?";
+        let dialogue = "Aye, Cormac Sweeney is at the mill this morning.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_ne!(result, dialogue, "fabricated person must still be guarded");
+        assert!(
+            result.to_lowercase().contains("no such person")
+                || result.to_lowercase().contains("no one by that name")
+                || result.to_lowercase().contains("wrong parish"),
+            "expected a person non-recognition decline, got: {result:?}"
+        );
     }
 
     // ── #1553 — player name exempt from fabricated-person guard ──────────────
