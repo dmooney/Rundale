@@ -831,7 +831,12 @@ fn apply_npc_response(
         }
     }
     if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guarded = crate::npc::guard_verbosity_runons(&parsed.dialogue);
+        let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
+        let guarded = if app.flags.is_disabled("npc-mood-aware-sentence-cap") {
+            crate::npc::guard_verbosity_runons(&parsed.dialogue)
+        } else {
+            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
+        };
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }

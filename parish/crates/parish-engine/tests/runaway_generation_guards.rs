@@ -696,6 +696,88 @@ fn real_loop_cooper_work_answer_is_not_truncated_to_greeting() {
     }
 }
 
+// ── #1566 — watchful sacred-place run-on must be terse ──────────────────────
+
+/// AC-1 (#1566, real-loop): when the mock model emits the raw watchful Brigid
+/// sacred-place loop, the mood-aware verbosity guard inside `run_npc_turn` must
+/// clip it before the repeated question/tail reaches `DialogueOccurred`.
+#[test]
+fn real_loop_watchful_sacred_place_runon_is_clipped() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let raw_dialogue = "Aye, 'tis said the sidhe live in the mounds and the forts. \
+        But the power here at the well, that's a different matter. \
+        A blessing, mayhap, but not just for those who seek it out. \
+        What do ye seek, Colm Brennan, is it for yerself or for another that \
+        troubles yer thoughts this morning, aye, and brings ye to this place \
+        of old magic and healing water, so it is indeed. \
+        What troubles yer mind, if ye care to speak of it, and I'll do what I \
+        can to ease it, if I may. \
+        Ye'll not be the first to find comfort here, nor the last. \
+        What brings ye to Kilteevan, and why the holy well, do ye ask, if not \
+        simply to see the sights and hear the tales, aye, but to seek a deeper \
+        truth or a healing hand, so it seems. \
+        Tell me, and I'll listen, and if I can, I'll guide ye. \
+        What do ye seek, Colm Brennan, aye, what troubles yer heart and mind \
+        this mornin' so bold, aye, and brings ye here to the well, and not \
+        elsewhere in the parish, if not for the sake of yer soul and the \
+        whispers of the old ones, so it is indeed. \
+        What do ye seek, Colm Brennan, aye, and what brings ye here to the \
+        well, so it is indeed?";
+    let json_reply = serde_json::json!({
+        "dialogue": raw_dialogue,
+        "action": "watches carefully",
+        "mood": "watchful",
+        "internal_thought": null,
+        "language_hints": []
+    })
+    .to_string();
+
+    h.mock().push_json_for(&speaker_name, json_reply);
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "I heard there is a fairy fort called Cnoc na Si on Darcy land where the cure is strongest. Is it true?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the watchful run-on turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    let sentence_count = joined
+        .split(['.', '!', '?'])
+        .filter(|s| !s.trim().is_empty())
+        .count();
+
+    assert!(
+        sentence_count <= 2,
+        "watchful run-on must be clipped to a terse reply; got {sentence_count}: {joined:?}"
+    );
+    assert!(
+        joined.contains("mounds and the forts") && joined.contains("power here at the well"),
+        "grounded opening must survive (#1566): {joined:?}"
+    );
+    assert!(
+        !lower.contains("what do ye seek"),
+        "repeated question loop must not reach DialogueOccurred (#1566): {joined:?}"
+    );
+    assert!(
+        !lower.contains("brings ye here to the well"),
+        "later repeated loop tail must not reach DialogueOccurred (#1566): {joined:?}"
+    );
+}
+
 // ── #1565 — invented titled landlord must be denied ─────────────────────────
 
 /// AC-1 (#1565, real-loop): an NPC reply that confirms and elaborates on the

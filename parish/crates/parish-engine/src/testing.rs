@@ -533,36 +533,54 @@ impl GameTestHarness {
         game_time: chrono::DateTime<chrono::Utc>,
     ) -> String {
         let cfg = parish_core::config::NpcConfig::default();
-        if !cfg.person_confirmation_guard_enabled || dialogue.trim().is_empty() {
+        if dialogue.trim().is_empty() {
             return dialogue;
         }
+        let mut guarded = dialogue;
 
-        let known_person_names: Vec<String> = self
-            .app
-            .npc_manager
-            .all_npcs()
-            .map(|npc| npc.name.clone())
-            .collect();
-        let known_location_names: Vec<String> = self
-            .app
-            .world
-            .graph
-            .location_ids()
-            .into_iter()
-            .filter_map(|id| self.app.world.graph.get(id))
-            .map(|location| location.name.clone())
-            .collect();
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        if cfg.person_confirmation_guard_enabled {
+            let known_person_names: Vec<String> = self
+                .app
+                .npc_manager
+                .all_npcs()
+                .map(|npc| npc.name.clone())
+                .collect();
+            let known_location_names: Vec<String> = self
+                .app
+                .world
+                .graph
+                .location_ids()
+                .into_iter()
+                .filter_map(|id| self.app.world.graph.get(id))
+                .map(|location| location.name.clone())
+                .collect();
+            let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
 
-        crate::npc::guard_fabricated_person_confirmation_with_locations(
-            &dialogue,
-            player_input,
-            &known_person_names,
-            &known_location_names,
-            &[],
-            self.app.world.player_name.as_deref(),
-            seed,
-        )
+            guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
+                &guarded,
+                player_input,
+                &known_person_names,
+                &known_location_names,
+                &[],
+                self.app.world.player_name.as_deref(),
+                seed,
+            );
+        }
+
+        if cfg.verbosity_guard_enabled {
+            let mood = self
+                .app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| npc.mood.as_str());
+            guarded = if self.app.flags.is_disabled("npc-mood-aware-sentence-cap") {
+                crate::npc::guard_verbosity_runons(&guarded)
+            } else {
+                crate::npc::guard_verbosity_runons_with_mood(&guarded, mood)
+            };
+        }
+
+        guarded
     }
 
     /// Returns the name of the player's current location.

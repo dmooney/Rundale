@@ -1697,9 +1697,9 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
 
 // ── #1491 — mood-aware sentence cap ───────────────────────────────────────────
 
-/// Mood keywords that indicate a busy/curt NPC should get a tighter (2-sentence)
-/// cap instead of the default 4 (#1491).
-const BUSY_MOOD_KEYWORDS: &[&str] = &[
+/// Mood keywords that indicate an NPC should get a tighter (2-sentence) cap
+/// instead of the default 4 (#1491, #1566).
+const TERSE_MOOD_KEYWORDS: &[&str] = &[
     "busy",
     "sharp",
     "curt",
@@ -1712,11 +1712,14 @@ const BUSY_MOOD_KEYWORDS: &[&str] = &[
     "brusque",
     "irritated",
     "frustrated",
+    "alert",
+    "watchful",
+    "vigilant",
 ];
 
 /// Applies the sentence-count cap with optional mood-aware tightening (#1491).
 ///
-/// For busy/curt moods (matching `BUSY_MOOD_KEYWORDS`), caps at 2 sentences;
+/// For terse moods (matching `TERSE_MOOD_KEYWORDS`), caps at 2 sentences;
 /// otherwise uses the default 4. Exposed for tests.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
@@ -1724,7 +1727,7 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
     let cap = match mood {
         Some(m) => {
             let m_lower = m.to_lowercase();
-            if BUSY_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
+            if TERSE_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
                 2
             } else {
                 4
@@ -5172,6 +5175,55 @@ mod tests {
         assert!(
             sentence_count <= 2,
             "frustrated mood pipeline must cap at 2 sentences; got {sentence_count}: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1566): a watchful NPC's raw sacred-place run-on must be clipped
+    /// before the repeated "what do ye seek" loop reaches the player.
+    #[test]
+    fn watchful_mood_clips_sacred_place_runon() {
+        let dialogue = "Aye, 'tis said the sidhe live in the mounds and the forts. \
+            But the power here at the well, that's a different matter. \
+            A blessing, mayhap, but not just for those who seek it out. \
+            What do ye seek, Colm Brennan, is it for yerself or for another that \
+            troubles yer thoughts this morning, aye, and brings ye to this place \
+            of old magic and healing water, so it is indeed. \
+            What troubles yer mind, if ye care to speak of it, and I'll do what I \
+            can to ease it, if I may. \
+            Ye'll not be the first to find comfort here, nor the last. \
+            What brings ye to Kilteevan, and why the holy well, do ye ask, if not \
+            simply to see the sights and hear the tales, aye, but to seek a deeper \
+            truth or a healing hand, so it seems. \
+            Tell me, and I'll listen, and if I can, I'll guide ye. \
+            What do ye seek, Colm Brennan, aye, what troubles yer heart and mind \
+            this mornin' so bold, aye, and brings ye here to the well, and not \
+            elsewhere in the parish, if not for the sake of yer soul and the \
+            whispers of the old ones, so it is indeed. \
+            What do ye seek, Colm Brennan, aye, and what brings ye here to the \
+            well, so it is indeed?";
+
+        let result = guard_verbosity_runons_with_mood(dialogue, Some("watchful"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        let lower = result.to_lowercase();
+
+        assert!(
+            sentence_count <= 2,
+            "watchful mood must keep the run-on terse; got {sentence_count}: {result:?}"
+        );
+        assert!(
+            result.contains("mounds and the forts") && result.contains("power here at the well"),
+            "grounded opening must survive: {result:?}"
+        );
+        assert!(
+            !lower.contains("what do ye seek"),
+            "repeated question loop must be removed: {result:?}"
+        );
+        assert!(
+            !lower.contains("brings ye here to the well"),
+            "later repeated loop tail must be removed: {result:?}"
         );
     }
 

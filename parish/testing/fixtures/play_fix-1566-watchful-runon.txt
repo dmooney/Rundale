@@ -1,0 +1,9 @@
+# fix-1566-watchful-runon
+# Repro: a raw watchful NPC loop must be clipped before it reaches the transcript.
+
+/wait 1
+go to the holy well
+/npcs
+
+/stub Brigid Ni Fhatharta: Aye, 'tis said the sidhe live in the mounds and the forts. But the power here at the well, that's a different matter. A blessing, mayhap, but not just for those who seek it out. What do ye seek, Colm Brennan, is it for yerself or for another that troubles yer thoughts this morning, aye, and brings ye to this place of old magic and healing water, so it is indeed. What troubles yer mind, if ye care to speak of it, and I'll do what I can to ease it, if I may. Ye'll not be the first to find comfort here, nor the last. What brings ye to Kilteevan, and why the holy well, do ye ask, if not simply to see the sights and hear the tales, aye, but to seek a deeper truth or a healing hand, so it seems. Tell me, and I'll listen, and if I can, I'll guide ye. What do ye seek, Colm Brennan, aye, what troubles yer heart and mind this mornin' so bold, aye, and brings ye here to the well, and not elsewhere in the parish, if not for the sake of yer soul and the whispers of the old ones, so it is indeed. What do ye seek, Colm Brennan, aye, and what brings ye here to the well, so it is indeed?
+talk to Brigid Ni Fhatharta about I heard there is a fairy fort called Cnoc na Si on Darcy land where the cure is strongest. Is it true?
