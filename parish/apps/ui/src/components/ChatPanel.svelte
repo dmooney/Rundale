@@ -83,6 +83,7 @@
 		if (entry.source === 'player' && entry.subtype === 'command') return 'command';
 		if (entry.source === 'player') return 'player';
 		if (entry.source === 'system') return 'system';
+		if (entry.subtype === 'location') return 'system';
 		// Non-verbal NPC reactions (subtype "action") are rendered as italicised
 		// narration in the system-message style, not as speech bubbles (#1431 item 2).
 		if (entry.subtype === 'action') return 'system';

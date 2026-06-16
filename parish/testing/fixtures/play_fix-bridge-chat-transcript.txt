@@ -1,0 +1,18 @@
+# fix-bridge-chat-transcript
+# Covers #1568, #1567, and #1533. #1499 remains a separate exchange-delta bug.
+#
+# Bridge/API-specific assertions belong in server/UI tests. This fixture keeps
+# the player-visible command, scene, and dialogue sequence stable for live proof.
+
+look
+/status
+go to The Crossroads
+look
+go to Darcy's Pub
+look
+/npcs
+
+/stub Padraig Darcy: A fair day to ye. There is turf smoke in the rafters and news at every table.
+hello Padraig, what is the news in the pub?
+
+/status
