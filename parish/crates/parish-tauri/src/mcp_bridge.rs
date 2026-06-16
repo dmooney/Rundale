@@ -1221,6 +1221,47 @@ mod tests {
         assert_eq!(delta[0].player_input, "hello");
     }
 
+    /// #1569: the bridge response must surface the post-guard transcript text
+    /// exactly as stored. When the upstream guard preserves a valid place-history
+    /// answer, `exchanges[]` must not substitute an unrelated person denial.
+    #[tokio::test]
+    async fn submit_input_result_preserves_known_place_history_exchange() {
+        use parish_core::ipc::ConversationLine;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let len_before = {
+            let conv = state.conversation.lock().await;
+            conv.transcript.len()
+        };
+        let preserved = "Ah, the history of Lough Ree is a tale as grand as the lake itself.";
+        {
+            let mut conv = state.conversation.lock().await;
+            conv.push_line(ConversationLine {
+                speaker: "Aoife Brennan".to_string(),
+                text: preserved.to_string(),
+            });
+        }
+
+        let delta = read_transcript_delta(
+            &state,
+            len_before,
+            "Aoife, what is the history of Lough Ree?",
+        )
+        .await;
+
+        assert_eq!(delta.len(), 1, "expected exactly one exchange");
+        assert_eq!(delta[0].speaker_name, "Aoife Brennan");
+        assert_eq!(delta[0].npc_dialogue, preserved);
+        assert!(
+            !delta[0]
+                .npc_dialogue
+                .to_lowercase()
+                .contains("no such person"),
+            "exchange text must not contain a person-denial substitution: {delta:?}"
+        );
+    }
+
     // ── turn_read helper tests (#1356 / #1389) ───────────────────────────────
 
     /// Push N test events into `game_events` and increment `total_game_events`

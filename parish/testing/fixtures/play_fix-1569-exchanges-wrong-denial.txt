@@ -1,0 +1,11 @@
+# fix-1569-exchanges-wrong-denial
+# Repro: a place-history question about Lough Ree must not be replaced by a
+# fabricated-person grounding denial.
+
+go to crossroads
+go to pub
+look
+/npcs
+
+/stub Padraig Darcy: Ah, the history of Lough Ree is a tale as grand as the lake itself. Folk say it was formed by the great flood, and it is said to be home to the Lough Ree wurm.
+talk to Padraig Darcy about the history of Lough Ree
