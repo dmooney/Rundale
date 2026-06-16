@@ -46,13 +46,13 @@ fn harness_with_one_npc() -> (GameTestHarness, String) {
     let mut h = GameTestHarness::new();
     let player_loc = h.app.world.player_location;
 
-    // Pick the first NPC.
-    let speaker_id = h
-        .app
-        .npc_manager
-        .all_npcs()
-        .map(|n| n.id)
-        .next()
+    // Pick a stable NPC. `NpcManager::all_npcs()` is HashMap-backed, so raw
+    // iterator order varies across test worker threads.
+    let mut npc_ids: Vec<_> = h.app.npc_manager.all_npcs().map(|n| n.id).collect();
+    npc_ids.sort_unstable();
+    let speaker_id = npc_ids
+        .first()
+        .copied()
         .expect("harness loads at least one NPC");
 
     let speaker_name = {
@@ -227,10 +227,15 @@ fn real_loop_real_npc_description_not_denied() {
     // Find the name of a SECOND real parish NPC (the one we moved away).
     let other_name: String = {
         let player_loc = h.app.world.player_location;
-        h.app
+        let mut others: Vec<_> = h
+            .app
             .npc_manager
             .all_npcs()
-            .find(|n| n.location != player_loc)
+            .filter(|n| n.location != player_loc)
+            .collect();
+        others.sort_by_key(|n| n.id);
+        others
+            .first()
             .map(|n| n.name.clone())
             .expect("there must be a second NPC in the parish")
     };
@@ -425,7 +430,6 @@ fn real_loop_spelled_out_honorific_of_roster_member_not_denied() {
     );
 
     let joined = shown.join(" ");
-
     // The guard must NOT have fired — the correct reply must reach the player.
     let decline_phrases = [
         "know no one by that name",
@@ -505,10 +509,15 @@ fn real_loop_false_denial_of_roster_npc_corrected() {
     // Find a second real NPC in the parish (the one we moved away).
     let other_name: String = {
         let player_loc = h.app.world.player_location;
-        h.app
+        let mut others: Vec<_> = h
+            .app
             .npc_manager
             .all_npcs()
-            .find(|n| n.location != player_loc)
+            .filter(|n| n.location != player_loc)
+            .collect();
+        others.sort_by_key(|n| n.id);
+        others
+            .first()
             .map(|n| n.name.clone())
             .expect("there must be a second NPC in the parish")
     };

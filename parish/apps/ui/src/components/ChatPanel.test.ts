@@ -1017,6 +1017,21 @@ describe('ChatPanel — slash command echo (#1423)', () => {
 		expect(entry?.querySelector('.command-prompt')).toBeTruthy();
 		expect(entry?.querySelector('.command-text')?.textContent).toBe('/resume');
 	});
+
+	it('renders location subtype as system narration even if source drifts', () => {
+		textLog.set([
+			{
+				id: 'loc-1',
+				source: 'narrator',
+				subtype: 'location',
+				content: "The warm interior of Darcy's Pub.",
+			},
+		]);
+		const { container, getByText } = render(ChatPanel);
+		expect(getByText("The warm interior of Darcy's Pub.")).toBeTruthy();
+		expect(container.querySelector('.entry.system.location')).toBeTruthy();
+		expect(container.querySelector('.bubble-row.npc')).toBeFalsy();
+	});
 });
 
 describe('ChatPanel — UI design pass (game-ui-design-ma9ls0)', () => {
