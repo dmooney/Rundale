@@ -862,20 +862,23 @@ fn name_in_roster(
 }
 
 /// Returns true when a title-cased candidate extracted by the person guard is
-/// actually a known world place. Location matches allow partial references such
-/// as "Lough Ree" for "Lough Ree Shore" without treating unrelated surnames
-/// like "Mary Church" as a place match for "Church".
+/// actually a known world place. Location matches allow partial contiguous
+/// references such as "Lough Ree" for "The Old Lough Ree Shore" without
+/// treating unrelated surnames like "Mary Church" as a place match for
+/// "Saint Mary's Church".
 fn name_is_known_location(candidate: &str, known_location_names: &[String]) -> bool {
     let candidate_norm = normalize_for_repetition(candidate);
     if candidate_norm.is_empty() {
         return false;
     }
+    let candidate_tokens: Vec<&str> = candidate_norm.split_whitespace().collect();
 
     known_location_names.iter().any(|location| {
         let location_norm = normalize_for_repetition(location);
-        location_norm == candidate_norm
-            || location_norm.starts_with(&format!("{candidate_norm} "))
-            || location_norm.ends_with(&format!(" {candidate_norm}"))
+        let location_tokens: Vec<&str> = location_norm.split_whitespace().collect();
+        location_tokens
+            .windows(candidate_tokens.len())
+            .any(|window| window == candidate_tokens.as_slice())
     })
 }
 
@@ -5471,6 +5474,56 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known place reference must not be treated as a fabricated person: {result:?}"
+        );
+    }
+
+    /// Review hardening (#1569): the known-place exemption must also match a
+    /// candidate phrase in the middle of a longer location name.
+    #[test]
+    fn person_guard_allows_known_place_history_question_for_middle_location_span() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["The Old Lough Ree Shore"]);
+        let player_input = "What is the history of Lough Ree?";
+        let dialogue = "The history of Lough Ree is older than the road itself.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_eq!(
+            result, dialogue,
+            "known place span in the middle of a location must not be treated as a person"
+        );
+    }
+
+    /// Review hardening (#1569): token-window location matching must still
+    /// require the full candidate phrase, not only a surname-like suffix.
+    #[test]
+    fn person_guard_does_not_treat_unrelated_surname_as_known_place() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Saint Mary's Church"]);
+        let player_input = "Do you know Mary Church?";
+        let dialogue = "Aye, Mary Church is at the forge this morning.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "unrelated surname-like phrase must still be guarded"
         );
     }
 
