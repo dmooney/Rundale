@@ -1,0 +1,11 @@
+personality = "friendly"
+
+[mcp_servers]
+
+# Source `.mcp.json` description is documented in AGENTS.md; Codex MCP config has no description field.
+[mcp_servers.parish]
+command = "parish/scripts/parish-mcp-launch.sh"
+args = ["--base-url", "http://127.0.0.1:3030"]
+
+[features]
+codex_hooks = true
