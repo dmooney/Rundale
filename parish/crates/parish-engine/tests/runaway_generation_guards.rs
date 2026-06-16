@@ -644,6 +644,58 @@ fn real_loop_physical_action_produces_you_line() {
     );
 }
 
+// ── #1561 — ordinary answers must not truncate to opener ─────────────────────
+
+/// AC-1 (#1561, real-loop): a short, distinct multi-sentence answer that
+/// contains a harmless repeated phrase ("work for a") must not be trimmed back
+/// to only its greeting by the post-generation verbosity guards.
+#[test]
+fn real_loop_cooper_work_answer_is_not_truncated_to_greeting() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let cooper_answer = "Good morning, Aiden Carney. Work for a cooper? \
+                         Aye, there's always work for a man with that skill. \
+                         This place needs barrels for ale and salt, surely. \
+                         Ye know yer trade?";
+
+    h.mock().push_for(&speaker_name, cooper_answer.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "I am Aiden Carney, a cooper newly arrived in Kilteevan. Might there be work here?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the cooper-work turn"
+    );
+
+    let joined = shown.join(" ");
+    assert_ne!(
+        joined, "Good morning, Aiden Carney.",
+        "cooper-work answer must not be truncated to only the greeting"
+    );
+    for phrase in [
+        "Work for a cooper?",
+        "there's always work",
+        "barrels for ale and salt",
+        "Ye know yer trade?",
+    ] {
+        assert!(
+            joined.contains(phrase),
+            "cooper-work answer lost phrase {phrase:?}: {joined:?}"
+        );
+    }
+}
+
 // ── #1565 — invented titled landlord must be denied ─────────────────────────
 
 /// AC-1 (#1565, real-loop): an NPC reply that confirms and elaborates on the

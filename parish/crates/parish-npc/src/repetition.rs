@@ -1646,6 +1646,8 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
 ///   first (N-1) sentences plus the trailing question — so the NPC remains
 ///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
 /// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
+/// - Short replies (<= 45 words) are returned unchanged by the default
+///   4-sentence cap even when they contain 5 terse sentence units (#1561).
 ///
 /// The cap is intentionally conservative (4 sentences) — a natural NPC
 /// turn should deliver one thought in 2-3 sentences and optionally ask one
@@ -1668,6 +1670,11 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
         .collect();
 
     if sentences.len() <= max {
+        return dialogue.trim().to_string();
+    }
+
+    const DEFAULT_SHORT_REPLY_WORD_BUDGET: usize = 45;
+    if max >= 4 && dialogue.split_whitespace().count() <= DEFAULT_SHORT_REPLY_WORD_BUDGET {
         return dialogue.trim().to_string();
     }
 
@@ -1795,6 +1802,14 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
                     // Look for the last sentence-end marker in the prefix.
                     if let Some(last_end) = prefix.rfind(['.', '!', '?']) {
                         let sentence_end = last_end + 1;
+                        if !prefix[sentence_end..].trim().is_empty() {
+                            // The only clean boundary is before the first
+                            // occurrence of the repeated phrase. Trimming there
+                            // would drop the whole substantive sentence and keep
+                            // only an earlier opener (#1561), so this is not a
+                            // safe loop-collapse candidate.
+                            continue;
+                        }
                         let trimmed = prefix[..sentence_end].trim();
                         if !trimmed.is_empty() {
                             tracing::debug!(
@@ -5098,9 +5113,12 @@ mod tests {
     /// AC-3 (#1491): A neutral mood keeps the default 4-sentence cap.
     #[test]
     fn mood_aware_sentence_cap_neutral_mood_keeps_4() {
-        let dialogue = "Good day to ye. The weather's been mild. \
-            The cattle are doing well. I saw the priest this morning. \
-            He sent his regards.";
+        let dialogue = "Good day to ye, friend, and welcome into the house. \
+            The weather has been mild enough for the cattle in the lower meadow. \
+            The spring grass came early, so every beast has kept a little strength. \
+            I saw the priest this morning walking the road toward the chapel. \
+            He sent his regards and asked after every family by name.";
+        assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, Some("neutral"));
         let sentence_count = split_sentences(&result)
             .iter()
@@ -5119,7 +5137,12 @@ mod tests {
     /// AC-4 (#1491): None mood uses default 4-sentence cap (no panic).
     #[test]
     fn mood_aware_sentence_cap_none_mood_uses_default() {
-        let dialogue = "One. Two. Three. Four. Five.";
+        let dialogue = "One long sentence gathers enough words for the default cap to matter. \
+            Two long sentence adds a little more local news for the test. \
+            Three long sentence keeps the reply ordinary while staying above the budget. \
+            Four long sentence should remain after the default cap trims the tail. \
+            Five long sentence should be dropped only when the budgeted cap applies.";
+        assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, None);
         let sentence_count = split_sentences(&result)
             .iter()
@@ -5128,6 +5151,10 @@ mod tests {
         assert!(
             sentence_count <= 4,
             "None mood must cap at 4; got {sentence_count}: {result:?}"
+        );
+        assert!(
+            sentence_count >= 4,
+            "None mood with a long 5-sentence reply must keep 4; got {sentence_count}: {result:?}"
         );
     }
 
@@ -5713,6 +5740,43 @@ mod tests {
         assert_eq!(
             result, input,
             "distant repetition (> 20 words) must not trigger the guard"
+        );
+    }
+
+    /// #1561: The phrase "work for a" repeats in adjacent substantive
+    /// sentences, but the only clean boundary before the first occurrence is the
+    /// greeting. The guard must not trim back to that opener and drop the actual
+    /// cooper-work answer.
+    #[test]
+    fn collapse_nearby_phrase_repeat_preserves_cooper_work_answer() {
+        let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
+                     always work for a man with that skill. This place needs \
+                     barrels for ale and salt, surely. Ye know yer trade?";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(
+            result, input,
+            "nearby phrase guard must not truncate a normal answer to its greeting"
+        );
+    }
+
+    /// #1561: The full verbosity pipeline must preserve the same short,
+    /// distinct multi-sentence reply instead of storing only the opener.
+    #[test]
+    fn verbosity_guard_preserves_cooper_work_answer() {
+        let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
+                     always work for a man with that skill. This place needs \
+                     barrels for ale and salt, surely. Ye know yer trade?";
+        let result = guard_verbosity_runons(input);
+        assert!(
+            result.contains("Work for a cooper?")
+                && result.contains("there's always work")
+                && result.contains("barrels for ale and salt")
+                && result.contains("Ye know yer trade?"),
+            "verbosity guard must preserve the substantive answer: {result:?}"
+        );
+        assert_ne!(
+            result, "Good morning, Aiden Carney.",
+            "verbosity guard must not collapse to only the greeting"
         );
     }
 }
