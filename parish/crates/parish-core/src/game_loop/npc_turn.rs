@@ -454,10 +454,11 @@ pub async fn run_npc_turn(
             .filter(|line| line.speaker == "You")
             .map(|line| line.text.as_str())
             .collect();
-        let guarded = crate::npc::guard_fabricated_person_confirmation(
+        let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
             &parsed.dialogue,
             prompt_input,
             &setup.known_person_names,
+            &setup.known_location_names,
             &prior_player_inputs,
             setup.player_name.as_deref(),
             guard_seed,

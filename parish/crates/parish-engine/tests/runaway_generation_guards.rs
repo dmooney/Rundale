@@ -640,8 +640,62 @@ fn real_loop_physical_action_produces_you_line() {
     assert!(
         content.contains("pick up"),
         "You-line must narrate the player's pick-up action (#1531); \
-         got content: {content:?}"
+        got content: {content:?}"
     );
+}
+
+// ── #1569 — known place history must not trigger person denial ───────────────
+
+/// AC-1 (#1569, real-loop): when the player asks about the history of a known
+/// place whose short name looks like a person bigram ("Lough Ree"), the
+/// fabricated-person guard must not replace the model's valid place-history
+/// answer with a canned "no such person" decline.
+#[test]
+fn real_loop_known_place_history_not_replaced_by_person_denial() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let lake_history = "Ah, the history of Lough Ree is a tale as grand as the lake itself. \
+                        Folk say it was formed by the great flood, and it is said to be home \
+                        to the Lough Ree wurm.";
+
+    h.mock().push_for(&speaker_name, lake_history.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "Aoife, I never saw a lake this grand. What is the history of Lough Ree?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the Lough Ree history turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        joined.contains("history of Lough Ree"),
+        "valid place-history answer must reach the transcript (#1569); got: {joined:?}"
+    );
+    for phrase in [
+        "no such person",
+        "know of no such person",
+        "know no one by that name",
+        "wrong parish",
+    ] {
+        assert!(
+            !lower.contains(phrase),
+            "known place-history answer must not be replaced by a person decline \
+             (#1569); decline phrase {phrase:?} found in: {joined:?}"
+        );
+    }
 }
 
 // ── #1553 — player self-introduction not denied (real-loop) ──────────────────
