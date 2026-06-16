@@ -117,8 +117,9 @@ Keep a running `Monitor` of all in-flight PRs:
 prev=""
 while true; do
   s=$(for pr in <ids>; do
-    gh pr checks $pr --json name,bucket 2>/dev/null \
-      | jq -c "[.[] | {name: (\"$pr/\" + .name), bucket}]"
+    gh pr view "$pr" --json statusCheckRollup \
+      --jq "[.statusCheckRollup[]? | {name: (\"$pr/\" + (.context // .name // \"unknown\")), bucket: (if (.state // .status // \"\") == \"PENDING\" then \"pending\" else ((.state // .conclusion // .status // \"unknown\") | ascii_downcase) end)}]" \
+      2>/dev/null
   done | jq -s 'add')
   cur=$(jq -r '.[] | select(.bucket!="pending") | "\(.name): \(.bucket)"' \
     <<<"$s" | sort)
