@@ -797,7 +797,7 @@ pub struct NpcConversationSetup {
     pub system_prompt: String,
     /// The assembled context string for the LLM.
     pub context: String,
-    /// Names from the NPC's known-people roster (PEOPLE YOU KNOW list).
+    /// Names from the full parish person registry plus the player when known.
     /// Used by the post-generation person-confirmation guard (#1459) to detect
     /// when the NPC's reply affirms a fabricated person not on this list.
     pub known_person_names: Vec<String>,
@@ -896,13 +896,32 @@ pub fn prepare_npc_conversation_turn(
     } else {
         None
     };
+    // Prompt grounding (#1563): the "PEOPLE YOU KNOW" block is the model's
+    // primary allow-list for real names. The personal relationship roster is
+    // too small for that purpose: a real parish-wide figure absent from this
+    // NPC's local roster (e.g. a publican) can otherwise be denied as
+    // nonexistent. Keep relationship entries first, then append every other
+    // real parish NPC as a "real parish person" entry so the model may
+    // recognise the name without claiming close acquaintance.
+    let mut prompt_roster = roster.clone();
+    if npc_cfg.grounding_enabled {
+        let mut parish_people: Vec<(NpcId, String, String)> = npc_manager
+            .all_npcs()
+            .filter(|other| other.id != npc.id)
+            .filter(|other| !prompt_roster.iter().any(|(id, _, _)| *id == other.id))
+            .map(|other| (other.id, other.name.clone(), other.occupation.clone()))
+            .collect();
+        parish_people.sort_by_key(|(id, _, _)| id.0);
+        prompt_roster.extend(parish_people);
+    }
+
     let system_prompt = ticks::build_enhanced_system_prompt_with_config(
         &npc,
         improv_enabled,
         language,
         npc_cfg,
         &npc_names,
-        Some(&roster),
+        Some(&prompt_roster),
         location_names.as_deref(),
     );
 
@@ -2090,8 +2109,9 @@ mod tests {
 
         let setup = setup.expect("setup must succeed for co-located NPC");
 
-        // The fix: Roisin must appear in known_person_names even though she
-        // is NOT in the priest's personal relationship roster.
+        // The fix: Roisin must appear in both the hidden guard allow-list and
+        // the system prompt even though she is NOT in the priest's personal
+        // relationship roster.
         assert!(
             setup
                 .known_person_names
@@ -2101,6 +2121,13 @@ mod tests {
              even though she has no relationship with the speaking priest (#1488); \
              got: {:?}",
             setup.known_person_names
+        );
+        assert!(
+            setup.system_prompt.contains("Roisin Malone, Shopkeeper")
+                && setup.system_prompt.contains("real parish person"),
+            "Roisin Malone must appear in the prompt as a real parish person \
+             so the model is not instructed to deny her (#1563):\n{}",
+            setup.system_prompt
         );
 
         // Validate that the person-confirmation guard does NOT fire on a good

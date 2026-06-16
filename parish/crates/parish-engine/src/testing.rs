@@ -537,25 +537,24 @@ impl GameTestHarness {
             return dialogue;
         }
         let mut guarded = dialogue;
+        let known_person_names: Vec<String> = self
+            .app
+            .npc_manager
+            .all_npcs()
+            .map(|npc| npc.name.clone())
+            .collect();
+        let known_location_names: Vec<String> = self
+            .app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| self.app.world.graph.get(id))
+            .map(|location| location.name.clone())
+            .collect();
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
 
         if cfg.person_confirmation_guard_enabled {
-            let known_person_names: Vec<String> = self
-                .app
-                .npc_manager
-                .all_npcs()
-                .map(|npc| npc.name.clone())
-                .collect();
-            let known_location_names: Vec<String> = self
-                .app
-                .world
-                .graph
-                .location_ids()
-                .into_iter()
-                .filter_map(|id| self.app.world.graph.get(id))
-                .map(|location| location.name.clone())
-                .collect();
-            let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-
             guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
                 &guarded,
                 player_input,
@@ -563,6 +562,39 @@ impl GameTestHarness {
                 &known_location_names,
                 &[],
                 self.app.world.player_name.as_deref(),
+                seed,
+            );
+        }
+
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_false_denial_of_roster_person(
+                &guarded,
+                player_input,
+                &known_person_names,
+                self.app.world.player_name.as_deref(),
+                seed,
+            );
+            guarded = crate::npc::guard_false_denial_of_known_place(
+                &guarded,
+                player_input,
+                &known_location_names,
+                seed,
+            );
+        }
+
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_invented_place_confirmation(
+                &guarded,
+                player_input,
+                &known_location_names,
                 seed,
             );
         }
@@ -2043,6 +2075,57 @@ mod tests {
         );
         assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
         assert!(!lower.contains("owns most of the land"), "{dialogue}");
+    }
+
+    #[test]
+    fn canned_npc_response_corrects_real_entity_false_denials() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to the forge");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Seamus Gallagher",
+            "I cannae guide ye to a place that doesn't exist.",
+        );
+        let place_result = h.execute("talk to Seamus Gallagher about Where is Darcy's Pub?");
+        let ActionResult::NpcResponse {
+            dialogue: place_dialogue,
+            ..
+        } = place_result
+        else {
+            panic!("expected Seamus to answer the known-place turn, got {place_result:?}");
+        };
+        let place_lower = place_dialogue.to_lowercase();
+        assert!(!place_lower.contains("doesn't exist"), "{place_dialogue}");
+        assert!(
+            place_lower.contains("place")
+                && (place_lower.contains("know")
+                    || place_lower.contains("known")
+                    || place_lower.contains("real")),
+            "{place_dialogue}"
+        );
+
+        h.add_canned_response(
+            "Seamus Gallagher",
+            "I know no one by that name in these parts.",
+        );
+        let person_result = h.execute("talk to Seamus Gallagher about Where is Padraig Darcy?");
+        let ActionResult::NpcResponse {
+            dialogue: person_dialogue,
+            ..
+        } = person_result
+        else {
+            panic!("expected Seamus to answer the known-person turn, got {person_result:?}");
+        };
+        let person_lower = person_dialogue.to_lowercase();
+        assert!(
+            !person_lower.contains("no one by that name"),
+            "{person_dialogue}"
+        );
+        assert!(
+            person_lower.contains("name") || person_lower.contains("parish"),
+            "{person_dialogue}"
+        );
     }
 
     #[test]
