@@ -1,5 +1,5 @@
 ---
-name: "source-command-demo-audit"
+name: 'source-command-demo-audit'
 description: "Run a demo-audit session \u2014 cycle `just demo` with live MCP/HTTP inspection, surface gameplay bugs, file them via the parish_file_bug MCP (screenshot + logs + state) and log in TODO.md"
 ---
 
@@ -11,7 +11,7 @@ Use this skill when the user asks to run the migrated source command `demo-audit
 
 Run a demo-audit session on the Parish/Rundale engine. Goal: snapshot current gameplay quality + surface bugs via repeated `just demo` cycles combined with live MCP/HTTP inspection.
 
-# Workflow
+## Workflow
 
 ## 1. Pre-flight
 
@@ -112,20 +112,20 @@ Protocol per bug:
   entries when later cycles refute or refine them.
 - At the end list top-10 by impact, each linked to its issue.
 
-# Constraints
+## Constraints
 
 - Do NOT write code fixes. Document only, unless the user says "fix X now".
 - Read code before claiming root cause. Avoid asserting based on symptom alone — grep `parish/crates/parish-core`, `parish-tauri`, `parish-input`, `parish-npc`, `parish/apps/ui/src/lib`.
 - Track every cycle's distinct-location-count, movement count, NPC reply rate, error/warn count. Spot trends across cycles.
 - Stop when 2 consecutive cycles add zero truly new categories, OR when the user says stop. Acceptance-criteria gate doesn't apply — this is documentation work, not a code change.
 
-# Optional enhancements
+## Optional enhancements
 
 - Use `mcp__parish__parish_submit_input` to nudge the player toward a specific location and probe uncovered NPCs (Aoife Brennan, Sean Ruadh Kelly, Brigid Ni Fhatharta, etc).
 - Compare reply quality across NPCs (Padraig Darcy >> Duffy family observed); audit `npcs.json` for what makes Padraig good.
 - Read `parish/crates/parish-input/src/parser.rs` to enumerate the movement-verb grammar — fixes the silent-rejection bug list.
 
-# Invocation Notes
+## Invocation Notes
 
 The user may add a mode or target after naming this skill. Interpret common modes as:
 

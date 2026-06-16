@@ -1,5 +1,5 @@
 ---
-name: "source-command-todo-drain"
+name: 'source-command-todo-drain'
 description: "Drain TODO.md demo-audit findings in parallel rounds \u2014 AC-first, live proof, attach bundle, retrigger CI as needed, land green PRs while next round is in flight."
 ---
 
@@ -11,7 +11,7 @@ Use this skill when the user asks to run the migrated source command `todo-drain
 
 Land fixes from `TODO.md` (Rundale demo-audit findings). Run rounds in parallel — start the next round while the previous PR's CI runs.
 
-# Workflow per round
+## Workflow per round
 
 ## 1. Sync + worktree
 
@@ -142,7 +142,7 @@ gh pr merge <N> --squash --delete-branch
 - The "main worktree" branch-delete error is harmless — merge succeeded on remote; verify via `gh pr view <N> --json state,mergeCommit`.
 - Gemini `review / review: cancel` is normal (auto-cancelled bot review, not a real failure).
 
-# Known CI failure patterns + fixes
+## Known CI failure patterns + fixes
 
 - **Rust quality gate / coverage ratchet `cancel`.** Concurrency rule (`cancel-in-progress: true`) killed older runs when a new push happened. Push an empty commit to retrigger:
 
@@ -156,7 +156,7 @@ gh pr merge <N> --squash --delete-branch
 
 - **`gh workflow run` HTTP 500.** Workflow file isn't on the branch HEAD or validation issue. Use empty commit + push instead.
 
-# Boundaries
+## Boundaries
 
 - Never commit other sessions' leaked WIP from the main repo. If the Stop hook fires on someone else's broken match arms, tag the next message with `[skip-quality-hook]` and continue.
 - Never force-push to a PR branch — bot review threads anchor to commit SHAs and force-push detaches them.
@@ -164,7 +164,7 @@ gh pr merge <N> --squash --delete-branch
 - Don't touch `.proofs/` archives in `docs/proofs/local-perf` or `docs/proofs/rundale-bench` — bench archives, exempt from the gate.
 - After each landed PR, do not edit `TODO.md` to mark items done — leave it as the demo-audit record; the PR commit IS the marker.
 
-# Stop conditions
+## Stop conditions
 
 Stop when:
 
