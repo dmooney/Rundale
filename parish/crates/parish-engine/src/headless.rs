@@ -802,6 +802,7 @@ fn apply_npc_response(
     npc_display_name: &str,
     npc_actual_name: &str,
     known_person_names: &[String],
+    known_location_names: &[String],
     player_name: Option<&str>,
 ) {
     let mut parsed = parse_npc_stream_response(response_text);
@@ -818,12 +819,51 @@ fn apply_npc_response(
     let cfg = parish_core::config::NpcConfig::default();
     if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_fabricated_person_confirmation(
+        let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
             &parsed.dialogue,
             player_input,
             known_person_names,
+            known_location_names,
             &[],
             player_name,
+            seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+    if !app.flags.is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let guarded = crate::npc::guard_false_denial_of_roster_person(
+            &parsed.dialogue,
+            player_input,
+            known_person_names,
+            player_name,
+            seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+        let guarded = crate::npc::guard_false_denial_of_known_place(
+            &parsed.dialogue,
+            player_input,
+            known_location_names,
+            seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+    if !app.flags.is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let guarded = crate::npc::guard_invented_place_confirmation(
+            &parsed.dialogue,
+            player_input,
+            known_location_names,
             seed,
         );
         if guarded != parsed.dialogue {
@@ -879,6 +919,7 @@ async fn stream_headless_npc_dialogue(
     let system_prompt = setup.system_prompt;
     let context = setup.context;
     let known_person_names = setup.known_person_names.clone();
+    let known_location_names = setup.known_location_names.clone();
     let setup_player_name = setup.player_name.clone();
 
     if let Some(queue) = &app.inference_queue {
@@ -970,6 +1011,7 @@ async fn stream_headless_npc_dialogue(
                                 &npc_display_name,
                                 &npc_actual_name,
                                 &known_person_names,
+                                &known_location_names,
                                 setup_player_name.as_deref(),
                             );
                         }

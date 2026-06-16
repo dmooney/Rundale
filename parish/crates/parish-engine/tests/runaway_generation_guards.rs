@@ -892,6 +892,113 @@ fn real_loop_known_place_history_not_replaced_by_person_denial() {
     }
 }
 
+// ── #1563 — real parish entities must not be falsely denied ─────────────────
+
+/// AC-1/AC-4 (#1563, real-loop): when the mock model generically denies a real
+/// place from the world graph, the shared `run_npc_turn` guard chain must
+/// replace that denial before it reaches `DialogueOccurred`.
+#[test]
+fn real_loop_known_place_generic_denial_is_corrected() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    assert!(
+        h.app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| h.app.world.graph.get(id))
+            .any(|location| location.name == "Darcy's Pub"),
+        "Rundale fixture must include Darcy's Pub"
+    );
+
+    h.mock().push_for(
+        &speaker_name,
+        "I cannae guide ye to a place that doesn't exist.".to_string(),
+    );
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!(
+        "talk to {speaker_name} about Where is Darcy's Pub?"
+    ));
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for known-place false-denial turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        !lower.contains("doesn't exist") && !lower.contains("does not exist"),
+        "known place must not reach transcript as nonexistent (#1563); got: {joined:?}"
+    );
+    assert!(
+        lower.contains("place")
+            && (lower.contains("know") || lower.contains("known") || lower.contains("real")),
+        "known-place denial should become a grounded acknowledgement; got: {joined:?}"
+    );
+}
+
+/// AC-2/AC-4 (#1563, real-loop): when the mock model says "I know no one by
+/// that name" after the player asks about a real parish NPC, the shared
+/// `run_npc_turn` guard chain must replace the false denial even though the
+/// dialogue did not repeat the full name.
+#[test]
+fn real_loop_known_person_generic_denial_is_corrected() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    assert!(
+        h.app
+            .npc_manager
+            .all_npcs()
+            .any(|npc| npc.name == "Padraig Darcy"),
+        "Rundale fixture must include Padraig Darcy"
+    );
+
+    h.mock().push_for(
+        &speaker_name,
+        "I know no one by that name in these parts.".to_string(),
+    );
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!(
+        "talk to {speaker_name} about Where is Padraig Darcy?"
+    ));
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for known-person false-denial turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        !lower.contains("no one by that name") && !lower.contains("no such person"),
+        "known person must not reach transcript as nonexistent (#1563); got: {joined:?}"
+    );
+    assert!(
+        lower.contains("name") || lower.contains("parish"),
+        "known-person denial should become a grounded acknowledgement; got: {joined:?}"
+    );
+}
+
 // ── #1553 — player self-introduction not denied (real-loop) ──────────────────
 
 /// AC-1 (#1553, real-loop): When the player introduces themselves ("I am Aiden

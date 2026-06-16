@@ -132,13 +132,18 @@ pub fn build_enhanced_system_prompt_with_config(
                         name, occupation, rel.kind, strength_desc
                     ));
                 } else {
-                    prompt.push_str(&format!("- {}, {}\n", name, occupation));
+                    prompt.push_str(&format!(
+                        "- {}, {} \u{2014} real parish person\n",
+                        name, occupation
+                    ));
                 }
             }
             prompt.push_str(
                 "Each entry above gives the person's pronouns (where known) and \
                 age \u{2014} use their stated pronouns and never guess gender from \
-                a name. If you \
+                a name. Entries marked as real parish people are real names in \
+                the parish, but do not claim close acquaintance unless your \
+                relationships or memories say so. If you \
                 want to mention anyone not listed above, describe them by role or \
                 appearance \u{2014} never invent a name, and never refer to a \
                 person (he/she/they/her/him) who has not been mentioned.\n",

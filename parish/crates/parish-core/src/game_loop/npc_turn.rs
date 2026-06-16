@@ -500,11 +500,11 @@ pub async fn run_npc_turn(
         }
     }
 
-    // Post-generation false-denial guard (#1527, #1528) and invented-place
-    // confirmation guard (#1530): both require a seed derived from the world
-    // clock.  Acquire the async world lock ONCE here if either guard is active
-    // and the dialogue is non-empty, then reuse the seed for both guards to
-    // avoid redundant lock acquisitions.
+    // Post-generation false-denial guards (#1527, #1528, #1563) and
+    // invented-place confirmation guard (#1530): all require a seed derived
+    // from the world clock. Acquire the async world lock ONCE here if any guard
+    // is active and the dialogue is non-empty, then reuse the seed for all
+    // three guards to avoid redundant lock acquisitions.
     let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
         || invented_place_guard_enabled)
         && !parsed.dialogue.trim().is_empty()
@@ -527,6 +527,23 @@ pub async fn run_npc_turn(
             prompt_input,
             &setup.known_person_names,
             setup.player_name.as_deref(),
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation false-denial guard for real places (#1563): detect when
+    // an NPC generically denies a real place from the world graph ("that place
+    // does not exist", "no such person") and replace it with a neutral
+    // grounded acknowledgement. Runs before invented-place confirmation.
+    if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_false_denial_of_known_place(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.known_location_names,
             guard_seed,
         );
         if guarded != parsed.dialogue {

@@ -1,0 +1,12 @@
+# fix-1563-parishwide-grounding
+# Repro: a real parish place/person must not be denied as nonexistent just
+# because the speaker's local relationship list omits them.
+
+go to the forge
+/npcs
+
+/stub Seamus Gallagher: I cannae guide ye to a place that doesn't exist.
+talk to Seamus Gallagher about Where is Darcy's Pub?
+
+/stub Seamus Gallagher: I know no one by that name in these parts.
+talk to Seamus Gallagher about Where is Padraig Darcy?
