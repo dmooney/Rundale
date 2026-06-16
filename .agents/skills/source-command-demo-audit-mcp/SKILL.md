@@ -1,5 +1,5 @@
 ---
-name: "source-command-demo-audit-mcp"
+name: 'source-command-demo-audit-mcp'
 description: "Run a demo-audit session where YOU drive the game directly via the parish MCP (parish_new_game + parish_submit_input + snapshots) instead of the LLM auto-player \u2014 deterministic, targeted gameplay probing that surfaces bugs, files them via parish_file_bug and logs them in TODO.md"
 ---
 
@@ -24,7 +24,7 @@ difference is the actor:
 Use this variant when you want to reproduce a specific suspected bug, sweep a verb
 grammar / NPC set methodically, or audit without burning auto-player inference.
 
-# Workflow
+## Workflow
 
 ## 1. Pre-flight — launch the desktop app
 
@@ -184,21 +184,21 @@ Protocol per bug:
   **issue #** / URL. Revise (not delete) earlier entries when later turns refine them.
 - At the end list top-10 by impact, each linked to its issue.
 
-# Constraints
+## Constraints
 
 - Do NOT write code fixes. Document only, unless the user says "fix X now".
 - Read code before claiming root cause — grep `parish/crates/parish-core`, `parish-tauri`, `parish-input`, `parish-npc`, `parish/apps/ui/src/lib`.
 - Track coverage every session: distinct-location-count, movement count, NPC reply rate, error/warn count. Spot trends.
 - Stop when a sweep adds zero truly new categories, OR when the user says stop. Acceptance-criteria gate doesn't apply — this is documentation work, not a code change.
 
-# Why MCP-driven instead of the auto-player
+## Why MCP-driven instead of the auto-player
 
 - **Reproducible**: same input sequence → same path, so a repro you file replays exactly.
 - **Targeted**: drive straight to an uncovered NPC/location/verb instead of waiting for the auto-player to wander there.
 - **Cheaper**: no auto-player inference per turn — only the NPC reply inference you trigger.
 - **Branch bisection**: `parish_save_game` / `parish_load_branch` to checkpoint before a suspect action and replay it.
 
-# Invocation Notes
+## Invocation Notes
 
 The user may add a mode or target after naming this skill. Interpret common modes as:
 
