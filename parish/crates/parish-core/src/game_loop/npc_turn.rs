@@ -157,6 +157,7 @@ pub async fn run_npc_turn(
 ) -> Option<TurnOutcome> {
     let (
         setup,
+        time_of_day,
         person_guard_enabled,
         verbosity_guard_enabled,
         mood_sentence_cap_enabled,
@@ -168,6 +169,7 @@ pub async fn run_npc_turn(
         anti_repetition_enabled,
         false_denial_guard_enabled,
         invented_place_guard_enabled,
+        dialogue_polish_guard_enabled,
         post_guard_ui_replace_enabled,
     ) = {
         let mut world = ctx.world.lock().await;
@@ -207,6 +209,10 @@ pub async fn run_npc_turn(
         let invented_place_guard = !config
             .flags
             .is_disabled(parish_npc::INVENTED_PLACE_GUARD_FLAG);
+        // Dialogue polish guard (#1564): default-on, kill-switch only.
+        let dialogue_polish_guard = !config
+            .flags
+            .is_disabled(parish_npc::DIALOGUE_POLISH_GUARD_FLAG);
         // Post-guard UI replace (#1552): emit `dialogue-corrected` event after
         // all guards run so the frontend shows post-guard text, not raw model
         // output. Default-on; kill-switch only.
@@ -228,8 +234,10 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
+        let time_of_day = world.clock.time_of_day();
         (
             setup,
+            time_of_day,
             person_guard,
             verbosity_guard,
             mood_sentence_cap,
@@ -241,6 +249,7 @@ pub async fn run_npc_turn(
             anti_rep,
             false_denial_guard,
             invented_place_guard,
+            dialogue_polish_guard,
             ui_replace,
         )
     };
@@ -500,13 +509,14 @@ pub async fn run_npc_turn(
         }
     }
 
-    // Post-generation false-denial guards (#1527, #1528, #1563) and
-    // invented-place confirmation guard (#1530): all require a seed derived
-    // from the world clock. Acquire the async world lock ONCE here if any guard
-    // is active and the dialogue is non-empty, then reuse the seed for all
-    // three guards to avoid redundant lock acquisitions.
+    // Post-generation false-denial guards (#1527, #1528, #1563),
+    // invented-place confirmation guard (#1530), and stock decline polish
+    // (#1564): all require a seed derived from the world clock. Acquire the
+    // async world lock ONCE here if any guard is active and the dialogue is
+    // non-empty, then reuse the seed for these guards.
     let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
-        || invented_place_guard_enabled)
+        || invented_place_guard_enabled
+        || dialogue_polish_guard_enabled)
         && !parsed.dialogue.trim().is_empty()
     {
         let ts = ctx.world.lock().await.clock.now().timestamp() as u64;
@@ -563,6 +573,27 @@ pub async fn run_npc_turn(
             &setup.known_location_names,
             guard_seed,
         );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
+    // Post-generation dialogue polish guard (#1564): replace old stock
+    // non-recognition templates and correct obvious morning greeting tics when
+    // the world clock is not Morning. Runs after grounding guards so true
+    // false-denial corrections win before generic polish.
+    if dialogue_polish_guard_enabled && !parsed.dialogue.trim().is_empty() {
+        let guard_seed = both_guards_seed.unwrap_or(0);
+        let guarded = crate::npc::guard_stock_nonrecognition_decline(
+            &parsed.dialogue,
+            prompt_input,
+            guard_seed,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+
+        let guarded = crate::npc::guard_time_of_day_phrase(&parsed.dialogue, time_of_day);
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
