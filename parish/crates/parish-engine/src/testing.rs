@@ -599,6 +599,16 @@ impl GameTestHarness {
             );
         }
 
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_stock_nonrecognition_decline(&guarded, player_input, seed);
+            guarded =
+                crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
+        }
+
         if cfg.verbosity_guard_enabled {
             let mood = self
                 .app
@@ -2033,8 +2043,8 @@ mod tests {
     fn test_canned_npc_response() {
         let mut h = GameTestHarness::new();
         h.add_canned_response("Padraig Darcy", "Ah, good morning to ye!");
-        // Advance to 10am when Padraig is scheduled at the pub (9-22)
-        h.advance_time(120);
+        // Advance to 9am, still Morning, when Padraig is scheduled at the pub (9-22).
+        h.advance_time(60);
         h.execute("go to crossroads");
         h.execute("go to pub");
         let result = h.execute("hello there");
@@ -2043,6 +2053,64 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn canned_npc_response_polishes_stock_declines_and_midday_morning_tic() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(240);
+        h.execute("go to Darcy's Pub");
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "Good morning to ye, mo chara. What brings ye in this fine morning?",
+        );
+        let time_result = h.execute("talk to Padraig Darcy about Good day, what is the news?");
+        let ActionResult::NpcResponse {
+            dialogue: time_dialogue,
+            ..
+        } = time_result
+        else {
+            panic!("expected Padraig to answer the time-polish turn, got {time_result:?}");
+        };
+        assert!(
+            !time_dialogue.to_lowercase().contains("morn"),
+            "midday dialogue must not retain morning wording: {time_dialogue}"
+        );
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "I know no one by that name in these parts.",
+        );
+        let person_result = h.execute(
+            "talk to Padraig Darcy about Have you met Sorcha O'Malley from beyond the parish?",
+        );
+        let ActionResult::NpcResponse {
+            dialogue: person_dialogue,
+            ..
+        } = person_result
+        else {
+            panic!("expected Padraig to answer the stock-person turn, got {person_result:?}");
+        };
+        assert_ne!(
+            person_dialogue,
+            "I know no one by that name in these parts."
+        );
+
+        h.add_canned_response("Padraig Darcy", "Mayhap ye have the wrong parish entirely.");
+        let place_result = h.execute("talk to Padraig Darcy about Where is Silver Bridge?");
+        let ActionResult::NpcResponse {
+            dialogue: place_dialogue,
+            ..
+        } = place_result
+        else {
+            panic!("expected Padraig to answer the stock-place turn, got {place_result:?}");
+        };
+        assert_ne!(place_dialogue, "Mayhap ye have the wrong parish entirely.");
+        assert_ne!(
+            person_dialogue, place_dialogue,
+            "different unknown-entity prompts should not collapse to one reply"
+        );
     }
 
     #[test]
@@ -2070,7 +2138,10 @@ mod tests {
                 || lower.contains("no one by that name")
                 || lower.contains("not known to me")
                 || lower.contains("wrong parish")
-                || lower.contains("such a person"),
+                || lower.contains("such a person")
+                || lower.contains("that name")
+                || lower.contains("parish face")
+                || lower.contains("comes to mind"),
             "{dialogue}"
         );
         assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");

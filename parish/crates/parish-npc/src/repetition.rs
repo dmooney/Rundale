@@ -11,6 +11,10 @@
 // helpers are the deterministic, model-agnostic backstop: they need no live
 // inference and run identically for every provider.
 
+use std::sync::OnceLock;
+
+use parish_types::time::TimeOfDay;
+
 /// Normalizes a dialogue line for repetition comparison.
 ///
 /// Lower-cases, collapses internal whitespace to single spaces, and trims
@@ -22,6 +26,15 @@ fn normalize_for_repetition(s: &str) -> String {
     collapsed
         .trim_matches(|c: char| c.is_whitespace() || matches!(c, '.' | '!' | '?' | '…' | ',' | ';'))
         .to_string()
+}
+
+fn text_seed(s: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in s.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 /// Splits a dialogue body into sentence-ish units on terminal punctuation,
@@ -388,11 +401,11 @@ pub fn guard_against_repetition(
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_decline(seed: u64) -> &'static str {
     const DECLINES: &[&str] = &[
-        "I know no one by that name in these parts.",
         "That name is not known to me hereabouts.",
-        "I cannot say I've ever heard of such a person here.",
-        "No one by that name that I know of in this parish.",
-        "I know of no such person — you may have the wrong parish entirely.",
+        "I cannot place that name among the folk here.",
+        "No parish face comes to mind for that name.",
+        "That is not a name I have heard in these parts.",
+        "I cannot put a parish face to that name.",
     ];
     DECLINES[(seed as usize) % DECLINES.len()]
 }
@@ -3086,6 +3099,10 @@ pub fn guard_false_denial_of_roster_person(
 /// `flags.is_disabled(INVENTED_PLACE_GUARD_FLAG)`.
 pub const INVENTED_PLACE_GUARD_FLAG: &str = "dialogue-invented-place-guard";
 
+/// Feature-flag name (default **on**) for small dialogue polish backstops
+/// (#1564): old stock decline templates and time-of-day greeting tics.
+pub const DIALOGUE_POLISH_GUARD_FLAG: &str = "dialogue-polish-guard";
+
 /// Place-affirmation markers: phrases indicating the NPC is confirming or
 /// locating a place. Used by `guard_invented_place_confirmation`.
 const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
@@ -3106,13 +3123,109 @@ const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_place_decline(seed: u64) -> &'static str {
     const DECLINES: &[&str] = &[
-        "I know of no such place in this parish.",
-        "That name is not known to me hereabouts — ye may have the wrong place.",
-        "No such place that I've heard of in these parts.",
-        "I cannot say I know of any such place in this parish.",
-        "I know of no place by that name near here.",
+        "That place-name is not one I have heard hereabouts.",
+        "No such place comes to mind around here.",
+        "I cannot put that name on any road I know.",
+        "That is not a place I can point you to in this parish.",
+        "No place by that name is known to me near here.",
     ];
     DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+const STOCK_NONRECOGNITION_TEMPLATES: &[&str] = &[
+    "i know no one by that name in these parts",
+    "mayhap ye have the wrong parish entirely",
+];
+
+/// Replaces old stock non-recognition templates with the same deterministic
+/// fallback families used by the grounding guards (#1564).
+pub fn guard_stock_nonrecognition_decline(dialogue: &str, player_input: &str, seed: u64) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let normalized = normalize_for_repetition(dialogue);
+    if !STOCK_NONRECOGNITION_TEMPLATES
+        .iter()
+        .any(|template| normalized.contains(template))
+    {
+        return dialogue.to_string();
+    }
+
+    let prompt_seed = seed ^ text_seed(player_input);
+    let place_candidates = extract_candidate_places(player_input);
+    if !place_candidates.is_empty() {
+        tracing::warn!(
+            "dialogue polish guard fired: replacing stock place non-recognition (#1564)"
+        );
+        return non_recognition_place_decline(prompt_seed).to_string();
+    }
+
+    tracing::warn!("dialogue polish guard fired: replacing stock person non-recognition (#1564)");
+    non_recognition_decline(prompt_seed).to_string()
+}
+
+fn replacement_greeting(time_of_day: TimeOfDay) -> &'static str {
+    match time_of_day {
+        TimeOfDay::Dawn => "Good day",
+        TimeOfDay::Morning => "Good morning",
+        TimeOfDay::Midday => "Good day",
+        TimeOfDay::Afternoon => "Good afternoon",
+        TimeOfDay::Dusk | TimeOfDay::Night | TimeOfDay::Midnight => "Good evening",
+    }
+}
+
+fn replacement_day_phrase(time_of_day: TimeOfDay) -> &'static str {
+    match time_of_day {
+        TimeOfDay::Dawn => "this early hour",
+        TimeOfDay::Morning => "this morning",
+        TimeOfDay::Midday => "this fine day",
+        TimeOfDay::Afternoon => "this afternoon",
+        TimeOfDay::Dusk | TimeOfDay::Night | TimeOfDay::Midnight => "this evening",
+    }
+}
+
+/// Rewrites obvious opening/greeting morning tics when the actual clock is not
+/// Morning (#1564). The guard intentionally targets greeting phrases and
+/// "this fine morning" style tics rather than every historical mention of
+/// "morning" in a reply.
+pub fn guard_time_of_day_phrase(dialogue: &str, time_of_day: TimeOfDay) -> String {
+    if dialogue.trim().is_empty() || time_of_day == TimeOfDay::Morning {
+        return dialogue.to_string();
+    }
+
+    static GOOD_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+    static THIS_FINE_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+    static THIS_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+
+    let good_morning = GOOD_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bgood\s+morn(?:ing|in'?)?\b").expect("valid good-morning regex")
+    });
+    let this_fine_morning = THIS_FINE_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bthis\s+fine\s+morn(?:ing|in'?)?\b")
+            .expect("valid this-fine-morning regex")
+    });
+    let this_morning = THIS_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bthis\s+morn(?:ing|in'?)?\b").expect("valid this-morning regex")
+    });
+
+    let mut polished = good_morning
+        .replace_all(dialogue, replacement_greeting(time_of_day))
+        .into_owned();
+    polished = this_fine_morning
+        .replace_all(&polished, replacement_day_phrase(time_of_day))
+        .into_owned();
+    polished = this_morning
+        .replace_all(&polished, replacement_day_phrase(time_of_day))
+        .into_owned();
+
+    if polished != dialogue {
+        tracing::warn!(
+            actual_time = %time_of_day,
+            "dialogue polish guard fired: corrected time-of-day phrase (#1564)"
+        );
+    }
+    polished
 }
 
 /// Extracts candidate place-name tokens from the player input.
@@ -3653,7 +3766,10 @@ mod tests {
                 || lower.contains("no one by that name")
                 || lower.contains("wrong parish")
                 || lower.contains("not known to me")
-                || lower.contains("such a person"),
+                || lower.contains("such a person")
+                || lower.contains("that name")
+                || lower.contains("parish face")
+                || lower.contains("comes to mind"),
             "result should be a non-recognition decline: {result:?}"
         );
     }
@@ -5608,6 +5724,54 @@ mod tests {
         );
     }
 
+    #[test]
+    fn stock_nonrecognition_polish_replaces_old_person_template() {
+        let dialogue = "I know no one by that name in these parts.";
+        let result = guard_stock_nonrecognition_decline(
+            dialogue,
+            "Have you met Sorcha O'Malley from beyond the parish?",
+            0,
+        );
+        assert_ne!(result, dialogue, "old stock template must be replaced");
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("i know no one by that name in these parts"),
+            "replacement must not reuse the stale template: {result:?}"
+        );
+    }
+
+    #[test]
+    fn stock_nonrecognition_polish_uses_place_decline_for_place_prompt() {
+        let dialogue = "Mayhap ye have the wrong parish entirely.";
+        let result = guard_stock_nonrecognition_decline(dialogue, "Where is Silver Bridge?", 0);
+        assert_ne!(result, dialogue, "old place template must be replaced");
+        assert!(
+            result.to_lowercase().contains("place")
+                || result.to_lowercase().contains("road")
+                || result.to_lowercase().contains("point you"),
+            "place prompt should receive a place-shaped decline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn time_of_day_phrase_guard_corrects_midday_morning_tic() {
+        let dialogue = "Good morning to ye. What brings ye in this fine morning?";
+        let result = guard_time_of_day_phrase(dialogue, TimeOfDay::Midday);
+        assert_eq!(result, "Good day to ye. What brings ye in this fine day?");
+        assert!(
+            !result.to_lowercase().contains("morn"),
+            "midday greeting must not retain morning wording: {result:?}"
+        );
+    }
+
+    #[test]
+    fn time_of_day_phrase_guard_leaves_actual_morning_alone() {
+        let dialogue = "Good morning to ye. What brings ye in this fine morning?";
+        let result = guard_time_of_day_phrase(dialogue, TimeOfDay::Morning);
+        assert_eq!(result, dialogue);
+    }
+
     // ── #1530 — invented place confirmation guard ──────────────────────────────
 
     fn make_locations(locs: &[&str]) -> Vec<String> {
@@ -5872,7 +6036,10 @@ mod tests {
         assert!(
             result.to_lowercase().contains("no such person")
                 || result.to_lowercase().contains("no one by that name")
-                || result.to_lowercase().contains("wrong parish"),
+                || result.to_lowercase().contains("wrong parish")
+                || result.to_lowercase().contains("that name")
+                || result.to_lowercase().contains("parish face")
+                || result.to_lowercase().contains("comes to mind"),
             "expected a person non-recognition decline, got: {result:?}"
         );
     }

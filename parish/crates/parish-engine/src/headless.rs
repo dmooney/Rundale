@@ -870,6 +870,23 @@ fn apply_npc_response(
             parsed.dialogue = guarded;
         }
     }
+    if !app
+        .flags
+        .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
+        && !parsed.dialogue.trim().is_empty()
+    {
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let guarded =
+            crate::npc::guard_stock_nonrecognition_decline(&parsed.dialogue, player_input, seed);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+        let guarded =
+            crate::npc::guard_time_of_day_phrase(&parsed.dialogue, app.world.clock.time_of_day());
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
     if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
         let guarded = if app.flags.is_disabled("npc-mood-aware-sentence-cap") {
