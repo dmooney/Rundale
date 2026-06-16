@@ -1216,6 +1216,91 @@ pub fn guard_fabricated_person_confirmation_with_locations(
 // It is conservative — it only removes clearly structural artifacts, not
 // legitimate prose.
 
+const STACKED_PLAYER_VOCATIVES: &[(&str, &str)] = &[
+    ("friend, stranger", "friend"),
+    ("friend stranger", "friend"),
+    ("stranger, friend", "stranger"),
+    ("stranger friend", "stranger"),
+];
+
+fn vocative_start_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(ch) => ch.is_whitespace() || matches!(ch, ',' | ';' | ':' | '.' | '!' | '?'),
+    }
+}
+
+fn vocative_end_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(ch) => matches!(ch, ',' | ';' | ':' | '.' | '!' | '?'),
+    }
+}
+
+fn match_replacement_case(original: &str, replacement: &str) -> String {
+    if original.chars().next().is_some_and(|ch| ch.is_uppercase()) {
+        let mut chars = replacement.chars();
+        if let Some(first) = chars.next() {
+            let mut out = first.to_uppercase().collect::<String>();
+            out.push_str(chars.as_str());
+            return out;
+        }
+    }
+    replacement.to_string()
+}
+
+fn replace_stacked_vocative_phrase(text: &str, needle: &str, replacement: &str) -> String {
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::new();
+    let mut search_from = 0usize;
+    let mut last_emit = 0usize;
+
+    while search_from < lower.len() {
+        let Some(rel_start) = lower[search_from..].find(needle) else {
+            break;
+        };
+        let start = search_from + rel_start;
+        let end = start + needle.len();
+        let before = if start == 0 {
+            None
+        } else {
+            text[..start].chars().next_back()
+        };
+        let after = text[end..].chars().next();
+
+        if vocative_start_boundary(before) && vocative_end_boundary(after) {
+            out.push_str(&text[last_emit..start]);
+            let original = &text[start..end];
+            out.push_str(&match_replacement_case(original, replacement));
+            last_emit = end;
+            search_from = end;
+        } else {
+            search_from = start + 1;
+        }
+    }
+
+    if last_emit == 0 {
+        text.to_string()
+    } else {
+        out.push_str(&text[last_emit..]);
+        out
+    }
+}
+
+/// Removes adjacent player-address terms such as "friend stranger" (#1534).
+///
+/// These are generated as stacked vocatives rather than meaningful noun
+/// phrases, so the guard keeps the first address term and drops the second.
+/// Matching is intentionally narrow: the stacked phrase must end at punctuation
+/// or end-of-line to avoid rewriting ordinary comparative prose.
+pub fn strip_stacked_player_vocatives(dialogue: &str) -> String {
+    let mut result = dialogue.to_string();
+    for (needle, replacement) in STACKED_PLAYER_VOCATIVES {
+        result = replace_stacked_vocative_phrase(&result, needle, replacement);
+    }
+    result
+}
+
 /// Collapses non-consecutive near-duplicate sentences within a single dialogue
 /// string (#1460 — distributed repetition guard).
 ///
@@ -1868,7 +1953,8 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
-    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_stacked_vocatives = strip_stacked_player_vocatives(&after_ellipsis);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_stacked_vocatives);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
     // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
     // that the consecutive guard (step 5, strictly adjacent) misses.
@@ -2210,19 +2296,21 @@ pub fn cap_word_count(dialogue: &str) -> String {
 /// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
 /// 3. Strip trailing ellipsis artifact after otherwise-complete text
 ///    ([`strip_trailing_ellipsis_artifact`], #1472).
-/// 4. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
+/// 4. Strip stacked player vocatives such as "friend stranger"
+///    ([`strip_stacked_player_vocatives`], #1534).
+/// 5. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
 ///    Detects when a phrase (3–8 words) repeats ≥ 4× and truncates at the
 ///    first clean sentence boundary before the loop.
-/// 5. **Strip consecutive short-phrase repeat** ([`strip_consecutive_short_phrase_repeat`], #1505).
+/// 6. **Strip consecutive short-phrase repeat** ([`strip_consecutive_short_phrase_repeat`], #1505).
 ///    Catches "tell me, tell me" and similar 2–4 word phrases repeated exactly
 ///    twice in a row with only punctuation between occurrences.
-/// 6. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 7. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 8. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 9. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
-///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///    guards (steps 6-8) cannot catch.
-/// 10. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
+/// 7. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 8. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 9. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 10. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+///     This is the blunt backstop for paraphrased multi-beat rambles that the surgical
+///     guards (steps 6-8) cannot catch.
+/// 11. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
 ///     ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
 /// Steps 6 and 7 are the #1460 core fix for distributed / interleaved repetition
@@ -2244,7 +2332,8 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
-    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_stacked_vocatives = strip_stacked_player_vocatives(&after_ellipsis);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_stacked_vocatives);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
     // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
     // that the consecutive guard (step 5, strictly adjacent) misses.
@@ -4191,6 +4280,43 @@ mod tests {
             result.trim(),
             dialogue.trim(),
             "mid-sentence mood word unchanged"
+        );
+    }
+
+    #[test]
+    fn stacked_player_vocatives_strip_friend_stranger_only_at_vocative_boundary() {
+        let dialogue = "Do ye have need of him, then, friend stranger, or just curious?";
+        let result = strip_stacked_player_vocatives(dialogue);
+        assert_eq!(
+            result,
+            "Do ye have need of him, then, friend, or just curious?"
+        );
+
+        let comparative = "There is no friend stranger than the one who returns at dawn.";
+        let result = strip_stacked_player_vocatives(comparative);
+        assert_eq!(
+            result, comparative,
+            "ordinary prose without trailing vocative punctuation must stay unchanged"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_strips_stacked_player_vocative_end_to_end() {
+        let dialogue = "Do ye have need of him or his guidance, then, friend stranger, \
+                        or just curious to know the man of God in these parts?";
+        let result = guard_verbosity_runons(dialogue);
+
+        assert!(
+            !result.to_lowercase().contains("friend stranger"),
+            "stacked vocative must be removed: {result:?}"
+        );
+        assert!(
+            result.contains("friend, or just curious"),
+            "first address term and substantive question should survive: {result:?}"
+        );
+        assert!(
+            result.contains("man of God"),
+            "priest reference should survive: {result:?}"
         );
     }
 
