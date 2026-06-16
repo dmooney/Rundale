@@ -91,10 +91,12 @@ Issue #1357 adds a feature flag to disable focus-auto-pause (off for the harness
 
 ## Screenshots
 
-- `parish_take_screenshot` needs the desktop window **frontmost / composited**. Backgrounded /
-  minimized / off-Space / display-asleep → native capture finds "no window", the html-to-image
-  fallback hangs → **`500 ... timed out after 45 s`** (#1355).
-- **Workaround (verified):** wake the display + raise the window, then capture:
+- `parish_take_screenshot` prefers a fresh native-window capture so the WebGL minimap appears in
+  the image. If the desktop window is backgrounded / minimized / off-Space and a previous verified
+  screenshot exists, the bridge returns that latest path with a `fallback: "latest_screenshot"`
+  warning instead of a generic HTTP 500 (#1522). If no verified fallback exists, the endpoint
+  returns a structured `503 screenshot capture unavailable`.
+- **For a fresh capture:** wake the display + raise the window, then capture:
 
 ```sh
 caffeinate -u -t 3 &
@@ -102,8 +104,7 @@ osascript -e 'tell application "System Events" to set frontmost of (first proces
 ```
 
 - **Collision:** foregrounding to capture can **resume the clock** (focus coupling above). After
-  a screenshot, restore `/pause`. A robust unattended path (capture without foregrounding) is
-  tracked in #1355.
+  a screenshot, restore `/pause`.
 
 ## MCP connection / teleport gotcha
 

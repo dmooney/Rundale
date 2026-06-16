@@ -532,7 +532,7 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 - Press **F2** to capture a screenshot of the current game view
 - Screenshots are saved to the platform-appropriate pictures directory
 - The MCP tool `parish_latest_screenshot` returns metadata (path, timestamp, size) for the most recent player-triggered capture
-- Server endpoints: `/api/take-screenshot` and `/api/latest-screenshot`
+- Server endpoints: `/api/take-screenshot` and `/api/latest-screenshot`; agent-triggered capture reuses the latest verified screenshot with a warning when the desktop window cannot produce a fresh capture
 - Automated screenshot capture via `--screenshot <dir>` flag: captures at four times of day for use in `just screenshots`
 
 ### Keyboard Shortcuts
