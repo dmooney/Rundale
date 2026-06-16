@@ -1,0 +1,8 @@
+# fix-1521-rival-tone
+# Repro: Roisin has an effective Rival/cool relationship with Mick Flanagan
+# through the hydrated reciprocal relationship data. A neutral-warm canned
+# reply should be cooled by the dialogue post-generation path before output.
+
+go to Connolly's Shop
+/stub Roisin Connolly: Mick Flanagan, aye. He's retired now but still keeps an eye on things.
+talk to Roisin Connolly about Mick Flanagan

@@ -13,6 +13,7 @@
 
 use std::sync::OnceLock;
 
+use crate::types::RelationshipKind;
 use parish_types::time::TimeOfDay;
 
 /// Normalizes a dialogue line for repetition comparison.
@@ -3192,6 +3193,17 @@ pub const INVENTED_PLACE_GUARD_FLAG: &str = "dialogue-invented-place-guard";
 /// (#1564): old stock decline templates and time-of-day greeting tics.
 pub const DIALOGUE_POLISH_GUARD_FLAG: &str = "dialogue-polish-guard";
 
+/// Relationship context for post-generation tone guards.
+#[derive(Debug, Clone)]
+pub struct RelationshipToneHint {
+    /// Target NPC display/roster name.
+    pub target_name: String,
+    /// Speaker's relationship kind toward the target.
+    pub kind: RelationshipKind,
+    /// Speaker's relationship strength toward the target.
+    pub strength: f64,
+}
+
 /// Place-affirmation markers: phrases indicating the NPC is confirming or
 /// locating a place. Used by `guard_invented_place_confirmation`.
 const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
@@ -3252,6 +3264,134 @@ pub fn guard_stock_nonrecognition_decline(dialogue: &str, player_input: &str, se
 
     tracing::warn!("dialogue polish guard fired: replacing stock person non-recognition (#1564)");
     non_recognition_decline(prompt_seed).to_string()
+}
+
+fn normalized_alpha_words(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .filter_map(|token| {
+            let stripped = token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'');
+            if stripped.is_empty() {
+                None
+            } else {
+                Some(stripped.to_lowercase())
+            }
+        })
+        .collect()
+}
+
+fn text_contains_word_sequence(text: &str, phrase: &str) -> bool {
+    let haystack = normalized_alpha_words(text);
+    let needle = normalized_alpha_words(phrase);
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return false;
+    }
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle.as_slice())
+}
+
+fn relationship_is_cool_or_rival(kind: RelationshipKind, strength: f64) -> bool {
+    matches!(kind, RelationshipKind::Rival | RelationshipKind::Enemy) || strength <= -0.1
+}
+
+fn dialogue_already_carries_cool_tone(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const COOL_TONE_CUES: &[&str] = &[
+        "little warmth",
+        "keep my distance",
+        "keeps my distance",
+        "no friend",
+        "not a friend",
+        "not one i trust",
+        "i do not trust",
+        "i don't trust",
+        "wary",
+        "watchful",
+        "careful with",
+        "cool between",
+        "bad blood",
+        "rival",
+        "enemy",
+    ];
+    COOL_TONE_CUES.iter().any(|cue| normalized.contains(cue))
+}
+
+fn dialogue_has_neutral_warm_rival_pattern(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const NEUTRAL_WARM_PATTERNS: &[&str] = &[
+        "still keeps an eye on things",
+        "keeps an eye on things",
+        "keeps an eye on the place",
+        "fine man",
+        "good man",
+        "decent man",
+        "grand man",
+        "grand fellow",
+        "no harm in him",
+        "no harm in her",
+    ];
+    NEUTRAL_WARM_PATTERNS
+        .iter()
+        .any(|pattern| normalized.contains(pattern))
+}
+
+fn player_input_mentions_target(player_input: &str, target_name: &str) -> bool {
+    if text_contains_word_sequence(player_input, target_name) {
+        return true;
+    }
+    extract_candidate_names(player_input)
+        .iter()
+        .any(|candidate| {
+            normalize_name_honorifics(&candidate.to_lowercase())
+                == normalize_name_honorifics(&target_name.to_lowercase())
+        })
+}
+
+fn rival_tone_fallback(target_name: &str) -> String {
+    format!(
+        "{target_name}, aye. I'll grant the facts, but there is little warmth between us, so I keep my distance."
+    )
+}
+
+/// Cools neutral-warm replies about a target the speaker regards as a rival
+/// (#1521).
+///
+/// This is intentionally narrow: it only fires when the player explicitly asks
+/// about a named target, the response mentions that same target, the speaker's
+/// relationship to the target is rival/cool, and the response contains a
+/// neutral-warm stock pattern. Existing cool wording is left untouched.
+pub fn guard_rival_target_neutral_tone(
+    dialogue: &str,
+    player_input: &str,
+    relationships: &[RelationshipToneHint],
+) -> String {
+    if dialogue.trim().is_empty() || relationships.is_empty() {
+        return dialogue.to_string();
+    }
+    if dialogue_already_carries_cool_tone(dialogue)
+        || !dialogue_has_neutral_warm_rival_pattern(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    for rel in relationships {
+        if !relationship_is_cool_or_rival(rel.kind, rel.strength) {
+            continue;
+        }
+        if player_input_mentions_target(player_input, &rel.target_name)
+            && text_contains_word_sequence(dialogue, &rel.target_name)
+        {
+            tracing::warn!(
+                target = %rel.target_name,
+                kind = %rel.kind,
+                strength = rel.strength,
+                "dialogue polish guard fired: cooling neutral rival-target tone (#1521)"
+            );
+            return rival_tone_fallback(&rel.target_name);
+        }
+    }
+
+    dialogue.to_string()
 }
 
 fn replacement_greeting(time_of_day: TimeOfDay) -> &'static str {
@@ -5877,6 +6017,78 @@ mod tests {
                 || result.to_lowercase().contains("road")
                 || result.to_lowercase().contains("point you"),
             "place prompt should receive a place-shaped decline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_cools_neutral_warm_target_line() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+        let result =
+            guard_rival_target_neutral_tone(dialogue, "What do you think of Mick Flanagan?", &rels);
+
+        assert_ne!(result, dialogue, "neutral rival line must be cooled");
+        assert!(
+            result.contains("Mick Flanagan"),
+            "replacement should preserve the target name: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("little warmth")
+                || result.to_lowercase().contains("keep my distance"),
+            "replacement should carry a visible cool/rival cue: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_friendly_target_line_alone() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Friend,
+            strength: 0.5,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "friendly relationships must not be soured by the rival-tone guard",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_existing_cool_line_alone() {
+        let dialogue =
+            "Mick Flanagan, aye. There is little warmth between us, so I keep my distance.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "already cool wording should pass through unchanged",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_requires_player_to_ask_about_target() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Padraig Darcy", &rels),
+            dialogue,
+            "unrelated prompts must not rewrite third-person mentions",
         );
     }
 
