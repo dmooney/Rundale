@@ -2958,6 +2958,56 @@ fn grounded_acknowledgement(seed: u64) -> &'static str {
     POOL[(seed as usize) % POOL.len()]
 }
 
+fn grounded_place_acknowledgement(seed: u64) -> &'static str {
+    const POOL: &[&str] = &[
+        "Aye, that place is known in this parish.",
+        "That is a real place hereabouts, sure enough.",
+        "Aye, the place is known here in the parish.",
+        "That place is no invention; it is known around here.",
+        "Aye, I know the name of that place well enough.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+const GENERIC_PERSON_NONRECOGNITION_MARKERS: &[&str] = &[
+    "no one by that name",
+    "no such person",
+    "know no one by that name",
+    "know of no such person",
+    "never heard of him",
+    "never heard of her",
+    "never heard of them",
+    "that name is not known",
+    "wrong parish",
+];
+
+const GENERIC_ENTITY_NONRECOGNITION_MARKERS: &[&str] = &[
+    "no one by that name",
+    "no such person",
+    "no such place",
+    "no place by that name",
+    "know of no such place",
+    "doesn't exist",
+    "does not exist",
+    "place that doesn't exist",
+    "place that does not exist",
+    "that name is not known",
+    "wrong parish",
+    "wrong place",
+];
+
+fn has_generic_person_nonrecognition(lower_dialogue: &str) -> bool {
+    GENERIC_PERSON_NONRECOGNITION_MARKERS
+        .iter()
+        .any(|marker| lower_dialogue.contains(marker))
+}
+
+fn has_generic_entity_nonrecognition(lower_dialogue: &str) -> bool {
+    GENERIC_ENTITY_NONRECOGNITION_MARKERS
+        .iter()
+        .any(|marker| lower_dialogue.contains(marker))
+}
+
 /// Post-generation guard for false denial of a known roster person (#1527, #1528).
 ///
 /// When an NPC's dialogue contains a denial marker AND the denied name IS in
@@ -2967,12 +3017,10 @@ fn grounded_acknowledgement(seed: u64) -> &'static str {
 ///
 /// Conservative: only fires when ALL of the following hold:
 ///   1. The player's input names a person whose full name IS in `known_person_names`.
-///   2. The NPC dialogue contains that full name (the NPC is talking about them).
-///   3. The NPC dialogue contains a denial marker.
-///   4. The NPC dialogue does NOT contain any of the place-affirmation markers
-///      that would indicate the NPC is correctly locating the person (which
-///      would make the denial non-sensical — already handled by the person-
-///      confirmation guard).
+///   2. The NPC dialogue contains a denial marker.
+///   3. Either the dialogue repeats the full name, or the player input contains
+///      only known full-name candidates and the dialogue uses a generic
+///      "that name/no such person" non-recognition phrase.
 ///
 /// Gate: `dialogue-false-denial-guard` (default-on).
 pub fn guard_false_denial_of_roster_person(
@@ -2996,14 +3044,18 @@ pub fn guard_false_denial_of_roster_person(
 
     // Check each candidate name from the player's input.
     let candidates = extract_candidate_names(player_input);
+    let mut has_known_full_name = false;
+    let mut has_unknown_full_name = false;
     for candidate in &candidates {
         // Only fire for full names (multi-word) that ARE in the roster.
         if candidate.split_whitespace().count() < 2 {
             continue;
         }
         if !name_in_roster(candidate, known_person_names, player_name) {
+            has_unknown_full_name = true;
             continue;
         }
+        has_known_full_name = true;
         // The candidate is a real roster person. Check if the dialogue mentions them.
         let cand_lower = candidate.to_lowercase();
         if !lower.contains(&cand_lower) {
@@ -3013,6 +3065,13 @@ pub fn guard_false_denial_of_roster_person(
         tracing::warn!(
             candidate = %candidate,
             "false-denial guard fired: NPC denied a known roster person (#1527/#1528)"
+        );
+        return grounded_acknowledgement(seed).to_string();
+    }
+
+    if has_known_full_name && !has_unknown_full_name && has_generic_person_nonrecognition(&lower) {
+        tracing::warn!(
+            "false-denial guard fired: NPC generically denied a known roster person (#1563)"
         );
         return grounded_acknowledgement(seed).to_string();
     }
@@ -3143,6 +3202,10 @@ fn extract_candidate_places(player_input: &str) -> Vec<String> {
         "where is ",
         "where's ",
         "where are ",
+        "guide me to ",
+        "take me to ",
+        "bring me to ",
+        "show me to ",
         "how do i find ",
         "how do i get to ",
         "how do we get to ",
@@ -3361,6 +3424,58 @@ pub fn guard_invented_place_confirmation(
             "invented-place guard fired: NPC confirmed invented place (#1530)"
         );
         return non_recognition_place_decline(seed).to_string();
+    }
+
+    dialogue.to_string()
+}
+
+/// Post-generation guard for false denial of a real place (#1563).
+///
+/// If the player asks about a place that exists in the world graph and the NPC
+/// generically denies it as nonexistent or as "no such person", replace that
+/// denial with a neutral acknowledgement. Unlike the invented-place guard, this
+/// does not invent directions; it only prevents the transcript from asserting
+/// that a real parish place is fake.
+pub fn guard_false_denial_of_known_place(
+    dialogue: &str,
+    player_input: &str,
+    known_location_names: &[String],
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() || known_location_names.is_empty() {
+        return dialogue.to_string();
+    }
+
+    let lower = dialogue.to_lowercase();
+    if !has_generic_entity_nonrecognition(&lower) {
+        return dialogue.to_string();
+    }
+
+    let known_location_names_lower: Vec<String> = known_location_names
+        .iter()
+        .map(|loc| loc.to_lowercase())
+        .collect();
+    let candidates = extract_candidate_places(player_input);
+    let mut has_known_place = false;
+    let mut has_unknown_place = false;
+    for candidate in &candidates {
+        let candidate_lower = candidate.to_lowercase();
+        let is_known_place = known_location_names_lower.iter().any(|location_lower| {
+            location_lower.contains(&candidate_lower)
+                || candidate_lower.contains(location_lower.as_str())
+        });
+        if is_known_place {
+            has_known_place = true;
+        } else {
+            has_unknown_place = true;
+        }
+    }
+
+    if has_known_place && !has_unknown_place {
+        tracing::warn!(
+            "false-denial guard fired: NPC generically denied a known parish place (#1563)"
+        );
+        return grounded_place_acknowledgement(seed).to_string();
     }
 
     dialogue.to_string()
@@ -5450,11 +5565,12 @@ mod tests {
         );
     }
 
-    /// AC-4 (#1527): Denial marker present but roster name not in dialogue → unchanged.
+    /// AC-4 (#1563): A generic "that name" denial after the player names one
+    /// real roster person is still a false denial, even if the dialogue does
+    /// not repeat the person's full name.
     #[test]
-    fn false_denial_guard_no_fire_when_name_absent_from_dialogue() {
+    fn false_denial_guard_fires_for_generic_known_person_denial() {
         let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
-        // Denial is there but Peig Hannigan's name is NOT in the dialogue.
         let dialogue = "I know no one by that name hereabouts.";
         let result = guard_false_denial_of_roster_person(
             dialogue,
@@ -5463,9 +5579,32 @@ mod tests {
             None,
             0,
         );
+        assert_ne!(
+            result, dialogue,
+            "generic denial of one known roster person must be corrected: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("no one by that name"),
+            "generic false denial must be replaced: {result:?}"
+        );
+    }
+
+    /// Mixed real + invented questions remain conservative: a generic denial
+    /// could refer to the fabricated name, so leave it unchanged.
+    #[test]
+    fn false_denial_guard_leaves_mixed_known_and_unknown_generic_denial() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        let dialogue = "I know no one by that name hereabouts.";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Where are Peig Hannigan and Fionn MacCathasaigh?",
+            &known,
+            None,
+            0,
+        );
         assert_eq!(
             result, dialogue,
-            "denial without name in dialogue must pass through: {result:?}"
+            "mixed known+unknown generic denial must stay conservative"
         );
     }
 
@@ -5520,6 +5659,62 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "denial without affirmation must pass through: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1563): A real place from the world graph must not be denied as
+    /// nonexistent just because the speaking NPC's local knowledge omitted it.
+    #[test]
+    fn false_denial_place_guard_corrects_known_place_denial() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I cannae guide ye to a place that doesn't exist.";
+        let result =
+            guard_false_denial_of_known_place(dialogue, "Where is Darcy's Pub?", &known, 0);
+
+        assert_ne!(
+            result, dialogue,
+            "generic denial of known place must be corrected: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("doesn't exist"),
+            "known-place denial must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1563): The issue repro used navigation wording ("guide me to"),
+    /// so explicit navigation requests are place candidates too.
+    #[test]
+    fn false_denial_place_guard_extracts_guide_me_to_known_place() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I cannae guide ye to a place that doesn't exist.";
+        let result = guard_false_denial_of_known_place(
+            dialogue,
+            "Can you guide me to Darcy's Pub?",
+            &known,
+            1,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "guide-me-to known-place denial must be corrected: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should be a grounded place acknowledgement: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1563): A correct denial of an invented place remains a denial.
+    #[test]
+    fn false_denial_place_guard_leaves_unknown_place_denial() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I know of no such place in this parish.";
+        let result =
+            guard_false_denial_of_known_place(dialogue, "Where is Ballydrift Abbey?", &known, 0);
+
+        assert_eq!(
+            result, dialogue,
+            "correct denial of invented place must pass through unchanged"
         );
     }
 
