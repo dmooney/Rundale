@@ -419,10 +419,10 @@ fn unambiguous_npc_mention_candidates(
     filtered
 }
 
-fn npc_mention_candidates(
+fn npc_location_mention_candidate_pairs(
     world: &WorldState,
     npc_manager: &NpcManager,
-) -> Vec<NpcMentionCandidate> {
+) -> Vec<(String, String)> {
     let mut candidates = Vec::new();
 
     for npc in npc_manager.npcs_at(world.player_location) {
@@ -436,6 +436,135 @@ fn npc_mention_candidates(
                 add_npc_mention_candidate(&mut candidates, first_name, &npc.name);
             }
         }
+    }
+
+    candidates
+}
+
+fn normalized_query_tokens(raw: &str) -> Vec<String> {
+    raw.chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || ch == '\'' {
+                ch.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn is_explicit_roster_presence_query(raw: &str) -> bool {
+    let tokens = normalized_query_tokens(raw);
+    if tokens.is_empty() {
+        return false;
+    }
+
+    let starts_with_presence_question = matches!(
+        tokens.first().map(String::as_str),
+        Some("is" | "are" | "was" | "were")
+    ) && tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "here" | "about" | "nearby"));
+    let asks_where = tokens.windows(2).any(|window| {
+        matches!(
+            window,
+            [first, second]
+                if first == "where" && matches!(second.as_str(), "is" | "are")
+        )
+    });
+    let asks_seen = tokens
+        .windows(3)
+        .any(|window| matches!(window, [a, b, c] if a == "have" && b == "you" && c == "seen"));
+
+    starts_with_presence_question || asks_where || asks_seen
+}
+
+fn name_without_religious_title(name: &str) -> String {
+    let mut parts = name.split_whitespace().collect::<Vec<_>>();
+    while parts.first().is_some_and(|part| {
+        matches!(
+            part.trim_matches(|ch: char| !ch.is_alphanumeric())
+                .to_ascii_lowercase()
+                .as_str(),
+            "fr" | "father"
+        )
+    }) {
+        parts.remove(0);
+    }
+    parts.join(" ")
+}
+
+fn is_priest_occupation(occupation: &str) -> bool {
+    occupation
+        .split_whitespace()
+        .any(|token| token.eq_ignore_ascii_case("priest"))
+}
+
+fn roster_presence_mention_candidate_pairs(npc_manager: &NpcManager) -> Vec<(String, String)> {
+    let mut candidates = Vec::new();
+
+    for npc in npc_manager.all_npcs() {
+        add_npc_mention_candidate(&mut candidates, &npc.name, &npc.name);
+        add_npc_mention_candidate(&mut candidates, &npc.occupation, &npc.name);
+        add_npc_mention_candidate(
+            &mut candidates,
+            &format!("the {}", npc.occupation),
+            &npc.name,
+        );
+
+        let untitled = name_without_religious_title(&npc.name);
+        if !untitled.is_empty() && !untitled.eq_ignore_ascii_case(&npc.name) {
+            add_npc_mention_candidate(&mut candidates, &untitled, &npc.name);
+        }
+
+        if let Some(first_name) = untitled
+            .split_whitespace()
+            .next()
+            .or_else(|| npc.name.split_whitespace().next())
+        {
+            add_npc_mention_candidate(&mut candidates, first_name, &npc.name);
+
+            if is_priest_occupation(&npc.occupation) {
+                add_npc_mention_candidate(
+                    &mut candidates,
+                    &format!("Father {first_name}"),
+                    &npc.name,
+                );
+                add_npc_mention_candidate(&mut candidates, &format!("Fr. {first_name}"), &npc.name);
+                add_npc_mention_candidate(&mut candidates, &format!("Fr {first_name}"), &npc.name);
+            }
+        }
+
+        if is_priest_occupation(&npc.occupation) {
+            add_npc_mention_candidate(&mut candidates, "Father", &npc.name);
+            add_npc_mention_candidate(&mut candidates, "the priest", &npc.name);
+            if !untitled.is_empty() {
+                add_npc_mention_candidate(
+                    &mut candidates,
+                    &format!("Father {untitled}"),
+                    &npc.name,
+                );
+                add_npc_mention_candidate(&mut candidates, &format!("Fr. {untitled}"), &npc.name);
+                add_npc_mention_candidate(&mut candidates, &format!("Fr {untitled}"), &npc.name);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn npc_mention_candidates(
+    raw: &str,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+) -> Vec<NpcMentionCandidate> {
+    let mut candidates = npc_location_mention_candidate_pairs(world, npc_manager);
+
+    if is_explicit_roster_presence_query(raw) {
+        candidates.extend(roster_presence_mention_candidate_pairs(npc_manager));
     }
 
     unambiguous_npc_mention_candidates(candidates)
@@ -513,12 +642,15 @@ fn find_natural_npc_mentions(
 /// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
 /// descriptions like `an older man behind the bar` remain parseable. Ambiguous
 /// mention text is ignored rather than routed to an arbitrary co-located NPC.
+/// Explicit presence/where/seen questions additionally match unambiguous
+/// full-roster names and role titles so "Is Father Declan here?" can report
+/// the named person's absence instead of falling through as ambient input.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
     npc_manager: &NpcManager,
 ) -> MentionedNpcs {
-    let candidates = npc_mention_candidates(world, npc_manager);
+    let candidates = npc_mention_candidates(raw, world, npc_manager);
 
     if candidates.is_empty() {
         return MentionedNpcs {
@@ -1473,6 +1605,32 @@ mod tests {
 
         assert!(extracted.names.is_empty());
         assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_presence_query_matches_absent_rostered_priest_alias() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(10);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = LocationId(world.player_location.0 + 1);
+        npc_mgr.add_npc(priest);
+
+        let raw = "Is Father Declan here? I should like to introduce myself to the parish priest.";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert_eq!(extracted.names, vec!["Fr. Declan Tierney".to_string()]);
+        assert_eq!(extracted.remaining, raw);
+
+        let casual = "I saw Father Declan on the road yesterday.";
+        let extracted = extract_npc_mentions(casual, &world, &npc_mgr);
+        assert!(
+            extracted.names.is_empty(),
+            "full-roster aliases should stay gated to explicit presence queries"
+        );
+        assert_eq!(extracted.remaining, casual);
     }
 
     #[test]

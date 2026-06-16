@@ -991,7 +991,7 @@ pub async fn handle_npc_conversation(
         }
     };
 
-    if !npc_present {
+    if !npc_present && absent.is_empty() {
         release_claim().await;
         let msg = if ctx.idle_messages.is_empty() {
             let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
@@ -1626,6 +1626,79 @@ pub mod tests {
                         .is_some_and(|s| s.contains("No one here answers to that name"))
             }),
             "should emit the targeted absence message, not the generic fallback"
+        );
+    }
+
+    /// Regression for #1532: the named-absent feedback must win even when the
+    /// player's current location has no co-located NPCs. The generic no-NPC
+    /// idle branch used to run first, hiding the more specific target result.
+    #[tokio::test]
+    async fn addressed_absent_npc_emits_system_message_when_location_empty() {
+        use crate::npc::Npc;
+        let emitter = Arc::new(CapturingEmitter::new());
+
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut priest = Npc::new_test_npc();
+        priest.id = crate::npc::NpcId(10);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = crate::world::LocationId(player_loc.0 + 1);
+        npc_mgr.add_npc(priest);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = crate::game_loop::GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        super::handle_npc_conversation(
+            &ctx,
+            "Is Father Declan here?".to_string(),
+            vec!["Fr. Declan Tierney".to_string()],
+            || None,
+        )
+        .await;
+
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            events.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.contains("Fr. Declan Tierney is not here."))
+                    && payload
+                        .get("source")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s == "system")
+            }),
+            "expected targeted absence message in an empty location; got events: {:#?}",
+            events.iter().collect::<Vec<_>>(),
+        );
+        assert!(
+            !events.iter().any(|(name, _)| name == "stream-token"),
+            "expected no NPC stream when the only addressed target is absent"
         );
     }
 

@@ -1503,8 +1503,22 @@ impl GameTestHarness {
     /// may be promoted to long-term storage.
     fn handle_npc_interaction(&mut self, text: &str) -> ActionResult {
         let npcs_here = self.app.npc_manager.npcs_at(self.app.world.player_location);
+        let mentions =
+            parish_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
 
         if npcs_here.is_empty() {
+            if !mentions.names.is_empty() {
+                let addressed = parish_core::ipc::resolve_addressed_targets(
+                    &self.app.world,
+                    &self.app.npc_manager,
+                    &mentions.names,
+                );
+                if let Some(absent_name) = addressed.absent.first() {
+                    let msg = format!("{absent_name} is not here.");
+                    self.app.world.log(msg.clone());
+                    return ActionResult::SystemCommand { response: msg };
+                }
+            }
             self.app.world.log("Nothing happens.".to_string());
             return ActionResult::UnknownInput;
         }
@@ -1513,8 +1527,6 @@ impl GameTestHarness {
         let detected = crate::npc::anachronism::check_input(text);
         let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
 
-        let mentions =
-            parish_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
         let target_ids = if mentions.names.is_empty() {
             Vec::new()
         } else {
@@ -1526,6 +1538,16 @@ impl GameTestHarness {
         };
 
         if !mentions.names.is_empty() && target_ids.is_empty() {
+            let addressed = parish_core::ipc::resolve_addressed_targets(
+                &self.app.world,
+                &self.app.npc_manager,
+                &mentions.names,
+            );
+            if let Some(absent_name) = addressed.absent.first() {
+                let msg = format!("{absent_name} is not here.");
+                self.app.world.log(msg.clone());
+                return ActionResult::SystemCommand { response: msg };
+            }
             return ActionResult::NpcNotAvailable;
         }
 
@@ -2053,6 +2075,37 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn natural_absent_presence_query_reports_named_absence_at_empty_church() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(90);
+        let moved = h.execute("go to St. Brigid's Church");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+        assert!(
+            h.npcs_here().is_empty(),
+            "repro requires an empty church after Father Declan's early service"
+        );
+
+        let result = h.execute(
+            "Is Father Declan here? I should like to introduce myself to the parish priest.",
+        );
+
+        assert_eq!(
+            result,
+            ActionResult::SystemCommand {
+                response: "Fr. Declan Tierney is not here.".to_string()
+            }
+        );
+        assert!(
+            h.app
+                .world
+                .text_log
+                .iter()
+                .any(|line| line.contains("Fr. Declan Tierney is not here.")),
+            "absence feedback must be logged for script output"
+        );
     }
 
     #[test]
