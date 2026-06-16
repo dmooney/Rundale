@@ -644,6 +644,66 @@ fn real_loop_physical_action_produces_you_line() {
     );
 }
 
+// ── #1565 — invented titled landlord must be denied ─────────────────────────
+
+/// AC-1 (#1565, real-loop): an NPC reply that confirms and elaborates on the
+/// fabricated titled entity "Lord Fitzwilliam of Castlemore" must be replaced
+/// by the fabricated-person guard before the dialogue reaches the transcript.
+#[test]
+fn real_loop_invented_titled_landlord_hearsay_is_declined() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let fabricated_landlord = "Aye, I've heard the talk of Lord Fitzwilliam. \
+                              'Tis said he owns most of the land round hereabouts. \
+                              Ye'll need to be careful with yer words when ye speak \
+                              of him, 'tis a mighty man he is.";
+
+    h.mock()
+        .push_for(&speaker_name, fabricated_landlord.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the \
+         great landlord hereabouts",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the invented landlord turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    for phrase in [
+        "heard the talk of lord fitzwilliam",
+        "owns most of the land",
+        "mighty man",
+    ] {
+        assert!(
+            !lower.contains(phrase),
+            "invented landlord elaboration must not reach transcript (#1565); \
+             phrase {phrase:?} found in: {joined:?}"
+        );
+    }
+    assert!(
+        lower.contains("no such person")
+            || lower.contains("no one by that name")
+            || lower.contains("wrong parish")
+            || lower.contains("not known to me")
+            || lower.contains("such a person"),
+        "invented landlord reply should become a non-recognition decline (#1565); \
+         got: {joined:?}"
+    );
+}
+
 // ── #1569 — known place history must not trigger person denial ───────────────
 
 /// AC-1 (#1569, real-loop): when the player asks about the history of a known

@@ -525,6 +525,46 @@ impl GameTestHarness {
             .push(response.to_string());
     }
 
+    fn guard_canned_npc_dialogue(
+        &self,
+        npc_id: NpcId,
+        dialogue: String,
+        player_input: &str,
+        game_time: chrono::DateTime<chrono::Utc>,
+    ) -> String {
+        let cfg = parish_core::config::NpcConfig::default();
+        if !cfg.person_confirmation_guard_enabled || dialogue.trim().is_empty() {
+            return dialogue;
+        }
+
+        let known_person_names: Vec<String> = self
+            .app
+            .npc_manager
+            .all_npcs()
+            .map(|npc| npc.name.clone())
+            .collect();
+        let known_location_names: Vec<String> = self
+            .app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| self.app.world.graph.get(id))
+            .map(|location| location.name.clone())
+            .collect();
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+
+        crate::npc::guard_fabricated_person_confirmation_with_locations(
+            &dialogue,
+            player_input,
+            &known_person_names,
+            &known_location_names,
+            &[],
+            self.app.world.player_name.as_deref(),
+            seed,
+        )
+    }
+
     /// Returns the name of the player's current location.
     pub fn player_location(&self) -> &str {
         &self.app.world.current_location().name
@@ -1321,6 +1361,8 @@ impl GameTestHarness {
             && !responses.is_empty()
         {
             let dialogue = responses.remove(0);
+            let game_time = self.app.world.clock.now();
+            let dialogue = self.guard_canned_npc_dialogue(speaker_id, dialogue, text, game_time);
 
             let response = crate::npc::NpcStreamResponse {
                 dialogue: dialogue.clone(),
@@ -1343,7 +1385,6 @@ impl GameTestHarness {
             // conversation-log record, witness memories and the
             // `DialogueOccurred` publish — the exact harness/headless drift the
             // consolidation removes.
-            let game_time = self.app.world.clock.now();
             let location = self.app.world.player_location;
             let player_line = strip_dialogue_verb(text);
             let outcome = parish_core::game_session::apply_npc_dialogue_turn(
@@ -1493,6 +1534,8 @@ impl GameTestHarness {
         }
 
         let dialogue = responses.remove(0);
+        let game_time = self.app.world.clock.now();
+        let dialogue = self.guard_canned_npc_dialogue(npc_id, dialogue, text, game_time);
 
         // Build a synthetic NPC response and run it through the memory pipeline
         let response = crate::npc::NpcStreamResponse {
@@ -1510,7 +1553,6 @@ impl GameTestHarness {
         // `DialogueOccurred` publish — one definition for every backend
         // (`parish_core::game_session::apply_npc_dialogue_turn`). The player
         // line is verb-stripped for the journal entry.
-        let game_time = self.app.world.clock.now();
         let location = self.app.world.player_location;
         let player_line = strip_dialogue_verb(text);
         let outcome = parish_core::game_session::apply_npc_dialogue_turn(
@@ -1951,6 +1993,38 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn canned_npc_response_declines_invented_titled_landlord() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to the forge");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Colm Gallagher",
+            "Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most of the land round hereabouts. Ye'll need to be careful with yer words when ye speak of him, 'tis a mighty man he is.",
+        );
+
+        let result = h.execute(
+            "talk to Colm Gallagher about Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the great landlord hereabouts",
+        );
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Colm to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Colm Gallagher");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("no such person")
+                || lower.contains("no one by that name")
+                || lower.contains("not known to me")
+                || lower.contains("wrong parish")
+                || lower.contains("such a person"),
+            "{dialogue}"
+        );
+        assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
+        assert!(!lower.contains("owns most of the land"), "{dialogue}");
     }
 
     #[test]

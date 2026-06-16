@@ -480,6 +480,10 @@ fn dialogue_affirms_name(dialogue: &str, name: &str) -> bool {
         "a fine man",
         "a fine woman",
         "good woman",
+        "i've heard of",
+        "i have heard of",
+        "heard the talk of",
+        "heard tell of",
         "i know him",
         "i know her",
         "know him well",
@@ -3493,6 +3497,35 @@ mod tests {
     }
 
     #[test]
+    fn fabricated_titled_landlord_hearsay_confirmation_is_declined() {
+        let dialogue = "Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most \
+                        of the land round hereabouts. Ye'll need to be careful with yer words \
+                        when ye speak of him, 'tis a mighty man he is.";
+        let player_input = "Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the \
+                            great landlord hereabouts";
+        let known: Vec<String> = vec!["Colm Gallagher".into(), "Seamus Gallagher".into()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        let lower = result.to_lowercase();
+
+        assert!(
+            !lower.contains("heard the talk of lord fitzwilliam")
+                && !lower.contains("owns most of the land")
+                && !lower.contains("mighty man"),
+            "invented landlord confirmation must be replaced: {result:?}"
+        );
+        assert!(
+            lower.contains("no such person")
+                || lower.contains("no one by that name")
+                || lower.contains("wrong parish")
+                || lower.contains("not known to me")
+                || lower.contains("such a person"),
+            "result should be a non-recognition decline: {result:?}"
+        );
+    }
+
+    #[test]
     fn known_roster_person_passes_through() {
         // NPC confirms someone actually in the roster — guard must not fire.
         let dialogue = "Aye, I know Brigid Connolly well. She is a fine woman.";
@@ -3503,6 +3536,21 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known-roster person should not be altered: {result:?}"
+        );
+    }
+
+    #[test]
+    fn known_roster_person_hearsay_confirmation_passes_through() {
+        let dialogue = "Aye, I've heard of Brigid Connolly. A fine woman she is.";
+        let player_input = "Have you heard of Brigid Connolly?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+
+        assert_eq!(
+            result, dialogue,
+            "hearsay marker must not suppress known-roster people: {result:?}"
         );
     }
 
