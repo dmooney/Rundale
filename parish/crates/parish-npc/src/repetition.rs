@@ -3305,6 +3305,10 @@ fn dialogue_already_carries_cool_tone(dialogue: &str) -> bool {
         "not one i trust",
         "i do not trust",
         "i don't trust",
+        "she is no friend",
+        "he is no friend",
+        "i am wary of her",
+        "i am wary of him",
         "wary",
         "watchful",
         "careful with",
@@ -3326,9 +3330,16 @@ fn dialogue_has_neutral_warm_rival_pattern(dialogue: &str) -> bool {
         "good man",
         "decent man",
         "grand man",
+        "fine woman",
+        "good woman",
+        "decent woman",
+        "grand woman",
         "grand fellow",
+        "grand soul",
         "no harm in him",
         "no harm in her",
+        "she keeps an eye on things",
+        "he keeps an eye on things",
     ];
     NEUTRAL_WARM_PATTERNS
         .iter()
@@ -6034,6 +6045,32 @@ mod tests {
         assert_ne!(result, dialogue, "neutral rival line must be cooled");
         assert!(
             result.contains("Mick Flanagan"),
+            "replacement should preserve the target name: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("little warmth")
+                || result.to_lowercase().contains("keep my distance"),
+            "replacement should carry a visible cool/rival cue: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_cools_female_pronoun_warm_line() {
+        let dialogue = "Roisin Connolly, aye. She's a good woman, no harm in her.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Roisin Connolly".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+        let result = guard_rival_target_neutral_tone(
+            dialogue,
+            "What do you think of Roisin Connolly?",
+            &rels,
+        );
+
+        assert_ne!(result, dialogue, "female warm rival line must be cooled");
+        assert!(
+            result.contains("Roisin Connolly"),
             "replacement should preserve the target name: {result:?}"
         );
         assert!(

@@ -607,26 +607,7 @@ impl GameTestHarness {
             guarded = crate::npc::guard_stock_nonrecognition_decline(&guarded, player_input, seed);
             guarded =
                 crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
-            let relationship_tone_hints: Vec<crate::npc::RelationshipToneHint> = self
-                .app
-                .npc_manager
-                .get(npc_id)
-                .map(|speaker| {
-                    speaker
-                        .relationships
-                        .iter()
-                        .filter_map(|(target_id, rel)| {
-                            self.app.npc_manager.get(*target_id).map(|target| {
-                                crate::npc::RelationshipToneHint {
-                                    target_name: target.name.clone(),
-                                    kind: rel.kind,
-                                    strength: rel.strength,
-                                }
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
             guarded = crate::npc::guard_rival_target_neutral_tone(
                 &guarded,
                 player_input,

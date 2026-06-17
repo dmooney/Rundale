@@ -235,24 +235,7 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
-        let relationship_tone_hints: Vec<crate::npc::RelationshipToneHint> =
-            if let Some(speaker) = npc_manager.get(speaker_id) {
-                speaker
-                    .relationships
-                    .iter()
-                    .filter_map(|(target_id, rel)| {
-                        npc_manager
-                            .get(*target_id)
-                            .map(|target| crate::npc::RelationshipToneHint {
-                                target_name: target.name.clone(),
-                                kind: rel.kind,
-                                strength: rel.strength,
-                            })
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        let relationship_tone_hints = npc_manager.relationship_tone_hints(speaker_id);
         let time_of_day = world.clock.time_of_day();
         (
             setup,
