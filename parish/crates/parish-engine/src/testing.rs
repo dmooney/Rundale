@@ -607,6 +607,7 @@ impl GameTestHarness {
             guarded = crate::npc::guard_stock_nonrecognition_decline(&guarded, player_input, seed);
             guarded =
                 crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
+            guarded = crate::npc::guard_priest_tenure_drift(&guarded, player_input);
             let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
             guarded = crate::npc::guard_rival_target_neutral_tone(
                 &guarded,
@@ -2236,6 +2237,33 @@ mod tests {
             dialogue.to_lowercase().contains("little warmth")
                 || dialogue.to_lowercase().contains("keep my distance"),
             "cooled fallback should carry a visible rival cue: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_corrects_priest_tenure_drift() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "He's been the priest here for nigh on a decade now.",
+        );
+        let result = h.execute("talk to Roisin Connolly about Father Declan Tierney");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("twenty-five years"),
+            "canonical tenure must be visible: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("decade"),
+            "incorrect decade-scale tenure must be removed: {dialogue:?}"
         );
     }
 
