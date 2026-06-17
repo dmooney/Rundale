@@ -24,6 +24,7 @@ export {
 
 export * from './ipc/game';
 export * from './ipc/save';
+export * from './ipc/scene';
 export * from './ipc/screenshot';
 export * from './ipc/setup';
 export * from './ipc/provider';

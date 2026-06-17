@@ -8,11 +8,12 @@
 		type ModelSuggestion
 	} from '$lib/model-catalog';
 	import { knownNouns, findMatches } from '../stores/nouns';
+	import { sceneNpcFocusRequest, clearSceneNpcFocus } from '../stores/scene';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
-import MentionDropdown from './MentionDropdown.svelte';
-import SlashDropdown from './SlashDropdown.svelte';
-import ModelDropdown from './ModelDropdown.svelte';
+	import MentionDropdown from './MentionDropdown.svelte';
+	import SlashDropdown from './SlashDropdown.svelte';
+	import ModelDropdown from './ModelDropdown.svelte';
 	import {
 		getPlainText,
 		clearEditor,
@@ -82,6 +83,24 @@ import ModelDropdown from './ModelDropdown.svelte';
 	// correctly on the backend.
 	let selectedNpcRealNames = $state<string[]>([]);
 
+	function addSelectedNpcRealName(realName: string) {
+		if (!selectedNpcRealNames.includes(realName)) {
+			selectedNpcRealNames = [...selectedNpcRealNames, realName];
+		}
+	}
+
+	function removeSelectedNpcRealName(realName: string | undefined) {
+		if (!realName) return;
+		selectedNpcRealNames = selectedNpcRealNames.filter((name) => name !== realName);
+	}
+
+	function realNameForDisplayName(displayName: string): string {
+		return (
+			$npcsHere.find((npc) => npc.name === displayName || npc.real_name === displayName)
+				?.real_name ?? displayName
+		);
+	}
+
 	$effect(() => {
 		const visible = new Set($npcsHere.map((npc) => npc.real_name));
 		const pruned = selectedNpcRealNames.filter((name) => visible.has(name));
@@ -91,6 +110,13 @@ import ModelDropdown from './ModelDropdown.svelte';
 		) {
 			selectedNpcRealNames = pruned;
 		}
+	});
+
+	$effect(() => {
+		const request = $sceneNpcFocusRequest;
+		if (!request || !editorEl) return;
+		insertNpcMention(request.display_name, request.real_name);
+		clearSceneNpcFocus(request.request_id);
 	});
 
 	// ── Tab-completion state ────────────────────────────────────────────────
@@ -236,6 +262,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	function selectNpc(npcName: string) {
 		if (!editorEl) return;
+		const realName = realNameForDisplayName(npcName);
 
 		const sel = window.getSelection();
 		let textNode: Text | null = null;
@@ -265,6 +292,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 			chip.className = 'mention-chip';
 			chip.contentEditable = 'false';
 			chip.dataset.npc = npcName;
+			chip.dataset.npcRealName = realName;
 			chip.textContent = `@${npcName}`;
 			chip.setAttribute('role', 'img');
 			chip.setAttribute('aria-label', `Mention: ${npcName}`);
@@ -283,6 +311,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 			dropdownMode = null;
 			editorEl.focus();
 			syncEditorText();
+			addSelectedNpcRealName(realName);
 			return;
 		}
 
@@ -300,6 +329,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		chip.className = 'mention-chip';
 		chip.contentEditable = 'false';
 		chip.dataset.npc = npcName;
+		chip.dataset.npcRealName = realName;
 		chip.textContent = `@${npcName}`;
 		chip.setAttribute('role', 'img');
 		chip.setAttribute('aria-label', `Mention: ${npcName}`);
@@ -322,6 +352,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		dropdownMode = null;
 		editorEl.focus();
 		syncEditorText();
+		addSelectedNpcRealName(realName);
 	}
 
 	// ── Slash command selection ──────────────────────────────────────────────
@@ -344,6 +375,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	/** Dissolves a mention chip back into plain text. */
 	function dissolveChip(chip: HTMLElement) {
+		removeSelectedNpcRealName(chip.dataset.npcRealName ?? chip.dataset.npc);
 		const text = chip.textContent ?? '';
 		const textNode = document.createTextNode(text);
 		chip.parentNode?.replaceChild(textNode, chip);
@@ -399,13 +431,14 @@ import ModelDropdown from './ModelDropdown.svelte';
 		}
 	}
 
-	function insertNpcMention(npcName: string) {
+	function insertNpcMention(npcName: string, realName = realNameForDisplayName(npcName)) {
 		if ($streamingActive || !editorEl) return;
 
 		const chip = document.createElement('span');
 		chip.className = 'mention-chip';
 		chip.contentEditable = 'false';
 		chip.dataset.npc = npcName;
+		chip.dataset.npcRealName = realName;
 		chip.textContent = `@${npcName}`;
 		chip.setAttribute('role', 'img');
 		chip.setAttribute('aria-label', `Mention: ${npcName}`);
@@ -432,6 +465,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		sel?.addRange(range);
 		editorEl.focus();
 		syncEditorText();
+		addSelectedNpcRealName(realName);
 	}
 
 	// ── Submit ──────────────────────────────────────────────────────────────
@@ -800,7 +834,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 					class="npc-chip"
 					aria-label="Speak to {npc.name}"
 					disabled={$streamingActive}
-					onclick={() => insertNpcMention(npc.name)}
+					onclick={() => insertNpcMention(npc.name, npc.real_name)}
 				>
 					<span class="npc-chip-mood"
 						><MoodIcon mood={npc.mood} emoji={npc.mood_emoji} /></span

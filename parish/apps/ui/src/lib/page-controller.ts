@@ -42,10 +42,12 @@ import { savePickerVisible, modSelectorVisible } from '../stores/save';
 import { palette } from '../stores/theme';
 import { tiles } from '../stores/tiles';
 import { startTravel } from '../stores/travel';
+import { sceneState, sceneTravelPending } from '../stores/scene';
 import {
 	getWorldSnapshot,
 	getMap,
 	getNpcsHere,
+	getSceneState,
 	getUiConfig,
 	getTheme,
 	getDebugSnapshot,
@@ -156,18 +158,28 @@ export async function createPageController(): Promise<() => void> {
 	// location hasn't changed.
 	const sceneDedup = new SceneDeduplicator();
 
+	async function refreshSceneState() {
+		try {
+			sceneState.set(await getSceneState());
+		} catch (e) {
+			console.warn('Scene refresh failed:', e);
+		}
+	}
+
 	// Initial data fetch (theme first to avoid color flash).
 	//
 	// Use `allSettled` so a single failed endpoint doesn't block the
 	// rest of the UI from loading. Any failure is surfaced via
 	// pushErrorLog so the user sees feedback instead of an indefinite
 	// "Loading..." state — see #113.
-	const [snapRes, mapRes, npcsRes, themeRes] = await Promise.allSettled([
-		getWorldSnapshot(),
-		getMap(),
-		getNpcsHere(),
-		getTheme(),
-	]);
+	const [snapRes, mapRes, npcsRes, themeRes, sceneRes] =
+		await Promise.allSettled([
+			getWorldSnapshot(),
+			getMap(),
+			getNpcsHere(),
+			getTheme(),
+			getSceneState(),
+		]);
 	if (snapRes.status === 'fulfilled') {
 		const snap = snapRes.value;
 		worldState.set(snap);
@@ -187,6 +199,7 @@ export async function createPageController(): Promise<() => void> {
 	if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
 	if (themeRes.status === 'fulfilled')
 		palette.applyServerPalette(themeRes.value);
+	if (sceneRes.status === 'fulfilled') sceneState.set(sceneRes.value);
 
 	const failed: string[] = [];
 	if (snapRes.status === 'rejected')
@@ -197,9 +210,11 @@ export async function createPageController(): Promise<() => void> {
 		failed.push(`NPCs (${formatIpcError(npcsRes.reason)})`);
 	if (themeRes.status === 'rejected')
 		failed.push(`theme (${formatIpcError(themeRes.reason)})`);
+	if (sceneRes.status === 'rejected')
+		failed.push(`scene (${formatIpcError(sceneRes.reason)})`);
 	if (failed.length > 0) {
 		pushErrorLog(`Failed to load initial game data: ${failed.join(', ')}.`);
-		for (const r of [snapRes, mapRes, npcsRes, themeRes]) {
+		for (const r of [snapRes, mapRes, npcsRes, themeRes, sceneRes]) {
 			if (r.status === 'rejected')
 				console.warn('Initial fetch failed:', r.reason);
 		}
@@ -292,11 +307,18 @@ export async function createPageController(): Promise<() => void> {
 					]);
 				}
 				try {
-					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
+					const [map, npcs, scene] = await Promise.all([
+						getMap(),
+						getNpcsHere(),
+						getSceneState(),
+					]);
 					mapData.set(map);
 					npcsHere.set(npcs);
+					sceneState.set(scene);
 				} catch (_) {
-					// ignore: best-effort map/NPC refresh; stale data is acceptable
+					// ignore: best-effort map/NPC/scene refresh; stale data is acceptable
+				} finally {
+					sceneTravelPending.set(false);
 				}
 			}),
 		);
@@ -341,6 +363,7 @@ export async function createPageController(): Promise<() => void> {
 						},
 					]),
 				);
+				void refreshSceneState();
 			}),
 		);
 
@@ -485,6 +508,7 @@ export async function createPageController(): Promise<() => void> {
 
 		listeners.push(
 			await onTravelStart((payload) => {
+				sceneTravelPending.set(true);
 				startTravel(payload);
 			}),
 		);
@@ -517,10 +541,11 @@ export async function createPageController(): Promise<() => void> {
 				// allSettled (matching the mount-time fetch): a transient failure
 				// on one endpoint right after reconnect must not discard the
 				// other successful updates.
-				const [snapRes, mapRes, npcsRes] = await Promise.allSettled([
+				const [snapRes, mapRes, npcsRes, sceneRes] = await Promise.allSettled([
 					getWorldSnapshot(),
 					getMap(),
 					getNpcsHere(),
+					getSceneState(),
 				]);
 				if (snapRes.status === 'fulfilled') {
 					const snap = snapRes.value;
@@ -538,7 +563,9 @@ export async function createPageController(): Promise<() => void> {
 				}
 				if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
 				if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
-				for (const r of [snapRes, mapRes, npcsRes]) {
+				if (sceneRes.status === 'fulfilled') sceneState.set(sceneRes.value);
+				sceneTravelPending.set(false);
+				for (const r of [snapRes, mapRes, npcsRes, sceneRes]) {
 					if (r.status === 'rejected')
 						console.warn('Reconnect resync partial failure:', r.reason);
 				}

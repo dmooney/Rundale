@@ -1,0 +1,24 @@
+# Diorama M3 — frontend scene-first flow backend smoke test
+# =========================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled
+# - enabling the flag exposes scene-state for the plated locations the frontend renders
+# - disabling the flag returns the app to the existing non-diorama layout path
+
+/status
+/scene
+
+/flag enable diorama
+/flags
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+/flag disable diorama
+/scene
+
+/quit
