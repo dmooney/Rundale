@@ -1,0 +1,6 @@
+# fix-1508-self-name-stated-twice
+# Repro: Peig introduces herself, then repeats her own full name in the next
+# sentence. The polish layer should leave one natural self-introduction.
+
+/stub Peig Hannigan: Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.
+talk to Peig Hannigan about your name
