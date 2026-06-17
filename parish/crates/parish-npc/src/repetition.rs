@@ -3524,6 +3524,109 @@ fn player_input_mentions_target(player_input: &str, target_name: &str) -> bool {
         })
 }
 
+fn normalized_person_name_eq(left: &str, right: &str) -> bool {
+    normalize_name_honorifics(&left.to_lowercase())
+        == normalize_name_honorifics(&right.to_lowercase())
+}
+
+fn dialogue_has_presumed_prior_acquaintance_question(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const PATTERNS: &[&str] = &[
+        "how do ye find him so far",
+        "how do ye find her so far",
+        "how do ye find them so far",
+        "how do you find him so far",
+        "how do you find her so far",
+        "how do you find them so far",
+    ];
+    PATTERNS.iter().any(|pattern| normalized.contains(pattern))
+}
+
+fn word_is_honorific(word: &str) -> bool {
+    let canonical = canonical_honorific(word);
+    HONORIFIC_PAIRS
+        .iter()
+        .any(|(long, short)| word == *long || word == *short || canonical == *long)
+}
+
+fn strip_honorific_words(text: &str) -> String {
+    normalized_alpha_words(text)
+        .into_iter()
+        .filter(|word| !word_is_honorific(word))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn player_input_asserts_prior_acquaintance(player_input: &str, target_name: &str) -> bool {
+    let normalized = strip_honorific_words(&normalize_for_repetition(player_input));
+    let target_lower =
+        strip_honorific_words(&normalize_name_honorifics(&target_name.to_lowercase()));
+    let first_name = target_lower
+        .split_whitespace()
+        .next()
+        .unwrap_or(target_lower.as_str());
+
+    const CONTACT_PATTERNS: &[&str] = &[
+        "i met ",
+        "i have met ",
+        "i've met ",
+        "i spoke with ",
+        "i talked to ",
+        "i was speaking with ",
+        "i know ",
+    ];
+
+    CONTACT_PATTERNS.iter().any(|prefix| {
+        normalized.contains(&format!("{prefix}{target_lower}"))
+            || normalized.contains(&format!("{prefix}{first_name}"))
+    })
+}
+
+fn prior_acquaintance_checkin(target_name: &str) -> String {
+    format!("{target_name}, aye. Have ye met {target_name} yet?")
+}
+
+/// Rewrites replies that ask the player to evaluate a named parishioner as if
+/// the player has already met them (#1509).
+///
+/// Conservative: only fires when the player mentioned exactly one non-speaker
+/// roster person and the reply contains the narrow "How do ye/you find him/her
+/// so far?" presupposition. If the player's input itself says they met or know
+/// the target, the reply is left unchanged.
+pub fn guard_presumed_prior_acquaintance(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
+    if dialogue.trim().is_empty()
+        || known_person_names.is_empty()
+        || !dialogue_has_presumed_prior_acquaintance_question(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    let targets: Vec<&String> = known_person_names
+        .iter()
+        .filter(|name| {
+            speaker.is_none_or(|speaker| !normalized_person_name_eq(&speaker.name, name))
+                && player_input_mentions_target(player_input, name)
+        })
+        .collect();
+    let [target] = targets.as_slice() else {
+        return dialogue.to_string();
+    };
+    if player_input_asserts_prior_acquaintance(player_input, target) {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!(
+        target = %target,
+        "dialogue polish guard fired: replacing presumed prior-acquaintance question (#1509)"
+    );
+    prior_acquaintance_checkin(target)
+}
+
 fn rival_tone_fallback(target_name: &str) -> String {
     format!(
         "{target_name}, aye. I'll grant the facts, but there is little warmth between us, so I keep my distance."
@@ -6287,6 +6390,79 @@ mod tests {
                 || result.to_lowercase().contains("road")
                 || result.to_lowercase().contains("point you"),
             "place prompt should receive a place-shaped decline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_rewrites_known_target_checkin() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue =
+            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?";
+        let result = guard_presumed_prior_acquaintance(
+            dialogue,
+            "talk to Roisin Connolly about Colm Gallagher",
+            &known,
+            Some(&speaker),
+        );
+        let lower = result.to_lowercase();
+
+        assert_ne!(result, dialogue, "presupposing question must be rewritten");
+        assert!(
+            lower.contains("have ye met colm gallagher yet"),
+            "replacement should ask whether the player has met the target: {result:?}"
+        );
+        assert!(
+            !lower.contains("how do ye find him so far"),
+            "presupposing phrase must not survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_leaves_declared_meeting() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "How do ye find him so far?";
+
+        assert_eq!(
+            guard_presumed_prior_acquaintance(
+                dialogue,
+                "I met Colm Gallagher at the forge. What do you think of him?",
+                &known,
+                Some(&speaker),
+            ),
+            dialogue,
+            "current-turn evidence that the player met the target must pass through"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_leaves_declared_meeting_with_honorific_mismatch() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "How do ye find him so far?";
+
+        assert_eq!(
+            guard_presumed_prior_acquaintance(
+                dialogue,
+                "I met Fr. Colm Gallagher at the forge. What do you think of Colm Gallagher?",
+                &known,
+                Some(&speaker),
+            ),
+            dialogue,
+            "extra honorific tokens must not hide current-turn meeting evidence"
         );
     }
 
