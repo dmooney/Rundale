@@ -1,20 +1,21 @@
-# Interactive Parish Diorama — Scene-Based Graphical Direction
+# Interactive Parish Diorama — Runtime-Composed Graphical Direction
 
-> Status: Proposed · Updated: 2026-06-12 · [Docs Index](../../index.md)
+> Status: Proposed · Updated: 2026-06-17 · [Docs Index](../../index.md)
 
-> [Docs Index](../../index.md) · [Architecture Overview](../overview.md) · [GUI Design](../gui-design.md) · Supersedes: [Graphical World View (pixel scenes)](graphical-world-view.md)
+> [Docs Index](../../index.md) · [Architecture Overview](../overview.md) · [GUI Design](../gui-design.md) · Incorporates: [Graphical World View (pixel scenes)](graphical-world-view.md)
 
 ## Vision
 
-The graphical version of Rundale is an **interactive parish diorama**: a retro,
-scene-based village simulation with Stardew-like visual readability, Myst-like
-click navigation, and the existing living-world NPC simulation underneath.
+The graphical version of Rundale is an **interactive parish diorama**: a
+high-fidelity, retro, scene-based village simulation with Stardew-like visual
+readability, Myst-like click navigation, and the existing living-world NPC
+simulation underneath.
 
 Rather than a continuous tile-based open world, the player sees richly composed
-pixel-art views of meaningful locations in and around one Irish village (1820).
-They click paths, doors, people, and objects to move through the world graph,
-speak with villagers, inspect places, and gradually understand the social life
-of the parish.
+views of meaningful locations in and around one Irish village (1820). They
+click paths, doors, people, and objects to move through the world graph, speak
+with villagers, inspect places, and gradually understand the social life of
+the parish.
 
 > You do not build the village. You learn it.
 
@@ -23,29 +24,62 @@ entering a living rural community and discovering how people, places, rumors,
 obligations, grudges, and memories connect. The promise is not "explore a huge
 open world" — it is "**understand a small place deeply**."
 
-### Visual style
+## Visual Target
 
-- Top-down 3/4 perspective, 16-bit pixel-art fidelity
-- Readable and cozy, but grounded — not cartoonish, not cottagecore
-- Muted greens, browns, greys, straw yellows, whitewash, peat-dark accents
-- Muddy paths, puddles, hedges, low stone walls, small fields, streams,
-  thatched cottages; handmade and irregular, never clean or fantasy-medieval
-- Inviting but slightly melancholy — a specific Irish place with memory,
-  poverty, weather, gossip, and social pressure
+The strongest art reference so far is the user-provided ChatGPT sample:
+<https://chatgpt.com/s/m_6a2b4e7a5f188191b62e44e48d3372c0>. It is not
+content-canonical — its date, text labels, road signs, and exact geography are
+reference-only — but its **style and fidelity are the target**:
 
-### Why scene nodes fit Rundale
+- Top-down / isometric 3/4 perspective with a readable village-stage layout.
+- Dense, high-fidelity pixel art: small plants, puddles, stone walls, thatch,
+  chimneys, paths, fences, carts, doorways, bridges, and water edges all have
+  hand-placed texture.
+- Grounded Irish rural material culture: whitewashed cottages, straw thatch,
+  peat smoke, low drystone walls, muddy lanes, small fields, hedgerows, wells,
+  carts, white hand-painted wayfinding signs, bridges, streams, and uneven
+  handmade surfaces.
+- Muted earth palette: moss greens, mud browns, straw yellows, greys, whitewash,
+  peat-dark shadows, and small warm-light accents.
+- Cozy but not sanitized: inviting, lived-in, damp, slightly melancholy, and
+  specific to an Irish parish rather than generic fantasy village art.
 
-A free-walking world needs large tile maps, collision, pathfinding, many
-animation states, and a lot of empty traversable space. A scene-node approach
-gives fewer, more meaningful locations; atmospheric composition; a far lower
-asset burden; and an NPC simulation without an open-world renderer. The
-important map is social, not spatial: who lives where, who avoids whom, where
-gossip travels, what histories attach to each place. The engine already models
-exactly that.
+The sample also demonstrates what **not** to make runtime-dependent: UI title
+plaques, route names, dates, and labels should not be baked into canonical art.
+If a signpost, plaque, or label-like prop appears in scene art, it must be
+treated as a prop and reviewed manually for spelling and setting correctness.
 
-## What the engine already provides
+## Representation Pivot
 
-Everything below exists today and is reused **unchanged**:
+Earlier drafts centered on **AI-curated full-scene backplates**: one composed
+PNG per location, with hotspots and NPCs layered over it. Experiments showed
+that this asks too much of a single generated bitmap. Full scenes often look
+beautiful at a glance but fail in semantically important ways: disconnected
+rivers, broken chimneys, impossible walls, inconsistent roads, baked-in
+characters, wrong signs, or day/night variants whose geometry no longer
+matches.
+
+The updated direction is a **Factorio-style runtime sprite compositor**:
+
+- The engine owns semantic layout: scene size, exits, waterways, buildings,
+  walls, doors, wayfinding signs, prop anchors, z-order, and NPC slots.
+- Art is made of smaller, curated atoms: cottages, roof pieces, chimneys,
+  smoke, wall segments, bridge pieces, wells, carts, trees, hedges, puddles,
+  stream edges, furniture, interior props, and NPC sprites.
+- AI generation is still useful, but primarily for **bounded assets** and style
+  references, not canonical whole-location geometry.
+- Runtime composition produces the final scene from asset instances. Bad assets
+  can be replaced locally without repainting a whole location.
+- Pure procedural / code-drawn fallback assets remain valid for early
+  milestones and CI tests.
+
+Full AI plates may still be used as **mood boards, underpaint sketches, or
+temporary placeholders**, but the source of truth for gameplay-visible space is
+the layout data plus composited assets.
+
+## What The Engine Already Provides
+
+Everything below exists today and is reused unchanged:
 
 | Capability           | Where                                                                                                                                          |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -58,76 +92,104 @@ Everything below exists today and is reused **unchanged**:
 | Click-to-travel      | map clicks already submit `go to <Location Name>` (`MapPanel.svelte`)                                                                          |
 | Mod asset validation | traversal-guarded asset paths under `mods/<mod>/assets/` (`parish-mod/src/assets.rs`)                                                          |
 
-The diorama is a **presentation layer over the existing simulation** — no
-world-graph, schedule, or save-format changes anywhere in this design.
+The diorama is a **presentation layer over the existing simulation**. It does
+not change world graph semantics, NPC schedules, dialogue, or save format.
 
 ## Decisions
 
-1. **Scene-first layout.** The plate becomes the main viewport; the dialogue
-   panel and text input remain alongside (text input keeps full parity).
-   Gated by a `diorama` feature flag: opt-in (`flags.is_enabled`) during the
-   build-out, flipped to a default-on kill-switch (`!flags.is_disabled`) once
-   curated art exists — satisfying AGENTS rule 6 at the point the feature is
-   actually shippable, and keeping Playwright baselines stable until the
-   deliberate flip.
-2. **AI-curated static assets, generated developer-side only.** Background
-   plates and per-NPC sprites are generated with OpenAI (`gpt-image-1`) or
-   Google (Imagen 3), curated by a human, post-processed, and checked into
-   `mods/rundale/assets/scenes/`. No image generation at runtime. This
-   supersedes the procedural `parish-sprite` approach in
-   [graphical-world-view.md](graphical-world-view.md); that RFC's serving
-   route shapes and scene-panel concept are kept.
-3. **Rust CLI art tool** (`parish-art-tool`), following the
-   `parish-geo-tool` / `parish-npc-tool` precedent.
-4. **Reuse the existing 22 nodes.** One plate per location; the `indoor` flag
-   picks interior vs exterior composition. Interior/exterior node splits
-   (Pub Exterior vs Pub Interior) are a possible later content change, not
-   part of the MVP.
-5. **No player avatar — the player is the camera.** The original pitch listed
-   a player-character sprite; this design deliberately drops it for the MVP.
-   Navigation is click-to-travel (Myst-style first person), so an avatar
-   standing in the scene adds nothing mechanically and costs a sprite, slot
-   logic, and ambiguity about who "you" are in every plate. Revisit only if
-   a later phase adds positional mechanics.
+1. **Scene-first layout.** The composed scene becomes the main viewport; the
+   dialogue panel and text input remain alongside, preserving text parity.
+   Gated by a `diorama` feature flag during build-out and flipped to a
+   default-on kill-switch once curated content exists.
+2. **Runtime composition over monolithic plates.** Location views are assembled
+   from asset instances at runtime. Optional backplates are allowed only as
+   temporary underlays or style references; hotspots and NPC slots must align
+   with semantic layout data, not with an opaque bitmap.
+3. **Developer-side art pipeline.** A Rust `parish-art-tool` helps build and
+   curate style references, sprite sheets, prop cutouts, and preview renders.
+   No image generation happens at gameplay runtime.
+4. **Reuse the existing 22 nodes.** One authored layout per location. The
+   `indoor` flag selects interior vs exterior composition. Interior/exterior
+   node splits remain possible later, but are not part of the MVP.
+5. **No player avatar in the MVP.** The player is the camera. The sample image
+   includes a central figure, but Rundale's navigation remains first-person
+   click-to-travel until a later phase introduces positional mechanics.
 
-## Scene data model
+## Scene Data Model
 
-A mod declares scenes in one index file, mirroring the `world.json` /
+A mod declares scene layouts in one index file, mirroring the `world.json` /
 `npcs.json` one-file-per-domain pattern. `mod.toml` `[files]` gains an
 optional `scenes = "scenes.json"`; mods without it load unchanged.
 
+The schema sketch below shows the updated compositor direction. It is more
+explicit than the first draft's `plate + slots` model:
+
 ```json
 {
+  "asset_packs": ["assets/scenes/common/pack.json"],
   "scenes": [
     {
-      "location_id": 2,
-      "slug": "darcys-pub",
-      "plate": "assets/scenes/darcys-pub/plate.png",
-      "variants": { "night": "assets/scenes/darcys-pub/plate_night.png" },
+      "location_id": 15,
+      "slug": "kilteevan-main-lane",
+      "native_size": [640, 480],
+      "underlay": null,
+      "layers": [
+        {
+          "id": "stream",
+          "asset": "stream-bend-a",
+          "x": 6.0,
+          "y": 76.0,
+          "z": 10,
+          "scale": 1.0
+        },
+        {
+          "id": "left-cottage",
+          "asset": "cottage-whitewash-thatched-a",
+          "x": 13.0,
+          "y": 34.0,
+          "z": 30,
+          "scale": 1.0
+        },
+        {
+          "id": "kilteevan-wayfinding",
+          "asset": "wayfinding-sign-three-arm-white-blank-a",
+          "x": 33.0,
+          "y": 57.0,
+          "z": 60,
+          "scale": 1.0,
+          "labels": [
+            { "text": "KILTEEVAN", "anchor": [48.0, 30.0], "rotation": -2.0 },
+            { "text": "CROSSROADS", "anchor": [51.0, 47.0], "rotation": 1.0 },
+            { "text": "CHAPEL", "anchor": [50.0, 64.0], "rotation": -1.0 }
+          ]
+        }
+      ],
       "hotspots": [
         {
-          "id": "door",
-          "shape": { "rect": [82.0, 38.0, 14.0, 50.0] },
-          "label": "Out to the Crossroads",
+          "id": "lane-to-crossroads",
+          "shape": { "rect": [42.0, 39.0, 14.0, 18.0] },
+          "label": "Toward the Crossroads",
           "action": { "travel_to": 1 }
         },
         {
-          "id": "hearth",
-          "shape": { "rect": [5.0, 30.0, 18.0, 40.0] },
-          "label": "The hearth",
-          "action": { "inspect": "A turf fire smoulders in the wide hearth." }
+          "id": "stream",
+          "shape": { "rect": [0.0, 73.0, 42.0, 18.0] },
+          "label": "The stream",
+          "action": { "inspect": "Water hurries under the small footbridge." }
         }
       ],
       "slots": [
-        {
-          "id": "behind-bar",
-          "x": 48.0,
-          "y": 55.0,
-          "scale": 1.0,
-          "prefer_npc": 1
-        },
-        { "id": "bench-left", "x": 22.0, "y": 68.0, "scale": 1.1 }
+        { "id": "lane-center", "x": 52.0, "y": 55.0, "z": 80, "scale": 1.0 },
+        { "id": "cottage-door", "x": 20.0, "y": 44.0, "z": 82, "scale": 0.95 }
       ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "wayfinding-sign-three-arm-white-blank-a",
+      "kind": "wayfinding_sign",
+      "image": "assets/scenes/props/wayfinding-sign-three-arm-white-blank-a.png",
+      "anchor": [50.0, 92.0]
     }
   ],
   "sprites": [
@@ -139,125 +201,148 @@ optional `scenes = "scenes.json"`; mods without it load unchanged.
 }
 ```
 
-- **Coordinates are percentages (0–100) of the plate's native dimensions.**
-  `x,y` is a sprite's foot-anchor; rects are `[x, y, w, h]`. Percentage
-  coordinates keep hotspots, sprites, and the plate congruent at any display
-  size.
+- Coordinates are percentages of the scene's native dimensions. `x,y` is the
+  asset's anchor point; each asset declares its own anchor so cottages, props,
+  and NPC sprites can all be foot- or base-aligned.
+- `z` is an integer draw order. Lower layers draw first; NPC slots can sit
+  between foreground and background props.
+- `labels` are optional runtime text overlays for assets that need readable
+  marks. The MVP uses them primarily for wayfinding signs, with the text
+  validated from known location names instead of trusted to image generation.
+- `underlay` is optional and never authoritative. It can help early prototypes
+  or painterly mood, but every interactive route and NPC position comes from
+  `layers`, `hotspots`, and `slots`.
 - `HotspotAction = TravelTo(location_id) | TalkTo(npc_id) | Inspect(text)`.
-  A `polygon` shape variant is reserved in the enum for later.
-- Slots are NPC anchor positions; `prefer_npc` pins a host to their station
-  (publican behind the bar, smith at the anvil, priest at the altar).
-- Schema lives in a new `parish/crates/parish-mod/src/scenes.rs` module
-  (`SceneIndex::load` / `scene_for` / `sprite_for`) — `parish-mod` is already
-  backend-agnostic, already owns asset-path validation, and ~300 lines does
-  not justify a new crate. Every asset reference passes
-  `assets::canonical_mod_asset_path` at load; cross-validation (location and
-  NPC ids exist, coords in range) logs warnings without failing the load,
-  matching other optional mod files.
+  A `polygon` shape variant is reserved for later.
+- Schema lives in `parish/crates/parish-mod/src/scenes.rs`
+  (`SceneIndex::load` / `scene_for` / `sprite_for` / `asset_for`). Every asset
+  reference passes `assets::canonical_mod_asset_path`; cross-validation
+  confirms ids, coordinate ranges, draw-order sanity, missing assets, and
+  connection coverage.
 
-## Layered scene composition
+## Layered Scene Composition
 
-Each location view is composed at runtime from five layers:
+Each location view is composed at runtime from these layers:
 
-1. **Background plate** — curated PNG (one per location, optional `night` and
-   later weather variants). 480×270 native, displayed with
-   `image-rendering: pixelated`. No baked UI, labels, or characters.
-2. **Hotspot layer** — invisible clickable regions from `scenes.json`
-   (exits, doors, NPCs, objects, signs).
-3. **Character layer** — NPC sprites placed dynamically from
+1. **Base terrain / underlay** — flat fill, procedural fallback, or optional
+   reference underlay. It is not gameplay-authoritative.
+2. **World asset layer** — cottages, roofs, chimneys, wall segments, water
+   pieces, bridges, carts, wayfinding signs, wells, trees, hedges, puddles,
+   interior furniture, and other authored prop instances from `scenes.json`.
+3. **Hotspot layer** — invisible clickable regions, with a debug overlay for
+   authoring and automated geometry tests.
+4. **Character layer** — NPC sprites placed dynamically from
    `npcs_at(player_location)` and the slot list. Who is present comes from the
-   live schedule simulation, never from the art.
-4. **State overlay layer** — palette tint from `parish-palette` (dawn / dusk /
-   night / weather mood) plus optional variant-plate swaps and a CSS rain
-   effect; lit windows and chimney smoke arrive as night-variant art.
-5. **UI layer** — the existing StatusBar, dialogue panel, and input field.
+   live schedule simulation, never from baked art.
+5. **State overlay layer** — palette tint from `parish-palette`, CSS weather,
+   optional smoke/window-light overlays, and later festival/encounter overlays.
+6. **UI layer** — the existing StatusBar, dialogue panel, input field, and any
+   runtime title cards or labels. UI text is not baked into scene images.
 
-## Backend design
+### Wayfinding Signs
 
-Per AGENTS rule 12, the orchestration is written once in `parish-core`
+Wayfinding signs are an important placeable element, not background filler.
+They should read as rural, handmade, and practical: white-painted timber boards
+with black hand-painted lettering, slight irregularity in the boards and brush
+work, and local destination names that match the world graph.
+
+Implementation guidance:
+
+- Treat a sign as a normal composited scene layer with `kind:
+"wayfinding_sign"`.
+- Prefer blank sign-board assets plus runtime black lettering from validated
+  scene data. This preserves correct spelling and lets the same sign asset
+  point toward different connected locations.
+- If a generated/painted sign includes baked lettering, it must go through
+  human review for spelling, destination validity, date/period fit, and
+  legibility.
+- The sign's clickable hotspot should usually be `inspect`, while the road or
+  path region remains the `travel_to` hotspot. A sign helps the player
+  understand routes; it is not the route itself.
+
+## Backend Design
+
+Per AGENTS rule 12, orchestration is written once in `parish-core`
 (`src/ipc/scene.rs`) and adapted by thin wiring in each entry point:
 
 ```rust
 pub fn build_scene_state(
-    world: &World, npcs: &NpcManager, scenes: &SceneIndex, flags: &FeatureFlags,
-    asset_url: &dyn Fn(&str) -> Option<String>,   // the runtime seam
+    world: &World,
+    npcs: &NpcManager,
+    scenes: &SceneIndex,
+    flags: &FeatureFlags,
+    asset_url: &dyn Fn(&str) -> Option<String>,
 ) -> Option<SceneState>;
 
 pub struct SceneState {
     pub location_id: u32,
-    pub plate_url: String,
-    pub variant: String,                 // "day" | "night" | ...
+    pub slug: String,
+    pub native_width: u32,
+    pub native_height: u32,
+    pub variant: String,
+    pub underlay_url: Option<String>,
+    pub layers: Vec<SceneLayerView>,
     pub hotspots: Vec<SceneHotspotView>,
-    pub npcs: Vec<SceneNpcView>,         // display_name, real_name?, introduced, mood_emoji, sprite_url, x, y, scale, flip
-    pub overflow_npcs: Vec<String>,      // present beyond slot capacity
+    pub npcs: Vec<SceneNpcView>,
+    pub overflow_npcs: Vec<String>,
+}
+
+pub struct SceneLayerView {
+    pub id: String,
+    pub asset_url: String,
+    pub kind: String,
+    pub labels: Vec<SceneLayerLabelView>,
+    pub x: f32,
+    pub y: f32,
+    pub z: i32,
+    pub scale: f32,
+    pub flip: bool,
+    pub opacity: f32,
+}
+
+pub struct SceneLayerLabelView {
+    pub text: String,
+    pub anchor: (f32, f32),
+    pub rotation: f32,
 }
 ```
 
 **Introduction semantics (gameplay correctness):** NPCs are anonymous until
-introduced — the dialogue system shows `brief_description` ("an older man
-behind the bar") until the player has met them, and `NpcInfo.introduced`
-already gates this in the chat UI. `SceneNpcView` mirrors those semantics
-exactly: `display_name` is the brief description until introduced,
-`real_name` is populated only after introduction, and sprite tooltips and
-click-to-address follow the same rule. The diorama must never name an NPC
-the dialogue system would still keep anonymous.
+introduced. `SceneNpcView` mirrors the dialogue system exactly:
+`display_name` is the brief description until introduced, `real_name` is
+populated only after introduction, and sprite tooltips and click-to-address
+follow the same rule. The diorama must never name an NPC the dialogue system
+would still keep anonymous.
 
-- Returns `None` when the flag is off or the location has no scene — the
-  frontend falls back to the existing text+map layout. The flag is checked
-  backend-side on every fetch (single source of truth, no stale-at-mount).
-- **Deterministic slot assignment:** pass 1 seats `prefer_npc` occupants;
-  pass 2 fills remaining slots with present NPCs sorted by id, in slot
-  declaration order; leftovers are listed in `overflow_npcs`. Pure function,
-  directly unit-testable.
-- Variant selection by clock hour (Dusk/Night/Midnight → `night` if the
-  variant exists); weather variants reserved. **Weather mood respects
-  `LocationData.indoor`:** weather-driven overlays and the rain effect are
-  suppressed for indoor scenes (it does not rain inside Darcy's Pub) — only
-  the time-of-day tint applies indoors.
+- Returns `None` when the flag is off or the location has no scene.
+- Deterministic slot assignment seats `prefer_npc` occupants first, then fills
+  remaining slots with present NPCs sorted by id. Leftovers go to
+  `overflow_npcs`.
+- Variant selection can choose night/smoke/window-light overlays by clock hour.
+  Weather overlays are suppressed indoors.
+- Server and Tauri serve only validated assets under `assets/scenes/`.
+- Headless CLI exposes `/scene` with scene id, variant, layers, hotspots, and
+  slot assignments.
+- MCP exposes `parish_scene_state` so QA agents can assert the composed scene
+  structurally against `parish_engine_state`, instead of reading pixels.
 
-Runtime wiring:
-
-- **Server** (`parish-server/src/routes/scene.rs`): `GET /api/scene-state`
-  (state-lock pattern of `get_npcs_here`), and `GET /api/scene-asset/{*rel}`
-  serving plate/sprite bytes — re-validated through
-  `canonical_mod_asset_path` (promoted `pub(crate)` → `pub`), restricted to
-  `assets/scenes/`, served like `serve_mod_icon`
-  (`routes/world.rs:163`) with `Cache-Control: immutable` plus `?v=<mtime>`
-  cache-busting.
-- **Tauri** (`parish-tauri/src/commands/scene.rs`): `get_scene_state` with
-  `asset_url` mapping to data URLs via the existing `mod_asset_data_url`
-  helper (`parish-tauri/src/lib.rs:39`). Data URLs sidestep the
-  `assetProtocol` gotcha (its scope is build-time-fixed while the mods dir is
-  runtime-resolved). The frontend caches data URLs by `(slug, variant)`.
-- **Headless CLI**: a `/scene` debug command prints scene id, variant, and
-  slot assignments as text, so all three modes exercise the shared handler
-  and the script harness can assert it (mode parity, rule 2).
-- **MCP exposure** (`parish-mcp`): a `parish_scene_state` tool bridging
-  `GET /api/scene-state` — a thin passthrough like the other bridge tools.
-  Rationale: the repo added `parish_engine_state` so auto-QA agents can
-  assert the UI against canonical engine state (#1331); the diorama
-  introduces a new class of drift — the _rendered scene_ vs the simulation
-  (an NPC seated in a slot who is not present, a stale night variant, a
-  hotspot pointing at a non-adjacent location) — and QA agents need to
-  assert plate/variant/hotspots/slot assignments structurally rather than
-  by reading pixels from screenshots. The demo-audit skills gain a scene
-  assertion step once the tool exists.
-
-## Frontend design
+## Frontend Design
 
 New component tree under `parish/apps/ui/src/components/diorama/`:
 
 ```text
-DioramaView.svelte      // aspect-ratio 480/270 wrapper: layer stack + fallback
-├── ScenePlate.svelte   // <img>, image-rendering: pixelated, cross-fade on change
-├── HotspotLayer.svelte // SVG viewBox="0 0 100 100" preserveAspectRatio="none"
-├── NpcSpriteLayer.svelte // left:{x}%; bottom:{100-y}%; foot-anchored, tooltip
-└── SceneOverlay.svelte // multiply-blend tint from the existing palette store
+DioramaView.svelte        // aspect-ratio wrapper: composed scene + fallback
+├── SceneUnderlay.svelte   // optional underlay, never authoritative
+├── SceneLayerStack.svelte // prop/building/terrain asset instances by z-order
+├── HotspotLayer.svelte    // SVG viewBox="0 0 100 100"
+├── NpcSpriteLayer.svelte  // foot-anchored dynamic NPC sprites
+└── SceneOverlay.svelte    // palette/weather/time/festival overlays
 ```
 
 One CSS `aspect-ratio` wrapper sizes all layers, so percentage coordinates in
-the SVG hotspot layer and the absolutely-positioned sprites align exactly with
-the plate at any viewport size.
+the SVG hotspot layer and absolutely-positioned sprites align at any viewport
+size. The first implementation can be DOM/CSS layered PNGs; a backend-rendered
+composite can be added later if profiling or snapshot tests demand it.
 
 Wiring:
 
@@ -265,163 +350,135 @@ Wiring:
   (`getSceneState()` through the existing `command()` seam).
 - `page-controller.ts` fetches scene-state at mount and on every
   `world-update`, alongside `getMap()` / `getNpcsHere()`.
-- `+page.svelte`: `$sceneState !== null` renders the scene-first grid
-  (DioramaView primary; ChatPanel + InputField below; right column unchanged);
-  `null` renders the existing layout — which doubles as the graceful
-  per-location fallback.
+- `+page.svelte`: `$sceneState !== null` renders the scene-first grid;
+  `null` renders the existing layout, which is also the per-location fallback.
+- `SceneLayerStack` renders wayfinding labels as black, slightly irregular
+  runtime text on top of white sign-board assets. Text comes from scene data
+  validated against known locations.
 - `src/lib/scene-actions.ts` maps clicks onto existing input paths:
-  `travel_to` → `submitInput("go to <name>")` (the map-click path);
-  `talk_to` / sprite click → focus the input with `addressed_to` set (the
-  existing mention mechanism, respecting introduction state); `inspect` →
-  local system entry in the text log.
-- **During travel:** on the existing `travel-start` event the departing plate
-  dims (CSS, no new backend state) while the right-column map plays its
-  animated travel marker as today; the new plate cross-fades in on the
-  arrival `world-update`. No mid-transit scene is rendered in the MVP.
-- **Hotspot accessibility + authoring overlay:** hotspots are
-  keyboard-focusable (`tabindex`, Enter activates) with `aria-label` from the
-  hotspot's `label` field, so the diorama never regresses what the text
-  interface gives for free. When the existing debug panel is open,
-  `HotspotLayer` renders its rects and labels visibly — the feedback loop for
-  hand-authoring percentage coordinates against finished plates (used heavily
-  in M5).
+  `travel_to` -> `submitInput("go to <name>")`; `talk_to` / sprite click ->
+  focus the input with `addressed_to`; `inspect` -> local system entry.
+- During travel, the departing composition dims on `travel-start`; the new
+  composition cross-fades in on arrival `world-update`.
+- When the debug panel is open, `HotspotLayer` renders rects, z-order labels,
+  slot anchors, and asset outlines visibly for authoring.
 
-## The core loop this enables
+## The Core Loop This Enables
 
-1. Arrive at Kilteevan Main Street; the plate shows the village at the current
-   hour and weather, villagers placed by their real schedules.
-2. Click a villager → dialogue (existing inference loop, `addressed_to`).
-3. They mention a rumor; click the lane hotspot → travel to the Crossroads.
+1. Arrive at Kilteevan Main Lane; the runtime composition shows the village
+   with its current hour, weather, props, and villagers.
+2. Click a villager -> dialogue using the existing addressed NPC path.
+3. Click a lane hotspot -> travel to the Crossroads.
 4. Time advances; schedules move people; the grapevine carries what you said.
-5. Return later — the scene has changed: night variant, different faces,
-   someone conspicuously absent.
+5. Return later — same semantic place, different light, different faces,
+   different weather, and maybe a changed prop overlay.
 
 The game rewards attention: noticing who is present, who is absent, where
 people live, and how information moves — all of which the simulation already
-models and the diorama now makes _visible_.
+models and the diorama now makes visible.
 
-## `parish-art-tool` — developer-side asset pipeline
+## `parish-art-tool` — Developer-Side Asset Pipeline
 
-A new workspace binary crate, `parish/crates/parish-art-tool/`, mirroring the
-clap structure of `parish-npc-tool`:
+The art tool now focuses on curated **asset atoms** and preview composition,
+not whole-scene backplates:
 
 ```sh
-parish-art-tool init                      # art/style-bible.md skeleton + empty manifest
-parish-art-tool gen-plate <location-id>  [--provider openai|google] [--ref IMG ...] [--n 3]
-parish-art-tool gen-sprite <npc-id>      [--provider ...] [--ref IMG ...]
-parish-art-tool gen-variant <location-id> --variant night --ref <accepted-day-plate>
-parish-art-tool list [--pending|--accepted]
-parish-art-tool review <asset-id>         # prints path + prompt + history
-parish-art-tool accept <asset-id> [--note "cleaned stray pixels"]
+parish-art-tool init
+parish-art-tool gen-reference kilteevan-main-lane --ref IMG --note "target style"
+parish-art-tool gen-prop cottage-whitewash-thatched --kind building --n 4
+parish-art-tool gen-prop stream-bend --kind terrain --n 4
+parish-art-tool gen-sprite <npc-id> --n 4
+parish-art-tool compose-preview <location-id>
+parish-art-tool list [--pending|--accepted|--rejected]
+parish-art-tool review <asset-id>
+parish-art-tool accept <asset-id> [--note "..."]
 parish-art-tool reject <asset-id> --reason "..."
 ```
 
-- **Providers:** `ImageProvider` trait with `openai.rs` (`gpt-image-1`
-  generations + edits, transparent backgrounds for sprites) and `google.rs`
-  (Imagen 3 via the Gemini API). API keys come from `OPENAI_API_KEY` /
-  `GEMINI_API_KEY` env vars directly — the `parish.toml` provider registry is
-  text-inference plumbing (chat endpoints, streaming, model catalogs) and
-  buys nothing for a dev-only image tool.
-- **Prompts** are built from real engine data — `LocationData.name`,
-  `description_template`, `indoor`, `mythological_significance`;
-  `Npc.name/age/occupation/brief_description` — prefixed by the committed
-  style bible (fixed framing: "1820 rural Irish parish, 16-bit pixel art,
-  top-down 3/4 view, 480×270 plate, muted earth palette…", plus the negative
-  rules: no UI text, no readable labels, no baked characters, no fantasy
-  drift, no clean cottagecore).
-- **Consistency lever:** the first accepted plate and sprite are flagged
-  `anchor: true`; every subsequent generation passes anchors as reference
-  images to the edit/img2img endpoints. Curate aggressively; the human
-  `accept` gate is part of the pipeline, not an afterthought.
-- **Tracking:** `art/manifest.json` (committed) records per asset: id, kind
-  (plate/sprite/variant), target id, provider, model, prompt, reference
-  images, created, status (pending/accepted/rejected), anchor flag, cleanup
-  notes, output path. Candidate PNGs in `art/` stay gitignored; only
-  accepted, post-processed assets land in `mods/rundale/assets/scenes/`.
-- **Post-processing:** generate large (1536×1024 plates / 1024×1024 sprites),
-  downscale to 480×270 plates and 48×72 transparent sprites (`image` crate);
-  display scaling is CSS `image-rendering: pixelated`.
+- **Style bible:** committed `art/style-bible.md` records the ChatGPT sample
+  as the target reference and spells out the desired material culture,
+  perspective, palette, density, and negative rules.
+- **Provider adapters:** OpenAI and Google image providers are initial
+  candidates, but exact model names and request shapes must be rechecked at
+  implementation time. The tool is dev-only and reads image-provider keys from
+  environment variables.
+- **Prompts:** built from real engine data (`LocationData`, NPC fields,
+  `indoor`, mythological notes) plus the style bible. Prompts ask for isolated
+  transparent-background props or sprites whenever possible.
+- **Manifest:** `art/manifest.json` records id, kind, target id, provider,
+  prompt, references, created time, status, anchor/style lineage, cleanup notes,
+  and output path.
+- **Post-processing:** trims transparent bounds, checks alpha/nonblank content,
+  downscales with crisp pixel sampling, rejects obvious wrong dimensions, and
+  exports accepted assets under `mods/rundale/assets/scenes/`.
+- **Human gate:** every accepted asset must be reviewed for setting fit,
+  spelling, impossible geometry, and whether it composes cleanly with existing
+  anchors.
 
-## MVP content scope
+## MVP Content Scope
 
-**8 plates** covering the core social loop: Kilteevan Village (15, start),
-The Crossroads (1), Darcy's Pub (2), St. Brigid's Church (3), The Forge (16),
-The Holy Well (17), Murphy's Farm (9), The Bog Road (12). Interior
-compositions where `indoor: true`; night variants for the pub and village
-first (where evenings happen).
+The first shippable slice should prove the compositor before scaling content:
 
-**~12 sprites:** the NPCs whose homes, workplaces, or schedules put them in
-those locations — Padraig and Niamh Darcy, Fr. Declan Tierney, the Gallaghers,
-Siobhán and Liam Murphy, Aoife Brennan, Mick Flanagan, Brigid Ní Fhátharta,
-Seán Ruadh Kelly — plus a committed generic-villager fallback for everyone
-else who wanders in.
+- **2 exterior scenes:** Kilteevan Main Lane / village start and the Crossroads.
+- **1 interior scene:** Darcy's Pub.
+- **Common asset pack:** mud paths, grass/flower patches, puddles, stream
+  pieces, bridge pieces, wall segments, fences, white-painted wayfinding
+  signboards, cart, well, cottage variants, chimney/smoke overlays, pub
+  furniture, hearth, table/bench props.
+- **NPC sprites:** Padraig and Niamh Darcy, Fr. Declan Tierney, one farmer,
+  one older woman, one child/young person, plus a generic-villager fallback.
+- **Hotspots:** every world connection from the covered scenes, plus at least
+  one inspect hotspot per scene.
 
-**Hotspot authoring:** hand-written against the final plates. Every
-`world.json` connection from a covered location gets a `travel_to` hotspot,
-including to non-plated neighbors — travel always works; arrival at an
-unplated location simply falls back to the text view.
+After the vertical slice is visually convincing, expand to the original eight
+locations: Kilteevan Village, The Crossroads, Darcy's Pub, St. Brigid's Church,
+The Forge, The Holy Well, Murphy's Farm, and The Bog Road.
 
-## Implementation roadmap
+## Implementation Roadmap
 
-> Detailed task breakdown (subagent assignments, model/effort flags, automated
-> test plan): [Implementation Plan](../../plans/parish-diorama-implementation.md).
+> Detailed task breakdown and test plan: [Implementation Plan](../../plans/parish-diorama-implementation.md).
 
 ```text
 M1 ──► M2 ──► M3 ──► M5 ──► M6
-  └──► M4 ─────────────┘        (M4 parallel with M2/M3; M5a plates ∥ M5b sprites)
+        └──► M4 ─────┘
 ```
 
-| Milestone            | Delivers                                                                                                                | Key tests / proof                                                                                                            |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **M1** Scene schema  | `parish-mod/src/scenes.rs`, `FileRefs.scenes`, loader + validation, `mods/rundale/scenes.json` with placeholder plates  | serde roundtrip, traversal rejection, unknown-id warnings; headless log shows `scenes.json loaded`                           |
-| **M2** Backend       | `parish-core/src/ipc/scene.rs` shared handler; server routes `scene-state` + `scene-asset`; Tauri command; CLI `/scene` | slot determinism, variant-by-hour, flag-off → `None`, asset-route traversal 4xx; live `curl` proof                           |
-| **M3** Frontend      | `components/diorama/` tree, `scene-actions.ts`, scene-first layout behind the flag, fallback path                       | vitest action mapping + geometry; new `e2e/diorama.spec.ts` (click hotspot → location changes); flag-off baselines untouched |
-| **M4** Art tool      | `parish-art-tool` crate, providers, manifest, post-process, export                                                      | golden prompts, manifest roundtrip, postprocess dims, payload-size caps (rule 16); live gen→accept transcript                |
-| **M5** Content       | 8 curated plates, ~12 sprites, authored hotspots/slots                                                                  | loader validation clean; scripted walk of all 8 locations with screenshots, day + night pub                                  |
-| **M6** Polish & flip | tint/rain tuning, fade travel transition, flag → default-on, Playwright baseline regen, README + docs                   | before/after gif; e2e green; this RFC graduates to `docs/design/`                                                            |
+| Milestone            | Delivers                                                                                          | Key tests / proof                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **M1** Scene schema  | `scenes.json` compositor schema, asset catalog, validation, placeholder asset pack                | serde roundtrip, asset traversal rejection, z-order/coord validation, optional-file back-compat                        |
+| **M2** Backend       | shared `SceneState` builder, scene asset serving, Tauri command, CLI `/scene`, MCP scene tool     | slot determinism, layer ordering, variant rules, asset-route traversal 4xx, structural `parish_scene_state` transcript |
+| **M3** Frontend      | `components/diorama/` runtime compositor, hotspots, debug overlay, scene-first layout             | geometry tests, action mapping, keyboard hotspots, e2e click-to-travel, flag-off baseline stability                    |
+| **M4** Art tool      | style bible, asset manifest, prop/sprite generation, postprocess, compose-preview, accept/reject  | golden prompts, manifest transitions, nonblank/alpha/dim guards, payload caps, preview render proof                    |
+| **M5** Content slice | 3 composed scenes, common asset pack, initial NPC sprites, authored hotspots/slots                | scripted walk with screenshots, structural scene-vs-engine assertions, human visual review                             |
+| **M6** Polish & flip | tint/weather tuning, transitions, expansion path, flag default-on, README/docs/screenshots update | before/after gif, e2e green, deliberate baseline regen                                                                 |
 
-Each milestone is an independently landable PR following the repo's
-acceptance-criteria-first workflow (`/task-start`, live-proof bundle in the
-PR body, `just agent-check`).
+## Risks & Mitigations
 
-End-to-end MVP check: new game → Kilteevan plate renders → click lane hotspot
-→ arrive at the Crossroads plate → click Padraig's sprite → dialogue with
-`addressed_to` set → wait to evening → pub plate swaps to its night variant
-under the palette tint.
+- **Whole-scene AI artifacts** — do not use whole-scene AI plates as canonical
+  geometry. Generate small assets, compose them from deterministic layout data,
+  and use full-scene images only as style references or temporary underlays.
+- **Style drift across assets** — style bible + accepted reference image +
+  anchor assets + manifest lineage + human accept gate.
+- **Composition looks tiled or repetitive** — support variants, flips, scale,
+  small detail props, foreground occluders, and hand-authored layout jitter.
+- **Layer coordinate skew** — one aspect-ratio wrapper, percentage coordinates,
+  asset anchors, and geometry unit tests.
+- **Baked text mistakes** — no baked UI text; wayfinding signs use runtime
+  validated black lettering on white boards where possible; baked sign text
+  requires manual review.
+- **Baseline churn** — flag stays off until the deliberate M6 flip.
+- **Save compatibility** — none at risk; scene state is derived from existing
+  world/NPC data and mod assets.
 
-## Risks & mitigations
+## Future Work
 
-- **Style drift across generations** — style bible + anchor references on
-  every call + the human accept gate; the manifest records each asset's
-  anchor lineage so regeneration is reproducible.
-- **Tauri asset serving** — data URLs over IPC (existing precedent) avoid the
-  build-time `assetProtocol` scope; plates at 480×270 are ~50–200 KB; cached
-  by `(slug, variant)`.
-- **Layer coordinate skew** — one aspect-ratio wrapper + percentage
-  coordinates everywhere + a geometry unit test.
-- **Baseline churn** — the flag stays off until M6's deliberate, documented
-  flip.
-- **Save compatibility** — none at risk; no save-schema or world-graph
-  changes anywhere in the design.
-
-## Future work (recorded, not implied)
-
-Explicitly out of the MVP; listed so they are decisions deferred rather than
-gaps discovered later:
-
-- **Scene merging for `Override` / `Content` mods.** The MVP reads only the
-  base mod's `scenes.json`. The mod system's `Override` kind (mutate base
-  entries — e.g. a re-skin mod swapping plates) and `Content` kind (add
-  scenes for new locations) need a merge strategy in `SceneIndex` loading.
-- **Festival / encounter overlays.** Mods already declare `festivals.json`
-  and `encounters.json`, and the world snapshot carries the active festival;
-  scenes could swap crowd variants or add overlay props on festival days.
-- **Localizable hotspot labels.** Hotspot `label` strings are English in the
-  MVP; the `Localization` mod kind is the natural home for translated labels
-  and should get a key-based lookup when localization lands.
-- **Visual hotspot/slot editor in the Parish Designer.** M3's debug overlay
-  makes hand-authoring tolerable; a drag-to-draw editor in `parish-editor`'s
-  GUI is the real fix if scene count grows past the MVP's eight.
-- **Interior/exterior node splits, player avatar, sprite animation,
-  weather-variant plates** — each noted in its own section above as
-  deliberately deferred.
+- Visual hotspot/slot/layout editor in Parish Designer.
+- Backend-rendered composite PNGs and snapshot tests, if DOM composition proves
+  hard to verify.
+- Interior/exterior node splits for buildings where outside/inside differences
+  become mechanically meaningful.
+- Festival, market-day, encounter, and rumor-state prop overlays.
+- Weather/season asset variants beyond CSS overlays.
+- Localization support for runtime wayfinding text and other plaque-like props.
+- Player avatar and sprite animation, only if later mechanics need explicit
+  player position.
