@@ -3297,7 +3297,8 @@ fn normalized_fact_words(text: &str) -> String {
             if stripped.is_empty() {
                 return None;
             }
-            Some(canonical_honorific(&stripped.to_lowercase()).to_string())
+            let lower = stripped.to_lowercase();
+            Some(canonical_honorific(&lower).to_string())
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -3309,7 +3310,6 @@ fn player_input_mentions_fr_declan(player_input: &str) -> bool {
 }
 
 fn dialogue_has_declan_tenure_drift(dialogue: &str) -> bool {
-    let normalized = normalize_for_repetition(dialogue);
     const BAD_TENURE_PATTERNS: &[&str] = &[
         "nigh on a decade",
         "nearly a decade",
@@ -3328,12 +3328,15 @@ fn dialogue_has_declan_tenure_drift(dialogue: &str) -> bool {
         "been here",
     ];
 
-    BAD_TENURE_PATTERNS
-        .iter()
-        .any(|pattern| normalized.contains(pattern))
-        && TENURE_CONTEXTS
+    split_sentences(dialogue).iter().any(|sentence| {
+        let normalized = normalize_for_repetition(sentence);
+        BAD_TENURE_PATTERNS
             .iter()
-            .any(|context| normalized.contains(context))
+            .any(|pattern| normalized.contains(pattern))
+            && TENURE_CONTEXTS
+                .iter()
+                .any(|context| normalized.contains(context))
+    })
 }
 
 fn dialogue_has_declan_canonical_tenure(dialogue: &str) -> bool {
@@ -6139,6 +6142,17 @@ mod tests {
             guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
             dialogue,
             "non-tenure decade references must pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_requires_pattern_and_context_in_same_sentence() {
+        let dialogue = "The parish priest is Father Declan. I arrived ten years ago.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "tenure context and decade phrase in unrelated sentences must not trigger"
         );
     }
 
