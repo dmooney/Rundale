@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::data::load_npcs_from_file;
 use crate::types::NpcState;
-use crate::{Npc, NpcId};
+use crate::{Npc, NpcId, RelationshipToneHint};
 use parish_types::{LocationId, ParishError};
 
 use super::{NpcManager, role_alias, unique_match};
@@ -61,6 +61,29 @@ impl NpcManager {
     /// Returns a reference to an NPC by id.
     pub fn get(&self, id: NpcId) -> Option<&Npc> {
         self.npcs.get(&id)
+    }
+
+    /// Returns post-generation tone hints for the speaker's known relationships.
+    ///
+    /// Keeps relationship-to-name projection owned by the NPC manager so
+    /// runtime and script harness dialogue guards do not duplicate roster
+    /// lookup logic.
+    pub fn relationship_tone_hints(&self, speaker_id: NpcId) -> Vec<RelationshipToneHint> {
+        self.get(speaker_id)
+            .map(|speaker| {
+                speaker
+                    .relationships
+                    .iter()
+                    .filter_map(|(target_id, rel)| {
+                        self.get(*target_id).map(|target| RelationshipToneHint {
+                            target_name: target.name.clone(),
+                            kind: rel.kind,
+                            strength: rel.strength,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Returns a mutable reference to an NPC by id.

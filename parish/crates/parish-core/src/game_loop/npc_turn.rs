@@ -171,6 +171,7 @@ pub async fn run_npc_turn(
         invented_place_guard_enabled,
         dialogue_polish_guard_enabled,
         post_guard_ui_replace_enabled,
+        relationship_tone_hints,
     ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
@@ -234,6 +235,7 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
+        let relationship_tone_hints = npc_manager.relationship_tone_hints(speaker_id);
         let time_of_day = world.clock.time_of_day();
         (
             setup,
@@ -251,6 +253,7 @@ pub async fn run_npc_turn(
             invented_place_guard,
             dialogue_polish_guard,
             ui_replace,
+            relationship_tone_hints,
         )
     };
     let setup = setup?;
@@ -594,6 +597,15 @@ pub async fn run_npc_turn(
         }
 
         let guarded = crate::npc::guard_time_of_day_phrase(&parsed.dialogue, time_of_day);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+
+        let guarded = crate::npc::guard_rival_target_neutral_tone(
+            &parsed.dialogue,
+            prompt_input,
+            &relationship_tone_hints,
+        );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
