@@ -3290,6 +3290,62 @@ fn text_contains_word_sequence(text: &str, phrase: &str) -> bool {
         .any(|window| window == needle.as_slice())
 }
 
+fn normalized_fact_words(text: &str) -> String {
+    text.split_whitespace()
+        .filter_map(|token| {
+            let stripped = token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'');
+            if stripped.is_empty() {
+                return None;
+            }
+            let lower = stripped.to_lowercase();
+            Some(canonical_honorific(&lower).to_string())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn player_input_mentions_fr_declan(player_input: &str) -> bool {
+    let normalized = normalized_fact_words(player_input);
+    normalized.contains("father declan") || normalized.contains("declan tierney")
+}
+
+fn dialogue_has_declan_tenure_drift(dialogue: &str) -> bool {
+    const BAD_TENURE_PATTERNS: &[&str] = &[
+        "nigh on a decade",
+        "nearly a decade",
+        "almost a decade",
+        "about a decade",
+        "for a decade",
+        "ten years",
+    ];
+    const TENURE_CONTEXTS: &[&str] = &[
+        "priest here",
+        "parish priest",
+        "been the priest",
+        "served the parish",
+        "serving the parish",
+        "served here",
+        "been here",
+    ];
+
+    split_sentences(dialogue).iter().any(|sentence| {
+        let normalized = normalize_for_repetition(sentence);
+        BAD_TENURE_PATTERNS
+            .iter()
+            .any(|pattern| normalized.contains(pattern))
+            && TENURE_CONTEXTS
+                .iter()
+                .any(|context| normalized.contains(context))
+    })
+}
+
+fn dialogue_has_declan_canonical_tenure(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    normalized.contains("twenty-five years")
+        || normalized.contains("twenty five years")
+        || normalized.contains("25 years")
+}
+
 fn relationship_is_cool_or_rival(kind: RelationshipKind, strength: f64) -> bool {
     matches!(kind, RelationshipKind::Rival | RelationshipKind::Enemy) || strength <= -0.1
 }
@@ -3407,6 +3463,22 @@ pub fn guard_rival_target_neutral_tone(
     }
 
     dialogue.to_string()
+}
+
+/// Corrects a narrow Fr. Declan Tierney tenure drift where the model changes
+/// his canonical twenty-five-year parish service into a decade-scale claim
+/// (#1520).
+pub fn guard_priest_tenure_drift(dialogue: &str, player_input: &str) -> String {
+    if dialogue.trim().is_empty()
+        || !player_input_mentions_fr_declan(player_input)
+        || dialogue_has_declan_canonical_tenure(dialogue)
+        || !dialogue_has_declan_tenure_drift(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!("dialogue polish guard fired: corrected Fr. Declan tenure drift (#1520)");
+    "Fr. Declan Tierney has served this parish for twenty-five years.".to_string()
 }
 
 fn replacement_greeting(time_of_day: TimeOfDay) -> &'static str {
@@ -6032,6 +6104,66 @@ mod tests {
                 || result.to_lowercase().contains("road")
                 || result.to_lowercase().contains("point you"),
             "place prompt should receive a place-shaped decline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_corrects_declan_decade_drift() {
+        let dialogue = "He's been the priest here for nigh on a decade now.";
+        let result = guard_priest_tenure_drift(dialogue, "Tell me about Fr. Declan Tierney");
+
+        assert_ne!(result, dialogue, "tenure drift must be corrected");
+        assert!(
+            result.to_lowercase().contains("twenty-five years"),
+            "replacement must carry canonical tenure: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("decade"),
+            "replacement must remove the wrong decade claim: {result:?}"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_requires_declan_prompt() {
+        let dialogue = "He's been the priest here for nigh on a decade now.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about the harvest"),
+            dialogue,
+            "unrelated prompts must not rewrite decade-scale claims"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_leaves_unrelated_decade_mentions_alone() {
+        let dialogue = "It has been a hard decade for the parish, right enough.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "non-tenure decade references must pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_requires_pattern_and_context_in_same_sentence() {
+        let dialogue = "The parish priest is Father Declan. I arrived ten years ago.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "tenure context and decade phrase in unrelated sentences must not trigger"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_leaves_canonical_tenure_alone() {
+        let dialogue = "He's served this parish for twenty-five years.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "already-canonical tenure wording must pass through unchanged"
         );
     }
 
