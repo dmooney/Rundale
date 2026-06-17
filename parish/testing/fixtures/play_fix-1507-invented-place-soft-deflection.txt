@@ -1,0 +1,6 @@
+# fix-1507-invented-place-soft-deflection
+# Repro: an NPC soft-deflects an invented place name instead of clearly
+# declining that it exists in the parish.
+
+/stub Peig Hannigan: And Ballygostick Tower, now? Have ye a reason for asking?
+talk to Peig Hannigan about Is there a place called Ballygostick Tower?
