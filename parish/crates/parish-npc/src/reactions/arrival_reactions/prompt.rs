@@ -10,6 +10,7 @@ use crate::{LanguageSettings, Npc};
 use parish_inference::{AnyClient, GenerateParams};
 use parish_world::time::TimeOfDay;
 
+use super::register::has_calculating_register;
 use super::types::NpcReaction;
 
 // ── Prompt construction ──────────────────────────────────────────────────────
@@ -60,6 +61,14 @@ pub fn build_reaction_prompt(
         "You have met this person before.".to_string()
     };
 
+    let register_guidance = if has_calculating_register(npc) {
+        " Register guidance: your calculating mood must override any cheerful \
+         or warmly generic opener. Let the first line feel measured, appraising, \
+         and business-minded; weigh the newcomer before welcoming them."
+    } else {
+        ""
+    };
+
     let mut system = format!(
         "You are {name}, a {age}-year-old {occupation} in rural Ireland, 1820.\n\
          {personality}\n\
@@ -76,12 +85,13 @@ pub fn build_reaction_prompt(
          Greet the way an 1820 villager would welcome a stranger: \
          \"God save ye,\", \"Bedad,\", \"Faith,\", \"Begob,\", \
          \"You're welcome,\", \"And who might you be?\". \
-         Cap the reply at ~20 words.",
+         Cap the reply at ~20 words.{register_guidance}",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
         personality = personality_snippet,
         mood = npc.mood,
+        register_guidance = register_guidance,
     );
 
     system.push_str("\n\n");
