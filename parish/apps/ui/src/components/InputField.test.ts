@@ -10,6 +10,7 @@ import {
 	flushStream,
 } from '../stores/game';
 import { findMatches, type KnownNoun } from '../stores/nouns';
+import { sceneNpcFocusRequest } from '../stores/scene';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
@@ -78,6 +79,7 @@ describe('InputField', () => {
 		npcsHere.set([]);
 		mapData.set(null);
 		textLog.set([]);
+		sceneNpcFocusRequest.set(null);
 		mockSubmitInput.mockReset();
 		mockSubmitInput.mockImplementation(async () => {});
 		localStorage.clear?.();
@@ -663,6 +665,45 @@ describe('InputField', () => {
 			expect(mention).toBeTruthy();
 			expect(mention?.textContent).toBe('@Padraig Darcy');
 			expect((mention as HTMLElement)?.dataset.npc).toBe('Padraig Darcy');
+		});
+
+		it('submits npc chip selections through addressedTo', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+			const chip = container.querySelectorAll(
+				'.npc-chip',
+			)[1] as HTMLButtonElement;
+			await fireEvent.click(chip);
+
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith(
+				'@an older man behind the bar',
+				['Tomas Brennan'],
+			);
+		});
+
+		it('scene sprite focus requests insert a safe display chip with canonical addressedTo', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+
+			sceneNpcFocusRequest.set({
+				request_id: 99,
+				display_name: 'an older man behind the bar',
+				real_name: 'Tomas Brennan',
+			});
+			await Promise.resolve();
+
+			const mention = editor.querySelector('.mention-chip') as HTMLElement;
+			expect(mention?.textContent).toBe('@an older man behind the bar');
+			expect(mention?.dataset.npc).toBe('an older man behind the bar');
+			expect(mention?.dataset.npcRealName).toBe('Tomas Brennan');
+
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+			expect(mockSubmitInput).toHaveBeenCalledWith(
+				'@an older man behind the bar',
+				['Tomas Brennan'],
+			);
 		});
 
 		it('syncs editorText after npc chip click so send button is enabled (#684)', async () => {

@@ -15,9 +15,11 @@
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 	import ShortcutsOverlay from '../components/ShortcutsOverlay.svelte';
+	import DioramaView from '../components/diorama/DioramaView.svelte';
 
 	import { uiConfig, fullMapOpen, focailOpen, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
+	import { sceneState, sceneTravelPending } from '../stores/scene';
 	import { stopDemo } from '../lib/demo-player';
 
 	/** True on narrow viewports (<=768px). Desktop ignores focailOpen; on
@@ -249,10 +251,17 @@
 	</div>
 
 	<div class="main-area">
-		<div class="chat-col">
+		<div class="chat-col" class:scene-active={$sceneState !== null}>
 			{#if $focailOpen && isMobile}
 				<Sidebar onclose={() => focailOpen.set(false)} />
 			{:else}
+				{#if $sceneState}
+					<DioramaView
+						scene={$sceneState}
+						travelPending={$sceneTravelPending}
+						debugHotspots={$debugVisible}
+					/>
+				{/if}
 				<ChatPanel />
 				<InputField />
 			{/if}
