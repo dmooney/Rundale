@@ -553,6 +553,15 @@ impl GameTestHarness {
             .map(|location| location.name.clone())
             .collect();
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let speaker_context =
+            self.app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| crate::npc::DialogueSpeakerContext {
+                    name: npc.name.clone(),
+                    occupation: npc.occupation.clone(),
+                    mood: npc.mood.clone(),
+                });
 
         if cfg.person_confirmation_guard_enabled {
             guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
@@ -571,12 +580,13 @@ impl GameTestHarness {
             .flags
             .is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
         {
-            guarded = crate::npc::guard_false_denial_of_roster_person(
+            guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
                 &guarded,
                 player_input,
                 &known_person_names,
                 self.app.world.player_name.as_deref(),
                 seed,
+                speaker_context.as_ref(),
             );
             guarded = crate::npc::guard_false_denial_of_known_place(
                 &guarded,
@@ -604,7 +614,12 @@ impl GameTestHarness {
             .flags
             .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
         {
-            guarded = crate::npc::guard_stock_nonrecognition_decline(&guarded, player_input, seed);
+            guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
+                &guarded,
+                player_input,
+                seed,
+                speaker_context.as_ref(),
+            );
             guarded =
                 crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
             guarded = crate::npc::guard_priest_tenure_drift(&guarded, player_input);
@@ -2203,6 +2218,41 @@ mod tests {
         assert_ne!(
             person_dialogue, place_dialogue,
             "different unknown-entity prompts should not collapse to one reply"
+        );
+    }
+
+    #[test]
+    fn canned_shopkeeper_stock_decline_keeps_nonrecognition_voice() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "That name is not known to me hereabouts.",
+        );
+        let result = h.execute("talk to Roisin Connolly about Martin");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("counter")
+                || lower.contains("shop")
+                || lower.contains("account")
+                || lower.contains("goods")
+                || lower.contains("trade"),
+            "shopkeeper decline should carry trade voice: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("aye, i know the name"),
+            "stock non-recognition must not be flipped into an affirmation: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("that name is not known to me hereabouts"),
+            "reported generic stock phrase must not surface unchanged: {dialogue:?}"
         );
     }
 

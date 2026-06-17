@@ -1,0 +1,7 @@
+# fix-1518-shopkeeper-grounding-voice
+# Repro: a model/canned response emits the generic unknown-name decline.
+# The polish layer should keep the denial but recast it in Roisin's shopkeeper voice.
+
+go to Connolly's Shop
+/stub Roisin Connolly: That name is not known to me hereabouts.
+talk to Roisin Connolly about Martin
