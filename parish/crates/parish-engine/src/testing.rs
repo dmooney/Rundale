@@ -1541,8 +1541,9 @@ impl GameTestHarness {
                     return ActionResult::SystemCommand { response: msg };
                 }
             }
-            self.app.world.log("Nothing happens.".to_string());
-            return ActionResult::UnknownInput;
+            let msg = self.empty_location_dialogue_message();
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
         }
 
         // Detect anachronisms in player input
@@ -1621,6 +1622,28 @@ impl GameTestHarness {
         }
 
         ActionResult::NpcNotAvailable
+    }
+
+    fn empty_location_dialogue_message(&self) -> String {
+        let location = self.app.world.current_location();
+        Self::empty_location_dialogue_message_for(&location.name, location.indoor)
+    }
+
+    fn empty_location_dialogue_message_for(location_name: &str, indoor: bool) -> String {
+        let location_name = location_name.to_lowercase();
+        let words: Vec<&str> = location_name
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        if words.contains(&"church") {
+            "You speak into the empty church, but no one answers.".to_string()
+        } else if words.contains(&"green") {
+            "You speak across the empty green, but no one answers.".to_string()
+        } else if indoor {
+            "You speak into the empty room, but no one answers.".to_string()
+        } else {
+            "You speak into the empty place, but no one answers.".to_string()
+        }
     }
 
     fn consume_canned_npc_response(
@@ -2492,13 +2515,46 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_not_at_empty_location() {
+    fn empty_location_dialogue_returns_no_answer_message() {
         let mut h = GameTestHarness::new();
         // Navigate to a location with no NPCs (e.g., the hurling green)
         h.execute("go to crossroads");
         h.execute("go to hurling green");
+        let before = h.app.world.clock.now();
         let result = h.execute("hello there");
-        assert_eq!(result, ActionResult::UnknownInput);
+        let after = h.app.world.clock.now();
+        let ActionResult::SystemCommand { response } = result else {
+            panic!("expected empty-location dialogue feedback, got {result:?}");
+        };
+        assert!(
+            response.to_lowercase().contains("no one answers")
+                || response.to_lowercase().contains("empty"),
+            "empty-location response should explain that no one answers: {response:?}"
+        );
+        assert_eq!(
+            after, before,
+            "empty-location dialogue must not advance time"
+        );
+    }
+
+    #[test]
+    fn empty_location_dialogue_message_matches_kind_by_whole_word() {
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("Churchill's Farm", false),
+            "You speak into the empty place, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("Greenwood", false),
+            "You speak into the empty place, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("The Old Green", false),
+            "You speak across the empty green, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("The Storehouse", true),
+            "You speak into the empty room, but no one answers."
+        );
     }
 
     #[test]

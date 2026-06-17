@@ -1,0 +1,10 @@
+# fix-1510-empty-room-dialogue
+# Repro: dialogue in an empty location should say no one answers instead of
+# silently accepting the turn.
+
+go to The Crossroads
+go to The Hurling Green
+/npcs
+/time
+hello there
+/time
